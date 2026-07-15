@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
 use std::path::Path;
 
+use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{Effect, HirProgram, Type, authorize};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope,
@@ -428,42 +429,29 @@ impl Vm {
         if let Err(error) = encode_continuation(&image) {
             return Step::Fault(error);
         }
-        let (required_capability, operation) = match &program.function.effect {
-            Effect::RuntimeList { filter } => (
-                CAPABILITY_RUNTIME_READ,
-                EffectOperation::Query(QueryEnvelope {
-                    schema_version: DOMAIN_SCHEMA_VERSION,
-                    principal: principal.clone(),
-                    capabilities: capabilities.clone(),
-                    query: Query::RuntimeList {
-                        filter: filter.clone(),
-                    },
-                }),
-            ),
-            Effect::RuntimeRefresh { runtime_id } => (
-                CAPABILITY_RUNTIME_REFRESH,
-                EffectOperation::Command(CommandEnvelope {
-                    schema_version: DOMAIN_SCHEMA_VERSION,
-                    command_id: CommandId::new(format!("leselang-command-{sequence}"))
-                        .expect("generated command identifier is valid"),
-                    idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
-                        .expect("generated idempotency key is valid"),
-                    expected_revision,
-                    principal: principal.clone(),
-                    capabilities: capabilities.clone(),
-                    origin: CommandOrigin::Leselang,
-                    confirmation: Confirmation::NotRequired,
-                    dry_run: false,
-                    command: Command::RuntimeRefresh {
-                        runtime_id: runtime_id.clone(),
-                    },
-                }),
-            ),
-            Effect::All { .. } => unreachable!("structured all returned before allocation"),
+        let plan = lower_effect(
+            &program.function.effect,
+            &LoweringContext {
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                expected_revision,
+                command_id: CommandId::new(format!("leselang-command-{sequence}"))
+                    .expect("generated command identifier is valid"),
+                idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
+                    .expect("generated idempotency key is valid"),
+                origin: CommandOrigin::Leselang,
+                confirmation: Confirmation::NotRequired,
+                dry_run: false,
+            },
+        )
+        .expect("structured effects returned before command lowering");
+        let operation = match plan.operation {
+            PlannedOperation::Query(query) => EffectOperation::Query(query),
+            PlannedOperation::Command(command) => EffectOperation::Command(command),
         };
         let request = EffectRequest {
             effect_id: format!("effect-{sequence}"),
-            required_capability: required_capability.to_string(),
+            required_capability: plan.required_capability,
             operation,
             continuation: image.clone(),
             budget: ResourceBudget {
@@ -1088,7 +1076,7 @@ pub fn merge_declared(
     Ok(step)
 }
 
-fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
+pub(crate) fn validate_merge_plan(plan: &MergePlan) -> Result<(), Fault> {
     let unique = plan.branches.iter().collect::<BTreeSet<_>>();
     if !(2..=MAX_MERGE_BRANCHES).contains(&plan.branches.len())
         || unique.len() != plan.branches.len()
@@ -1140,7 +1128,7 @@ fn validate_branch_outcome(outcome: &BranchOutcome) -> Result<usize, Fault> {
     }
 }
 
-fn valid_continuation_token(token: &ContinuationToken) -> bool {
+pub(crate) fn valid_continuation_token(token: &ContinuationToken) -> bool {
     !token.as_str().is_empty()
         && token.as_str().len() <= 128
         && token
@@ -2653,7 +2641,9 @@ mod tests {
         let connection = rusqlite::Connection::open(journal.path()).unwrap();
         connection
             .execute_batch(
-                "DROP TABLE vm_dispatches;
+                "DROP TABLE vm_merge_branches;
+                 DROP TABLE vm_merge_groups;
+                 DROP TABLE vm_dispatches;
                  ALTER TABLE vm_effects RENAME TO vm_effects_v3;
                  CREATE TABLE vm_effects (
                    token TEXT PRIMARY KEY,
@@ -2797,6 +2787,139 @@ mod tests {
             )
             .unwrap();
         assert_eq!(retry_columns, 3);
+    }
+
+    #[test]
+    fn journal_v4_migrates_merge_graph_schema_without_losing_effects() {
+        let journal = TempJournal::new("v4-migration");
+        let request = {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            start(&mut vm, None)
+        };
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch(
+                "DROP TABLE vm_merge_branches;
+                 DROP TABLE vm_merge_groups;
+                 PRAGMA user_version = 4;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let migrated = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(migrated.pending_continuations(), vec![request.continuation]);
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        assert_eq!(
+            connection
+                .query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+                .unwrap(),
+            JOURNAL_SCHEMA_VERSION
+        );
+        let merge_tables: u32 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table' AND name IN ('vm_merge_groups', 'vm_merge_branches')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(merge_tables, 2);
+    }
+
+    #[test]
+    fn journal_v4_rejects_preexisting_merge_table_names() {
+        let journal = TempJournal::new("v4-merge-table-conflict");
+        {
+            let _vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        }
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute_batch(
+                "DROP TABLE vm_merge_branches;
+                 DROP TABLE vm_merge_groups;
+                 CREATE TABLE vm_merge_groups (untrusted BLOB);
+                 PRAGMA user_version = 4;",
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = Vm::open_journal(journal.path(), DEFAULT_FUEL)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "LSV4003");
+    }
+
+    #[test]
+    fn durable_journal_rejects_merge_graph_order_tampering() {
+        let journal = TempJournal::new("merge-order-tamper");
+        let (left, right) = {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            (start(&mut vm, None), start(&mut vm, None))
+        };
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute(
+                "INSERT INTO vm_merge_groups(token, plan, state, terminal_step)
+                 VALUES (?1, ?2, 'pending', NULL)",
+                rusqlite::params!["merge-1", serde_json::to_vec(&plan).unwrap()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO vm_merge_branches(group_token, branch_token, branch_name, position)
+                 VALUES (?1, ?2, 'right', 0), (?1, ?3, 'left', 1)",
+                rusqlite::params![
+                    "merge-1",
+                    left.continuation.token.as_str(),
+                    right.continuation.token.as_str()
+                ],
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = Vm::open_journal(journal.path(), DEFAULT_FUEL)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "LSV4007");
+    }
+
+    #[test]
+    fn durable_journal_rejects_merge_group_effect_token_collision() {
+        let journal = TempJournal::new("merge-token-collision");
+        let (left, right) = {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            (start(&mut vm, None), start(&mut vm, None))
+        };
+        let plan = MergePlan::new(["left", "right"]).unwrap();
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .execute(
+                "INSERT INTO vm_merge_groups(token, plan, state, terminal_step)
+                 VALUES (?1, ?2, 'pending', NULL)",
+                rusqlite::params![
+                    left.continuation.token.as_str(),
+                    serde_json::to_vec(&plan).unwrap()
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO vm_merge_branches(group_token, branch_token, branch_name, position)
+                 VALUES (?1, ?2, 'left', 0), (?1, ?3, 'right', 1)",
+                rusqlite::params![
+                    left.continuation.token.as_str(),
+                    left.continuation.token.as_str(),
+                    right.continuation.token.as_str()
+                ],
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = Vm::open_journal(journal.path(), DEFAULT_FUEL)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "LSV4007");
     }
 
     #[test]

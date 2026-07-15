@@ -1844,6 +1844,7 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
                 "os": preflight.get("os"),
                 "arch": preflight.get("arch"),
                 "kernel": preflight.get("kernel"),
+                "host_fingerprint": preflight.get("host_fingerprint"),
                 "home_dir": preflight.get("home_dir"),
                 "commands": preflight
                     .get("commands")
@@ -1889,6 +1890,15 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
                 "remote_ebpf_reason_counts".to_string(),
                 reason_counts.clone(),
             );
+        }
+        if let Some(integrity) = history_summary.get("integrity") {
+            summary.insert(
+                "remote_ebpf_history_integrity".to_string(),
+                integrity.clone(),
+            );
+        }
+        if let Some(matrix) = history_summary.get("matrix") {
+            summary.insert("remote_ebpf_matrix".to_string(), matrix.clone());
         }
         if let Some(trend) = summarize_recent_ebpf_trend(&history_summary) {
             summary.insert("recent_ebpf_trend".to_string(), json!(trend));
@@ -2000,7 +2010,9 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
     const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
     const REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS: f64 = 2.0;
     const REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS: f64 = 3.0;
-    const REMOTE_EBPF_SMOKE_BUDGET_SECONDS: f64 = 10.0;
+    const REMOTE_EBPF_VALIDATOR_BUILD_BUDGET_SECONDS: f64 = 20.0;
+    const REMOTE_EBPF_ATTACH_BUDGET_SECONDS: f64 = 5.0;
+    const LEGACY_REMOTE_EBPF_SMOKE_BUDGET_SECONDS: f64 = 10.0;
     const REMOTE_EBPF_SYNC_BUDGET_SECONDS: f64 = 5.0;
 
     timings
@@ -2012,7 +2024,9 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
                 "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
                 "remote_package_smoke" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS),
                 "remote_runtime_smoke" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS),
-                "remote_ebpf_smoke" => Some(REMOTE_EBPF_SMOKE_BUDGET_SECONDS),
+                "remote_ebpf_validator_build" => Some(REMOTE_EBPF_VALIDATOR_BUILD_BUDGET_SECONDS),
+                "remote_ebpf_attach" => Some(REMOTE_EBPF_ATTACH_BUDGET_SECONDS),
+                "remote_ebpf_smoke" => Some(LEGACY_REMOTE_EBPF_SMOKE_BUDGET_SECONDS),
                 "remote_ebpf_evidence_sync" => Some(REMOTE_EBPF_SYNC_BUDGET_SECONDS),
                 _ => None,
             }?;
@@ -2077,24 +2091,52 @@ fn summarize_release_gate_posture(
     let remote_partial = checks
         .iter()
         .any(|check| check == "remote_ebpf_smoke_skipped");
-    let remote_watch = remote
+    let remote_signal = remote
         .and_then(|remote| remote.get("release_gate_signal"))
         .and_then(|value| value.as_str())
-        == Some("watch");
+        .unwrap_or("unknown");
+    let remote_budget_watch = remote_signal == "watch"
+        && remote
+            .and_then(|remote| remote.get("budget_warnings"))
+            .and_then(|value| value.as_array())
+            .is_some_and(|warnings| !warnings.is_empty());
+    let remote_requires_followup = remote_signal != "ready"
+        || remote
+            .and_then(|remote| remote.get("requires_followup"))
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
 
     if packaged_ready
         && stack_ready
         && debugger_ready
         && pathology_ready
         && remote_full
-        && remote_watch
+        && remote_budget_watch
     {
         (
             "watch",
             "timing_watch",
             "remote Linux proof passed, but warned phases exceeded the current soft budget; inspect the timing drift before treating this run as the freshest release reference",
         )
-    } else if packaged_ready && stack_ready && debugger_ready && pathology_ready && remote_full {
+    } else if packaged_ready
+        && stack_ready
+        && debugger_ready
+        && pathology_ready
+        && remote_full
+        && remote_requires_followup
+    {
+        (
+            "partial",
+            "followup_required",
+            "the current Linux host attach proof passed, but its remote release signal still requires follow-up; inspect coverage, integrity, and timing evidence before ship",
+        )
+    } else if packaged_ready
+        && stack_ready
+        && debugger_ready
+        && pathology_ready
+        && remote_full
+        && remote_signal == "ready"
+    {
         (
             "full",
             "ready",
@@ -2204,11 +2246,31 @@ fn summarize_remote_validation_posture(
         .get("budget_warnings")
         .and_then(|value| value.as_array())
         .is_some_and(|items| !items.is_empty());
+    let has_history_integrity_warning = summary
+        .get("remote_ebpf_history_integrity")
+        .and_then(|value| value.get("status"))
+        .and_then(|value| value.as_str())
+        .is_some_and(|status| status != "clean");
+    let has_matrix_coverage_gap = summary
+        .get("remote_ebpf_matrix")
+        .and_then(|value| value.get("ready"))
+        .and_then(|value| value.as_bool())
+        == Some(false);
     match ebpf.get("status").map(String::as_str) {
+        Some("ok") if has_history_integrity_warning => (
+            "full",
+            "watch",
+            "inspect remote-ebpf-history-rejected.jsonl before treating this Linux history as a clean release reference",
+        ),
         Some("ok") if has_budget_warnings => (
             "full",
             "watch",
             "inspect the warned remote phases before treating this Linux host result as the current release reference",
+        ),
+        Some("ok") if has_matrix_coverage_gap => (
+            "full",
+            "coverage_incomplete",
+            "collect successful evidence from at least two physical hosts and two kernel releases before treating the Linux matrix as release-ready",
         ),
         Some("ok") => (
             "full",
@@ -2401,7 +2463,7 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-preflight.txt"),
-            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nsudo_available=true\ndefault_route_device=eth0\n",
+            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nsudo_available=true\ndefault_route_device=eth0\n",
         )
         .unwrap();
         fs::write(
@@ -2411,7 +2473,7 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-ebpf-status-summary.json"),
-            r#"{"entries":2,"status_counts":{"ok":2},"reason_counts":{"all_smokes_passed_admin_ssh":2}}"#,
+            r#"{"entries":2,"integrity":{"status":"clean","valid_entries":2,"rejected_entries":0,"rejected_entries_this_run":0},"status_counts":{"ok":2},"reason_counts":{"all_smokes_passed_admin_ssh":2},"matrix":{"ready":false,"minimum_hosts":2,"minimum_kernels":2,"unique_hosts":1,"unique_kernels":1,"unique_architectures":1,"unidentified_successful_runs":0,"successful_host_counts":{"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":2},"successful_kernel_counts":{"6.8.0-test":2},"successful_arch_counts":{"x86_64":2}}}"#,
         )
         .unwrap();
         fs::write(
@@ -2421,7 +2483,7 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-phase-timings.txt"),
-            "workspace_sync=1.6\nremote_package_build=12.8\nremote_package_smoke=1.1\nremote_runtime_smoke=2.4\nremote_ebpf_smoke=4.0\nremote_ebpf_evidence_sync=0.9\ntotal=22.8\n",
+            "workspace_sync=1.6\nremote_package_build=12.8\nremote_package_smoke=1.1\nremote_runtime_smoke=2.4\nremote_ebpf_validator_build=3.2\nremote_ebpf_attach=0.8\nremote_ebpf_evidence_sync=0.9\ntotal=22.8\n",
         )
         .unwrap();
         fs::write(
@@ -2444,6 +2506,31 @@ mod tests {
         let expected =
             read_fixture("docs/fixtures/gewyvern_validate_remote_linux_host_summary.json");
         assert_eq!(summary, expected);
+    }
+
+    #[test]
+    fn release_gate_propagates_incomplete_remote_coverage() {
+        let checks = [
+            "release_container_check",
+            "three_module_stack_smoke",
+            "debugger_cross_validation",
+            "pathological_container_validation",
+            "remote_linux_host_validation",
+            "remote_ebpf_smoke",
+        ]
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+        let remote = serde_json::json!({
+            "release_gate_signal": "coverage_incomplete",
+            "requires_followup": true,
+        });
+
+        let (posture, signal, next_step) =
+            summarize_release_gate_posture(&checks, remote.as_object());
+        assert_eq!(posture, "partial");
+        assert_eq!(signal, "followup_required");
+        assert!(next_step.contains("coverage"));
     }
 
     #[test]

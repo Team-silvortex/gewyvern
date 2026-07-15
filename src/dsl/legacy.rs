@@ -11,10 +11,28 @@ use crate::template::{
 use super::predicate::{
     parse_flow_predicate, parse_narrative_template, parse_reason_key_event, parse_reason_narrative,
 };
-use super::{DslError, parse_bool, split_top_level_with_columns, strip_comments_preserve_layout};
+use super::{DslError, parse_bool, split_top_level_with_columns};
 
-pub(super) fn parse_legacy_str_unvalidated(input: &str) -> Result<TemplateBinding, DslError> {
-    let normalized = strip_comments_preserve_layout(input);
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct LegacyAssignment {
+    pub key: String,
+    pub value: String,
+    pub line_no: usize,
+}
+
+impl LegacyAssignment {
+    pub fn new(key: impl Into<String>, value: impl Into<String>, line_no: usize) -> Self {
+        Self {
+            key: key.into(),
+            value: value.into(),
+            line_no,
+        }
+    }
+}
+
+pub(super) fn build_binding_from_assignments(
+    assignments: &[LegacyAssignment],
+) -> Result<TemplateBinding, DslError> {
     let mut template_id = None;
     let mut window_profile = None;
     let mut inline_window_duration_ms = None;
@@ -29,17 +47,10 @@ pub(super) fn parse_legacy_str_unvalidated(input: &str) -> Result<TemplateBindin
     let mut fragment_params = Vec::new();
     let mut evidence_overrides = Vec::new();
 
-    for (line_no, raw_line) in normalized.lines().enumerate() {
-        let line_no = line_no + 1;
-        let line = raw_line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let (key, value) = line
-            .split_once('=')
-            .ok_or_else(|| DslError::InvalidLine(line.into()).at_line(line_no))?;
-        let key = key.trim();
-        let value = value.trim();
+    for assignment in assignments {
+        let line_no = assignment.line_no;
+        let key = assignment.key.as_str();
+        let value = assignment.value.as_str();
 
         match key {
             "template" => template_id = Some(value.to_string()),
@@ -99,11 +110,8 @@ pub(super) fn parse_legacy_str_unvalidated(input: &str) -> Result<TemplateBindin
     )?;
 
     let template = Template {
-        id: Box::leak(template_id.into_boxed_str()),
-        fragment_set: fragment_set
-            .into_iter()
-            .map(|item| Box::leak(item.into_boxed_str()) as &'static str)
-            .collect(),
+        id: template_id,
+        fragment_set,
         window_profile: Some(window_profile),
         reason_profile: Some(reason_profile),
         program_model: Some(program_model),
@@ -138,7 +146,7 @@ fn build_window_profile(
     }
     match (duration_ms, lateness_ms) {
         (Some(duration_ms), Some(lateness_ms)) => Ok(WindowProfile {
-            id: "inline",
+            id: "inline".into(),
             duration_ms,
             lateness_ms,
         }),
@@ -160,7 +168,7 @@ fn build_program_model(
             let operation = operation.ok_or(DslError::MissingField("operation"))?;
             let id = program_model_id.unwrap_or_else(|| format!("{template_id}_dsl_model"));
             Ok(ProgramModel {
-                id: Box::leak(id.into_boxed_str()),
+                id,
                 operation,
                 rules,
             })
@@ -180,7 +188,7 @@ fn build_reason_profile(
 
     let id = reason_model_id.unwrap_or_else(|| format!("{template_id}_reason_model"));
     Ok(ReasonProfile::Declarative(ReasonModel {
-        id: Box::leak(id.into_boxed_str()),
+        id,
         rules: reason_rules,
     }))
 }
@@ -247,9 +255,7 @@ fn parse_narrative(value: &str) -> ProgramNarrative {
     parse_narrative_template(value)
 }
 
-fn parse_param_entry(
-    value: &str,
-) -> Result<(&'static str, &'static str, FragmentParamValue), DslError> {
+fn parse_param_entry(value: &str) -> Result<(String, String, FragmentParamValue), DslError> {
     let (lhs, rhs) = value
         .split_once('=')
         .ok_or_else(|| DslError::InvalidValue(format!("invalid param '{value}'")))?;
@@ -258,8 +264,8 @@ fn parse_param_entry(
         .ok_or_else(|| DslError::InvalidValue(format!("invalid param target '{lhs}'")))?;
 
     Ok((
-        Box::leak(fragment_id.trim().to_string().into_boxed_str()),
-        Box::leak(key.trim().to_string().into_boxed_str()),
+        fragment_id.trim().to_string(),
+        key.trim().to_string(),
         parse_param_value(rhs.trim())?,
     ))
 }

@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{
     collections::BTreeMap,
@@ -15,6 +16,9 @@ use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, validation_command_stdout,
     validation_log,
 };
+
+static EVIDENCE_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static REMOTE_RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemoteLinuxHostOptions {
@@ -46,6 +50,7 @@ pub fn run_remote_linux_host_validation(
 
     let out_dir = default_out_dir("remote-linux-host-validation");
     fs::create_dir_all(&out_dir)?;
+    let _run_lock = acquire_remote_validation_run_lock(&out_dir)?;
     let mut phase_timings = Vec::new();
 
     let remote_dir = options
@@ -227,14 +232,13 @@ pub fn run_remote_linux_host_validation(
 
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] collecting remote eBPF smoke evidence");
-        let ebpf_evidence = measure_phase(&mut phase_timings, "remote_ebpf_smoke", || {
-            collect_remote_ebpf_evidence(
-                &options.host,
-                &validation_workspace,
-                &preflight,
-                admin_auth.as_ref(),
-            )
-        })?;
+        let ebpf_evidence = collect_remote_ebpf_evidence(
+            &options.host,
+            &validation_workspace,
+            &preflight,
+            admin_auth.as_ref(),
+            &mut phase_timings,
+        )?;
         fs::write(out_dir.join("remote-ebpf.txt"), ebpf_evidence.render())?;
         if ebpf_evidence.status == "ok" {
             validation_log("[remote-host] syncing remote eBPF evidence");
@@ -368,7 +372,9 @@ fn write_remote_ebpf_history(
 ) -> Result<(), ValidationError> {
     const HISTORY_RETENTION: usize = 32;
 
+    let _history_lock = acquire_remote_ebpf_history_lock(out_dir)?;
     let history_path = out_dir.join("remote-ebpf-history.jsonl");
+    let rejected_path = out_dir.join("remote-ebpf-history-rejected.jsonl");
     let latest_path = out_dir.join("remote-ebpf-latest.json");
     let recent_path = out_dir.join("remote-ebpf-recent.txt");
     let summary_path = out_dir.join("remote-ebpf-status-summary.json");
@@ -396,6 +402,7 @@ fn write_remote_ebpf_history(
             "os": preflight.os,
             "arch": preflight.arch,
             "kernel": preflight.kernel,
+            "host_fingerprint": preflight.host_fingerprint,
             "sudo_available": preflight.sudo_available,
             "default_route_device": preflight.default_route_device,
         },
@@ -409,27 +416,308 @@ fn write_remote_ebpf_history(
         "phase_timings": phase_timings_json,
     });
 
-    let mut lines = fs::read_to_string(&history_path)
-        .ok()
-        .map(|body| {
-            body.lines()
-                .filter(|line| !line.trim().is_empty())
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    let (mut lines, rejected) = read_remote_ebpf_history(&history_path)?;
     lines.push(serde_json::to_string(&entry)?);
     if lines.len() > HISTORY_RETENTION {
         lines.drain(0..(lines.len() - HISTORY_RETENTION));
     }
-    fs::write(&history_path, lines.join("\n") + "\n")?;
-    fs::write(&latest_path, serde_json::to_string_pretty(&entry)?)?;
-    fs::write(&recent_path, render_remote_ebpf_recent(&lines))?;
-    fs::write(
+    let rejected_entries = append_rejected_history(&rejected_path, &rejected, observed_at_unix)?;
+    atomic_write_evidence(&history_path, &(lines.join("\n") + "\n"))?;
+    atomic_write_evidence(&latest_path, &serde_json::to_string_pretty(&entry)?)?;
+    atomic_write_evidence(&recent_path, &render_remote_ebpf_recent(&lines))?;
+    atomic_write_evidence(
         &summary_path,
-        serde_json::to_string_pretty(&summarize_remote_ebpf_history(&lines))?,
+        &serde_json::to_string_pretty(&summarize_remote_ebpf_history(
+            &lines,
+            rejected_entries,
+            rejected.len(),
+        ))?,
     )?;
     Ok(())
+}
+
+struct RemoteEvidenceLock {
+    path: PathBuf,
+    token: String,
+}
+
+impl Drop for RemoteEvidenceLock {
+    fn drop(&mut self) {
+        if fs::read_to_string(&self.path).ok().as_deref() == Some(self.token.as_str()) {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
+fn acquire_remote_ebpf_history_lock(out_dir: &Path) -> Result<RemoteEvidenceLock, ValidationError> {
+    acquire_remote_evidence_lock(
+        out_dir.join("remote-ebpf-history.lock"),
+        Duration::from_secs(5),
+        Duration::from_secs(30),
+    )
+}
+
+fn acquire_remote_validation_run_lock(
+    out_dir: &Path,
+) -> Result<RemoteEvidenceLock, ValidationError> {
+    acquire_remote_evidence_lock(
+        out_dir.join("remote-validation.lock"),
+        Duration::from_secs(120),
+        Duration::from_secs(15 * 60),
+    )
+}
+
+fn acquire_remote_evidence_lock(
+    path: PathBuf,
+    lock_wait: Duration,
+    stale_lock_age: Duration,
+) -> Result<RemoteEvidenceLock, ValidationError> {
+    const RETRY_DELAY: Duration = Duration::from_millis(25);
+
+    let sequence = EVIDENCE_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let token = format!("{}:{nonce}:{sequence}\n", std::process::id());
+    let started_at = Instant::now();
+
+    loop {
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut file) => {
+                if let Err(err) = file
+                    .write_all(token.as_bytes())
+                    .and_then(|_| file.sync_all())
+                {
+                    drop(file);
+                    let _ = fs::remove_file(&path);
+                    return Err(ValidationError::new(format!(
+                        "failed to initialize remote evidence lock '{}': {err}",
+                        path.display()
+                    )));
+                }
+                return Ok(RemoteEvidenceLock { path, token });
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                remove_stale_remote_evidence_lock(&path, stale_lock_age)?;
+                if started_at.elapsed() >= lock_wait {
+                    return Err(ValidationError::new(format!(
+                        "timed out waiting for remote evidence lock '{}'",
+                        path.display()
+                    )));
+                }
+                std::thread::sleep(RETRY_DELAY);
+            }
+            Err(err) => {
+                return Err(ValidationError::new(format!(
+                    "failed to acquire remote evidence lock '{}': {err}",
+                    path.display()
+                )));
+            }
+        }
+    }
+}
+
+fn remove_stale_remote_evidence_lock(
+    path: &Path,
+    stale_age: Duration,
+) -> Result<(), ValidationError> {
+    let Ok(observed_token) = fs::read_to_string(path) else {
+        return Ok(());
+    };
+    let Ok(metadata) = fs::metadata(path) else {
+        return Ok(());
+    };
+    let is_stale = metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.elapsed().ok())
+        .is_some_and(|age| age >= stale_age);
+    if is_stale && fs::read_to_string(path).ok().as_deref() == Some(observed_token.as_str()) {
+        fs::remove_file(path).map_err(|err| {
+            ValidationError::new(format!(
+                "failed to remove stale remote evidence lock '{}': {err}",
+                path.display()
+            ))
+        })?;
+    }
+    Ok(())
+}
+
+fn read_remote_ebpf_history(path: &Path) -> Result<(Vec<String>, Vec<String>), ValidationError> {
+    const MAX_HISTORY_BYTES: u64 = 1_048_576;
+
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Ok((Vec::new(), Vec::new()));
+        }
+        Err(err) => {
+            return Err(ValidationError::new(format!(
+                "failed to read remote eBPF history '{}': {err}",
+                path.display()
+            )));
+        }
+    };
+    if bytes.len() as u64 > MAX_HISTORY_BYTES {
+        return Err(ValidationError::new(format!(
+            "remote eBPF history '{}' exceeds the {} byte safety limit",
+            path.display(),
+            MAX_HISTORY_BYTES
+        )));
+    }
+
+    let body = String::from_utf8_lossy(&bytes);
+    let mut accepted = Vec::new();
+    let mut rejected = Vec::new();
+    for line in body.lines().map(str::trim).filter(|line| !line.is_empty()) {
+        match serde_json::from_str::<serde_json::Value>(line) {
+            Ok(value) if valid_remote_ebpf_history_entry(&value) => accepted.push(line.to_string()),
+            _ => rejected.push(line.to_string()),
+        }
+    }
+    Ok((accepted, rejected))
+}
+
+fn valid_remote_ebpf_history_entry(value: &serde_json::Value) -> bool {
+    let nonempty_string = |value: Option<&serde_json::Value>| {
+        value
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|value| !value.trim().is_empty())
+    };
+    let preflight = value.get("preflight");
+    let ebpf = value.get("ebpf");
+    let fingerprint_valid = preflight
+        .and_then(|value| value.get("host_fingerprint"))
+        .is_none_or(|value| value.is_null() || value.as_str().is_some_and(valid_host_fingerprint));
+    let total_seconds_valid = value
+        .get("total_seconds")
+        .and_then(serde_json::Value::as_f64)
+        .is_some_and(|value| value.is_finite() && value >= 0.0);
+    let status_valid = ebpf
+        .and_then(|value| value.get("status"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|value| matches!(value, "ok" | "skipped" | "failed"));
+
+    value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        == Some(1)
+        && value
+            .get("observed_at_unix")
+            .and_then(serde_json::Value::as_u64)
+            .is_some()
+        && nonempty_string(value.get("host"))
+        && nonempty_string(preflight.and_then(|value| value.get("os")))
+        && nonempty_string(preflight.and_then(|value| value.get("arch")))
+        && nonempty_string(preflight.and_then(|value| value.get("kernel")))
+        && fingerprint_valid
+        && status_valid
+        && nonempty_string(ebpf.and_then(|value| value.get("reason")))
+        && total_seconds_valid
+}
+
+fn append_rejected_history(
+    path: &Path,
+    rejected: &[String],
+    observed_at_unix: u64,
+) -> Result<usize, ValidationError> {
+    const REJECTED_RETENTION: usize = 32;
+    const MAX_REJECTED_HISTORY_BYTES: u64 = 1_048_576;
+
+    let mut audit_lines = match fs::read(path) {
+        Ok(bytes) if bytes.len() as u64 <= MAX_REJECTED_HISTORY_BYTES => {
+            String::from_utf8_lossy(&bytes)
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        }
+        Ok(_) => {
+            return Err(ValidationError::new(format!(
+                "rejected remote eBPF history '{}' exceeds the {} byte safety limit",
+                path.display(),
+                MAX_REJECTED_HISTORY_BYTES
+            )));
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(err) => {
+            return Err(ValidationError::new(format!(
+                "failed to read rejected remote eBPF history '{}': {err}",
+                path.display()
+            )));
+        }
+    };
+    for line in rejected {
+        audit_lines.push(serde_json::to_string(&json!({
+            "rejected_at_unix": observed_at_unix,
+            "reason": "invalid_history_entry",
+            "line": line,
+        }))?);
+    }
+    if audit_lines.len() > REJECTED_RETENTION {
+        audit_lines.drain(0..(audit_lines.len() - REJECTED_RETENTION));
+    }
+    if !rejected.is_empty() {
+        atomic_write_evidence(path, &(audit_lines.join("\n") + "\n"))?;
+    }
+    Ok(audit_lines.len())
+}
+
+fn atomic_write_evidence(path: &Path, contents: &str) -> Result<(), ValidationError> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            ValidationError::new(format!(
+                "evidence path '{}' has no file name",
+                path.display()
+            ))
+        })?;
+    let sequence = EVIDENCE_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let temp_path = path.with_file_name(format!(
+        ".{file_name}.{}.{}.{}.tmp",
+        std::process::id(),
+        nonce,
+        sequence
+    ));
+    let result = (|| -> Result<(), ValidationError> {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+            .map_err(|err| {
+                ValidationError::new(format!(
+                    "failed to create temporary evidence file '{}': {err}",
+                    temp_path.display()
+                ))
+            })?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()?;
+        fs::rename(&temp_path, path).map_err(|err| {
+            ValidationError::new(format!(
+                "failed to atomically replace evidence '{}' with '{}': {err}",
+                path.display(),
+                temp_path.display()
+            ))
+        })?;
+        if let Some(parent) = path.parent() {
+            fs::File::open(parent)?.sync_all()?;
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    result
 }
 
 fn render_remote_ebpf_recent(lines: &[String]) -> String {
@@ -483,9 +771,20 @@ fn render_remote_ebpf_recent(lines: &[String]) -> String {
     }
 }
 
-fn summarize_remote_ebpf_history(lines: &[String]) -> serde_json::Value {
+fn summarize_remote_ebpf_history(
+    lines: &[String],
+    rejected_entries: usize,
+    rejected_entries_this_run: usize,
+) -> serde_json::Value {
+    const MINIMUM_MATRIX_HOSTS: usize = 2;
+    const MINIMUM_MATRIX_KERNELS: usize = 2;
+
     let mut status_counts = BTreeMap::<String, usize>::new();
     let mut reason_counts = BTreeMap::<String, usize>::new();
+    let mut successful_host_counts = BTreeMap::<String, usize>::new();
+    let mut successful_kernel_counts = BTreeMap::<String, usize>::new();
+    let mut successful_arch_counts = BTreeMap::<String, usize>::new();
+    let mut unidentified_successful_runs = 0usize;
     let mut latest = None;
 
     for line in lines {
@@ -506,16 +805,80 @@ fn summarize_remote_ebpf_history(lines: &[String]) -> serde_json::Value {
             .to_string();
         *status_counts.entry(status).or_default() += 1;
         *reason_counts.entry(reason).or_default() += 1;
+        if value
+            .get("ebpf")
+            .and_then(|value| value.get("status"))
+            .and_then(|value| value.as_str())
+            == Some("ok")
+        {
+            let preflight = value.get("preflight");
+            let fingerprint = preflight
+                .and_then(|value| value.get("host_fingerprint"))
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| valid_host_fingerprint(value));
+            if let Some(fingerprint) = fingerprint {
+                *successful_host_counts
+                    .entry(fingerprint.to_string())
+                    .or_default() += 1;
+                increment_history_dimension(
+                    &mut successful_kernel_counts,
+                    preflight.and_then(|value| value.get("kernel")),
+                );
+                increment_history_dimension(
+                    &mut successful_arch_counts,
+                    preflight.and_then(|value| value.get("arch")),
+                );
+            } else {
+                unidentified_successful_runs += 1;
+            }
+        }
         latest = Some(value);
     }
+
+    let unique_hosts = successful_host_counts.len();
+    let unique_kernels = successful_kernel_counts.len();
+    let unique_architectures = successful_arch_counts.len();
 
     json!({
         "schema_version": 1,
         "entries": lines.len(),
+        "integrity": {
+            "status": if rejected_entries == 0 { "clean" } else { "repaired" },
+            "valid_entries": lines.len(),
+            "rejected_entries": rejected_entries,
+            "rejected_entries_this_run": rejected_entries_this_run,
+        },
         "status_counts": status_counts,
         "reason_counts": reason_counts,
+        "matrix": {
+            "ready": unique_hosts >= MINIMUM_MATRIX_HOSTS
+                && unique_kernels >= MINIMUM_MATRIX_KERNELS,
+            "minimum_hosts": MINIMUM_MATRIX_HOSTS,
+            "minimum_kernels": MINIMUM_MATRIX_KERNELS,
+            "unique_hosts": unique_hosts,
+            "unique_kernels": unique_kernels,
+            "unique_architectures": unique_architectures,
+            "unidentified_successful_runs": unidentified_successful_runs,
+            "successful_host_counts": successful_host_counts,
+            "successful_kernel_counts": successful_kernel_counts,
+            "successful_arch_counts": successful_arch_counts,
+        },
         "latest": latest,
     })
+}
+
+fn increment_history_dimension(
+    counts: &mut BTreeMap<String, usize>,
+    value: Option<&serde_json::Value>,
+) {
+    let Some(value) = value
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && *value != "unknown")
+    else {
+        return;
+    };
+    *counts.entry(value.to_string()).or_default() += 1;
 }
 
 fn default_remote_dir() -> String {
@@ -523,7 +886,11 @@ fn default_remote_dir() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    format!(".kyuubiki-remote-runs/gewyvern-remote-{now}")
+    let sequence = REMOTE_RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!(
+        ".kyuubiki-remote-runs/gewyvern-remote-{now}-{}-{sequence}",
+        std::process::id()
+    )
 }
 
 fn remote_workspace_path(remote_dir: &str) -> String {
@@ -698,7 +1065,7 @@ fn sync_workspace(
         .arg("--exclude")
         .arg(".DS_Store")
         .arg(format!("{}/", root.display()))
-        .arg(format!("{host}:{remote_path}/"))
+        .arg(rsync_remote_target(auth, host, &format!("{remote_path}/")))
         .stdin(Stdio::null())
         .stdout(validation_command_stdout())
         .stderr(Stdio::inherit());
@@ -1264,7 +1631,11 @@ fn sync_remote_ebpf_evidence(
     out_dir: &std::path::Path,
 ) -> Result<(), ValidationError> {
     let remote_workspace = resolve_remote_execution_path(remote_path, home_dir)?;
-    let remote_evidence_root = format!("{host}:{remote_workspace}/target/validation/remote-ebpf/");
+    let remote_evidence_root = rsync_remote_target(
+        auth,
+        host,
+        &format!("{remote_workspace}/target/validation/remote-ebpf/"),
+    );
     let local_evidence_root = out_dir.join("remote-ebpf");
     fs::create_dir_all(&local_evidence_root)?;
 
@@ -1530,6 +1901,7 @@ struct RemotePreflight {
     os: String,
     arch: String,
     kernel: String,
+    host_fingerprint: Option<String>,
     home_dir: String,
     required_commands: Vec<String>,
     sudo_available: bool,
@@ -1539,10 +1911,11 @@ struct RemotePreflight {
 impl RemotePreflight {
     fn render(&self) -> String {
         format!(
-            "os={}\narch={}\nkernel={}\nhome_dir={}\ncommands={}\nsudo_available={}\ndefault_route_device={}\n",
+            "os={}\narch={}\nkernel={}\nhost_fingerprint={}\nhome_dir={}\ncommands={}\nsudo_available={}\ndefault_route_device={}\n",
             self.os,
             self.arch,
             self.kernel,
+            self.host_fingerprint.as_deref().unwrap_or(""),
             self.home_dir,
             self.required_commands.join(","),
             self.sudo_available,
@@ -1605,6 +1978,13 @@ fn collect_remote_preflight(
 printf 'os=%s\n' "$(uname -s)"
 printf 'arch=%s\n' "$(uname -m)"
 printf 'kernel=%s\n' "$(uname -r)"
+if [ -r /etc/machine-id ] && command -v sha256sum >/dev/null 2>&1; then
+  MACHINE_HASH=$(sha256sum /etc/machine-id)
+  MACHINE_HASH=${{MACHINE_HASH%% *}}
+  printf 'host_fingerprint=sha256:%s\n' "$MACHINE_HASH"
+else
+  printf 'host_fingerprint=\n'
+fi
 printf 'home_dir=%s\n' "$HOME"
 for cmd in {commands}; do
   command -v "$cmd" >/dev/null 2>&1 || {{
@@ -1652,6 +2032,7 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
     let mut os = None;
     let mut arch = None;
     let mut kernel = None;
+    let mut host_fingerprint = None;
     let mut home_dir = None;
     let mut commands = None;
     let mut sudo_available = None;
@@ -1664,6 +2045,15 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
             arch = Some(value.to_string());
         } else if let Some(value) = line.strip_prefix("kernel=") {
             kernel = Some(value.to_string());
+        } else if let Some(value) = line.strip_prefix("host_fingerprint=") {
+            if !value.is_empty() {
+                if !valid_host_fingerprint(value) {
+                    return Err(ValidationError::new(
+                        "remote preflight host fingerprint is invalid",
+                    ));
+                }
+                host_fingerprint = Some(value.to_string());
+            }
         } else if let Some(value) = line.strip_prefix("home_dir=") {
             home_dir = Some(value.to_string());
         } else if let Some(value) = line.strip_prefix("commands=") {
@@ -1686,6 +2076,7 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
         os: os.ok_or_else(|| ValidationError::new("remote preflight missing os"))?,
         arch: arch.ok_or_else(|| ValidationError::new("remote preflight missing arch"))?,
         kernel: kernel.ok_or_else(|| ValidationError::new("remote preflight missing kernel"))?,
+        host_fingerprint,
         home_dir: home_dir
             .ok_or_else(|| ValidationError::new("remote preflight missing home_dir"))?,
         required_commands: commands
@@ -1696,11 +2087,18 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
     })
 }
 
+fn valid_host_fingerprint(value: &str) -> bool {
+    value.strip_prefix("sha256:").is_some_and(|digest| {
+        digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+    })
+}
+
 fn collect_remote_ebpf_evidence(
     host: &str,
     remote_path: &str,
     preflight: &RemotePreflight,
     admin_auth: Option<&RemoteAdminAuth>,
+    phase_timings: &mut Vec<PhaseTiming>,
 ) -> Result<RemoteEbpfEvidence, ValidationError> {
     if !preflight.sudo_available && admin_auth.is_none() {
         return Ok(RemoteEbpfEvidence {
@@ -1721,75 +2119,153 @@ fn collect_remote_ebpf_evidence(
     let target_dir = remote_cargo_target_dir(&preflight.home_dir);
     let validate_bin = format!("{target_dir}/release/gewyvern_validate");
 
-    let script = if preflight.sudo_available {
+    measure_phase(phase_timings, "remote_ebpf_validator_build", || {
+        build_remote_ebpf_validator(
+            admin_auth,
+            host,
+            &workspace_path,
+            &preflight.home_dir,
+            &target_dir,
+        )
+    })?;
+    let output = measure_phase(phase_timings, "remote_ebpf_attach", || {
+        run_remote_ebpf_attach(
+            admin_auth,
+            host,
+            &workspace_path,
+            &validate_bin,
+            &default_route_device,
+            preflight.sudo_available,
+        )
+    })?;
+    parse_remote_ebpf_evidence(&output)
+}
+
+fn build_remote_ebpf_validator(
+    auth: Option<&RemoteAdminAuth>,
+    host: &str,
+    workspace_path: &str,
+    home_dir: &str,
+    target_dir: &str,
+) -> Result<(), ValidationError> {
+    let script = format!(
+        r#"set -euo pipefail
+export HOME={home_dir}
+export CARGO_HOME={cargo_home}
+export RUSTUP_HOME={rustup_home}
+cd {workspace_path}
+mkdir -p target/validation/remote-ebpf {target_dir}
+if command -v ld.lld >/dev/null 2>&1; then
+  export RUSTFLAGS="${{RUSTFLAGS:-}} -C link-arg=-fuse-ld=lld"
+fi
+CARGO_TARGET_DIR={target_dir} cargo build --quiet --release --bin gewyvern_validate
+"#,
+        home_dir = shell_single_quote(home_dir),
+        cargo_home = shell_single_quote(&format!("{home_dir}/.cargo")),
+        rustup_home = shell_single_quote(&format!("{home_dir}/.rustup")),
+        workspace_path = shell_single_quote(workspace_path),
+        target_dir = shell_single_quote(target_dir),
+    );
+    run_ssh_script_capture_with_auth(
+        auth,
+        host,
+        "bash -s",
+        &script,
+        "remote eBPF validator build failed",
+    )
+    .map(|_| ())
+}
+
+fn run_remote_ebpf_attach(
+    auth: Option<&RemoteAdminAuth>,
+    host: &str,
+    workspace_path: &str,
+    validate_bin: &str,
+    default_route_device: &str,
+    sudo_available: bool,
+) -> Result<String, ValidationError> {
+    let workspace_path = shell_single_quote(workspace_path);
+    let validate_bin = shell_single_quote(validate_bin);
+    let default_route_device_env = shell_single_quote(default_route_device);
+
+    let script = if sudo_available {
         format!(
             r#"set -euo pipefail
 cd {workspace_path}
 mkdir -p target/validation/remote-ebpf
-mkdir -p {target_dir}
 CURRENT_PATH="$PATH"
-if command -v ld.lld >/dev/null 2>&1; then
-  export RUSTFLAGS="${{RUSTFLAGS:-}} -C link-arg=-fuse-ld=lld"
-fi
-if [ ! -x {validate_bin} ]; then
-  CARGO_TARGET_DIR={target_dir} cargo build --quiet --release --bin gewyvern_validate
-fi
-sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
-sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
-sudo -n env "PATH=$CURRENT_PATH" {validate_bin} linux-tc-smoke --dev {default_route_device} --out-dir target/validation/remote-ebpf/linux-tc-smoke
+CALLER_UID="$(id -u)"
+CALLER_GID="$(id -g)"
+sudo -n env \
+  "PATH=$CURRENT_PATH" \
+  "GEWY_EVIDENCE_UID=$CALLER_UID" \
+  "GEWY_EVIDENCE_GID=$CALLER_GID" \
+  GEWY_WORKSPACE={workspace_env} \
+  GEWY_VALIDATE_BIN={validate_bin_env} \
+  GEWY_TC_DEVICE={default_route_device_env} \
+  bash -c '
+    set -euo pipefail
+    cd "$GEWY_WORKSPACE"
+    restore_evidence_owner() {{
+      chown -R "$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID" target/validation/remote-ebpf
+    }}
+    trap restore_evidence_owner EXIT
+    "$GEWY_VALIDATE_BIN" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
+    "$GEWY_VALIDATE_BIN" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
+    "$GEWY_VALIDATE_BIN" linux-tc-smoke --dev "$GEWY_TC_DEVICE" --out-dir target/validation/remote-ebpf/linux-tc-smoke
+  '
 printf 'status=ok\n'
 printf 'reason=all_smokes_passed\n'
 printf 'default_route_device=%s\n' "{default_route_device}"
 "#,
-            target_dir = shell_single_quote(&target_dir),
-            validate_bin = shell_single_quote(&validate_bin),
+            workspace_env = workspace_path,
+            validate_bin_env = validate_bin,
         )
     } else {
         format!(
             r#"set -euo pipefail
 CURRENT_PATH="$PATH"
 WORKDIR={workspace_path}
-printf '%s\n' "$GEWY_REMOTE_SUDO_PASSWORD" | sudo -S -p '' -k bash -lc '
-  set -euo pipefail
-  export PATH="'"$CURRENT_PATH"'"
-  export HOME="{home_dir}"
-  export CARGO_HOME="{home_dir}/.cargo"
-  export RUSTUP_HOME="{home_dir}/.rustup"
-  if command -v ld.lld >/dev/null 2>&1; then
-    export RUSTFLAGS="${{RUSTFLAGS:-}} -C link-arg=-fuse-ld=lld"
-  fi
-  mkdir -p "{target_dir}"
-  export CARGO_TARGET_DIR="{target_dir}"
-  cd "'"$WORKDIR"'"
-  mkdir -p target/validation/remote-ebpf
-  if [ ! -x "{validate_bin}" ]; then
-    cargo build --quiet --release --bin gewyvern_validate
-  fi
-  "{validate_bin}" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
-  "{validate_bin}" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
-  "{validate_bin}" linux-tc-smoke --dev {default_route_device} --out-dir target/validation/remote-ebpf/linux-tc-smoke
-'
+CALLER_UID="$(id -u)"
+CALLER_GID="$(id -g)"
+cd "$WORKDIR"
+mkdir -p target/validation/remote-ebpf
+printf '%s\n' "$GEWY_REMOTE_SUDO_PASSWORD" | sudo -S -p '' -k env \
+  "PATH=$CURRENT_PATH" \
+  "GEWY_EVIDENCE_UID=$CALLER_UID" \
+  "GEWY_EVIDENCE_GID=$CALLER_GID" \
+  "GEWY_WORKSPACE=$WORKDIR" \
+  GEWY_VALIDATE_BIN={validate_bin} \
+  GEWY_TC_DEVICE={default_route_device_env} \
+  bash -c '
+    set -euo pipefail
+    cd "$GEWY_WORKSPACE"
+    restore_evidence_owner() {{
+      chown -R "$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID" target/validation/remote-ebpf
+    }}
+    trap restore_evidence_owner EXIT
+    "$GEWY_VALIDATE_BIN" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
+    "$GEWY_VALIDATE_BIN" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
+    "$GEWY_VALIDATE_BIN" linux-tc-smoke --dev "$GEWY_TC_DEVICE" --out-dir target/validation/remote-ebpf/linux-tc-smoke
+  '
 printf 'status=ok\n'
 printf 'reason=all_smokes_passed_admin_ssh\n'
 printf 'default_route_device=%s\n' "{default_route_device}"
 "#,
-            home_dir = preflight.home_dir,
-            target_dir = target_dir,
             validate_bin = validate_bin,
         )
     };
-    let output = run_ssh_script_capture_with_auth(
-        admin_auth,
+    run_ssh_script_capture_with_auth(
+        auth,
         host,
-        if admin_auth.is_some() {
+        if auth.is_some() {
             remote_sudo_script_command()
         } else {
             "bash -s"
         },
         &script,
         "remote eBPF smoke failed",
-    )?;
-    parse_remote_ebpf_evidence(&output)
+    )
 }
 
 fn resolve_remote_workspace_path(
@@ -2255,13 +2731,28 @@ fn ssh_auth_target(host: &str, user: &str) -> String {
     format!("{user}@{remote_host}")
 }
 
+fn rsync_remote_target(auth: Option<&RemoteAdminAuth>, host: &str, remote_path: &str) -> String {
+    let target = auth
+        .map(|auth| ssh_auth_target(host, &auth.user))
+        .unwrap_or_else(|| host.to_string());
+    format!("{target}:{remote_path}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_preflight,
-        resolve_remote_execution_path, resolve_remote_workspace_path, ssh_auth_target,
-        ssh_password_mode_args, validate_remote_host,
+        RemoteAdminAuth, acquire_remote_ebpf_history_lock, acquire_remote_validation_run_lock,
+        atomic_write_evidence, default_remote_dir, parse_remote_artifact_manifest,
+        parse_remote_ebpf_evidence, parse_remote_preflight, read_remote_ebpf_history,
+        resolve_remote_execution_path, resolve_remote_workspace_path, rsync_remote_target,
+        ssh_auth_target, ssh_password_mode_args, summarize_remote_ebpf_history,
+        validate_remote_host,
     };
+    use std::fs;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn ssh_auth_target_replaces_existing_user_prefix() {
@@ -2277,6 +2768,152 @@ mod tests {
             ssh_auth_target("kyuubiki-lab", "chiharukiryu"),
             "chiharukiryu@kyuubiki-lab"
         );
+    }
+
+    #[test]
+    fn rsync_target_uses_the_same_admin_identity_as_ssh() {
+        let auth = RemoteAdminAuth {
+            user: "chiharukiryu".to_string(),
+            password: "not-exposed".to_string(),
+        };
+        assert_eq!(
+            rsync_remote_target(Some(&auth), "kyuubiki-dev@192.168.1.12", "/tmp/evidence/"),
+            "chiharukiryu@192.168.1.12:/tmp/evidence/"
+        );
+        assert_eq!(
+            rsync_remote_target(None, "kyuubiki-lab", "/tmp/evidence/"),
+            "kyuubiki-lab:/tmp/evidence/"
+        );
+    }
+
+    #[test]
+    fn ebpf_history_matrix_counts_only_successful_distinct_hosts_and_kernels() {
+        let fingerprint_a = format!("sha256:{}", "a".repeat(64));
+        let fingerprint_b = format!("sha256:{}", "b".repeat(64));
+        let lines = vec![
+            serde_json::json!({"host":"alias-a","preflight":{"host_fingerprint":fingerprint_a.clone(),"kernel":"6.8.0","arch":"x86_64"},"ebpf":{"status":"ok","reason":"passed"}}).to_string(),
+            serde_json::json!({"host":"alias-a-again","preflight":{"host_fingerprint":fingerprint_a.clone(),"kernel":"6.9.0","arch":"x86_64"},"ebpf":{"status":"ok","reason":"passed"}}).to_string(),
+            serde_json::json!({"host":"alias-b","preflight":{"host_fingerprint":fingerprint_b,"kernel":"6.9.0","arch":"aarch64"},"ebpf":{"status":"ok","reason":"passed"}}).to_string(),
+            serde_json::json!({"host":"unidentified","preflight":{"kernel":"7.0.0","arch":"riscv64"},"ebpf":{"status":"ok","reason":"passed"}}).to_string(),
+            serde_json::json!({"host":"failed","preflight":{"host_fingerprint":format!("sha256:{}", "c".repeat(64)),"kernel":"7.1.0","arch":"riscv64"},"ebpf":{"status":"failed","reason":"attach_failed"}}).to_string(),
+        ];
+
+        let summary = summarize_remote_ebpf_history(&lines, 3, 1);
+        let matrix = &summary["matrix"];
+        assert_eq!(summary["integrity"]["status"], "repaired");
+        assert_eq!(summary["integrity"]["rejected_entries"], 3);
+        assert_eq!(summary["integrity"]["rejected_entries_this_run"], 1);
+        assert_eq!(matrix["ready"], true);
+        assert_eq!(matrix["unique_hosts"], 2);
+        assert_eq!(matrix["unique_kernels"], 2);
+        assert_eq!(matrix["unique_architectures"], 2);
+        assert_eq!(matrix["unidentified_successful_runs"], 1);
+        assert_eq!(
+            matrix["successful_host_counts"]
+                .get(fingerprint_a.as_str())
+                .unwrap(),
+            2
+        );
+        assert!(matrix["successful_kernel_counts"].get("7.0.0").is_none());
+        assert!(matrix["successful_kernel_counts"].get("7.1.0").is_none());
+    }
+
+    #[test]
+    fn remote_ebpf_history_rejects_invalid_entries_and_writes_atomically() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("gewyvern-history-integrity-{unique}"));
+        fs::create_dir_all(&root).unwrap();
+        let history_path = root.join("history.jsonl");
+        let valid = serde_json::json!({
+            "schema_version": 1,
+            "observed_at_unix": 1,
+            "host": "host-a",
+            "preflight": {
+                "os": "Linux",
+                "arch": "x86_64",
+                "kernel": "6.8.0",
+                "host_fingerprint": null,
+            },
+            "ebpf": {"status": "ok", "reason": "passed"},
+            "total_seconds": 1.0,
+        })
+        .to_string();
+        fs::write(
+            &history_path,
+            format!("{valid}\nnot-json\n{{\"schema_version\":99}}\n"),
+        )
+        .unwrap();
+
+        let (accepted, rejected) = read_remote_ebpf_history(&history_path).unwrap();
+        assert_eq!(accepted, vec![valid]);
+        assert_eq!(rejected.len(), 2);
+
+        atomic_write_evidence(&history_path, "replacement\n").unwrap();
+        assert_eq!(fs::read_to_string(&history_path).unwrap(), "replacement\n");
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn remote_ebpf_history_lock_serializes_concurrent_writers() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("gewyvern-history-lock-{unique}"));
+        fs::create_dir_all(&root).unwrap();
+        let first = acquire_remote_ebpf_history_lock(&root).unwrap();
+        let worker_root = root.clone();
+        let (sender, receiver) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let second = acquire_remote_ebpf_history_lock(&worker_root).unwrap();
+            sender.send(()).unwrap();
+            drop(second);
+        });
+
+        assert!(receiver.recv_timeout(Duration::from_millis(100)).is_err());
+        drop(first);
+        receiver.recv_timeout(Duration::from_secs(2)).unwrap();
+        worker.join().unwrap();
+        assert!(!root.join("remote-ebpf-history.lock").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn remote_validation_lock_serializes_shared_evidence_shelf() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("gewyvern-run-lock-{unique}"));
+        fs::create_dir_all(&root).unwrap();
+        let first = acquire_remote_validation_run_lock(&root).unwrap();
+        let worker_root = root.clone();
+        let (sender, receiver) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let second = acquire_remote_validation_run_lock(&worker_root).unwrap();
+            sender.send(()).unwrap();
+            drop(second);
+        });
+
+        assert!(receiver.recv_timeout(Duration::from_millis(100)).is_err());
+        drop(first);
+        receiver.recv_timeout(Duration::from_secs(2)).unwrap();
+        worker.join().unwrap();
+        assert!(!root.join("remote-validation.lock").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn default_remote_directories_are_unique_within_one_process() {
+        let first = default_remote_dir();
+        let second = default_remote_dir();
+
+        assert_ne!(first, second);
+        assert!(first.contains(&format!("-{}-", std::process::id())));
     }
 
     #[test]
@@ -2300,17 +2937,36 @@ mod tests {
     #[test]
     fn parse_remote_preflight_accepts_linux_x86_64_manifest() {
         let preflight = parse_remote_preflight(
-            "os=Linux\narch=x86_64\nkernel=6.8.0\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n",
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n",
         )
         .unwrap();
 
         assert_eq!(preflight.os, "Linux");
         assert_eq!(preflight.arch, "x86_64");
         assert_eq!(preflight.kernel, "6.8.0");
+        assert_eq!(
+            preflight.host_fingerprint.as_deref(),
+            Some("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
         assert_eq!(preflight.home_dir, "/home/kyuubiki-dev");
         assert!(preflight.sudo_available);
         assert_eq!(preflight.default_route_device.as_deref(), Some("eth0"));
         assert!(preflight.required_commands.contains(&"cargo".to_string()));
+    }
+
+    #[test]
+    fn parse_remote_preflight_rejects_malformed_host_fingerprints() {
+        for fingerprint in [
+            "sha256:abcd",
+            "sha256:gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+        ] {
+            let manifest = format!(
+                "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint={fingerprint}\nhome_dir=/home/test\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n"
+            );
+
+            let error = parse_remote_preflight(&manifest).unwrap_err();
+            assert!(error.to_string().contains("host fingerprint is invalid"));
+        }
     }
 
     #[test]

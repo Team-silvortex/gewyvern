@@ -30,7 +30,7 @@ fn looks_like_pipeline_keyword_arg(arg: &str) -> bool {
         .is_some_and(|(key, _)| !key.trim().is_empty())
 }
 
-pub(super) use lowering::lower_pipeline_module_to_legacy;
+pub(super) use lowering::lower_pipeline_module_to_assignments;
 pub(super) use parsing::{
     parse_pipeline_call, parse_pipeline_function_signature, parse_pipeline_let_binding,
     parse_pipeline_single_arg, push_pipeline_function_call,

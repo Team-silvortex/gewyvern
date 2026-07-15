@@ -283,7 +283,7 @@ pub fn render_narrative_template(
 ) -> Option<String> {
     match template {
         NarrativeTemplate::None => None,
-        NarrativeTemplate::Static(line) => Some((*line).into()),
+        NarrativeTemplate::Static(line) => Some(line.clone()),
         NarrativeTemplate::ProcessBound => flow.process.as_ref().map(|process| match surface {
             NarrativeSurface::Program => format!(
                 "process {} (pid={}) bound this network flow",

@@ -9,12 +9,12 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, pa
 use crate::{
     Cancellation, CancellationReason, ContinuationImage, ContinuationToken, DispatchLease,
     EffectError, EffectRequest, Fault, MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS,
-    MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, RetentionPolicy, RetryDisposition, Step,
-    encode_json_capped, validate_effect_error, validate_effect_request, validate_image,
-    validate_value,
+    MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, MergePlan, RetentionPolicy, RetryDisposition,
+    Step, encode_json_capped, valid_continuation_token, validate_effect_error,
+    validate_effect_request, validate_image, validate_merge_plan, validate_value,
 };
 
-pub const JOURNAL_SCHEMA_VERSION: u32 = 4;
+pub const JOURNAL_SCHEMA_VERSION: u32 = 5;
 pub const MAX_JOURNAL_RECORDS: usize = 10_000;
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
@@ -582,23 +582,50 @@ impl SqliteJournal {
                      COMMIT;",
                 )
                 .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
-        } else if version != JOURNAL_SCHEMA_VERSION {
+        } else if !matches!(version, 4 | JOURNAL_SCHEMA_VERSION) {
             return Err(journal_fault(
                 "LSV4004",
-                format!("unsupported journal version {version}, expected {JOURNAL_SCHEMA_VERSION}"),
+                format!("unsupported journal version {version}, expected 1 through 5"),
             ));
+        }
+
+        if version != JOURNAL_SCHEMA_VERSION {
+            connection
+                .execute_batch(
+                    "BEGIN IMMEDIATE;
+                 CREATE TABLE vm_merge_groups (
+                   token TEXT PRIMARY KEY,
+                   plan BLOB NOT NULL,
+                   state TEXT NOT NULL CHECK (state IN ('pending', 'completed')),
+                   terminal_step BLOB,
+                   CHECK ((state = 'pending' AND terminal_step IS NULL) OR
+                          (state = 'completed' AND terminal_step IS NOT NULL))
+                 ) STRICT;
+                 CREATE TABLE vm_merge_branches (
+                   group_token TEXT NOT NULL
+                     REFERENCES vm_merge_groups(token) ON DELETE CASCADE,
+                   branch_token TEXT NOT NULL UNIQUE
+                     REFERENCES vm_effects(token) ON DELETE CASCADE,
+                   branch_name TEXT NOT NULL,
+                   position INTEGER NOT NULL CHECK (position >= 0 AND position < 64),
+                   PRIMARY KEY (group_token, branch_name),
+                   UNIQUE (group_token, position)
+                 ) STRICT;
+                 CREATE INDEX vm_merge_branch_group_idx
+                   ON vm_merge_branches(group_token, position);
+                 PRAGMA user_version = 5;
+                 COMMIT;",
+                )
+                .map_err(|error| {
+                    journal_error("LSV4003", "failed to migrate merge journal", error)
+                })?;
         }
 
         Ok(Self { connection })
     }
 
     fn load(&self) -> Result<JournalSnapshot, Fault> {
-        let count: i64 = self
-            .connection
-            .query_row("SELECT COUNT(*) FROM vm_effects", [], |row| row.get(0))
-            .map_err(|error| journal_error("LSV4005", "failed to count journal records", error))?;
-        let count = usize::try_from(count)
-            .map_err(|_| journal_fault("LSV4007", "journal record count is invalid"))?;
+        let count = journal_record_count(&self.connection)?;
         if count > MAX_JOURNAL_RECORDS {
             return Err(journal_fault(
                 "LSV4006",
@@ -692,6 +719,7 @@ impl SqliteJournal {
         drop(rows);
         drop(statement);
         validate_dispatch_records(&self.connection)?;
+        validate_merge_graph_records(&self.connection)?;
 
         let next_sequence = u64::try_from(next_sequence)
             .map_err(|_| journal_fault("LSV4007", "journal sequence is invalid"))?;
@@ -794,11 +822,7 @@ impl SqliteJournal {
                 "continuation token conflicts with durable journal state",
             ));
         }
-        let count: i64 = transaction
-            .query_row("SELECT COUNT(*) FROM vm_effects", [], |row| row.get(0))
-            .map_err(|error| journal_error("LSV4010", "failed to count journal records", error))?;
-        let count = usize::try_from(count)
-            .map_err(|_| journal_fault("LSV4007", "journal record count is invalid"))?;
+        let count = journal_record_count(&transaction)?;
         if count >= MAX_JOURNAL_RECORDS {
             return Err(journal_fault(
                 "LSV4006",
@@ -1427,12 +1451,27 @@ fn journal_payload_bytes(connection: &Connection) -> Result<usize, Fault> {
                COALESCE((SELECT SUM(length(image) + COALESCE(length(terminal_step), 0))
                          FROM vm_effects), 0) +
                COALESCE((SELECT SUM(length(request) + COALESCE(length(last_error), 0))
-                         FROM vm_dispatches), 0)",
+                         FROM vm_dispatches), 0) +
+               COALESCE((SELECT SUM(length(plan) + COALESCE(length(terminal_step), 0))
+                         FROM vm_merge_groups), 0)",
             [],
             |row| row.get(0),
         )
         .map_err(|error| journal_error("LSV4005", "failed to size journal payload", error))?;
     usize::try_from(bytes).map_err(|_| journal_fault("LSV4007", "journal payload size is invalid"))
+}
+
+fn journal_record_count(connection: &Connection) -> Result<usize, Fault> {
+    let count: i64 = connection
+        .query_row(
+            "SELECT
+               (SELECT COUNT(*) FROM vm_effects) +
+               (SELECT COUNT(*) FROM vm_merge_groups)",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| journal_error("LSV4005", "failed to count journal records", error))?;
+    usize::try_from(count).map_err(|_| journal_fault("LSV4007", "journal record count is invalid"))
 }
 
 fn ensure_growth(transaction: &rusqlite::Transaction<'_>, additional: usize) -> Result<(), Fault> {
@@ -1635,6 +1674,102 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
                 "LSV4007",
                 "dispatch and continuation states are inconsistent",
             ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_merge_graph_records(connection: &Connection) -> Result<(), Fault> {
+    type RawMergeGroup = (String, Vec<u8>, String, Option<Vec<u8>>);
+    let groups = {
+        let mut statement = connection
+            .prepare(
+                "SELECT token, plan, state, terminal_step
+                 FROM vm_merge_groups ORDER BY token ASC",
+            )
+            .map_err(|error| {
+                journal_error("LSV4005", "failed to prepare merge graph load", error)
+            })?;
+        statement
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .map_err(|error| journal_error("LSV4005", "failed to load merge graphs", error))?
+            .collect::<Result<Vec<RawMergeGroup>, _>>()
+            .map_err(|error| journal_error("LSV4005", "failed to read merge graph", error))?
+    };
+
+    for (token, plan_bytes, state, terminal_bytes) in groups {
+        let token = ContinuationToken(token);
+        if !valid_continuation_token(&token) {
+            return Err(journal_fault("LSV4007", "merge group token is invalid"));
+        }
+        let token_collision: bool = connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM vm_effects WHERE token = ?1)",
+                [token.as_str()],
+                |row| row.get(0),
+            )
+            .map_err(|error| {
+                journal_error("LSV4005", "failed to validate merge group token", error)
+            })?;
+        if token_collision {
+            return Err(journal_fault(
+                "LSV4007",
+                "merge group token conflicts with an effect token",
+            ));
+        }
+        let plan: MergePlan = decode_bounded(&plan_bytes, MAX_CONTINUATION_BYTES)?;
+        validate_merge_plan(&plan)
+            .map_err(|_| journal_fault("LSV4007", "merge group plan is invalid"))?;
+        let branches = {
+            let mut statement = connection
+                .prepare(
+                    "SELECT b.branch_name, b.position, e.state
+                     FROM vm_merge_branches b
+                     JOIN vm_effects e ON e.token = b.branch_token
+                     WHERE b.group_token = ?1
+                     ORDER BY b.position ASC",
+                )
+                .map_err(|error| {
+                    journal_error("LSV4005", "failed to prepare merge branches", error)
+                })?;
+            statement
+                .query_map([token.as_str()], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                })
+                .map_err(|error| journal_error("LSV4005", "failed to load merge branches", error))?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| journal_error("LSV4005", "failed to read merge branches", error))?
+        };
+        if branches.len() != plan.branches.len()
+            || branches.iter().enumerate().any(|(position, branch)| {
+                branch.0 != plan.branches[position]
+                    || usize::try_from(branch.1).ok() != Some(position)
+            })
+        {
+            return Err(journal_fault(
+                "LSV4007",
+                "merge branches do not match their declared plan",
+            ));
+        }
+        let all_completed = branches.iter().all(|branch| branch.2 == "completed");
+        match (state.as_str(), terminal_bytes) {
+            ("pending", None) if !all_completed => {}
+            ("completed", Some(bytes)) if all_completed => {
+                let terminal: Step = decode_bounded(&bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+                validate_terminal_step(&terminal)?;
+            }
+            _ => {
+                return Err(journal_fault(
+                    "LSV4007",
+                    "merge group state conflicts with its branch graph",
+                ));
+            }
         }
     }
     Ok(())

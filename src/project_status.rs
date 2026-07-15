@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-pub const STATUS_SCHEMA_VERSION: u32 = 1;
+pub const STATUS_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StatusCatalog {
@@ -12,6 +12,7 @@ pub struct StatusCatalog {
     pub project: String,
     pub checkpoint: String,
     pub dimensions: StatusDimensions,
+    pub coverage_requirements: Vec<StatusCoverageRequirement>,
     pub cells: Vec<StatusCell>,
 }
 
@@ -27,6 +28,16 @@ pub struct DimensionEntry {
     pub id: String,
     pub label: String,
     pub summary: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StatusCoverageRequirement {
+    pub id: String,
+    pub architecture: String,
+    pub kind: CoverageKind,
+    pub summary: String,
+    pub source: String,
+    pub cells: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -137,12 +148,21 @@ pub enum EvidenceState {
     Planned,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CoverageKind {
+    OwnershipBoundary,
+    RoadmapGate,
+    ProofShelf,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct StatusSummary {
     pub schema_version: u32,
     pub project: String,
     pub checkpoint: String,
     pub cell_count: usize,
+    pub coverage: StatusCoverageSummary,
     pub overall_score: u8,
     pub lifecycles: Vec<StatusGroupSummary>,
     pub architectures: Vec<StatusGroupSummary>,
@@ -150,6 +170,15 @@ pub struct StatusSummary {
     pub weakest: Vec<StatusCellView>,
     pub independently_usable: Vec<StatusCellView>,
     pub in_development: Vec<StatusCellView>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct StatusCoverageSummary {
+    pub requirement_count: usize,
+    pub architecture_count: usize,
+    pub ownership_boundary_count: usize,
+    pub roadmap_gate_count: usize,
+    pub proof_shelf_count: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -368,6 +397,72 @@ impl StatusCatalog {
             }
         }
 
+        let mut requirement_ids = BTreeSet::new();
+        let mut coverage_architectures = BTreeSet::new();
+        let mut covered_cells = BTreeSet::new();
+        for requirement in &self.coverage_requirements {
+            validate_slug("coverage requirement id", &requirement.id, &mut errors);
+            if !requirement_ids.insert(requirement.id.as_str()) {
+                errors.push(format!(
+                    "duplicate coverage requirement id '{}'",
+                    requirement.id
+                ));
+            }
+            if !architectures.contains(requirement.architecture.as_str()) {
+                errors.push(format!(
+                    "coverage requirement '{}' references unknown architecture '{}'",
+                    requirement.id, requirement.architecture
+                ));
+            }
+            coverage_architectures.insert(requirement.architecture.as_str());
+            require_text(
+                &format!("coverage requirement '{}'.summary", requirement.id),
+                &requirement.summary,
+                &mut errors,
+            );
+            validate_coverage_source(root, requirement, &mut errors);
+            if requirement.cells.is_empty() {
+                errors.push(format!(
+                    "coverage requirement '{}' must map to at least one cell",
+                    requirement.id
+                ));
+            }
+            validate_unique_text(
+                &format!("coverage requirement '{}'.cells", requirement.id),
+                &requirement.cells,
+                &mut errors,
+            );
+            for covered_cell in &requirement.cells {
+                covered_cells.insert(covered_cell.as_str());
+                match self.cells.iter().find(|cell| cell.id == *covered_cell) {
+                    None => errors.push(format!(
+                        "coverage requirement '{}' references unknown cell '{}'",
+                        requirement.id, covered_cell
+                    )),
+                    Some(cell) if cell.architecture != requirement.architecture => errors.push(
+                        format!(
+                            "coverage requirement '{}' cannot map architecture '{}' to cell '{}' in architecture '{}'",
+                            requirement.id,
+                            requirement.architecture,
+                            covered_cell,
+                            cell.architecture
+                        ),
+                    ),
+                    Some(_) => {}
+                }
+            }
+        }
+        for cell in &self.cells {
+            if coverage_architectures.contains(cell.architecture.as_str())
+                && !covered_cells.contains(cell.id.as_str())
+            {
+                errors.push(format!(
+                    "cell '{}' is missing from the '{}' coverage manifest",
+                    cell.id, cell.architecture
+                ));
+            }
+        }
+
         validate_dimension_usage(
             "architecture",
             &architectures,
@@ -458,6 +553,30 @@ impl StatusCatalog {
             project: self.project.clone(),
             checkpoint: self.checkpoint.clone(),
             cell_count: self.cells.len(),
+            coverage: StatusCoverageSummary {
+                requirement_count: self.coverage_requirements.len(),
+                architecture_count: self
+                    .coverage_requirements
+                    .iter()
+                    .map(|item| item.architecture.as_str())
+                    .collect::<BTreeSet<_>>()
+                    .len(),
+                ownership_boundary_count: self
+                    .coverage_requirements
+                    .iter()
+                    .filter(|item| item.kind == CoverageKind::OwnershipBoundary)
+                    .count(),
+                roadmap_gate_count: self
+                    .coverage_requirements
+                    .iter()
+                    .filter(|item| item.kind == CoverageKind::RoadmapGate)
+                    .count(),
+                proof_shelf_count: self
+                    .coverage_requirements
+                    .iter()
+                    .filter(|item| item.kind == CoverageKind::ProofShelf)
+                    .count(),
+            },
             overall_score: average(self.cells.iter().map(|cell| self.cell_score(cell))),
             lifecycles,
             architectures,
@@ -634,6 +753,34 @@ fn validate_dimension_usage(
 fn require_text(field: &str, value: &str, errors: &mut Vec<String>) {
     if value.trim().is_empty() {
         errors.push(format!("{field} cannot be empty"));
+    }
+}
+
+fn validate_coverage_source(
+    root: &Path,
+    requirement: &StatusCoverageRequirement,
+    errors: &mut Vec<String>,
+) {
+    require_text(
+        &format!("coverage requirement '{}'.source", requirement.id),
+        &requirement.source,
+        errors,
+    );
+    let source = Path::new(&requirement.source);
+    if source.is_absolute()
+        || source
+            .components()
+            .any(|component| component == std::path::Component::ParentDir)
+    {
+        errors.push(format!(
+            "coverage requirement '{}' source must stay inside the repository: {}",
+            requirement.id, requirement.source
+        ));
+    } else if !root.join(source).exists() {
+        errors.push(format!(
+            "coverage requirement '{}' source does not exist: {}",
+            requirement.id, requirement.source
+        ));
     }
 }
 

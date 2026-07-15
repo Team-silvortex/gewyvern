@@ -19,7 +19,7 @@
                 },
             }),
         }];
-        if fragments.contains(&"route_meta_fragment") {
+        if has_fragment(fragments, "route_meta_fragment") {
             facts.push(route_fact(
                 2,
                 base + Duration::from_millis(10),

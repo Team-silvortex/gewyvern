@@ -559,9 +559,25 @@ pub(crate) fn parse_narrative_template(value: &str) -> NarrativeTemplate {
         "udp_datagram_observed" => NarrativeTemplate::UdpDatagramObserved,
         "udp_datagram_sent" => NarrativeTemplate::UdpDatagramSent,
         "udp_datagram_received" => NarrativeTemplate::UdpDatagramReceived,
-        other if other.starts_with("static:") => {
-            NarrativeTemplate::Static(Box::leak(other[7..].to_string().into_boxed_str()))
-        }
-        other => NarrativeTemplate::Static(Box::leak(other.to_string().into_boxed_str())),
+        other if other.starts_with("static:") => NarrativeTemplate::Static(other[7..].to_string()),
+        other => NarrativeTemplate::Static(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_narrative_template;
+    use crate::ir::NarrativeTemplate;
+
+    #[test]
+    fn parsed_static_narrative_owns_dynamic_source_text() {
+        let source = String::from("static:dynamic protocol narrative");
+        let parsed = parse_narrative_template(&source);
+        drop(source);
+
+        assert_eq!(
+            parsed,
+            NarrativeTemplate::Static("dynamic protocol narrative".to_string())
+        );
     }
 }

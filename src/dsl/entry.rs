@@ -1,9 +1,9 @@
 use super::frontend::summarize_pipeline_module;
-use super::legacy::parse_legacy_str_unvalidated;
+use super::legacy::build_binding_from_assignments;
 use super::{
     DslError, FrontendModuleSummary, PackageContext, TemplateBinding,
-    lower_pipeline_module_to_legacy, package, parse_pipeline_function_head, parse_pipeline_module,
-    read_file, strip_comments_preserve_layout, validate_compiled_binding,
+    lower_pipeline_module_to_assignments, package, parse_pipeline_function_head,
+    parse_pipeline_module, read_file, strip_comments_preserve_layout, validate_compiled_binding,
 };
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
@@ -56,8 +56,8 @@ fn parse_str_unvalidated_with_base(
 ) -> Result<TemplateBinding, DslError> {
     let normalized = strip_comments_preserve_layout(input);
     if looks_like_pipeline_dsl(&normalized) {
-        let legacy = pipeline_to_legacy(&normalized, package)?;
-        return parse_legacy_str_unvalidated(&legacy);
+        let assignments = pipeline_to_assignments(&normalized, package)?;
+        return build_binding_from_assignments(&assignments);
     }
     if let Some((include_input, include_package)) =
         resolve_include_entry_alias(&normalized, package)?
@@ -76,8 +76,8 @@ fn parse_str_with_frontend_unvalidated_with_base(
     let normalized = strip_comments_preserve_layout(input);
     if looks_like_pipeline_dsl(&normalized) {
         let module = parse_pipeline_module(&normalized, package, true)?;
-        let legacy = lower_pipeline_module_to_legacy(&module, true)?;
-        let binding = parse_legacy_str_unvalidated(&legacy)?;
+        let assignments = lower_pipeline_module_to_assignments(&module, true)?;
+        let binding = build_binding_from_assignments(&assignments)?;
         let frontend = summarize_pipeline_module(module);
         return Ok((binding, frontend));
     }
@@ -117,9 +117,12 @@ fn is_pipeline_template_head(line: &str) -> bool {
             .is_some_and(|value| !value.trim().is_empty())
 }
 
-fn pipeline_to_legacy(input: &str, package: Option<&PackageContext>) -> Result<String, DslError> {
+fn pipeline_to_assignments(
+    input: &str,
+    package: Option<&PackageContext>,
+) -> Result<Vec<super::legacy::LegacyAssignment>, DslError> {
     let module = parse_pipeline_module(input, package, true)?;
-    lower_pipeline_module_to_legacy(&module, true)
+    lower_pipeline_module_to_assignments(&module, true)
 }
 
 pub(super) fn resolve_include_entry_alias(

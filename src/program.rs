@@ -7,7 +7,7 @@ use crate::ledger::FactEnvelope;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProgramModel {
-    pub id: &'static str,
+    pub id: String,
     pub operation: ProgramOperation,
     pub rules: Vec<ProgramRule>,
 }

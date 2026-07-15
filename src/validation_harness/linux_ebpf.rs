@@ -242,6 +242,7 @@ fn map_smoke_error(err: LinuxEbpfSmokeError) -> ValidationError {
             ValidationError::new("linux eBPF smoke requires a Linux environment")
         }
         LinuxEbpfSmokeError::InvalidTarget(message)
+        | LinuxEbpfSmokeError::UnsafeHostState(message)
         | LinuxEbpfSmokeError::Io(message)
         | LinuxEbpfSmokeError::CommandFailed(message) => ValidationError::new(format!(
             "{message}\nlinux eBPF smoke requires Linux kernel support and BPF attach privileges; unprivileged runs may fail with `Operation not permitted`"

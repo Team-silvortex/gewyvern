@@ -105,6 +105,10 @@ sudo cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev eth0
 Each smoke writes `run.log`, `target.txt`, `environment.txt`, and
 `evidence-index.json` under `target/validation/...`; the tc path also writes
 `netdev.txt` so interface state is captured next to the attach transcript.
+The TC smoke is deliberately non-destructive: it refuses to run when the target
+interface already has a `clsact` qdisc, never deletes a qdisc it failed to
+create, and cleans up only the qdisc created by that smoke run. Use a dedicated
+test interface rather than removing production traffic-control state.
 
 ## Recommended Next eBPF Milestones
 

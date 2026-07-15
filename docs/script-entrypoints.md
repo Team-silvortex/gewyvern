@@ -178,9 +178,13 @@ workspace sync cache marker and skips the rsync phase entirely.
 
 If the SSH user cannot `sudo -n` but you do have a separate admin account,
 export `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`
-before running the command. That credential path is used only for the remote
-eBPF attach step; the normal workspace sync and package/runtime flow stay on
-the existing SSH path.
+before running the command. The validation run then uses that authenticated SSH
+identity consistently for preflight, workspace sync, caches, package/runtime
+checks, and evidence retrieval; `ssh` and `rsync` must never resolve it to
+different users. Builds still run unprivileged and always incrementally rebuild
+the current `gewyvern_validate` source. Only the three kernel attach commands
+enter `sudo`, and an exit trap restores the eBPF evidence directory to the
+authenticated user.
 
 Defaults:
 
@@ -206,6 +210,7 @@ Evidence written locally:
 - `target/validation/remote-linux-host-validation/remote-phase-timings.txt`
 - `target/validation/remote-linux-host-validation/remote-run.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf-history.jsonl`
+- `target/validation/remote-linux-host-validation/remote-ebpf-history-rejected.jsonl`
 - `target/validation/remote-linux-host-validation/remote-ebpf-latest.json`
 - `target/validation/remote-linux-host-validation/remote-ebpf-recent.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json`
@@ -226,18 +231,46 @@ The eBPF history files keep a bounded local record of the newest remote Linux
 eBPF outcomes so we can tell whether the attach path is consistently `ok`,
 frequently `skipped`, or drifting in total runtime.
 `remote-ebpf-recent.txt` gives a compact last-five human view, while
-`remote-ebpf-status-summary.json` rolls up counts by status and reason.
+`remote-ebpf-status-summary.json` rolls up counts by status and reason. Its
+`matrix` object counts successful distinct hosts, kernels, and architectures;
+`matrix.ready` requires at least two hosts and two kernel releases, so repeated
+success on one machine cannot masquerade as broad physical-host coverage.
+An `ok` attach run still reports `validation_posture=full`, but the release
+signal is `coverage_incomplete` and `requires_followup=true` while this matrix
+is below threshold. `release_gate_signal=ready` is reserved for a successful
+current run whose retained physical-host matrix is also ready.
+Physical hosts are keyed by a SHA-256 digest of the remote machine ID; the raw
+machine ID is never stored or returned. Records without a valid digest remain
+readable but appear under `unidentified_successful_runs` and do not increase
+matrix breadth, so SSH aliases cannot forge additional hosts.
+History updates are bounded and atomically replaced after file and directory
+sync. Every retained entry must satisfy the versioned core schema and finite
+timing constraints. Invalid, truncated, or malformed lines are removed from
+the active history and preserved in `remote-ebpf-history-rejected.jsonl` for
+audit instead of silently affecting retention or trend totals. The summary's
+`integrity` object reports `clean` or `repaired`; repaired history changes the
+release signal to `watch` until the rejected evidence has been reviewed.
+Validators targeting the shared local evidence shelf serialize the complete
+remote run, so preflight, timings, latest evidence, and summary files cannot be
+mixed between processes. A contender waits for up to two minutes; a run lock
+older than 15 minutes is treated as crash residue. The final history merge also
+has its own short critical-section lock with a five-second wait and 30-second
+stale threshold. Default remote workspaces include the local process ID and a
+per-process sequence, so runs started in the same second do not share or clean
+up each other's remote directory.
 The CLI now also prints a compact post-run summary with the resolved remote
-workspace, source/target cache roots, remote eBPF result, and the slowest
-slowest observed phases so the common debugging path does not require opening the
-evidence files first.
+workspace, source/target cache roots, and remote eBPF result. It includes the
+slowest observed phases so the common debugging path does not require opening
+the evidence files first.
 It also prints the remote kernel, the detected default-route device for the tc
 smoke, and the total observed wall-clock seconds for the full remote run.
 When keyed remote phases materially exceed the current soft baseline budgets,
 the summary also prints `budget-warnings:`.
 That currently includes the full `total`, `workspace_sync`,
 `remote_package_build`, `remote_package_smoke`, `remote_runtime_smoke`,
-`remote_ebpf_smoke`, and `remote_ebpf_evidence_sync` phases.
+`remote_ebpf_validator_build`, `remote_ebpf_attach`, and
+`remote_ebpf_evidence_sync` phases. Historical evidence using the combined
+`remote_ebpf_smoke` phase remains readable.
 When local remote-eBPF history exists, the summary also prints a compact recent
 trend line plus the newest recent-history entries.
 
@@ -270,8 +303,10 @@ The `extra` object for this command now includes structured fields such as:
 - `linux_proof_complete`
 - `requires_followup`
 - `remote_ebpf_history_entries`
+- `remote_ebpf_history_integrity`
 - `remote_ebpf_status_counts`
 - `remote_ebpf_reason_counts`
+- `remote_ebpf_matrix`
 - `recent_ebpf_trend`
 - `recent_ebpf_lines`
 

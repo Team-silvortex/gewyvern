@@ -34,6 +34,11 @@ Build `leserpent-domain` and `leserpent-protocol`.
 
 Exit: GUI/API and Rust fixtures agree on normalized semantics.
 
+`CommandPlan` and `PlannedOperation` now live in `leserpent-domain`, including
+schema, operation/capability consistency, and embedded capability validation.
+This keeps plan ownership below Leselang, CLI, GUI, protocol, and runtime
+adapters.
+
 The current compatibility policy and fixture boundary are maintained in
 [`crates/leserpent-protocol/COMPATIBILITY.md`](../crates/leserpent-protocol/COMPATIBILITY.md).
 
@@ -71,9 +76,18 @@ selects competing terminal outcomes in declaration order, bounds recursive
 structured values, and persists merged output through the existing journal.
 Source-level `all` now preserves named branch order in the lossless parser,
 lowers branch-local types, and authorizes the union of branch capabilities. The
-VM intentionally rejects it before continuation allocation until durable
-multi-branch continuation wiring is complete; that graph is still required
-before the gate exits.
+schema-5 journal now reserves strict merge-group and ordered branch records,
+migrates legacy schemas, and rejects malformed recovery graphs. The VM
+intentionally rejects `all` before continuation allocation until atomic graph
+creation, branch completion, and retention integration are complete; executable
+multi-branch continuation wiring is still required before the gate exits.
+
+The `leselang-command` boundary now lowers authorized `runtime.list` and
+`runtime.refresh` HIR effects into frontend-neutral `CommandPlan` values. The VM
+consumes that crate rather than constructing domain envelopes itself, and tests
+prove that CLI and Leselang origins preserve identical command semantics apart
+from audit origin metadata. Broader command coverage and canonical plan export
+remain before Gate 2 exits.
 
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 
@@ -107,6 +121,28 @@ passes GUI/CLI/Leselang equivalence tests.
 ## Gate 5: Durable Runtime Cutover
 
 Move authority from the compatibility bridge into `leserpentd`.
+
+The initial `leserpent-runtime` slice validates and executes shared
+`CommandPlan` values and now persists runtime registration plus mutating plans
+in one ordered SQLite journal. Restart replay rebuilds projections, completes
+pending commands, seals terminal command failures, and rejects divergent stored
+outcomes. Journal records and payloads are bounded; the database is private and
+opened without following links. The journal now transactionally migrates v1 to
+v2, records migration history, validates the claimed schema shape, and preserves
+legacy replay order. Schema v3 added validated domain snapshots that preserve
+projection revisions and idempotency results; startup restores the snapshot and
+replays only its incremental journal suffix. Snapshot metadata and payload share
+one integrity check. Schema v4 retains two generations, falls back from a
+corrupted newest generation, preserves the journal suffix needed by the prior
+generation, and deletes at most 1000 covered records per checkpoint. Schema v5
+adds a conditional SQLite owner lease: a second live runtime is rejected,
+expired ownership can be replaced atomically, and both stale reads and stale
+writes are fenced on their next operation. Schema v6 adds a bounded persistent
+effect queue with idempotent enqueue, atomic claim, lease
+renewal, attempt-token fencing, crash redelivery, retry delay, terminal
+completion/failure, and max-attempt sealing. Daemon heartbeat, typed adapter
+worker loops, queue backpressure policy, and terminal task retention remain the
+gate boundary.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery

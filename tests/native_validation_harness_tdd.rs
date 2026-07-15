@@ -74,8 +74,10 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"recent_ebpf_lines\""));
     assert!(binary.contains("\"remote_ebpf_status_counts\""));
     assert!(binary.contains("\"remote_ebpf_reason_counts\""));
+    assert!(binary.contains("\"remote_ebpf_matrix\""));
     assert!(binary.contains("\"validation_posture\""));
     assert!(binary.contains("\"release_gate_signal\""));
+    assert!(binary.contains("\"coverage_incomplete\""));
     assert!(binary.contains("\"next_step\""));
     assert!(binary.contains("\"linux_proof_complete\""));
     assert!(binary.contains("\"requires_followup\""));
@@ -217,7 +219,8 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_build\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_smoke\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_runtime_smoke\""));
-    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_ebpf_smoke\""));
+    assert!(remote_host.contains("\"remote_ebpf_validator_build\""));
+    assert!(remote_host.contains("measure_phase(phase_timings, \"remote_ebpf_attach\""));
     assert!(
         remote_host.contains("measure_phase(&mut phase_timings, \"remote_workspace_materialize\"")
     );
@@ -229,12 +232,22 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("checks.push(\"remote_phase_timings\".to_string())"));
     assert!(remote_host.contains("write_remote_ebpf_history"));
     assert!(remote_host.contains("remote-ebpf-history.jsonl"));
+    assert!(remote_host.contains("remote-ebpf-history-rejected.jsonl"));
     assert!(remote_host.contains("remote-ebpf-latest.json"));
     assert!(remote_host.contains("remote-ebpf-recent.txt"));
     assert!(remote_host.contains("remote-ebpf-status-summary.json"));
+    assert!(remote_host.contains("successful_kernel_counts"));
+    assert!(remote_host.contains("MINIMUM_MATRIX_HOSTS"));
+    assert!(remote_host.contains("MINIMUM_MATRIX_KERNELS"));
     assert!(remote_host.contains("HISTORY_RETENTION: usize = 32"));
     assert!(remote_host.contains("render_remote_ebpf_recent"));
     assert!(remote_host.contains("summarize_remote_ebpf_history"));
+    assert!(remote_host.contains("atomic_write_evidence"));
+    assert!(remote_host.contains("valid_remote_ebpf_history_entry"));
+    assert!(remote_host.contains("acquire_remote_ebpf_history_lock"));
+    assert!(remote_host.contains("acquire_remote_validation_run_lock"));
+    assert!(remote_host.contains("remove_stale_remote_evidence_lock"));
+    assert!(remote_host.contains("REMOTE_RUN_SEQUENCE"));
     assert!(remote_host.contains("total={:.3}"));
     assert!(remote_host.contains("requested remote workspace"));
     assert!(remote_host.contains("resolved remote workspace"));
@@ -504,6 +517,8 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("remote budget warning:"));
     assert!(release_gate.contains("remote recent eBPF trend"));
     assert!(release_gate.contains("remote recent eBPF:"));
+    assert!(release_gate.contains("remote history integrity:"));
+    assert!(release_gate.contains("remote-ebpf-history-rejected.jsonl"));
     assert!(release_gate.contains("remote dir:"));
     assert!(release_gate.contains("covered packaged checks"));
     assert!(release_gate.contains("packaged release scope"));
@@ -547,7 +562,11 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("sync_remote_ebpf_evidence"));
     assert!(remote.contains("release/gewyvern_validate"));
     assert!(remote.contains("cargo build --quiet --release --bin gewyvern_validate"));
-    assert!(remote.contains("if [ ! -x"));
+    assert!(!remote.contains("if [ ! -x {validate_bin}"));
+    assert!(remote.contains("CALLER_UID=\"$(id -u)\""));
+    assert!(remote.contains("GEWY_EVIDENCE_UID=$CALLER_UID"));
+    assert!(remote.contains("trap restore_evidence_owner EXIT"));
+    assert!(remote.contains("chown -R \"$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID\""));
     assert!(remote.contains("command -v ld.lld"));
     assert!(remote.contains("-C link-arg=-fuse-ld=lld"));
     assert!(remote.contains(".arg(\"tests/\")"));
@@ -579,6 +598,8 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("remote_preflight"));
     assert!(remote.contains("remote_artifacts_present"));
     assert!(remote.contains("remote_ebpf_smoke"));
+    assert!(remote.contains("remote_ebpf_validator_build"));
+    assert!(remote.contains("remote_ebpf_attach"));
     assert!(remote.contains("remote_ebpf_evidence_synced"));
     assert!(remote.contains("remote_ebpf_smoke_skipped"));
     assert!(remote.contains("uname -s"));
@@ -760,10 +781,14 @@ fn docs_prefer_native_validation_entrypoints() {
     assert!(entrypoints.contains("remote-ebpf-latest.json"));
     assert!(entrypoints.contains("remote-ebpf-recent.txt"));
     assert!(entrypoints.contains("remote-ebpf-status-summary.json"));
+    assert!(entrypoints.contains("remote-ebpf-history-rejected.jsonl"));
+    assert!(entrypoints.contains("remote_ebpf_history_integrity"));
     assert!(entrypoints.contains("remote-package-build-timings.txt"));
     assert!(entrypoints.contains("remote-package-smoke-timings.txt"));
     assert!(entrypoints.contains("remote-runtime-smoke-timings.txt"));
     assert!(entrypoints.contains("recent_ebpf_trend"));
+    assert!(entrypoints.contains("remote_ebpf_matrix"));
+    assert!(entrypoints.contains("coverage_incomplete"));
     assert!(entrypoints.contains("recent_ebpf_lines"));
     assert!(entrypoints.contains("package_smoke_timings"));
     assert!(entrypoints.contains("runtime_smoke_timings"));

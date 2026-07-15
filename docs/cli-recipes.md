@@ -197,6 +197,12 @@ cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
 
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
   | jq '.extra.recent_ebpf_trend, .extra.remote_ebpf_status_counts'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.remote_ebpf_matrix'
+
+cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
+  | jq '.extra.remote_ebpf_history_integrity'
 ```
 
 Recent remote eBPF history from the local evidence shelf:
@@ -205,7 +211,7 @@ Recent remote eBPF history from the local evidence shelf:
 tail -n 5 target/validation/remote-linux-host-validation/remote-ebpf-history.jsonl
 jq '.ebpf.status, .ebpf.reason, .total_seconds' target/validation/remote-linux-host-validation/remote-ebpf-latest.json
 cat target/validation/remote-linux-host-validation/remote-ebpf-recent.txt
-jq '.status_counts, .reason_counts' target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json
+jq '.integrity, .status_counts, .reason_counts, .matrix' target/validation/remote-linux-host-validation/remote-ebpf-status-summary.json
 ```
 
 Failure-mode example:
@@ -213,6 +219,10 @@ Failure-mode example:
 ```bash
 cargo run --quiet --bin gewyvern_validate -- --json linux-tc-smoke --dev eth0
 ```
+
+`linux-tc-smoke` fails closed if the interface already owns a `clsact` qdisc.
+It never clears pre-existing traffic-control state; use a dedicated validation
+interface when the host already runs TC or eBPF networking policy.
 
 If a pipeline wants both stdout and a saved artifact, place the global output
 path before the command:

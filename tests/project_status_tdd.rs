@@ -30,9 +30,10 @@ fn project_status_catalog_is_protocolized_and_valid() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     catalog.validate(&root).expect("catalog must validate");
     assert!(catalog.dimensions.architectures.len() >= 6);
-    assert!(catalog.dimensions.modules.len() >= 12);
-    assert!(catalog.dimensions.features.len() >= 12);
-    assert!(catalog.cells.len() >= 12);
+    assert!(catalog.dimensions.modules.len() >= 21);
+    assert!(catalog.dimensions.features.len() >= 23);
+    assert!(catalog.coverage_requirements.len() >= 19);
+    assert!(catalog.cells.len() >= 23);
 
     for cell in &catalog.cells {
         assert!(!cell.contract.id.is_empty());
@@ -64,7 +65,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     let domain = catalog
         .cells
         .iter()
-        .find(|cell| cell.id == "leserpent-2/domain-protocol/command-query-kernel")
+        .find(|cell| cell.id == "leserpent-2/domain-model/command-query-kernel")
         .expect("Leserpent Gate 1 cell must exist");
     assert_eq!(domain.maturity, Maturity::Stabilizing);
     assert_eq!(domain.contract.stability, ContractStability::Evolving);
@@ -89,6 +90,57 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .filter(|item| item.kind == EvidenceKind::Source)
             .all(|item| item.state == EvidenceState::Present)
     );
+
+    let required_boundaries = [
+        "boundary-leselang-syntax",
+        "boundary-leselang-hir",
+        "boundary-leselang-vm",
+        "boundary-leselang-command",
+        "boundary-leselang-ui",
+        "boundary-leserpent-domain",
+        "boundary-leserpent-runtime",
+        "boundary-leserpent-protocol",
+        "boundary-leserpent-adapters",
+        "boundary-leserpent-cli",
+        "boundary-leserpentd",
+    ];
+    for requirement in required_boundaries {
+        assert!(
+            catalog
+                .coverage_requirements
+                .iter()
+                .any(|item| item.id == requirement),
+            "missing architecture boundary {requirement}"
+        );
+    }
+    for gate in 1..=7 {
+        let gate_name = ["one", "two", "three", "four", "five", "six", "seven"][gate - 1];
+        assert!(
+            catalog
+                .coverage_requirements
+                .iter()
+                .any(|item| item.id.starts_with(&format!("gate-{gate_name}-"))),
+            "missing roadmap gate {gate}"
+        );
+    }
+}
+
+#[test]
+fn coverage_manifest_rejects_unknown_mappings_and_orphan_cells() {
+    let mut catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    let proof = catalog
+        .coverage_requirements
+        .iter_mut()
+        .find(|item| item.id == "proof-continuous-shelves")
+        .expect("continuous proof requirement must exist");
+    proof.cells = vec!["leserpent-2/release-assurance/missing".into()];
+
+    let errors = catalog
+        .validate(repository_root())
+        .expect_err("invalid coverage mapping must be rejected")
+        .join("\n");
+    assert!(errors.contains("references unknown cell"));
+    assert!(errors.contains("continuous-proof' is missing"));
 }
 
 #[test]
@@ -109,6 +161,9 @@ fn native_status_cli_exposes_human_and_machine_views() {
     let payload: serde_json::Value =
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 11);
+    assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
+    assert_eq!(payload["coverage"]["proof_shelf_count"], 1);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);
     assert!(payload["lifecycles"].as_array().unwrap().len() >= 3);
     assert!(payload["architectures"].as_array().unwrap().len() >= 6);

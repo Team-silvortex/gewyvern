@@ -229,9 +229,14 @@ In JSON mode, the final `release-gate` object now carries:
 - `extra.remote.validation_posture`, `extra.remote.release_gate_signal`, and
   `extra.remote.next_step` for the quick ship/no-ship reading of the Linux host
   result
-- `extra.remote.linux_proof_complete = false` or
-  `extra.remote.requires_followup = true` when the remote stage did not prove
-  full Linux attach confidence yet
+- `extra.remote.linux_proof_complete = true` may coexist with
+  `extra.remote.release_gate_signal = "coverage_incomplete"`: the current host
+  proved all attach paths, but the retained matrix still needs two physical
+  hosts and two kernel releases
+- `extra.remote.requires_followup = true` for partial attach proof, evidence
+  integrity warnings, timing warnings, or incomplete physical-host coverage;
+  any such remote signal propagates to the overall ship signal instead of
+  being overwritten by the successful current-host smoke
 
 Keep the practical Linux target-lab shelf as a separate artifact on purpose:
 

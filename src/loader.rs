@@ -240,7 +240,8 @@ fn map_smoke_error(err: crate::linux_ebpf_smoke::LinuxEbpfSmokeError) -> LoaderE
         crate::linux_ebpf_smoke::LinuxEbpfSmokeError::InvalidTarget(message) => {
             LoaderError::InvalidProbeTarget(message)
         }
-        crate::linux_ebpf_smoke::LinuxEbpfSmokeError::Io(message)
+        crate::linux_ebpf_smoke::LinuxEbpfSmokeError::UnsafeHostState(message)
+        | crate::linux_ebpf_smoke::LinuxEbpfSmokeError::Io(message)
         | crate::linux_ebpf_smoke::LinuxEbpfSmokeError::CommandFailed(message) => {
             LoaderError::LaunchFailed(message)
         }

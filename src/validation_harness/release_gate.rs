@@ -279,7 +279,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
         ));
     }
     let (validation_posture, release_gate_signal, next_step) =
-        summarize_remote_release_gate_posture(&ebpf);
+        summarize_remote_release_gate_posture(&ebpf, history_summary.as_ref());
     validation_log(format!(
         "[release-gate] validation-posture: {validation_posture}"
     ));
@@ -306,6 +306,18 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
     }
     for warning in budget_warnings {
         validation_log(format!("[release-gate] remote budget warning: {warning}"));
+    }
+    if let Some(integrity) = history_summary
+        .as_ref()
+        .and_then(|value| value.get("integrity"))
+    {
+        validation_log(format!(
+            "[release-gate] remote history integrity: {}",
+            integrity
+                .get("status")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("unknown")
+        ));
     }
     if let Some(trend) = summarize_recent_ebpf_trend(history_summary.as_ref()) {
         validation_log(format!("[release-gate] remote recent eBPF trend: {trend}"));
@@ -521,8 +533,29 @@ fn release_artifact_entry(
 
 fn summarize_remote_release_gate_posture(
     ebpf: &BTreeMap<String, String>,
+    history_summary: Option<&serde_json::Value>,
 ) -> (&'static str, &'static str, &'static str) {
+    let has_history_integrity_warning = history_summary
+        .and_then(|value| value.get("integrity"))
+        .and_then(|value| value.get("status"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|status| status != "clean");
+    let has_matrix_coverage_gap = history_summary
+        .and_then(|value| value.get("matrix"))
+        .and_then(|value| value.get("ready"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(false);
     match ebpf.get("status").map(String::as_str) {
+        Some("ok") if has_history_integrity_warning => (
+            "full",
+            "watch",
+            "inspect remote-ebpf-history-rejected.jsonl before treating this Linux history as a clean release reference",
+        ),
+        Some("ok") if has_matrix_coverage_gap => (
+            "full",
+            "coverage_incomplete",
+            "collect successful evidence from at least two physical hosts and two kernel releases before treating the Linux matrix as release-ready",
+        ),
         Some("ok") => (
             "full",
             "ready",
@@ -636,4 +669,44 @@ fn summarize_recent_ebpf_trend(history_summary: Option<&serde_json::Value>) -> O
     Some(format!(
         "{ok_count}/{entries} ok, {skipped_count}/{entries} skipped"
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::summarize_remote_release_gate_posture;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn clean_remote_history_keeps_successful_release_signal_ready() {
+        let ebpf = BTreeMap::from([("status".to_string(), "ok".to_string())]);
+        let history = serde_json::json!({"integrity": {"status": "clean"}});
+
+        let (_, signal, _) = summarize_remote_release_gate_posture(&ebpf, Some(&history));
+        assert_eq!(signal, "ready");
+    }
+
+    #[test]
+    fn repaired_remote_history_downgrades_successful_release_signal() {
+        let ebpf = BTreeMap::from([("status".to_string(), "ok".to_string())]);
+        let history = serde_json::json!({"integrity": {"status": "repaired"}});
+
+        let (_, signal, next_step) = summarize_remote_release_gate_posture(&ebpf, Some(&history));
+        assert_eq!(signal, "watch");
+        assert!(next_step.contains("remote-ebpf-history-rejected.jsonl"));
+    }
+
+    #[test]
+    fn incomplete_physical_matrix_blocks_ready_release_signal() {
+        let ebpf = BTreeMap::from([("status".to_string(), "ok".to_string())]);
+        let history = serde_json::json!({
+            "integrity": {"status": "clean"},
+            "matrix": {"ready": false}
+        });
+
+        let (posture, signal, next_step) =
+            summarize_remote_release_gate_posture(&ebpf, Some(&history));
+        assert_eq!(posture, "full");
+        assert_eq!(signal, "coverage_incomplete");
+        assert!(next_step.contains("two physical hosts"));
+    }
 }

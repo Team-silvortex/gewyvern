@@ -107,11 +107,11 @@ impl ExportBundle {
     pub fn replay(&self) -> Result<Self, ExportError> {
         let reason_profile = self.reason_profile.clone();
         let template = Template {
-            id: Box::leak(self.template_id.clone().into_boxed_str()),
+            id: self.template_id.clone(),
             fragment_set: self
                 .fragment_inventory
                 .iter()
-                .map(|item| Box::leak(item.id.clone().into_boxed_str()) as &'static str)
+                .map(|item| item.id.clone())
                 .collect(),
             window_profile: Some(self.window_profile.clone()),
             reason_profile: Some(reason_profile.clone()),
@@ -193,7 +193,7 @@ impl ExportBundle {
                 JsonValue::Object(BTreeMap::from([
                     (
                         "id".into(),
-                        JsonValue::String(self.window_profile.id.into()),
+                        JsonValue::String(self.window_profile.id.clone()),
                     ),
                     (
                         "duration_ms".into(),
@@ -531,14 +531,11 @@ fn parse_fragment_inventory(value: &JsonValue) -> Result<FragmentInventoryItem, 
 fn parse_window_profile(value: &JsonValue) -> Result<WindowProfile, ExportError> {
     let object = value.as_object()?;
     Ok(WindowProfile {
-        id: Box::leak(
-            object
-                .get("id")
-                .ok_or_else(|| ExportError::InvalidShape("window_profile.id".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
+        id: object
+            .get("id")
+            .ok_or_else(|| ExportError::InvalidShape("window_profile.id".into()))?
+            .as_str()?
+            .to_string(),
         duration_ms: object
             .get("duration_ms")
             .ok_or_else(|| ExportError::InvalidShape("window_profile.duration_ms".into()))?

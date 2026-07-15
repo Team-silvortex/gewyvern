@@ -132,7 +132,7 @@ impl RuntimeSession {
     ) -> Result<Self, RuntimeError> {
         let attach_plan = config
             .registry
-            .plan(config.template.fragment_set.iter().copied())
+            .plan(config.template.fragment_set.iter().map(String::as_str))
             .map_err(RuntimeError::Registry)?;
 
         let mut config = config;
@@ -173,7 +173,7 @@ impl RuntimeSession {
             .expect("template already validated");
         let attach_plan = config
             .registry
-            .plan(config.template.fragment_set.iter().copied())
+            .plan(config.template.fragment_set.iter().map(String::as_str))
             .map_err(RuntimeError::Registry)?;
         let binding_diagnostics = config
             .registry
@@ -282,7 +282,7 @@ impl RuntimeSession {
         let protocol_ir = crate::export::infer_protocol_ir(&program_flows);
 
         ExportBundle {
-            template_id: self.template.id.into(),
+            template_id: self.template.id.clone(),
             ingest_trust_mode: "unspecified".into(),
             fragment_inventory: self
                 .attach_plan

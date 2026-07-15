@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project": "gewyvern",
   "checkpoint": "v1.0.0-to-v2.0.0-roadmap",
   "dimensions": {
@@ -67,14 +67,54 @@
         "summary": "Current browser operator interface and runtime workspaces."
       },
       {
-        "id": "domain-protocol",
-        "label": "Domain Protocol",
-        "summary": "Versioned command, query, event, identity, and capability contracts."
+        "id": "domain-model",
+        "label": "Domain Model",
+        "summary": "Versioned command, query, event, identity, capability, and revision semantics."
+      },
+      {
+        "id": "transport-protocol",
+        "label": "Transport Protocol",
+        "summary": "Wire envelopes, compatibility fixtures, IPC, HTTP, and WebSocket transport."
+      },
+      {
+        "id": "language-syntax",
+        "label": "Leselang Syntax",
+        "summary": "Lossless syntax, parser diagnostics, formatter, and source limits."
+      },
+      {
+        "id": "language-hir",
+        "label": "Leselang HIR",
+        "summary": "Names, types, effects, capabilities, and validated functions."
       },
       {
         "id": "language-vm",
         "label": "Leselang VM",
         "summary": "Synchronous functional language, effects, continuation, and re-entry."
+      },
+      {
+        "id": "command-lowering",
+        "label": "Leselang Command Lowering",
+        "summary": "Pure lowering from authorized Leselang operations into normalized command plans."
+      },
+      {
+        "id": "ui-language",
+        "label": "Leselang UI",
+        "summary": "Pure UI DSL lowering into neutral UI documents, events, and patches."
+      },
+      {
+        "id": "control-runtime",
+        "label": "Control Runtime",
+        "summary": "Transactions, scheduling, policy, replay, projections, and durable authority."
+      },
+      {
+        "id": "effect-adapters",
+        "label": "Effect Adapters",
+        "summary": "Capability-gated Gewyvern, storage, deployment, discovery, and secret integrations."
+      },
+      {
+        "id": "daemon-host",
+        "label": "Daemon Host",
+        "summary": "Local and remote leserpentd lifecycle, isolation, health, and recovery."
       },
       {
         "id": "native-cli",
@@ -85,6 +125,16 @@
         "id": "ui-renderers",
         "label": "UI Renderers",
         "summary": "Neutral UI IR and replaceable Avalonia or web renderers."
+      },
+      {
+        "id": "remote-console",
+        "label": "Remote And Mobile Console",
+        "summary": "Authenticated remote transport, reconnect, offline state, and adaptive mobile clients."
+      },
+      {
+        "id": "release-assurance",
+        "label": "Release Assurance",
+        "summary": "Cross-frontend conformance, security, fuzzing, benchmarks, AOT, migration, and rollback proof."
       },
       {
         "id": "learning-sidecar",
@@ -134,9 +184,49 @@
         "summary": "Rust domain and transport protocol shared by every frontend."
       },
       {
+        "id": "wire-compatibility",
+        "label": "Wire Compatibility",
+        "summary": "Versioned transport schemas and compatibility behavior shared by every frontend."
+      },
+      {
+        "id": "lossless-frontend",
+        "label": "Lossless Frontend",
+        "summary": "Lossless Leselang parsing, source diagnostics, formatting, and bounded input handling."
+      },
+      {
+        "id": "typed-effects",
+        "label": "Typed Effects",
+        "summary": "HIR type, effect, capability, and authorization semantics."
+      },
+      {
         "id": "effect-reentry",
         "label": "Effect Re-entry",
         "summary": "Typed suspension, journal, continuation, and deterministic replay."
+      },
+      {
+        "id": "command-plan-lowering",
+        "label": "Command Plan Lowering",
+        "summary": "Authorized Leselang operations lower into frontend-neutral command plans."
+      },
+      {
+        "id": "ui-ir-lowering",
+        "label": "UI IR Lowering",
+        "summary": "Pure Leselang UI functions lower into stable neutral UI IR."
+      },
+      {
+        "id": "durable-authority",
+        "label": "Durable Runtime Authority",
+        "summary": "Rust runtime owns journal, projections, snapshots, scheduling, and recovery."
+      },
+      {
+        "id": "typed-integrations",
+        "label": "Typed Integrations",
+        "summary": "Bounded capability-gated adapters execute external effects without leaking frontend authority."
+      },
+      {
+        "id": "daemon-lifecycle",
+        "label": "Daemon Lifecycle",
+        "summary": "Isolated leserpentd process hosting, local IPC, health, startup, shutdown, and recovery."
       },
       {
         "id": "cli-parity",
@@ -147,6 +237,21 @@
         "id": "avalonia-renderer",
         "label": "Avalonia Renderer",
         "summary": "Native desktop and mobile rendering of neutral UI IR."
+      },
+      {
+        "id": "remote-mobile-console",
+        "label": "Remote Mobile Console",
+        "summary": "Desktop and mobile clients share authenticated transport and stale-state semantics."
+      },
+      {
+        "id": "two-zero-seal",
+        "label": "2.0 Seal",
+        "summary": "Schema freeze, conformance, security, performance, migration, packaging, and rollback evidence."
+      },
+      {
+        "id": "continuous-proof",
+        "label": "Continuous Proof",
+        "summary": "Fuzz, failure-injection, parity, accessibility, transport, AOT, and benchmark shelves."
       },
       {
         "id": "advisory-learning",
@@ -160,6 +265,160 @@
       }
     ]
   },
+  "coverage_requirements": [
+    {
+      "id": "boundary-leselang-syntax",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The leselang-syntax crate owns lossless parsing and source diagnostics.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/language-syntax/lossless-frontend"]
+    },
+    {
+      "id": "boundary-leselang-hir",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The leselang-hir crate owns validated names, types, effects, and capabilities.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/language-hir/typed-effects"]
+    },
+    {
+      "id": "boundary-leselang-vm",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The leselang-vm crate owns deterministic evaluation, continuation, and re-entry.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/language-vm/effect-reentry"]
+    },
+    {
+      "id": "boundary-leselang-command",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The leselang-command crate owns lowering into normalized command plans.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/command-lowering/command-plan-lowering"]
+    },
+    {
+      "id": "boundary-leselang-ui",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The planned leselang-ui crate owns pure lowering into neutral UI IR.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/ui-language/ui-ir-lowering"]
+    },
+    {
+      "id": "boundary-leserpent-domain",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The leserpent-domain crate owns commands, queries, events, identity, revisions, and capabilities.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/domain-model/command-query-kernel"]
+    },
+    {
+      "id": "boundary-leserpent-runtime",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The leserpent-runtime crate owns transactions, scheduling, replay, policy, and projections.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/control-runtime/durable-authority"]
+    },
+    {
+      "id": "boundary-leserpent-protocol",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The leserpent-protocol crate owns wire schemas, compatibility, and transports.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/transport-protocol/wire-compatibility"]
+    },
+    {
+      "id": "boundary-leserpent-adapters",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The planned leserpent-adapters crate owns capability-gated external integrations.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/effect-adapters/typed-integrations"]
+    },
+    {
+      "id": "boundary-leserpent-cli",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The planned leserpent-cli crate owns native operator CLI parsing and rendering.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/native-cli/cli-parity"]
+    },
+    {
+      "id": "boundary-leserpentd",
+      "architecture": "leserpent-2",
+      "kind": "ownership-boundary",
+      "summary": "The planned leserpentd crate owns isolated local and remote runtime hosting.",
+      "source": "docs/leserpent-2-architecture.md",
+      "cells": ["leserpent-2/daemon-host/daemon-lifecycle"]
+    },
+    {
+      "id": "gate-one-domain-protocol",
+      "architecture": "leserpent-2",
+      "kind": "roadmap-gate",
+      "summary": "Gate 1 requires normalized domain semantics and protocol compatibility.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/transport-protocol/wire-compatibility"]
+    },
+    {
+      "id": "gate-two-language-vm",
+      "architecture": "leserpent-2",
+      "kind": "roadmap-gate",
+      "summary": "Gate 2 requires syntax, HIR, VM, and command lowering to suspend and replay deterministically.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/language-syntax/lossless-frontend", "leserpent-2/language-hir/typed-effects", "leserpent-2/language-vm/effect-reentry", "leserpent-2/command-lowering/command-plan-lowering"]
+    },
+    {
+      "id": "gate-three-native-cli",
+      "architecture": "leserpent-2",
+      "kind": "roadmap-gate",
+      "summary": "Gate 3 requires native CLI parity with Leselang and GUI command semantics.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/native-cli/cli-parity"]
+    },
+    {
+      "id": "gate-four-ui-vertical-slice",
+      "architecture": "leserpent-2",
+      "kind": "roadmap-gate",
+      "summary": "Gate 4 requires neutral UI IR and a replaceable Avalonia vertical slice.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/ui-language/ui-ir-lowering", "leserpent-2/ui-renderers/avalonia-renderer"]
+    },
+    {
+      "id": "gate-five-runtime-cutover",
+      "architecture": "leserpent-2",
+      "kind": "roadmap-gate",
+      "summary": "Gate 5 moves durable authority into the Rust runtime and isolated daemon.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/control-runtime/durable-authority", "leserpent-2/effect-adapters/typed-integrations", "leserpent-2/daemon-host/daemon-lifecycle", "leserpent-2/transport-protocol/wire-compatibility"]
+    },
+    {
+      "id": "gate-six-remote-mobile",
+      "architecture": "leserpent-2",
+      "kind": "roadmap-gate",
+      "summary": "Gate 6 extends the same protocol and UI contracts to authenticated remote and mobile clients.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/transport-protocol/wire-compatibility"]
+    },
+    {
+      "id": "gate-seven-two-zero-seal",
+      "architecture": "leserpent-2",
+      "kind": "roadmap-gate",
+      "summary": "Gate 7 freezes version-one contracts and requires security, performance, migration, packaging, and rollback evidence.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/release-assurance/two-zero-seal"]
+    },
+    {
+      "id": "proof-continuous-shelves",
+      "architecture": "leserpent-2",
+      "kind": "proof-shelf",
+      "summary": "Every gate maintains fuzz, parity, recovery, accessibility, transport, AOT, and benchmark proof.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-2/release-assurance/continuous-proof"]
+    }
+  ],
   "cells": [
     {
       "id": "gewyvern-core/runtime-evidence/evidence-reconstruction",
@@ -194,17 +453,40 @@
       "feature": "linux-attach",
       "lifecycle": "current",
       "maturity": "stabilizing",
-      "completion": 83,
+      "completion": 94,
       "confidence": "medium",
       "independence": "internal",
       "contract": {
         "id": "linux-attach-validation",
-        "version": "1.0.0",
+        "version": "1.0.8",
         "stability": "evolving",
         "surfaces": [
           "attach-smoke",
           "kprobe-smoke",
           "tc-smoke",
+          "non-destructive-tc-smoke",
+          "authenticated-rsync-identity-parity",
+          "failure-path-transcript-cleanup",
+          "fresh-remote-validator-build",
+          "unprivileged-remote-build-cache",
+          "post-sudo-evidence-ownership",
+          "split-validator-build-attach-timing",
+          "attach-only-performance-budget",
+          "legacy-ebpf-phase-budget-compatibility",
+          "successful-host-kernel-matrix",
+          "explicit-physical-matrix-readiness",
+          "hashed-physical-host-identity",
+          "alias-resistant-host-counting",
+          "unidentified-history-quarantine",
+          "atomic-evidence-replacement",
+          "invalid-history-audit-quarantine",
+          "history-integrity-release-signal",
+          "serialized-history-merge",
+          "serialized-shared-evidence-run",
+          "stale-history-lock-recovery",
+          "collision-resistant-remote-run-directory",
+          "matrix-aware-release-signal",
+          "aggregate-followup-propagation",
           "remote-linux-validation",
           "remote-docker-execution"
         ]
@@ -213,7 +495,7 @@
       "blockers": [
         {
           "id": "physical-host-matrix",
-          "summary": "Kernel and distribution validation breadth remains smaller than the protocol/runtime test shelf."
+          "summary": "The measured matrix still has fewer than two successful physical hosts and two kernel releases; repeated runs on one host do not satisfy breadth."
         }
       ],
       "consumers": ["gewyvern-runtime", "release-gate"],
@@ -234,20 +516,32 @@
       "feature": "parser-lowering",
       "lifecycle": "current",
       "maturity": "stabilizing",
-      "completion": 86,
+      "completion": 94,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-frontend-contract",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "stability": "evolving",
-        "surfaces": ["gewylang-source", "gewyc-cli", "frontend-json", "lowered-ir"]
+        "surfaces": [
+          "gewylang-source",
+          "gewyc-cli",
+          "frontend-json",
+          "lowered-ir",
+          "owned-dynamic-narratives",
+          "owned-fragment-parameter-keys",
+          "owned-template-and-fragment-ids",
+          "owned-program-and-reason-model-ids",
+          "owned-window-profile-ids",
+          "source-located-structured-assignments",
+          "no-legacy-text-round-trip"
+        ]
       },
       "depends_on": [],
       "blockers": [
         {
-          "id": "owned-ir-lifetimes",
-          "summary": "Some compiler and IR paths still use leaked static strings and need owned or interned IDs."
+          "id": "typed-canonical-lowering",
+          "summary": "Canonical modules build TemplateBinding without a legacy text round trip, but assignment values still pass through field-level string codecs before becoming typed IR; export attach descriptors retain separate static lifetime debt."
         }
       ],
       "consumers": ["protocol-authors", "gewyvern-runtime", "model-tooling"],
@@ -256,7 +550,7 @@
         { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" }
       ],
-      "next_gate": "Finish canonical migration and remove long-lived static allocation debt."
+      "next_gate": "Lower canonical assignment values into typed IR without field-level string codecs."
     },
     {
       "id": "gewylang/protocol-packages/protocol-catalog",
@@ -342,18 +636,18 @@
       "next_gate": "Separate domain commands from presentation-only browser state."
     },
     {
-      "id": "leserpent-2/domain-protocol/command-query-kernel",
+      "id": "leserpent-2/domain-model/command-query-kernel",
       "architecture": "leserpent-2",
-      "module": "domain-protocol",
+      "module": "domain-model",
       "feature": "command-query-kernel",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 78,
+      "completion": 86,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
-        "id": "leserpent-domain-protocol",
-        "version": "0.3.0",
+        "id": "leserpent-domain-contract",
+        "version": "0.5.0",
         "stability": "evolving",
         "surfaces": [
           "command-envelope",
@@ -361,32 +655,123 @@
           "event",
           "capability",
           "revision",
-          "wire-envelope",
-          "legacy-v1-compatibility",
-          "compatibility-process-transport"
+          "command-plan",
+          "planned-operation",
+          "plan-validation",
+          "domain-snapshot",
+          "snapshot-validation",
+          "idempotency-state-restore"
         ]
       },
       "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
-      "blockers": [
-        {
-          "id": "linux-package-smoke",
-          "summary": "The dual-binary Linux publish and staged installer path are wired but still need execution evidence on a Linux builder."
-        }
-      ],
+      "blockers": [],
       "consumers": ["leselang-vm", "leserpent-cli", "avalonia-client", "web-adapter"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-domain", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-domain/src/lib.rs", "state": "present" }
+      ],
+      "next_gate": "Gate 1: stabilize normalized command, query, event, revision, and capability semantics independently from transport."
+    },
+    {
+      "id": "leserpent-2/transport-protocol/wire-compatibility",
+      "architecture": "leserpent-2",
+      "module": "transport-protocol",
+      "feature": "wire-compatibility",
+      "lifecycle": "target",
+      "maturity": "stabilizing",
+      "completion": 76,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leserpent-wire-contract",
+        "version": "0.3.0",
+        "stability": "evolving",
+        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "local-ipc", "remote-transport"]
+      },
+      "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
+      "blockers": [
+        {
+          "id": "linux-package-smoke",
+          "summary": "The dual-binary Linux publish and staged installer path are wired but still need execution evidence on a Linux builder."
+        },
+        {
+          "id": "authenticated-remote-transport",
+          "summary": "Authenticated HTTPS and WebSocket transport remains a Gate 6 target."
+        }
+      ],
+      "consumers": ["leserpent-runtime", "leserpent-cli", "avalonia-client", "web-adapter", "leserpentd"],
+      "evidence": [
+        { "kind": "documentation", "path": "crates/leserpent-protocol/COMPATIBILITY.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs", "state": "present" },
-        { "kind": "source", "path": "apps/leserpent/src/Leserpent/ControlPlane/RustCompatibilityBridge.cs", "state": "present" },
-        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RustCompatibilityFixtureTests.cs", "state": "present" },
-        { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" },
-        { "kind": "documentation", "path": "crates/leserpent-protocol/COMPATIBILITY.md", "state": "present" }
+        { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: begin the Leselang frontend and stackless VM while stabilizing bridge release packaging."
+      "next_gate": "Gate 1: close Linux package smoke, then add authenticated remote transports without changing domain semantics."
+    },
+    {
+      "id": "leserpent-2/language-syntax/lossless-frontend",
+      "architecture": "leserpent-2",
+      "module": "language-syntax",
+      "feature": "lossless-frontend",
+      "lifecycle": "target",
+      "maturity": "stabilizing",
+      "completion": 86,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leselang-syntax-contract",
+        "version": "0.10.0",
+        "stability": "evolving",
+        "surfaces": ["lossless-syntax", "source-diagnostics", "all-expression", "bounded-source"]
+      },
+      "depends_on": [],
+      "blockers": [
+        {
+          "id": "formatter-and-fuzz-shelf",
+          "summary": "Canonical formatting and dedicated parser fuzz evidence remain before the syntax boundary is mature."
+        }
+      ],
+      "consumers": ["leselang-hir", "model-automation", "editor-tooling"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-syntax", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-syntax/src/lib.rs", "state": "present" }
+      ],
+      "next_gate": "Gate 2: add canonical formatter and parser fuzz shelves without changing lossless syntax identity."
+    },
+    {
+      "id": "leserpent-2/language-hir/typed-effects",
+      "architecture": "leserpent-2",
+      "module": "language-hir",
+      "feature": "typed-effects",
+      "lifecycle": "target",
+      "maturity": "developing",
+      "completion": 84,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leselang-hir-contract",
+        "version": "0.10.0",
+        "stability": "evolving",
+        "surfaces": ["typed-hir", "capability-check", "effect-union", "declared-branch-order"]
+      },
+      "depends_on": ["leserpent-2/language-syntax/lossless-frontend", "leserpent-2/domain-model/command-query-kernel"],
+      "blockers": [
+        {
+          "id": "command-and-ui-effect-types",
+          "summary": "Command and UI lowering crates must consume the same typed effect and capability model."
+        }
+      ],
+      "consumers": ["leselang-vm", "leselang-command", "leselang-ui"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-hir", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-hir/src/lib.rs", "state": "present" }
+      ],
+      "next_gate": "Gate 2: stabilize typed command and UI effect signatures over the shared domain contract."
     },
     {
       "id": "leserpent-2/language-vm/effect-reentry",
@@ -395,17 +780,14 @@
       "feature": "effect-reentry",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 93,
+      "completion": 95,
       "confidence": "medium",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "0.9.0",
+        "version": "0.10.0",
         "stability": "evolving",
         "surfaces": [
-          "lossless-syntax",
-          "typed-hir",
-          "capability-check",
           "step",
           "effect-request",
           "continuation-image",
@@ -434,28 +816,181 @@
           "declared-order-terminal-arbitration",
           "bounded-structured-value",
           "structured-value-journal-replay",
-          "source-all-frontend",
-          "declared-branch-order-hir",
-          "multi-capability-authorization",
-          "pre-allocation-execution-guard"
+          "pre-allocation-execution-guard",
+          "journal-schema-5",
+          "strict-merge-graph-metadata",
+          "validated-merge-graph-recovery",
+          "legacy-merge-schema-migration"
         ]
       },
-      "depends_on": ["leserpent-2/domain-protocol/command-query-kernel"],
+      "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [
         {
           "id": "durable-all-branch-graph",
-          "summary": "Source-level all and merge semantics are proven; durable multi-branch continuation execution remains before Gate 2 can exit."
+          "summary": "Source-level all, merge semantics, and schema-5 graph metadata are proven; atomic graph creation, completion, and retention integration remain before Gate 2 can exit."
         }
       ],
       "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
-        { "kind": "source", "path": "crates/leselang-syntax", "state": "present" },
-        { "kind": "source", "path": "crates/leselang-hir", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: persist and execute the all branch graph, then remove the LSV1002 guard."
+      "next_gate": "Gate 2: wire atomic all graph creation, branch completion, and retention, then remove the LSV1002 guard."
+    },
+    {
+      "id": "leserpent-2/command-lowering/command-plan-lowering",
+      "architecture": "leserpent-2",
+      "module": "command-lowering",
+      "feature": "command-plan-lowering",
+      "lifecycle": "target",
+      "maturity": "developing",
+      "completion": 42,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leselang-command-contract",
+        "version": "0.4.0",
+        "stability": "evolving",
+        "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-refresh-command", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang"]
+      },
+      "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
+      "blockers": [
+        {
+          "id": "operation-breadth",
+          "summary": "The shared lowering boundary handles runtime.list and runtime.refresh; broader orchestration, deployment, history, and debugger commands remain."
+        }
+      ],
+      "consumers": ["leselang-vm", "leserpent-cli", "ui-actions", "model-automation"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-command", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-command/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/src/lib.rs", "state": "present" }
+      ],
+      "next_gate": "Gate 2: lower the next orchestration command and add parity fixtures without reintroducing VM-owned envelope construction."
+    },
+    {
+      "id": "leserpent-2/ui-language/ui-ir-lowering",
+      "architecture": "leserpent-2",
+      "module": "ui-language",
+      "feature": "ui-ir-lowering",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 0,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leselang-ui-contract",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["ui-document", "ui-patch", "ui-event", "command-plan"]
+      },
+      "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/command-lowering/command-plan-lowering"],
+      "blockers": [
+        {
+          "id": "crate-not-created",
+          "summary": "The neutral UI IR and pure Leselang UI lowering crate are not implemented."
+        }
+      ],
+      "consumers": ["avalonia-renderer", "web-renderer", "model-automation"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-ui", "state": "planned" }
+      ],
+      "next_gate": "Gate 4: define UiDocument, UiPatch, UiEvent, and State-to-UI evaluation without renderer types."
+    },
+    {
+      "id": "leserpent-2/control-runtime/durable-authority",
+      "architecture": "leserpent-2",
+      "module": "control-runtime",
+      "feature": "durable-authority",
+      "lifecycle": "target",
+      "maturity": "developing",
+      "completion": 76,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leserpent-runtime-contract",
+        "version": "0.8.0",
+        "stability": "evolving",
+        "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "idempotent-effect-enqueue", "transactional-effect-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "transactions", "policy"]
+      },
+      "depends_on": ["leserpent-2/domain-model/command-query-kernel"],
+      "blockers": [
+        {
+          "id": "durable-runtime-breadth",
+          "summary": "SQLite durability, exclusive ownership, and transactional effect enqueue/claim/renew/complete/fail with crash redelivery and attempt fencing are implemented; daemon heartbeat, worker loops, queue policy, and terminal retention remain."
+        }
+      ],
+      "consumers": ["leserpentd", "leserpent-cli", "protocol-server", "effect-adapters"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-runtime", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-runtime/src/persistence.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-runtime/src/lib.rs", "state": "present" }
+      ],
+      "next_gate": "Gate 5: add daemon-driven owner heartbeat and bounded worker loops over typed adapters, then define terminal task retention and backpressure policy."
+    },
+    {
+      "id": "leserpent-2/effect-adapters/typed-integrations",
+      "architecture": "leserpent-2",
+      "module": "effect-adapters",
+      "feature": "typed-integrations",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 1,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leserpent-adapter-contract",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["gewyvern", "storage", "deployment", "discovery", "secret-store"]
+      },
+      "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/control-runtime/durable-authority"],
+      "blockers": [
+        {
+          "id": "crate-not-created",
+          "summary": "External integrations remain in Gewyvern and the 1.x bridge rather than a shared capability-gated Rust adapter crate."
+        }
+      ],
+      "consumers": ["leserpent-runtime", "leserpentd"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-adapters", "state": "planned" }
+      ],
+      "next_gate": "Gate 5: implement one bounded Gewyvern adapter and one secret-storage adapter behind typed capabilities."
+    },
+    {
+      "id": "leserpent-2/daemon-host/daemon-lifecycle",
+      "architecture": "leserpent-2",
+      "module": "daemon-host",
+      "feature": "daemon-lifecycle",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 0,
+      "confidence": "high",
+      "independence": "standalone-service",
+      "contract": {
+        "id": "leserpentd-contract",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["local-ipc", "process-isolation", "health", "lifecycle", "recovery"]
+      },
+      "depends_on": ["leserpent-2/control-runtime/durable-authority", "leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/effect-adapters/typed-integrations"],
+      "blockers": [
+        {
+          "id": "crate-not-created",
+          "summary": "The isolated leserpentd runtime host and local IPC lifecycle are not implemented."
+        }
+      ],
+      "consumers": ["leserpent-cli", "avalonia-client", "web-client", "remote-client"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd", "state": "planned" }
+      ],
+      "next_gate": "Gate 5: host the Rust runtime out of process over authenticated local IPC with restart recovery."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",
@@ -474,8 +1009,9 @@
         "surfaces": ["human-output", "json-output", "dry-run", "leselang-export"]
       },
       "depends_on": [
-        "leserpent-2/domain-protocol/command-query-kernel",
-        "leserpent-2/language-vm/effect-reentry"
+        "leserpent-2/transport-protocol/wire-compatibility",
+        "leserpent-2/command-lowering/command-plan-lowering",
+        "leserpent-2/control-runtime/durable-authority"
       ],
       "blockers": [
         {
@@ -501,14 +1037,15 @@
       "confidence": "medium",
       "independence": "replaceable-frontend",
       "contract": {
-        "id": "leserpent-ui-ir",
+        "id": "leserpent-avalonia-contract",
         "version": "0.1.0-draft",
         "stability": "draft",
-        "surfaces": ["ui-document", "ui-patch", "ui-event", "command-plan"]
+        "surfaces": ["compiled-bindings", "virtualization", "desktop-shell", "mobile-shell"]
       },
       "depends_on": [
-        "leserpent-2/domain-protocol/command-query-kernel",
-        "leserpent-2/language-vm/effect-reentry"
+        "leserpent-2/ui-language/ui-ir-lowering",
+        "leserpent-2/command-lowering/command-plan-lowering",
+        "leserpent-2/transport-protocol/wire-compatibility"
       ],
       "blockers": [
         {
@@ -522,6 +1059,98 @@
         { "kind": "source", "path": "apps/leserpent-avalonia", "state": "planned" }
       ],
       "next_gate": "Gate 4: render the fleet and debugger vertical slice without frontend business logic."
+    },
+    {
+      "id": "leserpent-2/remote-console/remote-mobile-console",
+      "architecture": "leserpent-2",
+      "module": "remote-console",
+      "feature": "remote-mobile-console",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 0,
+      "confidence": "medium",
+      "independence": "replaceable-frontend",
+      "contract": {
+        "id": "leserpent-remote-console",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["authenticated-https", "authenticated-websocket", "reconnect", "offline-read-cache", "stale-state", "adaptive-navigation"]
+      },
+      "depends_on": ["leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/daemon-host/daemon-lifecycle"],
+      "blockers": [
+        {
+          "id": "gate-six-not-implemented",
+          "summary": "Remote authentication, reconnect semantics, offline cache, and mobile entry projects remain unimplemented."
+        }
+      ],
+      "consumers": ["remote-operators", "android-operators", "ios-operators"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-mobile", "state": "planned" }
+      ],
+      "next_gate": "Gate 6: pass desktop and one mobile target through the same semantic conformance suite."
+    },
+    {
+      "id": "leserpent-2/release-assurance/two-zero-seal",
+      "architecture": "leserpent-2",
+      "module": "release-assurance",
+      "feature": "two-zero-seal",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 0,
+      "confidence": "high",
+      "independence": "internal",
+      "contract": {
+        "id": "leserpent-two-zero-release",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["schema-freeze", "security-audit", "performance-comparison", "migration", "packaging", "rollback"]
+      },
+      "depends_on": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/release-assurance/continuous-proof"],
+      "blockers": [
+        {
+          "id": "prior-gates-open",
+          "summary": "The 2.0 seal cannot begin until frontend parity, durable authority, remote/mobile conformance, and continuous proof are complete."
+        }
+      ],
+      "consumers": ["release-engineering", "operators", "downstream-integrators"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "release", "path": "target/validation/leserpent-2-release", "state": "planned" }
+      ],
+      "next_gate": "Gate 7: freeze version-one schemas only after every architecture criterion has reproducible evidence."
+    },
+    {
+      "id": "leserpent-2/release-assurance/continuous-proof",
+      "architecture": "leserpent-2",
+      "module": "release-assurance",
+      "feature": "continuous-proof",
+      "lifecycle": "target",
+      "maturity": "incubating",
+      "completion": 18,
+      "confidence": "medium",
+      "independence": "internal",
+      "contract": {
+        "id": "leserpent-proof-shelves",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["parser-fuzz", "vm-fuzz", "origin-parity", "authorization", "crash-replay", "ui-accessibility", "transport-compatibility", "aot-smoke", "benchmarks"]
+      },
+      "depends_on": [],
+      "blockers": [
+        {
+          "id": "proof-shelves-incomplete",
+          "summary": "Existing unit and compatibility tests do not yet cover the complete fuzz, parity, accessibility, AOT, and benchmark matrix."
+        }
+      ],
+      "consumers": ["every-leserpent-2-gate", "release-assurance", "ci"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
+        { "kind": "benchmark", "path": "target/validation/leserpent-2-benchmarks", "state": "planned" }
+      ],
+      "next_gate": "Create named parser/VM fuzz, parity, recovery, accessibility, transport, AOT, and benchmark jobs with retained artifacts."
     },
     {
       "id": "etragon/learning-sidecar/advisory-learning",
@@ -561,14 +1190,14 @@
       "feature": "status-tensor",
       "lifecycle": "current",
       "maturity": "stabilizing",
-      "completion": 88,
+      "completion": 93,
       "confidence": "high",
       "independence": "standalone-tool",
       "contract": {
         "id": "project-status-tensor",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "stability": "evolving",
-        "surfaces": ["json-schema", "catalog", "rust-api", "native-cli"]
+        "surfaces": ["json-schema", "catalog", "rust-api", "native-cli", "coverage-requirements", "bidirectional-coverage-validation", "coverage-summary"]
       },
       "depends_on": [],
       "blockers": [],
@@ -578,7 +1207,7 @@
         { "kind": "test", "path": "tests/project_status_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/project-status-system.md", "state": "present" }
       ],
-      "next_gate": "Require status validation for every architecture, module, or feature change."
+      "next_gate": "Extend authoritative coverage manifests beyond Leserpent 2 to Gewyvern Core, GewyLang, bridge, and sidecar architecture documents."
     }
   ]
 }

@@ -1,16 +1,13 @@
 [package]
-name = "leselang-vm"
+name = "leselang-command"
 version.workspace = true
 edition.workspace = true
-description = "Stackless Leselang evaluator with versioned effect continuations"
+description = "Pure lowering from authorized Leselang effects into Leserpent command plans"
 license.workspace = true
 
 [dependencies]
-leselang-command = { path = "../leselang-command" }
 leselang-hir = { path = "../leselang-hir" }
 leserpent-domain = { path = "../leserpent-domain" }
-rusqlite.workspace = true
-serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

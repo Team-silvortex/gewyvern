@@ -62,7 +62,7 @@ pub enum ReasonProfile {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReasonModel {
-    pub id: &'static str,
+    pub id: String,
     pub rules: Vec<ReasonRule>,
 }
 
@@ -72,11 +72,11 @@ pub type ReasonNarrative = NarrativeTemplate;
 pub type ReasonRule = RuleTemplate;
 
 impl ReasonProfile {
-    pub fn id(&self) -> &'static str {
+    pub fn id(&self) -> &str {
         match self {
             Self::HandshakeL1 => "handshake_l1",
             Self::UdpDatagramL1 => "udp_datagram_l1",
-            Self::Declarative(model) => model.id,
+            Self::Declarative(model) => model.id.as_str(),
         }
     }
 

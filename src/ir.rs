@@ -121,7 +121,7 @@ pub enum SignalKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NarrativeTemplate {
     None,
-    Static(&'static str),
+    Static(String),
     ProcessBound,
     PacketObserved,
     TransportPayloadSent,

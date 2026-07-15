@@ -164,12 +164,12 @@ fn registry_validates_binding_params_against_fragment_schema() {
 #[test]
 fn registry_rejects_bindings_whose_rules_require_missing_fragment_evidence() {
     let binding = Template {
-        id: "invalid_rule_binding",
-        fragment_set: vec!["route_meta_fragment"],
+        id: "invalid_rule_binding".into(),
+        fragment_set: vec!["route_meta_fragment".into()],
         window_profile: Some(default_5s_window()),
         reason_profile: Some(gewyvern::reason::ReasonProfile::UdpDatagramL1),
         program_model: Some(ProgramModel {
-            id: "invalid_program_model",
+            id: "invalid_program_model".into(),
             operation: ProgramOperation::DatagramExchange,
             rules: vec![ProgramRule {
                 predicate: ProgramPredicate::ProcessBound,

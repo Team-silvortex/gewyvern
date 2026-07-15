@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn program_flow_operation_supports_custom_model_ids() {
     let mut template = udp_process_debug_template();
-    template.id = "udp_dns_debug";
+    template.id = "udp_dns_debug".into();
     template.program_model = Some(ProgramModel {
-        id: "dns_lookup_v1",
+        id: "dns_lookup_v1".into(),
         operation: ProgramOperation::Custom("dns_lookup".into()),
         rules: vec![
             ProgramRule {
@@ -33,7 +33,7 @@ fn program_flow_operation_supports_custom_model_ids() {
                     byte_sequences: vec![],
                 },
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
-                narrative: ProgramNarrative::Static("program emitted a DNS-style datagram"),
+                narrative: ProgramNarrative::Static("program emitted a DNS-style datagram".into()),
                 dedupe: true,
                 module: None,
                 phase: None,
@@ -41,7 +41,7 @@ fn program_flow_operation_supports_custom_model_ids() {
             ProgramRule {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
-                narrative: ProgramNarrative::Static("program resolved an upstream route"),
+                narrative: ProgramNarrative::Static("program resolved an upstream route".into()),
                 dedupe: true,
                 module: None,
                 phase: None,
@@ -80,9 +80,9 @@ fn program_flow_operation_supports_custom_model_ids() {
 #[test]
 fn program_model_supports_all_and_any_predicates() {
     let mut template = udp_process_debug_template();
-    template.id = "udp_compound_debug";
+    template.id = "udp_compound_debug".into();
     template.program_model = Some(ProgramModel {
-        id: "compound_rules_v1",
+        id: "compound_rules_v1".into(),
         operation: ProgramOperation::Custom("compound_udp_activity".into()),
         rules: vec![
             ProgramRule {
@@ -105,7 +105,7 @@ fn program_model_supports_all_and_any_predicates() {
                     },
                 ]),
                 signal: Some(gewyvern::flow::ProgramStageKind::DatagramObserved),
-                narrative: ProgramNarrative::Static("process-owned UDP activity observed"),
+                narrative: ProgramNarrative::Static("process-owned UDP activity observed".into()),
                 dedupe: true,
                 module: None,
                 phase: None,
@@ -121,7 +121,7 @@ fn program_model_supports_all_and_any_predicates() {
                 ]),
                 signal: Some(gewyvern::flow::ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static(
-                    "program observed either route or socket progress",
+                    "program observed either route or socket progress".into(),
                 ),
                 dedupe: true,
                 module: None,

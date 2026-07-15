@@ -99,7 +99,7 @@ pub(crate) fn reason_profile_json(profile: &ReasonProfile) -> JsonValue {
             JsonValue::String(profile.id().into())
         }
         ReasonProfile::Declarative(model) => JsonValue::Object(BTreeMap::from([
-            ("id".into(), JsonValue::String(model.id.into())),
+            ("id".into(), JsonValue::String(model.id.clone())),
             ("kind".into(), JsonValue::String("declarative".into())),
             (
                 "rules".into(),
@@ -542,7 +542,7 @@ fn narrative_template_json(narrative: &NarrativeTemplate) -> JsonValue {
         NarrativeTemplate::UdpDatagramReceived => JsonValue::String("udp_datagram_received".into()),
         NarrativeTemplate::Static(text) => JsonValue::Object(BTreeMap::from([
             ("kind".into(), JsonValue::String("static".into())),
-            ("text".into(), JsonValue::String((*text).into())),
+            ("text".into(), JsonValue::String(text.clone())),
         ])),
     }
 }

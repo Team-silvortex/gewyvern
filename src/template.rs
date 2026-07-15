@@ -10,15 +10,15 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowProfile {
-    pub id: &'static str,
+    pub id: String,
     pub duration_ms: u64,
     pub lateness_ms: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Template {
-    pub id: &'static str,
-    pub fragment_set: Vec<&'static str>,
+    pub id: String,
+    pub fragment_set: Vec<String>,
     pub window_profile: Option<WindowProfile>,
     pub reason_profile: Option<ReasonProfile>,
     pub program_model: Option<ProgramModel>,
@@ -79,8 +79,8 @@ impl TemplateBinding {
 
     pub fn with_fragment_param(
         mut self,
-        fragment_id: &'static str,
-        key: &'static str,
+        fragment_id: impl Into<String>,
+        key: impl Into<String>,
         value: FragmentParamValue,
     ) -> Self {
         self.fragment_params
@@ -98,7 +98,7 @@ impl TemplateBinding {
 
 pub fn connect_flow_model() -> ProgramModel {
     ProgramModel {
-        id: "connect_flow_v1",
+        id: "connect_flow_v1".into(),
         operation: ProgramOperation::ConnectFlow,
         rules: vec![
             ProgramRule {
@@ -125,7 +125,7 @@ pub fn connect_flow_model() -> ProgramModel {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static(
-                    "program resolved a route for this network flow",
+                    "program resolved a route for this network flow".into(),
                 ),
                 dedupe: true,
                 module: None,
@@ -137,7 +137,7 @@ pub fn connect_flow_model() -> ProgramModel {
 
 pub fn datagram_exchange_model() -> ProgramModel {
     ProgramModel {
-        id: "datagram_exchange_v1",
+        id: "datagram_exchange_v1".into(),
         operation: ProgramOperation::DatagramExchange,
         rules: vec![
             ProgramRule {
@@ -165,7 +165,9 @@ pub fn datagram_exchange_model() -> ProgramModel {
                     byte_sequences: vec![],
                 },
                 signal: Some(ProgramStageKind::DatagramObserved),
-                narrative: ProgramNarrative::Static("program emitted or received a UDP datagram"),
+                narrative: ProgramNarrative::Static(
+                    "program emitted or received a UDP datagram".into(),
+                ),
                 dedupe: true,
                 module: None,
                 phase: None,
@@ -174,7 +176,7 @@ pub fn datagram_exchange_model() -> ProgramModel {
                 predicate: ProgramPredicate::RouteResolved,
                 signal: Some(ProgramStageKind::RouteResolved),
                 narrative: ProgramNarrative::Static(
-                    "program resolved a route for this network flow",
+                    "program resolved a route for this network flow".into(),
                 ),
                 dedupe: true,
                 module: None,
@@ -189,7 +191,7 @@ pub fn default_program_model_for_reason_profile(profile: &ReasonProfile) -> Prog
         ReasonProfile::HandshakeL1 => connect_flow_model(),
         ReasonProfile::UdpDatagramL1 => datagram_exchange_model(),
         ReasonProfile::Declarative(model) => ProgramModel {
-            id: Box::leak(format!("{}_program_default", model.id).into_boxed_str()),
+            id: format!("{}_program_default", model.id),
             operation: ProgramOperation::Unknown,
             rules: Vec::new(),
         },
@@ -198,7 +200,7 @@ pub fn default_program_model_for_reason_profile(profile: &ReasonProfile) -> Prog
 
 pub fn default_5s_window() -> WindowProfile {
     WindowProfile {
-        id: "default_5s",
+        id: "default_5s".into(),
         duration_ms: 5_000,
         lateness_ms: 200,
     }
@@ -206,11 +208,11 @@ pub fn default_5s_window() -> WindowProfile {
 
 pub fn handshake_debug_template() -> Template {
     Template {
-        id: "handshake_debug",
+        id: "handshake_debug".into(),
         fragment_set: vec![
-            "tcp_state_fragment",
-            "tcp_packet_meta_fragment",
-            "route_meta_fragment",
+            "tcp_state_fragment".into(),
+            "tcp_packet_meta_fragment".into(),
+            "route_meta_fragment".into(),
         ],
         window_profile: Some(default_5s_window()),
         reason_profile: Some(HandshakeL1),
@@ -220,8 +222,11 @@ pub fn handshake_debug_template() -> Template {
 
 pub fn udp_debug_template() -> Template {
     Template {
-        id: "udp_debug",
-        fragment_set: vec!["udp_packet_meta_fragment", "route_meta_fragment"],
+        id: "udp_debug".into(),
+        fragment_set: vec![
+            "udp_packet_meta_fragment".into(),
+            "route_meta_fragment".into(),
+        ],
         window_profile: Some(default_5s_window()),
         reason_profile: Some(UdpDatagramL1),
         program_model: Some(datagram_exchange_model()),
@@ -230,11 +235,11 @@ pub fn udp_debug_template() -> Template {
 
 pub fn udp_process_debug_template() -> Template {
     Template {
-        id: "udp_process_debug",
+        id: "udp_process_debug".into(),
         fragment_set: vec![
-            "udp_packet_meta_fragment",
-            "route_meta_fragment",
-            "sock_lineage_fragment",
+            "udp_packet_meta_fragment".into(),
+            "route_meta_fragment".into(),
+            "sock_lineage_fragment".into(),
         ],
         window_profile: Some(default_5s_window()),
         reason_profile: Some(UdpDatagramL1),

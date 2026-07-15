@@ -13,9 +13,9 @@ This page is not a tutorial. It is the exact lookup shelf for:
 
 Read this alongside:
 
-- [docs/dsl.md](docs/dsl.md)
-- [docs/gewyc-json.md](docs/gewyc-json.md)
-- [docs/book/explanation-gewy-to-runtime.md](docs/book/explanation-gewy-to-runtime.md)
+- [DSL overview](../dsl.md)
+- [`gewyc` JSON](../gewyc-json.md)
+- [Gewy to runtime](explanation-gewy-to-runtime.md)
 
 ## What Lowering Means Here
 
@@ -45,6 +45,22 @@ Lowering does mean:
 - materializing explicit program rules
 - materializing or selecting the reason-model shape
 - preserving enough structure to explain modules, phases, and support state
+
+## Dynamic Text Ownership
+
+Lowered template, fragment, window, program-model, reason-model, static
+narrative, and fragment-parameter identifiers own their source text. They do
+not extend parser input lifetimes with leaked `&'static str` values, so repeated
+compilation of model-generated packages can release those dynamic strings
+normally. This is an internal lifetime guarantee: DSL spelling, lowered values,
+and export JSON remain unchanged.
+
+Canonical modules now lower into source-located assignments and build
+`TemplateBinding` directly. They no longer generate and reparse a legacy text
+document. The remaining frontend migration is to replace the assignment
+values' field-level string codecs with strongly typed lowering. Export
+attach-descriptor decoding has separate static lifetime debt outside this core
+frontend IR boundary.
 
 ## Current Lowered Model Surfaces
 

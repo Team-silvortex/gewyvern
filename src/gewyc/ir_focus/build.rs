@@ -32,9 +32,11 @@ pub(super) fn ir_report_from_binding(
             let (kind, id, rules): (&str, &str, &[ReasonRule]) = match profile {
                 ReasonProfile::HandshakeL1 => ("builtin_reason_profile", profile.id(), &[]),
                 ReasonProfile::UdpDatagramL1 => ("builtin_reason_profile", profile.id(), &[]),
-                ReasonProfile::Declarative(model) => {
-                    ("declarative_reason_model", model.id, model.rules.as_slice())
-                }
+                ReasonProfile::Declarative(model) => (
+                    "declarative_reason_model",
+                    model.id.as_str(),
+                    model.rules.as_slice(),
+                ),
             };
             IrModelReport {
                 kind: kind.into(),

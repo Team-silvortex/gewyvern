@@ -32,15 +32,17 @@ fn run(args: Vec<String>) -> Result<String, String> {
     if options.command == Command::Validate {
         return if options.json {
             Ok(format!(
-                "{{\"schema_version\":{},\"status\":\"valid\",\"cells\":{}}}",
+                "{{\"schema_version\":{},\"status\":\"valid\",\"cells\":{},\"coverage_requirements\":{}}}",
                 catalog.schema_version,
-                catalog.cells.len()
+                catalog.cells.len(),
+                catalog.coverage_requirements.len()
             ))
         } else {
             Ok(format!(
-                "status catalog valid: schema={} cells={}",
+                "status catalog valid: schema={} cells={} coverage_requirements={}",
                 catalog.schema_version,
-                catalog.cells.len()
+                catalog.cells.len(),
+                catalog.coverage_requirements.len()
             ))
         };
     }
@@ -100,8 +102,16 @@ fn run(args: Vec<String>) -> Result<String, String> {
 
 fn render_summary(summary: &gewyvern::project_status::StatusSummary) -> String {
     let mut output = format!(
-        "{} status tensor\ncheckpoint: {}\noverall: {}/100 across {} cells\n\n",
-        summary.project, summary.checkpoint, summary.overall_score, summary.cell_count
+        "{} status tensor\ncheckpoint: {}\noverall: {}/100 across {} cells\ncoverage: {} requirements across {} architectures (ownership={} gates={} proof={})\n\n",
+        summary.project,
+        summary.checkpoint,
+        summary.overall_score,
+        summary.cell_count,
+        summary.coverage.requirement_count,
+        summary.coverage.architecture_count,
+        summary.coverage.ownership_boundary_count,
+        summary.coverage.roadmap_gate_count,
+        summary.coverage.proof_shelf_count
     );
     output.push_str("lifecycles:\n");
     for group in &summary.lifecycles {

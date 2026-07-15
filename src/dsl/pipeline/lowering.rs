@@ -7,20 +7,21 @@ use crate::dsl::{
         pipeline_declared_params_message, pipeline_unknown_placeholder_message,
     },
     function_types::{format_pipeline_function_signature, validate_pipeline_param_value_kind},
-    legacy,
+    legacy::{self, LegacyAssignment},
 };
 use std::collections::BTreeMap;
 
-pub(crate) fn lower_pipeline_module_to_legacy(
+pub(crate) fn lower_pipeline_module_to_assignments(
     module: &PipelineModule,
     allow_template_head: bool,
-) -> Result<String, DslError> {
-    let mut output = Vec::<String>::new();
+) -> Result<Vec<LegacyAssignment>, DslError> {
+    let mut output = Vec::new();
     if let Some(template) = &module.template {
-        output.push(format!(
-            "template={}",
+        output.push(LegacyAssignment::new(
+            "template",
             parse_pipeline_single_arg(&template.args, "template")
-                .map_err(|err| err.at_line(template.line_no))?
+                .map_err(|err| err.at_line(template.line_no))?,
+            template.line_no,
         ));
     } else if allow_template_head {
         return Err(DslError::InvalidValue(
@@ -37,13 +38,13 @@ pub(crate) fn lower_pipeline_module_to_legacy(
         &BTreeMap::new(),
         "entry pipeline",
     )?;
-    Ok(output.join("\n"))
+    Ok(output)
 }
 
 fn lower_pipeline_calls(
     calls: &[PipelineCall],
     module: &PipelineModule,
-    output: &mut Vec<String>,
+    output: &mut Vec<LegacyAssignment>,
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
@@ -66,7 +67,7 @@ fn lower_pipeline_calls(
 fn lower_pipeline_call(
     call: &PipelineCall,
     module: &PipelineModule,
-    output: &mut Vec<String>,
+    output: &mut Vec<LegacyAssignment>,
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
@@ -89,10 +90,11 @@ fn lower_pipeline_call(
                 )
                 .at_line(line_no));
             }
-            output.push(format!(
-                "template={}",
+            output.push(LegacyAssignment::new(
+                "template",
                 parse_pipeline_single_arg(&resolved_args, "template")
-                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+                line_no,
             ));
         }
         "use" => {
@@ -143,51 +145,68 @@ fn lower_pipeline_call(
             )
             .at_line(line_no));
         }
-        "window" => lower_pipeline_window(&resolved_args, &call.arg_columns, column_no, output)
-            .map_err(|err| err.at_line(line_no))?,
-        "reason" => output.push(format!(
-            "reason={}",
+        "window" => lower_pipeline_window(
+            &resolved_args,
+            &call.arg_columns,
+            column_no,
+            line_no,
+            output,
+        )
+        .map_err(|err| err.at_line(line_no))?,
+        "reason" => output.push(LegacyAssignment::new(
+            "reason",
             parse_pipeline_single_arg(&resolved_args, "reason")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            line_no,
         )),
-        "reason_model" => output.push(format!(
-            "reason_model={}",
+        "reason_model" => output.push(LegacyAssignment::new(
+            "reason_model",
             parse_pipeline_single_arg(&resolved_args, "reason_model")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            line_no,
         )),
-        "fragment" => output.push(format!(
-            "fragment={}",
+        "fragment" => output.push(LegacyAssignment::new(
+            "fragment",
             parse_pipeline_single_arg(&resolved_args, "fragment")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            line_no,
         )),
-        "program_model" => output.push(format!(
-            "program_model={}",
+        "program_model" => output.push(LegacyAssignment::new(
+            "program_model",
             parse_pipeline_single_arg(&resolved_args, "program_model")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            line_no,
         )),
-        "operation" => output.push(format!(
-            "operation={}",
+        "operation" => output.push(LegacyAssignment::new(
+            "operation",
             parse_pipeline_single_arg(&resolved_args, "operation")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            line_no,
         )),
-        "param" => output.push(format!(
-            "param={}",
+        "param" => output.push(LegacyAssignment::new(
+            "param",
             lower_pipeline_param(&resolved_args)
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            line_no,
         )),
-        "evidence" => output.push(format!(
-            "evidence={}",
+        "evidence" => output.push(LegacyAssignment::new(
+            "evidence",
             lower_pipeline_evidence(&resolved_args)
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            line_no,
         )),
-        "program_rule" => output.push(
+        "program_rule" => output.push(LegacyAssignment::new(
+            "rule",
             lower_pipeline_rule(&resolved_args, &call.arg_columns, column_no, false)
                 .map_err(|err| err.at_line(line_no))?,
-        ),
-        "reason_rule" => output.push(
+            line_no,
+        )),
+        "reason_rule" => output.push(LegacyAssignment::new(
+            "reason.rule",
             lower_pipeline_rule(&resolved_args, &call.arg_columns, column_no, true)
                 .map_err(|err| err.at_line(line_no))?,
-        ),
+            line_no,
+        )),
         other => {
             return Err(DslError::InvalidValue(format!(
                 "unknown pipeline DSL step '{other}'. {}",
@@ -576,10 +595,15 @@ pub(crate) fn lower_pipeline_window(
     args: &[String],
     arg_columns: &[usize],
     call_column: usize,
-    output: &mut Vec<String>,
+    line_no: usize,
+    output: &mut Vec<LegacyAssignment>,
 ) -> Result<(), DslError> {
     if args.len() == 1 && !looks_like_pipeline_keyword_arg(&args[0]) {
-        output.push(format!("window={}", parse_pipeline_literal(&args[0])));
+        output.push(LegacyAssignment::new(
+            "window",
+            parse_pipeline_literal(&args[0]),
+            line_no,
+        ));
         return Ok(());
     }
     let keywords = parse_pipeline_keywords_with_columns(args, arg_columns, "window")?;
@@ -589,8 +613,16 @@ pub(crate) fn lower_pipeline_window(
     let lateness_ms = keywords
         .get("lateness_ms")
         .ok_or(DslError::MissingField("lateness_ms").at_line_column(0, Some(call_column)))?;
-    output.push(format!("window.duration_ms={}", duration_ms.value));
-    output.push(format!("window.lateness_ms={}", lateness_ms.value));
+    output.push(LegacyAssignment::new(
+        "window.duration_ms",
+        duration_ms.value.clone(),
+        line_no,
+    ));
+    output.push(LegacyAssignment::new(
+        "window.lateness_ms",
+        lateness_ms.value.clone(),
+        line_no,
+    ));
     Ok(())
 }
 
@@ -671,9 +703,5 @@ pub(crate) fn lower_pipeline_rule(
         ))
         .at_line_column(0, Some(phase.value_column)));
     }
-    Ok(if reason_rule {
-        format!("reason.rule={value}")
-    } else {
-        format!("rule={value}")
-    })
+    Ok(value)
 }

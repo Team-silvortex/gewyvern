@@ -5,7 +5,7 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.9.0**. The current vertical slice parses,
+Status: **Gate 2, evolving contract 0.10.0**. The current vertical slice parses,
 lowers, authorizes, suspends, serializes, restores, and resumes the read-only
 `runtime.list` effect and the idempotent `runtime.refresh` command effect.
 
@@ -88,6 +88,14 @@ effect request for unauthorized code.
 
 ## Execution Protocol
 
+Authorized atomic effects first lower through `leselang-command` into a pure
+`CommandPlan`. The plan owns the required capability and either a versioned
+`QueryEnvelope` or `CommandEnvelope`; frontend origin is audit metadata and does
+not select a different implementation. The VM owns continuation and journal
+lifecycle, but it does not privately construct domain command semantics.
+`CommandPlan` JSON carries its own schema version, round-trips canonically, and
+is rejected before decoding when it exceeds 64 KiB.
+
 The stackless VM advances through six protocol states:
 
 - `Done`: evaluation completed with bounded output
@@ -156,13 +164,19 @@ late worker cannot overwrite a newer attempt. The `now_ms` argument is scheduler
 time supplied by the trusted runtime host, never by a remote request.
 
 The journal is schema-versioned. Schema 4 persists indexed absolute deadlines,
-retry counts, and not-before clocks. Schema 1 and 2 records migrate as untimed,
-and schema 1 through 3 records migrate with zero semantic retries rather than
-receiving fabricated execution history. The journal uses full synchronous commits and a five-second lock
+retry counts, and not-before clocks. Schema 5 adds strict merge-group and ordered
+branch metadata with bounded plan, graph-state, token-namespace, and terminal-step
+validation during recovery. Schema 1 and 2 records migrate as untimed, schema 1
+through 3 records migrate with zero semantic retries rather than receiving
+fabricated execution history, and schema 1 through 4 receive empty merge tables.
+Pre-existing conflicting merge-table names fail the migration closed. Schema 5
+is durable graph infrastructure only: the VM still rejects source-level `all`
+with `LSV1002` until atomic graph creation and completion are wired. The journal
+uses full synchronous commits and a five-second lock
 timeout, rejects symbolic-link final paths, and creates Unix files with `0600`
 permissions. It is bounded to 10,000 records, 8 MiB per terminal step, 100
 dispatch attempts, a five-minute maximum lease, and 64 MiB of total logical
-payload including dispatch requests.
+payload including dispatch requests and merge plans.
 
 `Vm::compact_journal` applies explicit count-based retention to terminal
 records. It never deletes pending or leased effects, always retains at least one

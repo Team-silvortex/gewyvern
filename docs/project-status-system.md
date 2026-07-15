@@ -24,6 +24,14 @@ architecture x module x feature -> status cell
 Only meaningful intersections become cells. Empty combinations are not
 implicitly planned work.
 
+Schema v2 also carries a `coverage_requirements` manifest. It maps authoritative
+architecture ownership boundaries, roadmap gates, and continuous proof shelves
+onto concrete cells. Once an architecture enters this manifest, validation is
+bidirectional: every requirement must reference an existing same-architecture
+cell, and every cell in that architecture must be covered by at least one
+requirement. This distinguishes a structurally valid sparse tensor from a
+complete architecture map.
+
 The canonical cell ID is:
 
 ```text
@@ -46,6 +54,13 @@ Every cell carries:
 - known consumers
 - present or planned evidence
 - one concrete next gate
+
+Every coverage requirement carries:
+
+- a stable requirement ID and owning architecture
+- a kind: ownership boundary, roadmap gate, or proof shelf
+- an authoritative repository document
+- one or more cells that provide its progress and evidence
 
 Completion is an evidence-backed estimate, not a release promise. Confidence
 shows how much trust to place in that estimate. Maturity is categorical and is
@@ -139,6 +154,9 @@ cargo run --bin gewyvern_status -- validate
 Validation rejects unknown dimension references, duplicate or non-canonical
 cell IDs, missing contracts, missing present evidence, unknown dependencies,
 self-dependencies, dependency cycles, and unsupported schema versions.
+For architectures with a coverage manifest it also rejects duplicate
+requirements, missing source documents, unknown or cross-architecture cell
+mappings, empty mappings, and orphan cells.
 
 ## Relationship To Roadmaps
 
@@ -154,4 +172,3 @@ When they disagree:
 3. the roadmap may then be adjusted
 
 This prevents aspirational text from silently becoming reported progress.
-

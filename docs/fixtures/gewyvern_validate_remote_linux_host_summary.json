@@ -8,7 +8,7 @@
   },
   "keep_remote_dir": false,
   "linux_proof_complete": true,
-  "next_step": "hold this run as the current Linux hot-path reference and watch future remote regressions against it",
+  "next_step": "collect successful evidence from at least two physical hosts and two kernel releases before treating the Linux matrix as release-ready",
   "package_build_timings": {
     "cargo_build": 12.5,
     "package_bundle": 1.25
@@ -18,8 +18,9 @@
     "rpm_verify": 0.6
   },
   "phase_timings": {
+    "remote_ebpf_attach": 0.8,
     "remote_ebpf_evidence_sync": 0.9,
-    "remote_ebpf_smoke": 4.0,
+    "remote_ebpf_validator_build": 3.2,
     "remote_package_build": 12.8,
     "remote_package_smoke": 1.1,
     "remote_runtime_smoke": 2.4,
@@ -35,6 +36,7 @@
     ],
     "default_route_device": "eth0",
     "home_dir": "/home/demo",
+    "host_fingerprint": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "kernel": "6.8.0-test",
     "os": "linux",
     "sudo_available": true
@@ -44,7 +46,7 @@
     "2026-07-11T09:00:00Z ok all_smokes_passed_admin_ssh 4.200"
   ],
   "recent_ebpf_trend": "2/2 ok, 0/2 skipped",
-  "release_gate_signal": "ready",
+  "release_gate_signal": "coverage_incomplete",
   "remote_checks": [
     "remote_preflight",
     "remote_artifacts_present",
@@ -54,13 +56,37 @@
   "remote_dir": "/tmp/gewyvern-remote",
   "remote_ebpf": "ok (all_smokes_passed_admin_ssh)",
   "remote_ebpf_history_entries": 2,
+  "remote_ebpf_history_integrity": {
+    "rejected_entries": 0,
+    "rejected_entries_this_run": 0,
+    "status": "clean",
+    "valid_entries": 2
+  },
+  "remote_ebpf_matrix": {
+    "minimum_hosts": 2,
+    "minimum_kernels": 2,
+    "ready": false,
+    "successful_arch_counts": {
+      "x86_64": 2
+    },
+    "successful_host_counts": {
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 2
+    },
+    "successful_kernel_counts": {
+      "6.8.0-test": 2
+    },
+    "unique_architectures": 1,
+    "unique_hosts": 1,
+    "unique_kernels": 1,
+    "unidentified_successful_runs": 0
+  },
   "remote_ebpf_reason_counts": {
     "all_smokes_passed_admin_ssh": 2
   },
   "remote_ebpf_status_counts": {
     "ok": 2
   },
-  "requires_followup": false,
+  "requires_followup": true,
   "runtime_smoke_timings": {
     "tcp_boot_health": 0.7,
     "udp_analysis": 0.5
@@ -71,15 +97,15 @@
       "seconds": 12.8
     },
     {
-      "name": "remote_ebpf_smoke",
-      "seconds": 4.0
+      "name": "remote_ebpf_validator_build",
+      "seconds": 3.2
     },
     {
       "name": "remote_runtime_smoke",
       "seconds": 2.4
     }
   ],
-  "slowest_phases": "remote_package_build=12.800s, remote_ebpf_smoke=4.000s, remote_runtime_smoke=2.400s",
+  "slowest_phases": "remote_package_build=12.800s, remote_ebpf_validator_build=3.200s, remote_runtime_smoke=2.400s",
   "source_cache": "/home/demo/.cache/gewyvern/remote-source",
   "target_cache": "/home/demo/.cache/gewyvern/remote-target",
   "total_seconds": 22.8,

@@ -9,6 +9,10 @@ use std::time::{Duration, SystemTime};
 
 use crate::{UiLocale, route_fact};
 
+fn has_fragment(fragments: &[String], id: &str) -> bool {
+    fragments.iter().any(|fragment| fragment == id)
+}
+
 pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
     let fragments = &binding.template.fragment_set;
@@ -133,34 +137,34 @@ pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
                 gewyvern::flow::ProgramOperation::Custom(value) if value == "http_connect_tunnel"
             )
         });
-    let facts = if fragments.contains(&"tcp_state_fragment")
-        && fragments.contains(&"tcp_packet_meta_fragment")
-        && fragments.contains(&"sock_lineage_fragment")
+    let facts = if has_fragment(fragments, "tcp_state_fragment")
+        && has_fragment(fragments, "tcp_packet_meta_fragment")
+        && has_fragment(fragments, "sock_lineage_fragment")
         && is_http_server_response
     {
         include!("binding_demo/http_server_response.rs")
-    } else if fragments.contains(&"tcp_state_fragment")
-        && fragments.contains(&"tcp_packet_meta_fragment")
-        && fragments.contains(&"sock_lineage_fragment")
+    } else if has_fragment(fragments, "tcp_state_fragment")
+        && has_fragment(fragments, "tcp_packet_meta_fragment")
+        && has_fragment(fragments, "sock_lineage_fragment")
         && is_http_request
     {
         include!("binding_demo/http_request.rs")
-    } else if fragments.contains(&"tcp_state_fragment")
-        && fragments.contains(&"tcp_packet_meta_fragment")
-        && fragments.contains(&"sock_lineage_fragment")
+    } else if has_fragment(fragments, "tcp_state_fragment")
+        && has_fragment(fragments, "tcp_packet_meta_fragment")
+        && has_fragment(fragments, "sock_lineage_fragment")
         && is_tls_client
     {
         include!("binding_demo/tls_client.rs")
-    } else if fragments.contains(&"tcp_state_fragment")
-        && fragments.contains(&"tcp_packet_meta_fragment")
+    } else if has_fragment(fragments, "tcp_state_fragment")
+        && has_fragment(fragments, "tcp_packet_meta_fragment")
     {
         include!("binding_demo/tcp_packet.rs")
-    } else if fragments.contains(&"tcp_state_fragment")
-        && fragments.contains(&"sock_lineage_fragment")
+    } else if has_fragment(fragments, "tcp_state_fragment")
+        && has_fragment(fragments, "sock_lineage_fragment")
     {
         include!("binding_demo/tcp_sock_lineage.rs")
-    } else if fragments.contains(&"udp_packet_meta_fragment")
-        && fragments.contains(&"sock_lineage_fragment")
+    } else if has_fragment(fragments, "udp_packet_meta_fragment")
+        && has_fragment(fragments, "sock_lineage_fragment")
     {
         if is_http3_server_response {
             include!("binding_demo/udp_http3_server_response.rs")
@@ -181,7 +185,7 @@ pub(crate) fn run_binding_demo(binding: TemplateBinding) -> ExportBundle {
         } else {
             include!("binding_demo/udp_sock_default.rs")
         }
-    } else if fragments.contains(&"udp_packet_meta_fragment") {
+    } else if has_fragment(fragments, "udp_packet_meta_fragment") {
         include!("binding_demo/udp_default.rs")
     } else {
         eprintln!("{}", UiLocale::detect().msg("unsupported_fragment_combo"));

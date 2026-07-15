@@ -44,7 +44,7 @@ pub(crate) fn parse_reason_profile(value: &JsonValue) -> Result<ReasonProfile, E
                 .map(parse_reason_rule)
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(ReasonProfile::Declarative(ReasonModel {
-                id: Box::leak(id.to_string().into_boxed_str()),
+                id: id.to_string(),
                 rules,
             }))
         }
@@ -306,9 +306,7 @@ fn parse_narrative_template(value: &JsonValue) -> Result<NarrativeTemplate, Expo
                         .get("text")
                         .ok_or_else(|| ExportError::InvalidShape("narrative.text".into()))?
                         .as_str()?;
-                    Ok(NarrativeTemplate::Static(Box::leak(
-                        text.to_string().into_boxed_str(),
-                    )))
+                    Ok(NarrativeTemplate::Static(text.to_string()))
                 }
                 other => Err(ExportError::InvalidValue(format!(
                     "unknown narrative template '{other}'"

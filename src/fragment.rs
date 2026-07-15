@@ -376,7 +376,7 @@ impl FragmentRegistry {
             .map(|fragment_id| {
                 self.descriptor(fragment_id)
                     .cloned()
-                    .ok_or_else(|| RegistryError::MissingFragment((*fragment_id).into()))
+                    .ok_or_else(|| RegistryError::MissingFragment(fragment_id.clone()))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -407,7 +407,7 @@ impl FragmentRegistry {
                 .program_model
                 .as_ref()
                 .map(|model| ModelDiagnostics {
-                    model: model.id.into(),
+                    model: model.id.clone(),
                     rules: model
                         .rules
                         .iter()
@@ -426,7 +426,7 @@ impl FragmentRegistry {
                 }),
             reason_model: match &binding.template.reason_profile {
                 Some(ReasonProfile::Declarative(model)) => Some(ModelDiagnostics {
-                    model: model.id.into(),
+                    model: model.id.clone(),
                     rules: model
                         .rules
                         .iter()

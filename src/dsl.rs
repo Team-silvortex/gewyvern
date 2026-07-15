@@ -31,7 +31,7 @@ use self::function_types::PipelineValueKind;
 use self::package::PackageContext;
 pub use self::package::build_lockfile;
 use self::parser::{parse_pipeline_function_head, parse_pipeline_module};
-use self::pipeline::{lower_pipeline_module_to_legacy, parse_pipeline_single_arg};
+use self::pipeline::{lower_pipeline_module_to_assignments, parse_pipeline_single_arg};
 pub(crate) use self::predicate::{parse_flow_predicate, parse_reason_key_event};
 
 pub const PACKAGE_MANIFEST_FILE: &str = "gewy.pkg";

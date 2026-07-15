@@ -4,6 +4,8 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 pub const DOMAIN_SCHEMA_VERSION: u32 = 1;
+pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
+pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
 
@@ -124,6 +126,28 @@ pub struct QueryEnvelope {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CommandPlan {
+    pub schema_version: u32,
+    pub required_capability: String,
+    pub operation: PlannedOperation,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+pub enum PlannedOperation {
+    Query(QueryEnvelope),
+    Command(CommandEnvelope),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CommandPlanError {
+    UnsupportedPlanSchema { actual: u32, expected: u32 },
+    UnsupportedDomainSchema { actual: u32, expected: u32 },
+    CapabilityMismatch { expected: &'static str },
+    MissingCapability { capability: &'static str },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RuntimeProjection {
     pub id: RuntimeId,
     pub name: String,
@@ -167,6 +191,28 @@ pub struct CommandResult {
     pub status: CommandStatus,
     pub runtime: RuntimeProjection,
     pub events: Vec<DomainEvent>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DomainSnapshot {
+    pub schema_version: u32,
+    pub revision: Revision,
+    pub runtimes: Vec<RuntimeProjection>,
+    pub applied_commands: Vec<AppliedCommandSnapshot>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AppliedCommandSnapshot {
+    pub principal_id: String,
+    pub idempotency_key: IdempotencyKey,
+    pub command: Command,
+    pub result: CommandResult,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DomainSnapshotError {
+    UnsupportedSchema { actual: u32, expected: u32 },
+    Invalid { reason: &'static str },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -251,6 +297,73 @@ impl CapabilitySet {
     }
 }
 
+impl CommandPlan {
+    pub fn validate(&self) -> Result<(), CommandPlanError> {
+        if self.schema_version != COMMAND_PLAN_SCHEMA_VERSION {
+            return Err(CommandPlanError::UnsupportedPlanSchema {
+                actual: self.schema_version,
+                expected: COMMAND_PLAN_SCHEMA_VERSION,
+            });
+        }
+        let (required_capability, domain_schema, capabilities) = match &self.operation {
+            PlannedOperation::Query(envelope) => match &envelope.query {
+                Query::RuntimeList { .. } => (
+                    CAPABILITY_RUNTIME_READ,
+                    envelope.schema_version,
+                    &envelope.capabilities,
+                ),
+            },
+            PlannedOperation::Command(envelope) => match &envelope.command {
+                Command::RuntimeRefresh { .. } => (
+                    CAPABILITY_RUNTIME_REFRESH,
+                    envelope.schema_version,
+                    &envelope.capabilities,
+                ),
+            },
+        };
+        if domain_schema != DOMAIN_SCHEMA_VERSION {
+            return Err(CommandPlanError::UnsupportedDomainSchema {
+                actual: domain_schema,
+                expected: DOMAIN_SCHEMA_VERSION,
+            });
+        }
+        if self.required_capability != required_capability {
+            return Err(CommandPlanError::CapabilityMismatch {
+                expected: required_capability,
+            });
+        }
+        if !capabilities.contains(required_capability) {
+            return Err(CommandPlanError::MissingCapability {
+                capability: required_capability,
+            });
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for CommandPlanError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedPlanSchema { actual, expected } => write!(
+                formatter,
+                "unsupported command plan schema {actual}, expected {expected}"
+            ),
+            Self::UnsupportedDomainSchema { actual, expected } => write!(
+                formatter,
+                "unsupported domain schema {actual}, expected {expected}"
+            ),
+            Self::CapabilityMismatch { expected } => {
+                write!(formatter, "operation requires capability '{expected}'")
+            }
+            Self::MissingCapability { capability } => {
+                write!(formatter, "plan is missing capability '{capability}'")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CommandPlanError {}
+
 impl RuntimeListFilter {
     pub fn normalized(self) -> Self {
         Self {
@@ -291,6 +404,53 @@ impl Default for RuntimeStatusSnapshot {
 }
 
 impl InMemoryControlPlane {
+    pub fn snapshot(&self) -> DomainSnapshot {
+        DomainSnapshot {
+            schema_version: DOMAIN_SNAPSHOT_SCHEMA_VERSION,
+            revision: Revision(self.revision),
+            runtimes: self.runtimes.values().cloned().collect(),
+            applied_commands: self
+                .applied
+                .iter()
+                .map(
+                    |((principal_id, idempotency_key), applied)| AppliedCommandSnapshot {
+                        principal_id: principal_id.clone(),
+                        idempotency_key: idempotency_key.clone(),
+                        command: applied.command.clone(),
+                        result: applied.result.clone(),
+                    },
+                )
+                .collect(),
+        }
+    }
+
+    pub fn from_snapshot(snapshot: DomainSnapshot) -> Result<Self, DomainSnapshotError> {
+        snapshot.validate()?;
+        let runtimes = snapshot
+            .runtimes
+            .into_iter()
+            .map(|runtime| (runtime.id.clone(), runtime))
+            .collect();
+        let applied = snapshot
+            .applied_commands
+            .into_iter()
+            .map(|entry| {
+                (
+                    (entry.principal_id, entry.idempotency_key),
+                    AppliedCommand {
+                        command: entry.command,
+                        result: entry.result,
+                    },
+                )
+            })
+            .collect();
+        Ok(Self {
+            revision: snapshot.revision.0,
+            runtimes,
+            applied,
+        })
+    }
+
     pub fn register_runtime(
         &mut self,
         id: RuntimeId,
@@ -465,6 +625,82 @@ impl InMemoryControlPlane {
     }
 }
 
+impl DomainSnapshot {
+    pub fn validate(&self) -> Result<(), DomainSnapshotError> {
+        if self.schema_version != DOMAIN_SNAPSHOT_SCHEMA_VERSION {
+            return Err(DomainSnapshotError::UnsupportedSchema {
+                actual: self.schema_version,
+                expected: DOMAIN_SNAPSHOT_SCHEMA_VERSION,
+            });
+        }
+        let mut runtime_ids = BTreeSet::new();
+        for runtime in &self.runtimes {
+            validated_identifier("runtime_id", runtime.id.as_str().to_string()).map_err(|_| {
+                DomainSnapshotError::Invalid {
+                    reason: "invalid runtime identifier",
+                }
+            })?;
+            if runtime.revision > self.revision {
+                return Err(DomainSnapshotError::Invalid {
+                    reason: "runtime revision exceeds snapshot revision",
+                });
+            }
+            if !runtime_ids.insert(runtime.id.clone()) {
+                return Err(DomainSnapshotError::Invalid {
+                    reason: "duplicate runtime identifier",
+                });
+            }
+        }
+        let mut idempotency_scopes = BTreeSet::new();
+        for applied in &self.applied_commands {
+            validated_identifier("principal.id", applied.principal_id.clone()).map_err(|_| {
+                DomainSnapshotError::Invalid {
+                    reason: "invalid applied-command principal",
+                }
+            })?;
+            validated_identifier(
+                "idempotency_key",
+                applied.idempotency_key.as_str().to_string(),
+            )
+            .map_err(|_| DomainSnapshotError::Invalid {
+                reason: "invalid applied-command idempotency key",
+            })?;
+            if !idempotency_scopes.insert((
+                applied.principal_id.clone(),
+                applied.idempotency_key.clone(),
+            )) {
+                return Err(DomainSnapshotError::Invalid {
+                    reason: "duplicate applied-command idempotency scope",
+                });
+            }
+            let Command::RuntimeRefresh { runtime_id } = &applied.command;
+            if runtime_id != &applied.result.runtime.id
+                || !runtime_ids.contains(runtime_id)
+                || applied.result.runtime.revision > self.revision
+            {
+                return Err(DomainSnapshotError::Invalid {
+                    reason: "applied command does not match snapshot runtime state",
+                });
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for DomainSnapshotError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedSchema { actual, expected } => write!(
+                formatter,
+                "unsupported domain snapshot schema {actual}, expected {expected}"
+            ),
+            Self::Invalid { reason } => write!(formatter, "invalid domain snapshot: {reason}"),
+        }
+    }
+}
+
+impl std::error::Error for DomainSnapshotError {}
+
 impl fmt::Display for DomainError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -592,6 +828,21 @@ mod tests {
         let QueryResult::RuntimeList { runtimes, .. } = result;
         assert_eq!(runtimes[0].id.as_str(), "runtime-a");
         assert_eq!(runtimes[1].id.as_str(), "runtime-b");
+    }
+
+    #[test]
+    fn snapshot_restore_preserves_projection_and_idempotency() {
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(runtime_id.clone(), "A", "http://a");
+        let envelope = refresh_envelope(runtime_id, "command-a", "effect-a");
+        let first = control.execute(envelope.clone()).unwrap();
+
+        let snapshot = control.snapshot();
+        snapshot.validate().unwrap();
+        let mut restored = InMemoryControlPlane::from_snapshot(snapshot).unwrap();
+        assert_eq!(restored.execute(envelope).unwrap(), first);
+        assert_eq!(restored.snapshot(), control.snapshot());
     }
 
     #[test]

@@ -174,7 +174,7 @@ fn signal_and_narrative_required_fact_kinds_cover_runtime_schema() {
         vec![FactKindTag::TcpState]
     );
     assert_eq!(
-        NarrativeTemplate::Static("ok").required_fact_kinds(),
+        NarrativeTemplate::Static("ok".into()).required_fact_kinds(),
         Vec::new()
     );
 }
