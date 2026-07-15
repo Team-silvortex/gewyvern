@@ -99,6 +99,7 @@ dependencies = [
 name = "gewyvern"
 version = "1.0.0"
 dependencies = [
+ "serde",
  "serde_json",
  "x509-parser",
 ]
@@ -114,6 +115,22 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
+name = "leserpent-domain"
+version = "1.0.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "leserpent-protocol"
+version = "1.0.0"
+dependencies = [
+ "leserpent-domain",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "memchr"
@@ -220,6 +237,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]

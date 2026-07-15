@@ -90,6 +90,16 @@ Run the full test suite:
 cargo test --workspace
 ```
 
+Inspect and validate the architecture-module-feature project status:
+
+```bash
+cargo run --bin gewyvern_status -- summary
+cargo run --bin gewyvern_status -- validate
+```
+
+The status protocol and update rules live in
+[docs/project-status-system.md](docs/project-status-system.md).
+
 Run the primary TDD acceptance loop:
 
 ```bash

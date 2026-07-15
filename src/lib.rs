@@ -13,6 +13,7 @@ pub mod ledger;
 pub mod linux_ebpf_smoke;
 pub mod loader;
 pub mod program;
+pub mod project_status;
 pub mod protocol_profiles;
 pub mod reason;
 pub mod runtime;

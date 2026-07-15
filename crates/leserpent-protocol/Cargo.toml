@@ -1,0 +1,12 @@
+[package]
+name = "leserpent-protocol"
+version.workspace = true
+edition.workspace = true
+description = "Versioned wire protocol for Leserpent commands, queries, events, and results"
+license.workspace = true
+
+[dependencies]
+leserpent-domain = { path = "../leserpent-domain" }
+serde.workspace = true
+serde_json.workspace = true
+

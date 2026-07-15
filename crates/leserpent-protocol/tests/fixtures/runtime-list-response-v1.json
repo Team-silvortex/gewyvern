@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "query",
+    "payload": {
+      "kind": "runtime_list",
+      "revision": 0,
+      "runtimes": []
+    }
+  }
+}

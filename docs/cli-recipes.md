@@ -31,6 +31,21 @@ dotnet restore apps/leserpent/leserpent.slnx --locked-mode
 dotnet build apps/leserpent/leserpent.slnx --no-restore
 ```
 
+## Project Status
+
+Use the native status tensor instead of maintaining a separate progress table:
+
+```bash
+cargo run --bin gewyvern_status -- summary
+cargo run --bin gewyvern_status -- weakest
+cargo run --bin gewyvern_status -- standalone
+cargo run --bin gewyvern_status -- developing --architecture leserpent-2
+cargo run --bin gewyvern_status -- validate
+```
+
+Use `--architecture`, `--module`, `--feature`, `--lifecycle`, and `--maturity`
+to slice the tensor. Add `--json` for automation or model context.
+
 ## Security Checks
 
 Use these when you want the shortest repeatable security shelf for the current

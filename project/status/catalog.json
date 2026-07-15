@@ -1,0 +1,528 @@
+{
+  "schema_version": 1,
+  "project": "gewyvern",
+  "checkpoint": "v1.0.0-to-v2.0.0-roadmap",
+  "dimensions": {
+    "architectures": [
+      {
+        "id": "gewyvern-core",
+        "label": "Gewyvern Core",
+        "summary": "Linux-first debugger, evidence reconstruction runtime, and stable machine surfaces."
+      },
+      {
+        "id": "gewylang",
+        "label": "GewyLang Toolchain",
+        "summary": "Protocol language, compiler, package model, and protocol standard library."
+      },
+      {
+        "id": "leserpent-1x",
+        "label": "Leserpent 1.x Bridge",
+        "summary": "Current ASP.NET control plane and TypeScript operator console."
+      },
+      {
+        "id": "leserpent-2",
+        "label": "Leserpent 2.0",
+        "summary": "Target Rust control runtime with equivalent Leselang, CLI, and GUI frontends."
+      },
+      {
+        "id": "etragon",
+        "label": "Etragon",
+        "summary": "Optional advisory and learning sidecar."
+      },
+      {
+        "id": "project-governance",
+        "label": "Project Governance",
+        "summary": "Machine-readable architecture, module, feature, and delivery status."
+      }
+    ],
+    "modules": [
+      {
+        "id": "runtime-evidence",
+        "label": "Runtime Evidence",
+        "summary": "Fact ingest, flow reconstruction, diagnosis, export, and service behavior."
+      },
+      {
+        "id": "linux-ebpf",
+        "label": "Linux eBPF",
+        "summary": "Linux attach, kprobe, tc, and physical-host validation."
+      },
+      {
+        "id": "compiler",
+        "label": "Compiler",
+        "summary": "Language frontend, lowering, diagnostics, and package tooling."
+      },
+      {
+        "id": "protocol-packages",
+        "label": "Protocol Packages",
+        "summary": "Packaged protocol registry, aliases, DSL sources, and family shelves."
+      },
+      {
+        "id": "control-plane",
+        "label": "Control Plane",
+        "summary": "Fleet state, Orchestra, persistence, deployment, and policy."
+      },
+      {
+        "id": "web-console",
+        "label": "Web Console",
+        "summary": "Current browser operator interface and runtime workspaces."
+      },
+      {
+        "id": "domain-protocol",
+        "label": "Domain Protocol",
+        "summary": "Versioned command, query, event, identity, and capability contracts."
+      },
+      {
+        "id": "language-vm",
+        "label": "Leselang VM",
+        "summary": "Synchronous functional language, effects, continuation, and re-entry."
+      },
+      {
+        "id": "native-cli",
+        "label": "Native CLI",
+        "summary": "Rust CLI over the shared Leserpent protocol."
+      },
+      {
+        "id": "ui-renderers",
+        "label": "UI Renderers",
+        "summary": "Neutral UI IR and replaceable Avalonia or web renderers."
+      },
+      {
+        "id": "learning-sidecar",
+        "label": "Learning Sidecar",
+        "summary": "Advisory analysis, online memory, and daemon collaboration."
+      },
+      {
+        "id": "status-governance",
+        "label": "Status Governance",
+        "summary": "Status schema, tensor catalog, validation, and progress queries."
+      }
+    ],
+    "features": [
+      {
+        "id": "evidence-reconstruction",
+        "label": "Evidence Reconstruction",
+        "summary": "Deterministic fact-to-flow diagnosis and machine-readable reports."
+      },
+      {
+        "id": "linux-attach",
+        "label": "Linux Attach",
+        "summary": "Real Linux eBPF attach and validation paths."
+      },
+      {
+        "id": "parser-lowering",
+        "label": "Parser And Lowering",
+        "summary": "Canonical GewyLang syntax through typed runtime binding."
+      },
+      {
+        "id": "protocol-catalog",
+        "label": "Protocol Catalog",
+        "summary": "Reusable packaged protocol definitions and registry metadata."
+      },
+      {
+        "id": "orchestration-persistence",
+        "label": "Orchestration And Persistence",
+        "summary": "Fleet orchestration, history, deployment, and durable state."
+      },
+      {
+        "id": "browser-operations",
+        "label": "Browser Operations",
+        "summary": "Operator dashboard, child windows, localization, and guardrails."
+      },
+      {
+        "id": "command-query-kernel",
+        "label": "Command Query Kernel",
+        "summary": "Rust domain and transport protocol shared by every frontend."
+      },
+      {
+        "id": "effect-reentry",
+        "label": "Effect Re-entry",
+        "summary": "Typed suspension, journal, continuation, and deterministic replay."
+      },
+      {
+        "id": "cli-parity",
+        "label": "CLI Parity",
+        "summary": "Native CLI equivalence with GUI and Leselang."
+      },
+      {
+        "id": "avalonia-renderer",
+        "label": "Avalonia Renderer",
+        "summary": "Native desktop and mobile rendering of neutral UI IR."
+      },
+      {
+        "id": "advisory-learning",
+        "label": "Advisory Learning",
+        "summary": "Optional learning and recommendation enrichment."
+      },
+      {
+        "id": "status-tensor",
+        "label": "Status Tensor",
+        "summary": "Architecture-module-feature project progress control."
+      }
+    ]
+  },
+  "cells": [
+    {
+      "id": "gewyvern-core/runtime-evidence/evidence-reconstruction",
+      "architecture": "gewyvern-core",
+      "module": "runtime-evidence",
+      "feature": "evidence-reconstruction",
+      "lifecycle": "current",
+      "maturity": "mature",
+      "completion": 96,
+      "confidence": "high",
+      "independence": "standalone-tool",
+      "contract": {
+        "id": "gewyvern-machine-contract",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": ["cli", "json-export", "runtime-api", "validation"]
+      },
+      "depends_on": [],
+      "blockers": [],
+      "consumers": ["gewyc", "leserpent", "etragon", "operators"],
+      "evidence": [
+        { "kind": "source", "path": "src/runtime.rs", "state": "present" },
+        { "kind": "test", "path": "tests/runtime_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/machine-contract.md", "state": "present" }
+      ],
+      "next_gate": "Keep the 1.x contract stable while extracting reusable status and protocol surfaces."
+    },
+    {
+      "id": "gewyvern-core/linux-ebpf/linux-attach",
+      "architecture": "gewyvern-core",
+      "module": "linux-ebpf",
+      "feature": "linux-attach",
+      "lifecycle": "current",
+      "maturity": "stabilizing",
+      "completion": 82,
+      "confidence": "medium",
+      "independence": "internal",
+      "contract": {
+        "id": "linux-attach-validation",
+        "version": "1.0.0",
+        "stability": "evolving",
+        "surfaces": ["attach-smoke", "kprobe-smoke", "tc-smoke", "remote-linux-validation"]
+      },
+      "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
+      "blockers": [
+        {
+          "id": "physical-host-matrix",
+          "summary": "Kernel and distribution validation breadth remains smaller than the protocol/runtime test shelf."
+        }
+      ],
+      "consumers": ["gewyvern-runtime", "release-gate"],
+      "evidence": [
+        { "kind": "source", "path": "src/linux_ebpf_smoke.rs", "state": "present" },
+        { "kind": "test", "path": "tests/native_validation_harness_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/headless-linux.md", "state": "present" }
+      ],
+      "next_gate": "Expand repeatable physical-host and kernel-version evidence."
+    },
+    {
+      "id": "gewylang/compiler/parser-lowering",
+      "architecture": "gewylang",
+      "module": "compiler",
+      "feature": "parser-lowering",
+      "lifecycle": "current",
+      "maturity": "stabilizing",
+      "completion": 86,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "gewylang-frontend-contract",
+        "version": "1.0.0",
+        "stability": "evolving",
+        "surfaces": ["gewylang-source", "gewyc-cli", "frontend-json", "lowered-ir"]
+      },
+      "depends_on": [],
+      "blockers": [
+        {
+          "id": "owned-ir-lifetimes",
+          "summary": "Some compiler and IR paths still use leaked static strings and need owned or interned IDs."
+        }
+      ],
+      "consumers": ["protocol-authors", "gewyvern-runtime", "model-tooling"],
+      "evidence": [
+        { "kind": "source", "path": "crates/gewyc/src/main.rs", "state": "present" },
+        { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" }
+      ],
+      "next_gate": "Finish canonical migration and remove long-lived static allocation debt."
+    },
+    {
+      "id": "gewylang/protocol-packages/protocol-catalog",
+      "architecture": "gewylang",
+      "module": "protocol-packages",
+      "feature": "protocol-catalog",
+      "lifecycle": "current",
+      "maturity": "mature",
+      "completion": 94,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "protocol-package-contract",
+        "version": "1.0.0",
+        "stability": "stable",
+        "surfaces": ["gewy-package", "protocol-registry", "entry-aliases", "family-shelves"]
+      },
+      "depends_on": ["gewylang/compiler/parser-lowering"],
+      "blockers": [],
+      "consumers": ["gewyvern-runtime", "gewyc", "external-package-authors"],
+      "evidence": [
+        { "kind": "source", "path": "protocols", "state": "present" },
+        { "kind": "test", "path": "tests/protocol_registry_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/book/reference-protocol-surface.md", "state": "present" }
+      ],
+      "next_gate": "Preserve package compatibility while adding only evidence-backed protocol breadth."
+    },
+    {
+      "id": "leserpent-1x/control-plane/orchestration-persistence",
+      "architecture": "leserpent-1x",
+      "module": "control-plane",
+      "feature": "orchestration-persistence",
+      "lifecycle": "bridge",
+      "maturity": "stabilizing",
+      "completion": 84,
+      "confidence": "high",
+      "independence": "standalone-service",
+      "contract": {
+        "id": "leserpent-control-api",
+        "version": "1.0.0",
+        "stability": "evolving",
+        "surfaces": ["fleet-api", "orchestra-api", "deployment-api", "sqlite-history"]
+      },
+      "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
+      "blockers": [],
+      "consumers": ["browser-console", "operators", "future-compatibility-adapter"],
+      "evidence": [
+        { "kind": "source", "path": "apps/leserpent/src/Leserpent/Program.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests", "state": "present" },
+        { "kind": "documentation", "path": "apps/leserpent/docs/runtime-posture.md", "state": "present" }
+      ],
+      "next_gate": "Capture parity fixtures before Rust domain and protocol extraction."
+    },
+    {
+      "id": "leserpent-1x/web-console/browser-operations",
+      "architecture": "leserpent-1x",
+      "module": "web-console",
+      "feature": "browser-operations",
+      "lifecycle": "bridge",
+      "maturity": "stabilizing",
+      "completion": 78,
+      "confidence": "high",
+      "independence": "replaceable-frontend",
+      "contract": {
+        "id": "leserpent-web-console",
+        "version": "1.0.0",
+        "stability": "evolving",
+        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails"]
+      },
+      "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
+      "blockers": [
+        {
+          "id": "frontend-business-logic",
+          "summary": "Some operator behavior still lives in TypeScript and must be normalized before renderer replacement."
+        }
+      ],
+      "consumers": ["browser-operators"],
+      "evidence": [
+        { "kind": "source", "path": "apps/leserpent/src/Leserpent/frontend", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/BrowserSecurityContractTests.cs", "state": "present" },
+        { "kind": "documentation", "path": "apps/leserpent/docs/frontend-layout-maintenance.md", "state": "present" }
+      ],
+      "next_gate": "Separate domain commands from presentation-only browser state."
+    },
+    {
+      "id": "leserpent-2/domain-protocol/command-query-kernel",
+      "architecture": "leserpent-2",
+      "module": "domain-protocol",
+      "feature": "command-query-kernel",
+      "lifecycle": "target",
+      "maturity": "developing",
+      "completion": 28,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leserpent-domain-protocol",
+        "version": "0.1.0",
+        "stability": "evolving",
+        "surfaces": [
+          "command-envelope",
+          "query",
+          "event",
+          "capability",
+          "revision",
+          "wire-envelope"
+        ]
+      },
+      "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
+      "blockers": [
+        {
+          "id": "compatibility-parity-fixtures",
+          "summary": "The Rust runtime.list and runtime.refresh contracts still need parity fixtures against the 1.x API."
+        }
+      ],
+      "consumers": ["leselang-vm", "leserpent-cli", "avalonia-client", "web-adapter"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-domain", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures", "state": "present" }
+      ],
+      "next_gate": "Gate 1: prove normalized parity with current Leserpent runtime list and refresh fixtures."
+    },
+    {
+      "id": "leserpent-2/language-vm/effect-reentry",
+      "architecture": "leserpent-2",
+      "module": "language-vm",
+      "feature": "effect-reentry",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 3,
+      "confidence": "medium",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leselang-execution-protocol",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["syntax", "hir", "step", "effect-request", "continuation"]
+      },
+      "depends_on": ["leserpent-2/domain-protocol/command-query-kernel"],
+      "blockers": [
+        {
+          "id": "gate-two-not-implemented",
+          "summary": "Parser, HIR, stackless VM, journal, and continuation format remain roadmap work."
+        }
+      ],
+      "consumers": ["model-automation", "leserpent-cli", "ui-functions"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "crates/leselang-vm", "state": "planned" }
+      ],
+      "next_gate": "Gate 2: prove suspend, restart, single-consume re-entry, and deterministic replay."
+    },
+    {
+      "id": "leserpent-2/native-cli/cli-parity",
+      "architecture": "leserpent-2",
+      "module": "native-cli",
+      "feature": "cli-parity",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 1,
+      "confidence": "high",
+      "independence": "standalone-tool",
+      "contract": {
+        "id": "leserpent-cli-contract",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["human-output", "json-output", "dry-run", "leselang-export"]
+      },
+      "depends_on": [
+        "leserpent-2/domain-protocol/command-query-kernel",
+        "leserpent-2/language-vm/effect-reentry"
+      ],
+      "blockers": [
+        {
+          "id": "gate-three-not-implemented",
+          "summary": "The native Leserpent CLI awaits the shared Rust protocol and VM."
+        }
+      ],
+      "consumers": ["operators", "automation", "ci"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-cli", "state": "planned" }
+      ],
+      "next_gate": "Gate 3: execute one command identically through CLI and Leselang."
+    },
+    {
+      "id": "leserpent-2/ui-renderers/avalonia-renderer",
+      "architecture": "leserpent-2",
+      "module": "ui-renderers",
+      "feature": "avalonia-renderer",
+      "lifecycle": "target",
+      "maturity": "planned",
+      "completion": 1,
+      "confidence": "medium",
+      "independence": "replaceable-frontend",
+      "contract": {
+        "id": "leserpent-ui-ir",
+        "version": "0.1.0-draft",
+        "stability": "draft",
+        "surfaces": ["ui-document", "ui-patch", "ui-event", "command-plan"]
+      },
+      "depends_on": [
+        "leserpent-2/domain-protocol/command-query-kernel",
+        "leserpent-2/language-vm/effect-reentry"
+      ],
+      "blockers": [
+        {
+          "id": "gate-four-not-implemented",
+          "summary": "Neutral UI IR and the Avalonia vertical slice remain unimplemented."
+        }
+      ],
+      "consumers": ["desktop-operators", "mobile-operators"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia", "state": "planned" }
+      ],
+      "next_gate": "Gate 4: render the fleet and debugger vertical slice without frontend business logic."
+    },
+    {
+      "id": "etragon/learning-sidecar/advisory-learning",
+      "architecture": "etragon",
+      "module": "learning-sidecar",
+      "feature": "advisory-learning",
+      "lifecycle": "current",
+      "maturity": "developing",
+      "completion": 68,
+      "confidence": "medium",
+      "independence": "standalone-service",
+      "contract": {
+        "id": "etragon-advisory-contract",
+        "version": "1.0.0",
+        "stability": "evolving",
+        "surfaces": ["analysis", "recommendations", "online-memory", "daemon-api"]
+      },
+      "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
+      "blockers": [
+        {
+          "id": "non-core-maturity",
+          "summary": "The sidecar remains optional and less mature than Gewyvern's built-in diagnosis."
+        }
+      ],
+      "consumers": ["gewyvern", "leserpent"],
+      "evidence": [
+        { "kind": "source", "path": "apps/etragon/src", "state": "present" },
+        { "kind": "test", "path": "apps/etragon/tests", "state": "present" },
+        { "kind": "documentation", "path": "docs/sidecar-collaboration.md", "state": "present" }
+      ],
+      "next_gate": "Keep advisory boundaries stable while improving daemon and persistence reliability."
+    },
+    {
+      "id": "project-governance/status-governance/status-tensor",
+      "architecture": "project-governance",
+      "module": "status-governance",
+      "feature": "status-tensor",
+      "lifecycle": "current",
+      "maturity": "stabilizing",
+      "completion": 88,
+      "confidence": "high",
+      "independence": "standalone-tool",
+      "contract": {
+        "id": "project-status-tensor",
+        "version": "1.0.0",
+        "stability": "evolving",
+        "surfaces": ["json-schema", "catalog", "rust-api", "native-cli"]
+      },
+      "depends_on": [],
+      "blockers": [],
+      "consumers": ["contributors", "release-planning", "automation", "models"],
+      "evidence": [
+        { "kind": "source", "path": "src/project_status.rs", "state": "present" },
+        { "kind": "test", "path": "tests/project_status_tdd.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/project-status-system.md", "state": "present" }
+      ],
+      "next_gate": "Require status validation for every architecture, module, or feature change."
+    }
+  ]
+}

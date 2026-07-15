@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "request": {
+    "kind": "query",
+    "payload": {
+      "schema_version": 1,
+      "principal": {
+        "id": "operator"
+      },
+      "capabilities": [
+        "runtime.read"
+      ],
+      "query": {
+        "kind": "runtime_list"
+      }
+    }
+  }
+}

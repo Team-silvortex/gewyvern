@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gewyvern.dev/schemas/leserpent-wire-v1.json",
+  "title": "Leserpent Wire Envelope v1",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/response" }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "request"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "request": {
+          "type": "object",
+          "required": ["kind", "payload"],
+          "properties": {
+            "kind": { "enum": ["command", "query"] },
+            "payload": { "type": "object" }
+          }
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "response"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "response": {
+          "type": "object",
+          "required": ["kind", "payload"],
+          "properties": {
+            "kind": { "enum": ["command", "query", "error"] },
+            "payload": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -24,6 +24,8 @@ For the durable minor-line record, see
 [docs/history/index.md](docs/history/index.md).
 For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md).
+Machine-readable current progress is tracked by the
+[project status tensor](docs/project-status-system.md), not duplicated here.
 
 ## What `v1.0.0` Means Right Now
 

@@ -77,9 +77,18 @@ Treat `1.0.0` as release-ready only when all of the following stay true:
     manifests
 13. control-plane and sidecar security boundary tests still pass for
     `leserpent` and `etragon`
+14. the project status tensor validates, and every changed architecture,
+    module, feature, dependency, blocker, and contract is reflected there
 
 This section is intentionally binary and operational. It should stay shorter
 and stricter than the broader validation note.
+
+Validate project direction before rebuilding artifacts:
+
+```bash
+cargo run --bin gewyvern_status -- validate
+cargo test --test project_status_tdd
+```
 
 ## Rebuild Current Artifacts
 

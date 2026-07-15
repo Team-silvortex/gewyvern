@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gewyvern.dev/schemas/project-status-tensor-v1.json",
+  "title": "Gewyvern Project Status Tensor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project", "checkpoint", "dimensions", "cells"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "project": { "type": "string", "minLength": 1 },
+    "checkpoint": { "type": "string", "minLength": 1 },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architectures", "modules", "features"],
+      "properties": {
+        "architectures": { "$ref": "#/$defs/dimension" },
+        "modules": { "$ref": "#/$defs/dimension" },
+        "features": { "$ref": "#/$defs/dimension" }
+      }
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/cell" }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "dimension": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "summary"],
+        "properties": {
+          "id": { "$ref": "#/$defs/identifier" },
+          "label": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "architecture",
+        "module",
+        "feature",
+        "lifecycle",
+        "maturity",
+        "completion",
+        "confidence",
+        "independence",
+        "contract",
+        "depends_on",
+        "blockers",
+        "consumers",
+        "evidence",
+        "next_gate"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[a-z0-9-]+/[a-z0-9-]+$"
+        },
+        "architecture": { "$ref": "#/$defs/identifier" },
+        "module": { "$ref": "#/$defs/identifier" },
+        "feature": { "$ref": "#/$defs/identifier" },
+        "lifecycle": {
+          "enum": ["current", "bridge", "target", "retired"]
+        },
+        "maturity": {
+          "enum": [
+            "planned",
+            "incubating",
+            "developing",
+            "stabilizing",
+            "mature",
+            "deprecated",
+            "blocked"
+          ]
+        },
+        "completion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "confidence": {
+          "enum": ["low", "medium", "high"]
+        },
+        "independence": {
+          "enum": [
+            "internal",
+            "reusable-library",
+            "standalone-tool",
+            "standalone-service",
+            "replaceable-frontend"
+          ]
+        },
+        "contract": { "$ref": "#/$defs/contract" },
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "blockers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/blocker" }
+        },
+        "consumers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/evidence" }
+        },
+        "next_gate": { "type": "string", "minLength": 1 }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "stability", "surfaces"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "type": "string", "minLength": 1 },
+        "stability": {
+          "enum": ["draft", "evolving", "stable", "deprecated"]
+        },
+        "surfaces": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "summary"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path", "state"],
+      "properties": {
+        "kind": {
+          "enum": ["source", "test", "documentation", "benchmark", "release"]
+        },
+        "path": { "type": "string", "minLength": 1 },
+        "state": { "enum": ["present", "planned"] }
+      }
+    }
+  }
+}

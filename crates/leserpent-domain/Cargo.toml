@@ -1,0 +1,10 @@
+[package]
+name = "leserpent-domain"
+version.workspace = true
+edition.workspace = true
+description = "Shared Leserpent command, query, event, and capability domain"
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+
