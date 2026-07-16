@@ -1,7 +1,25 @@
 using System.Text;
 
-if (args is ["--connect", var endpoint, var certificate, var cache])
+if (args is ["--credential-resolve", var credentialOrigin])
 {
+    var endpoint = RemoteClientOptions.ParseEndpoint(credentialOrigin);
+    var resolved = RemoteTokenResolver.Resolve(endpoint);
+    Console.WriteLine(
+        $"remote credential valid: source={resolved.Source.ToString().ToLowerInvariant()}, account={RemoteTokenResolver.Account(endpoint)}");
+    return 0;
+}
+
+if (args.Length is 4 or 6 && args[0] == "--connect")
+{
+    if (args.Length == 6 && args[4] != "--refresh")
+    {
+        Console.Error.WriteLine("usage: Leserpent.RemoteConformance --connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID]");
+        return 2;
+    }
+    var endpoint = args[1];
+    var certificate = args[2];
+    var cache = args[3];
+    var refreshRuntimeId = args.Length == 6 ? args[5] : null;
     var token = Environment.GetEnvironmentVariable("LESERPENT_REMOTE_TOKEN")
         ?? throw new InvalidOperationException("LESERPENT_REMOTE_TOKEN is required");
     var options = RemoteClientOptions.Create(endpoint, certificate, token, cache);
@@ -25,12 +43,43 @@ if (args is ["--connect", var endpoint, var certificate, var cache])
     var live = await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
     Console.WriteLine(
         $"remote conformance valid: revision={live.Revision}, runtimes={live.Runtimes.Count}, stale={live.IsStale.ToString().ToLowerInvariant()}");
+    if (refreshRuntimeId is not null)
+    {
+        var runtime = live.Runtimes.Single(candidate => candidate.Id == refreshRuntimeId);
+        var updated = new TaskCompletionSource<RemoteFeedState>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        client.StateChanged += state =>
+        {
+            var changedRuntime = state.Runtimes.FirstOrDefault(candidate =>
+                candidate.Id == refreshRuntimeId);
+            if (state.Phase == RemoteFeedPhase.Live
+                && changedRuntime is not null
+                && changedRuntime.Revision > runtime.Revision)
+            {
+                updated.TrySetResult(state);
+            }
+        };
+        using var mutation = new RemoteMutationClient(options);
+        var result = await mutation.RefreshAsync(
+            refreshRuntimeId,
+            runtime.Revision,
+            "dotnet-conformance");
+        var eventState = await updated.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        var eventRuntime = eventState.Runtimes.Single(candidate =>
+            candidate.Id == refreshRuntimeId);
+        Require(result.Revision == eventRuntime.Revision,
+            "mutation response and event stream revisions diverged");
+        Require(eventRuntime.RefreshStatus == RefreshStatus.Pending,
+            "mutation event did not expose the pending refresh state");
+        Console.WriteLine(
+            $"remote mutation conformance valid: initial_revision={runtime.Revision}, applied_revision={result.Revision}, event_revision={eventRuntime.Revision}, runtime={eventRuntime.Id}, stale={eventState.IsStale.ToString().ToLowerInvariant()}");
+    }
     return 0;
 }
 
 if (args.Length != 0)
 {
-    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH]");
+    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN]");
     return 2;
 }
 
@@ -93,7 +142,32 @@ RequireThrows<InvalidDataException>(() => RemoteEventCodec.Decode(Encoding.UTF8.
     "{\"schema_version\":2,\"event\":{\"kind\":\"heartbeat\",\"payload\":{\"revision\":7}}}")),
     "unknown event schema was accepted");
 
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, endpoint_cache=true");
+var credentialEndpoint = RemoteClientOptions.ParseEndpoint("https://EXAMPLE.com:9443");
+Require(RemoteTokenResolver.Account(credentialEndpoint) == "https://example.com:9443",
+    "credential account did not canonicalize the HTTPS origin");
+var storedToken = new string('s', 32);
+var environmentToken = new string('e', 32);
+var stored = RemoteTokenResolver.Resolve(
+    credentialEndpoint,
+    environmentToken,
+    new FixtureTokenStore(storedToken));
+Require(stored.Source == RemoteTokenSource.PlatformStore && stored.Value == storedToken,
+    "platform credential did not take precedence");
+var fallback = RemoteTokenResolver.Resolve(
+    credentialEndpoint,
+    environmentToken,
+    new FixtureTokenStore(null));
+Require(fallback.Source == RemoteTokenSource.Environment && fallback.Value == environmentToken,
+    "environment credential fallback failed");
+RequireThrows<ArgumentException>(() => RemoteTokenResolver.Resolve(
+    credentialEndpoint,
+    environmentToken,
+    new FixtureTokenStore("invalid token")),
+    "invalid platform credential silently fell back to the environment");
+RequireThrows<ArgumentException>(() => RemoteClientOptions.ValidateToken(new string('x', 4097)),
+    "oversized remote token was accepted");
+
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, endpoint_cache=true, credential_resolution=true");
 return 0;
 
 static void Require(bool condition, string message)
@@ -164,4 +238,13 @@ public const string SnapshotJson = """
   }
 }
 """;
+}
+
+sealed class FixtureTokenStore(string? token) : IRemoteTokenStore
+{
+    public string? Load(Uri endpoint)
+    {
+        _ = endpoint;
+        return token;
+    }
 }

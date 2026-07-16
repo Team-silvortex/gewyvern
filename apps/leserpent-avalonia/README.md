@@ -139,7 +139,7 @@ The desktop shell can consume the authenticated `leserpentd` WebSocket event
 surface directly:
 
 ```bash
-export LESERPENT_REMOTE_TOKEN='at-least-32-non-whitespace-bytes'
+export LESERPENT_PRINCIPAL='operator-a' # optional audit identity
 dotnet run --project \
   apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- \
   --remote https://leserpent.example:9443 \
@@ -151,13 +151,40 @@ requires the `leserpent.events.v1` subprotocol, verifies both the explicit CA
 and TLS hostname, and never accepts plaintext or redirect fallback. An optional
 `--remote-cache ABSOLUTE_PATH` overrides the per-origin cache location.
 
+The desktop client first resolves the bearer token from the OS credential
+store, keyed by the canonical HTTPS origin. Add it without placing the token in
+shell history or process arguments:
+
+```bash
+# macOS: -w is deliberately last so security prompts for the value.
+security add-generic-password -U \
+  -s org.gewyvern.leserpent.remote \
+  -a https://leserpent.example:9443 \
+  -w
+
+# Linux Secret Service: secret-tool reads the value from its prompt/stdin.
+secret-tool store --label='Leserpent remote token' \
+  service org.gewyvern.leserpent.remote \
+  endpoint https://leserpent.example:9443
+```
+
+`LESERPENT_REMOTE_TOKEN` remains an explicit automation fallback when no
+platform item exists. A present but malformed platform item fails closed rather
+than silently selecting the environment. Tokens are bounded to 32-4096
+non-whitespace characters and never enter snapshot cache or UI IR.
+
 The cache atomically stores only the endpoint-redacted snapshot and matching
 revision cursor. Cached data is visibly marked stale until the server confirms
 the cursor; malformed, oversized, cross-origin, or symlinked cache state fails
 closed. Disconnects immediately mark the mounted projection stale and retry
 with capped exponential delay for at most eight attempts. `resync_required`
-clears the cursor before requesting a complete snapshot. Remote mutation is not
-yet exposed by this read-only event mode.
+clears the cursor before requesting a complete snapshot. Each runtime card also
+exposes only the typed `runtime.refresh` mutation. It is blocked while state is
+stale, requires an explicit confirmation dialog, carries the displayed runtime
+revision for optimistic concurrency, and is never retried automatically after
+an ambiguous network failure. The response projection and cache omit runtime
+endpoints. Mobile-specific secure storage lifecycle remains a Gate 6
+requirement.
 
 Run the transport-independent client contract check with:
 
@@ -169,6 +196,12 @@ dotnet run --project \
 It checks strict Rust event decoding, monotonic revisions, stale transitions,
 the reconnect bound, resync cursor reset, malformed-cache rejection, and
 per-origin cache binding without requiring a UI or network service.
+`gewyvern_validate leserpent-parity-recovery` runs this check together with an
+ignored-by-default integration test that connects the .NET client to a real
+Rust TLS/WebSocket authority, applies a confirmed HTTPS refresh, and waits for
+the matching revision on the event stream. macOS arm64 and physical Linux
+x86_64 retain matching eleven-suite, 134-test, 79-invariant evidence for the
+current vertical contract.
 
 ## Native AOT
 

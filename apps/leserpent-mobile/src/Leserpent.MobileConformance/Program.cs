@@ -1,0 +1,308 @@
+var root = Path.Combine(Path.GetTempPath(), $"leserpent-mobile-{Guid.NewGuid():N}");
+Directory.CreateDirectory(root);
+var certificate = Path.Combine(root, "ca.pem");
+var cache = Path.Combine(root, "snapshot.json");
+File.WriteAllText(certificate, "test certificate fixture");
+try
+{
+    var firstToken = new string('a', 32);
+    var secondToken = new string('b', 32);
+    var rawStore = new FixtureSecretStore();
+    var validatedVault = new MobileCredentialVault(rawStore);
+    var firstEndpoint = new Uri("https://mobile.example:9443");
+    var secondEndpoint = new Uri("https://other-mobile.example:9443");
+    await validatedVault.StoreAsync(firstEndpoint, firstToken, CancellationToken.None);
+    Require(await validatedVault.LoadAsync(firstEndpoint, CancellationToken.None) == firstToken,
+        "mobile credential did not round-trip through the validating vault");
+    Require(await validatedVault.LoadAsync(secondEndpoint, CancellationToken.None) is null,
+        "mobile credential alias was not endpoint-isolated");
+    Require(!MobileCredentialVault.Alias(firstEndpoint).Contains("mobile.example", StringComparison.Ordinal),
+        "mobile credential alias leaked the remote endpoint");
+    await RequireThrowsAsync<ArgumentException>(
+        () => validatedVault.StoreAsync(firstEndpoint, "invalid token", CancellationToken.None).AsTask(),
+        "invalid mobile credential reached the platform store");
+    Require(rawStore.StoreCount == 1,
+        "invalid mobile credential changed the platform store");
+    rawStore.Corrupt(MobileCredentialVault.Alias(firstEndpoint), "corrupt token");
+    await RequireThrowsAsync<ArgumentException>(
+        () => validatedVault.LoadAsync(firstEndpoint, CancellationToken.None).AsTask(),
+        "corrupt platform credential was accepted");
+    await validatedVault.DeleteAsync(firstEndpoint, CancellationToken.None);
+    Require(await validatedVault.LoadAsync(firstEndpoint, CancellationToken.None) is null,
+        "mobile credential delete did not remove the endpoint alias");
+    using var cancelled = new CancellationTokenSource();
+    cancelled.Cancel();
+    var loadCount = rawStore.LoadCount;
+    await RequireThrowsAsync<OperationCanceledException>(
+        () => validatedVault.LoadAsync(firstEndpoint, cancelled.Token).AsTask(),
+        "cancelled mobile credential load was accepted");
+    Require(rawStore.LoadCount == loadCount,
+        "cancelled mobile credential load reached the platform store");
+
+    var vault = new FixtureVault([firstToken, secondToken]);
+    var factory = new FixtureSessionFactory();
+    await using var lifecycle = new MobileRemoteLifecycle(
+        "https://mobile.example:9443",
+        certificate,
+        cache,
+        vault,
+        factory);
+    var observed = new List<MobileRemoteLifecycleSnapshot>();
+    lifecycle.StateChanged += observed.Add;
+    Require(lifecycle.State is { Phase: MobileLifecyclePhase.Inactive, Generation: 0 },
+        "mobile lifecycle did not start inactive");
+
+    await lifecycle.EnterForegroundAsync();
+    Require(lifecycle.State is
+    {
+        Phase: MobileLifecyclePhase.Foreground,
+        Generation: 1,
+        Feed.Phase: RemoteFeedPhase.Live,
+        Feed.Revision: 1,
+    }, "first foreground session did not become live");
+    Require(observed.Any(state => state is
+    {
+        Phase: MobileLifecyclePhase.Foreground,
+        Feed.IsStale: true,
+        Feed.Revision: 0,
+    }), "foreground transition did not publish hydrated cache state before live state");
+    Require(factory.Tokens.SequenceEqual([firstToken]),
+        "first foreground session did not receive the first vault token");
+    var firstSession = factory.Sessions.Single();
+
+    await lifecycle.EnterBackgroundAsync();
+    Require(lifecycle.State is
+    {
+        Phase: MobileLifecyclePhase.Background,
+        Generation: 2,
+        Feed.Phase: RemoteFeedPhase.Stale,
+    }, "background transition did not suspend the remote feed");
+    Require(firstSession.DisposeCount == 1,
+        "background transition did not dispose the active session exactly once");
+    firstSession.EmitCaptured(Live(99));
+    Require(lifecycle.State.Feed.Revision == 1,
+        "retired session crossed the generation fence");
+
+    await lifecycle.EnterForegroundAsync();
+    Require(lifecycle.State is
+    {
+        Phase: MobileLifecyclePhase.Foreground,
+        Generation: 3,
+        Feed.Phase: RemoteFeedPhase.Live,
+        Feed.Revision: 2,
+    }, "foreground reentry did not establish a fresh session");
+    Require(vault.LoadCount == 2 && factory.Tokens.SequenceEqual([firstToken, secondToken]),
+        "foreground reentry did not reload the credential");
+    RequireThrows<InvalidOperationException>(
+        () => lifecycle.EnterForegroundAsync().AsTask().GetAwaiter().GetResult(),
+        "duplicate foreground transition was accepted");
+
+    await lifecycle.DisposeAsync();
+    Require(lifecycle.State is { Phase: MobileLifecyclePhase.Stopped, Generation: 4 },
+        "mobile lifecycle did not stop with a terminal generation");
+    Require(factory.Sessions[1].DisposeCount == 1,
+        "terminal disposal did not release the resumed session exactly once");
+    await lifecycle.DisposeAsync();
+    Require(factory.Sessions[1].DisposeCount == 1,
+        "terminal disposal was not idempotent");
+
+    var emptyVault = new FixtureVault([null]);
+    await using var missing = new MobileRemoteLifecycle(
+        "https://mobile.example:9443",
+        certificate,
+        cache,
+        emptyVault,
+        new FixtureSessionFactory());
+    await RequireThrowsAsync<InvalidDataException>(
+        () => missing.EnterForegroundAsync().AsTask(),
+        "missing mobile credential was accepted");
+
+    var failingFactory = new FixtureSessionFactory(failOnStart: true);
+    await using var failing = new MobileRemoteLifecycle(
+        "https://mobile.example:9443",
+        certificate,
+        cache,
+        new FixtureVault([firstToken]),
+        failingFactory);
+    RequireThrows<InvalidOperationException>(
+        () => failing.EnterForegroundAsync().AsTask().GetAwaiter().GetResult(),
+        "session startup failure was hidden");
+    Require(failing.State.Phase == MobileLifecyclePhase.Background
+        && failingFactory.Sessions.Single().DisposeCount == 1,
+        "session startup failure did not return to a cleaned background state");
+}
+finally
+{
+    Directory.Delete(root, recursive: true);
+}
+
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true");
+return 0;
+
+static RemoteFeedState Live(ulong revision) => new(
+    RemoteFeedPhase.Live,
+    revision,
+    Array.Empty<RemoteRuntimeProjection>(),
+    0,
+    false,
+    $"Live at revision {revision}");
+
+static void Require(bool condition, string message)
+{
+    if (!condition)
+    {
+        throw new InvalidDataException(message);
+    }
+}
+
+static void RequireThrows<TException>(Action action, string message)
+    where TException : Exception
+{
+    try
+    {
+        action();
+    }
+    catch (TException)
+    {
+        return;
+    }
+    throw new InvalidDataException(message);
+}
+
+static async Task RequireThrowsAsync<TException>(Func<Task> action, string message)
+    where TException : Exception
+{
+    try
+    {
+        await action();
+    }
+    catch (TException)
+    {
+        return;
+    }
+    throw new InvalidDataException(message);
+}
+
+sealed class FixtureVault(IReadOnlyList<string?> tokens) : IMobileCredentialVault
+{
+    public int LoadCount { get; private set; }
+
+    public ValueTask<string?> LoadAsync(Uri endpoint, CancellationToken cancellationToken)
+    {
+        _ = endpoint;
+        cancellationToken.ThrowIfCancellationRequested();
+        var index = LoadCount++;
+        return ValueTask.FromResult(index < tokens.Count ? tokens[index] : tokens[^1]);
+    }
+
+    public ValueTask StoreAsync(
+        Uri endpoint,
+        string token,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
+    public ValueTask DeleteAsync(Uri endpoint, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+}
+
+sealed class FixtureSecretStore : IMobileSecretStore
+{
+    private readonly Dictionary<string, string> values = new(StringComparer.Ordinal);
+    public int LoadCount { get; private set; }
+    public int StoreCount { get; private set; }
+
+    public ValueTask<string?> LoadAsync(string alias, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        LoadCount++;
+        return ValueTask.FromResult(values.GetValueOrDefault(alias));
+    }
+
+    public ValueTask StoreAsync(
+        string alias,
+        string secret,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        values[alias] = secret;
+        StoreCount++;
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DeleteAsync(string alias, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        values.Remove(alias);
+        return ValueTask.CompletedTask;
+    }
+
+    public void Corrupt(string alias, string value) => values[alias] = value;
+}
+
+sealed class FixtureSessionFactory(bool failOnStart = false) : IMobileRemoteSessionFactory
+{
+    public List<string> Tokens { get; } = [];
+    public List<FixtureSession> Sessions { get; } = [];
+
+    public IMobileRemoteSession Create(RemoteClientOptions options)
+    {
+        Tokens.Add(options.Token);
+        var session = new FixtureSession((ulong)Sessions.Count + 1, failOnStart);
+        Sessions.Add(session);
+        return session;
+    }
+}
+
+sealed class FixtureSession(ulong revision, bool failOnStart) : IMobileRemoteSession
+{
+    private Action<RemoteFeedState>? stateChanged;
+    private readonly List<Action<RemoteFeedState>> captured = [];
+
+    public event Action<RemoteFeedState>? StateChanged
+    {
+        add
+        {
+            stateChanged += value;
+            if (value is not null)
+            {
+                captured.Add(value);
+            }
+        }
+        remove => stateChanged -= value;
+    }
+
+    public RemoteFeedState State { get; private set; } = new(
+        RemoteFeedPhase.Connecting,
+        0,
+        Array.Empty<RemoteRuntimeProjection>(),
+        0,
+        true,
+        "Showing cached revision 0; connecting");
+    public int DisposeCount { get; private set; }
+
+    public void Start()
+    {
+        if (failOnStart)
+        {
+            throw new InvalidOperationException("fixture start failure");
+        }
+        State = Live(revision);
+        stateChanged?.Invoke(State);
+    }
+
+    public void EmitCaptured(RemoteFeedState state) => captured.Single().Invoke(state);
+
+    public ValueTask DisposeAsync()
+    {
+        DisposeCount++;
+        return ValueTask.CompletedTask;
+    }
+
+    private static RemoteFeedState Live(ulong value) => new(
+        RemoteFeedPhase.Live,
+        value,
+        Array.Empty<RemoteRuntimeProjection>(),
+        0,
+        false,
+        $"Live at revision {value}");
+}

@@ -1,14 +1,28 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 
 use serde_json::json;
 
-use super::command::{ValidationError, ValidationReport, default_out_dir, run_cargo_status};
+use super::command::{
+    ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_status,
+};
+
+enum ProofCommand {
+    Cargo {
+        package: &'static str,
+        target_args: &'static [&'static str],
+        test_args: &'static [&'static str],
+    },
+    Dotnet {
+        project: &'static str,
+        success_marker: &'static str,
+    },
+}
 
 struct ProofSuite {
     id: &'static str,
-    package: &'static str,
-    target_args: &'static [&'static str],
+    command: ProofCommand,
     expected_min_tests: usize,
     invariants: &'static [&'static str],
 }
@@ -16,8 +30,11 @@ struct ProofSuite {
 const PROOF_SUITES: &[ProofSuite] = &[
     ProofSuite {
         id: "command-origin-lowering",
-        package: "leselang-command",
-        target_args: &["--lib"],
+        command: ProofCommand::Cargo {
+            package: "leselang-command",
+            target_args: &["--lib"],
+            test_args: &[],
+        },
         expected_min_tests: 8,
         invariants: &[
             "frontend-neutral-command-semantics",
@@ -28,8 +45,11 @@ const PROOF_SUITES: &[ProofSuite] = &[
     },
     ProofSuite {
         id: "domain-authorization-idempotency",
-        package: "leserpent-domain",
-        target_args: &["--lib"],
+        command: ProofCommand::Cargo {
+            package: "leserpent-domain",
+            target_args: &["--lib"],
+            test_args: &[],
+        },
         expected_min_tests: 10,
         invariants: &[
             "capability-gated-query",
@@ -41,8 +61,11 @@ const PROOF_SUITES: &[ProofSuite] = &[
     },
     ProofSuite {
         id: "debugger-confirmation-boundary",
-        package: "leselang-observe",
-        target_args: &["--lib", "debugger_cancel_"],
+        command: ProofCommand::Cargo {
+            package: "leselang-observe",
+            target_args: &["--lib", "debugger_cancel_"],
+            test_args: &[],
+        },
         expected_min_tests: 3,
         invariants: &[
             "debugger-capability-gate",
@@ -53,8 +76,11 @@ const PROOF_SUITES: &[ProofSuite] = &[
     },
     ProofSuite {
         id: "cli-leselang-origin-parity",
-        package: "leserpent-cli",
-        target_args: &["--test", "leselang_parity"],
+        command: ProofCommand::Cargo {
+            package: "leserpent-cli",
+            target_args: &["--test", "leselang_parity"],
+            test_args: &[],
+        },
         expected_min_tests: 3,
         invariants: &[
             "refresh-command-equivalence",
@@ -64,8 +90,11 @@ const PROOF_SUITES: &[ProofSuite] = &[
     },
     ProofSuite {
         id: "vm-reentry-recovery",
-        package: "leselang-vm",
-        target_args: &["--lib"],
+        command: ProofCommand::Cargo {
+            package: "leselang-vm",
+            target_args: &["--lib"],
+            test_args: &[],
+        },
         expected_min_tests: 65,
         invariants: &[
             "continuation-process-restart",
@@ -81,8 +110,11 @@ const PROOF_SUITES: &[ProofSuite] = &[
     },
     ProofSuite {
         id: "runtime-recovery-injection",
-        package: "leserpent-runtime",
-        target_args: &["--lib"],
+        command: ProofCommand::Cargo {
+            package: "leserpent-runtime",
+            target_args: &["--lib"],
+            test_args: &[],
+        },
         expected_min_tests: 35,
         invariants: &[
             "pending-command-recovery",
@@ -99,8 +131,11 @@ const PROOF_SUITES: &[ProofSuite] = &[
     },
     ProofSuite {
         id: "remote-wire-parity-boundary",
-        package: "leserpentd",
-        target_args: &["--lib", "remote::tests::"],
+        command: ProofCommand::Cargo {
+            package: "leserpentd",
+            target_args: &["--lib", "remote::tests::"],
+            test_args: &[],
+        },
         expected_min_tests: 4,
         invariants: &[
             "remote-shared-wire-dispatch",
@@ -113,8 +148,11 @@ const PROOF_SUITES: &[ProofSuite] = &[
     },
     ProofSuite {
         id: "remote-cli-command-parity",
-        package: "leserpent-cli",
-        target_args: &["--test", "https_vertical"],
+        command: ProofCommand::Cargo {
+            package: "leserpent-cli",
+            target_args: &["--test", "https_vertical"],
+            test_args: &[],
+        },
         expected_min_tests: 1,
         invariants: &[
             "remote-cli-command-parity",
@@ -122,6 +160,70 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "remote-cli-watch-parity",
             "remote-cli-confirmation-idempotency",
             "remote-cli-auth-failure",
+        ],
+    },
+    ProofSuite {
+        id: "avalonia-remote-state-conformance",
+        command: ProofCommand::Dotnet {
+            project: "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
+            success_marker: "remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, endpoint_cache=true, credential_resolution=true",
+        },
+        expected_min_tests: 1,
+        invariants: &[
+            "strict-aot-event-codec",
+            "monotonic-event-revision",
+            "bounded-gui-reconnect",
+            "cursor-reset-resync",
+            "endpoint-bound-snapshot-cache",
+            "explicit-stale-state",
+            "platform-credential-precedence",
+            "environment-credential-fallback",
+            "invalid-stored-credential-fail-closed",
+        ],
+    },
+    ProofSuite {
+        id: "rust-dotnet-remote-vertical",
+        command: ProofCommand::Cargo {
+            package: "leserpent-cli",
+            target_args: &["--test", "dotnet_remote_vertical"],
+            test_args: &["--ignored"],
+        },
+        expected_min_tests: 1,
+        invariants: &[
+            "cross-language-revision-parity",
+            "authenticated-dotnet-runtime-refresh",
+            "explicit-confirmed-remote-mutation",
+            "optimistic-runtime-revision-fence",
+            "websocket-mutation-observation",
+            "explicit-ca-hostname-validation",
+            "bearer-subprotocol-negotiation",
+            "nonempty-runtime-snapshot",
+            "endpoint-redacted-client-cache",
+            "private-client-cache-permissions",
+        ],
+    },
+    ProofSuite {
+        id: "mobile-lifecycle-conformance",
+        command: ProofCommand::Dotnet {
+            project: "apps/leserpent-mobile/src/Leserpent.MobileConformance/Leserpent.MobileConformance.csproj",
+            success_marker: "mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true",
+        },
+        expected_min_tests: 1,
+        invariants: &[
+            "mobile-foreground-session-ownership",
+            "mobile-background-disconnect",
+            "mobile-hydrated-cache-handoff",
+            "mobile-credential-reload-on-reentry",
+            "mobile-session-generation-fence",
+            "mobile-startup-failure-cleanup",
+            "mobile-terminal-disposal-idempotency",
+            "mobile-missing-credential-fail-closed",
+            "mobile-credential-endpoint-isolation",
+            "mobile-credential-alias-redaction",
+            "mobile-credential-write-validation",
+            "mobile-credential-read-validation",
+            "mobile-credential-delete",
+            "mobile-credential-cancellation-fence",
         ],
     },
 ];
@@ -139,15 +241,7 @@ pub fn run_leserpent_parity_recovery_validation(
     for suite in PROOF_SUITES {
         let log = format!("{}.log", suite.id);
         let log_path = out_dir.join(&log);
-        let mut args = vec![
-            "test".to_string(),
-            "-p".to_string(),
-            suite.package.to_string(),
-        ];
-        args.extend(suite.target_args.iter().map(|value| (*value).to_string()));
-        args.extend(["--".to_string(), "--nocapture".to_string()]);
-        run_cargo_status(&args, &log_path)?;
-        let observed_tests = passed_test_count(&log_path)?;
+        let (observed_tests, command) = execute_suite(suite, &log_path)?;
         if observed_tests < suite.expected_min_tests {
             return Err(ValidationError::new(format!(
                 "proof suite '{}' ran {observed_tests} tests, expected at least {}",
@@ -159,8 +253,7 @@ pub fn run_leserpent_parity_recovery_validation(
         checks.extend(suite.invariants.iter().map(|value| (*value).to_string()));
         suites.push(json!({
             "id": suite.id,
-            "package": suite.package,
-            "target_args": suite.target_args,
+            "command": command,
             "expected_min_tests": suite.expected_min_tests,
             "observed_tests": observed_tests,
             "invariants": suite.invariants,
@@ -186,6 +279,10 @@ pub fn run_leserpent_parity_recovery_validation(
                 "runtime-sqlite-recovery-injection",
                 "authenticated-remote-wire-parity",
                 "authenticated-remote-cli-parity",
+                "avalonia-remote-state-parity",
+                "rust-dotnet-remote-vertical",
+                "desktop-platform-credential-resolution",
+                "mobile-lifecycle-conformance",
             ],
             "suites": suites,
         }))?,
@@ -204,6 +301,81 @@ pub fn run_leserpent_parity_recovery_validation(
         out_dir,
         checks,
     })
+}
+
+fn execute_suite(
+    suite: &ProofSuite,
+    log_path: &Path,
+) -> Result<(usize, serde_json::Value), ValidationError> {
+    match &suite.command {
+        ProofCommand::Cargo {
+            package,
+            target_args,
+            test_args,
+        } => {
+            let mut args = vec!["test".to_string(), "-p".to_string(), (*package).to_string()];
+            args.extend(target_args.iter().map(|value| (*value).to_string()));
+            args.push("--".to_string());
+            args.extend(test_args.iter().map(|value| (*value).to_string()));
+            args.push("--nocapture".to_string());
+            run_cargo_status(&args, log_path)?;
+            Ok((
+                passed_test_count(log_path)?,
+                json!({
+                    "runner": "cargo",
+                    "package": package,
+                    "target_args": target_args,
+                    "test_args": test_args,
+                }),
+            ))
+        }
+        ProofCommand::Dotnet {
+            project,
+            success_marker,
+        } => {
+            let output = Command::new("dotnet")
+                .current_dir(repo_root())
+                .args(["run", "--project", project, "--configuration", "Release"])
+                .output()
+                .map_err(|error| ValidationError::new(format!("failed to run dotnet: {error}")))?;
+            write_output(log_path, &output)?;
+            if !output.status.success() {
+                return Err(ValidationError::new(format!(
+                    "dotnet conformance '{}' failed with status {}",
+                    suite.id, output.status
+                )));
+            }
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let marker_count = stdout
+                .lines()
+                .filter(|line| *line == *success_marker)
+                .count();
+            if marker_count != 1 {
+                return Err(ValidationError::new(format!(
+                    "dotnet conformance '{}' emitted {marker_count} success markers, expected exactly one",
+                    suite.id
+                )));
+            }
+            Ok((
+                1,
+                json!({
+                    "runner": "dotnet",
+                    "project": project,
+                    "success_marker": success_marker,
+                }),
+            ))
+        }
+    }
+}
+
+fn write_output(path: &Path, output: &Output) -> Result<(), ValidationError> {
+    let mut transcript = Vec::new();
+    transcript.extend_from_slice(b"stdout:\n");
+    transcript.extend_from_slice(&output.stdout);
+    transcript.extend_from_slice(b"\n\nstderr:\n");
+    transcript.extend_from_slice(&output.stderr);
+    fs::write(path, transcript)?;
+    Ok(())
 }
 
 fn passed_test_count(log_path: &Path) -> Result<usize, ValidationError> {
@@ -230,13 +402,13 @@ mod tests {
 
     #[test]
     fn proof_suite_manifest_has_non_vacuous_coverage() {
-        assert_eq!(PROOF_SUITES.len(), 8);
+        assert_eq!(PROOF_SUITES.len(), 10);
         assert_eq!(
             PROOF_SUITES
                 .iter()
                 .map(|suite| suite.expected_min_tests)
                 .sum::<usize>(),
-            129
+            131
         );
         assert!(
             PROOF_SUITES
@@ -255,6 +427,12 @@ mod tests {
                 .iter()
                 .flat_map(|suite| suite.invariants)
                 .any(|invariant| *invariant == "remote-cli-command-parity")
+        );
+        assert!(
+            PROOF_SUITES
+                .iter()
+                .flat_map(|suite| suite.invariants)
+                .any(|invariant| *invariant == "cross-language-revision-parity")
         );
     }
 

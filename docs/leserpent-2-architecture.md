@@ -43,9 +43,11 @@ The executable proof for this rule is
 CLI and Leselang command/query lowering against the same domain contract, then
 exercises capability, confirmation, revision, principal-scoped idempotency,
 continuation restart, lease fencing, snapshot fallback, worker-crash
-settlement, and outbox repair paths. Each Cargo suite must report a nonzero
-minimum test count, preventing cfg or filter drift from turning the proof into
-a vacuous pass.
+settlement, outbox repair, Avalonia reconnect/cache state, and the real
+Rust-to-.NET WebSocket path. Each Cargo suite must report a nonzero minimum test
+count, while external conformance runners must emit exactly one declared success
+marker, preventing cfg, filter, or adapter drift from turning the proof into a
+vacuous pass.
 
 ## System Shape
 
@@ -221,7 +223,7 @@ Sessions receive endpoint-redacted runtime snapshots, revision heartbeats, and
 an explicit `resync_required` event when a requested cursor is ahead of the
 authority. A missing or older cursor receives a fresh snapshot; the daemon does
 not claim durable delta replay. Session, frame, message, write-buffer, and
-per-tick inbound work are bounded, and event clients are read-only.
+per-tick inbound work are bounded, and the event channel itself is read-only.
 
 The current transport boundary has a named reproducible proof:
 `gewyvern_validate leserpent-transport`. It composes wire-v1 and legacy fixtures,
@@ -230,12 +232,35 @@ fail-closed IPC plus HTTPS security tests into retained evidence. The HTTPS
 suite includes a real TLS loopback, strict framing/authentication rejection,
 private-key file checks, shared wire dispatch, a native CLI-to-daemon HTTPS
 vertical path with explicit CA trust, and authenticated WebSocket snapshot and
-cursor-resync tests. The Avalonia desktop client now consumes that read-only
-event contract with explicit CA and hostname verification, per-origin
+cursor-resync tests. The Avalonia desktop client now consumes that event
+contract with explicit CA and hostname verification, per-origin
 endpoint-redacted snapshot cache, immediate stale-state presentation, a capped
-eight-attempt reconnect loop, and cursor reset on `resync_required`. Remote
-mutation, mobile clients, and mobile cache lifecycle remain separate
-implementations that must pass the same versioned domain contract.
+eight-attempt reconnect loop, and cursor reset on `resync_required`. Its first
+mutation is deliberately not generic: a runtime-bound UI action opens explicit
+confirmation and sends only `runtime.refresh` through authenticated `POST
+/v1/wire`, with `runtime.refresh` capability, principal, idempotency key, and
+the displayed runtime revision. Stale state cannot mutate and ambiguous network
+failures are not retried automatically. A real Rust-to-.NET vertical proves the
+command response and subsequent WebSocket revision agree without persisting the
+runtime endpoint. Desktop token resolution uses macOS Keychain or Linux Secret
+Service through AOT-compatible native bindings, scoped by canonical HTTPS
+origin; an environment token is accepted only when no platform item exists.
+Malformed stored credentials fail closed and no secret enters UI IR or cache.
+Mobile clients, mobile secure-storage lifecycle, and mobile cache lifecycle
+remain separate implementations that must pass the same versioned domain
+contract.
+The host-independent `Leserpent.MobileCore` now owns the first mobile lifecycle
+contract: foreground creates one session after loading an endpoint-scoped vault
+token, background invalidates its generation before disconnecting, reentry
+reloads the credential, and retired-session events cannot update current state.
+Android Keystore and iOS Keychain vault implementations are platform adapters
+rather than transport or domain forks. Android stores only AES-256-GCM
+envelopes in private preferences while its non-exportable master key remains in
+Android Keystore. iOS uses generic-password Keychain items scoped as
+`WhenUnlockedThisDeviceOnly`. `MobileCredentialVault` keeps both adapters
+narrow: shared code enforces endpoint canonicalization, opaque hashed aliases,
+token bounds, read/write validation, deletion, and cancellation before
+platform access.
 They do not embed privileged adapters. An optional embedded Rust library may be
 added later for offline mobile operation, but it must implement the same
 `leserpent-protocol` contract.

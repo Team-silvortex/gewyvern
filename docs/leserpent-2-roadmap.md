@@ -395,15 +395,37 @@ Extend the same contracts rather than forking product behavior.
 - push/deep-link integration through platform adapters
 - optional embedded Rust feasibility study for offline execution
 
-The current desktop slice implements the read-only half of this gate. A pure
+The current desktop slice implements the event consumer and first constrained
+mutation of this gate. A pure
 `Leserpent.RemoteClient` library owns strict event decoding, explicit CA and
 hostname verification, endpoint-bound atomic snapshot cache, stale-state
 transitions, cursor reset, and an eight-attempt capped reconnect loop. The
 Avalonia shell projects snapshots through the same neutral `UiDocument`
-renderer used by fixtures. A separate conformance executable proves codec,
+renderer used by fixtures. Runtime cards expose only revision-fenced
+`runtime.refresh`, reject stale state, require explicit confirmation, and do not
+retry ambiguous outcomes. A separate conformance executable proves codec,
 cache, resync, and retry behavior; a real Rust daemon to .NET client TLS
-vertical path has also been exercised. Remote mutation, mobile lifecycle, and
-platform-specific secure token storage remain before Gate 6 completion.
+vertical proves authenticated snapshot, confirmed HTTPS mutation, matching
+WebSocket revision, private cache permissions, and endpoint omission. Mobile
+application entry clients and device runtime evidence remain before Gate 6
+completion. Desktop startup now resolves endpoint-scoped tokens from macOS
+Keychain or Linux Secret Service through AOT-compatible native bindings, with a
+bounded environment fallback only when no stored item exists. Deterministic
+conformance proves source precedence and malformed-item fail-closed behavior.
+The first mobile-independent lifecycle slice now lives in
+`apps/leserpent-mobile`: it disconnects before background suspension, marks
+retained state stale, hands hydrated cache state to the host before reconnect,
+reloads credentials on every foreground generation, and fences delayed events
+from retired sessions. A deterministic conformance runner
+injects missing credentials and startup failure. Android/iOS native store
+projects now compile against .NET 10 platform workloads: Android protects a
+private-preferences AES-256-GCM envelope with a Keystore master key, while iOS
+uses a this-device-only Keychain item. Application entry projects, simulator or
+physical-device runtime conformance, and physical-device AOT evidence remain.
+The shared mobile vault adapter contract now provides endpoint-hashed aliases,
+strict credential CRUD validation, cancellation fencing, and deterministic
+corruption tests; platform storage is therefore replaceable without moving
+endpoint or token policy out of shared code.
 
 Exit: desktop and one mobile target pass the same semantic conformance suite;
 platform-only presentation differences are documented.
@@ -478,18 +500,21 @@ raw macOS arm64 and physical Linux x86_64 results remain separate host-class
 baselines with machine-readable evidence.
 
 The current command-origin and recovery shelf now has the native entrypoint
-`gewyvern_validate leserpent-parity-recovery`. Eight non-vacuous suites
-execute at least 129 tests across neutral command lowering, domain
+`gewyvern_validate leserpent-parity-recovery`. Eleven non-vacuous suites
+execute at least 132 tests across neutral command lowering, domain
 authorization/idempotency, debugger confirmation, CLI/Leselang equivalence,
 VM continuation/journal re-entry, runtime SQLite recovery injection, and the
-authenticated remote wire boundary, and native remote CLI parity. The
+authenticated remote wire boundary, native remote CLI parity, deterministic
+Avalonia remote-state conformance, a real Rust-to-.NET WebSocket plus HTTPS
+mutation vertical, and deterministic mobile lifecycle recovery. The
 shelf retains per-suite transcripts and rejects any run whose filtered test
 count falls below its declared minimum. This proves the currently migrated
-command surface and shared local/remote CLI dispatch; WebSocket event delivery
-is covered by the transport shelf, while remote GUI and future mobile operations
-still require their own parity fixtures. macOS arm64
-and a physical Linux x86_64 host both report the same eight suites, 129 tests,
-and 46 declared invariants.
+command surface, shared local/remote CLI dispatch, and GUI event
+delivery/reconnect/cache plus constrained runtime-refresh semantics. Future
+mobile operations still require their own parity fixtures. Cross-host retained
+counts are refreshed after every vertical-contract change rather than inferred
+from earlier evidence. The current macOS arm64 and physical Linux x86_64 runs
+both report eleven suites, 134 tests, and 79 declared invariants.
 
 The HTTPS listener is intentionally opt-in:
 

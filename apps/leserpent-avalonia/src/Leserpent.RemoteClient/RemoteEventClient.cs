@@ -16,6 +16,18 @@ public sealed record RemoteClientOptions(
         string token,
         string? cachePath = null)
     {
+        var uri = ParseEndpoint(endpoint);
+        ValidateToken(token);
+        ValidateCertificateFile(certificateAuthorityPath);
+        return new RemoteClientOptions(
+            uri,
+            certificateAuthorityPath,
+            token,
+            cachePath ?? RemoteSnapshotStore.DefaultPath(uri));
+    }
+
+    public static Uri ParseEndpoint(string endpoint)
+    {
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps
             || !string.IsNullOrEmpty(uri.UserInfo)
@@ -25,16 +37,17 @@ public sealed record RemoteClientOptions(
         {
             throw new ArgumentException("remote endpoint must be an HTTPS origin", nameof(endpoint));
         }
-        if (token.Length < 32 || token.Any(char.IsWhiteSpace))
+        return uri;
+    }
+
+    public static void ValidateToken(string token)
+    {
+        if (token.Length is < 32 or > 4096 || token.Any(char.IsWhiteSpace))
         {
-            throw new ArgumentException("remote token must contain at least 32 non-whitespace characters", nameof(token));
+            throw new ArgumentException(
+                "remote token must contain 32 to 4096 non-whitespace characters",
+                nameof(token));
         }
-        ValidateCertificateFile(certificateAuthorityPath);
-        return new RemoteClientOptions(
-            uri,
-            certificateAuthorityPath,
-            token,
-            cachePath ?? RemoteSnapshotStore.DefaultPath(uri));
     }
 
     private static void ValidateCertificateFile(string path)
@@ -69,8 +82,7 @@ public sealed class RemoteEventClient : IAsyncDisposable
     {
         this.options = options;
         store = new RemoteSnapshotStore(options.Endpoint, options.CachePath);
-        trustedRoot = X509Certificate2.CreateFromPem(
-            File.ReadAllText(options.CertificateAuthorityPath));
+        trustedRoot = RemoteTls.LoadRoot(options.CertificateAuthorityPath);
         try
         {
             if (store.Load() is { } cache)
@@ -227,19 +239,7 @@ public sealed class RemoteEventClient : IAsyncDisposable
     {
         _ = sender;
         _ = chain;
-        if (certificate is null
-            || (errors & (SslPolicyErrors.RemoteCertificateNameMismatch
-                | SslPolicyErrors.RemoteCertificateNotAvailable)) != 0)
-        {
-            return false;
-        }
-        using var leaf = new X509Certificate2(certificate);
-        using var customChain = new X509Chain();
-        customChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-        customChain.ChainPolicy.CustomTrustStore.Add(trustedRoot);
-        customChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-        customChain.ChainPolicy.DisableCertificateDownloads = true;
-        return customChain.Build(leaf);
+        return RemoteTls.ValidateServerCertificate(certificate, errors, trustedRoot);
     }
 
     private Uri EventUri(ulong? revision)

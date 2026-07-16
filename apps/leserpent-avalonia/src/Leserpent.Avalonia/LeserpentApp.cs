@@ -21,12 +21,12 @@ internal sealed class LeserpentApp : Application
         {
             if (ParseRemoteArguments(desktop.Args) is { } remote)
             {
-                var token = Environment.GetEnvironmentVariable("LESERPENT_REMOTE_TOKEN")
-                    ?? throw new InvalidDataException("LESERPENT_REMOTE_TOKEN is required with --remote");
+                var endpoint = RemoteClientOptions.ParseEndpoint(remote.Endpoint);
+                var token = RemoteTokenResolver.Resolve(endpoint);
                 var options = RemoteClientOptions.Create(
                     remote.Endpoint,
                     Path.GetFullPath(remote.Certificate),
-                    token,
+                    token.Value,
                     remote.Cache is null ? null : Path.GetFullPath(remote.Cache));
                 desktop.MainWindow = new RemoteMainWindow(options);
                 base.OnFrameworkInitializationCompleted();

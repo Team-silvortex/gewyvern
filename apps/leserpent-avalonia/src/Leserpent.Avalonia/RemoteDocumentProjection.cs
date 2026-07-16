@@ -60,6 +60,35 @@ internal static class RemoteDocumentProjection
                     UiNodeKind.Text,
                     "runtime.tags",
                     string.IsNullOrEmpty(tagText) ? "No deployment tags" : Safe(tagText)),
+                new UiNode
+                {
+                    Id = $"runtime:{runtime.Id}:refresh",
+                    Kind = UiNodeKind.Action,
+                    Text = new LocalizedText
+                    {
+                        Key = "runtime.refresh",
+                        Fallback = "Refresh runtime",
+                    },
+                    Accessibility = new Accessibility
+                    {
+                        Label = new LocalizedText
+                        {
+                            Key = "runtime.refresh",
+                            Fallback = $"Refresh runtime {Safe(runtime.Name)}",
+                        },
+                        Description = new LocalizedText
+                        {
+                            Key = "runtime.refresh.description",
+                            Fallback = "Requires explicit confirmation before changing remote state",
+                        },
+                    },
+                    Action = new UiAction
+                    {
+                        Kind = ActionKind.RuntimeRefresh,
+                        RuntimeId = runtime.Id,
+                    },
+                    Children = [],
+                },
             ],
         };
     }

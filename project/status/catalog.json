@@ -697,14 +697,14 @@
       "feature": "wire-compatibility",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 94,
+      "completion": 95,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-wire-contract",
-        "version": "0.11.0",
+        "version": "0.12.0",
         "stability": "evolving",
-        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "authenticated-https-wire", "authenticated-https-cli", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "bounded-http-framing", "tls-key-file-safety", "peer-failure-isolation", "remote-cli-exit-contract", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof"]
+        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "authenticated-https-wire", "authenticated-https-cli", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "bounded-http-framing", "tls-key-file-safety", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [
@@ -714,7 +714,7 @@
         },
         {
           "id": "remote-transport-breadth",
-          "summary": "Authenticated HTTPS wire, native remote CLI, revisioned WebSocket snapshots, and the Avalonia reconnect/cache consumer are implemented; remote mutation, secure token storage, and mobile clients remain."
+          "summary": "Authenticated HTTPS wire, native remote CLI, revisioned WebSocket snapshots, constrained Avalonia refresh, desktop platform token resolution, and compiled Android/iOS secure-store adapters are implemented; mobile entry clients and device evidence remain."
         }
       ],
       "consumers": ["leserpent-runtime", "leserpent-cli", "avalonia-client", "web-adapter", "leserpentd"],
@@ -732,7 +732,7 @@
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RustCompatibilityFixtureTests.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Gate 6: add the Avalonia reconnect/cache conformance to named parity proof, then extend the shared authenticated contract to remote mutation."
+      "next_gate": "Gate 6: wire the compiled mobile secure-storage adapters into Android/iOS entry clients, then prove the shared authenticated contract on simulators and physical devices."
     },
     {
       "id": "leserpent-2/language-syntax/lossless-frontend",
@@ -1125,20 +1125,20 @@
       "feature": "remote-mobile-console",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 62,
+      "completion": 82,
       "confidence": "medium",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-remote-console",
-        "version": "0.5.0",
+        "version": "0.10.0",
         "stability": "draft",
-        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "remote-auth-exit-contract", "tls12-and-tls13", "environment-only-bearer-token", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "bounded-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "adaptive-navigation"]
+        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "remote-auth-exit-contract", "tls12-and-tls13", "platform-first-bearer-token", "bounded-environment-token-fallback", "macos-keychain-token", "linux-secret-service-token", "endpoint-scoped-credential", "malformed-stored-token-fail-closed", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "bounded-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "runtime-bound-refresh-action", "explicit-mutation-confirmation", "stale-mutation-rejection", "optimistic-runtime-revision", "no-automatic-mutation-retry", "endpoint-free-mutation-result", "rust-dotnet-mutation-vertical", "mobile-lifecycle-core", "foreground-session-ownership", "background-disconnect", "mobile-credential-reload", "mobile-generation-fence", "mobile-failure-cleanup", "android-keystore-aes-gcm-token", "ios-this-device-only-keychain-token", "adaptive-navigation"]
       },
       "depends_on": ["leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/daemon-host/daemon-lifecycle"],
       "blockers": [
         {
           "id": "gate-six-client-breadth",
-          "summary": "HTTPS wire, native remote CLI, authenticated WebSocket snapshots, and the Avalonia read-only client with bounded reconnect/cache/stale semantics are implemented; remote mutation, secure token storage, and mobile entry projects remain."
+          "summary": "Remote transport, desktop platform tokens, mobile lifecycle, validating vault CRUD, and compiled Android Keystore/iOS Keychain stores are implemented; entry clients and device runtime proof remain."
         }
       ],
       "consumers": ["remote-operators", "android-operators", "ios-operators"],
@@ -1150,11 +1150,15 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteConformance", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-cli/tests/dotnet_remote_vertical.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" },
         { "kind": "test", "path": "src/validation_harness/leserpent_transport.rs", "state": "present" },
-        { "kind": "source", "path": "apps/leserpent-mobile", "state": "planned" }
+        { "kind": "source", "path": "apps/leserpent-mobile/src/Leserpent.MobileCore", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-mobile/src/Leserpent.MobileConformance", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-mobile/src/Leserpent.Mobile.Android", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-mobile/src/Leserpent.Mobile.iOS", "state": "present" }
       ],
-      "next_gate": "Gate 6: add authenticated remote mutation and secure token storage, then prove the same cache/reconnect contract in mobile lifecycle tests."
+      "next_gate": "Gate 6: compose the native stores with Android/iOS application entry clients, then prove lifecycle and AOT behavior on simulators and physical devices."
     },
     {
       "id": "leserpent-2/release-assurance/two-zero-seal",
@@ -1193,20 +1197,20 @@
       "feature": "continuous-proof",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 83,
-      "confidence": "medium",
+      "completion": 88,
+      "confidence": "high",
       "independence": "internal",
       "contract": {
         "id": "leserpent-proof-shelves",
-        "version": "0.9.0",
+        "version": "0.11.0",
         "stability": "draft",
-        "surfaces": ["parser-fuzz", "vm-fuzz", "deterministic-fuzz-seed", "utf8-span-invariants", "bounded-hir-vm-start", "fail-closed-continuation-fuzz", "retained-fuzz-evidence", "origin-parity", "authorization", "crash-replay", "named-origin-parity-recovery-proof", "non-vacuous-test-count", "command-origin-lowering-proof", "authorization-confirmation-proof", "principal-idempotency-proof", "cli-leselang-origin-parity", "vm-reentry-recovery-proof", "runtime-recovery-injection-proof", "remote-wire-parity-proof", "remote-cli-parity-proof", "lease-crash-outbox-repair", "retained-parity-recovery-evidence", "macos-arm64-parity-recovery-proof", "physical-linux-x64-parity-recovery-proof", "named-ui-accessibility-proof", "unique-automation-id-proof", "complete-automation-name-proof", "explicit-action-label-proof", "wcag-aa-contrast-proof", "retained-accessibility-evidence", "transport-compatibility", "named-transport-proof", "wire-v1-contract-proof", "legacy-v1-adaptation-proof", "cli-leselang-transport-parity", "authenticated-unix-ipc-proof", "authenticated-https-wire-proof", "authenticated-https-cli-proof", "ipc-security-negative-paths", "https-security-negative-paths", "real-tls-loopback", "native-cli-https-roundtrip", "retained-transport-evidence", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "named-benchmark-proof", "sqlite-cold-open-budget", "runtime-query-latency-budget", "effect-throughput-budget", "ui-ir-performance-budget", "release-binary-size-budget", "same-host-class-comparison", "macos-arm64-benchmark-proof", "physical-linux-x64-benchmark-proof", "retained-benchmark-evidence"]
+        "surfaces": ["parser-fuzz", "vm-fuzz", "deterministic-fuzz-seed", "utf8-span-invariants", "bounded-hir-vm-start", "fail-closed-continuation-fuzz", "retained-fuzz-evidence", "origin-parity", "authorization", "crash-replay", "named-origin-parity-recovery-proof", "non-vacuous-test-count", "command-origin-lowering-proof", "authorization-confirmation-proof", "principal-idempotency-proof", "cli-leselang-origin-parity", "vm-reentry-recovery-proof", "runtime-recovery-injection-proof", "remote-wire-parity-proof", "remote-cli-parity-proof", "avalonia-remote-state-proof", "rust-dotnet-remote-vertical-proof", "rust-dotnet-mutation-vertical-proof", "explicit-confirmed-remote-mutation-proof", "optimistic-runtime-revision-proof", "websocket-mutation-observation-proof", "strict-external-success-marker", "lease-crash-outbox-repair", "retained-parity-recovery-evidence", "macos-arm64-parity-recovery-proof", "physical-linux-x64-parity-recovery-proof", "named-ui-accessibility-proof", "unique-automation-id-proof", "complete-automation-name-proof", "explicit-action-label-proof", "wcag-aa-contrast-proof", "retained-accessibility-evidence", "transport-compatibility", "named-transport-proof", "wire-v1-contract-proof", "legacy-v1-adaptation-proof", "cli-leselang-transport-parity", "authenticated-unix-ipc-proof", "authenticated-https-wire-proof", "authenticated-https-cli-proof", "ipc-security-negative-paths", "https-security-negative-paths", "real-tls-loopback", "native-cli-https-roundtrip", "retained-transport-evidence", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "named-benchmark-proof", "sqlite-cold-open-budget", "runtime-query-latency-budget", "effect-throughput-budget", "ui-ir-performance-budget", "release-binary-size-budget", "same-host-class-comparison", "macos-arm64-benchmark-proof", "physical-linux-x64-benchmark-proof", "retained-benchmark-evidence"]
       },
       "depends_on": [],
       "blockers": [
         {
           "id": "proof-shelves-incomplete",
-          "summary": "Named deterministic fuzz, current-origin parity/recovery including remote CLI, Unix IPC plus matching macOS/Linux real TLS CLI and WebSocket transport, macOS/Linux accessibility, NativeAOT, and bounded benchmark proofs retain machine-readable evidence; mobile parity and Windows/mobile AOT remain incomplete."
+          "summary": "Named deterministic fuzz, current-origin parity/recovery including desktop remote mutation and mobile lifecycle, matching macOS/Linux transport, accessibility, NativeAOT, and benchmark proofs retain machine-readable evidence; Android/iOS vault-host parity and Windows/mobile AOT remain incomplete."
         }
       ],
       "consumers": ["every-leserpent-2-gate", "release-assurance", "ci"],
@@ -1220,13 +1224,16 @@
         { "kind": "source", "path": "src/validation_harness/leserpent_transport.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_benchmark.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_parity_recovery.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-cli/tests/dotnet_remote_vertical.rs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteConformance", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-mobile/src/Leserpent.MobileConformance", "state": "present" },
         { "kind": "benchmark", "path": "crates/leserpent-runtime/examples/runtime_benchmark.rs", "state": "present" },
         { "kind": "benchmark", "path": "crates/leselang-ui/examples/ui_benchmark.rs", "state": "present" },
         { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" },
         { "kind": "test", "path": "tests/native_validation_harness_tdd.rs", "state": "present" },
         { "kind": "benchmark", "path": "target/validation/leserpent-benchmark", "state": "planned" }
       ],
-      "next_gate": "Require GUI reconnect semantics to join parity/recovery proof; add Windows/mobile evidence only on matching physical hosts."
+      "next_gate": "Add Android/iOS vault-host parity and mobile AOT evidence on matching physical devices; add Windows evidence only on a Windows host."
     },
     {
       "id": "etragon/learning-sidecar/advisory-learning",

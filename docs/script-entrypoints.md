@@ -414,10 +414,13 @@ Run:
 cargo run --quiet --bin gewyvern_validate -- leserpent-parity-recovery
 ```
 
-The command runs eight suites over the current migrated command surface:
+The command runs eleven suites over the current migrated command surface:
 frontend-neutral lowering, authorization/confirmation/idempotency,
 CLI/Leselang parity, VM continuation and journal re-entry, and runtime SQLite
-recovery injection, plus authenticated remote wire and native CLI parity. It covers
+recovery injection, plus authenticated remote wire, native CLI parity, the
+Avalonia remote-state conformance runner, and a real Rust daemon to .NET
+WebSocket plus HTTPS mutation vertical, and the mobile lifecycle conformance
+runner. It covers
 snapshot corruption and prior-generation
 fallback, expired-lease redelivery, stale-worker fencing, final-attempt worker
 crash handling, status projection replay, and refresh outbox repair.
@@ -426,8 +429,9 @@ Evidence is retained under
 `target/validation/leserpent-parity-recovery/`. The summary records
 actual test counts and the validator fails if any suite runs fewer than its
 declared minimum, including a zero-test filter mistake.
-The retained macOS arm64 and physical Linux x86_64 summaries carry explicit
-host metadata and matching eight-suite, 129-test counts.
+The macOS arm64 and physical Linux x86_64 summaries carry explicit host
+metadata with matching eleven-suite, 134-test, 79-invariant counts for the
+current lifecycle contract.
 
 ### I want to validate built-in protocol packages
 
