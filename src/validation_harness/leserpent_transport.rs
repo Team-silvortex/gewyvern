@@ -81,6 +81,20 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "strict-http-framing",
             "bounded-header-and-body",
             "private-key-file-safety",
+            "authenticated-websocket-tls-upgrade",
+            "revisioned-endpoint-redacted-snapshots",
+            "future-cursor-resync",
+        ],
+    },
+    ProofSuite {
+        id: "authenticated-websocket-security",
+        package: "leserpentd",
+        target_args: &["--lib", "events::tests::"],
+        invariants: &[
+            "constant-time-event-authentication",
+            "required-event-subprotocol",
+            "strict-event-cursor",
+            "duplicate-event-header-rejection",
         ],
     },
     ProofSuite {
@@ -139,7 +153,7 @@ pub fn run_leserpent_transport_validation(
         out_dir.join("transport-summary.json"),
         serde_json::to_string_pretty(&json!({
             "schema_version": 1,
-            "transport_scope": "authenticated-unix-ipc-https-wire-and-native-https-cli",
+            "transport_scope": "authenticated-unix-ipc-https-wire-websocket-events-and-native-https-cli",
             "wire_schema": "v1",
             "host": {
                 "os": std::env::consts::OS,
@@ -150,7 +164,6 @@ pub fn run_leserpent_transport_validation(
             "suites": suites,
             "excluded_future_transports": [
                 "windows-named-pipe",
-                "authenticated-websocket",
                 "remote-gui-client",
                 "mobile-client",
             ],
@@ -180,7 +193,7 @@ mod tests {
 
     #[test]
     fn proof_suites_cover_wire_parity_real_ipc_and_security() {
-        assert_eq!(PROOF_SUITES.len(), 7);
+        assert_eq!(PROOF_SUITES.len(), 8);
         let ids = PROOF_SUITES
             .iter()
             .map(|suite| suite.id)
@@ -191,6 +204,7 @@ mod tests {
         assert!(ids.contains(&"authenticated-ipc-vertical"));
         assert!(ids.contains(&"ipc-security-boundary"));
         assert!(ids.contains(&"authenticated-https-wire"));
+        assert!(ids.contains(&"authenticated-websocket-security"));
         assert!(ids.contains(&"authenticated-https-cli-vertical"));
         assert!(
             PROOF_SUITES

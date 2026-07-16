@@ -19,6 +19,19 @@ internal sealed class LeserpentApp : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            if (ParseRemoteArguments(desktop.Args) is { } remote)
+            {
+                var token = Environment.GetEnvironmentVariable("LESERPENT_REMOTE_TOKEN")
+                    ?? throw new InvalidDataException("LESERPENT_REMOTE_TOKEN is required with --remote");
+                var options = RemoteClientOptions.Create(
+                    remote.Endpoint,
+                    Path.GetFullPath(remote.Certificate),
+                    token,
+                    remote.Cache is null ? null : Path.GetFullPath(remote.Cache));
+                desktop.MainWindow = new RemoteMainWindow(options);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             var verifyControls = desktop.Args is ["--verify-controls", _];
             var fixture = LoadFixture(desktop.Args, verifyControls);
             var window = new MainWindow(fixture);
@@ -58,6 +71,16 @@ internal sealed class LeserpentApp : Application
         base.OnFrameworkInitializationCompleted();
     }
 
+    private static RemoteArguments? ParseRemoteArguments(string[]? args) => args switch
+    {
+        ["--remote", var endpoint, "--remote-ca", var certificate] =>
+            new RemoteArguments(endpoint, certificate, null),
+        ["--remote", var endpoint, "--remote-ca", var certificate,
+            "--remote-cache", var cache] =>
+            new RemoteArguments(endpoint, certificate, cache),
+        _ => null,
+    };
+
     private static RendererFixture LoadFixture(string[]? args, bool verifyControls)
     {
         var fixturePath = args switch
@@ -65,7 +88,7 @@ internal sealed class LeserpentApp : Application
             [var path] when !verifyControls => path,
             ["--verify-controls", var path] when verifyControls => path,
             _ => throw new InvalidDataException(
-                "usage: Leserpent.Avalonia [--verify-controls] FIXTURE"),
+                "usage: Leserpent.Avalonia [--verify-controls] FIXTURE | --remote HTTPS_ORIGIN --remote-ca CA_PATH [--remote-cache CACHE_PATH]"),
         };
         if (string.IsNullOrWhiteSpace(fixturePath))
         {
@@ -99,4 +122,6 @@ internal sealed class LeserpentApp : Application
 
         return fixture;
     }
+
+    private sealed record RemoteArguments(string Endpoint, string Certificate, string? Cache);
 }

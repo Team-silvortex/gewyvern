@@ -388,21 +388,23 @@ Run:
 cargo run --quiet --bin gewyvern_validate -- leserpent-transport
 ```
 
-The named shelf runs seven layers: canonical wire-v1 protocol tests, legacy-v1
+The named shelf runs eight layers: canonical wire-v1 protocol tests, legacy-v1
 adaptation fixtures, CLI/Leselang command and query parity, a real native CLI to
 daemon Unix-socket roundtrip, the daemon IPC security boundary, and the
-authenticated HTTPS wire boundary, and a native CLI-to-daemon HTTPS vertical
-path. The remote layers prove a real TLS
+authenticated HTTPS wire boundary, WebSocket event security, and a native
+CLI-to-daemon HTTPS vertical path. The remote layers prove a real TLS
 roundtrip, bearer-token rejection, strict bounded HTTP framing, private-key
 file safety, shared wire-v1 dispatch, explicit CA/hostname verification, and
-remote command/query/watch parity. Each layer has an independent log under
+remote command/query/watch parity. They also prove required WebSocket
+subprotocol negotiation, endpoint-redacted revision snapshots, and cursor
+resynchronization. Each layer has an independent log under
 `target/validation/leserpent-transport/`, alongside
 `transport-summary.json` and `evidence-index.json`.
 
-This proof deliberately excludes Windows named pipes, WebSocket, remote GUI,
-and mobile clients. Their absence is recorded in the summary rather
-than reported as a cross-platform success. The current macOS arm64 and physical
-Linux x86_64 runs produce matching seven-suite, 34-invariant summaries.
+This proof deliberately excludes Windows named pipes, remote GUI, and mobile
+clients. Their absence is recorded in the summary rather than reported as a
+cross-platform success. The current macOS arm64 and physical Linux x86_64 runs
+produce matching eight-suite, 28-test, 41-invariant summaries.
 
 ### I want to prove command parity and restart recovery
 

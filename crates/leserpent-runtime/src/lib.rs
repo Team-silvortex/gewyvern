@@ -2,8 +2,9 @@ use leserpent_domain::{
     CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
     DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
     MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES, PlannedOperation, Query,
-    QueryEnvelope, QueryResult, RUNTIME_STATUS_REFRESH_EFFECT_KIND, RuntimeId, RuntimeLogLevel,
-    RuntimeLogRecord, RuntimeProjection, RuntimeStatusObservation, RuntimeStatusRefreshRequest,
+    QueryEnvelope, QueryResult, RUNTIME_STATUS_REFRESH_EFFECT_KIND, Revision, RuntimeId,
+    RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection, RuntimeStatusObservation,
+    RuntimeStatusRefreshRequest,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
@@ -311,7 +312,7 @@ impl ControlRuntime {
         journal.ensure_owner().map_err(RuntimeError::Storage)
     }
 
-    pub fn runtime_event_state(&self) -> (Revision, Vec<leserpent_domain::RuntimeProjection>) {
+    pub fn runtime_event_state(&self) -> (Revision, Vec<RuntimeProjection>) {
         let snapshot = self.control.snapshot();
         let mut runtimes = snapshot.runtimes;
         runtimes.sort_by(|left, right| left.id.cmp(&right.id));
@@ -2185,12 +2186,21 @@ mod tests {
 
     #[test]
     fn event_state_is_revisioned_and_stably_sorted() {
-        let mut runtime = ControlRuntime::new();
+        let path = temp_journal("event-state");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
         runtime
-            .register_runtime(RuntimeId::new("runtime-b").unwrap(), "B", "https://b.invalid")
+            .register_runtime(
+                RuntimeId::new("runtime-b").unwrap(),
+                "B",
+                "https://b.invalid",
+            )
             .unwrap();
         runtime
-            .register_runtime(RuntimeId::new("runtime-a").unwrap(), "A", "https://a.invalid")
+            .register_runtime(
+                RuntimeId::new("runtime-a").unwrap(),
+                "A",
+                "https://a.invalid",
+            )
             .unwrap();
         let (revision, runtimes) = runtime.runtime_event_state();
         assert_eq!(revision, Revision(2));
@@ -2201,5 +2211,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["runtime-a", "runtime-b"]
         );
+        drop(runtime);
+        fs::remove_file(path).unwrap();
     }
 }

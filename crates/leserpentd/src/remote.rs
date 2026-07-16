@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{BufReader, Read, Write};
+use std::io::{BufReader, Cursor, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::Path;
 use std::sync::Arc;
@@ -11,6 +11,7 @@ use leserpent_protocol::{
 use leserpent_runtime::ControlRuntime;
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
+use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
 use crate::wire::{constant_time_equals, error_response, execute_request, validate_auth_token};
 
 const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
@@ -18,10 +19,54 @@ const MAX_CERTIFICATE_FILE_BYTES: u64 = 1024 * 1024;
 const MAX_PRIVATE_KEY_FILE_BYTES: u64 = 64 * 1024;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
 
+pub(crate) type RemoteTlsStream = StreamOwned<ServerConnection, TcpStream>;
+
+pub(crate) struct PrefixedStream<S> {
+    prefix: Cursor<Vec<u8>>,
+    inner: S,
+}
+
+impl<S> PrefixedStream<S> {
+    pub(crate) fn new(prefix: Vec<u8>, inner: S) -> Self {
+        Self {
+            prefix: Cursor::new(prefix),
+            inner,
+        }
+    }
+}
+
+impl<S: Read> Read for PrefixedStream<S> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.prefix.read(buffer)?;
+        if read == 0 {
+            self.inner.read(buffer)
+        } else {
+            Ok(read)
+        }
+    }
+}
+
+impl<S: Write> Write for PrefixedStream<S> {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.inner.write(buffer)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+impl PrefixedStream<RemoteTlsStream> {
+    pub(crate) fn set_nonblocking(&self, nonblocking: bool) -> std::io::Result<()> {
+        self.inner.sock.set_nonblocking(nonblocking)
+    }
+}
+
 pub struct RemoteServer {
     listener: TcpListener,
     tls: Arc<ServerConfig>,
     token: Vec<u8>,
+    event_sessions: Vec<EventSession>,
 }
 
 impl RemoteServer {
@@ -76,6 +121,7 @@ impl RemoteServer {
             listener,
             tls: Arc::new(tls),
             token: token.as_bytes().to_vec(),
+            event_sessions: Vec::new(),
         })
     }
 
@@ -85,29 +131,49 @@ impl RemoteServer {
             .map_err(|error| error.to_string())
     }
 
-    pub fn poll_once(&self, runtime: &mut ControlRuntime) -> Result<bool, String> {
-        let (stream, _) = match self.listener.accept() {
-            Ok(connection) => connection,
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(false),
+    pub fn poll_once(&mut self, runtime: &mut ControlRuntime) -> Result<bool, String> {
+        let accepted = match self.listener.accept() {
+            Ok((stream, _)) => {
+                // Peer-controlled TLS, HTTP, and upgrade failures are isolated to this connection.
+                if let Ok(Some(session)) = self.handle(stream, runtime)
+                    && self.event_sessions.len() < MAX_EVENT_SESSIONS
+                {
+                    self.event_sessions.push(session);
+                }
+                true
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => false,
             Err(error) => return Err(error.to_string()),
         };
-        // Peer-controlled TLS and HTTP failures are isolated to this connection.
-        let _ = self.handle(stream, runtime);
-        Ok(true)
+        self.poll_event_sessions(runtime);
+        Ok(accepted)
     }
 
     #[cfg(test)]
-    fn poll_once_strict(&self, runtime: &mut ControlRuntime) -> Result<bool, String> {
+    fn poll_once_strict(&mut self, runtime: &mut ControlRuntime) -> Result<bool, String> {
         let (stream, _) = match self.listener.accept() {
             Ok(connection) => connection,
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(false),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                self.poll_event_sessions(runtime);
+                return Ok(false);
+            }
             Err(error) => return Err(error.to_string()),
         };
-        self.handle(stream, runtime)?;
+        if let Some(session) = self.handle(stream, runtime)? {
+            if self.event_sessions.len() >= MAX_EVENT_SESSIONS {
+                return Err("WebSocket event session limit reached".into());
+            }
+            self.event_sessions.push(session);
+        }
+        self.poll_event_sessions(runtime);
         Ok(true)
     }
 
-    fn handle(&self, stream: TcpStream, runtime: &mut ControlRuntime) -> Result<(), String> {
+    fn handle(
+        &self,
+        stream: TcpStream,
+        runtime: &mut ControlRuntime,
+    ) -> Result<Option<EventSession>, String> {
         stream
             .set_nonblocking(false)
             .map_err(|error| error.to_string())?;
@@ -120,6 +186,15 @@ impl RemoteServer {
         let connection = ServerConnection::new(Arc::clone(&self.tls))
             .map_err(|error| format!("cannot initialize TLS connection: {error}"))?;
         let mut stream = StreamOwned::new(connection, stream);
+        let prefix =
+            read_http_head(&mut stream).map_err(|_| "invalid HTTPS request".to_string())?;
+        if is_event_upgrade(&prefix) {
+            if self.event_sessions.len() >= MAX_EVENT_SESSIONS {
+                return Err("WebSocket event session limit reached".into());
+            }
+            return EventSession::upgrade(stream, prefix, &self.token).map(Some);
+        }
+        let mut stream = PrefixedStream::new(prefix, stream);
         let (status, response) = match read_http_request(&mut stream, &self.token) {
             Ok(bytes) => match decode_request(&bytes) {
                 Ok(request) => (HttpStatus::Ok, execute_request(runtime, request)),
@@ -131,8 +206,15 @@ impl RemoteServer {
             Err(error) => (error.status, error_response(error.code, error.message)),
         };
         write_http_response(&mut stream, status, &response)?;
-        stream.conn.send_close_notify();
-        stream.flush().map_err(|error| error.to_string())
+        stream.inner.conn.send_close_notify();
+        stream.flush().map_err(|error| error.to_string())?;
+        Ok(None)
+    }
+
+    fn poll_event_sessions(&mut self, runtime: &ControlRuntime) {
+        let (revision, runtimes) = runtime.runtime_event_state();
+        self.event_sessions
+            .retain_mut(|session| session.poll(revision, &runtimes));
     }
 }
 
@@ -301,6 +383,32 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
     Ok(body)
 }
 
+fn read_http_head(stream: &mut impl Read) -> Result<Vec<u8>, HttpError> {
+    let mut bytes = Vec::new();
+    loop {
+        if find_header_end(&bytes).is_some() {
+            return Ok(bytes);
+        }
+        if bytes.len() > MAX_HTTP_HEADER_BYTES {
+            return Err(HttpError {
+                status: HttpStatus::PayloadTooLarge,
+                code: "headers_too_large",
+                message: "HTTPS request headers are too large",
+            });
+        }
+        let remaining = MAX_HTTP_HEADER_BYTES + 1 - bytes.len();
+        let mut chunk = [0_u8; 1024];
+        let capacity = remaining.min(chunk.len());
+        let read = stream
+            .read(&mut chunk[..capacity])
+            .map_err(|_| HttpError::bad_request())?;
+        if read == 0 {
+            return Err(HttpError::bad_request());
+        }
+        bytes.extend_from_slice(&chunk[..read]);
+    }
+}
+
 fn find_header_end(bytes: &[u8]) -> Option<usize> {
     bytes
         .windows(4)
@@ -371,13 +479,17 @@ mod tests {
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use leserpent_domain::{Revision, RuntimeId};
     use leserpent_protocol::{
-        HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, RequestEnvelope, decode_response,
-        encode_request,
+        HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolEvent, ProtocolRequest, RequestEnvelope,
+        decode_event, decode_response, encode_request,
     };
     use rcgen::{CertifiedKey, generate_simple_self_signed};
     use rustls::pki_types::ServerName;
     use rustls::{ClientConfig, ClientConnection, RootCertStore};
+    use tungstenite::client::{IntoClientRequest, client_with_config};
+    use tungstenite::http::HeaderValue;
+    use tungstenite::protocol::WebSocketConfig;
 
     use super::*;
 
@@ -432,6 +544,60 @@ mod tests {
         stream.read_exact(&mut body).unwrap();
         response.extend_from_slice(&body);
         response
+    }
+
+    fn event_client(
+        address: SocketAddr,
+        certificate: rustls::pki_types::CertificateDer<'static>,
+        after_revision: u64,
+        expected_messages: usize,
+    ) -> Vec<Vec<u8>> {
+        let mut roots = RootCertStore::empty();
+        roots.add(certificate).unwrap();
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let mut config = ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        config.alpn_protocols = vec![b"http/1.1".to_vec()];
+        let connection =
+            ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
+                .unwrap();
+        let socket = TcpStream::connect(address).unwrap();
+        socket.set_read_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
+        socket.set_write_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
+        let stream = StreamOwned::new(connection, socket);
+        let mut request = format!(
+            "wss://localhost:{}/v1/events?after_revision={after_revision}",
+            address.port()
+        )
+        .into_client_request()
+        .unwrap();
+        request.headers_mut().insert(
+            "Authorization",
+            HeaderValue::from_str(&format!("Bearer {TOKEN}")).unwrap(),
+        );
+        request.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            HeaderValue::from_static("leserpent.events.v1"),
+        );
+        let websocket_config = WebSocketConfig::default()
+            .max_message_size(Some(MAX_PROTOCOL_MESSAGE_BYTES))
+            .max_frame_size(Some(MAX_PROTOCOL_MESSAGE_BYTES));
+        let (mut websocket, response) =
+            client_with_config(request, stream, Some(websocket_config)).unwrap();
+        assert_eq!(response.status(), 101);
+        assert_eq!(
+            response.headers().get("Sec-WebSocket-Protocol").unwrap(),
+            "leserpent.events.v1"
+        );
+        let mut messages = Vec::new();
+        for _ in 0..expected_messages {
+            messages.push(websocket.read().unwrap().into_data().to_vec());
+        }
+        websocket.close(None).unwrap();
+        messages
     }
 
     #[test]
@@ -496,7 +662,7 @@ mod tests {
         #[cfg(unix)]
         fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
 
-        let server = RemoteServer::bind(
+        let mut server = RemoteServer::bind(
             "127.0.0.1:0".parse().unwrap(),
             &certificate_path,
             &key_path,
@@ -549,6 +715,103 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_websocket_streams_redacted_revisioned_snapshots_and_resyncs() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("events", "crt");
+        let key_path = temp_path("events", "key");
+        let database_path = temp_path("events", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap();
+        let address = server.local_addr().unwrap();
+        let certificate = cert.der().clone();
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        runtime
+            .register_runtime(
+                RuntimeId::new("runtime-a").unwrap(),
+                "Runtime A",
+                "https://secret-runtime.invalid",
+            )
+            .unwrap();
+
+        let first_client = thread::spawn(move || event_client(address, certificate, 0, 2));
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        runtime
+            .register_runtime(
+                RuntimeId::new("runtime-b").unwrap(),
+                "Runtime B",
+                "https://another-secret.invalid",
+            )
+            .unwrap();
+        for _ in 0..10 {
+            server.poll_once_strict(&mut runtime).unwrap();
+            thread::sleep(Duration::from_millis(5));
+        }
+        let messages = first_client.join().unwrap();
+        assert_eq!(messages.len(), 2);
+        assert!(messages.iter().all(|message| {
+            !String::from_utf8_lossy(message).contains("secret-runtime.invalid")
+                && !String::from_utf8_lossy(message).contains("another-secret.invalid")
+        }));
+        let first = decode_event(&messages[0]).unwrap();
+        assert!(matches!(
+            first.event,
+            ProtocolEvent::RuntimeSnapshot {
+                revision: Revision(1),
+                resumed_after: Some(Revision(0)),
+                ref runtimes,
+            } if runtimes.len() == 1 && runtimes[0].id.as_str() == "runtime-a"
+        ));
+        let second = decode_event(&messages[1]).unwrap();
+        assert!(matches!(
+            second.event,
+            ProtocolEvent::RuntimeSnapshot {
+                revision: Revision(2),
+                resumed_after: Some(Revision(1)),
+                ref runtimes,
+            } if runtimes.len() == 2
+        ));
+
+        let address = server.local_addr().unwrap();
+        let certificate = cert.der().clone();
+        let resync_client = thread::spawn(move || event_client(address, certificate, 99, 1));
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let resync = resync_client.join().unwrap();
+        assert!(matches!(
+            decode_event(&resync[0]).unwrap().event,
+            ProtocolEvent::ResyncRequired {
+                requested_after: Revision(99),
+                current_revision: Revision(2),
+            }
+        ));
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
+    }
+
+    #[test]
     fn malformed_tls_peer_is_isolated_from_runtime_authority() {
         let CertifiedKey { cert, signing_key } =
             generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
@@ -560,7 +823,7 @@ mod tests {
         #[cfg(unix)]
         fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
 
-        let server = RemoteServer::bind(
+        let mut server = RemoteServer::bind(
             "127.0.0.1:0".parse().unwrap(),
             &certificate_path,
             &key_path,

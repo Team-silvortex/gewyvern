@@ -133,6 +133,43 @@ fully patchable in the stable-ID model, and the container shell plus descendants
 are created only when the compiled-bound item enters the viewport. Mobile
 shells remain a later Gate 4 slice.
 
+## Remote event mode
+
+The desktop shell can consume the authenticated `leserpentd` WebSocket event
+surface directly:
+
+```bash
+export LESERPENT_REMOTE_TOKEN='at-least-32-non-whitespace-bytes'
+dotnet run --project \
+  apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- \
+  --remote https://leserpent.example:9443 \
+  --remote-ca /absolute/path/to/leserpent-ca.pem
+```
+
+`--remote` accepts an HTTPS origin only. The client derives `/v1/events`,
+requires the `leserpent.events.v1` subprotocol, verifies both the explicit CA
+and TLS hostname, and never accepts plaintext or redirect fallback. An optional
+`--remote-cache ABSOLUTE_PATH` overrides the per-origin cache location.
+
+The cache atomically stores only the endpoint-redacted snapshot and matching
+revision cursor. Cached data is visibly marked stale until the server confirms
+the cursor; malformed, oversized, cross-origin, or symlinked cache state fails
+closed. Disconnects immediately mark the mounted projection stale and retry
+with capped exponential delay for at most eight attempts. `resync_required`
+clears the cursor before requesting a complete snapshot. Remote mutation is not
+yet exposed by this read-only event mode.
+
+Run the transport-independent client contract check with:
+
+```bash
+dotnet run --project \
+  apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj
+```
+
+It checks strict Rust event decoding, monotonic revisions, stale transitions,
+the reconnect bound, resync cursor reset, malformed-cache rejection, and
+per-origin cache binding without requiring a UI or network service.
+
 ## Native AOT
 
 The preferred project-level proof entry is native Rust orchestration:

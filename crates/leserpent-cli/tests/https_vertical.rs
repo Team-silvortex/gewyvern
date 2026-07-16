@@ -43,7 +43,7 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
                 "https://secret-runtime.invalid",
             )
             .unwrap();
-        let https = RemoteServer::bind(
+        let mut https = RemoteServer::bind(
             "127.0.0.1:0".parse().unwrap(),
             server_certificate,
             server_private_key,

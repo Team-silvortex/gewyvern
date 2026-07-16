@@ -132,7 +132,7 @@ fn run() -> Result<(), String> {
     if socket.is_some() {
         return Err("--socket is currently supported only on Unix platforms".into());
     }
-    let remote = match (remote_listen, remote_certificate, remote_private_key) {
+    let mut remote = match (remote_listen, remote_certificate, remote_private_key) {
         (None, None, None) => None,
         (Some(address), Some(certificate), Some(private_key)) => {
             let token = std::env::var("LESERPENT_REMOTE_TOKEN").map_err(|_| {
@@ -161,7 +161,7 @@ fn run() -> Result<(), String> {
                 if let Some(ipc) = &ipc {
                     ipc.poll_once(host.runtime_mut())?;
                 }
-                if let Some(remote) = &remote {
+                if let Some(remote) = &mut remote {
                     remote.poll_once(host.runtime_mut())?;
                 }
                 host.run_steps_until(1, &stop)
@@ -174,7 +174,7 @@ fn run() -> Result<(), String> {
                 if let Some(ipc) = &ipc {
                     ipc.poll_once(host.runtime_mut())?;
                 }
-                if let Some(remote) = &remote {
+                if let Some(remote) = &mut remote {
                     remote.poll_once(host.runtime_mut())?;
                 }
                 host.run_steps_until(1, &stop)

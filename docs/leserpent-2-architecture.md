@@ -206,22 +206,35 @@ local Unix socket or named pipe. This provides crash isolation and lets the CLI
 and GUI share one runtime.
 
 Remote web and mobile clients use authenticated HTTPS and WebSocket transports.
-The first Gate 6 slice is a default-off HTTPS `POST /v1/wire` endpoint in
-`leserpentd`. It accepts the same bounded wire-v1 envelope as local IPC and
-dispatches through the same domain function. The listener requires an explicit
+The Gate 6 transport slice is a default-off HTTPS listener in `leserpentd`.
+`POST /v1/wire` accepts the same bounded wire-v1 envelope as local IPC and
+dispatches through the same domain function. `GET /v1/events` upgrades to an
+authenticated WebSocket only when the client requests the
+`leserpent.events.v1` subprotocol. The listener requires an explicit
 address, certificate, private key, and environment-only bearer token; there is
 no plaintext fallback. HTTP/1.1 headers are bounded, request bodies retain the
 1 MiB protocol limit, ambiguous framing fails closed, and peer-controlled
 failures are isolated per connection.
+
+The event schema is versioned independently from request/response wire-v1.
+Sessions receive endpoint-redacted runtime snapshots, revision heartbeats, and
+an explicit `resync_required` event when a requested cursor is ahead of the
+authority. A missing or older cursor receives a fresh snapshot; the daemon does
+not claim durable delta replay. Session, frame, message, write-buffer, and
+per-tick inbound work are bounded, and event clients are read-only.
 
 The current transport boundary has a named reproducible proof:
 `gewyvern_validate leserpent-transport`. It composes wire-v1 and legacy fixtures,
 CLI/Leselang parity, a real authenticated Unix-socket vertical path, and
 fail-closed IPC plus HTTPS security tests into retained evidence. The HTTPS
 suite includes a real TLS loopback, strict framing/authentication rejection,
-private-key file checks, shared wire dispatch, and a native CLI-to-daemon HTTPS
-vertical path with explicit CA trust. Windows named pipes, WebSocket events,
-remote GUI/mobile clients, reconnect, and cache behavior remain separate
+private-key file checks, shared wire dispatch, a native CLI-to-daemon HTTPS
+vertical path with explicit CA trust, and authenticated WebSocket snapshot and
+cursor-resync tests. The Avalonia desktop client now consumes that read-only
+event contract with explicit CA and hostname verification, per-origin
+endpoint-redacted snapshot cache, immediate stale-state presentation, a capped
+eight-attempt reconnect loop, and cursor reset on `resync_required`. Remote
+mutation, mobile clients, and mobile cache lifecycle remain separate
 implementations that must pass the same versioned domain contract.
 They do not embed privileged adapters. An optional embedded Rust library may be
 added later for offline mobile operation, but it must implement the same

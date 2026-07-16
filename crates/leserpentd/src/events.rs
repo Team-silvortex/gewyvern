@@ -28,6 +28,7 @@ pub(crate) struct EventSession {
 }
 
 impl EventSession {
+    #[allow(clippy::result_large_err)]
     pub(crate) fn upgrade(
         stream: RemoteTlsStream,
         prefix: Vec<u8>,
@@ -63,17 +64,14 @@ impl EventSession {
         })
     }
 
-    pub(crate) fn poll(
-        &mut self,
-        revision: Revision,
-        runtimes: &[RuntimeProjection],
-    ) -> bool {
+    pub(crate) fn poll(&mut self, revision: Revision, runtimes: &[RuntimeProjection]) -> bool {
         if !self.poll_inbound() {
             return false;
         }
         let event = if self.last_sent.is_none() {
             match self.requested_after.take() {
                 Some(requested_after) if requested_after > revision => {
+                    self.last_sent = Some(revision);
                     Some(ProtocolEvent::ResyncRequired {
                         requested_after,
                         current_revision: revision,
@@ -107,10 +105,9 @@ impl EventSession {
             Ok(payload) if payload.len() <= MAX_PROTOCOL_MESSAGE_BYTES => payload,
             _ => return false,
         };
-        match self
-            .socket
-            .send(Message::text(String::from_utf8(payload).expect("event JSON is UTF-8")))
-        {
+        match self.socket.send(Message::text(
+            String::from_utf8(payload).expect("event JSON is UTF-8"),
+        )) {
             Ok(()) => {
                 self.last_activity = Instant::now();
                 true
@@ -230,6 +227,19 @@ fn snapshot_event(
 mod tests {
     use super::*;
 
+    const TOKEN: &[u8] = b"0123456789abcdef0123456789abcdef";
+
+    fn upgrade_request(target: &str, token: &str, protocols: &[&str]) -> Vec<u8> {
+        let mut request = format!(
+            "GET {target} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\n"
+        );
+        for protocol in protocols {
+            request.push_str(&format!("Sec-WebSocket-Protocol: {protocol}\r\n"));
+        }
+        request.push_str("Upgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
+        request.into_bytes()
+    }
+
     #[test]
     fn event_target_cursor_is_strict_and_bounded_to_u64() {
         assert_eq!(parse_event_target("/v1/events").unwrap(), None);
@@ -245,5 +255,61 @@ mod tests {
         ] {
             assert!(parse_event_target(target).is_err());
         }
+    }
+
+    #[test]
+    fn event_upgrade_requires_exact_auth_subprotocol_and_target() {
+        assert_eq!(
+            validate_upgrade(
+                &upgrade_request(
+                    "/v1/events?after_revision=42",
+                    std::str::from_utf8(TOKEN).unwrap(),
+                    &[EVENT_SUBPROTOCOL],
+                ),
+                TOKEN,
+            )
+            .unwrap(),
+            Some(Revision(42))
+        );
+        assert!(
+            validate_upgrade(
+                &upgrade_request(
+                    "/v1/events",
+                    "fedcba9876543210fedcba9876543210",
+                    &[EVENT_SUBPROTOCOL],
+                ),
+                TOKEN,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_upgrade(
+                &upgrade_request("/v1/events", std::str::from_utf8(TOKEN).unwrap(), &[],),
+                TOKEN,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_upgrade(
+                &upgrade_request(
+                    "/v1/events",
+                    std::str::from_utf8(TOKEN).unwrap(),
+                    &[EVENT_SUBPROTOCOL, EVENT_SUBPROTOCOL],
+                ),
+                TOKEN,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_upgrade(
+                &upgrade_request(
+                    "/v1/events?after_revision=1&token=secret",
+                    std::str::from_utf8(TOKEN).unwrap(),
+                    &[EVENT_SUBPROTOCOL],
+                ),
+                TOKEN,
+            )
+            .is_err()
+        );
     }
 }

@@ -395,6 +395,16 @@ Extend the same contracts rather than forking product behavior.
 - push/deep-link integration through platform adapters
 - optional embedded Rust feasibility study for offline execution
 
+The current desktop slice implements the read-only half of this gate. A pure
+`Leserpent.RemoteClient` library owns strict event decoding, explicit CA and
+hostname verification, endpoint-bound atomic snapshot cache, stale-state
+transitions, cursor reset, and an eight-attempt capped reconnect loop. The
+Avalonia shell projects snapshots through the same neutral `UiDocument`
+renderer used by fixtures. A separate conformance executable proves codec,
+cache, resync, and retry behavior; a real Rust daemon to .NET client TLS
+vertical path has also been exercised. Remote mutation, mobile lifecycle, and
+platform-specific secure token storage remain before Gate 6 completion.
+
 Exit: desktop and one mobile target pass the same semantic conformance suite;
 platform-only presentation differences are documented.
 
@@ -451,10 +461,13 @@ authenticated HTTPS `POST /v1/wire` server: a real TLS roundtrip, constant-time
 bearer authentication, strict bounded HTTP framing, private-key file safety,
 and shared wire-v1 dispatch. A seventh suite drives the native CLI through that
 endpoint with explicit CA trust and proves health, query, bounded watch,
-confirmed command/idempotency, and auth-error exit semantics. Its summary still
-excludes Windows named pipes, WebSocket, remote GUI, and mobile clients. macOS
-arm64 and a physical Linux x86_64 host pass the same seven suites, 24 tests, and
-34 declared invariants.
+confirmed command/idempotency, and auth-error exit semantics. An eighth suite
+proves strict WebSocket authentication, required subprotocol negotiation, and
+cursor parsing; the TLS server suite also proves revisioned endpoint-redacted
+snapshots and explicit future-cursor resynchronization. Its summary still
+excludes Windows named pipes, remote GUI, and mobile clients. macOS arm64 and a
+physical Linux x86_64 host pass the same eight suites, 28 tests, and 41 declared
+invariants.
 
 The performance shelf now has the native entrypoint
 `gewyvern_validate leserpent-benchmark`. It measures fixed-size SQLite
@@ -472,8 +485,9 @@ VM continuation/journal re-entry, runtime SQLite recovery injection, and the
 authenticated remote wire boundary, and native remote CLI parity. The
 shelf retains per-suite transcripts and rejects any run whose filtered test
 count falls below its declared minimum. This proves the currently migrated
-command surface and shared local/remote CLI dispatch; WebSocket, remote GUI, and
-future mobile operations still require their own parity fixtures. macOS arm64
+command surface and shared local/remote CLI dispatch; WebSocket event delivery
+is covered by the transport shelf, while remote GUI and future mobile operations
+still require their own parity fixtures. macOS arm64
 and a physical Linux x86_64 host both report the same eight suites, 129 tests,
 and 46 declared invariants.
 

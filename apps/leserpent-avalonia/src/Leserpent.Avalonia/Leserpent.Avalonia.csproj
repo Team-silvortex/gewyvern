@@ -33,6 +33,7 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <ProjectReference Include="../Leserpent.RemoteClient/Leserpent.RemoteClient.csproj" />
     <ProjectReference Include="../Leserpent.RendererCore/Leserpent.RendererCore.csproj" />
   </ItemGroup>
 </Project>

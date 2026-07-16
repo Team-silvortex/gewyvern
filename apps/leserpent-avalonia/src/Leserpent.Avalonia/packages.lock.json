@@ -200,6 +200,9 @@
         "resolved": "0.94.1",
         "contentHash": "11YMr7FnAbL83bQmVxlhbIKHvSLxjO81D12Ej0QMSGXMDTxNA9MTOa4MQxx43nv5el/efuPHwzyrj6a5ha2gug=="
       },
+      "leserpent.remoteclient": {
+        "type": "Project"
+      },
       "leserpent.renderercore": {
         "type": "Project"
       }
