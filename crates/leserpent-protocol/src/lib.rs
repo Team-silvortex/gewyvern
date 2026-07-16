@@ -1,11 +1,13 @@
 use leserpent_domain::{
     CommandEnvelope, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError, QueryEnvelope, QueryResult,
+    RefreshStatus, Revision, RuntimeId, RuntimeProjection, RuntimeStatusSnapshot, RuntimeTags,
 };
 use serde::{Deserialize, Serialize};
 
 pub mod compatibility_v1;
 
 pub const PROTOCOL_SCHEMA_VERSION: u32 = 1;
+pub const EVENT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_PROTOCOL_MESSAGE_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -67,6 +69,54 @@ pub struct ProtocolError {
     pub message: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EventEnvelope {
+    pub schema_version: u32,
+    pub event: ProtocolEvent,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+pub enum ProtocolEvent {
+    RuntimeSnapshot {
+        revision: Revision,
+        resumed_after: Option<Revision>,
+        runtimes: Vec<RemoteRuntimeProjection>,
+    },
+    Heartbeat {
+        revision: Revision,
+    },
+    ResyncRequired {
+        requested_after: Revision,
+        current_revision: Revision,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RemoteRuntimeProjection {
+    pub id: RuntimeId,
+    pub name: String,
+    pub revision: Revision,
+    pub refresh_count: u64,
+    pub refresh_status: RefreshStatus,
+    pub tags: RuntimeTags,
+    pub status: RuntimeStatusSnapshot,
+}
+
+impl From<RuntimeProjection> for RemoteRuntimeProjection {
+    fn from(runtime: RuntimeProjection) -> Self {
+        Self {
+            id: runtime.id,
+            name: runtime.name,
+            revision: runtime.revision,
+            refresh_count: runtime.refresh_count,
+            refresh_status: runtime.refresh_status,
+            tags: runtime.tags,
+            status: runtime.status,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DecodeError {
     Oversized { size: usize, limit: usize },
@@ -125,6 +175,28 @@ pub fn decode_response(bytes: &[u8]) -> Result<ResponseEnvelope, DecodeError> {
         return Err(DecodeError::InvalidSchemaVersion {
             actual: envelope.schema_version,
             expected: PROTOCOL_SCHEMA_VERSION,
+        });
+    }
+    Ok(envelope)
+}
+
+pub fn encode_event(envelope: &EventEnvelope) -> Result<Vec<u8>, serde_json::Error> {
+    serde_json::to_vec(envelope)
+}
+
+pub fn decode_event(bytes: &[u8]) -> Result<EventEnvelope, DecodeError> {
+    if bytes.len() > MAX_PROTOCOL_MESSAGE_BYTES {
+        return Err(DecodeError::Oversized {
+            size: bytes.len(),
+            limit: MAX_PROTOCOL_MESSAGE_BYTES,
+        });
+    }
+    let envelope: EventEnvelope =
+        serde_json::from_slice(bytes).map_err(|err| DecodeError::InvalidJson(err.to_string()))?;
+    if envelope.schema_version != EVENT_SCHEMA_VERSION {
+        return Err(DecodeError::InvalidSchemaVersion {
+            actual: envelope.schema_version,
+            expected: EVENT_SCHEMA_VERSION,
         });
     }
     Ok(envelope)
@@ -270,5 +342,28 @@ mod tests {
             decode_response(&encode_response(&response).unwrap()).unwrap(),
             response
         );
+    }
+
+    #[test]
+    fn event_snapshot_round_trips_without_runtime_endpoint_disclosure() {
+        let mut control = leserpent_domain::InMemoryControlPlane::default();
+        let runtime = control.register_runtime(
+            leserpent_domain::RuntimeId::new("runtime-a").unwrap(),
+            "Runtime A",
+            "https://secret-endpoint.invalid",
+        );
+        let event = EventEnvelope {
+            schema_version: EVENT_SCHEMA_VERSION,
+            event: ProtocolEvent::RuntimeSnapshot {
+                revision: Revision(1),
+                resumed_after: Some(Revision(0)),
+                runtimes: vec![RemoteRuntimeProjection::from(runtime)],
+            },
+        };
+        let encoded = encode_event(&event).unwrap();
+        assert_eq!(decode_event(&encoded).unwrap(), event);
+        let encoded = String::from_utf8(encoded).unwrap();
+        assert!(!encoded.contains("secret-endpoint"));
+        assert!(!encoded.contains("endpoint"));
     }
 }

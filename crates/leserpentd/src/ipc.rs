@@ -5,19 +5,17 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, Command, CommandPlan, PlannedOperation,
-    Query,
-};
 use leserpent_protocol::{
-    EffectQueueHealth, HealthResponse, MAX_PROTOCOL_MESSAGE_BYTES, PROTOCOL_SCHEMA_VERSION,
-    ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
-    decode_request, encode_response,
+    MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request, encode_response,
 };
-use leserpent_runtime::{ControlRuntime, PlanResult, RuntimeError};
+use leserpent_runtime::ControlRuntime;
 use serde::Deserialize;
 
-const MAX_AUTH_TOKEN_BYTES: usize = 256;
+use crate::wire::{
+    MAX_AUTH_TOKEN_BYTES, constant_time_equals, error_response, execute_request,
+    validate_auth_token,
+};
+
 const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
 
 #[derive(Deserialize)]
@@ -37,7 +35,7 @@ pub struct IpcServer {
 
 impl IpcServer {
     pub fn bind(path: impl AsRef<Path>, token: &str) -> Result<Self, String> {
-        validate_token(token)?;
+        validate_auth_token(token).map_err(|error| format!("IPC {error}"))?;
         let path = path.as_ref();
         if path.as_os_str().len() > 100 {
             return Err("IPC socket path is too long".into());
@@ -131,101 +129,6 @@ impl Drop for IpcServer {
             let _ = fs::remove_file(&self.path);
         }
     }
-}
-
-fn execute_request(runtime: &mut ControlRuntime, request: RequestEnvelope) -> ResponseEnvelope {
-    let request = match request.request {
-        ProtocolRequest::Health(_) => {
-            return match runtime
-                .heartbeat()
-                .and_then(|()| runtime.effect_queue_stats())
-            {
-                Ok(queue) => response(ProtocolResponse::Health(HealthResponse {
-                    status: "ready".into(),
-                    authority_owned: true,
-                    protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
-                    effect_queue: Some(EffectQueueHealth {
-                        ready: queue.ready,
-                        leased: queue.leased,
-                        completed: queue.completed,
-                        failed: queue.failed,
-                        active: queue.active(),
-                        terminal: queue.terminal(),
-                        capacity: queue.capacity,
-                        saturated: queue.saturated(),
-                    }),
-                })),
-                Err(_) => error_response("runtime_unavailable", "runtime authority is unavailable"),
-            };
-        }
-        request => request,
-    };
-    let required_capability = match &request {
-        ProtocolRequest::Query(query) => match query.query {
-            Query::RuntimeList { .. }
-            | Query::RuntimeInspect { .. }
-            | Query::RuntimeHistory { .. }
-            | Query::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
-        },
-        ProtocolRequest::Command(command) => match command.command {
-            Command::RuntimeRefresh { .. } => CAPABILITY_RUNTIME_REFRESH,
-            Command::DebuggerCancel { .. } => leserpent_domain::CAPABILITY_DEBUGGER_CONTROL,
-        },
-        ProtocolRequest::Health(_) => unreachable!(),
-    };
-    let operation = match request {
-        ProtocolRequest::Query(query) => PlannedOperation::Query(query),
-        ProtocolRequest::Command(command) => PlannedOperation::Command(command),
-        ProtocolRequest::Health(_) => unreachable!(),
-    };
-    match runtime.execute_plan(CommandPlan {
-        schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
-        required_capability: required_capability.to_string(),
-        operation,
-    }) {
-        Ok(PlanResult::Query(result)) => response(ProtocolResponse::Query(result)),
-        Ok(PlanResult::Command(result)) => response(ProtocolResponse::Command(Box::new(result))),
-        Err(RuntimeError::Domain(error)) => leserpent_protocol::domain_error_response(&error),
-        Err(RuntimeError::InvalidPlan(_)) => {
-            error_response("invalid_request", "IPC command plan is invalid")
-        }
-        Err(_) => error_response("runtime_failed", "runtime request failed"),
-    }
-}
-
-fn response(response: ProtocolResponse) -> ResponseEnvelope {
-    ResponseEnvelope {
-        schema_version: PROTOCOL_SCHEMA_VERSION,
-        response,
-    }
-}
-
-fn error_response(code: &str, message: &str) -> ResponseEnvelope {
-    response(ProtocolResponse::Error(ProtocolError {
-        code: code.to_string(),
-        message: message.to_string(),
-    }))
-}
-
-fn validate_token(token: &str) -> Result<(), String> {
-    if token.len() < 32
-        || token.len() > MAX_AUTH_TOKEN_BYTES
-        || token.bytes().any(|byte| byte <= 0x20)
-    {
-        return Err("IPC token must contain 32 to 256 non-whitespace bytes".into());
-    }
-    Ok(())
-}
-
-fn constant_time_equals(left: &[u8], right: &[u8]) -> bool {
-    let mut difference = left.len() ^ right.len();
-    let length = left.len().max(right.len());
-    for index in 0..length {
-        difference |= usize::from(
-            left.get(index).copied().unwrap_or(0) ^ right.get(index).copied().unwrap_or(0),
-        );
-    }
-    difference == 0
 }
 
 #[cfg(test)]

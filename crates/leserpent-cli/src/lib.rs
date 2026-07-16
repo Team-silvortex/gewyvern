@@ -17,13 +17,23 @@ use leserpent_protocol::{
     ResponseEnvelope,
 };
 
+mod https;
+pub use https::HttpsClient;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CliOptions {
     pub socket: Option<PathBuf>,
+    pub remote: Option<RemoteOptions>,
     pub json: bool,
     pub principal: String,
     pub command: CliCommand,
     pub local_export: Option<LocalExport>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RemoteOptions {
+    pub endpoint: String,
+    pub ca: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -81,7 +91,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent --socket PATH [--json] health\n  leserpent --socket PATH [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent --socket PATH [--json] runtime inspect RUNTIME_ID\n  leserpent --socket PATH [--json] runtime history RUNTIME_ID\n  leserpent --socket PATH [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent --socket PATH [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -90,21 +100,73 @@ pub fn parse_args(
     socket_from_env: Option<PathBuf>,
     principal_from_env: Option<String>,
 ) -> Result<CliOptions, CliError> {
+    parse_args_with_remote(arguments, socket_from_env, None, None, principal_from_env)
+}
+
+pub fn parse_args_with_remote(
+    arguments: impl IntoIterator<Item = String>,
+    socket_from_env: Option<PathBuf>,
+    remote_from_env: Option<String>,
+    remote_ca_from_env: Option<PathBuf>,
+    principal_from_env: Option<String>,
+) -> Result<CliOptions, CliError> {
     let mut arguments = arguments.into_iter().peekable();
     let mut socket = socket_from_env;
+    let mut remote = remote_from_env;
+    let mut remote_ca = remote_ca_from_env;
+    let mut explicit_socket = false;
+    let mut explicit_remote = false;
+    let mut explicit_remote_ca = false;
     let mut json = false;
     while let Some(argument) = arguments.peek() {
         match argument.as_str() {
             "--socket" => {
                 arguments.next();
+                if explicit_socket || explicit_remote || explicit_remote_ca {
+                    return Err(CliError::Usage(
+                        "transport options must not be repeated or mixed".into(),
+                    ));
+                }
+                explicit_socket = true;
                 socket =
                     Some(PathBuf::from(arguments.next().ok_or_else(|| {
                         CliError::Usage("--socket requires a path".into())
                     })?));
+                remote = None;
+                remote_ca = None;
             }
             "--json" => {
                 arguments.next();
                 json = true;
+            }
+            "--remote" => {
+                arguments.next();
+                if explicit_remote || explicit_socket {
+                    return Err(CliError::Usage(
+                        "transport options must not be repeated or mixed".into(),
+                    ));
+                }
+                explicit_remote = true;
+                socket = None;
+                remote = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| CliError::Usage("--remote requires an HTTPS URL".into()))?,
+                );
+            }
+            "--remote-ca" => {
+                arguments.next();
+                if explicit_remote_ca || explicit_socket {
+                    return Err(CliError::Usage(
+                        "transport options must not be repeated or mixed".into(),
+                    ));
+                }
+                explicit_remote_ca = true;
+                socket = None;
+                remote_ca =
+                    Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                        CliError::Usage("--remote-ca requires a path".into())
+                    })?));
             }
             "-h" | "--help" => return Err(CliError::Usage(USAGE.into())),
             _ => break,
@@ -156,7 +218,22 @@ pub fn parse_args(
         Some(command) => return Err(CliError::Usage(format!("unknown command '{command}'"))),
         None => return Err(CliError::Usage(USAGE.into())),
     };
+    if socket.is_some() && (remote.is_some() || remote_ca.is_some()) {
+        return Err(CliError::Configuration(
+            "--socket and remote HTTPS transport are mutually exclusive".into(),
+        ));
+    }
+    let remote = match (remote, remote_ca) {
+        (None, None) => None,
+        (Some(endpoint), Some(ca)) => Some(RemoteOptions { endpoint, ca }),
+        _ => {
+            return Err(CliError::Configuration(
+                "remote HTTPS transport requires both endpoint and CA path".into(),
+            ));
+        }
+    };
     if socket.is_none()
+        && remote.is_none()
         && local_export.is_none()
         && !matches!(
             &command,
@@ -170,7 +247,7 @@ pub fn parse_args(
         )
     {
         return Err(CliError::Configuration(
-            "socket path is required via --socket or LESERPENT_SOCKET".into(),
+            "transport is required via local socket or remote HTTPS configuration".into(),
         ));
     }
     let principal = principal_from_env.unwrap_or_else(|| "leserpent-cli".into());
@@ -181,6 +258,7 @@ pub fn parse_args(
     }
     Ok(CliOptions {
         socket,
+        remote,
         json,
         principal,
         command,
@@ -1006,6 +1084,58 @@ mod tests {
             parse_args(
                 ["health", "extra"].into_iter().map(str::to_string),
                 Some("/tmp/x".into()),
+                None,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn parser_selects_exactly_one_remote_transport() {
+        let options = parse_args_with_remote(
+            ["--json", "health"].into_iter().map(str::to_string),
+            None,
+            Some("https://localhost:9443".into()),
+            Some("/tmp/leserpent-ca.pem".into()),
+            Some("remote-operator".into()),
+        )
+        .unwrap();
+        assert!(options.socket.is_none());
+        assert_eq!(
+            options
+                .remote
+                .as_ref()
+                .map(|remote| remote.endpoint.as_str()),
+            Some("https://localhost:9443")
+        );
+        assert!(
+            parse_args_with_remote(
+                [
+                    "--socket",
+                    "/tmp/leserpent.sock",
+                    "--remote",
+                    "https://localhost:9443",
+                    "--remote-ca",
+                    "/tmp/ca.pem",
+                    "health",
+                ]
+                .into_iter()
+                .map(str::to_string),
+                None,
+                None,
+                None,
+                None,
+            )
+            .is_err()
+        );
+        assert!(
+            parse_args_with_remote(
+                ["--remote", "https://localhost:9443", "health"]
+                    .into_iter()
+                    .map(str::to_string),
+                None,
+                None,
+                None,
                 None,
             )
             .is_err()

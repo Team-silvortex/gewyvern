@@ -16,6 +16,22 @@ The socket may instead be supplied with `--socket PATH`. The CLI refuses links,
 non-socket paths, and sockets that grant group or other permissions. Tokens are
 accepted only from `LESERPENT_IPC_TOKEN`, never from command-line arguments.
 
+For authenticated HTTPS, select the remote endpoint instead of the socket:
+
+```bash
+export LESERPENT_REMOTE='https://control.example.internal:9443'
+export LESERPENT_REMOTE_CA='/etc/leserpent/ca.pem'
+export LESERPENT_REMOTE_TOKEN='at-least-32-non-whitespace-bytes'
+leserpent --json health
+```
+
+The endpoint and CA may instead be supplied as `--remote HTTPS_URL --remote-ca
+PATH`. Local and remote transports are mutually exclusive. Remote URLs accept
+only `https://HOST[:PORT]` with no path, query, credentials, or redirect. The CA
+must be a regular non-symlink PEM file no larger than 1 MiB; hostname/IP
+verification is mandatory. The token is accepted only from
+`LESERPENT_REMOTE_TOKEN`.
+
 ## Commands
 
 ```bash
@@ -61,6 +77,11 @@ revisions, flushing each human line or JSON envelope immediately. The default is
 20 polls at one-second intervals; `--count` is limited to 1-1000 and
 `--interval-ms` to 50-60000. This keeps daemon requests short-lived and avoids
 introducing a second domain or Leselang watch semantic.
+
+Every executable command has identical local IPC and remote HTTPS lowering,
+confirmation, rendering, and exit-code semantics. The HTTPS client requires
+unique JSON `Content-Length`/`Content-Type` response framing, rejects transfer
+encoding and redirects, and retains the wire-v1 1 MiB response limit.
 
 All three read queries support local `--export-leselang` and `--export-plan`. These
 paths require neither socket nor token. List exports normalize filters before

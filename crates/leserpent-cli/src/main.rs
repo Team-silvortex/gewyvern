@@ -3,8 +3,8 @@ use std::time::Duration;
 use std::{io, io::Write};
 
 use leserpent_cli::{
-    CliCommand, CliError, RuntimeWatchOptions, export_leselang, export_plan, parse_args,
-    render_response, request_for, send_request,
+    CliCommand, CliError, HttpsClient, RuntimeWatchOptions, export_leselang, export_plan,
+    parse_args_with_remote, render_response, request_for, send_request,
 };
 use leserpent_domain::QueryResult;
 use leserpent_protocol::{ProtocolResponse, RequestEnvelope};
@@ -23,9 +23,11 @@ fn main() {
 }
 
 fn run() -> Result<i32, CliError> {
-    let options = parse_args(
+    let options = parse_args_with_remote(
         std::env::args().skip(1),
         std::env::var_os("LESERPENT_SOCKET").map(PathBuf::from),
+        std::env::var("LESERPENT_REMOTE").ok(),
+        std::env::var_os("LESERPENT_REMOTE_CA").map(PathBuf::from),
         std::env::var("LESERPENT_PRINCIPAL").ok(),
     )?;
     if let Some(source) = export_leselang(&options) {
@@ -36,17 +38,32 @@ fn run() -> Result<i32, CliError> {
         println!("{plan}");
         return Ok(0);
     }
-    let socket = options
-        .socket
-        .as_deref()
-        .ok_or_else(|| CliError::Configuration("daemon socket is required for execution".into()))?;
-    let token = std::env::var("LESERPENT_IPC_TOKEN")
-        .map_err(|_| CliError::Configuration("LESERPENT_IPC_TOKEN is required".into()))?;
+    let transport = match (&options.socket, &options.remote) {
+        (Some(socket), None) => {
+            let token = std::env::var("LESERPENT_IPC_TOKEN")
+                .map_err(|_| CliError::Configuration("LESERPENT_IPC_TOKEN is required".into()))?;
+            ActiveTransport::Local {
+                socket: socket.clone(),
+                token,
+            }
+        }
+        (None, Some(remote)) => {
+            let token = std::env::var("LESERPENT_REMOTE_TOKEN").map_err(|_| {
+                CliError::Configuration("LESERPENT_REMOTE_TOKEN is required".into())
+            })?;
+            ActiveTransport::Remote(HttpsClient::new(&remote.endpoint, &remote.ca, token)?)
+        }
+        _ => {
+            return Err(CliError::Configuration(
+                "exactly one daemon transport is required for execution".into(),
+            ));
+        }
+    };
     let request = request_for(&options)?;
     if let CliCommand::RuntimeWatch(watch) = &options.command {
-        return run_watch(socket, &token, &request, watch, options.json);
+        return run_watch(&transport, &request, watch, options.json);
     }
-    let response = send_request(socket, &token, &request)?;
+    let response = transport.send(&request)?;
     let is_error = matches!(response.response, ProtocolResponse::Error(_));
     match render_response(&response, options.json) {
         Ok(rendered) => println!("{rendered}"),
@@ -60,15 +77,14 @@ fn run() -> Result<i32, CliError> {
 }
 
 fn run_watch(
-    socket: &std::path::Path,
-    token: &str,
+    transport: &ActiveTransport,
     request: &RequestEnvelope,
     watch: &RuntimeWatchOptions,
     json: bool,
 ) -> Result<i32, CliError> {
     let mut last_revision = None;
     for iteration in 0..watch.count {
-        let response = send_request(socket, token, request)?;
+        let response = transport.send(request)?;
         if matches!(response.response, ProtocolResponse::Error(_)) {
             let error = render_response(&response, json).unwrap_err();
             eprintln!("leserpent: {error}");
@@ -94,4 +110,21 @@ fn run_watch(
         }
     }
     Ok(0)
+}
+
+enum ActiveTransport {
+    Local { socket: PathBuf, token: String },
+    Remote(HttpsClient),
+}
+
+impl ActiveTransport {
+    fn send(
+        &self,
+        request: &RequestEnvelope,
+    ) -> Result<leserpent_protocol::ResponseEnvelope, CliError> {
+        match self {
+            Self::Local { socket, token } => send_request(socket, token, request),
+            Self::Remote(client) => client.send(request),
+        }
+    }
 }

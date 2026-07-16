@@ -23,6 +23,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"ldap-bind-denied-container-validation\""));
     assert!(binary.contains("\"leserpent-aot\""));
     assert!(binary.contains("\"leserpent-benchmark\""));
+    assert!(binary.contains("\"leserpent-parity-recovery\""));
     assert!(binary.contains("\"leserpent-transport\""));
     assert!(binary.contains("\"leserpent-accessibility\""));
     assert!(binary.contains("\"leselang-fuzz\""));
@@ -110,6 +111,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_ldap_bind_denied_container_validation"));
     assert!(mod_file.contains("run_leserpent_aot_validation"));
     assert!(mod_file.contains("run_leserpent_benchmark_validation"));
+    assert!(mod_file.contains("run_leserpent_parity_recovery_validation"));
     assert!(mod_file.contains("run_leserpent_transport_validation"));
     assert!(mod_file.contains("run_leserpent_accessibility_validation"));
     assert!(mod_file.contains("run_leselang_fuzz_validation"));
@@ -248,6 +250,27 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     assert!(ui.contains("apply_patch"));
     assert!(!harness.contains("Command::new(\"sh\")"));
     assert!(binary.contains("print_leserpent_benchmark_help"));
+}
+
+#[test]
+fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
+    let harness = read_repo_file("src/validation_harness/leserpent_parity_recovery.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(harness.contains("command-origin-lowering"));
+    assert!(harness.contains("domain-authorization-idempotency"));
+    assert!(harness.contains("debugger-confirmation-boundary"));
+    assert!(harness.contains("cli-leselang-origin-parity"));
+    assert!(harness.contains("vm-reentry-recovery"));
+    assert!(harness.contains("runtime-recovery-injection"));
+    assert!(harness.contains("expected_min_tests: 65"));
+    assert!(harness.contains("expected_min_tests: 35"));
+    assert!(harness.contains("passed_test_count"));
+    assert!(harness.contains("proof-summary.json"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(harness.contains("worker-crash-final-attempt"));
+    assert!(!harness.contains("Command::new(\"sh\")"));
+    assert!(binary.contains("print_leserpent_parity_recovery_help"));
 }
 
 #[test]

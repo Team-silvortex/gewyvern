@@ -11,12 +11,15 @@ leserpent-domain = { path = "../leserpent-domain" }
 leserpent-protocol = { path = "../leserpent-protocol" }
 serde.workspace = true
 serde_json.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
 
 [dev-dependencies]
 leselang-hir = { path = "../leselang-hir" }
 leselang-syntax = { path = "../leselang-syntax" }
 leserpent-runtime = { path = "../leserpent-runtime" }
 leserpentd = { path = "../leserpentd" }
+rcgen = "0.14"
 
 [[bin]]
 name = "leserpent"

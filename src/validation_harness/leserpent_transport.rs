@@ -70,6 +70,32 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "authority-health",
         ],
     },
+    ProofSuite {
+        id: "authenticated-https-wire",
+        package: "leserpentd",
+        target_args: &["--lib", "remote::tests::"],
+        invariants: &[
+            "real-tls-loopback",
+            "shared-wire-v1-dispatch",
+            "constant-time-bearer-authentication",
+            "strict-http-framing",
+            "bounded-header-and-body",
+            "private-key-file-safety",
+        ],
+    },
+    ProofSuite {
+        id: "authenticated-https-cli-vertical",
+        package: "leserpent-cli",
+        target_args: &["--test", "https_vertical"],
+        invariants: &[
+            "native-cli-daemon-https-roundtrip",
+            "explicit-ca-trust",
+            "tls-hostname-verification",
+            "remote-command-query-health-parity",
+            "bounded-watch-over-https",
+            "remote-auth-error-exit-contract",
+        ],
+    },
 ];
 
 pub fn run_leserpent_transport_validation(
@@ -113,7 +139,7 @@ pub fn run_leserpent_transport_validation(
         out_dir.join("transport-summary.json"),
         serde_json::to_string_pretty(&json!({
             "schema_version": 1,
-            "transport_scope": "authenticated-unix-ipc",
+            "transport_scope": "authenticated-unix-ipc-https-wire-and-native-https-cli",
             "wire_schema": "v1",
             "host": {
                 "os": std::env::consts::OS,
@@ -124,8 +150,9 @@ pub fn run_leserpent_transport_validation(
             "suites": suites,
             "excluded_future_transports": [
                 "windows-named-pipe",
-                "authenticated-https",
                 "authenticated-websocket",
+                "remote-gui-client",
+                "mobile-client",
             ],
         }))?,
     )?;
@@ -141,7 +168,7 @@ pub fn run_leserpent_transport_validation(
     )?;
 
     Ok(ValidationReport {
-        name: "Leserpent authenticated local transport compatibility shelf".to_string(),
+        name: "Leserpent authenticated transport compatibility shelf".to_string(),
         out_dir,
         checks,
     })
@@ -153,7 +180,7 @@ mod tests {
 
     #[test]
     fn proof_suites_cover_wire_parity_real_ipc_and_security() {
-        assert_eq!(PROOF_SUITES.len(), 5);
+        assert_eq!(PROOF_SUITES.len(), 7);
         let ids = PROOF_SUITES
             .iter()
             .map(|suite| suite.id)
@@ -163,11 +190,19 @@ mod tests {
         assert!(ids.contains(&"cli-leselang-parity"));
         assert!(ids.contains(&"authenticated-ipc-vertical"));
         assert!(ids.contains(&"ipc-security-boundary"));
+        assert!(ids.contains(&"authenticated-https-wire"));
+        assert!(ids.contains(&"authenticated-https-cli-vertical"));
         assert!(
             PROOF_SUITES
                 .iter()
                 .flat_map(|suite| suite.invariants)
                 .any(|invariant| *invariant == "invalid-token-rejection")
+        );
+        assert!(
+            PROOF_SUITES
+                .iter()
+                .flat_map(|suite| suite.invariants)
+                .any(|invariant| *invariant == "real-tls-loopback")
         );
     }
 }

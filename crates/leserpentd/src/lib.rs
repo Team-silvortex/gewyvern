@@ -10,6 +10,10 @@ use leserpent_runtime::{ControlRuntime, RuntimeError, WorkerStep};
 mod ipc;
 #[cfg(unix)]
 pub use ipc::IpcServer;
+mod remote;
+pub use remote::RemoteServer;
+mod events;
+mod wire;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DaemonConfig {

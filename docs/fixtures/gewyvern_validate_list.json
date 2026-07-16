@@ -15,6 +15,7 @@
     "leserpent-accessibility",
     "leserpent-aot",
     "leserpent-benchmark",
+    "leserpent-parity-recovery",
     "leserpent-transport",
     "linux-attach-smoke",
     "linux-kprobe-smoke",

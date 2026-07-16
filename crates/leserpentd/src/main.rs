@@ -7,7 +7,7 @@ use leserpent_adapters::{GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, Ge
 use leserpent_runtime::ControlRuntime;
 #[cfg(unix)]
 use leserpentd::IpcServer;
-use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost};
+use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
 use signal_hook::consts::{SIGINT, SIGTERM};
 
 fn main() {
@@ -20,6 +20,9 @@ fn main() {
 fn run() -> Result<(), String> {
     let mut database = std::env::var_os("LESERPENT_DATABASE").map(PathBuf::from);
     let mut socket = None;
+    let mut remote_listen = None;
+    let mut remote_certificate = None;
+    let mut remote_private_key = None;
     let mut gewyvern_targets = Vec::new();
     let mut steps = None;
     let mut arguments = std::env::args().skip(1);
@@ -37,6 +40,29 @@ fn run() -> Result<(), String> {
                     arguments
                         .next()
                         .ok_or_else(|| "--socket requires a path".to_string())?,
+                ));
+            }
+            "--remote-listen" => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| "--remote-listen requires an address".to_string())?;
+                remote_listen = Some(
+                    value
+                        .parse::<SocketAddr>()
+                        .map_err(|_| "--remote-listen address is invalid".to_string())?,
+                );
+            }
+            "--remote-cert" => {
+                remote_certificate =
+                    Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                        "--remote-cert requires a path".to_string()
+                    })?));
+            }
+            "--remote-key" => {
+                remote_private_key = Some(PathBuf::from(
+                    arguments
+                        .next()
+                        .ok_or_else(|| "--remote-key requires a path".to_string())?,
                 ));
             }
             "--once" => steps = Some(1),
@@ -61,9 +87,11 @@ fn run() -> Result<(), String> {
             "-h" | "--help" => {
                 println!(
                     "Usage: leserpentd --database PATH [--socket PATH] \
+                     [--remote-listen ADDR --remote-cert PATH --remote-key PATH] \
                      [--gewyvern-target ID=LOOPBACK:PORT] [--once | --steps N]\n\
                      Environment: LESERPENT_DATABASE may provide the database path; \
                      LESERPENT_IPC_TOKEN is required when --socket is used; \
+                     LESERPENT_REMOTE_TOKEN is required for the HTTPS remote endpoint; \
                      GEWY_API_ADMIN_TOKEN optionally authenticates Gewyvern targets"
                 );
                 return Ok(());
@@ -104,6 +132,25 @@ fn run() -> Result<(), String> {
     if socket.is_some() {
         return Err("--socket is currently supported only on Unix platforms".into());
     }
+    let remote = match (remote_listen, remote_certificate, remote_private_key) {
+        (None, None, None) => None,
+        (Some(address), Some(certificate), Some(private_key)) => {
+            let token = std::env::var("LESERPENT_REMOTE_TOKEN").map_err(|_| {
+                "LESERPENT_REMOTE_TOKEN is required with --remote-listen".to_string()
+            })?;
+            Some(RemoteServer::bind(
+                address,
+                certificate,
+                private_key,
+                &token,
+            )?)
+        }
+        _ => {
+            return Err(
+                "--remote-listen, --remote-cert, and --remote-key must be provided together".into(),
+            );
+        }
+    };
     match steps {
         Some(steps) => {
             for _ in 0..steps {
@@ -114,6 +161,9 @@ fn run() -> Result<(), String> {
                 if let Some(ipc) = &ipc {
                     ipc.poll_once(host.runtime_mut())?;
                 }
+                if let Some(remote) = &remote {
+                    remote.poll_once(host.runtime_mut())?;
+                }
                 host.run_steps_until(1, &stop)
                     .map_err(|error| error.to_string())?;
             }
@@ -123,6 +173,9 @@ fn run() -> Result<(), String> {
                 #[cfg(unix)]
                 if let Some(ipc) = &ipc {
                     ipc.poll_once(host.runtime_mut())?;
+                }
+                if let Some(remote) = &remote {
+                    remote.poll_once(host.runtime_mut())?;
                 }
                 host.run_steps_until(1, &stop)
                     .map_err(|error| error.to_string())?;

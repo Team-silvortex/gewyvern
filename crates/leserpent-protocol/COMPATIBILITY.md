@@ -56,8 +56,10 @@ failure after restarting the child process. Packaging the bridge beside the
 ## Reproducible Proof
 
 Run `gewyvern_validate leserpent-transport` from the workspace root to prove
-the current wire-v1 and authenticated local transport boundary. The command
+the current wire-v1 authenticated local and HTTPS transport boundaries. The command
 retains separate logs for protocol fixtures, legacy adaptation, CLI/Leselang
-parity, the native CLI-to-daemon Unix socket, and IPC rejection paths. Its
-summary explicitly excludes Windows named pipes and remote HTTPS/WebSocket, so
-passing the local shelf does not imply Gate 6 transport completion.
+parity, the native CLI-to-daemon Unix socket, IPC rejection paths, and a real TLS
+loopback through `POST /v1/wire`, plus the native remote CLI vertical path. Its
+summary explicitly excludes Windows named pipes, WebSocket, remote GUI, and
+mobile clients, so passing this
+shelf does not imply full Gate 6 completion.

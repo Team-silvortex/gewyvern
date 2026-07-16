@@ -18,10 +18,10 @@ use gewyvern::validation_harness::{
     run_juice_shop_container_validation, run_ldap_bind_denied_container_validation,
     run_leselang_fuzz_validation, run_leserpent_accessibility_validation,
     run_leserpent_aot_validation, run_leserpent_benchmark_validation,
-    run_leserpent_transport_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
-    run_linux_tc_smoke, run_package_install_smoke, run_pathological_container_validation,
-    run_registry_validation, run_release_container_check, run_release_gate,
-    run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_leserpent_parity_recovery_validation, run_leserpent_transport_validation,
+    run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke, run_package_install_smoke,
+    run_pathological_container_validation, run_registry_validation, run_release_container_check,
+    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
@@ -44,6 +44,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "leserpent-accessibility",
     "leserpent-aot",
     "leserpent-benchmark",
+    "leserpent-parity-recovery",
     "leserpent-transport",
     "juice-shop-container-validation",
     "linux-attach-smoke",
@@ -436,6 +437,22 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
             }
             let options = parse_options(rest)?;
             let report = run_leserpent_benchmark_validation(options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "leserpent-parity-recovery" => {
+            if wants_subcommand_help(&rest) {
+                print_leserpent_parity_recovery_help();
+                return Ok(());
+            }
+            let options = parse_options(rest)?;
+            let report = run_leserpent_parity_recovery_validation(options.out_dir)?;
             print_validation_report(
                 &command,
                 &report,
@@ -1171,6 +1188,7 @@ fn print_help() {
     println!("  ldap-bind-denied-container-validation [--out-dir <path>]");
     println!("  leserpent-transport [--out-dir <path>]");
     println!("  leserpent-benchmark [--out-dir <path>]");
+    println!("  leserpent-parity-recovery [--out-dir <path>]");
     println!("  juice-shop-container-validation [--out-dir <path>]");
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
@@ -1792,6 +1810,15 @@ fn print_leserpent_benchmark_help() {
         "Measure bounded runtime, UI IR, and release-binary workloads and enforce disaster-regression budgets."
     );
     println!("Timing comparisons are valid only within the same host class.");
+}
+
+fn print_leserpent_parity_recovery_help() {
+    println!("Usage: gewyvern_validate leserpent-parity-recovery [--out-dir <path>]");
+    println!();
+    println!(
+        "Prove current command-origin parity, authorization, idempotency, and injected VM/runtime recovery paths."
+    );
+    println!("Every suite must execute its minimum nonzero test count and retain a transcript.");
 }
 
 fn print_linux_kprobe_smoke_help() {

@@ -311,6 +311,13 @@ impl ControlRuntime {
         journal.ensure_owner().map_err(RuntimeError::Storage)
     }
 
+    pub fn runtime_event_state(&self) -> (Revision, Vec<leserpent_domain::RuntimeProjection>) {
+        let snapshot = self.control.snapshot();
+        let mut runtimes = snapshot.runtimes;
+        runtimes.sort_by(|left, right| left.id.cmp(&right.id));
+        (snapshot.revision, runtimes)
+    }
+
     pub fn enqueue_effect(
         &mut self,
         effect_id: &str,
@@ -2174,5 +2181,25 @@ mod tests {
             Err(RuntimeError::ReplayMismatch { .. })
         ));
         fs::remove_file(outcome_path).unwrap();
+    }
+
+    #[test]
+    fn event_state_is_revisioned_and_stably_sorted() {
+        let mut runtime = ControlRuntime::new();
+        runtime
+            .register_runtime(RuntimeId::new("runtime-b").unwrap(), "B", "https://b.invalid")
+            .unwrap();
+        runtime
+            .register_runtime(RuntimeId::new("runtime-a").unwrap(), "A", "https://a.invalid")
+            .unwrap();
+        let (revision, runtimes) = runtime.runtime_event_state();
+        assert_eq!(revision, Revision(2));
+        assert_eq!(
+            runtimes
+                .iter()
+                .map(|runtime| runtime.id.as_str())
+                .collect::<Vec<_>>(),
+            ["runtime-a", "runtime-b"]
+        );
     }
 }

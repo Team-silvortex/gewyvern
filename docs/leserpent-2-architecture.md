@@ -38,6 +38,15 @@ and migration bridge. It is not the semantic center of the 2.0 system.
 These rules define atomic replaceability. Replacing GUI interaction with CLI or
 Leselang may change presentation and transport, but not control semantics.
 
+The executable proof for this rule is
+`gewyvern_validate leserpent-parity-recovery`. It compares the current
+CLI and Leselang command/query lowering against the same domain contract, then
+exercises capability, confirmation, revision, principal-scoped idempotency,
+continuation restart, lease fencing, snapshot fallback, worker-crash
+settlement, and outbox repair paths. Each Cargo suite must report a nonzero
+minimum test count, preventing cfg or filter drift from turning the proof into
+a vacuous pass.
+
 ## System Shape
 
 ```mermaid
@@ -197,14 +206,23 @@ local Unix socket or named pipe. This provides crash isolation and lets the CLI
 and GUI share one runtime.
 
 Remote web and mobile clients use authenticated HTTPS and WebSocket transports.
+The first Gate 6 slice is a default-off HTTPS `POST /v1/wire` endpoint in
+`leserpentd`. It accepts the same bounded wire-v1 envelope as local IPC and
+dispatches through the same domain function. The listener requires an explicit
+address, certificate, private key, and environment-only bearer token; there is
+no plaintext fallback. HTTP/1.1 headers are bounded, request bodies retain the
+1 MiB protocol limit, ambiguous framing fails closed, and peer-controlled
+failures are isolated per connection.
 
-The current local boundary has a named reproducible proof:
+The current transport boundary has a named reproducible proof:
 `gewyvern_validate leserpent-transport`. It composes wire-v1 and legacy fixtures,
 CLI/Leselang parity, a real authenticated Unix-socket vertical path, and
-fail-closed IPC security tests into retained evidence. This proves semantic and
-security compatibility for the implemented Unix transport only; Windows named
-pipes, HTTPS, and WebSocket remain separate transport implementations that must
-pass the same versioned domain contract.
+fail-closed IPC plus HTTPS security tests into retained evidence. The HTTPS
+suite includes a real TLS loopback, strict framing/authentication rejection,
+private-key file checks, shared wire dispatch, and a native CLI-to-daemon HTTPS
+vertical path with explicit CA trust. Windows named pipes, WebSocket events,
+remote GUI/mobile clients, reconnect, and cache behavior remain separate
+implementations that must pass the same versioned domain contract.
 They do not embed privileged adapters. An optional embedded Rust library may be
 added later for offline mobile operation, but it must implement the same
 `leserpent-protocol` contract.

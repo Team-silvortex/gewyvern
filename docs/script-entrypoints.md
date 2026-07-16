@@ -388,19 +388,44 @@ Run:
 cargo run --quiet --bin gewyvern_validate -- leserpent-transport
 ```
 
-The named shelf runs five layers: canonical wire-v1 protocol tests, legacy-v1
+The named shelf runs seven layers: canonical wire-v1 protocol tests, legacy-v1
 adaptation fixtures, CLI/Leselang command and query parity, a real native CLI to
-daemon Unix-socket roundtrip, and the daemon IPC security boundary. The last
-layer proves owner-private socket permissions, bad-token rejection, malformed
-and oversized frame rejection, endpoint nondisclosure, and authority-backed
-health. Each layer has an independent log under
+daemon Unix-socket roundtrip, the daemon IPC security boundary, and the
+authenticated HTTPS wire boundary, and a native CLI-to-daemon HTTPS vertical
+path. The remote layers prove a real TLS
+roundtrip, bearer-token rejection, strict bounded HTTP framing, private-key
+file safety, shared wire-v1 dispatch, explicit CA/hostname verification, and
+remote command/query/watch parity. Each layer has an independent log under
 `target/validation/leserpent-transport/`, alongside
 `transport-summary.json` and `evidence-index.json`.
 
-This proof deliberately excludes Windows named pipes and remote HTTPS/WebSocket
-transport. Their absence is recorded in the summary rather than reported as a
-cross-platform success. The current macOS arm64 and physical Linux x86_64 runs
-produce matching five-suite, 22-invariant summaries.
+This proof deliberately excludes Windows named pipes, WebSocket, remote GUI,
+and mobile clients. Their absence is recorded in the summary rather
+than reported as a cross-platform success. The current macOS arm64 and physical
+Linux x86_64 runs produce matching seven-suite, 34-invariant summaries.
+
+### I want to prove command parity and restart recovery
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- leserpent-parity-recovery
+```
+
+The command runs eight suites over the current migrated command surface:
+frontend-neutral lowering, authorization/confirmation/idempotency,
+CLI/Leselang parity, VM continuation and journal re-entry, and runtime SQLite
+recovery injection, plus authenticated remote wire and native CLI parity. It covers
+snapshot corruption and prior-generation
+fallback, expired-lease redelivery, stale-worker fencing, final-attempt worker
+crash handling, status projection replay, and refresh outbox repair.
+
+Evidence is retained under
+`target/validation/leserpent-parity-recovery/`. The summary records
+actual test counts and the validator fails if any suite runs fewer than its
+declared minimum, including a zero-test filter mistake.
+The retained macOS arm64 and physical Linux x86_64 summaries carry explicit
+host metadata and matching eight-suite, 129-test counts.
 
 ### I want to validate built-in protocol packages
 

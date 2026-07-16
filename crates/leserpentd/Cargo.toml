@@ -13,3 +13,9 @@ leserpent-runtime = { path = "../leserpent-runtime" }
 serde.workspace = true
 serde_json.workspace = true
 signal-hook.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+tungstenite.workspace = true
+
+[dev-dependencies]
+rcgen = "0.14"

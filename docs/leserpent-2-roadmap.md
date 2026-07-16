@@ -442,15 +442,19 @@ macOS and physical Linux/Xvfb proofs produce matching counts, while the macOS
 NativeAOT job requires the same accessibility marker and metrics. The first run
 raised destructive-button contrast from 3.841 to 4.723.
 
-The local transport shelf now has the native entrypoint
+The transport shelf now has the native entrypoint
 `gewyvern_validate leserpent-transport`. It retains separate transcripts for
 canonical wire-v1 decoding, legacy-v1 adaptation, CLI/Leselang semantic parity,
 the real authenticated native CLI-to-daemon Unix socket path, and daemon IPC
-security rejection paths. Its machine-readable summary names Windows named
-pipes and authenticated HTTPS/WebSocket as excluded future transports, so local
-proof cannot be mistaken for Gate 6 remote transport completion. macOS arm64
-and a physical Linux x86_64 host pass the same five suites, 19 tests, and 22
-declared invariants.
+security rejection paths. Gate 6 adds a server suite for the default-off
+authenticated HTTPS `POST /v1/wire` server: a real TLS roundtrip, constant-time
+bearer authentication, strict bounded HTTP framing, private-key file safety,
+and shared wire-v1 dispatch. A seventh suite drives the native CLI through that
+endpoint with explicit CA trust and proves health, query, bounded watch,
+confirmed command/idempotency, and auth-error exit semantics. Its summary still
+excludes Windows named pipes, WebSocket, remote GUI, and mobile clients. macOS
+arm64 and a physical Linux x86_64 host pass the same seven suites, 24 tests, and
+34 declared invariants.
 
 The performance shelf now has the native entrypoint
 `gewyvern_validate leserpent-benchmark`. It measures fixed-size SQLite
@@ -459,6 +463,47 @@ cold start, 256-runtime query latency, 10,000-effect batch throughput, a
 size. Broad fail-closed budgets guard against order-of-magnitude regressions;
 raw macOS arm64 and physical Linux x86_64 results remain separate host-class
 baselines with machine-readable evidence.
+
+The current command-origin and recovery shelf now has the native entrypoint
+`gewyvern_validate leserpent-parity-recovery`. Eight non-vacuous suites
+execute at least 129 tests across neutral command lowering, domain
+authorization/idempotency, debugger confirmation, CLI/Leselang equivalence,
+VM continuation/journal re-entry, runtime SQLite recovery injection, and the
+authenticated remote wire boundary, and native remote CLI parity. The
+shelf retains per-suite transcripts and rejects any run whose filtered test
+count falls below its declared minimum. This proves the currently migrated
+command surface and shared local/remote CLI dispatch; WebSocket, remote GUI, and
+future mobile operations still require their own parity fixtures. macOS arm64
+and a physical Linux x86_64 host both report the same eight suites, 129 tests,
+and 46 declared invariants.
+
+The HTTPS listener is intentionally opt-in:
+
+```bash
+chmod 600 /etc/leserpent/tls/server.key
+export LESERPENT_REMOTE_TOKEN='at-least-32-non-whitespace-bytes'
+leserpentd --database /var/lib/leserpent/runtime.sqlite \
+  --remote-listen 0.0.0.0:9443 \
+  --remote-cert /etc/leserpent/tls/server.crt \
+  --remote-key /etc/leserpent/tls/server.key
+```
+
+The three remote arguments must be supplied together. The certificate and key
+must be regular files rather than symlinks, and the private key must grant no
+group or other access on Unix. Use a CA-issued certificate and deployment
+network policy; the bearer token is never passed on the command line.
+
+The native CLI uses the same endpoint without changing command syntax:
+
+```bash
+export LESERPENT_REMOTE='https://control.example.internal:9443'
+export LESERPENT_REMOTE_CA='/etc/leserpent/tls/ca.pem'
+export LESERPENT_REMOTE_TOKEN='at-least-32-non-whitespace-bytes'
+leserpent --json runtime list
+```
+
+CLI endpoint and CA flags are available as `--remote` and `--remote-ca`; local
+socket and remote transport selection are mutually exclusive.
 
 The desktop AOT shelf now has a named native entrypoint:
 `gewyvern_validate leserpent-aot`. It detects only checked host RIDs, performs
