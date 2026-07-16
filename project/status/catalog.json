@@ -895,20 +895,20 @@
       "feature": "ui-ir-lowering",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 70,
+      "completion": 90,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-ui-contract",
-        "version": "0.4.0",
+        "version": "0.7.0",
         "stability": "evolving",
-        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "bounded-json-codec", "fleet-document-lowering", "runtime-workspace-lowering", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "revision-fenced-event", "runtime-bound-action", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
+        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "bounded-json-codec", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-log-projection", "runtime-log-document-lowering", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "bounded-logical-frames", "debugger-secret-omission", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "revision-fenced-event", "runtime-bound-action", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/command-lowering/command-plan-lowering"],
       "blockers": [
         {
           "id": "renderer-and-workspace-breadth",
-          "summary": "The bounded fleet and runtime-workspace IR, event lowering, codec, incremental diff, and cross-language renderer fixture exist; bounded logs and debugger documents remain."
+          "summary": "Fleet, workspace, bounded logs, stackless debugger inspection, event lowering, codec, convergent diff, and cross-language fixtures exist; runtime/VM producers and debugger mutation commands remain."
         }
       ],
       "consumers": ["avalonia-renderer", "web-renderer", "model-automation"],
@@ -918,7 +918,7 @@
         { "kind": "source", "path": "crates/leselang-ui", "state": "present" },
         { "kind": "test", "path": "crates/leselang-ui/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Gate 4: add bounded log and debugger documents, then exercise them through the Avalonia control renderer."
+      "next_gate": "Gate 4: define runtime/VM producer adapters and capability-gated debugger mutations without exposing continuation secrets or destabilizing UI IR."
     },
     {
       "id": "leserpent-2/control-runtime/durable-authority",
@@ -1057,14 +1057,14 @@
       "feature": "avalonia-renderer",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 35,
+      "completion": 80,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-avalonia-contract",
-        "version": "0.2.0",
+        "version": "0.8.0",
         "stability": "evolving",
-        "surfaces": ["strict-ui-ir-deserialization", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "rust-generated-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "automation-metadata", "action-node-event", "control-smoke-mode"]
+        "surfaces": ["strict-ui-ir-deserialization", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "automation-metadata", "action-node-event", "control-smoke-mode"]
       },
       "depends_on": [
         "leserpent-2/ui-language/ui-ir-lowering",
@@ -1074,7 +1074,7 @@
       "blockers": [
         {
           "id": "avalonia-production-shell",
-          "summary": "The strict renderer core and first real desktop control tree pass the Rust fixture; live incremental control updates, compiled bindings, virtualization, AOT packaging, and mobile shells remain."
+          "summary": "The lazy incrementally patched tree now renders bounded logs and stackless debugger frames with off-screen evidence; AOT packaging, mobile shells, and mutation controls remain."
         }
       ],
       "consumers": ["desktop-operators", "mobile-operators"],
@@ -1082,9 +1082,12 @@
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia", "state": "present" },
-        { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json", "state": "present" }
+        { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-workspace-conformance-v1.json", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-log-conformance-v1.json", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json", "state": "present" }
       ],
-      "next_gate": "Gate 4: update the mounted Avalonia control tree from UiPatch without rebuilding frontend business logic, then add compiled bindings and virtualization."
+      "next_gate": "Gate 4: add inspected, dry-run, and audited debugger mutation controls only after their shared CommandPlan contract exists."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",

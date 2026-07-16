@@ -72,12 +72,23 @@ public sealed class SemanticRenderer
         {
             throw new InvalidDataException("invalid patch bounds");
         }
-        foreach (var operation in patch.Operations)
+
+        var previous = Document;
+        Document = Clone(Document);
+        try
         {
-            ApplyOperation(operation);
+            foreach (var operation in patch.Operations)
+            {
+                ApplyOperation(operation);
+            }
+            Document.Revision = patch.ToRevision;
+            ValidateDocument(Document);
         }
-        Document.Revision = patch.ToRevision;
-        ValidateDocument(Document);
+        catch
+        {
+            Document = previous;
+            throw;
+        }
     }
 
     private void ApplyOperation(UiPatchOperation operation)
@@ -289,7 +300,7 @@ public sealed class UiPatchOperation
     public UiNode? Node { get; set; }
 }
 
-public enum UiNodeKind { Column, Heading, Text, RuntimeCard, RuntimeWorkspace, Section, HistoryEntry, Action }
+public enum UiNodeKind { Column, Heading, Text, RuntimeCard, RuntimeWorkspace, Section, HistoryEntry, LogEntry, DebuggerWorkspace, DebuggerFrame, Action }
 public enum ActionKind { RuntimeRefresh }
 public enum PatchKind { Remove, Insert, Move, Update }
 

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "previous": {
     "schema_version": 1,
-    "revision": 1,
+    "revision": 3,
     "root": {
       "id": "fleet-root",
       "kind": "column",
@@ -38,7 +38,7 @@
           "runtime_id": null,
           "text": {
             "key": "fleet.revision",
-            "fallback": "Revision 1"
+            "fallback": "Revision 3"
           },
           "accessibility": {
             "label": null,
@@ -109,6 +109,140 @@
               "action": {
                 "kind": "runtime_refresh",
                 "runtime_id": "runtime-a"
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "runtime-runtime-b",
+          "kind": "runtime_card",
+          "runtime_id": "runtime-b",
+          "text": null,
+          "accessibility": {
+            "label": {
+              "key": "fleet.runtime.card",
+              "fallback": "Runtime B"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "runtime-runtime-b-name",
+              "kind": "heading",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.name",
+                "fallback": "Runtime B"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-status",
+              "kind": "text",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.status",
+                "fallback": "Never requested"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.refresh",
+                "fallback": "Refresh"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.refresh",
+                  "fallback": "Refresh runtime"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_refresh",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "runtime-runtime-c",
+          "kind": "runtime_card",
+          "runtime_id": "runtime-c",
+          "text": null,
+          "accessibility": {
+            "label": {
+              "key": "fleet.runtime.card",
+              "fallback": "Runtime C"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "runtime-runtime-c-name",
+              "kind": "heading",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.name",
+                "fallback": "Runtime C"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-c-status",
+              "kind": "text",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.status",
+                "fallback": "Never requested"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-c-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.refresh",
+                "fallback": "Refresh"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.refresh",
+                  "fallback": "Refresh runtime"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_refresh",
+                "runtime_id": "runtime-c"
               },
               "children": []
             }
@@ -119,52 +253,44 @@
   },
   "patch": {
     "schema_version": 1,
-    "from_revision": 1,
-    "to_revision": 2,
+    "from_revision": 3,
+    "to_revision": 4,
     "operations": [
       {
-        "kind": "update",
-        "node": {
-          "id": "fleet-revision",
-          "kind": "text",
-          "runtime_id": null,
-          "text": {
-            "key": "fleet.revision",
-            "fallback": "Revision 2"
-          },
-          "accessibility": {
-            "label": null,
-            "description": null
-          },
-          "action": null,
-          "children": []
-        }
+        "kind": "remove",
+        "node_id": "runtime-runtime-b"
+      },
+      {
+        "kind": "move",
+        "node_id": "runtime-runtime-c",
+        "parent_id": "fleet-root",
+        "index": 2
       },
       {
         "kind": "insert",
         "parent_id": "fleet-root",
-        "index": 3,
+        "index": 4,
         "node": {
-          "id": "runtime-runtime-b",
+          "id": "runtime-runtime-d",
           "kind": "runtime_card",
-          "runtime_id": "runtime-b",
+          "runtime_id": "runtime-d",
           "text": null,
           "accessibility": {
             "label": {
               "key": "fleet.runtime.card",
-              "fallback": "Runtime B"
+              "fallback": "Runtime D"
             },
             "description": null
           },
           "action": null,
           "children": [
             {
-              "id": "runtime-runtime-b-name",
+              "id": "runtime-runtime-d-name",
               "kind": "heading",
               "runtime_id": null,
               "text": {
                 "key": "fleet.runtime.name",
-                "fallback": "Runtime B"
+                "fallback": "Runtime D"
               },
               "accessibility": {
                 "label": null,
@@ -174,7 +300,7 @@
               "children": []
             },
             {
-              "id": "runtime-runtime-b-status",
+              "id": "runtime-runtime-d-status",
               "kind": "text",
               "runtime_id": null,
               "text": {
@@ -189,7 +315,7 @@
               "children": []
             },
             {
-              "id": "runtime-runtime-b-refresh",
+              "id": "runtime-runtime-d-refresh",
               "kind": "action",
               "runtime_id": null,
               "text": {
@@ -205,18 +331,36 @@
               },
               "action": {
                 "kind": "runtime_refresh",
-                "runtime_id": "runtime-b"
+                "runtime_id": "runtime-d"
               },
               "children": []
             }
           ]
+        }
+      },
+      {
+        "kind": "update",
+        "node": {
+          "id": "fleet-revision",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "fleet.revision",
+            "fallback": "Revision 4"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
         }
       }
     ]
   },
   "next": {
     "schema_version": 1,
-    "revision": 2,
+    "revision": 4,
     "root": {
       "id": "fleet-root",
       "kind": "column",
@@ -252,7 +396,7 @@
           "runtime_id": null,
           "text": {
             "key": "fleet.revision",
-            "fallback": "Revision 2"
+            "fallback": "Revision 4"
           },
           "accessibility": {
             "label": null,
@@ -260,6 +404,73 @@
           },
           "action": null,
           "children": []
+        },
+        {
+          "id": "runtime-runtime-c",
+          "kind": "runtime_card",
+          "runtime_id": "runtime-c",
+          "text": null,
+          "accessibility": {
+            "label": {
+              "key": "fleet.runtime.card",
+              "fallback": "Runtime C"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "runtime-runtime-c-name",
+              "kind": "heading",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.name",
+                "fallback": "Runtime C"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-c-status",
+              "kind": "text",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.status",
+                "fallback": "Never requested"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-c-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "text": {
+                "key": "fleet.runtime.refresh",
+                "fallback": "Refresh"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.refresh",
+                  "fallback": "Refresh runtime"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_refresh",
+                "runtime_id": "runtime-c"
+              },
+              "children": []
+            }
+          ]
         },
         {
           "id": "runtime-runtime-a",
@@ -329,26 +540,26 @@
           ]
         },
         {
-          "id": "runtime-runtime-b",
+          "id": "runtime-runtime-d",
           "kind": "runtime_card",
-          "runtime_id": "runtime-b",
+          "runtime_id": "runtime-d",
           "text": null,
           "accessibility": {
             "label": {
               "key": "fleet.runtime.card",
-              "fallback": "Runtime B"
+              "fallback": "Runtime D"
             },
             "description": null
           },
           "action": null,
           "children": [
             {
-              "id": "runtime-runtime-b-name",
+              "id": "runtime-runtime-d-name",
               "kind": "heading",
               "runtime_id": null,
               "text": {
                 "key": "fleet.runtime.name",
-                "fallback": "Runtime B"
+                "fallback": "Runtime D"
               },
               "accessibility": {
                 "label": null,
@@ -358,7 +569,7 @@
               "children": []
             },
             {
-              "id": "runtime-runtime-b-status",
+              "id": "runtime-runtime-d-status",
               "kind": "text",
               "runtime_id": null,
               "text": {
@@ -373,7 +584,7 @@
               "children": []
             },
             {
-              "id": "runtime-runtime-b-refresh",
+              "id": "runtime-runtime-d-refresh",
               "kind": "action",
               "runtime_id": null,
               "text": {
@@ -389,7 +600,7 @@
               },
               "action": {
                 "kind": "runtime_refresh",
-                "runtime_id": "runtime-b"
+                "runtime_id": "runtime-d"
               },
               "children": []
             }

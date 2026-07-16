@@ -20,15 +20,24 @@ internal sealed class LeserpentApp : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var verifyControls = desktop.Args is ["--verify-controls", _];
-            var document = LoadDocument(desktop.Args, verifyControls);
-            var window = new MainWindow(document);
+            var fixture = LoadFixture(desktop.Args, verifyControls);
+            var window = new MainWindow(fixture);
             desktop.MainWindow = window;
             if (verifyControls)
             {
                 window.Opened += (_, _) =>
                 {
                     Console.WriteLine(
-                        $"Avalonia controls valid: nodes={window.RenderedNodeCount}, revision={document.Revision}");
+                        $"Avalonia controls valid: nodes={window.RenderedNodeCount}, "
+                        + $"operations={window.AppliedPatchOperations}, "
+                        + $"reused={window.ReusedNodeCount}, "
+                        + $"virtualized={window.VirtualizedHostCount}, "
+                        + $"active_virtualized={window.ActiveVirtualizedHostCount}, "
+                        + $"initial_unrealized={window.InitialUnrealizedVirtualItemCount}, "
+                        + $"remaining_unrealized={window.UnrealizedVirtualItemCount}, "
+                        + $"initial_unrealized_nodes={window.InitialUnrealizedNodeCount}, "
+                        + $"remaining_unrealized_nodes={window.UnrealizedNodeCount}, "
+                        + $"revision={window.Revision}");
                     DispatcherTimer.RunOnce(
                         () => desktop.Shutdown(0),
                         TimeSpan.FromMilliseconds(100));
@@ -38,7 +47,7 @@ internal sealed class LeserpentApp : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static UiDocument LoadDocument(string[]? args, bool verifyControls)
+    private static RendererFixture LoadFixture(string[]? args, bool verifyControls)
     {
         var fixturePath = args switch
         {
@@ -75,9 +84,6 @@ internal sealed class LeserpentApp : Application
             throw new InvalidDataException("unsupported fixture schema");
         }
 
-        var renderer = new SemanticRenderer();
-        renderer.Mount(fixture.Previous);
-        renderer.Apply(fixture.Patch);
-        return renderer.Document;
+        return fixture;
     }
 }

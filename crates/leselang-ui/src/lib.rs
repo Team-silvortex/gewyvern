@@ -10,6 +10,11 @@ pub const MAX_UI_DEPTH: usize = 32;
 pub const MAX_UI_TEXT_BYTES: usize = 1_024;
 pub const MAX_UI_PATCH_OPERATIONS: usize = 8_192;
 pub const MAX_UI_IR_BYTES: usize = 2 * 1024 * 1024;
+pub const MAX_RUNTIME_LOG_ENTRIES: usize = 256;
+pub const MAX_RUNTIME_LOG_DISPLAY_BYTES: usize = 768;
+pub const MAX_DEBUGGER_FRAMES: usize = 64;
+pub const MAX_DEBUGGER_DISPLAY_BYTES: usize = 512;
+pub const MAX_DEBUGGER_DEADLINE_REMAINING_MS: u64 = 24 * 60 * 60 * 1_000;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -45,7 +50,94 @@ pub enum UiNodeKind {
     RuntimeWorkspace,
     Section,
     HistoryEntry,
+    LogEntry,
+    DebuggerWorkspace,
+    DebuggerFrame,
     Action,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeLogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeLogEntry {
+    pub sequence: u64,
+    pub level: RuntimeLogLevel,
+    pub display: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeLogProjection {
+    pub revision: Revision,
+    pub runtime_id: RuntimeId,
+    pub runtime_name: String,
+    pub entries: Vec<RuntimeLogEntry>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DebuggerState {
+    Running,
+    WaitingEffect,
+    Yielded,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DebuggerEffectKind {
+    RuntimeList,
+    RuntimeInspect,
+    RuntimeHistory,
+    RuntimeRefresh,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerPendingEffect {
+    pub effect_id: String,
+    pub kind: DebuggerEffectKind,
+    pub runtime_id: Option<RuntimeId>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerFrame {
+    pub frame_id: String,
+    pub instruction: u32,
+    pub display: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerFaultSummary {
+    pub code: String,
+    pub display: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerProjection {
+    pub revision: Revision,
+    pub session_id: String,
+    pub state: DebuggerState,
+    pub program_counter: u32,
+    pub fuel_remaining: u64,
+    pub deadline_remaining_ms: Option<u64>,
+    pub pending_effect: Option<DebuggerPendingEffect>,
+    pub frames: Vec<DebuggerFrame>,
+    pub fault: Option<DebuggerFaultSummary>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -153,6 +245,8 @@ pub enum UiError {
         related: Revision,
     },
     InvalidState,
+    LogLimitExceeded,
+    DebuggerLimitExceeded,
     UnknownEventTarget {
         node_id: String,
     },
@@ -408,6 +502,265 @@ pub fn runtime_workspace_document(
     Ok(document)
 }
 
+pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocument, UiError> {
+    if projection.entries.len() > MAX_RUNTIME_LOG_ENTRIES {
+        return Err(UiError::LogLimitExceeded);
+    }
+    let mut previous_sequence = None;
+    let prefix = format!("logs-{}", projection.runtime_id.as_str());
+    let mut entries = Vec::with_capacity(projection.entries.len().max(1));
+    for entry in &projection.entries {
+        if previous_sequence.is_some_and(|previous| entry.sequence <= previous)
+            || entry.display.len() > MAX_RUNTIME_LOG_DISPLAY_BYTES
+            || entry.display.chars().any(char::is_control)
+        {
+            return Err(UiError::InvalidState);
+        }
+        previous_sequence = Some(entry.sequence);
+        let level = match entry.level {
+            RuntimeLogLevel::Trace => "TRACE",
+            RuntimeLogLevel::Debug => "DEBUG",
+            RuntimeLogLevel::Info => "INFO",
+            RuntimeLogLevel::Warning => "WARN",
+            RuntimeLogLevel::Error => "ERROR",
+        };
+        entries.push(UiNode {
+            id: NodeId::new(format!("{prefix}-entry-{}", entry.sequence))?,
+            kind: UiNodeKind::LogEntry,
+            runtime_id: None,
+            text: Some(localized(
+                "runtime.logs.entry",
+                &format!("[{level}] {}", entry.display),
+            )?),
+            accessibility: Accessibility::default(),
+            action: None,
+            children: Vec::new(),
+        });
+    }
+    if entries.is_empty() {
+        entries.push(text_node(
+            &format!("{prefix}-empty"),
+            UiNodeKind::Text,
+            "runtime.logs.empty",
+            "No log entries",
+        )?);
+    }
+
+    let document = UiDocument {
+        schema_version: UI_SCHEMA_VERSION,
+        revision: projection.revision,
+        root: UiNode {
+            id: NodeId::new(prefix.clone())?,
+            kind: UiNodeKind::RuntimeWorkspace,
+            runtime_id: Some(projection.runtime_id.clone()),
+            text: None,
+            accessibility: Accessibility {
+                label: Some(localized(
+                    "runtime.logs.workspace",
+                    &projection.runtime_name,
+                )?),
+                description: None,
+            },
+            action: None,
+            children: vec![
+                text_node(
+                    &format!("{prefix}-title"),
+                    UiNodeKind::Heading,
+                    "runtime.logs.title",
+                    &format!("{} logs", projection.runtime_name),
+                )?,
+                text_node(
+                    &format!("{prefix}-revision"),
+                    UiNodeKind::Text,
+                    "runtime.logs.revision",
+                    &format!("Revision {}", projection.revision.0),
+                )?,
+                UiNode {
+                    id: NodeId::new(format!("{prefix}-entries"))?,
+                    kind: UiNodeKind::Section,
+                    runtime_id: None,
+                    text: Some(localized("runtime.logs.entries", "Log entries")?),
+                    accessibility: Accessibility {
+                        label: Some(localized("runtime.logs.entries", "Runtime log entries")?),
+                        description: None,
+                    },
+                    action: None,
+                    children: entries,
+                },
+            ],
+        },
+    };
+    validate_document(&document)?;
+    Ok(document)
+}
+
+pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, UiError> {
+    if projection.frames.len() > MAX_DEBUGGER_FRAMES
+        || projection
+            .deadline_remaining_ms
+            .is_some_and(|deadline| deadline > MAX_DEBUGGER_DEADLINE_REMAINING_MS)
+    {
+        return Err(UiError::DebuggerLimitExceeded);
+    }
+    NodeId::new(&projection.session_id)?;
+    if (projection.state == DebuggerState::WaitingEffect) != projection.pending_effect.is_some()
+        || (projection.state == DebuggerState::Failed) != projection.fault.is_some()
+    {
+        return Err(UiError::InvalidState);
+    }
+    if let Some(effect) = &projection.pending_effect {
+        NodeId::new(&effect.effect_id)?;
+        let binding_valid = match effect.kind {
+            DebuggerEffectKind::RuntimeList => effect.runtime_id.is_none(),
+            DebuggerEffectKind::RuntimeInspect
+            | DebuggerEffectKind::RuntimeHistory
+            | DebuggerEffectKind::RuntimeRefresh => effect.runtime_id.is_some(),
+        };
+        if !binding_valid {
+            return Err(UiError::InvalidState);
+        }
+    }
+    if let Some(fault) = &projection.fault {
+        NodeId::new(&fault.code)?;
+        validate_debugger_display(&fault.display)?;
+    }
+
+    let prefix = format!("debug-{}", projection.session_id);
+    let mut frame_ids = BTreeSet::new();
+    let mut frames = Vec::with_capacity(projection.frames.len().max(1));
+    for frame in &projection.frames {
+        let frame_id = NodeId::new(&frame.frame_id)?;
+        if !frame_ids.insert(frame_id) {
+            return Err(UiError::InvalidState);
+        }
+        validate_debugger_display(&frame.display)?;
+        frames.push(UiNode {
+            id: NodeId::new(format!("{prefix}-frame-{}", frame.frame_id))?,
+            kind: UiNodeKind::DebuggerFrame,
+            runtime_id: None,
+            text: Some(localized(
+                "debugger.frame",
+                &format!("[pc {}] {}", frame.instruction, frame.display),
+            )?),
+            accessibility: Accessibility::default(),
+            action: None,
+            children: Vec::new(),
+        });
+    }
+    if frames.is_empty() {
+        frames.push(text_node(
+            &format!("{prefix}-frames-empty"),
+            UiNodeKind::Text,
+            "debugger.frames.empty",
+            "No logical frames",
+        )?);
+    }
+
+    let state = match projection.state {
+        DebuggerState::Running => "Running",
+        DebuggerState::WaitingEffect => "Waiting for effect",
+        DebuggerState::Yielded => "Yielded",
+        DebuggerState::Completed => "Completed",
+        DebuggerState::Failed => "Failed",
+        DebuggerState::Cancelled => "Cancelled",
+    };
+    let mut children = vec![
+        text_node(
+            &format!("{prefix}-title"),
+            UiNodeKind::Heading,
+            "debugger.title",
+            "Leselang debugger",
+        )?,
+        text_node(
+            &format!("{prefix}-state"),
+            UiNodeKind::Text,
+            "debugger.state",
+            state,
+        )?,
+        text_node(
+            &format!("{prefix}-program-counter"),
+            UiNodeKind::Text,
+            "debugger.program_counter",
+            &format!("Program counter {}", projection.program_counter),
+        )?,
+        text_node(
+            &format!("{prefix}-budget"),
+            UiNodeKind::Text,
+            "debugger.budget",
+            &format!(
+                "Fuel {} / deadline {}",
+                projection.fuel_remaining,
+                projection
+                    .deadline_remaining_ms
+                    .map_or_else(|| "none".to_string(), |value| format!("{value} ms"))
+            ),
+        )?,
+    ];
+    if let Some(effect) = &projection.pending_effect {
+        let kind = match effect.kind {
+            DebuggerEffectKind::RuntimeList => "runtime list",
+            DebuggerEffectKind::RuntimeInspect => "runtime inspect",
+            DebuggerEffectKind::RuntimeHistory => "runtime history",
+            DebuggerEffectKind::RuntimeRefresh => "runtime refresh",
+        };
+        children.push(text_node(
+            &format!("{prefix}-pending-effect"),
+            UiNodeKind::Text,
+            "debugger.pending_effect",
+            &format!("Pending {kind} ({})", effect.effect_id),
+        )?);
+    }
+    children.push(UiNode {
+        id: NodeId::new(format!("{prefix}-frames"))?,
+        kind: UiNodeKind::Section,
+        runtime_id: None,
+        text: Some(localized("debugger.frames", "Logical frames")?),
+        accessibility: Accessibility {
+            label: Some(localized("debugger.frames", "Debugger logical frames")?),
+            description: None,
+        },
+        action: None,
+        children: frames,
+    });
+    if let Some(fault) = &projection.fault {
+        children.push(text_node(
+            &format!("{prefix}-fault"),
+            UiNodeKind::Text,
+            "debugger.fault",
+            &format!("{}: {}", fault.code, fault.display),
+        )?);
+    }
+
+    let document = UiDocument {
+        schema_version: UI_SCHEMA_VERSION,
+        revision: projection.revision,
+        root: UiNode {
+            id: NodeId::new(prefix)?,
+            kind: UiNodeKind::DebuggerWorkspace,
+            runtime_id: None,
+            text: None,
+            accessibility: Accessibility {
+                label: Some(localized(
+                    "debugger.workspace",
+                    "Leselang debugger workspace",
+                )?),
+                description: None,
+            },
+            action: None,
+            children,
+        },
+    };
+    validate_document(&document)?;
+    Ok(document)
+}
+
+fn validate_debugger_display(value: &str) -> Result<(), UiError> {
+    if value.len() > MAX_DEBUGGER_DISPLAY_BYTES || value.chars().any(char::is_control) {
+        return Err(UiError::InvalidState);
+    }
+    Ok(())
+}
+
 pub fn plan_event(
     document: &UiDocument,
     event: &UiEvent,
@@ -440,51 +793,57 @@ pub fn diff(previous: &UiDocument, next: &UiDocument) -> Result<UiPatch, UiError
     if next.revision < previous.revision {
         return Err(UiError::RevisionRegression);
     }
+    if previous.root.id != next.root.id {
+        return Err(UiError::InvalidPatch {
+            reason: "root node identity cannot change",
+        });
+    }
     let old = index_document(previous);
     let new = index_document(next);
     let mut operations = Vec::new();
+    let mut working = previous.clone();
 
-    let mut removed = old
+    let removed = old
         .iter()
-        .filter(|(id, _)| !new.contains_key(*id))
-        .map(|(id, entry)| (entry.depth, (*id).clone()))
+        .filter(|(id, entry)| {
+            !new.contains_key(*id)
+                && entry
+                    .parent
+                    .as_ref()
+                    .is_some_and(|parent| new.contains_key(parent))
+        })
+        .map(|(id, _)| (*id).clone())
         .collect::<Vec<_>>();
-    removed.sort_by(|left, right| right.cmp(left));
-    operations.extend(
-        removed
-            .into_iter()
-            .map(|(_, node_id)| UiPatchOperation::Remove { node_id }),
-    );
+    for node_id in removed {
+        remove_node(&mut working.root, &node_id).ok_or(UiError::InvalidPatch {
+            reason: "diff removal target disappeared",
+        })?;
+        operations.push(UiPatchOperation::Remove { node_id });
+    }
 
-    for (id, entry) in &new {
-        let Some(old_entry) = old.get(id) else {
-            if entry
-                .parent
-                .as_ref()
-                .is_some_and(|parent| old.contains_key(parent))
-            {
-                operations.push(UiPatchOperation::Insert {
-                    parent_id: entry.parent.clone().expect("checked parent"),
-                    index: entry.index,
-                    node: entry.node.clone(),
-                });
-            }
-            continue;
-        };
-        if old_entry.parent != entry.parent || old_entry.index != entry.index {
-            if let Some(parent_id) = &entry.parent {
-                operations.push(UiPatchOperation::Move {
-                    node_id: id.clone(),
-                    parent_id: parent_id.clone(),
-                    index: entry.index,
-                });
-            }
-        }
-        if shallow_node(old_entry.node) != shallow_node(entry.node) {
-            let mut node = entry.node.clone();
+    reconcile_children(&mut working.root, &next.root, &mut operations)?;
+    for (node_id, target) in &new {
+        let current = find_node(&working.root, node_id).ok_or(UiError::InvalidPatch {
+            reason: "diff update target disappeared",
+        })?;
+        if shallow_node(current) != shallow_node(target.node) {
+            let mut node = target.node.clone();
             node.children.clear();
+            let current =
+                find_node_mut(&mut working.root, node_id).ok_or(UiError::InvalidPatch {
+                    reason: "diff update target disappeared",
+                })?;
+            let children = std::mem::take(&mut current.children);
+            *current = node.clone();
+            current.children = children;
             operations.push(UiPatchOperation::Update { node });
         }
+    }
+    working.revision = next.revision;
+    if working != *next {
+        return Err(UiError::InvalidPatch {
+            reason: "diff failed to converge on the target document",
+        });
     }
     if operations.len() > MAX_UI_PATCH_OPERATIONS {
         return Err(UiError::PatchLimitExceeded);
@@ -495,6 +854,78 @@ pub fn diff(previous: &UiDocument, next: &UiDocument) -> Result<UiPatch, UiError
         to_revision: next.revision,
         operations,
     })
+}
+
+fn reconcile_children(
+    working_root: &mut UiNode,
+    target_parent: &UiNode,
+    operations: &mut Vec<UiPatchOperation>,
+) -> Result<(), UiError> {
+    for (target_index, target_child) in target_parent.children.iter().enumerate() {
+        let inserted = match find_location(working_root, &target_child.id) {
+            Some((current_parent, current_index)) => {
+                if current_parent != target_parent.id || current_index != target_index {
+                    let moving = remove_node(working_root, &target_child.id).ok_or(
+                        UiError::InvalidPatch {
+                            reason: "diff move target disappeared",
+                        },
+                    )?;
+                    let parent = find_node_mut(working_root, &target_parent.id).ok_or(
+                        UiError::InvalidPatch {
+                            reason: "diff move parent disappeared",
+                        },
+                    )?;
+                    if target_index > parent.children.len() {
+                        return Err(UiError::InvalidPatch {
+                            reason: "diff produced an invalid move index",
+                        });
+                    }
+                    parent.children.insert(target_index, moving);
+                    operations.push(UiPatchOperation::Move {
+                        node_id: target_child.id.clone(),
+                        parent_id: target_parent.id.clone(),
+                        index: target_index,
+                    });
+                }
+                false
+            }
+            None => {
+                let parent = find_node_mut(working_root, &target_parent.id).ok_or(
+                    UiError::InvalidPatch {
+                        reason: "diff insert parent disappeared",
+                    },
+                )?;
+                if target_index > parent.children.len() {
+                    return Err(UiError::InvalidPatch {
+                        reason: "diff produced an invalid insert index",
+                    });
+                }
+                parent.children.insert(target_index, target_child.clone());
+                operations.push(UiPatchOperation::Insert {
+                    parent_id: target_parent.id.clone(),
+                    index: target_index,
+                    node: target_child.clone(),
+                });
+                true
+            }
+        };
+        if !inserted {
+            reconcile_children(working_root, target_child, operations)?;
+        }
+    }
+    Ok(())
+}
+
+fn find_location(node: &UiNode, target: &NodeId) -> Option<(NodeId, usize)> {
+    for (index, child) in node.children.iter().enumerate() {
+        if &child.id == target {
+            return Some((node.id.clone(), index));
+        }
+        if let Some(location) = find_location(child, target) {
+            return Some(location);
+        }
+    }
+    None
 }
 
 pub fn apply_patch(document: &UiDocument, patch: &UiPatch) -> Result<UiDocument, UiError> {
@@ -815,16 +1246,12 @@ fn collect_ids(node: &UiNode, ids: &mut BTreeSet<NodeId>) -> Result<(), UiError>
 struct IndexedNode<'a> {
     node: &'a UiNode,
     parent: Option<NodeId>,
-    index: usize,
-    depth: usize,
 }
 
 fn index_document(document: &UiDocument) -> BTreeMap<NodeId, IndexedNode<'_>> {
     fn visit<'a>(
         node: &'a UiNode,
         parent: Option<NodeId>,
-        index: usize,
-        depth: usize,
         output: &mut BTreeMap<NodeId, IndexedNode<'a>>,
     ) {
         output.insert(
@@ -832,16 +1259,14 @@ fn index_document(document: &UiDocument) -> BTreeMap<NodeId, IndexedNode<'_>> {
             IndexedNode {
                 node,
                 parent: parent.clone(),
-                index,
-                depth,
             },
         );
-        for (index, child) in node.children.iter().enumerate() {
-            visit(child, Some(node.id.clone()), index, depth + 1, output);
+        for child in &node.children {
+            visit(child, Some(node.id.clone()), output);
         }
     }
     let mut output = BTreeMap::new();
-    visit(&document.root, None, 0, 1, &mut output);
+    visit(&document.root, None, &mut output);
     output
 }
 
@@ -960,6 +1385,112 @@ mod tests {
         )
     }
 
+    fn workspace_with_history_entries(count: u64) -> UiDocument {
+        let mut control = leserpent_domain::InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-history").unwrap();
+        control.register_runtime(
+            runtime_id.clone(),
+            "History Runtime",
+            "hidden-history-endpoint",
+        );
+        for index in 0..count {
+            control
+                .execute(CommandEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    command_id: CommandId::new(format!("history-command-{index}")).unwrap(),
+                    idempotency_key: IdempotencyKey::new(format!("history-effect-{index}"))
+                        .unwrap(),
+                    expected_revision: Some(Revision(index + 1)),
+                    principal: Principal {
+                        id: "operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+                    origin: CommandOrigin::Gui,
+                    confirmation: Confirmation::Confirmed,
+                    dry_run: false,
+                    command: Command::RuntimeRefresh {
+                        runtime_id: runtime_id.clone(),
+                    },
+                })
+                .unwrap();
+        }
+        let query = |query| {
+            control
+                .query(QueryEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal: Principal {
+                        id: "operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                    query,
+                })
+                .unwrap()
+        };
+        runtime_workspace_document(
+            &query(Query::RuntimeInspect {
+                runtime_id: runtime_id.clone(),
+            }),
+            &query(Query::RuntimeHistory { runtime_id }),
+        )
+        .unwrap()
+    }
+
+    fn logs(revision: u64, start: u64, count: u64) -> RuntimeLogProjection {
+        RuntimeLogProjection {
+            revision: Revision(revision),
+            runtime_id: RuntimeId::new("runtime-logs").unwrap(),
+            runtime_name: "Log Runtime".into(),
+            entries: (start..start + count)
+                .map(|sequence| RuntimeLogEntry {
+                    sequence,
+                    level: match sequence % 5 {
+                        0 => RuntimeLogLevel::Trace,
+                        1 => RuntimeLogLevel::Debug,
+                        2 => RuntimeLogLevel::Info,
+                        3 => RuntimeLogLevel::Warning,
+                        _ => RuntimeLogLevel::Error,
+                    },
+                    display: format!("sanitized event {sequence}"),
+                })
+                .collect(),
+        }
+    }
+
+    fn debugger(
+        revision: u64,
+        state: DebuggerState,
+        frame_start: u32,
+        frame_count: u32,
+    ) -> DebuggerProjection {
+        DebuggerProjection {
+            revision: Revision(revision),
+            session_id: "session-a".into(),
+            state,
+            program_counter: if state == DebuggerState::WaitingEffect {
+                7
+            } else {
+                8
+            },
+            fuel_remaining: 900 - revision,
+            deadline_remaining_ms: Some(5_000),
+            pending_effect: (state == DebuggerState::WaitingEffect).then(|| {
+                DebuggerPendingEffect {
+                    effect_id: "effect-7".into(),
+                    kind: DebuggerEffectKind::RuntimeInspect,
+                    runtime_id: Some(RuntimeId::new("runtime-a").unwrap()),
+                }
+            }),
+            frames: (frame_start..frame_start + frame_count)
+                .map(|instruction| DebuggerFrame {
+                    frame_id: format!("frame-{instruction}"),
+                    instruction,
+                    display: format!("logical frame {instruction}"),
+                })
+                .collect(),
+            fault: None,
+        }
+    }
+
     #[test]
     fn fleet_ir_has_stable_ids_and_omits_endpoints() {
         let document = fleet_document(&fleet(7, &[("runtime-a", "Runtime A")])).unwrap();
@@ -1045,6 +1576,137 @@ mod tests {
             runtime_workspace_document(&before_inspect, &after_history),
             Err(UiError::StateRevisionMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn diff_remains_executable_when_bounded_history_window_slides() {
+        let previous = workspace_with_history_entries(32);
+        let next = workspace_with_history_entries(33);
+        let patch = diff(&previous, &next).unwrap();
+        assert_eq!(apply_patch(&previous, &patch).unwrap(), next);
+        for expected in ["remove", "insert", "update"] {
+            assert!(patch.operations.iter().any(|operation| matches!(
+                (expected, operation),
+                ("remove", UiPatchOperation::Remove { .. })
+                    | ("move", UiPatchOperation::Move { .. })
+                    | ("insert", UiPatchOperation::Insert { .. })
+                    | ("update", UiPatchOperation::Update { .. })
+            )));
+        }
+    }
+
+    #[test]
+    fn runtime_logs_are_bounded_stable_and_incremental() {
+        let previous = runtime_log_document(&logs(1, 0, 48)).unwrap();
+        let next = runtime_log_document(&logs(2, 1, 48)).unwrap();
+        assert_eq!(previous.root.kind, UiNodeKind::RuntimeWorkspace);
+        assert!(
+            find_node(
+                &previous.root,
+                &NodeId::new("logs-runtime-logs-entry-0").unwrap()
+            )
+            .is_some()
+        );
+        let patch = diff(&previous, &next).unwrap();
+        assert_eq!(apply_patch(&previous, &patch).unwrap(), next);
+        assert!(
+            patch
+                .operations
+                .iter()
+                .any(|operation| matches!(operation, UiPatchOperation::Remove { .. }))
+        );
+        assert!(
+            patch
+                .operations
+                .iter()
+                .any(|operation| matches!(operation, UiPatchOperation::Insert { .. }))
+        );
+    }
+
+    #[test]
+    fn runtime_logs_reject_oversized_or_unsafe_batches() {
+        let mut oversized = logs(1, 0, MAX_RUNTIME_LOG_ENTRIES as u64 + 1);
+        assert_eq!(
+            runtime_log_document(&oversized),
+            Err(UiError::LogLimitExceeded)
+        );
+        oversized.entries.truncate(2);
+        oversized.entries[1].sequence = oversized.entries[0].sequence;
+        assert_eq!(runtime_log_document(&oversized), Err(UiError::InvalidState));
+
+        let mut unsafe_text = logs(1, 0, 1);
+        unsafe_text.entries[0].display = "line\nbreak".into();
+        assert_eq!(
+            runtime_log_document(&unsafe_text),
+            Err(UiError::InvalidState)
+        );
+        unsafe_text.entries[0].display = "x".repeat(MAX_RUNTIME_LOG_DISPLAY_BYTES + 1);
+        assert_eq!(
+            runtime_log_document(&unsafe_text),
+            Err(UiError::InvalidState)
+        );
+    }
+
+    #[test]
+    fn debugger_waiting_effect_reenters_through_incremental_document() {
+        let previous =
+            debugger_document(&debugger(1, DebuggerState::WaitingEffect, 0, 40)).unwrap();
+        let next = debugger_document(&debugger(2, DebuggerState::Yielded, 1, 40)).unwrap();
+        assert_eq!(previous.root.kind, UiNodeKind::DebuggerWorkspace);
+        assert!(
+            find_node(
+                &previous.root,
+                &NodeId::new("debug-session-a-pending-effect").unwrap()
+            )
+            .is_some()
+        );
+        let patch = diff(&previous, &next).unwrap();
+        assert_eq!(apply_patch(&previous, &patch).unwrap(), next);
+        assert!(
+            patch
+                .operations
+                .iter()
+                .any(|operation| matches!(operation, UiPatchOperation::Remove { .. }))
+        );
+        assert!(
+            patch
+                .operations
+                .iter()
+                .any(|operation| matches!(operation, UiPatchOperation::Insert { .. }))
+        );
+    }
+
+    #[test]
+    fn debugger_rejects_inconsistent_or_unsafe_projection() {
+        let mut invalid = debugger(1, DebuggerState::WaitingEffect, 0, 1);
+        invalid.pending_effect = None;
+        assert_eq!(debugger_document(&invalid), Err(UiError::InvalidState));
+
+        invalid = debugger(1, DebuggerState::Yielded, 0, 1);
+        invalid.pending_effect = Some(DebuggerPendingEffect {
+            effect_id: "effect-7".into(),
+            kind: DebuggerEffectKind::RuntimeList,
+            runtime_id: Some(RuntimeId::new("runtime-a").unwrap()),
+        });
+        assert_eq!(debugger_document(&invalid), Err(UiError::InvalidState));
+
+        invalid = debugger(1, DebuggerState::Yielded, 0, 2);
+        invalid.frames[1].frame_id = invalid.frames[0].frame_id.clone();
+        assert_eq!(debugger_document(&invalid), Err(UiError::InvalidState));
+        invalid = debugger(1, DebuggerState::Yielded, 0, MAX_DEBUGGER_FRAMES as u32 + 1);
+        assert_eq!(
+            debugger_document(&invalid),
+            Err(UiError::DebuggerLimitExceeded)
+        );
+        invalid = debugger(1, DebuggerState::Yielded, 0, 1);
+        invalid.deadline_remaining_ms = Some(MAX_DEBUGGER_DEADLINE_REMAINING_MS + 1);
+        assert_eq!(
+            debugger_document(&invalid),
+            Err(UiError::DebuggerLimitExceeded)
+        );
+        invalid = debugger(1, DebuggerState::Yielded, 0, 1);
+        invalid.frames[0].display = "unsafe\nframe".into();
+        assert_eq!(debugger_document(&invalid), Err(UiError::InvalidState));
     }
 
     #[test]

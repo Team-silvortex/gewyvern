@@ -21,12 +21,23 @@ fn main() {
         .nth(1)
         .map(PathBuf::from)
         .expect("usage: render_conformance_fixture OUTPUT");
-    let previous = fleet_document(&fleet(&[("runtime-a", "Runtime A")])).unwrap();
-    let next = fleet_document(&fleet(&[
+    let previous = fleet_document(&fleet(&[
         ("runtime-a", "Runtime A"),
         ("runtime-b", "Runtime B"),
+        ("runtime-c", "Runtime C"),
     ]))
     .unwrap();
+    let mut next = fleet_document(&fleet(&[
+        ("runtime-a", "Runtime A"),
+        ("runtime-c", "Runtime C"),
+        ("runtime-d", "Runtime D"),
+        ("runtime-z", "Revision Bump"),
+    ]))
+    .unwrap();
+    next.root
+        .children
+        .retain(|node| node.id.as_str() != "runtime-runtime-z");
+    next.root.children.swap(2, 3);
     let patch = diff(&previous, &next).unwrap();
     let bytes = serde_json::to_vec_pretty(&Fixture {
         schema_version: 1,

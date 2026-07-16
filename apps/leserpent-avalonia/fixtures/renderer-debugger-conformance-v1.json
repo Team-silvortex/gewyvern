@@ -1,0 +1,1505 @@
+{
+  "schema_version": 1,
+  "previous": {
+    "schema_version": 1,
+    "revision": 1,
+    "root": {
+      "id": "debug-session-a",
+      "kind": "debugger_workspace",
+      "runtime_id": null,
+      "text": null,
+      "accessibility": {
+        "label": {
+          "key": "debugger.workspace",
+          "fallback": "Leselang debugger workspace"
+        },
+        "description": null
+      },
+      "action": null,
+      "children": [
+        {
+          "id": "debug-session-a-title",
+          "kind": "heading",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.title",
+            "fallback": "Leselang debugger"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-state",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.state",
+            "fallback": "Waiting for effect"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-program-counter",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.program_counter",
+            "fallback": "Program counter 7"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-budget",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.budget",
+            "fallback": "Fuel 899 / deadline 5000 ms"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-pending-effect",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.pending_effect",
+            "fallback": "Pending runtime inspect (effect-7)"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-frames",
+          "kind": "section",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.frames",
+            "fallback": "Logical frames"
+          },
+          "accessibility": {
+            "label": {
+              "key": "debugger.frames",
+              "fallback": "Debugger logical frames"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "debug-session-a-frame-frame-0",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 0] logical frame 0"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-1",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 1] logical frame 1"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-2",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 2] logical frame 2"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-3",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 3] logical frame 3"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-4",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 4] logical frame 4"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-5",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 5] logical frame 5"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-6",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 6] logical frame 6"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-7",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 7] logical frame 7"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-8",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 8] logical frame 8"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-9",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 9] logical frame 9"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-10",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 10] logical frame 10"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-11",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 11] logical frame 11"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-12",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 12] logical frame 12"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-13",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 13] logical frame 13"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-14",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 14] logical frame 14"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-15",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 15] logical frame 15"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-16",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 16] logical frame 16"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-17",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 17] logical frame 17"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-18",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 18] logical frame 18"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-19",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 19] logical frame 19"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-20",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 20] logical frame 20"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-21",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 21] logical frame 21"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-22",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 22] logical frame 22"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-23",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 23] logical frame 23"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-24",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 24] logical frame 24"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-25",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 25] logical frame 25"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-26",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 26] logical frame 26"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-27",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 27] logical frame 27"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-28",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 28] logical frame 28"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-29",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 29] logical frame 29"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-30",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 30] logical frame 30"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-31",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 31] logical frame 31"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-32",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 32] logical frame 32"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-33",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 33] logical frame 33"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-34",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 34] logical frame 34"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-35",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 35] logical frame 35"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-36",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 36] logical frame 36"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-37",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 37] logical frame 37"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-38",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 38] logical frame 38"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-39",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 39] logical frame 39"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "patch": {
+    "schema_version": 1,
+    "from_revision": 1,
+    "to_revision": 2,
+    "operations": [
+      {
+        "kind": "remove",
+        "node_id": "debug-session-a-frame-frame-0"
+      },
+      {
+        "kind": "remove",
+        "node_id": "debug-session-a-pending-effect"
+      },
+      {
+        "kind": "insert",
+        "parent_id": "debug-session-a-frames",
+        "index": 39,
+        "node": {
+          "id": "debug-session-a-frame-frame-40",
+          "kind": "debugger_frame",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.frame",
+            "fallback": "[pc 40] logical frame 40"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        }
+      },
+      {
+        "kind": "update",
+        "node": {
+          "id": "debug-session-a-budget",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.budget",
+            "fallback": "Fuel 898 / deadline 5000 ms"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        }
+      },
+      {
+        "kind": "update",
+        "node": {
+          "id": "debug-session-a-program-counter",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.program_counter",
+            "fallback": "Program counter 8"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        }
+      },
+      {
+        "kind": "update",
+        "node": {
+          "id": "debug-session-a-state",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.state",
+            "fallback": "Yielded"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        }
+      }
+    ]
+  },
+  "next": {
+    "schema_version": 1,
+    "revision": 2,
+    "root": {
+      "id": "debug-session-a",
+      "kind": "debugger_workspace",
+      "runtime_id": null,
+      "text": null,
+      "accessibility": {
+        "label": {
+          "key": "debugger.workspace",
+          "fallback": "Leselang debugger workspace"
+        },
+        "description": null
+      },
+      "action": null,
+      "children": [
+        {
+          "id": "debug-session-a-title",
+          "kind": "heading",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.title",
+            "fallback": "Leselang debugger"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-state",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.state",
+            "fallback": "Yielded"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-program-counter",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.program_counter",
+            "fallback": "Program counter 8"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-budget",
+          "kind": "text",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.budget",
+            "fallback": "Fuel 898 / deadline 5000 ms"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "debug-session-a-frames",
+          "kind": "section",
+          "runtime_id": null,
+          "text": {
+            "key": "debugger.frames",
+            "fallback": "Logical frames"
+          },
+          "accessibility": {
+            "label": {
+              "key": "debugger.frames",
+              "fallback": "Debugger logical frames"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "debug-session-a-frame-frame-1",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 1] logical frame 1"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-2",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 2] logical frame 2"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-3",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 3] logical frame 3"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-4",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 4] logical frame 4"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-5",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 5] logical frame 5"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-6",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 6] logical frame 6"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-7",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 7] logical frame 7"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-8",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 8] logical frame 8"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-9",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 9] logical frame 9"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-10",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 10] logical frame 10"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-11",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 11] logical frame 11"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-12",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 12] logical frame 12"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-13",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 13] logical frame 13"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-14",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 14] logical frame 14"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-15",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 15] logical frame 15"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-16",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 16] logical frame 16"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-17",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 17] logical frame 17"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-18",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 18] logical frame 18"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-19",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 19] logical frame 19"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-20",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 20] logical frame 20"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-21",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 21] logical frame 21"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-22",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 22] logical frame 22"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-23",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 23] logical frame 23"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-24",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 24] logical frame 24"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-25",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 25] logical frame 25"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-26",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 26] logical frame 26"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-27",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 27] logical frame 27"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-28",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 28] logical frame 28"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-29",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 29] logical frame 29"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-30",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 30] logical frame 30"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-31",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 31] logical frame 31"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-32",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 32] logical frame 32"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-33",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 33] logical frame 33"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-34",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 34] logical frame 34"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-35",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 35] logical frame 35"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-36",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 36] logical frame 36"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-37",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 37] logical frame 37"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-38",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 38] logical frame 38"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-39",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 39] logical frame 39"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "debug-session-a-frame-frame-40",
+              "kind": "debugger_frame",
+              "runtime_id": null,
+              "text": {
+                "key": "debugger.frame",
+                "fallback": "[pc 40] logical frame 40"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

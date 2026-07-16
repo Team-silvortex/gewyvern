@@ -164,8 +164,13 @@ edits; round-trip fixtures establish the semantic renderer conformance baseline.
 The runtime child workspace now combines same-revision inspect and bounded
 history projections into status, snapshot, refresh, and history nodes. Torn
 state fails closed, endpoint data remains outside the IR, and history changes
-apply incrementally. A concrete renderer plus bounded logs and debugger
-documents remain.
+apply incrementally. A separately bounded log projection now lowers sanitized
+typed entries without adapter or endpoint fields and applies sliding windows
+incrementally. Its daemon/domain producer contract remains. The first read-only
+debugger document now models stackless synchronous
+effect waiting and re-entry with bounded logical frames, sanitized summaries,
+and no continuation token or local-value exposure. VM producer integration and
+capability-gated debugger mutations remain.
 
 The first concrete cross-language renderer core now exists under
 `apps/leserpent-avalonia`. Rust emits a bounded versioned JSON fixture and the
@@ -176,8 +181,32 @@ equality with the Rust next document at zero build warnings. The first Avalonia
 preserves stable IDs and accessibility metadata through Automation properties,
 and emits only action node IDs back across the renderer boundary. A platform
 smoke mode initializes the real control stack, renders the Rust fixture, and
-exits cleanly. Compiled bindings, live incremental control updates,
-virtualization, AOT packaging, and mobile shells remain.
+exits cleanly. The mounted control tree now consumes remove, insert, move, and
+update operations through a stable-ID visual index after a transactional
+semantic candidate validates the complete patch. The compound fixture proves
+unchanged and moved controls retain identity instead of rebuilding the tree.
+Fleet roots now use an active `VirtualizingStackPanel` as the window viewport,
+and history sections use independent bounded viewports rather than nesting
+under an unbounded outer scroller. This establishes layout virtualization;
+compiled-bound item view models now defer leaf-control creation until viewport
+realization. A long bounded-history fixture retains unrealized items after the
+window opens, proving off-screen controls are not constructed. Heterogeneous
+container subtrees now remain as patchable renderer models until their parent
+enters the viewport, so runtime cards no longer force eager descendant control
+creation. AOT packaging and mobile shells remain.
+
+The Avalonia renderer now maps bounded log entries to lazy monospace controls.
+The 48-entry cross-language sliding fixture applies in three operations and
+leaves 26 off-screen controls unconstructed after first layout.
+
+The same renderer maps debugger logical frames lazily. A 40-frame fixture moves
+from `WaitingEffect` to `Yielded` in six operations and leaves 18 frames
+unconstructed after first layout.
+
+The authoritative Rust diff now updates a working document as it emits each
+operation and refuses to return unless that document converges exactly on the
+target. This fixes invalid move indexes previously exposed by a sliding bounded
+history window and reduces that transition from 34 operations to 3.
 
 Exit: the vertical slice contains no direct adapter or persistence access and
 passes GUI/CLI/Leselang equivalence tests.
