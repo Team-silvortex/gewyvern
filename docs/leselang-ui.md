@@ -32,6 +32,14 @@ endpoint and persistence details remain absent. Stable workspace and history
 entry IDs allow an empty history to become an incremental insert rather than a
 full document replacement.
 
+The Avalonia remote shell now supplies that pair through two concurrent,
+authenticated `/v1/wire` queries. Its strict transport DTO is the only layer
+that can represent a runtime endpoint; the composed `RemoteWorkspaceSnapshot`
+retains only renderer-neutral runtime and bounded command-history fields.
+Revision mismatch, runtime rebinding, unknown fields, null required data, and
+history beyond the domain limit all reject the complete workspace rather than
+mounting partial state.
+
 The log slice consumes a renderer-neutral `RuntimeLogProjection`, not raw
 adapter output. A trusted runtime producer supplies only revision, runtime
 identity, display name, and sanitized typed entries. Batches are capped at 256
@@ -138,6 +146,9 @@ fixture through the real control stack. The mounted tree applies all four patch
 operations incrementally through a checked stable-ID index. A transactional
 semantic candidate validates the final document before visual mutation, and
 the compound fixture proves unaffected controls retain object identity. The
+fleet document now declares a runtime-bound, revision-fenced Inspect action.
+Rust lowers it to the shared `runtime.read` query plan; the renderer only emits
+its stable node ID and cannot bind the action to another runtime. The
 fleet root and history section now own bounded viewports backed by active
 `VirtualizingStackPanel` instances, avoiding the unbounded outer-scroll layout
 that defeats virtualization. Compiled-bound item view models now create direct

@@ -1,37 +1,12 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
 public sealed class RemoteMutationClient : IDisposable
 {
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
-    private readonly HttpClient client;
-    private readonly X509Certificate2 trustedRoot;
+    private readonly RemoteWireTransport transport;
 
     public RemoteMutationClient(RemoteClientOptions options)
     {
-        trustedRoot = RemoteTls.LoadRoot(options.CertificateAuthorityPath);
-        var handler = new SocketsHttpHandler
-        {
-            AllowAutoRedirect = false,
-            AutomaticDecompression = DecompressionMethods.None,
-            ConnectTimeout = RequestTimeout,
-            MaxConnectionsPerServer = 2,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
-        };
-        handler.SslOptions.RemoteCertificateValidationCallback =
-            (_, certificate, _, errors) =>
-                RemoteTls.ValidateServerCertificate(certificate, errors, trustedRoot);
-        client = new HttpClient(handler)
-        {
-            BaseAddress = options.Endpoint,
-            Timeout = RequestTimeout,
-        };
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", options.Token);
-        client.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json"));
+        transport = new RemoteWireTransport(options);
     }
 
     public async Task<RemoteMutationResult> RefreshAsync(
@@ -61,57 +36,17 @@ public sealed class RemoteMutationClient : IDisposable
         var payload = JsonSerializer.SerializeToUtf8Bytes(
             envelope,
             RemoteMutationJsonContext.Default.WireCommandRequestEnvelope);
-        if (payload.Length > RemoteEventCodec.MaxMessageBytes)
-        {
-            throw new InvalidDataException("remote mutation exceeds the protocol limit");
-        }
-        using var content = new ByteArrayContent(payload);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        using var response = await client.PostAsync("v1/wire", content, cancellationToken)
-            .ConfigureAwait(false);
-        if (!string.Equals(
-            response.Content.Headers.ContentType?.MediaType,
-            "application/json",
-            StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("remote mutation response is not application/json");
-        }
-        if (response.Content.Headers.ContentLength is > RemoteEventCodec.MaxMessageBytes)
-        {
-            throw new InvalidDataException("remote mutation response exceeds the protocol limit");
-        }
-        var responsePayload = await ReadBoundedAsync(response, cancellationToken)
+        var responsePayload = await transport.PostAsync(
+            payload,
+            "mutation",
+            cancellationToken)
             .ConfigureAwait(false);
         return DecodeResponse(responsePayload, commandId, runtimeId, expectedRevision);
     }
 
     public void Dispose()
     {
-        client.Dispose();
-        trustedRoot.Dispose();
-    }
-
-    private static async Task<byte[]> ReadBoundedAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken)
-            .ConfigureAwait(false);
-        using var payload = new MemoryStream();
-        var buffer = new byte[16 * 1024];
-        while (true)
-        {
-            var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-            {
-                return payload.ToArray();
-            }
-            if (payload.Length + read > RemoteEventCodec.MaxMessageBytes)
-            {
-                throw new InvalidDataException("remote mutation response exceeds the protocol limit");
-            }
-            payload.Write(buffer, 0, read);
-        }
+        transport.Dispose();
     }
 
     private static RemoteMutationResult DecodeResponse(

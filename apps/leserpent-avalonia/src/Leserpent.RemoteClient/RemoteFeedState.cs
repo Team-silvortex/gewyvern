@@ -116,6 +116,25 @@ public sealed class RemoteFeedStateMachine(int maxReconnectAttempts = 8)
         return State;
     }
 
+    public RemoteFeedState Resume()
+    {
+        if (State.Phase is not (RemoteFeedPhase.Stale or RemoteFeedPhase.Stopped))
+        {
+            throw new InvalidOperationException("remote state is not restartable");
+        }
+        State = State with
+        {
+            Phase = RemoteFeedPhase.Connecting,
+            ConsecutiveFailures = 0,
+            IsStale = State.Runtimes.Count > 0,
+            Detail = State.Revision is { } revision
+                ? $"Reconnecting from revision {revision}"
+                : "Reconnecting for a complete snapshot",
+        };
+        ResyncRequested = false;
+        return State;
+    }
+
     public RemoteFeedState Stop()
     {
         State = State with

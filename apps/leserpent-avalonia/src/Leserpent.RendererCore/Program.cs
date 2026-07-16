@@ -145,7 +145,8 @@ public sealed class SemanticRenderer
         {
             var validAction = node.Action.Kind switch
             {
-                ActionKind.RuntimeRefresh => node.Action.RuntimeId is not null
+                ActionKind.RuntimeInspect or ActionKind.RuntimeRefresh =>
+                    node.Action.RuntimeId is not null
                     && IsIdentifier(node.Action.RuntimeId)
                     && node.Action.RuntimeId == runtimeContext
                     && node.Action.SessionId is null,
@@ -332,6 +333,7 @@ public enum UiNodeKind
 [JsonConverter(typeof(JsonStringEnumConverter<ActionKind>))]
 public enum ActionKind
 {
+    [JsonStringEnumMemberName("runtime_inspect")] RuntimeInspect,
     [JsonStringEnumMemberName("runtime_refresh")] RuntimeRefresh,
     [JsonStringEnumMemberName("debugger_cancel")] DebuggerCancel,
 }

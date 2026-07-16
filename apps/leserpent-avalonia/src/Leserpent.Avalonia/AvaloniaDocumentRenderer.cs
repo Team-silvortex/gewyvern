@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Leserpent.Avalonia;
 
 internal static class LeserpentTheme
@@ -64,7 +65,9 @@ internal sealed record AccessibilityAudit(
 internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 {
     private readonly Dictionary<string, RenderedNode> nodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<ActionKind, ActionAvailability> actionAvailability = [];
     private SemanticRenderer semanticRenderer = new();
+    private string? pendingFocusNodeId;
 
     public ContentControl Surface { get; } = new();
     public UiDocument Document => semanticRenderer.Document;
@@ -81,6 +84,51 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         node.ActionKind is ActionKind.DebuggerCancel
         && node.TryGetRealizedControl(out var control)
         && control is Button);
+    public int RealizedDisabledActionCount(ActionKind kind) => nodes.Values.Count(node =>
+        node.ActionKind == kind
+        && node.TryGetRealizedControl(out var control)
+        && control is Button { IsEnabled: false });
+    public int RealizedActionCount(ActionKind kind) => nodes.Values.Count(node =>
+        node.ActionKind == kind
+        && node.TryGetRealizedControl(out var control)
+        && control is Button);
+    public string? FirstRealizedActionNodeId => nodes.Values.FirstOrDefault(node =>
+        node.ActionKind is not null
+        && node.TryGetRealizedControl(out var control)
+        && control is Button)?.Id;
+    public string? FocusedNodeId => nodes.Values.FirstOrDefault(node =>
+        node.TryGetRealizedControl(out var control)
+        && control!.IsFocused)?.Id;
+    public bool IsFocusRestorePending => pendingFocusNodeId is not null;
+
+    public bool TryFocusNode(string nodeId) =>
+        nodes.TryGetValue(nodeId, out var node)
+        && node.TryGetRealizedControl(out var control)
+        && control!.Focus();
+
+    public void SetActionAvailability(ActionKind kind, bool enabled, string? unavailableReason)
+    {
+        if (!enabled && string.IsNullOrWhiteSpace(unavailableReason))
+        {
+            throw new ArgumentException(
+                "disabled actions require an unavailable reason",
+                nameof(unavailableReason));
+        }
+        var availability = new ActionAvailability(enabled, unavailableReason);
+        actionAvailability[kind] = availability;
+        foreach (var node in nodes.Values)
+        {
+            if (node.ActionKind == kind
+                && node.TryGetRealizedControl(out var control)
+                && control is Button button)
+            {
+                ApplyActionAvailability(
+                    button,
+                    availability,
+                    node.AutomationDescription);
+            }
+        }
+    }
 
     public AccessibilityAudit AuditAccessibility()
     {
@@ -140,6 +188,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 
     public void Mount(UiDocument document)
     {
+        var focusedNodeId = FocusedNodeId;
+        pendingFocusNodeId = null;
         var candidate = new SemanticRenderer();
         candidate.Mount(document);
         EnsureRenderable(candidate.Document.Root);
@@ -151,10 +201,13 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         LastAppliedOperationCount = 0;
         LastReusedNodeCount = 0;
         VerifyIndex();
+        ScheduleFocusRestore(focusedNodeId);
     }
 
     public void Apply(UiPatch patch)
     {
+        var focusedNodeId = FocusedNodeId;
+        pendingFocusNodeId = null;
         var candidate = new SemanticRenderer();
         candidate.Mount(semanticRenderer.Document);
         candidate.Apply(patch);
@@ -179,6 +232,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             && node.TryGetRealizedControl(out var control)
             && ReferenceEquals(pair.Value, control));
         VerifyIndex();
+        ScheduleFocusRestore(focusedNodeId);
     }
 
     private void ApplyVisualOperation(UiPatchOperation operation)
@@ -307,7 +361,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         };
     }
 
-    private static RenderedNode LazyLeaf(
+    private RenderedNode LazyLeaf(
         UiNode node,
         RenderedNode? parent,
         Func<Control> factory) => new(
@@ -321,7 +375,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             node.Accessibility.Label is not null,
             node.Accessibility.Description?.Fallback);
 
-    private static RenderedNode LazyContainer(
+    private RenderedNode LazyContainer(
         UiNode node,
         RenderedNode? parent,
         bool virtualized,
@@ -398,6 +452,31 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         return button;
     }
 
+    private void ApplyActionAvailability(Button button, UiNode node)
+    {
+        var availability = node.Action is { } action
+            && actionAvailability.TryGetValue(action.Kind, out var configured)
+                ? configured
+                : ActionAvailability.Enabled;
+        ApplyActionAvailability(
+            button,
+            availability,
+            node.Accessibility.Description?.Fallback);
+    }
+
+    private static void ApplyActionAvailability(
+        Button button,
+        ActionAvailability availability,
+        string? defaultDescription)
+    {
+        button.IsEnabled = availability.IsEnabled;
+        var description = availability.IsEnabled
+            ? defaultDescription
+            : availability.UnavailableReason;
+        AutomationProperties.SetHelpText(button, description);
+        ToolTip.SetTip(button, availability.IsEnabled ? null : description);
+    }
+
     private static (Control, IChildrenHost) BuildContainer(bool emphasized, bool virtualized)
     {
         var children = BuildChildrenHost(virtualized);
@@ -440,10 +519,54 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         }
     }
 
-    private static Control InitializeControl(Control control, UiNode node)
+    private Control InitializeControl(Control control, UiNode node)
     {
         ApplyAutomation(control, node);
+        if (control is Button button && node.Action is not null)
+        {
+            ApplyActionAvailability(button, node);
+        }
+        if (pendingFocusNodeId == node.Id)
+        {
+            Dispatcher.UIThread.Post(
+                () => RestorePendingFocus(node.Id),
+                DispatcherPriority.Loaded);
+        }
         return control;
+    }
+
+    private void ScheduleFocusRestore(string? nodeId)
+    {
+        pendingFocusNodeId = nodeId is not null && nodes.ContainsKey(nodeId)
+            ? nodeId
+            : null;
+        if (pendingFocusNodeId is not null
+            && nodes[pendingFocusNodeId].TryGetRealizedControl(out var control))
+        {
+            if (control!.IsFocused)
+            {
+                pendingFocusNodeId = null;
+                return;
+            }
+            Dispatcher.UIThread.Post(
+                () => RestorePendingFocus(pendingFocusNodeId),
+                DispatcherPriority.Loaded);
+        }
+    }
+
+    private void RestorePendingFocus(string? nodeId)
+    {
+        if (nodeId is null
+            || pendingFocusNodeId != nodeId
+            || !nodes.TryGetValue(nodeId, out var node)
+            || !node.TryGetRealizedControl(out var control))
+        {
+            return;
+        }
+        if (control!.Focus())
+        {
+            pendingFocusNodeId = null;
+        }
     }
 
     private static string AutomationName(UiNode node) =>
@@ -538,6 +661,11 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
     private static string RequiredText(UiNode node) => node.Text?.Fallback
         ?? node.Accessibility.Label?.Fallback
         ?? throw new InvalidDataException($"node '{node.Id}' has no display text");
+
+    private sealed record ActionAvailability(bool IsEnabled, string? UnavailableReason)
+    {
+        public static ActionAvailability Enabled { get; } = new(true, null);
+    }
 
     private static VirtualizedItemViewModel Hosted(RenderedNode node) => new(
         node.Id,

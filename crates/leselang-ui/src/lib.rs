@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use leselang_command::{
-    LoweringContext, LoweringError, plan_debugger_cancel, plan_runtime_refresh,
+    LoweringContext, LoweringError, plan_debugger_cancel, plan_runtime_inspect,
+    plan_runtime_refresh,
 };
 use leserpent_domain::{CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId};
 use serde::{Deserialize, Serialize};
@@ -160,6 +161,7 @@ pub struct Accessibility {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum UiAction {
+    RuntimeInspect { runtime_id: RuntimeId },
     RuntimeRefresh { runtime_id: RuntimeId },
     DebuggerCancel { session_id: String },
 }
@@ -332,6 +334,24 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                     "fleet.runtime.status",
                     status,
                 )?,
+                UiNode {
+                    id: NodeId::new(format!("{prefix}-inspect"))?,
+                    kind: UiNodeKind::Action,
+                    runtime_id: None,
+                    debugger_session_id: None,
+                    text: Some(localized("fleet.runtime.inspect", "Inspect")?),
+                    accessibility: Accessibility {
+                        label: Some(localized("fleet.runtime.inspect", "Inspect runtime")?),
+                        description: Some(localized(
+                            "fleet.runtime.inspect.description",
+                            "Open the read-only runtime workspace",
+                        )?),
+                    },
+                    action: Some(UiAction::RuntimeInspect {
+                        runtime_id: runtime.id.clone(),
+                    }),
+                    children: Vec::new(),
+                },
                 UiNode {
                     id: NodeId::new(format!("{prefix}-refresh"))?,
                     kind: UiNodeKind::Action,
@@ -816,6 +836,9 @@ pub fn plan_event(
             node_id: event.node_id.as_str().to_string(),
         })?;
     match (&event.kind, &node.action) {
+        (UiEventKind::Activate, Some(UiAction::RuntimeInspect { runtime_id })) => {
+            plan_runtime_inspect(runtime_id, context).map_err(UiError::Lowering)
+        }
         (UiEventKind::Activate, Some(UiAction::RuntimeRefresh { runtime_id })) => {
             plan_runtime_refresh(runtime_id, context).map_err(UiError::Lowering)
         }
@@ -1204,12 +1227,18 @@ fn validate_node(
         }
         _ => debugger_context,
     };
-    if let Some(UiAction::RuntimeRefresh { runtime_id }) = &node.action
-        && runtime_context != Some(runtime_id)
-    {
-        return Err(UiError::InvalidRuntimeBinding {
-            node_id: node.id.as_str().to_string(),
-        });
+    if let Some(action) = &node.action {
+        let runtime_id = match action {
+            UiAction::RuntimeInspect { runtime_id } | UiAction::RuntimeRefresh { runtime_id } => {
+                Some(runtime_id)
+            }
+            UiAction::DebuggerCancel { .. } => None,
+        };
+        if runtime_id.is_some() && runtime_context != runtime_id {
+            return Err(UiError::InvalidRuntimeBinding {
+                node_id: node.id.as_str().to_string(),
+            });
+        }
     }
     if let Some(UiAction::DebuggerCancel { session_id }) = &node.action
         && debugger_context != Some(session_id.as_str())
@@ -1369,7 +1398,7 @@ mod tests {
             principal: Principal {
                 id: "operator".into(),
             },
-            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH]),
             expected_revision: Some(Revision(1)),
             command_id: CommandId::new("command-a").unwrap(),
             idempotency_key: IdempotencyKey::new("effect-a").unwrap(),
@@ -1594,6 +1623,28 @@ mod tests {
             Command::RuntimeRefresh { runtime_id } if runtime_id.as_str() == "runtime-a"
         ));
         assert_eq!(command.origin, CommandOrigin::Gui);
+    }
+
+    #[test]
+    fn inspect_action_lowers_to_frontend_neutral_read_plan() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let plan = plan_event(
+            &document,
+            &UiEvent {
+                node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+                kind: UiEventKind::Activate,
+            },
+            &context(),
+        )
+        .unwrap();
+        let leserpent_domain::PlannedOperation::Query(query) = plan.operation else {
+            panic!("inspect action must lower to a query");
+        };
+        assert!(matches!(
+            query.query,
+            Query::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+        assert_eq!(plan.required_capability, CAPABILITY_RUNTIME_READ);
     }
 
     #[test]

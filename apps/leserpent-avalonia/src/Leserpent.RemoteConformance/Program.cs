@@ -11,15 +11,16 @@ if (args is ["--credential-resolve", var credentialOrigin])
 
 if (args.Length is 4 or 6 && args[0] == "--connect")
 {
-    if (args.Length == 6 && args[4] != "--refresh")
+    if (args.Length == 6 && args[4] is not ("--refresh" or "--inspect"))
     {
-        Console.Error.WriteLine("usage: Leserpent.RemoteConformance --connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID]");
+        Console.Error.WriteLine("usage: Leserpent.RemoteConformance --connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --inspect RUNTIME_ID]");
         return 2;
     }
     var endpoint = args[1];
     var certificate = args[2];
     var cache = args[3];
-    var refreshRuntimeId = args.Length == 6 ? args[5] : null;
+    var refreshRuntimeId = args.Length == 6 && args[4] == "--refresh" ? args[5] : null;
+    var inspectRuntimeId = args.Length == 6 && args[4] == "--inspect" ? args[5] : null;
     var token = Environment.GetEnvironmentVariable("LESERPENT_REMOTE_TOKEN")
         ?? throw new InvalidOperationException("LESERPENT_REMOTE_TOKEN is required");
     var options = RemoteClientOptions.Create(endpoint, certificate, token, cache);
@@ -74,12 +75,25 @@ if (args.Length is 4 or 6 && args[0] == "--connect")
         Console.WriteLine(
             $"remote mutation conformance valid: initial_revision={runtime.Revision}, applied_revision={result.Revision}, event_revision={eventRuntime.Revision}, runtime={eventRuntime.Id}, stale={eventState.IsStale.ToString().ToLowerInvariant()}");
     }
+    if (inspectRuntimeId is not null)
+    {
+        using var workspaceClient = new RemoteWorkspaceClient(options);
+        var liveWorkspace = await workspaceClient.LoadAsync(
+            inspectRuntimeId,
+            "dotnet-conformance");
+        Require(liveWorkspace.Runtime.Id == inspectRuntimeId,
+            "workspace query changed runtime identity");
+        Require(liveWorkspace.History.Count <= RemoteWorkspaceClient.MaxHistoryEntries,
+            "workspace query exceeded its history bound");
+        Console.WriteLine(
+            $"remote workspace conformance valid: revision={liveWorkspace.Revision}, runtime={liveWorkspace.Runtime.Id}, history={liveWorkspace.History.Count}, endpoint_retained=false");
+    }
     return 0;
 }
 
 if (args.Length != 0)
 {
-    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN]");
+    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --inspect RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN]");
     return 2;
 }
 
@@ -106,6 +120,14 @@ for (var attempt = 2; attempt <= 8; attempt++)
 }
 Require(reconnecting.Phase == RemoteFeedPhase.Stale && reconnecting.ConsecutiveFailures == 8,
     "reconnect policy did not stop at its attempt bound");
+var resumed = stateMachine.Resume();
+Require(resumed.Phase == RemoteFeedPhase.Connecting
+    && resumed.ConsecutiveFailures == 0
+    && resumed.Revision == 7
+    && resumed.IsStale,
+    "manual reconnect did not preserve the cursor and stale projection");
+RequireThrows<InvalidOperationException>(() => stateMachine.Resume(),
+    "manual reconnect was accepted while already connecting");
 
 var cacheRoot = Path.Combine(Path.GetTempPath(), $"leserpent-remote-{Guid.NewGuid():N}");
 Directory.CreateDirectory(cacheRoot);
@@ -166,8 +188,41 @@ RequireThrows<ArgumentException>(() => RemoteTokenResolver.Resolve(
     "invalid platform credential silently fell back to the environment");
 RequireThrows<ArgumentException>(() => RemoteClientOptions.ValidateToken(new string('x', 4097)),
     "oversized remote token was accepted");
+var trustIdentity = RemoteTrustIdentity.FromSha256(
+    new Uri("https://EXAMPLE.com:9443"),
+    Enumerable.Range(0, 32).Select(value => checked((byte)value)).ToArray());
+Require(trustIdentity.Origin == "https://example.com:9443"
+    && trustIdentity.ShortFingerprint == "0001020304050607"
+    && trustIdentity.Sha256Fingerprint.StartsWith("00:01:02:03", StringComparison.Ordinal),
+    "remote trust identity did not canonicalize origin and CA fingerprint");
 
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, endpoint_cache=true, credential_resolution=true");
+var decodedWorkspace = RemoteWorkspaceCodec.Compose(
+    Fixtures.InspectResponse(7, "runtime-a"),
+    Fixtures.HistoryResponse(7, "runtime-a"),
+    "runtime-a");
+Require(decodedWorkspace.Revision == 7
+    && decodedWorkspace.Runtime.Id == "runtime-a"
+    && decodedWorkspace.History is [{ CommandId: "command-a", Revision: 7, Status: "applied" }],
+    "workspace query did not preserve the bounded safe projection");
+Require(decodedWorkspace.Runtime.GetType().GetProperty("Endpoint") is null,
+    "workspace safe projection retained the remote endpoint");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Fixtures.InspectResponse(7, "runtime-a"),
+    Fixtures.HistoryResponse(8, "runtime-a"),
+    "runtime-a"),
+    "workspace accepted torn query revisions");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Fixtures.InspectResponse(7, "runtime-a"),
+    Fixtures.HistoryResponse(7, "runtime-b"),
+    "runtime-a"),
+    "workspace accepted history from another runtime");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Fixtures.InspectResponse(7, "runtime-a", extraRuntimeField: true),
+    Fixtures.HistoryResponse(7, "runtime-a"),
+    "runtime-a"),
+    "workspace accepted an unknown runtime field");
+
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, endpoint_retained=false");
 return 0;
 
 static void Require(bool condition, string message)
@@ -194,6 +249,82 @@ static void RequireThrows<TException>(Action action, string message)
 
 static class Fixtures
 {
+public static byte[] InspectResponse(
+    ulong revision,
+    string runtimeId,
+    bool extraRuntimeField = false) => Encoding.UTF8.GetBytes($$"""
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "query",
+    "payload": {
+      "kind": "runtime_inspect",
+      "revision": {{revision}},
+      "runtime": {{RuntimeJson(revision, runtimeId, extraRuntimeField)}}
+    }
+  }
+}
+""");
+
+public static byte[] HistoryResponse(ulong revision, string runtimeId) =>
+    Encoding.UTF8.GetBytes($$"""
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "query",
+    "payload": {
+      "kind": "runtime_history",
+      "revision": {{revision}},
+      "entries": [{
+        "command_id": "command-a",
+        "status": "applied",
+        "runtime": {{RuntimeJson(revision, runtimeId)}},
+        "events": []
+      }]
+    }
+  }
+}
+""");
+
+private static string RuntimeJson(
+    ulong revision,
+    string runtimeId,
+    bool extraRuntimeField = false) => $$"""
+{
+  "id": "{{runtimeId}}",
+  "name": "Runtime A",
+  "endpoint": "unix:///private/runtime-a.sock",
+  "revision": {{revision}},
+  "refresh_count": 2,
+  "refresh_status": "ready",
+  "tags": {"environment": "test", "cluster": null, "role": null},
+  "status": {
+    "status_source": "gewyvern",
+    "status_fetched_at": null,
+    "status_fetch_error": null,
+    "has_latest_snapshot": false,
+    "snapshot_kind": null,
+    "target_count": null,
+    "has_summary_json": false,
+    "has_analysis_json": false,
+    "has_training_example_json": false,
+    "has_training_dataset_manifest": false,
+    "has_export_json": false,
+    "has_report_json": false,
+    "has_report_html": false,
+    "has_external_sidecar_context": false,
+    "has_external_evidence_chain_enrichment": false,
+    "has_external_diagnostic_opinion": false,
+    "resilience_degraded": false,
+    "resilience_status": null,
+    "resilience_summary": null,
+    "socket_service_status": null,
+    "socket_consecutive_idle_timeouts": null,
+    "socket_total_idle_timeouts": null
+  }{{(extraRuntimeField ? ",\n  \"unexpected\": true" : string.Empty)}}
+}
+""";
+
 public const string SnapshotJson = """
 {
   "schema_version": 1,

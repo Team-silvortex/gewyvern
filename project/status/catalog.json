@@ -626,7 +626,7 @@
         "id": "leserpent-web-console",
         "version": "1.0.0",
         "stability": "evolving",
-        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails"]
+        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails", "leserpent-brand-icon"]
       },
       "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [
@@ -638,6 +638,7 @@
       "consumers": ["browser-operators"],
       "evidence": [
         { "kind": "source", "path": "apps/leserpent/src/Leserpent/frontend", "state": "present" },
+        { "kind": "source", "path": "assets/branding/leserpent-icon.png", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/BrowserSecurityContractTests.cs", "state": "present" },
         { "kind": "documentation", "path": "apps/leserpent/docs/frontend-layout-maintenance.md", "state": "present" }
       ],
@@ -926,9 +927,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-ui-contract",
-        "version": "0.13.0",
+        "version": "0.14.0",
         "stability": "evolving",
-        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "bounded-json-codec", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-log-projection", "runtime-log-document-lowering", "runtime-log-source-producer", "bounded-log-source-batch", "newest-log-window", "utf8-safe-log-sanitization", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "bounded-logical-frames", "debugger-secret-omission", "validated-vm-producer", "relative-deadline-projection", "debugger-cancel-plan", "safe-mutation-inspection", "debugger-dry-run", "session-revision-fenced-cancel", "confirmation-gated-cancel", "atomic-persistent-debugger-audit", "restart-safe-debugger-audit-replay", "debugger-workspace-session-binding", "session-bound-debugger-action", "debugger-action-command-lowering", "token-free-mutation-result", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "revision-fenced-event", "runtime-bound-action", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
+        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "bounded-json-codec", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-log-projection", "runtime-log-document-lowering", "runtime-log-source-producer", "bounded-log-source-batch", "newest-log-window", "utf8-safe-log-sanitization", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "bounded-logical-frames", "debugger-secret-omission", "validated-vm-producer", "relative-deadline-projection", "debugger-cancel-plan", "safe-mutation-inspection", "debugger-dry-run", "session-revision-fenced-cancel", "confirmation-gated-cancel", "atomic-persistent-debugger-audit", "restart-safe-debugger-audit-replay", "debugger-workspace-session-binding", "session-bound-debugger-action", "debugger-action-command-lowering", "token-free-mutation-result", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "revision-fenced-event", "runtime-bound-action", "runtime-inspect-action", "frontend-neutral-inspect-plan", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/command-lowering/command-plan-lowering"],
       "blockers": [],
@@ -1083,14 +1084,14 @@
       "feature": "avalonia-renderer",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 92,
+      "completion": 94,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-avalonia-contract",
-        "version": "0.12.0",
+        "version": "0.14.0",
         "stability": "evolving",
-        "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "remote-snapshot-ui-projection", "visible-remote-stale-state", "native-aot-publish-profile", "pinned-native-aot-toolchain", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "automation-metadata", "unique-automation-id-audit", "complete-automation-name-audit", "automation-help-text-audit", "explicit-action-label-audit", "wcag-aa-theme-contrast", "managed-macos-accessibility-proof", "physical-linux-accessibility-proof", "native-aot-accessibility-proof", "action-node-event", "control-smoke-mode"]
+        "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "stable-node-focus-retention", "runtime-inspect-control", "independent-runtime-workspace-window", "single-window-per-runtime", "bounded-workspace-window-fanout", "live-revision-workspace-reload", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "remote-snapshot-ui-projection", "visible-remote-stale-state", "leserpent-brand-icon", "native-aot-publish-profile", "pinned-native-aot-toolchain", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "automation-metadata", "unique-automation-id-audit", "complete-automation-name-audit", "automation-help-text-audit", "explicit-action-label-audit", "wcag-aa-theme-contrast", "managed-macos-accessibility-proof", "physical-linux-accessibility-proof", "native-aot-accessibility-proof", "action-node-event", "control-smoke-mode"]
       },
       "depends_on": [
         "leserpent-2/ui-language/ui-ir-lowering",
@@ -1108,8 +1109,10 @@
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
         { "kind": "documentation", "path": "apps/leserpent-avalonia/README.md", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia", "state": "present" },
+        { "kind": "source", "path": "assets/branding/leserpent-icon.ico", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/Properties/PublishProfiles/NativeAot.pubxml", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RendererConformance", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_accessibility.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-workspace-conformance-v1.json", "state": "present" },
@@ -1125,14 +1128,14 @@
       "feature": "remote-mobile-console",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 82,
+      "completion": 85,
       "confidence": "medium",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-remote-console",
-        "version": "0.10.0",
+        "version": "0.11.0",
         "stability": "draft",
-        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "remote-auth-exit-contract", "tls12-and-tls13", "platform-first-bearer-token", "bounded-environment-token-fallback", "macos-keychain-token", "linux-secret-service-token", "endpoint-scoped-credential", "malformed-stored-token-fail-closed", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "bounded-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "runtime-bound-refresh-action", "explicit-mutation-confirmation", "stale-mutation-rejection", "optimistic-runtime-revision", "no-automatic-mutation-retry", "endpoint-free-mutation-result", "rust-dotnet-mutation-vertical", "mobile-lifecycle-core", "foreground-session-ownership", "background-disconnect", "mobile-credential-reload", "mobile-generation-fence", "mobile-failure-cleanup", "android-keystore-aes-gcm-token", "ios-this-device-only-keychain-token", "adaptive-navigation"]
+        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "remote-auth-exit-contract", "tls12-and-tls13", "platform-first-bearer-token", "bounded-environment-token-fallback", "macos-keychain-token", "linux-secret-service-token", "endpoint-scoped-credential", "malformed-stored-token-fail-closed", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "shared-dotnet-wire-transport", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "strict-aot-workspace-query-codec", "concurrent-inspect-history-query", "same-revision-workspace-composition", "torn-workspace-rejection", "runtime-history-identity-fence", "endpoint-transient-decode-only", "bounded-reconnect", "explicit-readonly-manual-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "token-redacted-startup-recovery", "visible-credential-provenance", "visible-trust-identity", "responsive-remote-desktop-layout", "stable-node-focus-retention", "bounded-local-runtime-filter", "runtime-bound-inspect-action", "runtime-bound-refresh-action", "explicit-mutation-confirmation", "stale-mutation-rejection", "optimistic-runtime-revision", "no-automatic-mutation-retry", "mutation-observation-ui-fence", "persistent-operation-status-live-region", "endpoint-free-mutation-result", "rust-dotnet-mutation-vertical", "mobile-lifecycle-core", "foreground-session-ownership", "background-disconnect", "mobile-credential-reload", "mobile-generation-fence", "mobile-failure-cleanup", "android-keystore-aes-gcm-token", "ios-this-device-only-keychain-token", "adaptive-navigation"]
       },
       "depends_on": ["leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/daemon-host/daemon-lifecycle"],
       "blockers": [
@@ -1148,6 +1151,7 @@
         { "kind": "source", "path": "crates/leserpentd/src/events.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-cli/src/https.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteWorkspaceClient.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteConformance", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/dotnet_remote_vertical.rs", "state": "present" },

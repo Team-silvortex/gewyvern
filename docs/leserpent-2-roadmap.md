@@ -157,8 +157,8 @@ typed events through the shared `CommandPlan` path, and computes deterministic
 remove/insert/move/update patches over stable node IDs. Validation rejects
 duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
-transport, HTML, script, or adapter type enters the IR. Avalonia rendering and
-broader child-workspace/debugger documents remain. A framework-independent
+transport, HTML, script, or adapter type enters the IR. Broader renderer and
+debugger interaction coverage remains. A framework-independent
 patch application reference now fences revisions and rejects malformed graph
 edits; round-trip fixtures establish the semantic renderer conformance baseline.
 The runtime child workspace now combines same-revision inspect and bounded
@@ -206,6 +206,16 @@ exits cleanly. The mounted control tree now consumes remove, insert, move, and
 update operations through a stable-ID visual index after a transactional
 semantic candidate validates the complete patch. The compound fixture proves
 unchanged and moved controls retain identity instead of rebuilding the tree.
+Fleet cards now declare a runtime-bound Inspect action alongside Refresh. The
+Inspect event is revision-fenced and lowers in Rust to a frontend-neutral
+`runtime.read` query plan; .NET validates the same runtime binding and renders
+the action without constructing a query itself. The remote desktop now executes
+that plan through the authenticated wire boundary: it composes Inspect and
+bounded History only at the same revision, discards endpoint-bearing wire DTOs
+before creating safe state, and opens one reusable child window per runtime.
+Open workspaces refresh from newer live event revisions and share the fleet
+window's mutation confirmation/fencing path. A fixed eight-window bound prevents
+accidental connection and window fan-out.
 Fleet roots now use an active `VirtualizingStackPanel` as the window viewport,
 and history sections use independent bounded viewports rather than nesting
 under an unbounded outer scroller. This establishes layout virtualization;

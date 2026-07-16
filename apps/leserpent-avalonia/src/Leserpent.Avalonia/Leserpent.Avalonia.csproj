@@ -8,6 +8,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationIcon>../../../../assets/branding/leserpent-icon.ico</ApplicationIcon>
+    <ApplicationTitle>Leserpent</ApplicationTitle>
+    <Product>Leserpent</Product>
     <NativeAotToolchainVersion Condition="'$(NativeAotToolchainVersion)' == ''">10.0.5</NativeAotToolchainVersion>
     <RuntimeFrameworkVersion Condition="'$(PublishAot)' == 'true'">$(NativeAotToolchainVersion)</RuntimeFrameworkVersion>
     <TargetLatestRuntimePatch Condition="'$(PublishAot)' == 'true'">false</TargetLatestRuntimePatch>

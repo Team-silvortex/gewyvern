@@ -25,6 +25,7 @@ internal sealed class MainWindow : Window
     public int UnrealizedNodeCount => renderer.UnrealizedNodeCount;
     public int InitialDebuggerCancelButtonCount { get; }
     public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
+    public int DisabledActionProbeCount { get; private set; }
     public AccessibilityAudit InitialAccessibility { get; }
     public AccessibilityAudit Accessibility => renderer.AuditAccessibility();
     public ulong Revision { get; }
@@ -69,6 +70,109 @@ internal sealed class MainWindow : Window
         };
     }
 
+    public void ProbeActionAvailability()
+    {
+        if (renderer.RealizedActionCount(ActionKind.RuntimeRefresh) == 0)
+        {
+            DisabledActionProbeCount = 0;
+            _ = renderer.AuditAccessibility();
+            return;
+        }
+        renderer.SetActionAvailability(
+            ActionKind.RuntimeRefresh,
+            false,
+            "Verification action is temporarily unavailable");
+        DisabledActionProbeCount = renderer.RealizedDisabledActionCount(
+            ActionKind.RuntimeRefresh);
+        if (DisabledActionProbeCount == 0)
+        {
+            throw new InvalidDataException(
+                "Avalonia action availability did not disable a realized action");
+        }
+        renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null);
+        if (renderer.RealizedDisabledActionCount(ActionKind.RuntimeRefresh) != 0)
+        {
+            throw new InvalidDataException(
+                "Avalonia action availability did not restore a realized action");
+        }
+        _ = renderer.AuditAccessibility();
+    }
+
+    public string BeginFocusRetentionProbe()
+    {
+        var nodeId = renderer.FirstRealizedActionNodeId
+            ?? throw new InvalidDataException("focus probe requires a realized action");
+        if (!renderer.TryFocusNode(nodeId) || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException("focus probe could not focus its action node");
+        }
+        renderer.Mount(renderer.Document);
+        if (!renderer.IsFocusRestorePending)
+        {
+            throw new InvalidDataException("focus restoration was not scheduled after mount");
+        }
+        return nodeId;
+    }
+
+    public void CompleteFocusRetentionProbe(string nodeId)
+    {
+        if (renderer.IsFocusRestorePending || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "stable action focus was not restored after document mount");
+        }
+    }
+
+    public void BeginPatchedFocusRetentionProbe(string nodeId)
+    {
+        if (!renderer.TryFocusNode(nodeId) || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException("patch focus probe could not focus its action node");
+        }
+        var source = FindNode(renderer.Document.Root, nodeId)
+            ?? throw new InvalidDataException("patch focus probe action was not found");
+        var revision = renderer.Document.Revision;
+        renderer.Apply(new UiPatch
+        {
+            SchemaVersion = 1,
+            FromRevision = revision,
+            ToRevision = checked(revision + 1),
+            Operations =
+            [
+                new UiPatchOperation
+                {
+                    Kind = PatchKind.Update,
+                    Node = CloneShallow(source),
+                },
+            ],
+        });
+        if (!renderer.IsFocusRestorePending)
+        {
+            throw new InvalidDataException("focus restoration was not scheduled after patch");
+        }
+    }
+
+    public void ProbeRemovedFocusTarget(string nodeId)
+    {
+        var payload = JsonSerializer.SerializeToUtf8Bytes(
+            renderer.Document,
+            RendererJsonContext.Default.UiDocument);
+        var withoutFocusedAction = JsonSerializer.Deserialize(
+            payload,
+            RendererJsonContext.Default.UiDocument)
+            ?? throw new InvalidDataException("focus probe document clone failed");
+        if (!RemoveNode(withoutFocusedAction.Root, nodeId))
+        {
+            throw new InvalidDataException("focus probe could not remove its action node");
+        }
+        renderer.Mount(withoutFocusedAction);
+        if (renderer.IsFocusRestorePending || renderer.FocusedNodeId is not null)
+        {
+            throw new InvalidDataException(
+                "removed action focus was transferred to another control");
+        }
+    }
+
     private Border BuildStatusBar()
     {
         var revisionText = new TextBlock
@@ -110,4 +214,59 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException("Avalonia patch result does not match the fixture");
         }
     }
+
+    private static bool RemoveNode(UiNode parent, string nodeId)
+    {
+        var index = parent.Children.FindIndex(child => child.Id == nodeId);
+        if (index >= 0)
+        {
+            parent.Children.RemoveAt(index);
+            return true;
+        }
+        return parent.Children.Any(child => RemoveNode(child, nodeId));
+    }
+
+    private static UiNode? FindNode(UiNode node, string nodeId)
+    {
+        if (node.Id == nodeId)
+        {
+            return node;
+        }
+        return node.Children.Select(FindChild).FirstOrDefault(found => found is not null);
+
+        UiNode? FindChild(UiNode child) => FindNode(child, nodeId);
+    }
+
+    private static UiNode CloneShallow(UiNode node) => new()
+    {
+        Id = node.Id,
+        Kind = node.Kind,
+        RuntimeId = node.RuntimeId,
+        DebuggerSessionId = node.DebuggerSessionId,
+        Text = node.Text is null ? null : new LocalizedText
+        {
+            Key = node.Text.Key,
+            Fallback = node.Text.Fallback,
+        },
+        Accessibility = new Accessibility
+        {
+            Label = node.Accessibility.Label is null ? null : new LocalizedText
+            {
+                Key = node.Accessibility.Label.Key,
+                Fallback = node.Accessibility.Label.Fallback,
+            },
+            Description = node.Accessibility.Description is null ? null : new LocalizedText
+            {
+                Key = node.Accessibility.Description.Key,
+                Fallback = node.Accessibility.Description.Fallback,
+            },
+        },
+        Action = node.Action is null ? null : new UiAction
+        {
+            Kind = node.Action.Kind,
+            RuntimeId = node.Action.RuntimeId,
+            SessionId = node.Action.SessionId,
+        },
+        Children = [],
+    };
 }

@@ -1,7 +1,7 @@
 # leserpent Design Spec
 
 <p align="center">
-  <img src="../../docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="120">
+  <img src="../../assets/branding/leserpent-icon.png" alt="Leserpent feathered serpent icon" width="220">
 </p>
 
 ### eBPF Control Plane & Visual Orchestration Service

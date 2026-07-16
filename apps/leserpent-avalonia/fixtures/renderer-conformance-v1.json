@@ -98,6 +98,31 @@
               "children": []
             },
             {
+              "id": "runtime-runtime-a-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            },
+            {
               "id": "runtime-runtime-a-refresh",
               "kind": "action",
               "runtime_id": null,
@@ -169,6 +194,31 @@
               "children": []
             },
             {
+              "id": "runtime-runtime-b-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            },
+            {
               "id": "runtime-runtime-b-refresh",
               "kind": "action",
               "runtime_id": null,
@@ -237,6 +287,31 @@
                 "description": null
               },
               "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-c-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-c"
+              },
               "children": []
             },
             {
@@ -330,6 +405,31 @@
                 "description": null
               },
               "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-d-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-d"
+              },
               "children": []
             },
             {
@@ -476,6 +576,31 @@
               "children": []
             },
             {
+              "id": "runtime-runtime-c-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-c"
+              },
+              "children": []
+            },
+            {
               "id": "runtime-runtime-c-refresh",
               "kind": "action",
               "runtime_id": null,
@@ -547,6 +672,31 @@
               "children": []
             },
             {
+              "id": "runtime-runtime-a-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            },
+            {
               "id": "runtime-runtime-a-refresh",
               "kind": "action",
               "runtime_id": null,
@@ -615,6 +765,31 @@
                 "description": null
               },
               "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-d-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-d"
+              },
               "children": []
             },
             {

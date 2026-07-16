@@ -1,5 +1,9 @@
 # Leserpent Avalonia Renderer
 
+<p align="center">
+  <img src="../../assets/branding/leserpent-icon.png" alt="Leserpent feathered serpent icon" width="220">
+</p>
+
 This directory is the replaceable .NET renderer line for the Rust
 `leselang-ui` contract. It contains both the strict semantic renderer core and
 the first Avalonia desktop control shell.
@@ -57,6 +61,27 @@ Avalonia controls. Stable node IDs and accessibility metadata map to Avalonia
 Automation properties. Buttons only emit their action node ID; command lowering
 remains in the shared Rust boundary.
 
+Remote startup validation failures open a bounded, token-redacted error window
+instead of terminating with an unhandled exception. `Escape` and the explicit
+close button exit with status 2. Its real control metadata can be checked with
+`dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-startup-error`.
+
+The remote desktop toolbar filters the local runtime projection by name, ID,
+tag, or status. Input is bounded to 128 characters and debounced; `Ctrl+F` or
+`Cmd+F` focuses it, Escape clears it, and no filter text is sent to the server
+or written to cache. Run the deterministic projection check with
+`dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-remote-filter`.
+At widths below 780 pixels, the identity, filter, and connection surfaces switch
+to a compact multi-row layout without hiding origin, CA, credential provenance,
+revision, or reconnect controls. Verify the breakpoint contract with
+`dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-remote-layout`.
+Document remounts and incremental patches preserve keyboard focus by stable UI
+node ID when the focused control still exists, including replacement of an
+updated action control. A removed action clears the pending target rather than
+transferring focus to another mutation control. Verify all paths against real
+Avalonia controls with
+`dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-focus-retention apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json`.
+
 Run the named accessibility shelf across all real-control fixtures:
 
 ```bash
@@ -71,12 +96,14 @@ the destructive button uses `#C44D2D` with white text instead of the previous
 3.841-contrast color.
 
 The smoke fixture mounts revision 3, then applies remove, update, move, and
-insert operations directly to the mounted control tree. Unchanged and moved
-controls retain object identity, while a semantic candidate and stable-ID index
-fence every visual commit. Its expected output includes `nodes=15`,
+insert operations directly to the mounted control tree. Each runtime card
+exposes a read-only Inspect action and a separately protected Refresh action.
+Unchanged and moved controls retain object identity, while a semantic candidate
+and stable-ID index fence every visual commit. Its expected output includes `nodes=18`,
 `operations=4`, `reused=1`, `virtualized=1`, `active_virtualized=1`,
-`initial_unrealized_nodes=14`, `accessibility_controls=15`,
-`accessibility_names=15`, `minimum_contrast=4.723`, and `revision=4`. The low pre-mount reuse count
+`initial_unrealized_nodes=17`, `accessibility_controls=18`,
+`accessibility_names=18`, `accessibility_actions=6`, `accessibility_help_texts=3`,
+`minimum_contrast=4.723`, and `revision=4`. The low pre-mount reuse count
 is intentional: only the root control exists while the patch is applied.
 
 The bounded-history fixture proves compiled-binding materialization beyond the
@@ -149,7 +176,10 @@ dotnet run --project \
 `--remote` accepts an HTTPS origin only. The client derives `/v1/events`,
 requires the `leserpent.events.v1` subprotocol, verifies both the explicit CA
 and TLS hostname, and never accepts plaintext or redirect fallback. An optional
-`--remote-cache ABSOLUTE_PATH` overrides the per-origin cache location.
+`--remote-cache ABSOLUTE_PATH` overrides the per-origin cache location. The
+desktop identity strip displays the canonical origin, including a non-default
+port, plus a short CA SHA-256 fingerprint; its tooltip and automation metadata
+expose the complete fingerprint without exposing the CA path.
 
 The desktop client first resolves the bearer token from the OS credential
 store, keyed by the canonical HTTPS origin. Add it without placing the token in
@@ -171,20 +201,41 @@ secret-tool store --label='Leserpent remote token' \
 `LESERPENT_REMOTE_TOKEN` remains an explicit automation fallback when no
 platform item exists. A present but malformed platform item fails closed rather
 than silently selecting the environment. Tokens are bounded to 32-4096
-non-whitespace characters and never enter snapshot cache or UI IR.
+non-whitespace characters and never enter snapshot cache or UI IR. The desktop
+status bar always shows credential provenance without exposing the value:
+Keychain, Secret Service, platform store, or a highlighted `ENV FALLBACK` badge.
+The presentation contract can be checked without loading a token using
+`dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-credential-source`.
 
 The cache atomically stores only the endpoint-redacted snapshot and matching
 revision cursor. Cached data is visibly marked stale until the server confirms
 the cursor; malformed, oversized, cross-origin, or symlinked cache state fails
 closed. Disconnects immediately mark the mounted projection stale and retry
-with capped exponential delay for at most eight attempts. `resync_required`
-clears the cursor before requesting a complete snapshot. Each runtime card also
-exposes only the typed `runtime.refresh` mutation. It is blocked while state is
-stale, requires an explicit confirmation dialog, carries the displayed runtime
+with capped exponential delay for at most eight attempts. After the bound is
+exhausted, the status bar enables an explicit `Reconnect` action; `F5` invokes
+the same read-only event-stream restart while retaining the revision cursor and
+stale projection. It never retries a mutation. `resync_required` clears the
+cursor before requesting a complete snapshot. Each runtime card exposes typed
+`runtime.inspect` and `runtime.refresh` actions. Inspect opens one reusable
+child window per runtime, with an eight-window safety bound. The child requests
+`RuntimeInspect` and bounded `RuntimeHistory` together over the same authenticated
+`/v1/wire` transport and mounts a document only when both responses carry the
+same revision and runtime identity. Runtime endpoints exist only in the strict
+wire decode DTO and are discarded before snapshot, history, UI IR, cache, or
+automation state is created. A newer live event revision reloads the matching
+open workspace; malformed, torn, or mismatched query state fails closed without
+retaining a partial document. Refresh is blocked while state is stale, requires
+an explicit confirmation dialog, carries the displayed runtime
 revision for optimistic concurrency, and is never retried automatically after
-an ambiguous network failure. The response projection and cache omit runtime
-endpoints. Mobile-specific secure storage lifecycle remains a Gate 6
-requirement.
+an ambiguous network failure. Refresh controls remain disabled during
+confirmation and transport. A successful response stays fenced until its
+runtime revision appears on the event stream; an unknown outcome stays fenced
+until a subsequent live event is observed. Disabled reasons are exposed through
+the tooltip and automation help text. Operation progress and outcomes use a
+separate persistent, dismissible live-region banner, so connection heartbeats
+cannot overwrite them. Confirmation dialogs focus Cancel by default and Escape
+always cancels. The response projection and cache omit runtime endpoints.
+Mobile-specific secure storage lifecycle remains a Gate 6 requirement.
 
 Run the transport-independent client contract check with:
 
@@ -194,8 +245,13 @@ dotnet run --project \
 ```
 
 It checks strict Rust event decoding, monotonic revisions, stale transitions,
-the reconnect bound, resync cursor reset, malformed-cache rejection, and
-per-origin cache binding without requiring a UI or network service.
+the reconnect bound and cursor-preserving manual resume, resync cursor reset,
+malformed-cache rejection, per-origin cache binding, atomic workspace query
+composition, runtime identity, and endpoint omission without requiring a UI or
+network service. The semantic workspace projection can be checked separately
+with `--verify-remote-workspace` on the Avalonia project. Against an authorized
+live server, append `--connect HTTPS_ORIGIN CA_PATH CACHE_PATH --inspect
+RUNTIME_ID` to verify the complete authenticated Inspect/History path.
 `gewyvern_validate leserpent-parity-recovery` runs this check together with an
 ignored-by-default integration test that connects the .NET client to a real
 Rust TLS/WebSocket authority, applies a confirmed HTTPS refresh, and waits for
