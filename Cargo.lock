@@ -233,6 +233,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "leselang-ui"
+version = "1.2.0"
+dependencies = [
+ "leselang-command",
+ "leserpent-domain",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "leselang-vm"
 version = "1.2.0"
 dependencies = [

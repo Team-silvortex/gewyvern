@@ -1,0 +1,14 @@
+[package]
+name = "leselang-ui"
+version.workspace = true
+edition.workspace = true
+description = "Renderer-neutral bounded UI IR for Leserpent"
+license.workspace = true
+
+[dependencies]
+leselang-command = { path = "../leselang-command" }
+leserpent-domain = { path = "../leserpent-domain" }
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

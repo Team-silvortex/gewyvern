@@ -91,6 +91,26 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     assert!(inspect_stdout.contains("runtime=runtime-a"));
     assert!(inspect_stdout.contains("endpoint=http://127.0.0.1:9411"));
 
+    let watch = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "watch",
+            "runtime-a",
+            "--count",
+            "2",
+            "--interval-ms",
+            "50",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert!(watch.status.success());
+    let watch_stdout = String::from_utf8(watch.stdout).unwrap();
+    assert_eq!(watch_stdout.lines().count(), 1);
+    assert!(watch_stdout.contains("runtime=runtime-a"));
+
     let unconfirmed = Command::new(binary)
         .args([
             "--socket",
@@ -163,6 +183,22 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     };
     assert_eq!(result.status, leserpent_domain::CommandStatus::Applied);
     assert_eq!(result.runtime.revision.0, 2);
+
+    let history = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "history",
+            "runtime-a",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert!(history.status.success());
+    let history_stdout = String::from_utf8(history.stdout).unwrap();
+    assert!(history_stdout.contains("entries=1"));
+    assert!(history_stdout.contains("\truntime-a\t2\tapplied"));
 
     let health_after_apply = Command::new(binary)
         .args(["--socket", socket.to_str().unwrap(), "--json", "health"])

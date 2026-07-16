@@ -295,6 +295,10 @@ pub enum Value {
         revision: Revision,
         runtime: Box<RuntimeProjection>,
     },
+    RuntimeHistory {
+        revision: Revision,
+        entries: Vec<CommandResult>,
+    },
     RuntimeRefresh {
         result: Box<CommandResult>,
     },
@@ -1066,6 +1070,21 @@ fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if query_runtime_id == runtime_id
             )
         }
+        (Effect::RuntimeHistory { runtime_id }, EffectOperation::Query(query)) => {
+            validate_effect_identity(
+                query.schema_version,
+                &query.principal,
+                &query.capabilities,
+                &request.required_capability,
+                CAPABILITY_RUNTIME_READ,
+            )?;
+            matches!(
+                &query.query,
+                Query::RuntimeHistory {
+                    runtime_id: query_runtime_id,
+                } if query_runtime_id == runtime_id
+            )
+        }
         (Effect::RuntimeRefresh { runtime_id }, EffectOperation::Command(command)) => {
             validate_effect_identity(
                 command.schema_version,
@@ -1328,6 +1347,9 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             Ok(runtimes.len())
         }
         Value::RuntimeInspect { .. } => Ok(1),
+        Value::RuntimeHistory { entries, .. } if entries.len() <= DEFAULT_MAX_OUTPUT_ITEMS => {
+            Ok(entries.len())
+        }
         Value::RuntimeRefresh { .. } => Ok(1),
         Value::Structured { fields } if (2..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
             let mut names = BTreeSet::new();
@@ -1468,6 +1490,35 @@ fn step_from_effect_result(
                     revision,
                     runtime: Box::new(runtime),
                 })
+            }
+        }
+        (
+            Effect::RuntimeHistory { runtime_id },
+            Type::RuntimeHistory,
+            _,
+            EffectResult::Query(QueryResult::RuntimeHistory { revision, entries }),
+        ) if entries.iter().all(|entry| entry.runtime.id == *runtime_id) => {
+            if let Some(expected) = image.expected_revision
+                && expected != revision
+            {
+                fault(
+                    "LSV2101",
+                    format!(
+                        "effect revision conflict: expected {}, actual {}",
+                        expected.0, revision.0
+                    ),
+                )
+            } else if entries.len() > image.max_output_items {
+                fault(
+                    "LSV2102",
+                    format!(
+                        "effect returned {} items, limit is {}",
+                        entries.len(),
+                        image.max_output_items
+                    ),
+                )
+            } else {
+                Step::Done(Value::RuntimeHistory { revision, entries })
             }
         }
         (
@@ -1711,6 +1762,42 @@ mod tests {
                 revision: Revision(1),
                 runtime,
             }) if runtime.id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn runtime_history_reenters_with_a_bounded_typed_sequence() {
+        let program = lower(&parse(
+            "fn main() = runtime.history(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            Some(Revision(1)),
+        ) else {
+            panic!("expected history effect");
+        };
+        let EffectOperation::Query(query) = &request.operation else {
+            panic!("history must produce a query");
+        };
+        assert!(matches!(
+            &query.query,
+            Query::RuntimeHistory { runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(RuntimeId::new("runtime-a").unwrap(), "A", "http://a");
+        let result = control.query(query.clone()).unwrap();
+        assert!(matches!(
+            vm.resume(&request.continuation, EffectResult::Query(result)),
+            Step::Done(Value::RuntimeHistory {
+                revision: Revision(1),
+                entries,
+            }) if entries.is_empty()
         ));
     }
 

@@ -6,8 +6,9 @@ capability checks, continuation format, and deterministic re-entry semantics.
 ## Start
 
 1. [Current language contract](../leselang-language.md)
-2. [Leserpent 2.0 architecture](../leserpent-2-architecture.md)
-3. [Gate-based delivery roadmap](../leserpent-2-roadmap.md)
+2. [Renderer-neutral UI IR contract](../leselang-ui.md)
+3. [Leserpent 2.0 architecture](../leserpent-2-architecture.md)
+4. [Gate-based delivery roadmap](../leserpent-2-roadmap.md)
 
 ## Contracts
 

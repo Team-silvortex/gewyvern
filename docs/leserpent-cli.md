@@ -25,6 +25,16 @@ leserpent runtime list --environment production --cluster edge --role debugger
 leserpent --json runtime list
 leserpent runtime inspect runtime-a
 leserpent --json runtime inspect runtime-a
+leserpent runtime history runtime-a
+leserpent --json runtime history runtime-a
+leserpent runtime watch runtime-a
+leserpent --json runtime watch runtime-a --count 100 --interval-ms 500
+leserpent runtime list --environment production --export-leselang
+leserpent runtime list --role debugger --export-plan
+leserpent runtime inspect runtime-a --export-leselang
+leserpent runtime inspect runtime-a --export-plan
+leserpent runtime history runtime-a --export-leselang
+leserpent runtime history runtime-a --export-plan
 leserpent runtime refresh runtime-a --dry-run --expected-revision 1
 leserpent runtime refresh runtime-a --yes --idempotency-key deploy-2026-07-15
 leserpent runtime refresh runtime-a --export-leselang
@@ -40,13 +50,30 @@ fields.
 projection. Missing identifiers fail through the daemon's typed
 `RuntimeNotFound` path; the CLI never downloads the fleet and filters it locally.
 
+`runtime history` returns at most 32 applied results for one runtime, newest
+revision first. Human output is a terminal-safe table; JSON preserves the typed
+wire response. The command reads domain history and never opens the SQLite
+journal directly.
+
+`runtime watch` is a bounded CLI transport loop over the same normalized
+`runtime.inspect` query. It emits the first projection and then only changed
+revisions, flushing each human line or JSON envelope immediately. The default is
+20 polls at one-second intervals; `--count` is limited to 1-1000 and
+`--interval-ms` to 50-60000. This keeps daemon requests short-lived and avoids
+introducing a second domain or Leselang watch semantic.
+
+All three read queries support local `--export-leselang` and `--export-plan`. These
+paths require neither socket nor token. List exports normalize filters before
+rendering, and plan exports use the same shared lowering functions as real IPC
+execution, so exported and executed query envelopes cannot drift.
+
 Real refresh execution requires `--yes`; preview uses `--dry-run` and cannot be
 combined with confirmation. `--expected-revision` enables optimistic concurrency,
 while a caller-supplied `--idempotency-key` makes automation retries stable.
 `--export-leselang` is local-only, reads no token, opens no socket, and emits the
 canonical equivalent function.
 
-`--export-plan` is also local-only and emits the validated, versioned
+For refresh, `--export-plan` is also local-only and emits the validated, versioned
 `CommandPlan` JSON used by the execution path. It requires an explicit
 `--idempotency-key` so repeated exports are byte-for-byte deterministic, plus
 either `--dry-run` or `--yes` so confirmation intent is never implicit. CLI

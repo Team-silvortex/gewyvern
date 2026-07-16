@@ -84,3 +84,42 @@ fn runtime_inspect_cli_and_leselang_lower_to_the_same_query() {
     };
     assert_eq!(cli_query, leselang_query);
 }
+
+#[test]
+fn runtime_history_cli_and_leselang_lower_to_the_same_query() {
+    let options = parse_args(
+        ["runtime", "history", "runtime-a"]
+            .into_iter()
+            .map(str::to_string),
+        Some("/tmp/leserpent.sock".into()),
+        Some("operator-a".into()),
+    )
+    .unwrap();
+    let ProtocolRequest::Query(cli_query) = request_for(&options).unwrap().request else {
+        panic!("CLI history must produce a query");
+    };
+    let program = lower(&parse(
+        "fn main() = runtime.history(runtime_id: \"runtime-a\")",
+    ))
+    .unwrap();
+    let plan = lower_effect(
+        &program.function.effect,
+        &LoweringContext {
+            principal: Principal {
+                id: "operator-a".into(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            expected_revision: None,
+            command_id: CommandId::new("unused-command").unwrap(),
+            idempotency_key: IdempotencyKey::new("unused-effect").unwrap(),
+            origin: CommandOrigin::Leselang,
+            confirmation: Confirmation::NotRequired,
+            dry_run: false,
+        },
+    )
+    .unwrap();
+    let PlannedOperation::Query(leselang_query) = plan.operation else {
+        panic!("Leselang history must produce a query");
+    };
+    assert_eq!(cli_query, leselang_query);
+}

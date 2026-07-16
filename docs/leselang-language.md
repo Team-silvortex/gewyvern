@@ -5,9 +5,9 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.11.0**. The current vertical slice parses,
+Status: **Gate 2, evolving contract 0.12.0**. The current vertical slice parses,
 lowers, authorizes, suspends, serializes, restores, and resumes the read-only
-`runtime.list` and `runtime.inspect` effects plus the idempotent
+`runtime.list`, `runtime.inspect`, and `runtime.history` effects plus the idempotent
 `runtime.refresh` command effect.
 
 ## Canonical Program
@@ -33,6 +33,16 @@ fn main() = runtime.inspect(runtime_id: "runtime-a")
 `runtime.inspect` requires `runtime.read`, returns exactly one typed runtime
 projection, and fails with `RuntimeNotFound` when the identifier is absent. It
 does not lower to a filtered list or perform hidden refresh work.
+
+The canonical bounded history query is:
+
+```leselang
+fn main() = runtime.history(runtime_id: "runtime-a")
+```
+
+`runtime.history` requires `runtime.read` and returns at most 32 applied command
+results for one runtime, ordered from newest to oldest revision. It reads stable
+domain history rather than exposing persistence rows, daemon logs, or secrets.
 
 The canonical mutating program is:
 

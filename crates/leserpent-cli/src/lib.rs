@@ -3,11 +3,14 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use leselang_command::{LoweringContext, PlannedOperation, encode_plan, plan_runtime_refresh};
+use leselang_command::{
+    LoweringContext, PlannedOperation, encode_plan, plan_runtime_history, plan_runtime_inspect,
+    plan_runtime_list, plan_runtime_refresh,
+};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandId, CommandOrigin,
-    CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query,
-    QueryEnvelope, QueryResult, Revision, RuntimeId, RuntimeListFilter,
+    CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult, Revision, RuntimeId,
+    RuntimeListFilter,
 };
 use leserpent_protocol::{
     HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope,
@@ -20,6 +23,13 @@ pub struct CliOptions {
     pub json: bool,
     pub principal: String,
     pub command: CliCommand,
+    pub local_export: Option<LocalExport>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalExport {
+    Leselang,
+    Plan,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -27,7 +37,16 @@ pub enum CliCommand {
     Health,
     RuntimeList(RuntimeListFilter),
     RuntimeInspect(RuntimeId),
+    RuntimeHistory(RuntimeId),
+    RuntimeWatch(RuntimeWatchOptions),
     RuntimeRefresh(RuntimeRefreshOptions),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeWatchOptions {
+    pub runtime_id: RuntimeId,
+    pub count: u16,
+    pub interval_ms: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,7 +81,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent --socket PATH [--json] health\n  leserpent --socket PATH [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent --socket PATH [--json] runtime inspect RUNTIME_ID\n  leserpent --socket PATH [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent --socket PATH [--json] health\n  leserpent --socket PATH [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent --socket PATH [--json] runtime inspect RUNTIME_ID\n  leserpent --socket PATH [--json] runtime history RUNTIME_ID\n  leserpent --socket PATH [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent --socket PATH [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -91,23 +110,42 @@ pub fn parse_args(
             _ => break,
         }
     }
-    let command = match arguments.next().as_deref() {
+    let (command, local_export) = match arguments.next().as_deref() {
         Some("health") => {
             reject_trailing(arguments)?;
-            CliCommand::Health
+            (CliCommand::Health, None)
         }
         Some("runtime") => match arguments.next().as_deref() {
-            Some("list") => CliCommand::RuntimeList(parse_runtime_filters(arguments)?),
+            Some("list") => {
+                let (filter, export) = parse_runtime_filters(arguments)?;
+                (CliCommand::RuntimeList(filter), export)
+            }
             Some("inspect") => {
                 let runtime_id = arguments
                     .next()
                     .ok_or_else(|| CliError::Usage("runtime inspect requires RUNTIME_ID".into()))?;
                 let runtime_id = RuntimeId::new(runtime_id)
                     .map_err(|error| CliError::Usage(error.to_string()))?;
-                reject_trailing(arguments)?;
-                CliCommand::RuntimeInspect(runtime_id)
+                let export = parse_local_export(arguments)?;
+                (CliCommand::RuntimeInspect(runtime_id), export)
             }
-            Some("refresh") => CliCommand::RuntimeRefresh(parse_runtime_refresh(arguments)?),
+            Some("history") => {
+                let runtime_id = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("runtime history requires RUNTIME_ID".into()))?;
+                let runtime_id = RuntimeId::new(runtime_id)
+                    .map_err(|error| CliError::Usage(error.to_string()))?;
+                let export = parse_local_export(arguments)?;
+                (CliCommand::RuntimeHistory(runtime_id), export)
+            }
+            Some("watch") => (
+                CliCommand::RuntimeWatch(parse_runtime_watch(arguments)?),
+                None,
+            ),
+            Some("refresh") => (
+                CliCommand::RuntimeRefresh(parse_runtime_refresh(arguments)?),
+                None,
+            ),
             Some(command) => {
                 return Err(CliError::Usage(format!(
                     "unknown runtime command '{command}'"
@@ -119,6 +157,7 @@ pub fn parse_args(
         None => return Err(CliError::Usage(USAGE.into())),
     };
     if socket.is_none()
+        && local_export.is_none()
         && !matches!(
             &command,
             CliCommand::RuntimeRefresh(RuntimeRefreshOptions {
@@ -145,32 +184,58 @@ pub fn parse_args(
         json,
         principal,
         command,
+        local_export,
     })
 }
 
 pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
+    if options.local_export.is_some() {
+        return Err(CliError::Usage(
+            "local export does not produce a daemon request".into(),
+        ));
+    }
     let request = match &options.command {
         CliCommand::Health => ProtocolRequest::Health(HealthRequest {}),
-        CliCommand::RuntimeList(filter) => ProtocolRequest::Query(QueryEnvelope {
-            schema_version: DOMAIN_SCHEMA_VERSION,
-            principal: Principal {
-                id: options.principal.clone(),
-            },
-            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
-            query: Query::RuntimeList {
-                filter: filter.clone(),
-            },
-        }),
-        CliCommand::RuntimeInspect(runtime_id) => ProtocolRequest::Query(QueryEnvelope {
-            schema_version: DOMAIN_SCHEMA_VERSION,
-            principal: Principal {
-                id: options.principal.clone(),
-            },
-            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
-            query: Query::RuntimeInspect {
-                runtime_id: runtime_id.clone(),
-            },
-        }),
+        CliCommand::RuntimeList(filter) => {
+            let plan = plan_runtime_list(filter, &query_lowering_context(options))
+                .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+            let PlannedOperation::Query(query) = plan.operation else {
+                return Err(CliError::Protocol(
+                    "runtime list lowered to a non-query operation".into(),
+                ));
+            };
+            ProtocolRequest::Query(query)
+        }
+        CliCommand::RuntimeInspect(runtime_id) => {
+            let plan = plan_runtime_inspect(runtime_id, &query_lowering_context(options))
+                .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+            let PlannedOperation::Query(query) = plan.operation else {
+                return Err(CliError::Protocol(
+                    "runtime inspect lowered to a non-query operation".into(),
+                ));
+            };
+            ProtocolRequest::Query(query)
+        }
+        CliCommand::RuntimeHistory(runtime_id) => {
+            let plan = plan_runtime_history(runtime_id, &query_lowering_context(options))
+                .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+            let PlannedOperation::Query(query) = plan.operation else {
+                return Err(CliError::Protocol(
+                    "runtime history lowered to a non-query operation".into(),
+                ));
+            };
+            ProtocolRequest::Query(query)
+        }
+        CliCommand::RuntimeWatch(watch) => {
+            let plan = plan_runtime_inspect(&watch.runtime_id, &query_lowering_context(options))
+                .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+            let PlannedOperation::Query(query) = plan.operation else {
+                return Err(CliError::Protocol(
+                    "runtime watch lowered to a non-query operation".into(),
+                ));
+            };
+            ProtocolRequest::Query(query)
+        }
         CliCommand::RuntimeRefresh(refresh) if !refresh.export_leselang && !refresh.export_plan => {
             let request_id = new_request_id();
             let idempotency_key = refresh
@@ -219,56 +284,103 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
 }
 
 pub fn export_leselang(options: &CliOptions) -> Option<String> {
-    let CliCommand::RuntimeRefresh(refresh) = &options.command else {
-        return None;
-    };
-    refresh.export_leselang.then(|| {
-        format!(
+    match (&options.command, options.local_export) {
+        (CliCommand::RuntimeList(filter), Some(LocalExport::Leselang)) => {
+            let filter = filter.clone().normalized();
+            Some(format!(
+                "fn main() = runtime.list(environment: {}, cluster: {}, role: {})",
+                leselang_optional_string(filter.environment.as_deref()),
+                leselang_optional_string(filter.cluster.as_deref()),
+                leselang_optional_string(filter.role.as_deref()),
+            ))
+        }
+        (CliCommand::RuntimeInspect(runtime_id), Some(LocalExport::Leselang)) => Some(format!(
+            "fn main() = runtime.inspect(runtime_id: {})",
+            serde_json::to_string(runtime_id.as_str()).expect("string encoding cannot fail")
+        )),
+        (CliCommand::RuntimeHistory(runtime_id), Some(LocalExport::Leselang)) => Some(format!(
+            "fn main() = runtime.history(runtime_id: {})",
+            serde_json::to_string(runtime_id.as_str()).expect("string encoding cannot fail")
+        )),
+        (CliCommand::RuntimeRefresh(refresh), _) if refresh.export_leselang => Some(format!(
             "fn main() = runtime.refresh(runtime_id: {})",
             serde_json::to_string(refresh.runtime_id.as_str())
                 .expect("string encoding cannot fail")
-        )
-    })
+        )),
+        _ => None,
+    }
 }
 
 pub fn export_plan(options: &CliOptions) -> Result<Option<String>, CliError> {
-    let CliCommand::RuntimeRefresh(refresh) = &options.command else {
-        return Ok(None);
-    };
-    if !refresh.export_plan {
-        return Ok(None);
+    let plan = match (&options.command, options.local_export) {
+        (CliCommand::RuntimeList(filter), Some(LocalExport::Plan)) => {
+            plan_runtime_list(filter, &query_lowering_context(options))
+        }
+        (CliCommand::RuntimeInspect(runtime_id), Some(LocalExport::Plan)) => {
+            plan_runtime_inspect(runtime_id, &query_lowering_context(options))
+        }
+        (CliCommand::RuntimeHistory(runtime_id), Some(LocalExport::Plan)) => {
+            plan_runtime_history(runtime_id, &query_lowering_context(options))
+        }
+        (CliCommand::RuntimeRefresh(refresh), _) if refresh.export_plan => {
+            let idempotency_key = refresh
+                .idempotency_key
+                .as_ref()
+                .expect("validated plan export idempotency key");
+            plan_runtime_refresh(
+                &refresh.runtime_id,
+                &LoweringContext {
+                    principal: Principal {
+                        id: options.principal.clone(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+                    expected_revision: refresh.expected_revision,
+                    command_id: CommandId::new(idempotency_key.clone())
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    idempotency_key: IdempotencyKey::new(idempotency_key.clone())
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    origin: CommandOrigin::Cli,
+                    confirmation: if refresh.confirmed {
+                        Confirmation::Confirmed
+                    } else {
+                        Confirmation::NotRequired
+                    },
+                    dry_run: refresh.dry_run,
+                },
+            )
+        }
+        _ => return Ok(None),
     }
-    let idempotency_key = refresh
-        .idempotency_key
-        .as_ref()
-        .expect("validated plan export idempotency key");
-    let plan = plan_runtime_refresh(
-        &refresh.runtime_id,
-        &LoweringContext {
-            principal: Principal {
-                id: options.principal.clone(),
-            },
-            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
-            expected_revision: refresh.expected_revision,
-            command_id: CommandId::new(idempotency_key.clone())
-                .map_err(|error| CliError::Protocol(error.to_string()))?,
-            idempotency_key: IdempotencyKey::new(idempotency_key.clone())
-                .map_err(|error| CliError::Protocol(error.to_string()))?,
-            origin: CommandOrigin::Cli,
-            confirmation: if refresh.confirmed {
-                Confirmation::Confirmed
-            } else {
-                Confirmation::NotRequired
-            },
-            dry_run: refresh.dry_run,
-        },
-    )
     .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
     let encoded = encode_plan(&plan)
         .map_err(|error| CliError::Protocol(format!("plan encoding failed: {error:?}")))?;
     String::from_utf8(encoded)
         .map(Some)
         .map_err(|error| CliError::Protocol(format!("plan encoding is not UTF-8: {error}")))
+}
+
+fn query_lowering_context(options: &CliOptions) -> LoweringContext {
+    LoweringContext {
+        principal: Principal {
+            id: options.principal.clone(),
+        },
+        capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+        expected_revision: None,
+        command_id: CommandId::new("unused-query-command")
+            .expect("static query command identifier is valid"),
+        idempotency_key: IdempotencyKey::new("unused-query-effect")
+            .expect("static query idempotency key is valid"),
+        origin: CommandOrigin::Cli,
+        confirmation: Confirmation::NotRequired,
+        dry_run: false,
+    }
+}
+
+fn leselang_optional_string(value: Option<&str>) -> String {
+    value.map_or_else(
+        || "none".to_string(),
+        |value| serde_json::to_string(value).expect("string encoding cannot fail"),
+    )
 }
 
 pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String, CliError> {
@@ -326,6 +438,24 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             },
             safe_cell(&runtime.status.status_source),
         )),
+        ProtocolResponse::Query(QueryResult::RuntimeHistory { revision, entries }) => {
+            let mut output = format!("revision={} entries={}\n", revision.0, entries.len());
+            output.push_str("COMMAND\tRUNTIME\tREVISION\tSTATUS\n");
+            for entry in entries {
+                output.push_str(&safe_cell(entry.command_id.as_str()));
+                output.push('\t');
+                output.push_str(&safe_cell(entry.runtime.id.as_str()));
+                output.push('\t');
+                output.push_str(&entry.runtime.revision.0.to_string());
+                output.push('\t');
+                output.push_str(match entry.status {
+                    CommandStatus::Planned => "planned",
+                    CommandStatus::Applied => "applied",
+                });
+                output.push('\n');
+            }
+            Ok(output.trim_end().to_string())
+        }
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
             error.code, error.message
@@ -433,9 +563,23 @@ pub fn send_request(
 
 fn parse_runtime_filters(
     mut arguments: impl Iterator<Item = String>,
-) -> Result<RuntimeListFilter, CliError> {
+) -> Result<(RuntimeListFilter, Option<LocalExport>), CliError> {
     let mut filter = RuntimeListFilter::default();
+    let mut export = None;
     while let Some(argument) = arguments.next() {
+        if matches!(argument.as_str(), "--export-leselang" | "--export-plan") {
+            let candidate = if argument == "--export-leselang" {
+                LocalExport::Leselang
+            } else {
+                LocalExport::Plan
+            };
+            if export.replace(candidate).is_some() {
+                return Err(CliError::Usage(
+                    "only one local export format may be selected".into(),
+                ));
+            }
+            continue;
+        }
         let value = arguments
             .next()
             .ok_or_else(|| CliError::Usage(format!("{argument} requires a value")))?;
@@ -458,7 +602,26 @@ fn parse_runtime_filters(
             }
         }
     }
-    Ok(filter)
+    Ok((filter, export))
+}
+
+fn parse_local_export(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<Option<LocalExport>, CliError> {
+    let Some(argument) = arguments.next() else {
+        return Ok(None);
+    };
+    let export = match argument.as_str() {
+        "--export-leselang" => LocalExport::Leselang,
+        "--export-plan" => LocalExport::Plan,
+        _ => {
+            return Err(CliError::Usage(format!(
+                "unknown runtime inspect option '{argument}'"
+            )));
+        }
+    };
+    reject_trailing(arguments)?;
+    Ok(Some(export))
 }
 
 fn parse_runtime_refresh(
@@ -552,6 +715,67 @@ fn parse_runtime_refresh(
     })
 }
 
+fn parse_runtime_watch(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<RuntimeWatchOptions, CliError> {
+    let runtime_id = arguments
+        .next()
+        .ok_or_else(|| CliError::Usage("runtime watch requires RUNTIME_ID".into()))?;
+    let runtime_id =
+        RuntimeId::new(runtime_id).map_err(|error| CliError::Usage(error.to_string()))?;
+    let mut count = 20u16;
+    let mut interval_ms = 1_000u64;
+    let mut count_set = false;
+    let mut interval_set = false;
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--count" if !count_set => {
+                count_set = true;
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--count requires an integer".into()))?;
+                count = value.parse().map_err(|_| {
+                    CliError::Usage("--count requires an integer from 1 to 1000".into())
+                })?;
+                if !(1..=1_000).contains(&count) {
+                    return Err(CliError::Usage(
+                        "--count requires an integer from 1 to 1000".into(),
+                    ));
+                }
+            }
+            "--interval-ms" if !interval_set => {
+                interval_set = true;
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--interval-ms requires an integer".into()))?;
+                interval_ms = value.parse().map_err(|_| {
+                    CliError::Usage("--interval-ms requires an integer from 50 to 60000".into())
+                })?;
+                if !(50..=60_000).contains(&interval_ms) {
+                    return Err(CliError::Usage(
+                        "--interval-ms requires an integer from 50 to 60000".into(),
+                    ));
+                }
+            }
+            "--count" | "--interval-ms" => {
+                return Err(CliError::Usage(format!(
+                    "{argument} was provided more than once"
+                )));
+            }
+            _ => {
+                return Err(CliError::Usage(format!(
+                    "unknown runtime watch option '{argument}'"
+                )));
+            }
+        }
+    }
+    Ok(RuntimeWatchOptions {
+        runtime_id,
+        count,
+        interval_ms,
+    })
+}
+
 fn reject_trailing(mut arguments: impl Iterator<Item = String>) -> Result<(), CliError> {
     match arguments.next() {
         Some(argument) => Err(CliError::Usage(format!("unexpected argument '{argument}'"))),
@@ -600,7 +824,7 @@ fn safe_cell(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use leserpent_domain::Command;
+    use leserpent_domain::{Command, Query};
 
     use super::*;
 
@@ -629,7 +853,7 @@ mod tests {
         let Query::RuntimeList { filter } = query.query else {
             panic!("runtime list must produce a list query");
         };
-        assert_eq!(filter.environment.as_deref(), Some(" production "));
+        assert_eq!(filter.environment.as_deref(), Some("production"));
         assert_eq!(filter.role.as_deref(), Some("edge"));
         assert!(query.capabilities.contains(CAPABILITY_RUNTIME_READ));
     }
@@ -652,6 +876,87 @@ mod tests {
             Query::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
         ));
         assert!(query.capabilities.contains(CAPABILITY_RUNTIME_READ));
+    }
+
+    #[test]
+    fn parser_and_exports_cover_runtime_history() {
+        let options = parse_args(
+            ["runtime", "history", "runtime-a"]
+                .into_iter()
+                .map(str::to_string),
+            Some("/tmp/leserpent.sock".into()),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let ProtocolRequest::Query(query) = request_for(&options).unwrap().request else {
+            panic!("runtime history must produce a query request");
+        };
+        assert!(matches!(
+            query.query,
+            Query::RuntimeHistory { runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+
+        let source = parse_args(
+            ["runtime", "history", "runtime-a", "--export-leselang"]
+                .into_iter()
+                .map(str::to_string),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            export_leselang(&source).as_deref(),
+            Some("fn main() = runtime.history(runtime_id: \"runtime-a\")")
+        );
+    }
+
+    #[test]
+    fn runtime_watch_is_bounded_and_reuses_inspect_query() {
+        let options = parse_args(
+            [
+                "runtime",
+                "watch",
+                "runtime-a",
+                "--count",
+                "3",
+                "--interval-ms",
+                "50",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some("/tmp/leserpent.sock".into()),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            &options.command,
+            CliCommand::RuntimeWatch(RuntimeWatchOptions {
+                runtime_id,
+                count: 3,
+                interval_ms: 50,
+            }) if runtime_id.as_str() == "runtime-a"
+        ));
+        let ProtocolRequest::Query(query) = request_for(&options).unwrap().request else {
+            panic!("runtime watch must reuse an inspect query");
+        };
+        assert!(matches!(
+            query.query,
+            Query::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+        for arguments in [
+            vec!["runtime", "watch", "runtime-a", "--count", "0"],
+            vec!["runtime", "watch", "runtime-a", "--count", "1001"],
+            vec!["runtime", "watch", "runtime-a", "--interval-ms", "49"],
+        ] {
+            assert!(
+                parse_args(
+                    arguments.into_iter().map(str::to_string),
+                    Some("/tmp/leserpent.sock".into()),
+                    None,
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
@@ -742,6 +1047,75 @@ mod tests {
             Err(CliError::Usage(
                 "--export-plan requires --idempotency-key for deterministic output".into()
             ))
+        );
+    }
+
+    #[test]
+    fn read_queries_export_canonical_leselang_without_daemon_configuration() {
+        let list = parse_args(
+            [
+                "runtime",
+                "list",
+                "--environment",
+                " production ",
+                "--export-leselang",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            export_leselang(&list).as_deref(),
+            Some(
+                "fn main() = runtime.list(environment: \"production\", cluster: none, role: none)"
+            )
+        );
+
+        let inspect = parse_args(
+            ["runtime", "inspect", "runtime-a", "--export-leselang"]
+                .into_iter()
+                .map(str::to_string),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            export_leselang(&inspect).as_deref(),
+            Some("fn main() = runtime.inspect(runtime_id: \"runtime-a\")")
+        );
+    }
+
+    #[test]
+    fn read_query_plan_export_is_valid_and_export_formats_are_exclusive() {
+        let inspect = parse_args(
+            ["runtime", "inspect", "runtime-a", "--export-plan"]
+                .into_iter()
+                .map(str::to_string),
+            None,
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let encoded = export_plan(&inspect).unwrap().unwrap();
+        let plan = leselang_command::decode_plan(encoded.as_bytes()).unwrap();
+        assert!(matches!(
+            plan.operation,
+            PlannedOperation::Query(leserpent_domain::QueryEnvelope {
+                query: Query::RuntimeInspect { runtime_id },
+                ..
+            }) if runtime_id.as_str() == "runtime-a"
+        ));
+
+        assert!(
+            parse_args(
+                ["runtime", "list", "--export-plan", "--export-leselang",]
+                    .into_iter()
+                    .map(str::to_string),
+                None,
+                None,
+            )
+            .is_err()
         );
     }
 }

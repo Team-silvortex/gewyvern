@@ -35,6 +35,7 @@ pub struct HirBranch {
 pub enum Effect {
     RuntimeList { filter: RuntimeListFilter },
     RuntimeInspect { runtime_id: RuntimeId },
+    RuntimeHistory { runtime_id: RuntimeId },
     RuntimeRefresh { runtime_id: RuntimeId },
     All { branches: Vec<HirBranch> },
 }
@@ -44,6 +45,7 @@ pub enum Effect {
 pub enum Type {
     RuntimeList,
     RuntimeInspect,
+    RuntimeHistory,
     RuntimeRefresh,
     Structured,
 }
@@ -105,7 +107,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         }]);
     };
     match callee.as_str() {
-        "runtime.list" | "runtime.inspect" | "runtime.refresh" => {
+        "runtime.list" | "runtime.inspect" | "runtime.history" | "runtime.refresh" => {
             lower_runtime_effect(callee, arguments, *span)
         }
         "all" => lower_all(arguments, *span),
@@ -151,7 +153,7 @@ fn lower_runtime_effect(
             ("runtime.list", "environment") => filter.environment = value,
             ("runtime.list", "cluster") => filter.cluster = value,
             ("runtime.list", "role") => filter.role = value,
-            ("runtime.inspect" | "runtime.refresh", "runtime_id") => {
+            ("runtime.inspect" | "runtime.history" | "runtime.refresh", "runtime_id") => {
                 match value.and_then(|value| RuntimeId::new(value).ok()) {
                     Some(value) => runtime_id = Some(value),
                     None => diagnostics.push(Diagnostic {
@@ -168,8 +170,10 @@ fn lower_runtime_effect(
             }),
         }
     }
-    if matches!(callee, "runtime.inspect" | "runtime.refresh")
-        && runtime_id.is_none()
+    if matches!(
+        callee,
+        "runtime.inspect" | "runtime.history" | "runtime.refresh"
+    ) && runtime_id.is_none()
         && diagnostics.is_empty()
     {
         diagnostics.push(Diagnostic {
@@ -195,6 +199,13 @@ fn lower_runtime_effect(
                 runtime_id: runtime_id.expect("validated runtime.inspect identifier"),
             },
             Type::RuntimeInspect,
+            CAPABILITY_RUNTIME_READ,
+        ),
+        "runtime.history" => (
+            Effect::RuntimeHistory {
+                runtime_id: runtime_id.expect("validated runtime.history identifier"),
+            },
+            Type::RuntimeHistory,
             CAPABILITY_RUNTIME_READ,
         ),
         "runtime.refresh" => (
@@ -371,6 +382,23 @@ mod tests {
         assert!(matches!(
             program.function.effect,
             Effect::RuntimeInspect { ref runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn runtime_history_lowers_to_typed_read_effect() {
+        let program = lower(&parse(
+            "fn main() = runtime.history(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::RuntimeHistory);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_RUNTIME_READ]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::RuntimeHistory { ref runtime_id } if runtime_id.as_str() == "runtime-a"
         ));
     }
 

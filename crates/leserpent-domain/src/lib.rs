@@ -9,6 +9,7 @@ pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
 pub const RUNTIME_STATUS_REFRESH_EFFECT_KIND: &str = "gewyvern.status.refresh";
+pub const MAX_RUNTIME_HISTORY_ENTRIES: usize = 32;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -63,6 +64,7 @@ pub enum Command {
 pub enum Query {
     RuntimeList { filter: RuntimeListFilter },
     RuntimeInspect { runtime_id: RuntimeId },
+    RuntimeHistory { runtime_id: RuntimeId },
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -243,6 +245,10 @@ pub enum QueryResult {
         revision: Revision,
         runtime: RuntimeProjection,
     },
+    RuntimeHistory {
+        revision: Revision,
+        entries: Vec<CommandResult>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -332,7 +338,9 @@ impl CommandPlan {
         }
         let (required_capability, domain_schema, capabilities) = match &self.operation {
             PlannedOperation::Query(envelope) => match &envelope.query {
-                Query::RuntimeList { .. } | Query::RuntimeInspect { .. } => (
+                Query::RuntimeList { .. }
+                | Query::RuntimeInspect { .. }
+                | Query::RuntimeHistory { .. } => (
                     CAPABILITY_RUNTIME_READ,
                     envelope.schema_version,
                     &envelope.capabilities,
@@ -547,6 +555,35 @@ impl InMemoryControlPlane {
                 Ok(QueryResult::RuntimeInspect {
                     revision: Revision(self.revision),
                     runtime,
+                })
+            }
+            Query::RuntimeHistory { runtime_id } => {
+                if !self.runtimes.contains_key(&runtime_id) {
+                    return Err(DomainError::RuntimeNotFound {
+                        runtime_id: runtime_id.as_str().to_string(),
+                    });
+                }
+                let mut entries = self
+                    .applied
+                    .values()
+                    .filter_map(|applied| match &applied.command {
+                        Command::RuntimeRefresh {
+                            runtime_id: command_runtime_id,
+                        } if command_runtime_id == &runtime_id => Some(applied.result.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                entries.sort_by(|left, right| {
+                    right
+                        .runtime
+                        .revision
+                        .cmp(&left.runtime.revision)
+                        .then_with(|| left.command_id.cmp(&right.command_id))
+                });
+                entries.truncate(MAX_RUNTIME_HISTORY_ENTRIES);
+                Ok(QueryResult::RuntimeHistory {
+                    revision: Revision(self.revision),
+                    entries,
                 })
             }
         }
@@ -895,6 +932,42 @@ mod tests {
                 runtime_id: "missing".into()
             }
         );
+    }
+
+    #[test]
+    fn runtime_history_is_newest_first_and_bounded() {
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(runtime_id.clone(), "A", "http://a");
+        for index in 0..40 {
+            let mut envelope = refresh_envelope(
+                runtime_id.clone(),
+                &format!("command-{index}"),
+                &format!("key-{index}"),
+            );
+            envelope.expected_revision = Some(Revision(index + 1));
+            control.execute(envelope).unwrap();
+        }
+        let result = control
+            .query(QueryEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                query: Query::RuntimeHistory {
+                    runtime_id: runtime_id.clone(),
+                },
+            })
+            .unwrap();
+        let QueryResult::RuntimeHistory { revision, entries } = result else {
+            panic!("runtime history must return a history result");
+        };
+        assert_eq!(revision, Revision(41));
+        assert_eq!(entries.len(), MAX_RUNTIME_HISTORY_ENTRIES);
+        assert_eq!(entries.first().unwrap().runtime.revision, Revision(41));
+        assert_eq!(entries.last().unwrap().runtime.revision, Revision(10));
+        assert!(entries.iter().all(|entry| entry.runtime.id == runtime_id));
     }
 
     #[test]

@@ -128,8 +128,14 @@ idempotency keys, and local-only canonical Leselang export. A parity test parses
 lowers, and compares the exported command. Local `--export-plan` now emits the
 same normalized refresh plan used for execution and requires an explicit stable
 idempotency key. A real authenticated IPC and CLI/Leselang parity fixture now
-covers the dedicated `runtime inspect` query. Broader watch/history/export operations remain before
-Gate 3 exits.
+covers the dedicated `runtime inspect` query. Runtime list and inspect now also
+export canonical Leselang and validated plans locally through the same lowering
+used for IPC execution. Bounded `runtime history` now returns newest-first domain
+results through authenticated IPC, VM re-entry, canonical export, and a parity
+fixture without exposing journal rows. The native CLI now adds a bounded,
+revision-deduplicated watch loop over the same normalized inspect plan, with
+line-flushed human and JSON output. Local Gate 3 operation breadth is complete;
+authenticated remote CLI transport remains under the Gate 6 transport boundary.
 
 Exit: every migrated operation is executable through CLI and Leselang with the
 same parity fixtures.
@@ -144,6 +150,17 @@ Build the first replaceable GUI path.
 - Avalonia renderer with compiled bindings and virtualization
 - fleet list, runtime child workspace, logs, and one debugger workflow
 - GUI action inspection, dry-run, Leselang export, and audit correlation
+
+The first renderer-neutral slice now exists in `crates/leselang-ui`. It lowers
+the typed fleet projection into a bounded `UiDocument`, resolves revision-fenced
+typed events through the shared `CommandPlan` path, and computes deterministic
+remove/insert/move/update patches over stable node IDs. Validation rejects
+duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
+and actions rebound to another runtime. No endpoint, renderer, persistence,
+transport, HTML, script, or adapter type enters the IR. Avalonia rendering and
+broader child-workspace/debugger documents remain. A framework-independent
+patch application reference now fences revisions and rejects malformed graph
+edits; round-trip fixtures establish the semantic renderer conformance baseline.
 
 Exit: the vertical slice contains no direct adapter or persistence access and
 passes GUI/CLI/Leselang equivalence tests.

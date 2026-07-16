@@ -2,7 +2,7 @@ use leselang_hir::Effect;
 use leserpent_domain::{
     CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope,
     CommandId, CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal,
-    Query, QueryEnvelope, Revision, RuntimeId,
+    Query, QueryEnvelope, Revision, RuntimeId, RuntimeListFilter,
 };
 pub use leserpent_domain::{COMMAND_PLAN_SCHEMA_VERSION, CommandPlan, PlannedOperation};
 
@@ -71,7 +71,9 @@ pub fn lower_effect(
     context: &LoweringContext,
 ) -> Result<CommandPlan, LoweringError> {
     let required_capability = match effect {
-        Effect::RuntimeList { .. } | Effect::RuntimeInspect { .. } => CAPABILITY_RUNTIME_READ,
+        Effect::RuntimeList { .. }
+        | Effect::RuntimeInspect { .. }
+        | Effect::RuntimeHistory { .. } => CAPABILITY_RUNTIME_READ,
         Effect::RuntimeRefresh { .. } => CAPABILITY_RUNTIME_REFRESH,
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
     };
@@ -81,34 +83,70 @@ pub fn lower_effect(
         });
     }
     let plan = match effect {
-        Effect::RuntimeList { filter } => CommandPlan {
-            schema_version: COMMAND_PLAN_SCHEMA_VERSION,
-            required_capability: CAPABILITY_RUNTIME_READ.to_string(),
-            operation: PlannedOperation::Query(QueryEnvelope {
-                schema_version: DOMAIN_SCHEMA_VERSION,
-                principal: context.principal.clone(),
-                capabilities: context.capabilities.clone(),
-                query: Query::RuntimeList {
-                    filter: filter.clone().normalized(),
-                },
-            }),
-        },
-        Effect::RuntimeInspect { runtime_id } => CommandPlan {
-            schema_version: COMMAND_PLAN_SCHEMA_VERSION,
-            required_capability: CAPABILITY_RUNTIME_READ.to_string(),
-            operation: PlannedOperation::Query(QueryEnvelope {
-                schema_version: DOMAIN_SCHEMA_VERSION,
-                principal: context.principal.clone(),
-                capabilities: context.capabilities.clone(),
-                query: Query::RuntimeInspect {
-                    runtime_id: runtime_id.clone(),
-                },
-            }),
-        },
+        Effect::RuntimeList { filter } => plan_runtime_list(filter, context)?,
+        Effect::RuntimeInspect { runtime_id } => plan_runtime_inspect(runtime_id, context)?,
+        Effect::RuntimeHistory { runtime_id } => plan_runtime_history(runtime_id, context)?,
         Effect::RuntimeRefresh { runtime_id } => plan_runtime_refresh(runtime_id, context)?,
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
     };
     Ok(plan)
+}
+
+pub fn plan_runtime_list(
+    filter: &RuntimeListFilter,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    plan_runtime_query(
+        Query::RuntimeList {
+            filter: filter.clone().normalized(),
+        },
+        context,
+    )
+}
+
+pub fn plan_runtime_inspect(
+    runtime_id: &RuntimeId,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    plan_runtime_query(
+        Query::RuntimeInspect {
+            runtime_id: runtime_id.clone(),
+        },
+        context,
+    )
+}
+
+pub fn plan_runtime_history(
+    runtime_id: &RuntimeId,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    plan_runtime_query(
+        Query::RuntimeHistory {
+            runtime_id: runtime_id.clone(),
+        },
+        context,
+    )
+}
+
+fn plan_runtime_query(
+    query: Query,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    if !context.capabilities.contains(CAPABILITY_RUNTIME_READ) {
+        return Err(LoweringError::MissingCapability {
+            capability: CAPABILITY_RUNTIME_READ,
+        });
+    }
+    Ok(CommandPlan {
+        schema_version: COMMAND_PLAN_SCHEMA_VERSION,
+        required_capability: CAPABILITY_RUNTIME_READ.to_string(),
+        operation: PlannedOperation::Query(QueryEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            principal: context.principal.clone(),
+            capabilities: context.capabilities.clone(),
+            query,
+        }),
+    })
 }
 
 pub fn plan_runtime_refresh(
@@ -232,6 +270,24 @@ mod tests {
             plan.operation,
             PlannedOperation::Query(QueryEnvelope {
                 query: Query::RuntimeInspect { runtime_id },
+                ..
+            }) if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn runtime_history_lowers_to_frontend_neutral_query_plan() {
+        let program = lower(&parse(
+            "fn main() = runtime.history(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let plan =
+            lower_effect(&program.function.effect, &context(CommandOrigin::Leselang)).unwrap();
+        assert_eq!(plan.required_capability, CAPABILITY_RUNTIME_READ);
+        assert!(matches!(
+            plan.operation,
+            PlannedOperation::Query(QueryEnvelope {
+                query: Query::RuntimeHistory { runtime_id },
                 ..
             }) if runtime_id.as_str() == "runtime-a"
         ));

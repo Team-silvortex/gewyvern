@@ -5,6 +5,7 @@ members = [
     "crates/leselang-command",
     "crates/leselang-hir",
     "crates/leselang-syntax",
+    "crates/leselang-ui",
     "crates/leselang-vm",
     "crates/leserpent-domain",
     "crates/leserpent-adapters",
