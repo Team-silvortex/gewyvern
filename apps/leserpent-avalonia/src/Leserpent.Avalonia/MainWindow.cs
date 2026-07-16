@@ -23,6 +23,8 @@ internal sealed class MainWindow : Window
     public int UnrealizedVirtualItemCount => renderer.UnrealizedVirtualItemCount;
     public int InitialUnrealizedNodeCount { get; }
     public int UnrealizedNodeCount => renderer.UnrealizedNodeCount;
+    public int InitialDebuggerCancelButtonCount { get; }
+    public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
     public ulong Revision { get; }
 
     public MainWindow(RendererFixture fixture)
@@ -36,6 +38,7 @@ internal sealed class MainWindow : Window
 
         renderer = new AvaloniaDocumentRenderer(OnActionInvoked);
         renderer.Mount(fixture.Previous);
+        InitialDebuggerCancelButtonCount = renderer.RealizedDebuggerCancelButtonCount;
         renderer.Apply(fixture.Patch);
         RequireExpectedDocument(renderer.Document, fixture.Next);
 
@@ -96,10 +99,9 @@ internal sealed class MainWindow : Window
 
     private static void RequireExpectedDocument(UiDocument actual, UiDocument expected)
     {
-        var options = RendererJson.CreateOptions();
         if (!JsonNode.DeepEquals(
-            JsonSerializer.SerializeToNode(actual, options),
-            JsonSerializer.SerializeToNode(expected, options)))
+            JsonSerializer.SerializeToNode(actual, RendererJsonContext.Default.UiDocument),
+            JsonSerializer.SerializeToNode(expected, RendererJsonContext.Default.UiDocument)))
         {
             throw new InvalidDataException("Avalonia patch result does not match the fixture");
         }

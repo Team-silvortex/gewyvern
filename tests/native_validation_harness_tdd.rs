@@ -21,6 +21,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"container-validation-summary\""));
     assert!(binary.contains("\"ftp-denied-container-validation\""));
     assert!(binary.contains("\"ldap-bind-denied-container-validation\""));
+    assert!(binary.contains("\"leserpent-aot\""));
     assert!(binary.contains("\"package-install-smoke\""));
     assert!(binary.contains("\"remote-linux-host-validation\""));
     assert!(binary.contains("\"linux-attach-smoke\""));
@@ -103,6 +104,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_debugger_cross_validation"));
     assert!(mod_file.contains("run_ftp_denied_container_validation"));
     assert!(mod_file.contains("run_ldap_bind_denied_container_validation"));
+    assert!(mod_file.contains("run_leserpent_aot_validation"));
     assert!(mod_file.contains("run_socket_roundtrip_demo"));
     assert!(mod_file.contains("run_training_dataset_roundtrip_demo"));
     assert!(mod_file.contains("run_external_engine_roundtrip_demo"));
@@ -133,6 +135,28 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
         read_repo_file("src/validation_harness/stack_suites.rs").contains("evidence-index.json")
     );
     assert!(mod_file.contains("write_stack_resilience_summary"));
+}
+
+#[test]
+fn leserpent_native_aot_proof_is_native_and_fail_closed() {
+    let harness = read_repo_file("src/validation_harness/leserpent_aot.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(harness.contains("--locked-mode"));
+    assert!(harness.contains("--no-restore"));
+    assert!(harness.contains("NativeMagic::Elf"));
+    assert!(harness.contains("NativeMagic::MachO64"));
+    assert!(!harness.contains("NativeMagic::Pe"));
+    assert!(harness.contains("MAX_ARTIFACT_FILES"));
+    assert!(harness.contains("renderer-debugger-conformance-v1.json"));
+    assert!(harness.contains("initial_debugger_cancel_buttons=1"));
+    assert!(harness.contains("remaining_debugger_cancel_buttons=0"));
+    assert!(harness.contains("artifact-manifest.json"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(!harness.contains("Command::new(\"sh\")"));
+    assert!(!harness.contains("sudo"));
+    assert!(binary.contains("print_leserpent_aot_help"));
+    assert!(binary.contains("missing_native_aot_dependency"));
 }
 
 #[test]

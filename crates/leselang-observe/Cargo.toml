@@ -1,0 +1,18 @@
+[package]
+name = "leselang-observe"
+version.workspace = true
+edition.workspace = true
+description = "Sanitized VM-to-UI projections for Leserpent"
+license.workspace = true
+
+[dependencies]
+leselang-command = { path = "../leselang-command" }
+leselang-hir = { path = "../leselang-hir" }
+leselang-ui = { path = "../leselang-ui" }
+leselang-vm = { path = "../leselang-vm" }
+leserpent-domain = { path = "../leserpent-domain" }
+serde.workspace = true
+
+[dev-dependencies]
+leselang-syntax = { path = "../leselang-syntax" }
+serde_json.workspace = true

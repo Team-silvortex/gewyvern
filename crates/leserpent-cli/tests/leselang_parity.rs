@@ -42,7 +42,9 @@ fn exported_refresh_lowers_to_the_same_domain_command() {
     let PlannedOperation::Command(command) = plan.operation else {
         panic!("exported refresh must lower to a command");
     };
-    let Command::RuntimeRefresh { runtime_id } = command.command;
+    let Command::RuntimeRefresh { runtime_id } = command.command else {
+        panic!("refresh export must lower to runtime refresh");
+    };
     assert_eq!(runtime_id, cli_refresh.runtime_id);
 }
 

@@ -5,11 +5,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::types::Value;
-use rusqlite::{Connection, OpenFlags, TransactionBehavior, params, params_from_iter};
+use rusqlite::{
+    Connection, MappedRows, OpenFlags, Row, TransactionBehavior, params, params_from_iter,
+};
+
+use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
 use crate::{EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH};
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 7;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 8;
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
@@ -17,6 +21,7 @@ const MAX_COMPACTION_RECORDS: i64 = 1_000;
 const OWNER_LEASE_DURATION_MS: i64 = 30_000;
 const MAX_EFFECT_TASKS: i64 = EFFECT_QUEUE_CAPACITY as i64;
 const MAX_EFFECT_LEASE_MS: i64 = 5 * 60 * 1_000;
+pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: i64 = 4_096;
 static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -255,6 +260,106 @@ impl Journal {
             });
         }
         Ok(entries)
+    }
+
+    pub fn append_runtime_log(
+        &mut self,
+        runtime_id: &RuntimeId,
+        level: RuntimeLogLevel,
+        message: &str,
+    ) -> Result<u64, String> {
+        self.ensure_owner()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        transaction
+            .execute(
+                "INSERT INTO runtime_logs (runtime_id, level, message, created_at_unix_ms)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    runtime_id.as_str(),
+                    log_level_label(level),
+                    message,
+                    unix_time_ms()?
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        let sequence = transaction.last_insert_rowid();
+        transaction
+            .execute(
+                "DELETE FROM runtime_logs
+                 WHERE runtime_id = ?1 AND sequence <= (
+                     SELECT COALESCE(MAX(sequence), 0) FROM (
+                         SELECT sequence FROM runtime_logs
+                         WHERE runtime_id = ?1
+                         ORDER BY sequence DESC
+                         LIMIT -1 OFFSET ?2
+                     )
+                 )",
+                params![runtime_id.as_str(), MAX_PERSISTED_RUNTIME_LOG_ENTRIES],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        u64::try_from(sequence).map_err(|_| "runtime log sequence is out of range".to_string())
+    }
+
+    pub fn load_runtime_logs(
+        &self,
+        runtime_id: &RuntimeId,
+        after_sequence: Option<u64>,
+        limit: u16,
+    ) -> Result<Vec<RuntimeLogRecord>, String> {
+        let rows = match after_sequence {
+            Some(value) => {
+                let after = match i64::try_from(value) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(Vec::new()),
+                };
+                let mut statement = self
+                    .connection
+                    .prepare(
+                        "SELECT sequence, level, message FROM runtime_logs
+                         WHERE runtime_id = ?1 AND sequence > ?2
+                         ORDER BY sequence ASC LIMIT ?3",
+                    )
+                    .map_err(|error| error.to_string())?;
+                collect_log_rows(
+                    statement
+                        .query_map(
+                            params![runtime_id.as_str(), after, i64::from(limit)],
+                            map_log_row,
+                        )
+                        .map_err(|error| error.to_string())?,
+                )?
+            }
+            None => {
+                let mut statement = self
+                    .connection
+                    .prepare(
+                        "SELECT sequence, level, message FROM (
+                             SELECT sequence, level, message FROM runtime_logs
+                             WHERE runtime_id = ?1 ORDER BY sequence DESC LIMIT ?2
+                         ) ORDER BY sequence ASC",
+                    )
+                    .map_err(|error| error.to_string())?;
+                collect_log_rows(
+                    statement
+                        .query_map(params![runtime_id.as_str(), i64::from(limit)], map_log_row)
+                        .map_err(|error| error.to_string())?,
+                )?
+            }
+        };
+        let mut records = Vec::with_capacity(rows.len());
+        for (sequence, level, message) in rows {
+            records.push(RuntimeLogRecord {
+                sequence: u64::try_from(sequence)
+                    .map_err(|_| "runtime log sequence is out of range".to_string())?,
+                level: parse_log_level(&level)?,
+                message,
+            });
+        }
+        Ok(records)
     }
 
     pub fn load_snapshots(&self) -> Result<Vec<JournalSnapshot>, String> {
@@ -866,10 +971,48 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         4 => migrate_schema_4_to_5(connection),
         5 => migrate_schema_5_to_6(connection),
         6 => migrate_schema_6_to_7(connection),
+        7 => migrate_schema_7_to_8(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_7_to_8(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE runtime_logs (
+                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                 runtime_id TEXT NOT NULL,
+                 level TEXT NOT NULL CHECK (level IN ('trace', 'debug', 'info', 'warning', 'error')),
+                 message TEXT NOT NULL CHECK (length(CAST(message AS BLOB)) <= 65536),
+                 created_at_unix_ms INTEGER NOT NULL CHECK (created_at_unix_ms >= 0)
+             ) STRICT;
+             CREATE INDEX runtime_logs_by_runtime_sequence
+                 ON runtime_logs (runtime_id, sequence);",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (8, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 8 WHERE key = 'schema_version' AND value = 7",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(8)
 }
 
 fn migrate_schema_6_to_7(connection: &mut Connection) -> Result<i64, String> {
@@ -1098,9 +1241,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (7, 1, 7) {
-        return Err("invalid runtime journal schema 7 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (8, 1, 8) {
+        return Err("invalid runtime journal schema 8 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -1110,23 +1253,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 7 timestamp column".into());
+        return Err("invalid runtime journal schema 8 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -1138,9 +1281,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 7 effect columns".into());
+        return Err("invalid runtime journal schema 8 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -1150,9 +1293,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 7 effect claim index".into());
+        return Err("invalid runtime journal schema 8 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
@@ -1161,11 +1304,67 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 7: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 7 journal kind".into());
+        return Err("invalid runtime journal schema 8 journal kind".into());
+    }
+    let log_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('runtime_logs')
+             WHERE name IN ('sequence', 'runtime_id', 'level', 'message', 'created_at_unix_ms')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+    if log_columns != 5 {
+        return Err("invalid runtime journal schema 8 log columns".into());
+    }
+    let log_index: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'runtime_logs_by_runtime_sequence'
+               AND tbl_name = 'runtime_logs'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+    if log_index != 1 {
+        return Err("invalid runtime journal schema 8 log index".into());
     }
     Ok(())
+}
+
+fn log_level_label(level: RuntimeLogLevel) -> &'static str {
+    match level {
+        RuntimeLogLevel::Trace => "trace",
+        RuntimeLogLevel::Debug => "debug",
+        RuntimeLogLevel::Info => "info",
+        RuntimeLogLevel::Warning => "warning",
+        RuntimeLogLevel::Error => "error",
+    }
+}
+
+fn parse_log_level(value: &str) -> Result<RuntimeLogLevel, String> {
+    match value {
+        "trace" => Ok(RuntimeLogLevel::Trace),
+        "debug" => Ok(RuntimeLogLevel::Debug),
+        "info" => Ok(RuntimeLogLevel::Info),
+        "warning" => Ok(RuntimeLogLevel::Warning),
+        "error" => Ok(RuntimeLogLevel::Error),
+        _ => Err(format!("invalid persisted runtime log level '{value}'")),
+    }
+}
+
+fn map_log_row(row: &Row<'_>) -> rusqlite::Result<(i64, String, String)> {
+    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+}
+
+fn collect_log_rows<F>(rows: MappedRows<'_, F>) -> Result<Vec<(i64, String, String)>, String>
+where
+    F: FnMut(&Row<'_>) -> rusqlite::Result<(i64, String, String)>,
+{
+    rows.map(|row| row.map_err(|error| error.to_string()))
+        .collect()
 }
 
 fn acquire_owner(connection: &mut Connection, owner_token: &str) -> Result<(), String> {

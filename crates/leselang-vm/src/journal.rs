@@ -8,14 +8,15 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, pa
 
 use crate::{
     BranchCompletion, BranchOutcome, Cancellation, CancellationReason, ContinuationImage,
-    ContinuationToken, DEFAULT_MAX_OUTPUT_ITEMS, DispatchLease, EffectError, EffectRequest, Fault,
-    MAX_CONTINUATION_BYTES, MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES,
-    MergePlan, RetentionPolicy, RetryDisposition, Step, continuation_age_order, encode_json_capped,
-    merge_declared, valid_continuation_token, validate_effect_error, validate_effect_request,
-    validate_image, validate_merge_plan, validate_value,
+    ContinuationToken, DEFAULT_MAX_OUTPUT_ITEMS, DebuggerAuditContext, DebuggerAuditRecord,
+    DispatchLease, EffectError, EffectRequest, Fault, MAX_CONTINUATION_BYTES,
+    MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, MergePlan, RetentionPolicy,
+    RetryDisposition, Step, continuation_age_order, encode_json_capped, merge_declared,
+    valid_continuation_token, validate_effect_error, validate_effect_request, validate_image,
+    validate_merge_plan, validate_value,
 };
 
-pub const JOURNAL_SCHEMA_VERSION: u32 = 5;
+pub const JOURNAL_SCHEMA_VERSION: u32 = 6;
 pub const MAX_JOURNAL_RECORDS: usize = 10_000;
 pub const MAX_JOURNAL_ENTRY_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_JOURNAL_TOTAL_BYTES: usize = 64 * 1024 * 1024;
@@ -56,6 +57,14 @@ pub(crate) enum Journal {
 pub(crate) struct EphemeralJournal {
     dispatches: BTreeMap<ContinuationToken, EphemeralDispatch>,
     merge_groups: BTreeMap<ContinuationToken, EphemeralMergeGroup>,
+    debugger_audits: BTreeMap<String, EphemeralDebuggerAudit>,
+}
+
+struct EphemeralDebuggerAudit {
+    token: ContinuationToken,
+    idempotency_key: String,
+    principal_id: String,
+    record: DebuggerAuditRecord,
 }
 
 struct EphemeralMergeGroup {
@@ -196,6 +205,29 @@ impl Journal {
         match self {
             Self::Ephemeral(journal) => journal.cancel(image, step),
             Self::Sqlite(journal) => journal.cancel(image, step),
+        }
+    }
+
+    pub fn cancel_audited(
+        &mut self,
+        image: &ContinuationImage,
+        step: &Step,
+        audit: &DebuggerAuditContext,
+        now_ms: u64,
+    ) -> Result<(Step, DebuggerAuditRecord), Fault> {
+        match self {
+            Self::Ephemeral(journal) => journal.cancel_audited(image, step, audit, now_ms),
+            Self::Sqlite(journal) => journal.cancel_audited(image, step, audit, now_ms),
+        }
+    }
+
+    pub fn debugger_audit(&self, command_id: &str) -> Result<Option<DebuggerAuditRecord>, Fault> {
+        match self {
+            Self::Ephemeral(journal) => Ok(journal
+                .debugger_audits
+                .get(command_id)
+                .map(|entry| entry.record.clone())),
+            Self::Sqlite(journal) => journal.debugger_audit(command_id),
         }
     }
 
@@ -419,6 +451,54 @@ impl EphemeralJournal {
         }
         self.finalize_merge_group(&image.token)?;
         Ok(step.clone())
+    }
+
+    fn cancel_audited(
+        &mut self,
+        image: &ContinuationImage,
+        step: &Step,
+        audit: &DebuggerAuditContext,
+        now_ms: u64,
+    ) -> Result<(Step, DebuggerAuditRecord), Fault> {
+        let command_id = audit.command_id.as_str();
+        if let Some(existing) = self.debugger_audits.get(command_id) {
+            if existing.token == image.token
+                && existing.idempotency_key == audit.idempotency_key.as_str()
+                && existing.principal_id == audit.principal.id
+                && audit_matches_record(audit, &existing.record)
+            {
+                let authoritative = self
+                    .dispatches
+                    .get(&image.token)
+                    .and_then(|dispatch| dispatch.terminal_step.clone())
+                    .ok_or_else(|| {
+                        journal_fault("LSV4032", "debugger audit has no terminal step")
+                    })?;
+                return Ok((authoritative, existing.record.clone()));
+            }
+            return Err(journal_fault("LSV4033", "debugger command audit conflicts"));
+        }
+        if self.debugger_audits.values().any(|existing| {
+            existing.principal_id == audit.principal.id
+                && existing.idempotency_key == audit.idempotency_key.as_str()
+        }) {
+            return Err(journal_fault(
+                "LSV4033",
+                "debugger idempotency key was reused",
+            ));
+        }
+        let authoritative = self.cancel(image, step)?;
+        let record = debugger_audit_record(audit, now_ms);
+        self.debugger_audits.insert(
+            command_id.to_string(),
+            EphemeralDebuggerAudit {
+                token: image.token.clone(),
+                idempotency_key: audit.idempotency_key.as_str().to_string(),
+                principal_id: audit.principal.id.clone(),
+                record: record.clone(),
+            },
+        );
+        Ok((authoritative, record))
     }
 
     fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
@@ -842,14 +922,14 @@ impl SqliteJournal {
                      COMMIT;",
                 )
                 .map_err(|error| journal_error("LSV4003", "failed to migrate journal", error))?;
-        } else if !matches!(version, 4 | JOURNAL_SCHEMA_VERSION) {
+        } else if !matches!(version, 4 | 5 | JOURNAL_SCHEMA_VERSION) {
             return Err(journal_fault(
                 "LSV4004",
-                format!("unsupported journal version {version}, expected 1 through 5"),
+                format!("unsupported journal version {version}, expected 1 through 6"),
             ));
         }
 
-        if version != JOURNAL_SCHEMA_VERSION {
+        if version < 5 {
             connection
                 .execute_batch(
                     "BEGIN IMMEDIATE;
@@ -878,6 +958,32 @@ impl SqliteJournal {
                 )
                 .map_err(|error| {
                     journal_error("LSV4003", "failed to migrate merge journal", error)
+                })?;
+        }
+
+        if version < 6 {
+            connection
+                .execute_batch(
+                    "BEGIN IMMEDIATE;
+                     CREATE TABLE vm_debugger_audit (
+                       command_id TEXT PRIMARY KEY,
+                       principal_id TEXT NOT NULL,
+                       idempotency_key TEXT NOT NULL,
+                       origin TEXT NOT NULL CHECK (origin IN ('gui', 'cli', 'leselang', 'model', 'compatibility_adapter')),
+                       session_id TEXT NOT NULL,
+                       expected_revision INTEGER NOT NULL CHECK (expected_revision >= 0),
+                       observed_at_ms INTEGER NOT NULL CHECK (observed_at_ms >= 0),
+                       continuation_token TEXT NOT NULL
+                         REFERENCES vm_effects(token) ON DELETE CASCADE,
+                       UNIQUE (principal_id, idempotency_key)
+                     ) STRICT;
+                     CREATE INDEX vm_debugger_audit_token_idx
+                       ON vm_debugger_audit(continuation_token);
+                     PRAGMA user_version = 6;
+                     COMMIT;",
+                )
+                .map_err(|error| {
+                    journal_error("LSV4003", "failed to migrate debugger audit journal", error)
                 })?;
         }
 
@@ -980,6 +1086,7 @@ impl SqliteJournal {
         drop(statement);
         validate_dispatch_records(&self.connection)?;
         validate_merge_graph_records(&self.connection)?;
+        validate_debugger_audit_records(&self.connection)?;
 
         let next_sequence = u64::try_from(next_sequence)
             .map_err(|_| journal_fault("LSV4007", "journal sequence is invalid"))?;
@@ -1694,6 +1801,121 @@ impl SqliteJournal {
         Ok(step.clone())
     }
 
+    fn cancel_audited(
+        &mut self,
+        image: &ContinuationImage,
+        step: &Step,
+        audit: &DebuggerAuditContext,
+        now_ms: u64,
+    ) -> Result<(Step, DebuggerAuditRecord), Fault> {
+        validate_image(image)?;
+        validate_cancellation_step(image, step)?;
+        let image_bytes = encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")?;
+        let step_bytes = encode_json_capped(step, MAX_JOURNAL_ENTRY_BYTES, "terminal step")?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| {
+                journal_error("LSV4032", "failed to lock debugger audit journal", error)
+            })?;
+        if let Some((existing_command, token, idempotency_key, record)) =
+            load_debugger_audit(&transaction, audit)?
+        {
+            if existing_command == audit.command_id.as_str()
+                && token == image.token.as_str()
+                && idempotency_key == audit.idempotency_key.as_str()
+                && audit_matches_record(audit, &record)
+            {
+                let existing = load_record(&transaction, image.token.as_str())?
+                    .ok_or_else(|| journal_fault("LSV4032", "debugger audit effect is missing"))?;
+                let authoritative: Step = decode_bounded(
+                    &existing.terminal_step.ok_or_else(|| {
+                        journal_fault("LSV4032", "debugger audit has no terminal step")
+                    })?,
+                    MAX_JOURNAL_ENTRY_BYTES,
+                )?;
+                transaction.commit().map_err(|error| {
+                    journal_error("LSV4032", "failed to close debugger audit replay", error)
+                })?;
+                return Ok((authoritative, record));
+            }
+            return Err(journal_fault("LSV4033", "debugger command audit conflicts"));
+        }
+        let existing = load_record(&transaction, image.token.as_str())?
+            .ok_or_else(|| journal_fault("LSV4013", "pending continuation is missing"))?;
+        if existing.image != image_bytes {
+            return Err(journal_fault(
+                "LSV4014",
+                "continuation image conflicts with durable journal state",
+            ));
+        }
+        if existing.state == "completed" {
+            return Err(journal_fault(
+                "LSV4033",
+                "completed effect has no matching debugger audit",
+            ));
+        }
+        let record = debugger_audit_record(audit, now_ms);
+        transaction
+            .execute(
+                "INSERT INTO vm_debugger_audit(
+                    command_id, principal_id, idempotency_key, origin, session_id,
+                    expected_revision, observed_at_ms, continuation_token
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    audit.command_id.as_str(),
+                    audit.principal.id.as_str(),
+                    audit.idempotency_key.as_str(),
+                    command_origin_label(audit.origin),
+                    audit.session_id.as_str(),
+                    i64::try_from(audit.expected_revision.0).map_err(|_| {
+                        journal_fault("LSV4033", "debugger audit revision is out of range")
+                    })?,
+                    i64::try_from(now_ms).map_err(|_| {
+                        journal_fault("LSV4033", "debugger audit clock is out of range")
+                    })?,
+                    image.token.as_str(),
+                ],
+            )
+            .map_err(|error| {
+                journal_error(
+                    "LSV4033",
+                    "failed to store debugger cancellation audit",
+                    error,
+                )
+            })?;
+        ensure_growth(&transaction, step_bytes.len())?;
+        complete_terminal_record(&transaction, image.token.as_str(), &step_bytes)?;
+        finalize_merge_group(&transaction, image.token.as_str())?;
+        transaction.commit().map_err(|error| {
+            journal_error(
+                "LSV4032",
+                "failed to commit debugger cancellation audit",
+                error,
+            )
+        })?;
+        Ok((step.clone(), record))
+    }
+
+    fn debugger_audit(&self, command_id: &str) -> Result<Option<DebuggerAuditRecord>, Fault> {
+        self.connection
+            .query_row(
+                "SELECT command_id, principal_id, origin, session_id,
+                        expected_revision, observed_at_ms
+                 FROM vm_debugger_audit WHERE command_id = ?1",
+                [command_id],
+                decode_debugger_audit_row,
+            )
+            .optional()
+            .map_err(|error| {
+                journal_error(
+                    "LSV4032",
+                    "failed to read debugger cancellation audit",
+                    error,
+                )
+            })
+    }
+
     fn expire_due(&mut self, now_ms: u64) -> Result<Vec<(ContinuationImage, Step)>, Fault> {
         let now = i64::try_from(now_ms)
             .map_err(|_| journal_fault("LSV4015", "dispatch clock is out of range"))?;
@@ -2057,6 +2279,111 @@ fn complete_terminal_record(
     Ok(())
 }
 
+fn debugger_audit_record(audit: &DebuggerAuditContext, observed_at_ms: u64) -> DebuggerAuditRecord {
+    DebuggerAuditRecord {
+        command_id: audit.command_id.clone(),
+        principal_id: audit.principal.id.clone(),
+        origin: audit.origin,
+        session_id: audit.session_id.clone(),
+        expected_revision: audit.expected_revision,
+        observed_at_ms,
+    }
+}
+
+fn audit_matches_record(audit: &DebuggerAuditContext, record: &DebuggerAuditRecord) -> bool {
+    record.command_id == audit.command_id
+        && record.principal_id == audit.principal.id
+        && record.origin == audit.origin
+        && record.session_id == audit.session_id
+        && record.expected_revision == audit.expected_revision
+}
+
+fn command_origin_label(origin: leserpent_domain::CommandOrigin) -> &'static str {
+    match origin {
+        leserpent_domain::CommandOrigin::Gui => "gui",
+        leserpent_domain::CommandOrigin::Cli => "cli",
+        leserpent_domain::CommandOrigin::Leselang => "leselang",
+        leserpent_domain::CommandOrigin::Model => "model",
+        leserpent_domain::CommandOrigin::CompatibilityAdapter => "compatibility_adapter",
+    }
+}
+
+fn parse_command_origin(value: &str) -> rusqlite::Result<leserpent_domain::CommandOrigin> {
+    match value {
+        "gui" => Ok(leserpent_domain::CommandOrigin::Gui),
+        "cli" => Ok(leserpent_domain::CommandOrigin::Cli),
+        "leselang" => Ok(leserpent_domain::CommandOrigin::Leselang),
+        "model" => Ok(leserpent_domain::CommandOrigin::Model),
+        "compatibility_adapter" => Ok(leserpent_domain::CommandOrigin::CompatibilityAdapter),
+        _ => Err(rusqlite::Error::InvalidQuery),
+    }
+}
+
+fn decode_debugger_audit_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DebuggerAuditRecord> {
+    let command_id = crate::CommandId::new(row.get::<_, String>(0)?)
+        .map_err(|_| rusqlite::Error::InvalidQuery)?;
+    let principal_id = row.get::<_, String>(1)?;
+    let origin = parse_command_origin(&row.get::<_, String>(2)?)?;
+    let session_id = row.get::<_, String>(3)?;
+    let expected_revision =
+        u64::try_from(row.get::<_, i64>(4)?).map_err(|_| rusqlite::Error::InvalidQuery)?;
+    let observed_at_ms =
+        u64::try_from(row.get::<_, i64>(5)?).map_err(|_| rusqlite::Error::InvalidQuery)?;
+    Ok(DebuggerAuditRecord {
+        command_id,
+        principal_id,
+        origin,
+        session_id,
+        expected_revision: crate::Revision(expected_revision),
+        observed_at_ms,
+    })
+}
+
+fn load_debugger_audit(
+    transaction: &rusqlite::Transaction<'_>,
+    audit: &DebuggerAuditContext,
+) -> Result<Option<(String, String, String, DebuggerAuditRecord)>, Fault> {
+    transaction
+        .query_row(
+            "SELECT command_id, continuation_token, idempotency_key,
+                    principal_id, origin, session_id, expected_revision, observed_at_ms
+             FROM vm_debugger_audit
+             WHERE command_id = ?1 OR (principal_id = ?2 AND idempotency_key = ?3)",
+            params![
+                audit.command_id.as_str(),
+                audit.principal.id.as_str(),
+                audit.idempotency_key.as_str(),
+            ],
+            |row| {
+                let command_id = row.get::<_, String>(0)?;
+                let token = row.get::<_, String>(1)?;
+                let idempotency_key = row.get::<_, String>(2)?;
+                let record = DebuggerAuditRecord {
+                    command_id: crate::CommandId::new(command_id.clone())
+                        .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                    principal_id: row.get(3)?,
+                    origin: parse_command_origin(&row.get::<_, String>(4)?)?,
+                    session_id: row.get(5)?,
+                    expected_revision: crate::Revision(
+                        u64::try_from(row.get::<_, i64>(6)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                    ),
+                    observed_at_ms: u64::try_from(row.get::<_, i64>(7)?)
+                        .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                };
+                Ok((command_id, token, idempotency_key, record))
+            },
+        )
+        .optional()
+        .map_err(|error| {
+            journal_error(
+                "LSV4032",
+                "failed to load debugger cancellation audit",
+                error,
+            )
+        })
+}
+
 fn finalize_merge_group(
     transaction: &rusqlite::Transaction<'_>,
     branch_token: &str,
@@ -2406,6 +2733,132 @@ fn validate_dispatch_records(connection: &Connection) -> Result<(), Fault> {
                 "dispatch and continuation states are inconsistent",
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_debugger_audit_records(connection: &Connection) -> Result<(), Fault> {
+    let index_count: u32 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'vm_debugger_audit_token_idx'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| {
+            journal_error("LSV4005", "failed to validate debugger audit schema", error)
+        })?;
+    if index_count != 1 {
+        return Err(journal_fault(
+            "LSV4007",
+            "debugger audit schema is incomplete",
+        ));
+    }
+
+    let audit_count: u32 = connection
+        .query_row("SELECT COUNT(*) FROM vm_debugger_audit", [], |row| {
+            row.get(0)
+        })
+        .map_err(|error| journal_error("LSV4005", "failed to count debugger audits", error))?;
+
+    let mut statement = connection
+        .prepare(
+            "SELECT a.command_id, a.principal_id, a.idempotency_key, a.origin,
+                    a.session_id, a.expected_revision, a.observed_at_ms,
+                    a.continuation_token, e.state, e.terminal_step
+             FROM vm_debugger_audit a
+             JOIN vm_effects e ON e.token = a.continuation_token
+             ORDER BY a.command_id ASC",
+        )
+        .map_err(|error| {
+            journal_error("LSV4005", "failed to prepare debugger audit load", error)
+        })?;
+    let mut rows = statement
+        .query([])
+        .map_err(|error| journal_error("LSV4005", "failed to load debugger audits", error))?;
+    let mut validated_count = 0_u32;
+    while let Some(row) = rows
+        .next()
+        .map_err(|error| journal_error("LSV4005", "failed to read debugger audit", error))?
+    {
+        let command_id =
+            crate::CommandId::new(row.get::<_, String>(0).map_err(|error| {
+                journal_error("LSV4005", "invalid debugger audit command", error)
+            })?)
+            .map_err(|_| journal_fault("LSV4007", "debugger audit command is invalid"))?;
+        let principal_id = row
+            .get::<_, String>(1)
+            .map_err(|error| journal_error("LSV4005", "invalid debugger audit principal", error))?;
+        let idempotency_key =
+            crate::IdempotencyKey::new(row.get::<_, String>(2).map_err(|error| {
+                journal_error("LSV4005", "invalid debugger audit idempotency key", error)
+            })?)
+            .map_err(|_| journal_fault("LSV4007", "debugger audit idempotency key is invalid"))?;
+        let origin =
+            parse_command_origin(&row.get::<_, String>(3).map_err(|error| {
+                journal_error("LSV4005", "invalid debugger audit origin", error)
+            })?)
+            .map_err(|error| journal_error("LSV4007", "debugger audit origin is invalid", error))?;
+        let session_id = row
+            .get::<_, String>(4)
+            .map_err(|error| journal_error("LSV4005", "invalid debugger audit session", error))?;
+        let expected_revision =
+            u64::try_from(row.get::<_, i64>(5).map_err(|error| {
+                journal_error("LSV4005", "invalid debugger audit revision", error)
+            })?)
+            .map_err(|_| journal_fault("LSV4007", "debugger audit revision is invalid"))?;
+        let observed_at_ms =
+            u64::try_from(row.get::<_, i64>(6).map_err(|error| {
+                journal_error("LSV4005", "invalid debugger audit clock", error)
+            })?)
+            .map_err(|_| journal_fault("LSV4007", "debugger audit clock is invalid"))?;
+        let token = ContinuationToken(row.get::<_, String>(7).map_err(|error| {
+            journal_error("LSV4005", "invalid debugger audit continuation", error)
+        })?);
+        let context = DebuggerAuditContext {
+            command_id,
+            idempotency_key,
+            principal: crate::Principal { id: principal_id },
+            origin,
+            session_id,
+            expected_revision: crate::Revision(expected_revision),
+        };
+        crate::validate_debugger_audit(&context)
+            .map_err(|_| journal_fault("LSV4007", "debugger audit identity is invalid"))?;
+        if !valid_continuation_token(&token)
+            || row.get::<_, String>(8).map_err(|error| {
+                journal_error("LSV4005", "invalid debugger audit effect state", error)
+            })? != "completed"
+        {
+            return Err(journal_fault(
+                "LSV4007",
+                "debugger audit continuation is invalid",
+            ));
+        }
+        let terminal_bytes = row.get::<_, Vec<u8>>(9).map_err(|error| {
+            journal_error("LSV4005", "invalid debugger audit terminal step", error)
+        })?;
+        let terminal: Step = decode_bounded(&terminal_bytes, MAX_JOURNAL_ENTRY_BYTES)?;
+        if !matches!(
+            terminal,
+            Step::Cancelled(Cancellation {
+                continuation,
+                reason: CancellationReason::Requested,
+                observed_at_ms: terminal_observed_at,
+            }) if continuation == token && terminal_observed_at == observed_at_ms
+        ) {
+            return Err(journal_fault(
+                "LSV4007",
+                "debugger audit does not match its terminal cancellation",
+            ));
+        }
+        validated_count += 1;
+    }
+    if validated_count != audit_count {
+        return Err(journal_fault(
+            "LSV4007",
+            "debugger audit references a missing continuation",
+        ));
     }
     Ok(())
 }

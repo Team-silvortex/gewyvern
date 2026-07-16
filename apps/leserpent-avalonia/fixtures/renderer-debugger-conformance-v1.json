@@ -7,6 +7,7 @@
       "id": "debug-session-a",
       "kind": "debugger_workspace",
       "runtime_id": null,
+      "debugger_session_id": "session-a",
       "text": null,
       "accessibility": {
         "label": {
@@ -21,6 +22,7 @@
           "id": "debug-session-a-title",
           "kind": "heading",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.title",
             "fallback": "Leselang debugger"
@@ -36,6 +38,7 @@
           "id": "debug-session-a-state",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.state",
             "fallback": "Waiting for effect"
@@ -51,6 +54,7 @@
           "id": "debug-session-a-program-counter",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.program_counter",
             "fallback": "Program counter 7"
@@ -66,6 +70,7 @@
           "id": "debug-session-a-budget",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.budget",
             "fallback": "Fuel 899 / deadline 5000 ms"
@@ -81,6 +86,7 @@
           "id": "debug-session-a-pending-effect",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.pending_effect",
             "fallback": "Pending runtime inspect (effect-7)"
@@ -93,9 +99,32 @@
           "children": []
         },
         {
+          "id": "debug-session-a-cancel",
+          "kind": "action",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "debugger.cancel",
+            "fallback": "Cancel effect"
+          },
+          "accessibility": {
+            "label": {
+              "key": "debugger.cancel",
+              "fallback": "Cancel pending debugger effect"
+            },
+            "description": null
+          },
+          "action": {
+            "kind": "debugger_cancel",
+            "session_id": "session-a"
+          },
+          "children": []
+        },
+        {
           "id": "debug-session-a-frames",
           "kind": "section",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.frames",
             "fallback": "Logical frames"
@@ -113,6 +142,7 @@
               "id": "debug-session-a-frame-frame-0",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 0] logical frame 0"
@@ -128,6 +158,7 @@
               "id": "debug-session-a-frame-frame-1",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 1] logical frame 1"
@@ -143,6 +174,7 @@
               "id": "debug-session-a-frame-frame-2",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 2] logical frame 2"
@@ -158,6 +190,7 @@
               "id": "debug-session-a-frame-frame-3",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 3] logical frame 3"
@@ -173,6 +206,7 @@
               "id": "debug-session-a-frame-frame-4",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 4] logical frame 4"
@@ -188,6 +222,7 @@
               "id": "debug-session-a-frame-frame-5",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 5] logical frame 5"
@@ -203,6 +238,7 @@
               "id": "debug-session-a-frame-frame-6",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 6] logical frame 6"
@@ -218,6 +254,7 @@
               "id": "debug-session-a-frame-frame-7",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 7] logical frame 7"
@@ -233,6 +270,7 @@
               "id": "debug-session-a-frame-frame-8",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 8] logical frame 8"
@@ -248,6 +286,7 @@
               "id": "debug-session-a-frame-frame-9",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 9] logical frame 9"
@@ -263,6 +302,7 @@
               "id": "debug-session-a-frame-frame-10",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 10] logical frame 10"
@@ -278,6 +318,7 @@
               "id": "debug-session-a-frame-frame-11",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 11] logical frame 11"
@@ -293,6 +334,7 @@
               "id": "debug-session-a-frame-frame-12",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 12] logical frame 12"
@@ -308,6 +350,7 @@
               "id": "debug-session-a-frame-frame-13",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 13] logical frame 13"
@@ -323,6 +366,7 @@
               "id": "debug-session-a-frame-frame-14",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 14] logical frame 14"
@@ -338,6 +382,7 @@
               "id": "debug-session-a-frame-frame-15",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 15] logical frame 15"
@@ -353,6 +398,7 @@
               "id": "debug-session-a-frame-frame-16",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 16] logical frame 16"
@@ -368,6 +414,7 @@
               "id": "debug-session-a-frame-frame-17",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 17] logical frame 17"
@@ -383,6 +430,7 @@
               "id": "debug-session-a-frame-frame-18",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 18] logical frame 18"
@@ -398,6 +446,7 @@
               "id": "debug-session-a-frame-frame-19",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 19] logical frame 19"
@@ -413,6 +462,7 @@
               "id": "debug-session-a-frame-frame-20",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 20] logical frame 20"
@@ -428,6 +478,7 @@
               "id": "debug-session-a-frame-frame-21",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 21] logical frame 21"
@@ -443,6 +494,7 @@
               "id": "debug-session-a-frame-frame-22",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 22] logical frame 22"
@@ -458,6 +510,7 @@
               "id": "debug-session-a-frame-frame-23",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 23] logical frame 23"
@@ -473,6 +526,7 @@
               "id": "debug-session-a-frame-frame-24",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 24] logical frame 24"
@@ -488,6 +542,7 @@
               "id": "debug-session-a-frame-frame-25",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 25] logical frame 25"
@@ -503,6 +558,7 @@
               "id": "debug-session-a-frame-frame-26",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 26] logical frame 26"
@@ -518,6 +574,7 @@
               "id": "debug-session-a-frame-frame-27",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 27] logical frame 27"
@@ -533,6 +590,7 @@
               "id": "debug-session-a-frame-frame-28",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 28] logical frame 28"
@@ -548,6 +606,7 @@
               "id": "debug-session-a-frame-frame-29",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 29] logical frame 29"
@@ -563,6 +622,7 @@
               "id": "debug-session-a-frame-frame-30",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 30] logical frame 30"
@@ -578,6 +638,7 @@
               "id": "debug-session-a-frame-frame-31",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 31] logical frame 31"
@@ -593,6 +654,7 @@
               "id": "debug-session-a-frame-frame-32",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 32] logical frame 32"
@@ -608,6 +670,7 @@
               "id": "debug-session-a-frame-frame-33",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 33] logical frame 33"
@@ -623,6 +686,7 @@
               "id": "debug-session-a-frame-frame-34",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 34] logical frame 34"
@@ -638,6 +702,7 @@
               "id": "debug-session-a-frame-frame-35",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 35] logical frame 35"
@@ -653,6 +718,7 @@
               "id": "debug-session-a-frame-frame-36",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 36] logical frame 36"
@@ -668,6 +734,7 @@
               "id": "debug-session-a-frame-frame-37",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 37] logical frame 37"
@@ -683,6 +750,7 @@
               "id": "debug-session-a-frame-frame-38",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 38] logical frame 38"
@@ -698,6 +766,7 @@
               "id": "debug-session-a-frame-frame-39",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 39] logical frame 39"
@@ -721,6 +790,10 @@
     "operations": [
       {
         "kind": "remove",
+        "node_id": "debug-session-a-cancel"
+      },
+      {
+        "kind": "remove",
         "node_id": "debug-session-a-frame-frame-0"
       },
       {
@@ -735,6 +808,7 @@
           "id": "debug-session-a-frame-frame-40",
           "kind": "debugger_frame",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.frame",
             "fallback": "[pc 40] logical frame 40"
@@ -753,6 +827,7 @@
           "id": "debug-session-a-budget",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.budget",
             "fallback": "Fuel 898 / deadline 5000 ms"
@@ -771,6 +846,7 @@
           "id": "debug-session-a-program-counter",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.program_counter",
             "fallback": "Program counter 8"
@@ -789,6 +865,7 @@
           "id": "debug-session-a-state",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.state",
             "fallback": "Yielded"
@@ -810,6 +887,7 @@
       "id": "debug-session-a",
       "kind": "debugger_workspace",
       "runtime_id": null,
+      "debugger_session_id": "session-a",
       "text": null,
       "accessibility": {
         "label": {
@@ -824,6 +902,7 @@
           "id": "debug-session-a-title",
           "kind": "heading",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.title",
             "fallback": "Leselang debugger"
@@ -839,6 +918,7 @@
           "id": "debug-session-a-state",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.state",
             "fallback": "Yielded"
@@ -854,6 +934,7 @@
           "id": "debug-session-a-program-counter",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.program_counter",
             "fallback": "Program counter 8"
@@ -869,6 +950,7 @@
           "id": "debug-session-a-budget",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.budget",
             "fallback": "Fuel 898 / deadline 5000 ms"
@@ -884,6 +966,7 @@
           "id": "debug-session-a-frames",
           "kind": "section",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "debugger.frames",
             "fallback": "Logical frames"
@@ -901,6 +984,7 @@
               "id": "debug-session-a-frame-frame-1",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 1] logical frame 1"
@@ -916,6 +1000,7 @@
               "id": "debug-session-a-frame-frame-2",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 2] logical frame 2"
@@ -931,6 +1016,7 @@
               "id": "debug-session-a-frame-frame-3",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 3] logical frame 3"
@@ -946,6 +1032,7 @@
               "id": "debug-session-a-frame-frame-4",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 4] logical frame 4"
@@ -961,6 +1048,7 @@
               "id": "debug-session-a-frame-frame-5",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 5] logical frame 5"
@@ -976,6 +1064,7 @@
               "id": "debug-session-a-frame-frame-6",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 6] logical frame 6"
@@ -991,6 +1080,7 @@
               "id": "debug-session-a-frame-frame-7",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 7] logical frame 7"
@@ -1006,6 +1096,7 @@
               "id": "debug-session-a-frame-frame-8",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 8] logical frame 8"
@@ -1021,6 +1112,7 @@
               "id": "debug-session-a-frame-frame-9",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 9] logical frame 9"
@@ -1036,6 +1128,7 @@
               "id": "debug-session-a-frame-frame-10",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 10] logical frame 10"
@@ -1051,6 +1144,7 @@
               "id": "debug-session-a-frame-frame-11",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 11] logical frame 11"
@@ -1066,6 +1160,7 @@
               "id": "debug-session-a-frame-frame-12",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 12] logical frame 12"
@@ -1081,6 +1176,7 @@
               "id": "debug-session-a-frame-frame-13",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 13] logical frame 13"
@@ -1096,6 +1192,7 @@
               "id": "debug-session-a-frame-frame-14",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 14] logical frame 14"
@@ -1111,6 +1208,7 @@
               "id": "debug-session-a-frame-frame-15",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 15] logical frame 15"
@@ -1126,6 +1224,7 @@
               "id": "debug-session-a-frame-frame-16",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 16] logical frame 16"
@@ -1141,6 +1240,7 @@
               "id": "debug-session-a-frame-frame-17",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 17] logical frame 17"
@@ -1156,6 +1256,7 @@
               "id": "debug-session-a-frame-frame-18",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 18] logical frame 18"
@@ -1171,6 +1272,7 @@
               "id": "debug-session-a-frame-frame-19",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 19] logical frame 19"
@@ -1186,6 +1288,7 @@
               "id": "debug-session-a-frame-frame-20",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 20] logical frame 20"
@@ -1201,6 +1304,7 @@
               "id": "debug-session-a-frame-frame-21",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 21] logical frame 21"
@@ -1216,6 +1320,7 @@
               "id": "debug-session-a-frame-frame-22",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 22] logical frame 22"
@@ -1231,6 +1336,7 @@
               "id": "debug-session-a-frame-frame-23",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 23] logical frame 23"
@@ -1246,6 +1352,7 @@
               "id": "debug-session-a-frame-frame-24",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 24] logical frame 24"
@@ -1261,6 +1368,7 @@
               "id": "debug-session-a-frame-frame-25",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 25] logical frame 25"
@@ -1276,6 +1384,7 @@
               "id": "debug-session-a-frame-frame-26",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 26] logical frame 26"
@@ -1291,6 +1400,7 @@
               "id": "debug-session-a-frame-frame-27",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 27] logical frame 27"
@@ -1306,6 +1416,7 @@
               "id": "debug-session-a-frame-frame-28",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 28] logical frame 28"
@@ -1321,6 +1432,7 @@
               "id": "debug-session-a-frame-frame-29",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 29] logical frame 29"
@@ -1336,6 +1448,7 @@
               "id": "debug-session-a-frame-frame-30",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 30] logical frame 30"
@@ -1351,6 +1464,7 @@
               "id": "debug-session-a-frame-frame-31",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 31] logical frame 31"
@@ -1366,6 +1480,7 @@
               "id": "debug-session-a-frame-frame-32",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 32] logical frame 32"
@@ -1381,6 +1496,7 @@
               "id": "debug-session-a-frame-frame-33",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 33] logical frame 33"
@@ -1396,6 +1512,7 @@
               "id": "debug-session-a-frame-frame-34",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 34] logical frame 34"
@@ -1411,6 +1528,7 @@
               "id": "debug-session-a-frame-frame-35",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 35] logical frame 35"
@@ -1426,6 +1544,7 @@
               "id": "debug-session-a-frame-frame-36",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 36] logical frame 36"
@@ -1441,6 +1560,7 @@
               "id": "debug-session-a-frame-frame-37",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 37] logical frame 37"
@@ -1456,6 +1576,7 @@
               "id": "debug-session-a-frame-frame-38",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 38] logical frame 38"
@@ -1471,6 +1592,7 @@
               "id": "debug-session-a-frame-frame-39",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 39] logical frame 39"
@@ -1486,6 +1608,7 @@
               "id": "debug-session-a-frame-frame-40",
               "kind": "debugger_frame",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "debugger.frame",
                 "fallback": "[pc 40] logical frame 40"

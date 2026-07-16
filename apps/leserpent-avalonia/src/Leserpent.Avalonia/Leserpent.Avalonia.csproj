@@ -2,12 +2,33 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>osx-arm64;linux-x64</RuntimeIdentifiers>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <NativeAotToolchainVersion Condition="'$(NativeAotToolchainVersion)' == ''">10.0.5</NativeAotToolchainVersion>
+    <RuntimeFrameworkVersion Condition="'$(PublishAot)' == 'true'">$(NativeAotToolchainVersion)</RuntimeFrameworkVersion>
+    <TargetLatestRuntimePatch Condition="'$(PublishAot)' == 'true'">false</TargetLatestRuntimePatch>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' == 'true'">
+    <KnownFrameworkReference Update="Microsoft.NETCore.App"
+                             Condition="'$(TargetFramework)' == 'net10.0'"
+                             LatestRuntimeFrameworkVersion="$(NativeAotToolchainVersion)"
+                             TargetingPackVersion="$(NativeAotToolchainVersion)" />
+    <KnownRuntimePack Update="Microsoft.NETCore.App"
+                      Condition="'$(TargetFramework)' == 'net10.0'"
+                      LatestRuntimeFrameworkVersion="$(NativeAotToolchainVersion)" />
+    <KnownAppHostPack Update="Microsoft.NETCore.App"
+                      Condition="'$(TargetFramework)' == 'net10.0'"
+                      AppHostPackVersion="$(NativeAotToolchainVersion)" />
+    <KnownILCompilerPack Update="Microsoft.DotNet.ILCompiler"
+                         ILCompilerPackVersion="$(NativeAotToolchainVersion)" />
+    <KnownILLinkPack Update="Microsoft.NET.ILLink.Tasks"
+                     ILLinkPackVersion="$(NativeAotToolchainVersion)" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />

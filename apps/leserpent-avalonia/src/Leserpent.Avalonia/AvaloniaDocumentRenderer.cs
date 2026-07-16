@@ -33,6 +33,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
     public int UnrealizedVirtualItemCount => nodes.Values.Sum(
         node => node.RealizedChildrenHost?.UnrealizedCount ?? 0);
     public int UnrealizedNodeCount => nodes.Values.Count(node => !node.IsRealized);
+    public int RealizedDebuggerCancelButtonCount => nodes.Values.Count(node =>
+        node.ActionKind is ActionKind.DebuggerCancel
+        && node.TryGetRealizedControl(out var control)
+        && control is Button);
 
     public void Mount(UiDocument document)
     {
@@ -211,7 +215,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             () => (InitializeControl(factory(), node), null),
             parent,
             false,
-            false);
+            false,
+            node.Action?.Kind);
 
     private static RenderedNode LazyContainer(
         UiNode node,
@@ -226,7 +231,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             },
             parent,
             true,
-            virtualized);
+            virtualized,
+            node.Action?.Kind);
 
     private static TextBlock BuildHeading(UiNode node) => new()
     {
@@ -271,11 +277,12 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 
     private Button BuildAction(UiNode node)
     {
+        var destructive = node.Action?.Kind is ActionKind.DebuggerCancel;
         var button = new Button
         {
             Content = RequiredText(node),
-            Background = LeserpentTheme.Accent,
-            Foreground = Brushes.Black,
+            Background = destructive ? Brush.Parse("#D85B35") : LeserpentTheme.Accent,
+            Foreground = destructive ? Brushes.White : Brushes.Black,
             FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(18, 9),
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
@@ -432,7 +439,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         Func<(Control Control, IChildrenHost? ChildrenHost)> shellFactory,
         RenderedNode? parent,
         bool canContainChildren,
-        bool usesVirtualizedHost)
+        bool usesVirtualizedHost,
+        ActionKind? actionKind)
     {
         private Control? control;
         private IChildrenHost? childrenHost;
@@ -461,6 +469,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         public IChildrenHost? RealizedChildrenHost => childrenHost;
         public bool CanContainChildren { get; } = canContainChildren;
         public bool UsesVirtualizedHost { get; } = usesVirtualizedHost;
+        public ActionKind? ActionKind { get; } = actionKind;
         public bool IsRealized => control is not null;
         public RenderedNode? Parent { get; set; } = parent;
         public List<RenderedNode> Children { get; } = [];

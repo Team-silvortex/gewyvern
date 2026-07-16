@@ -4,6 +4,7 @@ members = [
     "crates/gewyc",
     "crates/leselang-command",
     "crates/leselang-hir",
+    "crates/leselang-observe",
     "crates/leselang-syntax",
     "crates/leselang-ui",
     "crates/leselang-vm",

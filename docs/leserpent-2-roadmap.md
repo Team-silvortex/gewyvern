@@ -166,11 +166,32 @@ history projections into status, snapshot, refresh, and history nodes. Torn
 state fails closed, endpoint data remains outside the IR, and history changes
 apply incrementally. A separately bounded log projection now lowers sanitized
 typed entries without adapter or endpoint fields and applies sliding windows
-incrementally. Its daemon/domain producer contract remains. The first read-only
+incrementally. The `leselang-observe` producer now validates bounded source
+batches, preserves the newest sequence window, and sanitizes display text before
+UI lowering without admitting endpoint or transport fields. SQLite schema 8 now
+persists a 4096-record window per runtime behind an indexed sequence cursor.
+Initial reads return the newest bounded window; incremental reads return only
+records after the supplied cursor. The typed query requires `runtime.read` and
+round-trips through authenticated Unix IPC without endpoint disclosure. The
+first read-only
 debugger document now models stackless synchronous
 effect waiting and re-entry with bounded logical frames, sanitized summaries,
-and no continuation token or local-value exposure. VM producer integration and
-capability-gated debugger mutations remain.
+and no continuation token or local-value exposure. The `leselang-observe`
+composition boundary now converts an authoritatively validated suspended VM
+effect into that projection, rejects torn revisions, and proves that
+continuation tokens, principals, capabilities, idempotency keys, and absolute
+scheduler deadlines never reach serialized UI state. `DebuggerCancel` now uses
+the shared command plan with `debugger.control`, revision/session fencing,
+explicit confirmation, safe inspection, and a non-mutating dry-run. Confirmed
+execution reaches the VM's durable cancellation path without returning the
+continuation token. VM journal schema 6 atomically persists the requested
+cancellation and its command/session/revision audit, rejects conflicting
+principal-scoped idempotency reuse, and replays the original audit after a
+restart. The public record omits continuation tokens and idempotency keys, and
+is pruned with its retained continuation. The waiting debugger document now
+declares a session-bound cancel action that lowers through the same shared
+command planner. Rust and .NET reject session rebinding, and Avalonia renders a
+destructive button while emitting only its stable node ID.
 
 The first concrete cross-language renderer core now exists under
 `apps/leserpent-avalonia`. Rust emits a bounded versioned JSON fixture and the
@@ -193,15 +214,23 @@ realization. A long bounded-history fixture retains unrealized items after the
 window opens, proving off-screen controls are not constructed. Heterogeneous
 container subtrees now remain as patchable renderer models until their parent
 enters the viewport, so runtime cards no longer force eager descendant control
-creation. AOT packaging and mobile shells remain.
+creation. The desktop shell now publishes through a checked NativeAOT profile
+with a single pinned runtime/compiler/linker patch set. macOS arm64 and a
+physical Ubuntu x86_64 host both produce five-file self-contained native
+packages and pass all real control fixtures without a managed runtime
+installation. The Linux debugger fixture preserves the one-to-zero
+cancel-control lifecycle under Xvfb. Windows native-host evidence and mobile
+shells remain.
 
 The Avalonia renderer now maps bounded log entries to lazy monospace controls.
 The 48-entry cross-language sliding fixture applies in three operations and
 leaves 26 off-screen controls unconstructed after first layout.
 
 The same renderer maps debugger logical frames lazily. A 40-frame fixture moves
-from `WaitingEffect` to `Yielded` in six operations and leaves 18 frames
-unconstructed after first layout.
+from `WaitingEffect` to `Yielded` in seven operations, removes the cancel
+control, and leaves 18 frames unconstructed after first layout. Control smoke
+evidence records one realized debugger-cancel button before the patch and zero
+after re-entry.
 
 The authoritative Rust diff now updates a working document as it emits each
 operation and refuses to return unless that document converges exactly on the
@@ -249,6 +278,13 @@ an incompatible replay. Startup requires migration history to be exactly 1
 through 7, verifies the effect-table columns and claim index, and rejects unknown
 journal kinds before rebuilding projections. Complete v6 databases migrate
 transactionally to v7.
+
+Schema v8 adds the dedicated `runtime_logs` table and its
+`(runtime_id, sequence)` index. Appending and per-runtime retention occur in one
+owner-fenced transaction, retaining at most 4096 records per instance. The
+versioned domain query limits each response to 256 records, supports monotonic
+cursor continuation, and omits runtime endpoints. Migration history must now be
+exactly 1 through 8; malformed pre-existing tables and indexes fail closed.
 
 Applied refresh events now materialize their typed status effect before the
 command returns. Startup reconstructs a missing effect from durable applied
@@ -389,6 +425,14 @@ Every gate maintains:
 - IPC/HTTP/WebSocket compatibility tests
 - desktop/mobile AOT smoke tests
 - latency, memory, throughput, and package-size benchmarks
+
+The desktop AOT shelf now has a named native entrypoint:
+`gewyvern_validate leserpent-aot`. It detects only checked host RIDs, performs
+the locked restore and no-restore publish, validates Mach-O/ELF signatures and
+a bounded artifact manifest, executes all four control fixtures, and retains a
+versioned evidence index. macOS arm64 self-host execution is automated; Linux
+x64 uses the same command with Xvfb. Windows stays unclaimed until its lock and
+physical-host proof exist.
 
 ## Explicit Deferrals
 

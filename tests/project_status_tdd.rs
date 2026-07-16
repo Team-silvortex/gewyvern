@@ -161,7 +161,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
     let payload: serde_json::Value =
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 11);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 12);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
     assert_eq!(payload["coverage"]["proof_shelf_count"], 1);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);

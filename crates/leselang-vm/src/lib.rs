@@ -328,6 +328,28 @@ pub struct Cancellation {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerAuditContext {
+    pub command_id: CommandId,
+    pub idempotency_key: IdempotencyKey,
+    pub principal: Principal,
+    pub origin: CommandOrigin,
+    pub session_id: String,
+    pub expected_revision: Revision,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerAuditRecord {
+    pub command_id: CommandId,
+    pub principal_id: String,
+    pub origin: CommandOrigin,
+    pub session_id: String,
+    pub expected_revision: Revision,
+    pub observed_at_ms: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
 pub enum Step {
     Done(Value),
@@ -814,6 +836,63 @@ impl Vm {
         self.finish_cancellation(image, CancellationReason::Requested, now_ms)
     }
 
+    pub fn cancel_effect_audited(
+        &mut self,
+        image: &ContinuationImage,
+        now_ms: u64,
+        audit: &DebuggerAuditContext,
+    ) -> Result<DebuggerAuditRecord, Fault> {
+        validate_debugger_audit(audit)?;
+        validate_scheduler_time(now_ms)?;
+        self.expire_due(now_ms)?;
+        if let Some(completed) = self.completed.get(&image.token) {
+            if !matches!(
+                completed,
+                Step::Cancelled(Cancellation {
+                    reason: CancellationReason::Requested,
+                    ..
+                })
+            ) {
+                return Err(Fault {
+                    code: "LSV2014".to_string(),
+                    message: "completed effect cannot accept debugger cancellation audit"
+                        .to_string(),
+                });
+            }
+        } else {
+            let Some(stored) = self.pending.get(&image.token) else {
+                return Err(Fault {
+                    code: "LSV2004".to_string(),
+                    message: "unknown continuation token".to_string(),
+                });
+            };
+            if stored != image {
+                return Err(Fault {
+                    code: "LSV2005".to_string(),
+                    message: "continuation image does not match pending state".to_string(),
+                });
+            }
+        }
+        let step = Step::Cancelled(Cancellation {
+            continuation: image.token.clone(),
+            reason: CancellationReason::Requested,
+            observed_at_ms: now_ms,
+        });
+        let (authoritative, record) = self.journal.cancel_audited(image, &step, audit, now_ms)?;
+        if matches!(authoritative, Step::Cancelled(_)) {
+            self.pending.remove(&image.token);
+            self.completed.insert(image.token.clone(), authoritative);
+        }
+        Ok(record)
+    }
+
+    pub fn debugger_audit(
+        &self,
+        command_id: &CommandId,
+    ) -> Result<Option<DebuggerAuditRecord>, Fault> {
+        self.journal.debugger_audit(command_id.as_str())
+    }
+
     pub fn pending_count(&self) -> usize {
         self.pending.len()
     }
@@ -1022,7 +1101,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
     Ok(())
 }
 
-fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
+pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
     validate_image(&request.continuation)?;
     let token_suffix = request
         .continuation
@@ -1128,6 +1207,28 @@ fn validate_scheduler_time(now_ms: u64) -> Result<(), Fault> {
         return Err(Fault {
             code: "LSV2011".to_string(),
             message: "scheduler clock is out of range".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_debugger_audit(audit: &DebuggerAuditContext) -> Result<(), Fault> {
+    let valid_session = !audit.session_id.is_empty()
+        && audit.session_id.len() <= 128
+        && audit
+            .session_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'));
+    let valid_principal =
+        !audit.principal.id.is_empty()
+            && audit.principal.id.len() <= 128
+            && audit.principal.id.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.')
+            });
+    if !valid_session || !valid_principal {
+        return Err(Fault {
+            code: "LSV2015".to_string(),
+            message: "invalid debugger audit identity".to_string(),
         });
     }
     Ok(())
@@ -2851,6 +2952,81 @@ mod tests {
     }
 
     #[test]
+    fn durable_debugger_audit_survives_restart_and_enforces_idempotency() {
+        let journal = TempJournal::new("debugger-audit-restart");
+        let request;
+        let audit = DebuggerAuditContext {
+            command_id: CommandId::new("debugger-command-a").unwrap(),
+            idempotency_key: IdempotencyKey::new("debugger-idempotency-a").unwrap(),
+            principal: Principal {
+                id: "debugger-operator".to_string(),
+            },
+            origin: CommandOrigin::Gui,
+            session_id: "session-a".to_string(),
+            expected_revision: Revision(7),
+        };
+        let first_record = {
+            let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+            request = start(&mut vm, Some(Revision(7)));
+            vm.cancel_effect_audited(&request.continuation, 1_250, &audit)
+                .unwrap()
+        };
+        assert_eq!(first_record.observed_at_ms, 1_250);
+
+        let mut restarted = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        assert_eq!(
+            restarted.debugger_audit(&audit.command_id).unwrap(),
+            Some(first_record.clone())
+        );
+        assert_eq!(
+            restarted
+                .cancel_effect_audited(&request.continuation, 1_500, &audit)
+                .unwrap(),
+            first_record
+        );
+
+        let conflicting = DebuggerAuditContext {
+            command_id: CommandId::new("debugger-command-b").unwrap(),
+            ..audit.clone()
+        };
+        let error = restarted
+            .cancel_effect_audited(&request.continuation, 1_750, &conflicting)
+            .unwrap_err();
+        assert_eq!(error.code, "LSV4033");
+
+        let encoded = serde_json::to_string(&first_record).unwrap();
+        assert!(!encoded.contains(request.continuation.token.as_str()));
+        assert!(!encoded.contains(audit.idempotency_key.as_str()));
+    }
+
+    #[test]
+    fn durable_journal_rejects_orphaned_debugger_audit() {
+        let journal = TempJournal::new("debugger-audit-orphan");
+        drop(Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap());
+        let connection = rusqlite::Connection::open(journal.path()).unwrap();
+        connection
+            .pragma_update(None, "foreign_keys", false)
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO vm_debugger_audit(
+                    command_id, principal_id, idempotency_key, origin, session_id,
+                    expected_revision, observed_at_ms, continuation_token
+                 ) VALUES ('debugger-command-a', 'debugger-operator',
+                           'debugger-idempotency-a', 'gui', 'session-a', 7, 1250,
+                           'missing-continuation')",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = Vm::open_journal(journal.path(), DEFAULT_FUEL)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "LSV4007");
+    }
+
+    #[test]
     fn durable_journal_replays_structured_merge_output() {
         let journal = TempJournal::new("structured-merge");
         let request;
@@ -3518,7 +3694,8 @@ mod tests {
         let connection = rusqlite::Connection::open(journal.path()).unwrap();
         connection
             .execute_batch(
-                "DROP TABLE vm_merge_branches;
+                "DROP TABLE vm_debugger_audit;
+                 DROP TABLE vm_merge_branches;
                  DROP TABLE vm_merge_groups;
                  DROP TABLE vm_dispatches;
                  ALTER TABLE vm_effects RENAME TO vm_effects_v3;
@@ -3676,7 +3853,8 @@ mod tests {
         let connection = rusqlite::Connection::open(journal.path()).unwrap();
         connection
             .execute_batch(
-                "DROP TABLE vm_merge_branches;
+                "DROP TABLE vm_debugger_audit;
+                 DROP TABLE vm_merge_branches;
                  DROP TABLE vm_merge_groups;
                  PRAGMA user_version = 4;",
             )
@@ -3712,7 +3890,8 @@ mod tests {
         let connection = rusqlite::Connection::open(journal.path()).unwrap();
         connection
             .execute_batch(
-                "DROP TABLE vm_merge_branches;
+                "DROP TABLE vm_debugger_audit;
+                 DROP TABLE vm_merge_branches;
                  DROP TABLE vm_merge_groups;
                  CREATE TABLE vm_merge_groups (untrusted BLOB);
                  PRAGMA user_version = 4;",

@@ -11,6 +11,7 @@
     "high-frequency",
     "juice-shop-container-validation",
     "ldap-bind-denied-container-validation",
+    "leserpent-aot",
     "linux-attach-smoke",
     "linux-kprobe-smoke",
     "linux-tc-smoke",

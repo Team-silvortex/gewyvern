@@ -8,8 +8,11 @@ pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
 pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
+pub const CAPABILITY_DEBUGGER_CONTROL: &str = "debugger.control";
 pub const RUNTIME_STATUS_REFRESH_EFFECT_KIND: &str = "gewyvern.status.refresh";
 pub const MAX_RUNTIME_HISTORY_ENTRIES: usize = 32;
+pub const MAX_RUNTIME_LOG_QUERY_ENTRIES: u16 = 256;
+pub const MAX_RUNTIME_LOG_MESSAGE_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -57,14 +60,44 @@ pub enum Confirmation {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Command {
     RuntimeRefresh { runtime_id: RuntimeId },
+    DebuggerCancel { session_id: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Query {
-    RuntimeList { filter: RuntimeListFilter },
-    RuntimeInspect { runtime_id: RuntimeId },
-    RuntimeHistory { runtime_id: RuntimeId },
+    RuntimeList {
+        filter: RuntimeListFilter,
+    },
+    RuntimeInspect {
+        runtime_id: RuntimeId,
+    },
+    RuntimeHistory {
+        runtime_id: RuntimeId,
+    },
+    RuntimeLogs {
+        runtime_id: RuntimeId,
+        after_sequence: Option<u64>,
+        limit: u16,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeLogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeLogRecord {
+    pub sequence: u64,
+    pub level: RuntimeLogLevel,
+    pub message: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -164,6 +197,7 @@ pub enum CommandPlanError {
     UnsupportedDomainSchema { actual: u32, expected: u32 },
     CapabilityMismatch { expected: &'static str },
     MissingCapability { capability: &'static str },
+    InvalidDebuggerSessionId,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -249,6 +283,12 @@ pub enum QueryResult {
         revision: Revision,
         entries: Vec<CommandResult>,
     },
+    RuntimeLogs {
+        revision: Revision,
+        runtime_id: RuntimeId,
+        runtime_name: String,
+        entries: Vec<RuntimeLogRecord>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -272,6 +312,9 @@ pub enum DomainError {
     },
     IdempotencyConflict {
         key: String,
+    },
+    InvalidQuery {
+        reason: &'static str,
     },
 }
 
@@ -340,7 +383,8 @@ impl CommandPlan {
             PlannedOperation::Query(envelope) => match &envelope.query {
                 Query::RuntimeList { .. }
                 | Query::RuntimeInspect { .. }
-                | Query::RuntimeHistory { .. } => (
+                | Query::RuntimeHistory { .. }
+                | Query::RuntimeLogs { .. } => (
                     CAPABILITY_RUNTIME_READ,
                     envelope.schema_version,
                     &envelope.capabilities,
@@ -352,6 +396,16 @@ impl CommandPlan {
                     envelope.schema_version,
                     &envelope.capabilities,
                 ),
+                Command::DebuggerCancel { session_id } => {
+                    if validated_identifier("session_id", session_id.clone()).is_err() {
+                        return Err(CommandPlanError::InvalidDebuggerSessionId);
+                    }
+                    (
+                        CAPABILITY_DEBUGGER_CONTROL,
+                        envelope.schema_version,
+                        &envelope.capabilities,
+                    )
+                }
             },
         };
         if domain_schema != DOMAIN_SCHEMA_VERSION {
@@ -390,6 +444,9 @@ impl fmt::Display for CommandPlanError {
             }
             Self::MissingCapability { capability } => {
                 write!(formatter, "plan is missing capability '{capability}'")
+            }
+            Self::InvalidDebuggerSessionId => {
+                write!(formatter, "debugger plan has an invalid session ID")
             }
         }
     }
@@ -437,6 +494,10 @@ impl Default for RuntimeStatusSnapshot {
 }
 
 impl InMemoryControlPlane {
+    pub fn runtime_projection(&self, runtime_id: &RuntimeId) -> Option<&RuntimeProjection> {
+        self.runtimes.get(runtime_id)
+    }
+
     pub fn snapshot(&self) -> DomainSnapshot {
         DomainSnapshot {
             schema_version: DOMAIN_SNAPSHOT_SCHEMA_VERSION,
@@ -586,6 +647,9 @@ impl InMemoryControlPlane {
                     entries,
                 })
             }
+            Query::RuntimeLogs { .. } => Err(DomainError::InvalidQuery {
+                reason: "runtime logs require the durable control runtime",
+            }),
         }
     }
 
@@ -595,6 +659,12 @@ impl InMemoryControlPlane {
         match &envelope.command {
             Command::RuntimeRefresh { .. } => {
                 require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_REFRESH)?;
+            }
+            Command::DebuggerCancel { .. } => {
+                require_capability(&envelope.capabilities, CAPABILITY_DEBUGGER_CONTROL)?;
+                return Err(DomainError::InvalidQuery {
+                    reason: "debugger commands require the Leselang VM authority",
+                });
             }
         }
 
@@ -661,6 +731,7 @@ impl InMemoryControlPlane {
                 }
                 Ok(result)
             }
+            Command::DebuggerCancel { .. } => unreachable!("debugger commands returned above"),
         }
     }
 
@@ -746,7 +817,11 @@ impl DomainSnapshot {
                     reason: "duplicate applied-command idempotency scope",
                 });
             }
-            let Command::RuntimeRefresh { runtime_id } = &applied.command;
+            let Command::RuntimeRefresh { runtime_id } = &applied.command else {
+                return Err(DomainSnapshotError::Invalid {
+                    reason: "unsupported command in control-plane snapshot",
+                });
+            };
             if runtime_id != &applied.result.runtime.id
                 || !runtime_ids.contains(runtime_id)
                 || applied.result.runtime.revision > self.revision
@@ -798,6 +873,7 @@ impl fmt::Display for DomainError {
             Self::IdempotencyConflict { key } => {
                 write!(formatter, "idempotency key '{key}' was reused")
             }
+            Self::InvalidQuery { reason } => write!(formatter, "invalid query: {reason}"),
         }
     }
 }

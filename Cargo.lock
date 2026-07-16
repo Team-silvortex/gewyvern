@@ -226,6 +226,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "leselang-observe"
+version = "1.2.0"
+dependencies = [
+ "leselang-command",
+ "leselang-hir",
+ "leselang-syntax",
+ "leselang-ui",
+ "leselang-vm",
+ "leserpent-domain",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "leselang-syntax"
 version = "1.2.0"
 dependencies = [

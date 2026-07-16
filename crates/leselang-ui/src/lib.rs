@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use leselang_command::{LoweringContext, LoweringError, plan_runtime_refresh};
+use leselang_command::{
+    LoweringContext, LoweringError, plan_debugger_cancel, plan_runtime_refresh,
+};
 use leserpent_domain::{CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId};
 use serde::{Deserialize, Serialize};
 
@@ -34,6 +36,7 @@ pub struct UiNode {
     pub id: NodeId,
     pub kind: UiNodeKind,
     pub runtime_id: Option<RuntimeId>,
+    pub debugger_session_id: Option<String>,
     pub text: Option<LocalizedText>,
     pub accessibility: Accessibility,
     pub action: Option<UiAction>,
@@ -158,6 +161,7 @@ pub struct Accessibility {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum UiAction {
     RuntimeRefresh { runtime_id: RuntimeId },
+    DebuggerCancel { session_id: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -218,6 +222,9 @@ pub enum UiError {
         node_id: String,
     },
     InvalidRuntimeBinding {
+        node_id: String,
+    },
+    InvalidDebuggerBinding {
         node_id: String,
     },
     NodeLimitExceeded,
@@ -305,6 +312,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
             id: NodeId::new(prefix.clone())?,
             kind: UiNodeKind::RuntimeCard,
             runtime_id: Some(runtime.id.clone()),
+            debugger_session_id: None,
             text: None,
             accessibility: Accessibility {
                 label: Some(localized("fleet.runtime.card", &runtime.name)?),
@@ -328,6 +336,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                     id: NodeId::new(format!("{prefix}-refresh"))?,
                     kind: UiNodeKind::Action,
                     runtime_id: None,
+                    debugger_session_id: None,
                     text: Some(localized("fleet.runtime.refresh", "Refresh")?),
                     accessibility: Accessibility {
                         label: Some(localized("fleet.runtime.refresh", "Refresh runtime")?),
@@ -348,6 +357,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
             id: NodeId::new("fleet-root")?,
             kind: UiNodeKind::Column,
             runtime_id: None,
+            debugger_session_id: None,
             text: None,
             accessibility: Accessibility {
                 label: Some(localized("fleet.root", "Runtime fleet")?),
@@ -402,6 +412,7 @@ pub fn runtime_workspace_document(
             ))?,
             kind: UiNodeKind::HistoryEntry,
             runtime_id: None,
+            debugger_session_id: None,
             text: Some(localized(
                 "runtime.history.entry",
                 &format!(
@@ -434,6 +445,7 @@ pub fn runtime_workspace_document(
             id: NodeId::new(prefix.clone())?,
             kind: UiNodeKind::RuntimeWorkspace,
             runtime_id: Some(runtime.id.clone()),
+            debugger_session_id: None,
             text: None,
             accessibility: Accessibility {
                 label: Some(localized("runtime.workspace", &runtime.name)?),
@@ -473,6 +485,7 @@ pub fn runtime_workspace_document(
                     id: NodeId::new(format!("{prefix}-refresh"))?,
                     kind: UiNodeKind::Action,
                     runtime_id: None,
+                    debugger_session_id: None,
                     text: Some(localized("runtime.workspace.refresh", "Refresh")?),
                     accessibility: Accessibility {
                         label: Some(localized("runtime.workspace.refresh", "Refresh runtime")?),
@@ -487,6 +500,7 @@ pub fn runtime_workspace_document(
                     id: NodeId::new(format!("{prefix}-history"))?,
                     kind: UiNodeKind::Section,
                     runtime_id: None,
+                    debugger_session_id: None,
                     text: Some(localized("runtime.history.title", "History")?),
                     accessibility: Accessibility {
                         label: Some(localized("runtime.history.title", "Runtime history")?),
@@ -528,6 +542,7 @@ pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocum
             id: NodeId::new(format!("{prefix}-entry-{}", entry.sequence))?,
             kind: UiNodeKind::LogEntry,
             runtime_id: None,
+            debugger_session_id: None,
             text: Some(localized(
                 "runtime.logs.entry",
                 &format!("[{level}] {}", entry.display),
@@ -553,6 +568,7 @@ pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocum
             id: NodeId::new(prefix.clone())?,
             kind: UiNodeKind::RuntimeWorkspace,
             runtime_id: Some(projection.runtime_id.clone()),
+            debugger_session_id: None,
             text: None,
             accessibility: Accessibility {
                 label: Some(localized(
@@ -579,6 +595,7 @@ pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocum
                     id: NodeId::new(format!("{prefix}-entries"))?,
                     kind: UiNodeKind::Section,
                     runtime_id: None,
+                    debugger_session_id: None,
                     text: Some(localized("runtime.logs.entries", "Log entries")?),
                     accessibility: Accessibility {
                         label: Some(localized("runtime.logs.entries", "Runtime log entries")?),
@@ -638,6 +655,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             id: NodeId::new(format!("{prefix}-frame-{}", frame.frame_id))?,
             kind: UiNodeKind::DebuggerFrame,
             runtime_id: None,
+            debugger_session_id: None,
             text: Some(localized(
                 "debugger.frame",
                 &format!("[pc {}] {}", frame.instruction, frame.display),
@@ -709,11 +727,30 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             "debugger.pending_effect",
             &format!("Pending {kind} ({})", effect.effect_id),
         )?);
+        children.push(UiNode {
+            id: NodeId::new(format!("{prefix}-cancel"))?,
+            kind: UiNodeKind::Action,
+            runtime_id: None,
+            debugger_session_id: None,
+            text: Some(localized("debugger.cancel", "Cancel effect")?),
+            accessibility: Accessibility {
+                label: Some(localized(
+                    "debugger.cancel",
+                    "Cancel pending debugger effect",
+                )?),
+                description: None,
+            },
+            action: Some(UiAction::DebuggerCancel {
+                session_id: projection.session_id.clone(),
+            }),
+            children: Vec::new(),
+        });
     }
     children.push(UiNode {
         id: NodeId::new(format!("{prefix}-frames"))?,
         kind: UiNodeKind::Section,
         runtime_id: None,
+        debugger_session_id: None,
         text: Some(localized("debugger.frames", "Logical frames")?),
         accessibility: Accessibility {
             label: Some(localized("debugger.frames", "Debugger logical frames")?),
@@ -738,6 +775,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             id: NodeId::new(prefix)?,
             kind: UiNodeKind::DebuggerWorkspace,
             runtime_id: None,
+            debugger_session_id: Some(projection.session_id.clone()),
             text: None,
             accessibility: Accessibility {
                 label: Some(localized(
@@ -780,6 +818,9 @@ pub fn plan_event(
     match (&event.kind, &node.action) {
         (UiEventKind::Activate, Some(UiAction::RuntimeRefresh { runtime_id })) => {
             plan_runtime_refresh(runtime_id, context).map_err(UiError::Lowering)
+        }
+        (UiEventKind::Activate, Some(UiAction::DebuggerCancel { session_id })) => {
+            plan_debugger_cancel(session_id, context).map_err(UiError::Lowering)
         }
         _ => Err(UiError::EventTargetHasNoAction {
             node_id: event.node_id.as_str().to_string(),
@@ -1109,7 +1150,7 @@ pub fn validate_document(document: &UiDocument) -> Result<(), UiError> {
         });
     }
     let mut ids = BTreeSet::new();
-    validate_node(&document.root, 1, None, &mut ids)?;
+    validate_node(&document.root, 1, None, None, &mut ids)?;
     if ids.len() > MAX_UI_NODES {
         return Err(UiError::NodeLimitExceeded);
     }
@@ -1120,6 +1161,7 @@ fn validate_node(
     node: &UiNode,
     depth: usize,
     runtime_context: Option<&RuntimeId>,
+    debugger_context: Option<&str>,
     ids: &mut BTreeSet<NodeId>,
 ) -> Result<(), UiError> {
     if depth > MAX_UI_DEPTH {
@@ -1150,6 +1192,18 @@ fn validate_node(
         }
         _ => runtime_context,
     };
+    let debugger_context = match (&node.kind, node.debugger_session_id.as_deref()) {
+        (UiNodeKind::DebuggerWorkspace, Some(session_id)) => {
+            NodeId::new(session_id)?;
+            Some(session_id)
+        }
+        (UiNodeKind::DebuggerWorkspace, None) | (_, Some(_)) => {
+            return Err(UiError::InvalidDebuggerBinding {
+                node_id: node.id.as_str().to_string(),
+            });
+        }
+        _ => debugger_context,
+    };
     if let Some(UiAction::RuntimeRefresh { runtime_id }) = &node.action
         && runtime_context != Some(runtime_id)
     {
@@ -1157,11 +1211,18 @@ fn validate_node(
             node_id: node.id.as_str().to_string(),
         });
     }
+    if let Some(UiAction::DebuggerCancel { session_id }) = &node.action
+        && debugger_context != Some(session_id.as_str())
+    {
+        return Err(UiError::InvalidDebuggerBinding {
+            node_id: node.id.as_str().to_string(),
+        });
+    }
     if ids.len() > MAX_UI_NODES {
         return Err(UiError::NodeLimitExceeded);
     }
     for child in &node.children {
-        validate_node(child, depth + 1, runtime_context, ids)?;
+        validate_node(child, depth + 1, runtime_context, debugger_context, ids)?;
     }
     Ok(())
 }
@@ -1198,6 +1259,7 @@ fn text_node(id: &str, kind: UiNodeKind, key: &str, fallback: &str) -> Result<Ui
         id: NodeId::new(id)?,
         kind,
         runtime_id: None,
+        debugger_session_id: None,
         text: Some(localized(key, fallback)?),
         accessibility: Accessibility::default(),
         action: None,
@@ -1276,6 +1338,7 @@ fn shallow_node(
     &NodeId,
     UiNodeKind,
     &Option<RuntimeId>,
+    &Option<String>,
     &Option<LocalizedText>,
     &Accessibility,
     &Option<UiAction>,
@@ -1284,6 +1347,7 @@ fn shallow_node(
         &node.id,
         node.kind,
         &node.runtime_id,
+        &node.debugger_session_id,
         &node.text,
         &node.accessibility,
         &node.action,
@@ -1293,9 +1357,9 @@ fn shallow_node(
 #[cfg(test)]
 mod tests {
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command,
-        CommandEnvelope, CommandId, CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION,
-        IdempotencyKey, Principal, Query, QueryEnvelope, RuntimeListFilter,
+        CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
+        CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, Confirmation,
+        DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query, QueryEnvelope, RuntimeListFilter,
     };
 
     use super::*;
@@ -1312,6 +1376,15 @@ mod tests {
             origin: CommandOrigin::Gui,
             confirmation: Confirmation::Confirmed,
             dry_run: true,
+        }
+    }
+
+    fn debugger_context(revision: Revision) -> LoweringContext {
+        LoweringContext {
+            capabilities: CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+            expected_revision: Some(revision),
+            dry_run: false,
+            ..context()
         }
     }
 
@@ -1660,6 +1733,28 @@ mod tests {
             )
             .is_some()
         );
+        let cancel_id = NodeId::new("debug-session-a-cancel").unwrap();
+        let cancel = find_node(&previous.root, &cancel_id).unwrap();
+        assert!(matches!(
+            cancel.action,
+            Some(UiAction::DebuggerCancel { ref session_id }) if session_id == "session-a"
+        ));
+        let plan = plan_event(
+            &previous,
+            &UiEvent {
+                node_id: cancel_id,
+                kind: UiEventKind::Activate,
+            },
+            &debugger_context(previous.revision),
+        )
+        .unwrap();
+        let leserpent_domain::PlannedOperation::Command(command) = plan.operation else {
+            panic!("debugger cancel action must lower to a command");
+        };
+        assert!(matches!(
+            command.command,
+            Command::DebuggerCancel { ref session_id } if session_id == "session-a"
+        ));
         let patch = diff(&previous, &next).unwrap();
         assert_eq!(apply_patch(&previous, &patch).unwrap(), next);
         assert!(
@@ -1674,6 +1769,25 @@ mod tests {
                 .iter()
                 .any(|operation| matches!(operation, UiPatchOperation::Insert { .. }))
         );
+        assert!(find_node(&next.root, &NodeId::new("debug-session-a-cancel").unwrap()).is_none());
+    }
+
+    #[test]
+    fn debugger_action_rejects_session_rebinding() {
+        let mut document =
+            debugger_document(&debugger(1, DebuggerState::WaitingEffect, 0, 1)).unwrap();
+        let action = find_node_mut(
+            &mut document.root,
+            &NodeId::new("debug-session-a-cancel").unwrap(),
+        )
+        .unwrap();
+        action.action = Some(UiAction::DebuggerCancel {
+            session_id: "session-b".into(),
+        });
+        assert!(matches!(
+            validate_document(&document),
+            Err(UiError::InvalidDebuggerBinding { .. })
+        ));
     }
 
     #[test]

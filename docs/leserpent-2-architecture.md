@@ -70,6 +70,7 @@ The intended source ownership is:
 | `leselang-syntax` | lexer, parser, lossless syntax tree, diagnostics |
 | `leselang-hir` | names, types, effect declarations, validated functions |
 | `leselang-vm` | stackless evaluator, continuation images, deterministic steps |
+| `leselang-observe` | validated, sanitized VM/runtime projections for UI consumers |
 | `leselang-command` | operation DSL lowering into `CommandPlan` |
 | `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch` |
 | `leserpent-domain` | IDs, commands, queries, events, revisions, capabilities |
@@ -212,6 +213,7 @@ The runtime owns:
 - current domain projections
 - Leselang continuation images
 - audit records
+- bounded per-runtime log records and sequence cursors
 - migration metadata
 
 SQLite is the default durable implementation, not the domain interface.
@@ -253,6 +255,14 @@ The design optimizes semantic work before renderer choice:
 Native AOT is a deployment target, not a substitute for measurement. Each
 phase records cold start, resident memory, command latency, effect throughput,
 UI patch cost, and binary/package size before tightening budgets.
+The first desktop proof uses source-generated JSON metadata and an explicit
+NativeAOT publish profile. Its runtime, compiler, linker, targeting, and
+app-host packs share one pinned patch version, so SDK patch drift cannot silently
+change the native dependency graph. macOS arm64 produces a five-file,
+approximately 82 MiB self-contained package. A physical Ubuntu x86_64 host
+produces a five-file, approximately 76 MiB package with a stripped PIE ELF.
+Both native executables pass the real control-tree fixtures; Windows remains
+unproven until its artifact executes on a Windows host.
 
 ## Compatibility And Migration
 
@@ -282,4 +292,3 @@ Leserpent 2.0 is ready only when:
 - GUI actions round-trip through canonical Leselang
 - desktop and one mobile target pass release tests
 - compatibility and rollback from the final 1.x bridge are documented
-

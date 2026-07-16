@@ -78,6 +78,7 @@ Current JSON failure codes:
 | `linux_ebpf_privilege_required` | Linux eBPF attach smoke lacked a Linux/BPF-privileged environment | rerun on Linux with `sudo` or equivalent privileges |
 | `missing_sshpass` | the optional admin-assisted remote eBPF path was requested without `sshpass` installed | install `sshpass`, or disable the admin-assisted path |
 | `missing_system_command` | a required system command such as `ssh`, `rsync`, or `docker` is missing | install the missing command and rerun |
+| `missing_native_aot_dependency` | `dotnet` or the Linux Xvfb control-smoke dependency is missing | install the named host dependency and rerun `leserpent-aot` |
 
 ## Directory Map
 
@@ -322,6 +323,32 @@ cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
 cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation \
   | jq '.extra.slowest_phase_entries[0]'
 ```
+
+### I want to prove the Leserpent native desktop artifact
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- leserpent-aot
+```
+
+This host-native command supports the checked `osx-arm64` and `linux-x64`
+targets. It performs a locked multi-RID restore, publishes with `--no-restore`,
+checks the Mach-O or ELF signature, bounds the artifact file set, and runs all
+four real Avalonia control fixtures. Linux requires `xvfb-run` and `xauth`; the
+validator reports their absence but never installs packages or invokes `sudo`.
+
+Evidence is retained under `target/validation/leserpent-aot/`:
+
+- `environment.txt`
+- `restore.log` and `publish.log`
+- `artifact-manifest.json`
+- one log for each control fixture
+- `evidence-index.json`
+
+Use global `--json` and `--json-out` when CI should consume the result without
+parsing human output. Windows remains outside this command until `win-x64` has
+a locked dependency graph and native-host execution evidence.
 
 ### I want to validate built-in protocol packages
 

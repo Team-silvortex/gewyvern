@@ -16,9 +16,10 @@ use gewyvern::validation_harness::{
     run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
     run_ftp_denied_container_validation, run_high_frequency_validation,
     run_juice_shop_container_validation, run_ldap_bind_denied_container_validation,
-    run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke, run_package_install_smoke,
-    run_pathological_container_validation, run_registry_validation, run_release_container_check,
-    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_leserpent_aot_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
+    run_linux_tc_smoke, run_package_install_smoke, run_pathological_container_validation,
+    run_registry_validation, run_release_container_check, run_release_gate,
+    run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
@@ -37,6 +38,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "help",
     "high-frequency",
     "ldap-bind-denied-container-validation",
+    "leserpent-aot",
     "juice-shop-container-validation",
     "linux-attach-smoke",
     "linux-kprobe-smoke",
@@ -364,6 +366,22 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
         "runtime-operator" => {
             let options = parse_options(rest)?;
             let report = run_runtime_operator_validation(options.out_dir, options.json_out)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "leserpent-aot" => {
+            if wants_subcommand_help(&rest) {
+                print_leserpent_aot_help();
+                return Ok(());
+            }
+            let options = parse_options(rest)?;
+            let report = run_leserpent_aot_validation(options.out_dir)?;
             print_validation_report(
                 &command,
                 &report,
@@ -1436,6 +1454,11 @@ fn classify_failure(message: &str) -> Option<(FailureClass, &'static str)> {
     {
         return Some((FailureClass::Dependency, "missing_system_command"));
     }
+    if message.contains("failed to query dotnet SDK")
+        || message.contains("install xvfb and xauth on the Linux host")
+    {
+        return Some((FailureClass::Dependency, "missing_native_aot_dependency"));
+    }
     None
 }
 
@@ -1577,6 +1600,16 @@ fn failure_guidance_lines(message: &str) -> Vec<&'static str> {
             "next-step: install the missing system command and rerun the same validation entrypoint",
         );
     }
+    if message.contains("failed to query dotnet SDK") {
+        guidance.push(
+            "next-step: install the locked project's .NET SDK, then rerun `gewyvern_validate leserpent-aot` on the same host",
+        );
+    }
+    if message.contains("install xvfb and xauth on the Linux host") {
+        guidance.push(
+            "next-step: install `xvfb` and `xauth` on the Linux host, then rerun `gewyvern_validate leserpent-aot` without sudo",
+        );
+    }
     guidance
 }
 
@@ -1640,6 +1673,15 @@ fn print_linux_attach_smoke_help() {
     println!(
         "Run this on Linux with BPF attach privileges; unprivileged runs may fail with `Operation not permitted`."
     );
+}
+
+fn print_leserpent_aot_help() {
+    println!("Usage: gewyvern_validate leserpent-aot [--out-dir <path>]");
+    println!();
+    println!(
+        "Restore the locked Avalonia RID graph, publish NativeAOT for the current host, and run all control fixtures."
+    );
+    println!("Supported hosts: macOS arm64 and Linux x86_64. Linux requires xvfb-run and xauth.");
 }
 
 fn print_linux_kprobe_smoke_help() {

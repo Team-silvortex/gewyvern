@@ -1,8 +1,9 @@
 use leselang_hir::Effect;
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope,
-    CommandId, CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal,
-    Query, QueryEnvelope, Revision, RuntimeId, RuntimeListFilter,
+    CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
+    CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, Confirmation,
+    DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query, QueryEnvelope, Revision, RuntimeId,
+    RuntimeListFilter,
 };
 pub use leserpent_domain::{COMMAND_PLAN_SCHEMA_VERSION, CommandPlan, PlannedOperation};
 
@@ -24,6 +25,7 @@ pub struct LoweringContext {
 pub enum LoweringError {
     StructuredEffectRequiresExpansion,
     MissingCapability { capability: &'static str },
+    InvalidInput { field: &'static str },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -178,6 +180,39 @@ pub fn plan_runtime_refresh(
     })
 }
 
+pub fn plan_debugger_cancel(
+    session_id: &str,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    if !context.capabilities.contains(CAPABILITY_DEBUGGER_CONTROL) {
+        return Err(LoweringError::MissingCapability {
+            capability: CAPABILITY_DEBUGGER_CONTROL,
+        });
+    }
+    let plan = CommandPlan {
+        schema_version: COMMAND_PLAN_SCHEMA_VERSION,
+        required_capability: CAPABILITY_DEBUGGER_CONTROL.to_string(),
+        operation: PlannedOperation::Command(CommandEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            command_id: context.command_id.clone(),
+            idempotency_key: context.idempotency_key.clone(),
+            expected_revision: context.expected_revision,
+            principal: context.principal.clone(),
+            capabilities: context.capabilities.clone(),
+            origin: context.origin,
+            confirmation: context.confirmation,
+            dry_run: context.dry_run,
+            command: Command::DebuggerCancel {
+                session_id: session_id.to_string(),
+            },
+        }),
+    };
+    plan.validate().map_err(|_| LoweringError::InvalidInput {
+        field: "session_id",
+    })?;
+    Ok(plan)
+}
+
 fn validate_plan(plan: &CommandPlan) -> Result<(), PlanCodecError> {
     plan.validate()
         .map_err(|error| PlanCodecError::InvalidPlan(error.to_string()))
@@ -255,6 +290,31 @@ mod tests {
             cli.command,
             Command::RuntimeRefresh { runtime_id } if runtime_id == RuntimeId::new("runtime-a").unwrap()
         ));
+    }
+
+    #[test]
+    fn debugger_cancel_plan_is_capability_gated_and_session_validated() {
+        let mut context = context(CommandOrigin::Gui);
+        context.capabilities = CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]);
+        let plan = plan_debugger_cancel("session-a", &context).unwrap();
+        assert_eq!(plan.required_capability, CAPABILITY_DEBUGGER_CONTROL);
+        let PlannedOperation::Command(command) = &plan.operation else {
+            panic!("debugger cancel must be a command");
+        };
+        assert_eq!(command.expected_revision, Some(Revision(7)));
+        assert!(command.dry_run);
+        assert_eq!(command.confirmation, Confirmation::Confirmed);
+        assert!(matches!(
+            &command.command,
+            Command::DebuggerCancel { session_id } if session_id == "session-a"
+        ));
+        assert_eq!(decode_plan(&encode_plan(&plan).unwrap()).unwrap(), plan);
+        assert_eq!(
+            plan_debugger_cancel("invalid session", &context),
+            Err(LoweringError::InvalidInput {
+                field: "session_id",
+            })
+        );
     }
 
     #[test]

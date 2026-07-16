@@ -4,6 +4,7 @@ mod debugger_cross;
 mod demo_roundtrip;
 mod field_smoke;
 mod high_frequency;
+mod leserpent_aot;
 mod linux_ebpf;
 mod registry;
 mod release_gate;
@@ -29,6 +30,7 @@ pub use demo_roundtrip::{
 };
 pub use field_smoke::run_field_smoke_validation;
 pub use high_frequency::run_high_frequency_validation;
+pub use leserpent_aot::run_leserpent_aot_validation;
 pub use linux_ebpf::{run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke};
 pub use registry::run_registry_validation;
 pub use release_gate::{

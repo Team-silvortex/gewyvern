@@ -142,6 +142,14 @@ or result can win. `Vm::cancel_effect` records `Cancelled(Requested)` and may
 fence an active lease. Both cancellation forms are durable, idempotently replayed
 terminal states. The legacy `Vm::start` remains untimed for embedded compatibility.
 
+Debugger-driven cancellation uses `Vm::cancel_effect_audited`. Journal schema 6
+commits the requested terminal state and its command, principal, origin, session,
+revision, and observation-time correlation in one transaction. Replays preserve
+the first record, while command reuse or principal-scoped idempotency conflicts
+fail closed. The queryable audit record deliberately excludes the continuation
+token and idempotency key, and is removed when bounded journal retention removes
+the corresponding continuation.
+
 Workers classify execution errors as `Transient` or `Permanent` through
 `Vm::report_effect_error`. Permanent errors immediately become a durable
 `Step::Failed`; transient errors follow a bounded `RetryPolicy`. The default is

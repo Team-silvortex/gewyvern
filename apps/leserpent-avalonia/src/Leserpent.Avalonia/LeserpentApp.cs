@@ -37,6 +37,8 @@ internal sealed class LeserpentApp : Application
                         + $"remaining_unrealized={window.UnrealizedVirtualItemCount}, "
                         + $"initial_unrealized_nodes={window.InitialUnrealizedNodeCount}, "
                         + $"remaining_unrealized_nodes={window.UnrealizedNodeCount}, "
+                        + $"initial_debugger_cancel_buttons={window.InitialDebuggerCancelButtonCount}, "
+                        + $"remaining_debugger_cancel_buttons={window.DebuggerCancelButtonCount}, "
                         + $"revision={window.Revision}");
                     DispatcherTimer.RunOnce(
                         () => desktop.Shutdown(0),
@@ -77,7 +79,9 @@ internal sealed class LeserpentApp : Application
             throw new InvalidDataException("fixture changed while being read");
         }
 
-        var fixture = JsonSerializer.Deserialize<RendererFixture>(payload, RendererJson.CreateOptions())
+        var fixture = JsonSerializer.Deserialize(
+            payload,
+            RendererJsonContext.Default.RendererFixture)
             ?? throw new InvalidDataException("fixture is empty");
         if (fixture.SchemaVersion != 1)
         {

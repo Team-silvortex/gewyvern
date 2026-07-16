@@ -7,6 +7,7 @@
       "id": "fleet-root",
       "kind": "column",
       "runtime_id": null,
+      "debugger_session_id": null,
       "text": null,
       "accessibility": {
         "label": {
@@ -21,6 +22,7 @@
           "id": "fleet-title",
           "kind": "heading",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "fleet.title",
             "fallback": "Runtimes"
@@ -36,6 +38,7 @@
           "id": "fleet-revision",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "fleet.revision",
             "fallback": "Revision 3"
@@ -51,6 +54,7 @@
           "id": "runtime-runtime-a",
           "kind": "runtime_card",
           "runtime_id": "runtime-a",
+          "debugger_session_id": null,
           "text": null,
           "accessibility": {
             "label": {
@@ -65,6 +69,7 @@
               "id": "runtime-runtime-a-name",
               "kind": "heading",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.name",
                 "fallback": "Runtime A"
@@ -80,6 +85,7 @@
               "id": "runtime-runtime-a-status",
               "kind": "text",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.status",
                 "fallback": "Never requested"
@@ -95,6 +101,7 @@
               "id": "runtime-runtime-a-refresh",
               "kind": "action",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.refresh",
                 "fallback": "Refresh"
@@ -118,6 +125,7 @@
           "id": "runtime-runtime-b",
           "kind": "runtime_card",
           "runtime_id": "runtime-b",
+          "debugger_session_id": null,
           "text": null,
           "accessibility": {
             "label": {
@@ -132,6 +140,7 @@
               "id": "runtime-runtime-b-name",
               "kind": "heading",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.name",
                 "fallback": "Runtime B"
@@ -147,6 +156,7 @@
               "id": "runtime-runtime-b-status",
               "kind": "text",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.status",
                 "fallback": "Never requested"
@@ -162,6 +172,7 @@
               "id": "runtime-runtime-b-refresh",
               "kind": "action",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.refresh",
                 "fallback": "Refresh"
@@ -185,6 +196,7 @@
           "id": "runtime-runtime-c",
           "kind": "runtime_card",
           "runtime_id": "runtime-c",
+          "debugger_session_id": null,
           "text": null,
           "accessibility": {
             "label": {
@@ -199,6 +211,7 @@
               "id": "runtime-runtime-c-name",
               "kind": "heading",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.name",
                 "fallback": "Runtime C"
@@ -214,6 +227,7 @@
               "id": "runtime-runtime-c-status",
               "kind": "text",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.status",
                 "fallback": "Never requested"
@@ -229,6 +243,7 @@
               "id": "runtime-runtime-c-refresh",
               "kind": "action",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.refresh",
                 "fallback": "Refresh"
@@ -274,6 +289,7 @@
           "id": "runtime-runtime-d",
           "kind": "runtime_card",
           "runtime_id": "runtime-d",
+          "debugger_session_id": null,
           "text": null,
           "accessibility": {
             "label": {
@@ -288,6 +304,7 @@
               "id": "runtime-runtime-d-name",
               "kind": "heading",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.name",
                 "fallback": "Runtime D"
@@ -303,6 +320,7 @@
               "id": "runtime-runtime-d-status",
               "kind": "text",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.status",
                 "fallback": "Never requested"
@@ -318,6 +336,7 @@
               "id": "runtime-runtime-d-refresh",
               "kind": "action",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.refresh",
                 "fallback": "Refresh"
@@ -344,6 +363,7 @@
           "id": "fleet-revision",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "fleet.revision",
             "fallback": "Revision 4"
@@ -365,6 +385,7 @@
       "id": "fleet-root",
       "kind": "column",
       "runtime_id": null,
+      "debugger_session_id": null,
       "text": null,
       "accessibility": {
         "label": {
@@ -379,6 +400,7 @@
           "id": "fleet-title",
           "kind": "heading",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "fleet.title",
             "fallback": "Runtimes"
@@ -394,6 +416,7 @@
           "id": "fleet-revision",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "fleet.revision",
             "fallback": "Revision 4"
@@ -409,6 +432,7 @@
           "id": "runtime-runtime-c",
           "kind": "runtime_card",
           "runtime_id": "runtime-c",
+          "debugger_session_id": null,
           "text": null,
           "accessibility": {
             "label": {
@@ -423,6 +447,7 @@
               "id": "runtime-runtime-c-name",
               "kind": "heading",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.name",
                 "fallback": "Runtime C"
@@ -438,6 +463,7 @@
               "id": "runtime-runtime-c-status",
               "kind": "text",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.status",
                 "fallback": "Never requested"
@@ -453,6 +479,7 @@
               "id": "runtime-runtime-c-refresh",
               "kind": "action",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.refresh",
                 "fallback": "Refresh"
@@ -476,6 +503,7 @@
           "id": "runtime-runtime-a",
           "kind": "runtime_card",
           "runtime_id": "runtime-a",
+          "debugger_session_id": null,
           "text": null,
           "accessibility": {
             "label": {
@@ -490,6 +518,7 @@
               "id": "runtime-runtime-a-name",
               "kind": "heading",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.name",
                 "fallback": "Runtime A"
@@ -505,6 +534,7 @@
               "id": "runtime-runtime-a-status",
               "kind": "text",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.status",
                 "fallback": "Never requested"
@@ -520,6 +550,7 @@
               "id": "runtime-runtime-a-refresh",
               "kind": "action",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.refresh",
                 "fallback": "Refresh"
@@ -543,6 +574,7 @@
           "id": "runtime-runtime-d",
           "kind": "runtime_card",
           "runtime_id": "runtime-d",
+          "debugger_session_id": null,
           "text": null,
           "accessibility": {
             "label": {
@@ -557,6 +589,7 @@
               "id": "runtime-runtime-d-name",
               "kind": "heading",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.name",
                 "fallback": "Runtime D"
@@ -572,6 +605,7 @@
               "id": "runtime-runtime-d-status",
               "kind": "text",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.status",
                 "fallback": "Never requested"
@@ -587,6 +621,7 @@
               "id": "runtime-runtime-d-refresh",
               "kind": "action",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "fleet.runtime.refresh",
                 "fallback": "Refresh"

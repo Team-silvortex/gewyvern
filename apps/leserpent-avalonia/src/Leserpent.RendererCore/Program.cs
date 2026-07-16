@@ -1,54 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-
-const int MaxPayloadBytes = 2 * 1024 * 1024;
-
-if (args.Length != 1)
-{
-    Console.Error.WriteLine("usage: Leserpent.RendererCore FIXTURE");
-    return 2;
-}
-
-var payload = ReadBoundedFixture(args[0]);
-
-var options = RendererJson.CreateOptions();
-var fixture = JsonSerializer.Deserialize<RendererFixture>(payload, options)
-    ?? throw new InvalidDataException("fixture is empty");
-if (fixture.SchemaVersion != 1)
-{
-    throw new InvalidDataException("unsupported fixture schema");
-}
-
-var renderer = new SemanticRenderer();
-renderer.Mount(fixture.Previous);
-renderer.Apply(fixture.Patch);
-var actual = JsonSerializer.SerializeToNode(renderer.Document, options);
-var expected = JsonSerializer.SerializeToNode(fixture.Next, options);
-if (!JsonNode.DeepEquals(actual, expected))
-{
-    throw new InvalidDataException("incremental render does not match the next document");
-}
-
-Console.WriteLine($"renderer conformance valid: revision={renderer.Document.Revision}");
-return 0;
-
-static byte[] ReadBoundedFixture(string path)
-{
-    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-    if (stream.Length > MaxPayloadBytes)
-    {
-        throw new InvalidDataException("fixture exceeds the UI IR payload limit");
-    }
-
-    var payload = new byte[checked((int)stream.Length)];
-    stream.ReadExactly(payload);
-    if (stream.ReadByte() != -1)
-    {
-        throw new InvalidDataException("fixture changed while being read");
-    }
-    return payload;
-}
 
 public sealed class SemanticRenderer
 {
@@ -139,6 +90,7 @@ public sealed class SemanticRenderer
                     ?? throw new InvalidDataException("update target not found");
                 target.Kind = operation.Node.Kind;
                 target.RuntimeId = operation.Node.RuntimeId;
+                target.DebuggerSessionId = operation.Node.DebuggerSessionId;
                 target.Text = operation.Node.Text;
                 target.Accessibility = operation.Node.Accessibility;
                 target.Action = operation.Node.Action;
@@ -152,11 +104,16 @@ public sealed class SemanticRenderer
     {
         Require(document.SchemaVersion == 1, "unsupported document schema");
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        ValidateNode(document.Root, 1, null, ids);
+        ValidateNode(document.Root, 1, null, null, ids);
         Require(ids.Count <= 4096, "document exceeds the node limit");
     }
 
-    private static void ValidateNode(UiNode node, int depth, string? runtimeContext, HashSet<string> ids)
+    private static void ValidateNode(
+        UiNode node,
+        int depth,
+        string? runtimeContext,
+        string? debuggerContext,
+        HashSet<string> ids)
     {
         Require(depth <= 32, "document exceeds the depth limit");
         Require(IsIdentifier(node.Id) && ids.Add(node.Id), "invalid or duplicate node ID");
@@ -173,14 +130,36 @@ public sealed class SemanticRenderer
         {
             Require(node.RuntimeId is null, "non-container node carries a runtime ID");
         }
+        if (node.Kind is UiNodeKind.DebuggerWorkspace)
+        {
+            Require(node.DebuggerSessionId is not null && IsIdentifier(node.DebuggerSessionId),
+                "debugger workspace has no valid session ID");
+            debuggerContext = node.DebuggerSessionId;
+        }
+        else
+        {
+            Require(node.DebuggerSessionId is null,
+                "non-debugger container carries a debugger session ID");
+        }
         if (node.Action is not null)
         {
-            Require(node.Action.Kind == ActionKind.RuntimeRefresh
-                && node.Action.RuntimeId == runtimeContext, "action runtime binding is invalid");
+            var validAction = node.Action.Kind switch
+            {
+                ActionKind.RuntimeRefresh => node.Action.RuntimeId is not null
+                    && IsIdentifier(node.Action.RuntimeId)
+                    && node.Action.RuntimeId == runtimeContext
+                    && node.Action.SessionId is null,
+                ActionKind.DebuggerCancel => node.Action.RuntimeId is null
+                    && node.Action.SessionId is not null
+                    && IsIdentifier(node.Action.SessionId)
+                    && node.Action.SessionId == debuggerContext,
+                _ => false,
+            };
+            Require(validAction, "action context binding is invalid");
         }
         foreach (var child in node.Children)
         {
-            ValidateNode(child, depth + 1, runtimeContext, ids);
+            ValidateNode(child, depth + 1, runtimeContext, debuggerContext, ids);
         }
     }
 
@@ -223,7 +202,39 @@ public sealed class SemanticRenderer
         return null;
     }
 
-    private static T Clone<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private static UiDocument Clone(UiDocument document) => new()
+    {
+        SchemaVersion = document.SchemaVersion,
+        Revision = document.Revision,
+        Root = Clone(document.Root),
+    };
+
+    private static UiNode Clone(UiNode node) => new()
+    {
+        Id = node.Id,
+        Kind = node.Kind,
+        RuntimeId = node.RuntimeId,
+        DebuggerSessionId = node.DebuggerSessionId,
+        Text = Clone(node.Text),
+        Accessibility = new Accessibility
+        {
+            Label = Clone(node.Accessibility.Label),
+            Description = Clone(node.Accessibility.Description),
+        },
+        Action = node.Action is null ? null : new UiAction
+        {
+            Kind = node.Action.Kind,
+            RuntimeId = node.Action.RuntimeId,
+            SessionId = node.Action.SessionId,
+        },
+        Children = node.Children.Select(Clone).ToList(),
+    };
+
+    private static LocalizedText? Clone(LocalizedText? text) => text is null ? null : new()
+    {
+        Key = text.Key,
+        Fallback = text.Fallback,
+    };
 
     private static void Require(bool condition, string message)
     {
@@ -254,6 +265,7 @@ public sealed class UiNode
     public required string Id { get; set; }
     public UiNodeKind Kind { get; set; }
     public string? RuntimeId { get; set; }
+    public string? DebuggerSessionId { get; set; }
     public LocalizedText? Text { get; set; }
     public required Accessibility Accessibility { get; set; }
     public UiAction? Action { get; set; }
@@ -279,6 +291,7 @@ public sealed class UiAction
 {
     public ActionKind Kind { get; set; }
     public string? RuntimeId { get; set; }
+    public string? SessionId { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -300,20 +313,40 @@ public sealed class UiPatchOperation
     public UiNode? Node { get; set; }
 }
 
-public enum UiNodeKind { Column, Heading, Text, RuntimeCard, RuntimeWorkspace, Section, HistoryEntry, LogEntry, DebuggerWorkspace, DebuggerFrame, Action }
-public enum ActionKind { RuntimeRefresh }
-public enum PatchKind { Remove, Insert, Move, Update }
-
-public static class RendererJson
+[JsonConverter(typeof(JsonStringEnumConverter<UiNodeKind>))]
+public enum UiNodeKind
 {
-    public static JsonSerializerOptions CreateOptions()
-    {
-        var options = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            WriteIndented = false,
-        };
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-        return options;
-    }
+    [JsonStringEnumMemberName("column")] Column,
+    [JsonStringEnumMemberName("heading")] Heading,
+    [JsonStringEnumMemberName("text")] Text,
+    [JsonStringEnumMemberName("runtime_card")] RuntimeCard,
+    [JsonStringEnumMemberName("runtime_workspace")] RuntimeWorkspace,
+    [JsonStringEnumMemberName("section")] Section,
+    [JsonStringEnumMemberName("history_entry")] HistoryEntry,
+    [JsonStringEnumMemberName("log_entry")] LogEntry,
+    [JsonStringEnumMemberName("debugger_workspace")] DebuggerWorkspace,
+    [JsonStringEnumMemberName("debugger_frame")] DebuggerFrame,
+    [JsonStringEnumMemberName("action")] Action,
 }
+
+[JsonConverter(typeof(JsonStringEnumConverter<ActionKind>))]
+public enum ActionKind
+{
+    [JsonStringEnumMemberName("runtime_refresh")] RuntimeRefresh,
+    [JsonStringEnumMemberName("debugger_cancel")] DebuggerCancel,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<PatchKind>))]
+public enum PatchKind
+{
+    [JsonStringEnumMemberName("remove")] Remove,
+    [JsonStringEnumMemberName("insert")] Insert,
+    [JsonStringEnumMemberName("move")] Move,
+    [JsonStringEnumMemberName("update")] Update,
+}
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
+[JsonSerializable(typeof(RendererFixture))]
+[JsonSerializable(typeof(UiDocument))]
+public partial class RendererJsonContext : JsonSerializerContext;

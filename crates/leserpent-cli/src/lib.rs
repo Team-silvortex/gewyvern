@@ -456,6 +456,36 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             }
             Ok(output.trim_end().to_string())
         }
+        ProtocolResponse::Query(QueryResult::RuntimeLogs {
+            revision,
+            runtime_id,
+            runtime_name,
+            entries,
+        }) => {
+            let mut output = format!(
+                "revision={} runtime={} name={} entries={}\n",
+                revision.0,
+                safe_cell(runtime_id.as_str()),
+                safe_cell(runtime_name),
+                entries.len()
+            );
+            output.push_str("SEQUENCE\tLEVEL\tMESSAGE\n");
+            for entry in entries {
+                output.push_str(&entry.sequence.to_string());
+                output.push('\t');
+                output.push_str(match entry.level {
+                    leserpent_domain::RuntimeLogLevel::Trace => "trace",
+                    leserpent_domain::RuntimeLogLevel::Debug => "debug",
+                    leserpent_domain::RuntimeLogLevel::Info => "info",
+                    leserpent_domain::RuntimeLogLevel::Warning => "warning",
+                    leserpent_domain::RuntimeLogLevel::Error => "error",
+                });
+                output.push('\t');
+                output.push_str(&safe_cell(&entry.message));
+                output.push('\n');
+            }
+            Ok(output.trim_end().to_string())
+        }
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
             error.code, error.message

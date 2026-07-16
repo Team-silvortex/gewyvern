@@ -7,6 +7,7 @@
       "id": "logs-runtime-logs",
       "kind": "runtime_workspace",
       "runtime_id": "runtime-logs",
+      "debugger_session_id": null,
       "text": null,
       "accessibility": {
         "label": {
@@ -21,6 +22,7 @@
           "id": "logs-runtime-logs-title",
           "kind": "heading",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.title",
             "fallback": "Log Runtime logs"
@@ -36,6 +38,7 @@
           "id": "logs-runtime-logs-revision",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.revision",
             "fallback": "Revision 1"
@@ -51,6 +54,7 @@
           "id": "logs-runtime-logs-entries",
           "kind": "section",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.entries",
             "fallback": "Log entries"
@@ -68,6 +72,7 @@
               "id": "logs-runtime-logs-entry-0",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 0"
@@ -83,6 +88,7 @@
               "id": "logs-runtime-logs-entry-1",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 1"
@@ -98,6 +104,7 @@
               "id": "logs-runtime-logs-entry-2",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 2"
@@ -113,6 +120,7 @@
               "id": "logs-runtime-logs-entry-3",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 3"
@@ -128,6 +136,7 @@
               "id": "logs-runtime-logs-entry-4",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 4"
@@ -143,6 +152,7 @@
               "id": "logs-runtime-logs-entry-5",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 5"
@@ -158,6 +168,7 @@
               "id": "logs-runtime-logs-entry-6",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 6"
@@ -173,6 +184,7 @@
               "id": "logs-runtime-logs-entry-7",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 7"
@@ -188,6 +200,7 @@
               "id": "logs-runtime-logs-entry-8",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 8"
@@ -203,6 +216,7 @@
               "id": "logs-runtime-logs-entry-9",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 9"
@@ -218,6 +232,7 @@
               "id": "logs-runtime-logs-entry-10",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 10"
@@ -233,6 +248,7 @@
               "id": "logs-runtime-logs-entry-11",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 11"
@@ -248,6 +264,7 @@
               "id": "logs-runtime-logs-entry-12",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 12"
@@ -263,6 +280,7 @@
               "id": "logs-runtime-logs-entry-13",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 13"
@@ -278,6 +296,7 @@
               "id": "logs-runtime-logs-entry-14",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 14"
@@ -293,6 +312,7 @@
               "id": "logs-runtime-logs-entry-15",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 15"
@@ -308,6 +328,7 @@
               "id": "logs-runtime-logs-entry-16",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 16"
@@ -323,6 +344,7 @@
               "id": "logs-runtime-logs-entry-17",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 17"
@@ -338,6 +360,7 @@
               "id": "logs-runtime-logs-entry-18",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 18"
@@ -353,6 +376,7 @@
               "id": "logs-runtime-logs-entry-19",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 19"
@@ -368,6 +392,7 @@
               "id": "logs-runtime-logs-entry-20",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 20"
@@ -383,6 +408,7 @@
               "id": "logs-runtime-logs-entry-21",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 21"
@@ -398,6 +424,7 @@
               "id": "logs-runtime-logs-entry-22",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 22"
@@ -413,6 +440,7 @@
               "id": "logs-runtime-logs-entry-23",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 23"
@@ -428,6 +456,7 @@
               "id": "logs-runtime-logs-entry-24",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 24"
@@ -443,6 +472,7 @@
               "id": "logs-runtime-logs-entry-25",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 25"
@@ -458,6 +488,7 @@
               "id": "logs-runtime-logs-entry-26",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 26"
@@ -473,6 +504,7 @@
               "id": "logs-runtime-logs-entry-27",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 27"
@@ -488,6 +520,7 @@
               "id": "logs-runtime-logs-entry-28",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 28"
@@ -503,6 +536,7 @@
               "id": "logs-runtime-logs-entry-29",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 29"
@@ -518,6 +552,7 @@
               "id": "logs-runtime-logs-entry-30",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 30"
@@ -533,6 +568,7 @@
               "id": "logs-runtime-logs-entry-31",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 31"
@@ -548,6 +584,7 @@
               "id": "logs-runtime-logs-entry-32",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 32"
@@ -563,6 +600,7 @@
               "id": "logs-runtime-logs-entry-33",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 33"
@@ -578,6 +616,7 @@
               "id": "logs-runtime-logs-entry-34",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 34"
@@ -593,6 +632,7 @@
               "id": "logs-runtime-logs-entry-35",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 35"
@@ -608,6 +648,7 @@
               "id": "logs-runtime-logs-entry-36",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 36"
@@ -623,6 +664,7 @@
               "id": "logs-runtime-logs-entry-37",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 37"
@@ -638,6 +680,7 @@
               "id": "logs-runtime-logs-entry-38",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 38"
@@ -653,6 +696,7 @@
               "id": "logs-runtime-logs-entry-39",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 39"
@@ -668,6 +712,7 @@
               "id": "logs-runtime-logs-entry-40",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 40"
@@ -683,6 +728,7 @@
               "id": "logs-runtime-logs-entry-41",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 41"
@@ -698,6 +744,7 @@
               "id": "logs-runtime-logs-entry-42",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 42"
@@ -713,6 +760,7 @@
               "id": "logs-runtime-logs-entry-43",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 43"
@@ -728,6 +776,7 @@
               "id": "logs-runtime-logs-entry-44",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 44"
@@ -743,6 +792,7 @@
               "id": "logs-runtime-logs-entry-45",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 45"
@@ -758,6 +808,7 @@
               "id": "logs-runtime-logs-entry-46",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 46"
@@ -773,6 +824,7 @@
               "id": "logs-runtime-logs-entry-47",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 47"
@@ -806,6 +858,7 @@
           "id": "logs-runtime-logs-entry-48",
           "kind": "log_entry",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.entry",
             "fallback": "[WARN] sanitized event 48"
@@ -824,6 +877,7 @@
           "id": "logs-runtime-logs-revision",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.revision",
             "fallback": "Revision 2"
@@ -845,6 +899,7 @@
       "id": "logs-runtime-logs",
       "kind": "runtime_workspace",
       "runtime_id": "runtime-logs",
+      "debugger_session_id": null,
       "text": null,
       "accessibility": {
         "label": {
@@ -859,6 +914,7 @@
           "id": "logs-runtime-logs-title",
           "kind": "heading",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.title",
             "fallback": "Log Runtime logs"
@@ -874,6 +930,7 @@
           "id": "logs-runtime-logs-revision",
           "kind": "text",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.revision",
             "fallback": "Revision 2"
@@ -889,6 +946,7 @@
           "id": "logs-runtime-logs-entries",
           "kind": "section",
           "runtime_id": null,
+          "debugger_session_id": null,
           "text": {
             "key": "runtime.logs.entries",
             "fallback": "Log entries"
@@ -906,6 +964,7 @@
               "id": "logs-runtime-logs-entry-1",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 1"
@@ -921,6 +980,7 @@
               "id": "logs-runtime-logs-entry-2",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 2"
@@ -936,6 +996,7 @@
               "id": "logs-runtime-logs-entry-3",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 3"
@@ -951,6 +1012,7 @@
               "id": "logs-runtime-logs-entry-4",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 4"
@@ -966,6 +1028,7 @@
               "id": "logs-runtime-logs-entry-5",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 5"
@@ -981,6 +1044,7 @@
               "id": "logs-runtime-logs-entry-6",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 6"
@@ -996,6 +1060,7 @@
               "id": "logs-runtime-logs-entry-7",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 7"
@@ -1011,6 +1076,7 @@
               "id": "logs-runtime-logs-entry-8",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 8"
@@ -1026,6 +1092,7 @@
               "id": "logs-runtime-logs-entry-9",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 9"
@@ -1041,6 +1108,7 @@
               "id": "logs-runtime-logs-entry-10",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 10"
@@ -1056,6 +1124,7 @@
               "id": "logs-runtime-logs-entry-11",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 11"
@@ -1071,6 +1140,7 @@
               "id": "logs-runtime-logs-entry-12",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 12"
@@ -1086,6 +1156,7 @@
               "id": "logs-runtime-logs-entry-13",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 13"
@@ -1101,6 +1172,7 @@
               "id": "logs-runtime-logs-entry-14",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 14"
@@ -1116,6 +1188,7 @@
               "id": "logs-runtime-logs-entry-15",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 15"
@@ -1131,6 +1204,7 @@
               "id": "logs-runtime-logs-entry-16",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 16"
@@ -1146,6 +1220,7 @@
               "id": "logs-runtime-logs-entry-17",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 17"
@@ -1161,6 +1236,7 @@
               "id": "logs-runtime-logs-entry-18",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 18"
@@ -1176,6 +1252,7 @@
               "id": "logs-runtime-logs-entry-19",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 19"
@@ -1191,6 +1268,7 @@
               "id": "logs-runtime-logs-entry-20",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 20"
@@ -1206,6 +1284,7 @@
               "id": "logs-runtime-logs-entry-21",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 21"
@@ -1221,6 +1300,7 @@
               "id": "logs-runtime-logs-entry-22",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 22"
@@ -1236,6 +1316,7 @@
               "id": "logs-runtime-logs-entry-23",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 23"
@@ -1251,6 +1332,7 @@
               "id": "logs-runtime-logs-entry-24",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 24"
@@ -1266,6 +1348,7 @@
               "id": "logs-runtime-logs-entry-25",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 25"
@@ -1281,6 +1364,7 @@
               "id": "logs-runtime-logs-entry-26",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 26"
@@ -1296,6 +1380,7 @@
               "id": "logs-runtime-logs-entry-27",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 27"
@@ -1311,6 +1396,7 @@
               "id": "logs-runtime-logs-entry-28",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 28"
@@ -1326,6 +1412,7 @@
               "id": "logs-runtime-logs-entry-29",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 29"
@@ -1341,6 +1428,7 @@
               "id": "logs-runtime-logs-entry-30",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 30"
@@ -1356,6 +1444,7 @@
               "id": "logs-runtime-logs-entry-31",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 31"
@@ -1371,6 +1460,7 @@
               "id": "logs-runtime-logs-entry-32",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 32"
@@ -1386,6 +1476,7 @@
               "id": "logs-runtime-logs-entry-33",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 33"
@@ -1401,6 +1492,7 @@
               "id": "logs-runtime-logs-entry-34",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 34"
@@ -1416,6 +1508,7 @@
               "id": "logs-runtime-logs-entry-35",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 35"
@@ -1431,6 +1524,7 @@
               "id": "logs-runtime-logs-entry-36",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 36"
@@ -1446,6 +1540,7 @@
               "id": "logs-runtime-logs-entry-37",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 37"
@@ -1461,6 +1556,7 @@
               "id": "logs-runtime-logs-entry-38",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 38"
@@ -1476,6 +1572,7 @@
               "id": "logs-runtime-logs-entry-39",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 39"
@@ -1491,6 +1588,7 @@
               "id": "logs-runtime-logs-entry-40",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 40"
@@ -1506,6 +1604,7 @@
               "id": "logs-runtime-logs-entry-41",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 41"
@@ -1521,6 +1620,7 @@
               "id": "logs-runtime-logs-entry-42",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 42"
@@ -1536,6 +1636,7 @@
               "id": "logs-runtime-logs-entry-43",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 43"
@@ -1551,6 +1652,7 @@
               "id": "logs-runtime-logs-entry-44",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[ERROR] sanitized event 44"
@@ -1566,6 +1668,7 @@
               "id": "logs-runtime-logs-entry-45",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[TRACE] sanitized event 45"
@@ -1581,6 +1684,7 @@
               "id": "logs-runtime-logs-entry-46",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[DEBUG] sanitized event 46"
@@ -1596,6 +1700,7 @@
               "id": "logs-runtime-logs-entry-47",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[INFO] sanitized event 47"
@@ -1611,6 +1716,7 @@
               "id": "logs-runtime-logs-entry-48",
               "kind": "log_entry",
               "runtime_id": null,
+              "debugger_session_id": null,
               "text": {
                 "key": "runtime.logs.entry",
                 "fallback": "[WARN] sanitized event 48"

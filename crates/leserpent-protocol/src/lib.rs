@@ -138,6 +138,7 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
         DomainError::RuntimeNotFound { .. } => "runtime_not_found",
         DomainError::RevisionConflict { .. } => "revision_conflict",
         DomainError::IdempotencyConflict { .. } => "idempotency_conflict",
+        DomainError::InvalidQuery { .. } => "invalid_query",
     };
     ResponseEnvelope {
         schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -168,6 +169,27 @@ mod tests {
                 capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
                 query: Query::RuntimeList {
                     filter: RuntimeListFilter::default(),
+                },
+            }),
+        };
+        let bytes = encode_request(&request).unwrap();
+        assert_eq!(decode_request(&bytes).unwrap(), request);
+    }
+
+    #[test]
+    fn runtime_logs_request_round_trips_with_bounded_cursor() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Query(QueryEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                principal: Principal {
+                    id: "operator".to_string(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                query: Query::RuntimeLogs {
+                    runtime_id: leserpent_domain::RuntimeId::new("runtime-a").unwrap(),
+                    after_sequence: Some(41),
+                    limit: 128,
                 },
             }),
         };

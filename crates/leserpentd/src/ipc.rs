@@ -164,10 +164,12 @@ fn execute_request(runtime: &mut ControlRuntime, request: RequestEnvelope) -> Re
         ProtocolRequest::Query(query) => match query.query {
             Query::RuntimeList { .. }
             | Query::RuntimeInspect { .. }
-            | Query::RuntimeHistory { .. } => CAPABILITY_RUNTIME_READ,
+            | Query::RuntimeHistory { .. }
+            | Query::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
         },
         ProtocolRequest::Command(command) => match command.command {
             Command::RuntimeRefresh { .. } => CAPABILITY_RUNTIME_REFRESH,
+            Command::DebuggerCancel { .. } => leserpent_domain::CAPABILITY_DEBUGGER_CONTROL,
         },
         ProtocolRequest::Health(_) => unreachable!(),
     };
@@ -234,7 +236,7 @@ mod tests {
 
     use leserpent_domain::{
         CAPABILITY_RUNTIME_READ, CapabilitySet, DOMAIN_SCHEMA_VERSION, Principal, Query,
-        QueryEnvelope, RuntimeListFilter,
+        QueryEnvelope, QueryResult, RuntimeId, RuntimeListFilter, RuntimeLogLevel,
     };
     use leserpent_protocol::{
         HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope,
@@ -304,6 +306,52 @@ mod tests {
         assert!(matches!(response.response, ProtocolResponse::Query(_)));
         drop(server);
         assert!(!socket.exists());
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authenticated_runtime_logs_round_trip_without_endpoint_disclosure() {
+        let database = temp_path("logs", "sqlite");
+        let socket = temp_path("logs", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        runtime
+            .register_runtime(
+                runtime_id.clone(),
+                "Runtime A",
+                "https://secret-endpoint.invalid",
+            )
+            .unwrap();
+        runtime
+            .append_runtime_log(&runtime_id, RuntimeLogLevel::Warning, "bounded warning")
+            .unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Query(QueryEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                query: Query::RuntimeLogs {
+                    runtime_id,
+                    after_sequence: None,
+                    limit: 10,
+                },
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, request);
+        assert!(matches!(
+            &response.response,
+            ProtocolResponse::Query(QueryResult::RuntimeLogs { entries, .. })
+                if entries.len() == 1 && entries[0].message == "bounded warning"
+        ));
+        let encoded = serde_json::to_string(&response).unwrap();
+        assert!(!encoded.contains("secret-endpoint"));
+        assert!(!encoded.contains("endpoint"));
+        drop(server);
         drop(runtime);
         fs::remove_file(database).unwrap();
     }

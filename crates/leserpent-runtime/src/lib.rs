@@ -1,10 +1,12 @@
 use leserpent_domain::{
     CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
     DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
-    PlannedOperation, QueryResult, RUNTIME_STATUS_REFRESH_EFFECT_KIND, RuntimeId,
-    RuntimeProjection, RuntimeStatusObservation, RuntimeStatusRefreshRequest,
+    MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES, PlannedOperation, Query,
+    QueryEnvelope, QueryResult, RUNTIME_STATUS_REFRESH_EFFECT_KIND, RuntimeId, RuntimeLogLevel,
+    RuntimeLogRecord, RuntimeProjection, RuntimeStatusObservation, RuntimeStatusRefreshRequest,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 use std::path::Path;
 use std::time::Duration;
@@ -16,6 +18,7 @@ use persistence::{Journal, JournalEntryKind};
 
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
 pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
+pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: usize = 4_096;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EffectEnqueue {
@@ -119,10 +122,22 @@ impl std::error::Error for RuntimeError {
     }
 }
 
-#[derive(Default)]
 pub struct ControlRuntime {
     control: InMemoryControlPlane,
     journal: Option<Journal>,
+    ephemeral_logs: BTreeMap<RuntimeId, VecDeque<RuntimeLogRecord>>,
+    next_ephemeral_log_sequence: u64,
+}
+
+impl Default for ControlRuntime {
+    fn default() -> Self {
+        Self {
+            control: InMemoryControlPlane::default(),
+            journal: None,
+            ephemeral_logs: BTreeMap::new(),
+            next_ephemeral_log_sequence: 1,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -182,6 +197,8 @@ impl ControlRuntime {
         let mut runtime = Self {
             control,
             journal: None,
+            ephemeral_logs: BTreeMap::new(),
+            next_ephemeral_log_sequence: 1,
         };
         for entry in entries {
             match entry.kind {
@@ -543,18 +560,72 @@ impl ControlRuntime {
             .register_runtime(id, registration.name, registration.endpoint))
     }
 
+    pub fn append_runtime_log(
+        &mut self,
+        runtime_id: &RuntimeId,
+        level: RuntimeLogLevel,
+        message: impl Into<String>,
+    ) -> Result<u64, RuntimeError> {
+        if self.control.runtime_projection(runtime_id).is_none() {
+            return Err(RuntimeError::Domain(DomainError::RuntimeNotFound {
+                runtime_id: runtime_id.as_str().to_string(),
+            }));
+        }
+        let message = message.into();
+        if message.len() > MAX_RUNTIME_LOG_MESSAGE_BYTES {
+            return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                reason: "runtime log message exceeds the source limit",
+            }));
+        }
+        if let Some(journal) = &mut self.journal {
+            return journal
+                .append_runtime_log(runtime_id, level, &message)
+                .map_err(RuntimeError::Storage);
+        }
+
+        let sequence = self.next_ephemeral_log_sequence;
+        self.next_ephemeral_log_sequence = self
+            .next_ephemeral_log_sequence
+            .checked_add(1)
+            .ok_or_else(|| RuntimeError::Storage("runtime log sequence exhausted".into()))?;
+        let logs = self.ephemeral_logs.entry(runtime_id.clone()).or_default();
+        logs.push_back(RuntimeLogRecord {
+            sequence,
+            level,
+            message,
+        });
+        while logs.len() > MAX_PERSISTED_RUNTIME_LOG_ENTRIES {
+            logs.pop_front();
+        }
+        Ok(sequence)
+    }
+
     pub fn execute_plan(&mut self, plan: CommandPlan) -> Result<PlanResult, RuntimeError> {
         if let Some(journal) = &mut self.journal {
             journal.ensure_owner().map_err(RuntimeError::Storage)?;
         }
         plan.validate().map_err(RuntimeError::InvalidPlan)?;
         match plan.operation {
-            PlannedOperation::Query(query) => self
-                .control
-                .query(query)
-                .map(PlanResult::Query)
-                .map_err(RuntimeError::Domain),
+            PlannedOperation::Query(query) => {
+                if matches!(query.query, Query::RuntimeLogs { .. }) {
+                    self.execute_runtime_logs_query(query)
+                        .map(PlanResult::Query)
+                } else {
+                    self.control
+                        .query(query)
+                        .map(PlanResult::Query)
+                        .map_err(RuntimeError::Domain)
+                }
+            }
             PlannedOperation::Command(command) => {
+                if matches!(
+                    &command.command,
+                    leserpent_domain::Command::DebuggerCancel { .. }
+                ) {
+                    return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                        reason: "debugger commands require the Leselang VM authority",
+                    }));
+                }
                 let payload = serde_json::to_vec(&CommandPlan {
                     schema_version: plan.schema_version,
                     required_capability: plan.required_capability,
@@ -591,6 +662,71 @@ impl ControlRuntime {
                 Ok(PlanResult::Command(result))
             }
         }
+    }
+
+    fn execute_runtime_logs_query(
+        &mut self,
+        query: QueryEnvelope,
+    ) -> Result<QueryResult, RuntimeError> {
+        let Query::RuntimeLogs {
+            runtime_id,
+            after_sequence,
+            limit,
+        } = query.query
+        else {
+            return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                reason: "expected a runtime logs query",
+            }));
+        };
+        if limit == 0 || limit > MAX_RUNTIME_LOG_QUERY_ENTRIES {
+            return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                reason: "runtime log limit must be between 1 and 256",
+            }));
+        }
+        let inspected = self
+            .control
+            .query(QueryEnvelope {
+                schema_version: query.schema_version,
+                principal: query.principal,
+                capabilities: query.capabilities,
+                query: Query::RuntimeInspect {
+                    runtime_id: runtime_id.clone(),
+                },
+            })
+            .map_err(RuntimeError::Domain)?;
+        let QueryResult::RuntimeInspect { revision, runtime } = inspected else {
+            return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                reason: "runtime inspection returned an unexpected result",
+            }));
+        };
+        let entries = if let Some(journal) = &self.journal {
+            journal
+                .load_runtime_logs(&runtime_id, after_sequence, limit)
+                .map_err(RuntimeError::Storage)?
+        } else {
+            let logs = self.ephemeral_logs.get(&runtime_id);
+            let mut entries = logs
+                .into_iter()
+                .flatten()
+                .filter(|entry| after_sequence.is_none_or(|after| entry.sequence > after))
+                .cloned()
+                .collect::<Vec<_>>();
+            if entries.len() > usize::from(limit) {
+                let start = if after_sequence.is_none() {
+                    entries.len() - usize::from(limit)
+                } else {
+                    0
+                };
+                entries = entries[start..start + usize::from(limit)].to_vec();
+            }
+            entries
+        };
+        Ok(QueryResult::RuntimeLogs {
+            revision,
+            runtime_id,
+            runtime_name: runtime.name,
+            entries,
+        })
     }
 
     fn schedule_command_effects(&mut self, result: &CommandResult) -> Result<(), RuntimeError> {
@@ -678,6 +814,30 @@ mod tests {
         lower_effect(&program.function.effect, &context()).unwrap()
     }
 
+    fn logs_plan(
+        runtime_id: &str,
+        after_sequence: Option<u64>,
+        limit: u16,
+        capabilities: CapabilitySet,
+    ) -> CommandPlan {
+        CommandPlan {
+            schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
+            required_capability: CAPABILITY_RUNTIME_READ.to_string(),
+            operation: PlannedOperation::Query(QueryEnvelope {
+                schema_version: leserpent_domain::DOMAIN_SCHEMA_VERSION,
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities,
+                query: Query::RuntimeLogs {
+                    runtime_id: RuntimeId::new(runtime_id).unwrap(),
+                    after_sequence,
+                    limit,
+                },
+            }),
+        }
+    }
+
     struct ScriptedExecutor {
         outcomes: VecDeque<EffectExecution>,
     }
@@ -708,6 +868,112 @@ mod tests {
         };
         assert_eq!(runtimes.len(), 1);
         assert_eq!(runtimes[0].id, RuntimeId::new("runtime-a").unwrap());
+    }
+
+    #[test]
+    fn runtime_logs_are_capability_gated_windowed_and_durable() {
+        let path = temp_journal("runtime-logs");
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            runtime
+                .register_runtime(runtime_id.clone(), "Runtime A", "https://runtime-a.invalid")
+                .unwrap();
+            assert_eq!(
+                runtime
+                    .append_runtime_log(&runtime_id, RuntimeLogLevel::Debug, "first")
+                    .unwrap(),
+                1
+            );
+            assert_eq!(
+                runtime
+                    .append_runtime_log(&runtime_id, RuntimeLogLevel::Info, "second\nline")
+                    .unwrap(),
+                2
+            );
+            assert_eq!(
+                runtime
+                    .append_runtime_log(&runtime_id, RuntimeLogLevel::Error, "third")
+                    .unwrap(),
+                3
+            );
+
+            assert!(matches!(
+                runtime.execute_plan(logs_plan("runtime-a", None, 2, CapabilitySet::default(),)),
+                Err(RuntimeError::InvalidPlan(
+                    CommandPlanError::MissingCapability {
+                        capability: CAPABILITY_RUNTIME_READ,
+                    }
+                ))
+            ));
+            let PlanResult::Query(result) = runtime
+                .execute_plan(logs_plan(
+                    "runtime-a",
+                    None,
+                    2,
+                    CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                ))
+                .unwrap()
+            else {
+                panic!("runtime.logs must return a query result");
+            };
+            let QueryResult::RuntimeLogs { entries, .. } = &result else {
+                panic!("runtime.logs must return log entries");
+            };
+            assert_eq!(
+                entries
+                    .iter()
+                    .map(|entry| entry.sequence)
+                    .collect::<Vec<_>>(),
+                [2, 3]
+            );
+            let encoded = serde_json::to_string(&result).unwrap();
+            assert!(!encoded.contains("runtime-a.invalid"));
+            assert!(!encoded.contains("endpoint"));
+        }
+
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        let PlanResult::Query(QueryResult::RuntimeLogs { entries, .. }) = recovered
+            .execute_plan(logs_plan(
+                "runtime-a",
+                Some(2),
+                10,
+                CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            ))
+            .unwrap()
+        else {
+            panic!("runtime.logs must return a query result");
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].sequence, 3);
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn runtime_logs_reject_invalid_limits_and_oversized_messages() {
+        let mut runtime = ControlRuntime::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        runtime
+            .register_runtime(runtime_id.clone(), "Runtime A", "local")
+            .unwrap();
+        assert!(matches!(
+            runtime.append_runtime_log(
+                &runtime_id,
+                RuntimeLogLevel::Info,
+                "x".repeat(MAX_RUNTIME_LOG_MESSAGE_BYTES + 1),
+            ),
+            Err(RuntimeError::Domain(DomainError::InvalidQuery { .. }))
+        ));
+        assert!(matches!(
+            runtime.execute_plan(logs_plan(
+                "runtime-a",
+                None,
+                0,
+                CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            )),
+            Err(RuntimeError::Domain(DomainError::InvalidQuery { .. }))
+        ));
     }
 
     #[test]
@@ -986,8 +1252,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 7);
-        assert_eq!(migration_count, 7);
+        assert_eq!(schema, 8);
+        assert_eq!(migration_count, 8);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -995,7 +1261,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v7");
+        let path = temp_journal("incomplete-v8");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -1010,20 +1276,20 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 7);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 8);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 7")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 8")
         ));
         fs::remove_file(path).unwrap();
     }
 
     #[test]
-    fn sqlite_journal_migrates_complete_v6_semantics_to_v7() {
+    fn sqlite_journal_migrates_complete_v6_semantics_to_current() {
         let path = temp_journal("v6-semantic-migration");
         drop(ControlRuntime::open(&path).unwrap());
         let connection = Connection::open(&path).unwrap();
@@ -1033,6 +1299,13 @@ mod tests {
                 [],
             )
             .unwrap();
+        connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 8",
+                [],
+            )
+            .unwrap();
+        connection.execute("DROP TABLE runtime_logs", []).unwrap();
         connection
             .execute(
                 "UPDATE runtime_metadata SET value = 6 WHERE key = 'schema_version'",
@@ -1057,15 +1330,15 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 7);
+        assert_eq!(schema, 8);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
 
     #[test]
-    fn sqlite_journal_rejects_unknown_v7_entry_kind_before_replay() {
-        let path = temp_journal("v7-unknown-kind");
+    fn sqlite_journal_rejects_unknown_current_entry_kind_before_replay() {
+        let path = temp_journal("current-unknown-kind");
         drop(ControlRuntime::open(&path).unwrap());
         Connection::open(&path)
             .unwrap()
@@ -1078,27 +1351,27 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 7 journal kind")
+                if error.contains("invalid runtime journal schema 8 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
 
     #[test]
     fn sqlite_journal_rejects_extra_migration_history() {
-        let path = temp_journal("v7-extra-migration");
+        let path = temp_journal("current-extra-migration");
         drop(ControlRuntime::open(&path).unwrap());
         Connection::open(&path)
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (8, 0)",
+                 VALUES (9, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 7 migration history")
+                if error.contains("invalid runtime journal schema 8 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1310,6 +1583,7 @@ mod tests {
                  DROP TABLE runtime_snapshots_v4;
                  DROP TABLE runtime_owner;
                  DROP TABLE runtime_effect_tasks;
+                 DROP TABLE runtime_logs;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -1336,7 +1610,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 7);
+        assert_eq!(schema, 8);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
