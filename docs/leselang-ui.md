@@ -19,6 +19,14 @@ headings, text, runtime cards, and actions. It does not include runtime
 endpoints or arbitrary network locations. Text uses localization keys plus
 bounded fallback strings; every action has an accessibility label.
 
+The runtime child-workspace slice combines `RuntimeInspect` and
+`RuntimeHistory` only when both carry the same domain revision. Its semantic
+tree contains runtime status, snapshot availability, a refresh action, and the
+bounded newest-first command history. Mismatched revisions fail as torn state;
+endpoint and persistence details remain absent. Stable workspace and history
+entry IDs allow an empty history to become an incremental insert rather than a
+full document replacement.
+
 ## Identity And Bounds
 
 - schema version: `1`
@@ -26,6 +34,7 @@ bounded fallback strings; every action has an accessibility label.
 - maximum depth: `32`
 - maximum fallback text: `1024` bytes
 - maximum patch operations: `8192`
+- maximum encoded document or patch: `2 MiB`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -56,5 +65,16 @@ duplicate subtrees, root edits, cyclic moves, and non-shallow updates. Tests
 prove `apply_patch(previous, diff(previous, next)) == next` for insertion,
 removal, movement, and semantic updates.
 
-The next Gate 4 slice is a renderer conformance harness that applies these
-operations without introducing frontend business logic.
+The bounded Rust JSON codec is the only cross-language renderer exchange
+format. A Rust-generated `previous + patch + next` fixture is consumed by the
+.NET renderer core under `apps/leserpent-avalonia`; strict deserialization,
+mount, incremental application, runtime binding, and final semantic equality
+must all pass with warnings treated as errors.
+
+The first Avalonia 12 desktop slice maps the validated renderer-core tree to
+actual semantic controls. Stable IDs and accessibility metadata become
+Automation properties, while action controls emit only their node ID and never
+construct commands in .NET. Its platform smoke mode renders the cross-language
+fixture through the real control stack. The next Gate 4 slices add live
+incremental control updates, compiled bindings and virtualization, followed by
+separately bounded log and debugger documents.

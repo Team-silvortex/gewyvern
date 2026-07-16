@@ -161,6 +161,23 @@ transport, HTML, script, or adapter type enters the IR. Avalonia rendering and
 broader child-workspace/debugger documents remain. A framework-independent
 patch application reference now fences revisions and rejects malformed graph
 edits; round-trip fixtures establish the semantic renderer conformance baseline.
+The runtime child workspace now combines same-revision inspect and bounded
+history projections into status, snapshot, refresh, and history nodes. Torn
+state fails closed, endpoint data remains outside the IR, and history changes
+apply incrementally. A concrete renderer plus bounded logs and debugger
+documents remain.
+
+The first concrete cross-language renderer core now exists under
+`apps/leserpent-avalonia`. Rust emits a bounded versioned JSON fixture and the
+.NET 10 adapter strictly deserializes it, mounts the previous semantic tree,
+applies incremental operations, mirrors runtime/action validation, and proves
+equality with the Rust next document at zero build warnings. The first Avalonia
+12 desktop shell now maps every current semantic node kind to real controls,
+preserves stable IDs and accessibility metadata through Automation properties,
+and emits only action node IDs back across the renderer boundary. A platform
+smoke mode initializes the real control stack, renders the Rust fixture, and
+exits cleanly. Compiled bindings, live incremental control updates,
+virtualization, AOT packaging, and mobile shells remain.
 
 Exit: the vertical slice contains no direct adapter or persistence access and
 passes GUI/CLI/Leselang equivalence tests.

@@ -9,6 +9,4 @@ license.workspace = true
 leselang-command = { path = "../leselang-command" }
 leserpent-domain = { path = "../leserpent-domain" }
 serde.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true

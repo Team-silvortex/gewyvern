@@ -9,6 +9,7 @@ pub const MAX_UI_NODES: usize = 4_096;
 pub const MAX_UI_DEPTH: usize = 32;
 pub const MAX_UI_TEXT_BYTES: usize = 1_024;
 pub const MAX_UI_PATCH_OPERATIONS: usize = 8_192;
+pub const MAX_UI_IR_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -41,6 +42,9 @@ pub enum UiNodeKind {
     Heading,
     Text,
     RuntimeCard,
+    RuntimeWorkspace,
+    Section,
+    HistoryEntry,
     Action,
 }
 
@@ -135,10 +139,20 @@ pub enum UiError {
     InvalidPatch {
         reason: &'static str,
     },
+    PayloadTooLarge {
+        size: usize,
+        limit: usize,
+    },
+    InvalidJson(String),
     EventRevisionMismatch {
         document: Revision,
         expected: Option<Revision>,
     },
+    StateRevisionMismatch {
+        primary: Revision,
+        related: Revision,
+    },
+    InvalidState,
     UnknownEventTarget {
         node_id: String,
     },
@@ -247,6 +261,147 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
             },
             action: None,
             children,
+        },
+    };
+    validate_document(&document)?;
+    Ok(document)
+}
+
+pub fn runtime_workspace_document(
+    inspect: &QueryResult,
+    history: &QueryResult,
+) -> Result<UiDocument, UiError> {
+    let QueryResult::RuntimeInspect { revision, runtime } = inspect else {
+        return Err(UiError::InvalidState);
+    };
+    let QueryResult::RuntimeHistory {
+        revision: history_revision,
+        entries,
+    } = history
+    else {
+        return Err(UiError::InvalidState);
+    };
+    if revision != history_revision {
+        return Err(UiError::StateRevisionMismatch {
+            primary: *revision,
+            related: *history_revision,
+        });
+    }
+    if entries.iter().any(|entry| entry.runtime.id != runtime.id) {
+        return Err(UiError::InvalidState);
+    }
+
+    let prefix = format!("workspace-{}", runtime.id.as_str());
+    let refresh_status = match runtime.refresh_status {
+        RefreshStatus::NeverRequested => "Never requested",
+        RefreshStatus::Pending => "Refresh pending",
+        RefreshStatus::Ready => "Ready",
+        RefreshStatus::Failed => "Refresh failed",
+    };
+    let mut history_children = Vec::with_capacity(entries.len().max(1));
+    for entry in entries {
+        history_children.push(UiNode {
+            id: NodeId::new(format!(
+                "{prefix}-history-{}-{}",
+                entry.runtime.revision.0,
+                entry.command_id.as_str()
+            ))?,
+            kind: UiNodeKind::HistoryEntry,
+            runtime_id: None,
+            text: Some(localized(
+                "runtime.history.entry",
+                &format!(
+                    "Revision {}: {}",
+                    entry.runtime.revision.0,
+                    match entry.status {
+                        leserpent_domain::CommandStatus::Planned => "planned",
+                        leserpent_domain::CommandStatus::Applied => "applied",
+                    }
+                ),
+            )?),
+            accessibility: Accessibility::default(),
+            action: None,
+            children: Vec::new(),
+        });
+    }
+    if history_children.is_empty() {
+        history_children.push(text_node(
+            &format!("{prefix}-history-empty"),
+            UiNodeKind::Text,
+            "runtime.history.empty",
+            "No applied commands",
+        )?);
+    }
+
+    let document = UiDocument {
+        schema_version: UI_SCHEMA_VERSION,
+        revision: *revision,
+        root: UiNode {
+            id: NodeId::new(prefix.clone())?,
+            kind: UiNodeKind::RuntimeWorkspace,
+            runtime_id: Some(runtime.id.clone()),
+            text: None,
+            accessibility: Accessibility {
+                label: Some(localized("runtime.workspace", &runtime.name)?),
+                description: None,
+            },
+            action: None,
+            children: vec![
+                text_node(
+                    &format!("{prefix}-title"),
+                    UiNodeKind::Heading,
+                    "runtime.workspace.title",
+                    &runtime.name,
+                )?,
+                text_node(
+                    &format!("{prefix}-revision"),
+                    UiNodeKind::Text,
+                    "runtime.workspace.revision",
+                    &format!("Revision {}", revision.0),
+                )?,
+                text_node(
+                    &format!("{prefix}-status"),
+                    UiNodeKind::Text,
+                    "runtime.workspace.status",
+                    refresh_status,
+                )?,
+                text_node(
+                    &format!("{prefix}-snapshot"),
+                    UiNodeKind::Text,
+                    "runtime.workspace.snapshot",
+                    if runtime.status.has_latest_snapshot {
+                        "Latest snapshot available"
+                    } else {
+                        "No runtime snapshot"
+                    },
+                )?,
+                UiNode {
+                    id: NodeId::new(format!("{prefix}-refresh"))?,
+                    kind: UiNodeKind::Action,
+                    runtime_id: None,
+                    text: Some(localized("runtime.workspace.refresh", "Refresh")?),
+                    accessibility: Accessibility {
+                        label: Some(localized("runtime.workspace.refresh", "Refresh runtime")?),
+                        description: None,
+                    },
+                    action: Some(UiAction::RuntimeRefresh {
+                        runtime_id: runtime.id.clone(),
+                    }),
+                    children: Vec::new(),
+                },
+                UiNode {
+                    id: NodeId::new(format!("{prefix}-history"))?,
+                    kind: UiNodeKind::Section,
+                    runtime_id: None,
+                    text: Some(localized("runtime.history.title", "History")?),
+                    accessibility: Accessibility {
+                        label: Some(localized("runtime.history.title", "Runtime history")?),
+                        description: None,
+                    },
+                    action: None,
+                    children: history_children,
+                },
+            ],
         },
     };
     validate_document(&document)?;
@@ -456,6 +611,65 @@ pub fn apply_patch(document: &UiDocument, patch: &UiPatch) -> Result<UiDocument,
     Ok(result)
 }
 
+pub fn encode_document(document: &UiDocument) -> Result<Vec<u8>, UiError> {
+    validate_document(document)?;
+    encode_json(document)
+}
+
+pub fn decode_document(bytes: &[u8]) -> Result<UiDocument, UiError> {
+    check_payload_size(bytes.len())?;
+    let document: UiDocument =
+        serde_json::from_slice(bytes).map_err(|error| UiError::InvalidJson(error.to_string()))?;
+    validate_document(&document)?;
+    Ok(document)
+}
+
+pub fn encode_patch(patch: &UiPatch) -> Result<Vec<u8>, UiError> {
+    validate_patch(patch)?;
+    encode_json(patch)
+}
+
+pub fn decode_patch(bytes: &[u8]) -> Result<UiPatch, UiError> {
+    check_payload_size(bytes.len())?;
+    let patch: UiPatch =
+        serde_json::from_slice(bytes).map_err(|error| UiError::InvalidJson(error.to_string()))?;
+    validate_patch(&patch)?;
+    Ok(patch)
+}
+
+fn validate_patch(patch: &UiPatch) -> Result<(), UiError> {
+    if patch.schema_version != UI_SCHEMA_VERSION {
+        return Err(UiError::UnsupportedSchema {
+            actual: patch.schema_version,
+            expected: UI_SCHEMA_VERSION,
+        });
+    }
+    if patch.to_revision < patch.from_revision {
+        return Err(UiError::RevisionRegression);
+    }
+    if patch.operations.len() > MAX_UI_PATCH_OPERATIONS {
+        return Err(UiError::PatchLimitExceeded);
+    }
+    Ok(())
+}
+
+fn encode_json(value: &impl Serialize) -> Result<Vec<u8>, UiError> {
+    let bytes =
+        serde_json::to_vec(value).map_err(|error| UiError::InvalidJson(error.to_string()))?;
+    check_payload_size(bytes.len())?;
+    Ok(bytes)
+}
+
+fn check_payload_size(size: usize) -> Result<(), UiError> {
+    if size > MAX_UI_IR_BYTES {
+        return Err(UiError::PayloadTooLarge {
+            size,
+            limit: MAX_UI_IR_BYTES,
+        });
+    }
+    Ok(())
+}
+
 pub fn validate_document(document: &UiDocument) -> Result<(), UiError> {
     if document.schema_version != UI_SCHEMA_VERSION {
         return Err(UiError::UnsupportedSchema {
@@ -495,8 +709,10 @@ fn validate_node(
         });
     }
     let runtime_context = match (&node.kind, &node.runtime_id) {
-        (UiNodeKind::RuntimeCard, Some(runtime_id)) => Some(runtime_id),
-        (UiNodeKind::RuntimeCard, None) | (_, Some(_)) => {
+        (UiNodeKind::RuntimeCard | UiNodeKind::RuntimeWorkspace, Some(runtime_id)) => {
+            Some(runtime_id)
+        }
+        (UiNodeKind::RuntimeCard | UiNodeKind::RuntimeWorkspace, None) | (_, Some(_)) => {
             return Err(UiError::InvalidRuntimeBinding {
                 node_id: node.id.as_str().to_string(),
             });
@@ -652,8 +868,9 @@ fn shallow_node(
 #[cfg(test)]
 mod tests {
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandId, CommandOrigin, Confirmation,
-        IdempotencyKey, Principal, RuntimeListFilter,
+        CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command,
+        CommandEnvelope, CommandId, CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION,
+        IdempotencyKey, Principal, Query, QueryEnvelope, RuntimeListFilter,
     };
 
     use super::*;
@@ -699,6 +916,50 @@ mod tests {
         }
     }
 
+    fn workspace(applied: bool) -> (QueryResult, QueryResult) {
+        let mut control = leserpent_domain::InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        control.register_runtime(runtime_id.clone(), "Runtime A", "hidden-workspace-endpoint");
+        if applied {
+            control
+                .execute(CommandEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    command_id: CommandId::new("command-refresh").unwrap(),
+                    idempotency_key: IdempotencyKey::new("effect-refresh").unwrap(),
+                    expected_revision: Some(Revision(1)),
+                    principal: Principal {
+                        id: "operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+                    origin: CommandOrigin::Gui,
+                    confirmation: Confirmation::Confirmed,
+                    dry_run: false,
+                    command: Command::RuntimeRefresh {
+                        runtime_id: runtime_id.clone(),
+                    },
+                })
+                .unwrap();
+        }
+        let query = |query| {
+            control
+                .query(QueryEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal: Principal {
+                        id: "operator".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                    query,
+                })
+                .unwrap()
+        };
+        (
+            query(Query::RuntimeInspect {
+                runtime_id: runtime_id.clone(),
+            }),
+            query(Query::RuntimeHistory { runtime_id }),
+        )
+    }
+
     #[test]
     fn fleet_ir_has_stable_ids_and_omits_endpoints() {
         let document = fleet_document(&fleet(7, &[("runtime-a", "Runtime A")])).unwrap();
@@ -729,6 +990,61 @@ mod tests {
             Command::RuntimeRefresh { runtime_id } if runtime_id.as_str() == "runtime-a"
         ));
         assert_eq!(command.origin, CommandOrigin::Gui);
+    }
+
+    #[test]
+    fn runtime_workspace_combines_consistent_typed_projections() {
+        let (inspect, history) = workspace(false);
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        assert_eq!(document.revision, Revision(1));
+        assert_eq!(document.root.kind, UiNodeKind::RuntimeWorkspace);
+        assert_eq!(
+            document.root.runtime_id.as_ref().map(RuntimeId::as_str),
+            Some("runtime-a")
+        );
+        assert!(
+            find_node(
+                &document.root,
+                &NodeId::new("workspace-runtime-a-history-empty").unwrap()
+            )
+            .is_some()
+        );
+        let json = serde_json::to_string(&document).unwrap();
+        assert!(!json.contains("hidden-workspace-endpoint"));
+
+        let mut workspace_context = context();
+        workspace_context.expected_revision = Some(document.revision);
+        assert!(
+            plan_event(
+                &document,
+                &UiEvent {
+                    node_id: NodeId::new("workspace-runtime-a-refresh").unwrap(),
+                    kind: UiEventKind::Activate,
+                },
+                &workspace_context,
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn runtime_workspace_patch_adds_history_and_rejects_torn_state() {
+        let (before_inspect, before_history) = workspace(false);
+        let before = runtime_workspace_document(&before_inspect, &before_history).unwrap();
+        let (after_inspect, after_history) = workspace(true);
+        let after = runtime_workspace_document(&after_inspect, &after_history).unwrap();
+        let patch = diff(&before, &after).unwrap();
+        assert_eq!(apply_patch(&before, &patch).unwrap(), after);
+        assert!(patch.operations.iter().any(|operation| matches!(
+            operation,
+            UiPatchOperation::Insert { node, .. }
+                if node.kind == UiNodeKind::HistoryEntry
+        )));
+
+        assert!(matches!(
+            runtime_workspace_document(&before_inspect, &after_history),
+            Err(UiError::StateRevisionMismatch { .. })
+        ));
     }
 
     #[test]
@@ -846,5 +1162,24 @@ mod tests {
                 .unwrap();
         encoded["unexpected"] = serde_json::json!(true);
         assert!(serde_json::from_value::<UiDocument>(encoded).is_err());
+    }
+
+    #[test]
+    fn bounded_json_codec_round_trips_documents_and_patches() {
+        let previous = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let next = fleet_document(&fleet(
+            2,
+            &[("runtime-a", "Runtime A"), ("runtime-b", "Runtime B")],
+        ))
+        .unwrap();
+        let patch = diff(&previous, &next).unwrap();
+        let document_bytes = encode_document(&previous).unwrap();
+        let patch_bytes = encode_patch(&patch).unwrap();
+        assert_eq!(decode_document(&document_bytes).unwrap(), previous);
+        assert_eq!(decode_patch(&patch_bytes).unwrap(), patch);
+        assert!(matches!(
+            decode_document(&vec![b' '; MAX_UI_IR_BYTES + 1]),
+            Err(UiError::PayloadTooLarge { .. })
+        ));
     }
 }
