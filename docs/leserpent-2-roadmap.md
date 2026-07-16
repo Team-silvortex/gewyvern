@@ -516,7 +516,9 @@ authorization/idempotency, debugger confirmation, CLI/Leselang equivalence,
 VM continuation/journal re-entry, runtime SQLite recovery injection, and the
 authenticated remote wire boundary, native remote CLI parity, deterministic
 Avalonia remote-state conformance, a real Rust-to-.NET WebSocket plus HTTPS
-mutation vertical, and deterministic mobile lifecycle recovery. The
+mutation and Inspect/History workspace vertical, and deterministic mobile
+lifecycle recovery. The workspace proof rejects endpoint disclosure in both
+stdout and the endpoint-bound cache after composing revision-matched queries. The
 shelf retains per-suite transcripts and rejects any run whose filtered test
 count falls below its declared minimum. This proves the currently migrated
 command surface, shared local/remote CLI dispatch, and GUI event

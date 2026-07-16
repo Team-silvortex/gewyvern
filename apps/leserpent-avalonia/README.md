@@ -255,7 +255,9 @@ RUNTIME_ID` to verify the complete authenticated Inspect/History path.
 `gewyvern_validate leserpent-parity-recovery` runs this check together with an
 ignored-by-default integration test that connects the .NET client to a real
 Rust TLS/WebSocket authority, applies a confirmed HTTPS refresh, and waits for
-the matching revision on the event stream. macOS arm64 and physical Linux
+the matching revision on the event stream. The same authority is then queried
+through authenticated Inspect and History calls; the proof requires revision 2,
+one bounded history entry, and endpoint-free stdout plus cache state. macOS arm64 and physical Linux
 x86_64 retain matching eleven-suite, 134-test, 79-invariant evidence for the
 current vertical contract.
 

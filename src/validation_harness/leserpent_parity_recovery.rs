@@ -166,7 +166,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         id: "avalonia-remote-state-conformance",
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
-            success_marker: "remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, endpoint_cache=true, credential_resolution=true",
+            success_marker: "remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, endpoint_retained=false",
         },
         expected_min_tests: 1,
         invariants: &[
@@ -200,6 +200,10 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "nonempty-runtime-snapshot",
             "endpoint-redacted-client-cache",
             "private-client-cache-permissions",
+            "authenticated-dotnet-runtime-inspect",
+            "same-revision-workspace-composition",
+            "bounded-runtime-history",
+            "endpoint-redacted-workspace-output",
         ],
     },
     ProofSuite {
@@ -281,6 +285,7 @@ pub fn run_leserpent_parity_recovery_validation(
                 "authenticated-remote-cli-parity",
                 "avalonia-remote-state-parity",
                 "rust-dotnet-remote-vertical",
+                "rust-dotnet-workspace-query-vertical",
                 "desktop-platform-credential-resolution",
                 "mobile-lifecycle-conformance",
             ],
@@ -402,13 +407,13 @@ mod tests {
 
     #[test]
     fn proof_suite_manifest_has_non_vacuous_coverage() {
-        assert_eq!(PROOF_SUITES.len(), 10);
+        assert_eq!(PROOF_SUITES.len(), 11);
         assert_eq!(
             PROOF_SUITES
                 .iter()
                 .map(|suite| suite.expected_min_tests)
                 .sum::<usize>(),
-            131
+            132
         );
         assert!(
             PROOF_SUITES
@@ -433,6 +438,12 @@ mod tests {
                 .iter()
                 .flat_map(|suite| suite.invariants)
                 .any(|invariant| *invariant == "cross-language-revision-parity")
+        );
+        assert!(
+            PROOF_SUITES
+                .iter()
+                .flat_map(|suite| suite.invariants)
+                .any(|invariant| *invariant == "same-revision-workspace-composition")
         );
     }
 

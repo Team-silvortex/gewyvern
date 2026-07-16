@@ -17,7 +17,7 @@ const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 
 #[test]
 #[ignore = "requires the locked .NET SDK used by the named parity shelf"]
-fn dotnet_remote_client_consumes_snapshot_and_applies_refresh() {
+fn dotnet_remote_client_refreshes_and_inspects_workspace() {
     let database = temp_path("sqlite");
     let certificate = temp_path("crt");
     let private_key = temp_path("key");
@@ -68,7 +68,7 @@ fn dotnet_remote_client_consumes_snapshot_and_applies_refresh() {
     let project = root.join(
         "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
     );
-    let output = Command::new("dotnet")
+    let refresh_output = Command::new("dotnet")
         .current_dir(&root)
         .args(["run", "--project"])
         .arg(project)
@@ -79,20 +79,51 @@ fn dotnet_remote_client_consumes_snapshot_and_applies_refresh() {
         .env("LESERPENT_REMOTE_TOKEN", TOKEN)
         .output()
         .unwrap();
+    assert!(
+        refresh_output.status.success(),
+        "refresh stdout:\n{}\nrefresh stderr:\n{}",
+        String::from_utf8_lossy(&refresh_output.stdout),
+        String::from_utf8_lossy(&refresh_output.stderr),
+    );
+
+    let inspect_output = Command::new("dotnet")
+        .current_dir(&root)
+        .args(["run", "--project"])
+        .arg(root.join(
+            "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
+        ))
+        .args(["--configuration", "Release", "--", "--connect", &endpoint])
+        .arg(&certificate)
+        .arg(&cache)
+        .args(["--inspect", "runtime-a"])
+        .env("LESERPENT_REMOTE_TOKEN", TOKEN)
+        .output()
+        .unwrap();
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();
     assert!(
-        output.status.success(),
-        "stdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
+        inspect_output.status.success(),
+        "inspect stdout:\n{}\ninspect stderr:\n{}",
+        String::from_utf8_lossy(&inspect_output.stdout),
+        String::from_utf8_lossy(&inspect_output.stderr),
     );
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("remote conformance valid: revision=1, runtimes=1, stale=false"));
-    assert!(stdout.contains(
+    let refresh_stdout = String::from_utf8(refresh_output.stdout).unwrap();
+    assert!(
+        refresh_stdout.contains("remote conformance valid: revision=1, runtimes=1, stale=false")
+    );
+    assert!(refresh_stdout.contains(
         "remote mutation conformance valid: initial_revision=1, applied_revision=2, event_revision=2, runtime=runtime-a, stale=false"
     ));
+    let inspect_stdout = String::from_utf8(inspect_output.stdout).unwrap();
+    assert!(
+        inspect_stdout.contains("remote conformance valid: revision=2, runtimes=1, stale=false")
+    );
+    assert!(inspect_stdout.contains(
+        "remote workspace conformance valid: revision=2, runtime=runtime-a, history=1, endpoint_retained=false"
+    ));
+    assert!(!refresh_stdout.contains("secret-runtime.invalid"));
+    assert!(!inspect_stdout.contains("secret-runtime.invalid"));
     let cached = fs::read_to_string(&cache).unwrap();
     assert!(cached.contains("runtime-a"));
     assert!(cached.contains("\"revision\":2"));
