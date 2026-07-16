@@ -57,12 +57,26 @@ Avalonia controls. Stable node IDs and accessibility metadata map to Avalonia
 Automation properties. Buttons only emit their action node ID; command lowering
 remains in the shared Rust boundary.
 
+Run the named accessibility shelf across all real-control fixtures:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- leserpent-accessibility
+```
+
+It requires unique stable Automation IDs, complete Automation Names, explicit
+labels on every action button, exact HelpText mapping, and a WCAG AA text
+contrast floor of 4.5. Evidence is retained under
+`target/validation/leserpent-accessibility/`. The current minimum is 4.723;
+the destructive button uses `#C44D2D` with white text instead of the previous
+3.841-contrast color.
+
 The smoke fixture mounts revision 3, then applies remove, update, move, and
 insert operations directly to the mounted control tree. Unchanged and moved
 controls retain object identity, while a semantic candidate and stable-ID index
 fence every visual commit. Its expected output includes `nodes=15`,
 `operations=4`, `reused=1`, `virtualized=1`, `active_virtualized=1`,
-`initial_unrealized_nodes=14`, and `revision=4`. The low pre-mount reuse count
+`initial_unrealized_nodes=14`, `accessibility_controls=15`,
+`accessibility_names=15`, `minimum_contrast=4.723`, and `revision=4`. The low pre-mount reuse count
 is intentional: only the root control exists while the patch is applied.
 
 The bounded-history fixture proves compiled-binding materialization beyond the
@@ -107,6 +121,7 @@ dotnet run --project \
 Its expected output includes `nodes=46`, `operations=7`,
 `initial_unrealized_nodes=40`, `remaining_unrealized_nodes=18`,
 `initial_debugger_cancel_buttons=1`, `remaining_debugger_cancel_buttons=0`,
+`initial_accessibility_actions=1`, `accessibility_valid=true`,
 and `revision=2`.
 
 Fleet columns now own the window viewport through an active

@@ -157,7 +157,10 @@ fn lex(source: &str) -> (Vec<Token>, Vec<Diagnostic>) {
                 let mut terminated = false;
                 while cursor < bytes.len() {
                     match bytes[cursor] {
-                        b'\\' if cursor + 1 < bytes.len() => cursor += 2,
+                        b'\\' if cursor + 1 < bytes.len() => {
+                            cursor += 1;
+                            cursor += char_len_at(source, cursor);
+                        }
                         b'"' => {
                             cursor += 1;
                             terminated = true;
@@ -497,6 +500,22 @@ mod tests {
                 .iter()
                 .all(|item| item.span.end <= tree.source().len())
         );
+    }
+
+    #[test]
+    fn unicode_after_escape_reports_a_diagnostic_without_breaking_spans() {
+        let source = "fn main() = runtime.list(environment: \"\\🙂\")";
+        let tree = parse(source);
+
+        assert_eq!(tree.reconstruct(), source);
+        assert!(tree.function.is_none());
+        assert!(tree.diagnostics.iter().any(|item| item.code == "LSE1108"));
+        assert!(tree.diagnostics.iter().all(|item| {
+            item.span.start <= item.span.end
+                && item.span.end <= source.len()
+                && source.is_char_boundary(item.span.start)
+                && source.is_char_boundary(item.span.end)
+        }));
     }
 
     #[test]

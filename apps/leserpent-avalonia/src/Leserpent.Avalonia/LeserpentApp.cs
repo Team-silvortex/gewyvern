@@ -27,6 +27,7 @@ internal sealed class LeserpentApp : Application
             {
                 window.Opened += (_, _) =>
                 {
+                    var accessibility = window.Accessibility;
                     Console.WriteLine(
                         $"Avalonia controls valid: nodes={window.RenderedNodeCount}, "
                         + $"operations={window.AppliedPatchOperations}, "
@@ -39,6 +40,14 @@ internal sealed class LeserpentApp : Application
                         + $"remaining_unrealized_nodes={window.UnrealizedNodeCount}, "
                         + $"initial_debugger_cancel_buttons={window.InitialDebuggerCancelButtonCount}, "
                         + $"remaining_debugger_cancel_buttons={window.DebuggerCancelButtonCount}, "
+                        + $"initial_accessibility_actions={window.InitialAccessibility.ActionControls}, "
+                        + $"accessibility_controls={accessibility.RealizedControls}, "
+                        + $"accessibility_names={accessibility.AutomationNames}, "
+                        + $"accessibility_labels={accessibility.ExplicitLabels}, "
+                        + $"accessibility_actions={accessibility.ActionControls}, "
+                        + $"accessibility_help_texts={accessibility.HelpTexts}, "
+                        + $"minimum_contrast={accessibility.MinimumContrastRatio:F3}, "
+                        + "accessibility_valid=true, "
                         + $"revision={window.Revision}");
                     DispatcherTimer.RunOnce(
                         () => desktop.Shutdown(0),

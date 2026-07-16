@@ -324,6 +324,36 @@ cargo run --quiet --bin gewyvern_validate -- --json remote-linux-host-validation
   | jq '.extra.slowest_phase_entries[0]'
 ```
 
+### I want to replay the Leselang fuzz shelf
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- leselang-fuzz
+```
+
+The fixed seed runs 2048 UTF-8 parser/HIR/VM source cases and 2048 mutated
+continuation decoder cases. It checks lossless reconstruction, character-safe
+spans, deterministic diagnostics and JSON roundtrips, bounded VM startup, and
+fail-closed continuation decoding without requiring nightly Rust or an external
+fuzzer. Evidence is retained under `target/validation/leselang-fuzz/` as
+`fuzz-config.json`, `run.log`, and `evidence-index.json`.
+
+### I want to prove Leserpent UI accessibility
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- leserpent-accessibility
+```
+
+The command performs a locked managed build and opens all four Avalonia
+fixtures on the supported native host. It verifies unique Automation IDs,
+complete names, explicit action labels, HelpText mapping, and the 4.5 WCAG AA
+text-contrast floor. Linux uses `xvfb-run`; the validator never installs it or
+invokes `sudo`. The summary and per-fixture logs are retained under
+`target/validation/leserpent-accessibility/`.
+
 ### I want to prove the Leserpent native desktop artifact
 
 Run:
@@ -349,6 +379,28 @@ Evidence is retained under `target/validation/leserpent-aot/`:
 Use global `--json` and `--json-out` when CI should consume the result without
 parsing human output. Windows remains outside this command until `win-x64` has
 a locked dependency graph and native-host execution evidence.
+
+### I want to prove Leserpent local transport compatibility
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- leserpent-transport
+```
+
+The named shelf runs five layers: canonical wire-v1 protocol tests, legacy-v1
+adaptation fixtures, CLI/Leselang command and query parity, a real native CLI to
+daemon Unix-socket roundtrip, and the daemon IPC security boundary. The last
+layer proves owner-private socket permissions, bad-token rejection, malformed
+and oversized frame rejection, endpoint nondisclosure, and authority-backed
+health. Each layer has an independent log under
+`target/validation/leserpent-transport/`, alongside
+`transport-summary.json` and `evidence-index.json`.
+
+This proof deliberately excludes Windows named pipes and remote HTTPS/WebSocket
+transport. Their absence is recorded in the summary rather than reported as a
+cross-platform success. The current macOS arm64 and physical Linux x86_64 runs
+produce matching five-suite, 22-invariant summaries.
 
 ### I want to validate built-in protocol packages
 
@@ -642,11 +694,18 @@ wrappers around these native commands.
 Run:
 
 ```bash
+cargo run --quiet --bin gewyvern_validate -- leserpent-benchmark
 bash scripts/perf/benchmark_summary.sh
 bash scripts/perf/trim_workspace_disk.sh --dry-run
 bash scripts/perf/trim_workspace_disk.sh
 bash scripts/history/render_minor_line_ir_snapshot.sh v0.15.x
 ```
+
+Use `leserpent-benchmark` for the Leserpent 2 release workload. It
+enforces broad cold-open, query, effect-throughput, UI document/patch/codec, and
+release-binary-size budgets while retaining `benchmark-summary.json` and
+`evidence-index.json`. Timing comparisons are valid only within the same
+host class. The shell summary remains the Gewyvern 1.x ignored-benchmark helper.
 
 Use `trim_workspace_disk.sh` when local iteration has left behind large
 rebuildable artifacts. It removes:

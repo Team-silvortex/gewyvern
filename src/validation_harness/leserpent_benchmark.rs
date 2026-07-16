@@ -1,0 +1,310 @@
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+
+use serde_json::{Value, json};
+
+use super::command::{
+    ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_json,
+    run_cargo_status, value_at,
+};
+
+const COLD_OPEN_P95_BUDGET_MS: f64 = 250.0;
+const RUNTIME_LIST_P50_BUDGET_MS: f64 = 5.0;
+const EFFECT_ENQUEUE_BUDGET_MS: f64 = 5_000.0;
+const EFFECT_ENQUEUE_MIN_PER_SECOND: f64 = 2_000.0;
+const UI_DOCUMENT_P50_BUDGET_MS: f64 = 20.0;
+const UI_PATCH_P50_BUDGET_MS: f64 = 100.0;
+const UI_CODEC_P50_BUDGET_MS: f64 = 50.0;
+const UI_DOCUMENT_MAX_BYTES: u64 = 2 * 1024 * 1024;
+const RELEASE_BINARY_MAX_BYTES: u64 = 32 * 1024 * 1024;
+
+pub fn run_leserpent_benchmark_validation(
+    out_dir: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-benchmark"));
+    fs::create_dir_all(&out_dir)?;
+
+    let runtime = run_cargo_json(
+        &[
+            "run".into(),
+            "--quiet".into(),
+            "--release".into(),
+            "--locked".into(),
+            "-p".into(),
+            "leserpent-runtime".into(),
+            "--example".into(),
+            "runtime_benchmark".into(),
+        ],
+        &out_dir.join("runtime-benchmark.json"),
+    )?;
+    validate_runtime_benchmark(&runtime)?;
+
+    let ui = run_cargo_json(
+        &[
+            "run".into(),
+            "--quiet".into(),
+            "--release".into(),
+            "--locked".into(),
+            "-p".into(),
+            "leselang-ui".into(),
+            "--example".into(),
+            "ui_benchmark".into(),
+        ],
+        &out_dir.join("ui-benchmark.json"),
+    )?;
+    validate_ui_benchmark(&ui)?;
+
+    run_cargo_status(
+        &[
+            "build".into(),
+            "--quiet".into(),
+            "--release".into(),
+            "--locked".into(),
+            "-p".into(),
+            "leserpent-cli".into(),
+            "-p".into(),
+            "leserpentd".into(),
+        ],
+        &out_dir.join("release-build.log"),
+    )?;
+    let binaries = release_binary_manifest()?;
+    for binary in &binaries {
+        if binary["bytes"].as_u64().unwrap_or(u64::MAX) > RELEASE_BINARY_MAX_BYTES {
+            return Err(ValidationError::new(format!(
+                "release binary '{}' exceeds the {} byte benchmark budget",
+                binary["name"].as_str().unwrap_or("unknown"),
+                RELEASE_BINARY_MAX_BYTES
+            )));
+        }
+    }
+    fs::write(
+        out_dir.join("binary-manifest.json"),
+        serde_json::to_string_pretty(&json!({
+            "schema_version": 1,
+            "max_binary_bytes": RELEASE_BINARY_MAX_BYTES,
+            "binaries": binaries,
+        }))?,
+    )?;
+
+    let summary = json!({
+        "schema_version": 1,
+        "host": {"os": std::env::consts::OS, "arch": std::env::consts::ARCH},
+        "budgets": {
+            "cold_open_p95_ms": COLD_OPEN_P95_BUDGET_MS,
+            "runtime_list_p50_ms": RUNTIME_LIST_P50_BUDGET_MS,
+            "effect_enqueue_ms": EFFECT_ENQUEUE_BUDGET_MS,
+            "effect_enqueue_min_per_second": EFFECT_ENQUEUE_MIN_PER_SECOND,
+            "ui_document_p50_ms": UI_DOCUMENT_P50_BUDGET_MS,
+            "ui_patch_p50_ms": UI_PATCH_P50_BUDGET_MS,
+            "ui_codec_p50_ms": UI_CODEC_P50_BUDGET_MS,
+            "ui_document_max_bytes": UI_DOCUMENT_MAX_BYTES,
+            "release_binary_max_bytes": RELEASE_BINARY_MAX_BYTES,
+        },
+        "runtime": runtime,
+        "ui": ui,
+        "binaries": binaries,
+        "status": "passed",
+        "comparison_policy": "compare timing only within the same host class",
+    });
+    fs::write(
+        out_dir.join("benchmark-summary.json"),
+        serde_json::to_string_pretty(&summary)?,
+    )?;
+    fs::write(
+        out_dir.join("evidence-index.json"),
+        serde_json::to_string_pretty(&json!({
+            "schema_version": 1,
+            "command": "leserpent-benchmark",
+            "files": [
+                "runtime-benchmark.json", "ui-benchmark.json", "release-build.log",
+                "binary-manifest.json", "benchmark-summary.json",
+            ],
+        }))?,
+    )?;
+
+    Ok(ValidationReport {
+        name: "Leserpent bounded performance and size shelf".into(),
+        out_dir,
+        checks: vec![
+            "sqlite_cold_open_p95_budget".into(),
+            "runtime_list_p50_budget".into(),
+            "effect_batch_throughput_budget".into(),
+            "ui_document_p50_budget".into(),
+            "ui_patch_apply_p50_budget".into(),
+            "ui_codec_p50_budget".into(),
+            "release_binary_size_budget".into(),
+            "same_host_class_comparison_policy".into(),
+        ],
+    })
+}
+
+fn validate_runtime_benchmark(value: &Value) -> Result<(), ValidationError> {
+    require_exact_u64(value, &["schema_version"], 1)?;
+    require_exact_u64(value, &["workload", "runtime_count"], 256)?;
+    require_exact_u64(value, &["workload", "effect_count"], 10_000)?;
+    require_max(
+        value,
+        &["metrics", "cold_open_p95_ms"],
+        COLD_OPEN_P95_BUDGET_MS,
+    )?;
+    require_max(
+        value,
+        &["metrics", "runtime_list_p50_ms"],
+        RUNTIME_LIST_P50_BUDGET_MS,
+    )?;
+    require_max(
+        value,
+        &["metrics", "effect_enqueue_ms"],
+        EFFECT_ENQUEUE_BUDGET_MS,
+    )?;
+    require_min(
+        value,
+        &["metrics", "effect_enqueue_per_second"],
+        EFFECT_ENQUEUE_MIN_PER_SECOND,
+    )
+}
+
+fn validate_ui_benchmark(value: &Value) -> Result<(), ValidationError> {
+    require_exact_u64(value, &["schema_version"], 1)?;
+    require_exact_u64(value, &["workload", "runtime_count"], 256)?;
+    require_exact_u64(value, &["workload", "ui_node_count"], 1_027)?;
+    require_max(
+        value,
+        &["metrics", "document_p50_ms"],
+        UI_DOCUMENT_P50_BUDGET_MS,
+    )?;
+    require_max(value, &["metrics", "patch_p50_ms"], UI_PATCH_P50_BUDGET_MS)?;
+    require_max(value, &["metrics", "codec_p50_ms"], UI_CODEC_P50_BUDGET_MS)?;
+    require_max(
+        value,
+        &["metrics", "encoded_document_bytes"],
+        UI_DOCUMENT_MAX_BYTES as f64,
+    )
+}
+
+fn release_binary_manifest() -> Result<Vec<Value>, ValidationError> {
+    ["leserpent", "leserpentd"]
+        .into_iter()
+        .map(|name| {
+            let path = release_binary_path(name);
+            let bytes = fs::metadata(&path)
+                .map_err(|error| {
+                    ValidationError::new(format!(
+                        "release binary '{}' is unavailable: {error}",
+                        path.display()
+                    ))
+                })?
+                .len();
+            Ok(json!({"name": name, "path": path.display().to_string(), "bytes": bytes}))
+        })
+        .collect()
+}
+
+fn release_binary_path(name: &str) -> PathBuf {
+    let suffix = if cfg!(windows) { ".exe" } else { "" };
+    let configured = env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
+    let target_dir = match configured {
+        Some(path) if path.is_absolute() => path,
+        Some(path) => repo_root().join(path),
+        None => repo_root().join("target"),
+    };
+    target_dir.join("release").join(format!("{name}{suffix}"))
+}
+
+fn require_exact_u64(value: &Value, path: &[&str], expected: u64) -> Result<(), ValidationError> {
+    let actual = value_at(value, path)?.as_u64().ok_or_else(|| {
+        ValidationError::new(format!(
+            "benchmark metric '{}' is not an integer",
+            path.join(".")
+        ))
+    })?;
+    if actual != expected {
+        return Err(ValidationError::new(format!(
+            "benchmark workload '{}' changed from {expected} to {actual}",
+            path.join(".")
+        )));
+    }
+    Ok(())
+}
+
+fn require_max(value: &Value, path: &[&str], maximum: f64) -> Result<(), ValidationError> {
+    let actual = finite_number_at(value, path)?;
+    if actual > maximum {
+        return Err(ValidationError::new(format!(
+            "benchmark metric '{}' is {actual:.3}, above budget {maximum:.3}",
+            path.join(".")
+        )));
+    }
+    Ok(())
+}
+
+fn require_min(value: &Value, path: &[&str], minimum: f64) -> Result<(), ValidationError> {
+    let actual = finite_number_at(value, path)?;
+    if actual < minimum {
+        return Err(ValidationError::new(format!(
+            "benchmark metric '{}' is {actual:.3}, below budget {minimum:.3}",
+            path.join(".")
+        )));
+    }
+    Ok(())
+}
+
+fn finite_number_at(value: &Value, path: &[&str]) -> Result<f64, ValidationError> {
+    let actual = value_at(value, path)?.as_f64().ok_or_else(|| {
+        ValidationError::new(format!(
+            "benchmark metric '{}' is not numeric",
+            path.join(".")
+        ))
+    })?;
+    if !actual.is_finite() || actual < 0.0 {
+        return Err(ValidationError::new(format!(
+            "benchmark metric '{}' is not a finite non-negative number",
+            path.join(".")
+        )));
+    }
+    Ok(actual)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn runtime_budget_rejects_slow_or_changed_workloads() {
+        let healthy = json!({
+            "schema_version": 1,
+            "workload": {"runtime_count": 256, "effect_count": 10_000},
+            "metrics": {
+                "cold_open_p95_ms": 20.0, "runtime_list_p50_ms": 1.0,
+                "effect_enqueue_ms": 700.0, "effect_enqueue_per_second": 14_000.0,
+            }
+        });
+        assert!(validate_runtime_benchmark(&healthy).is_ok());
+        let mut slow = healthy.clone();
+        slow["metrics"]["cold_open_p95_ms"] = json!(COLD_OPEN_P95_BUDGET_MS + 1.0);
+        assert!(validate_runtime_benchmark(&slow).is_err());
+        let mut changed = healthy;
+        changed["workload"]["effect_count"] = json!(9_999);
+        assert!(validate_runtime_benchmark(&changed).is_err());
+    }
+
+    #[test]
+    fn ui_budget_rejects_large_or_slow_documents() {
+        let healthy = json!({
+            "schema_version": 1,
+            "workload": {"runtime_count": 256, "ui_node_count": 1_027},
+            "metrics": {
+                "document_p50_ms": 2.0, "patch_p50_ms": 15.0,
+                "codec_p50_ms": 4.0, "encoded_document_bytes": 280_000,
+            }
+        });
+        assert!(validate_ui_benchmark(&healthy).is_ok());
+        let mut large = healthy.clone();
+        large["metrics"]["encoded_document_bytes"] = json!(UI_DOCUMENT_MAX_BYTES + 1);
+        assert!(validate_ui_benchmark(&large).is_err());
+        let mut slow = healthy;
+        slow["metrics"]["patch_p50_ms"] = json!(UI_PATCH_P50_BUDGET_MS + 1.0);
+        assert!(validate_ui_benchmark(&slow).is_err());
+    }
+}

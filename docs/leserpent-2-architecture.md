@@ -197,6 +197,14 @@ local Unix socket or named pipe. This provides crash isolation and lets the CLI
 and GUI share one runtime.
 
 Remote web and mobile clients use authenticated HTTPS and WebSocket transports.
+
+The current local boundary has a named reproducible proof:
+`gewyvern_validate leserpent-transport`. It composes wire-v1 and legacy fixtures,
+CLI/Leselang parity, a real authenticated Unix-socket vertical path, and
+fail-closed IPC security tests into retained evidence. This proves semantic and
+security compatibility for the implemented Unix transport only; Windows named
+pipes, HTTPS, and WebSocket remain separate transport implementations that must
+pass the same versioned domain contract.
 They do not embed privileged adapters. An optional embedded Rust library may be
 added later for offline mobile operation, but it must implement the same
 `leserpent-protocol` contract.
@@ -263,6 +271,19 @@ approximately 82 MiB self-contained package. A physical Ubuntu x86_64 host
 produces a five-file, approximately 76 MiB package with a stripped PIE ELF.
 Both native executables pass the real control-tree fixtures; Windows remains
 unproven until its artifact executes on a Windows host.
+
+The named `gewyvern_validate leserpent-benchmark` shelf now makes the
+performance contract executable for runtime cold open, command-query latency,
+effect enqueue throughput, UI document/patch/codec cost, and release binary
+size. Budgets intentionally detect disaster regressions rather than compare
+unrelated CPUs or filesystems; exact measurements are retained per host class.
+
+Accessibility is a cross-boundary proof, not a renderer assumption. Rust rejects
+unlabelled actions in the neutral IR; Avalonia then audits realized Automation
+IDs, names, help text, action control types, and theme contrast. The named
+managed shelf passes on macOS and physical Linux/Xvfb, and macOS NativeAOT
+consumes the same proof metrics. The checked theme floor is 4.723 against a 4.5
+WCAG AA requirement.
 
 ## Compatibility And Migration
 

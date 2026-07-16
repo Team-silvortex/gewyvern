@@ -697,14 +697,14 @@
       "feature": "wire-compatibility",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 90,
+      "completion": 94,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-wire-contract",
-        "version": "0.8.0",
+        "version": "0.9.0",
         "stability": "evolving",
-        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "remote-transport"]
+        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "remote-transport", "named-local-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [
@@ -723,6 +723,7 @@
         { "kind": "source", "path": "crates/leserpent-protocol", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/ipc.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/leserpent_transport.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RustCompatibilityFixtureTests.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" }
@@ -736,29 +737,30 @@
       "feature": "lossless-frontend",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 86,
+      "completion": 90,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-syntax-contract",
-        "version": "0.10.0",
+        "version": "0.10.1",
         "stability": "evolving",
-        "surfaces": ["lossless-syntax", "source-diagnostics", "all-expression", "bounded-source"]
+        "surfaces": ["lossless-syntax", "source-diagnostics", "all-expression", "bounded-source", "utf8-safe-escape-lexing", "deterministic-parser-fuzz"]
       },
       "depends_on": [],
       "blockers": [
         {
-          "id": "formatter-and-fuzz-shelf",
-          "summary": "Canonical formatting and dedicated parser fuzz evidence remain before the syntax boundary is mature."
+          "id": "canonical-formatter",
+          "summary": "The deterministic parser/HIR/VM fuzz shelf is retained; canonical formatting remains before the syntax boundary is mature."
         }
       ],
       "consumers": ["leselang-hir", "model-automation", "editor-tooling"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-syntax", "state": "present" },
-        { "kind": "test", "path": "crates/leselang-syntax/src/lib.rs", "state": "present" }
+        { "kind": "test", "path": "crates/leselang-syntax/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Gate 2: add canonical formatter and parser fuzz shelves without changing lossless syntax identity."
+      "next_gate": "Gate 2: add the canonical formatter without changing lossless syntax identity or fuzz invariants."
     },
     {
       "id": "leserpent-2/language-hir/typed-effects",
@@ -871,7 +873,8 @@
       "evidence": [
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm", "state": "present" },
-        { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" }
+        { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" },
+        { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" }
       ],
       "next_gate": "Stabilize the deterministic structured-execution contract while command, CLI, and UI coverage integrate it; nested all remains a later language extension."
     },
@@ -1073,14 +1076,14 @@
       "feature": "avalonia-renderer",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 88,
+      "completion": 92,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-avalonia-contract",
-        "version": "0.10.0",
+        "version": "0.11.0",
         "stability": "evolving",
-        "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "native-aot-publish-profile", "pinned-native-aot-toolchain", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "automation-metadata", "action-node-event", "control-smoke-mode"]
+        "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "native-aot-publish-profile", "pinned-native-aot-toolchain", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "automation-metadata", "unique-automation-id-audit", "complete-automation-name-audit", "automation-help-text-audit", "explicit-action-label-audit", "wcag-aa-theme-contrast", "managed-macos-accessibility-proof", "physical-linux-accessibility-proof", "native-aot-accessibility-proof", "action-node-event", "control-smoke-mode"]
       },
       "depends_on": [
         "leserpent-2/ui-language/ui-ir-lowering",
@@ -1090,7 +1093,7 @@
       "blockers": [
         {
           "id": "avalonia-production-shell",
-          "summary": "The lazy incrementally patched tree and macOS arm64 plus Linux x64 NativeAOT artifacts pass all bounded control fixtures; Windows native-host evidence and mobile shells remain."
+          "summary": "The lazy tree, macOS/Linux accessibility audits, and macOS arm64 plus Linux x64 NativeAOT artifacts pass bounded control fixtures; Windows native-host evidence and mobile shells remain."
         }
       ],
       "consumers": ["desktop-operators", "mobile-operators"],
@@ -1100,6 +1103,7 @@
         { "kind": "source", "path": "apps/leserpent-avalonia", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/Properties/PublishProfiles/NativeAot.pubxml", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RendererConformance", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/leserpent_accessibility.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-workspace-conformance-v1.json", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-log-conformance-v1.json", "state": "present" },
@@ -1174,20 +1178,20 @@
       "feature": "continuous-proof",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 26,
+      "completion": 62,
       "confidence": "medium",
       "independence": "internal",
       "contract": {
         "id": "leserpent-proof-shelves",
-        "version": "0.2.0",
+        "version": "0.6.0",
         "stability": "draft",
-        "surfaces": ["parser-fuzz", "vm-fuzz", "origin-parity", "authorization", "crash-replay", "ui-accessibility", "transport-compatibility", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "benchmarks"]
+        "surfaces": ["parser-fuzz", "vm-fuzz", "deterministic-fuzz-seed", "utf8-span-invariants", "bounded-hir-vm-start", "fail-closed-continuation-fuzz", "retained-fuzz-evidence", "origin-parity", "authorization", "crash-replay", "named-ui-accessibility-proof", "unique-automation-id-proof", "complete-automation-name-proof", "explicit-action-label-proof", "wcag-aa-contrast-proof", "retained-accessibility-evidence", "transport-compatibility", "named-local-transport-proof", "wire-v1-contract-proof", "legacy-v1-adaptation-proof", "cli-leselang-transport-parity", "authenticated-unix-ipc-proof", "ipc-security-negative-paths", "retained-transport-evidence", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "named-benchmark-proof", "sqlite-cold-open-budget", "runtime-query-latency-budget", "effect-throughput-budget", "ui-ir-performance-budget", "release-binary-size-budget", "same-host-class-comparison", "macos-arm64-benchmark-proof", "physical-linux-x64-benchmark-proof", "retained-benchmark-evidence"]
       },
       "depends_on": [],
       "blockers": [
         {
           "id": "proof-shelves-incomplete",
-          "summary": "The named macOS/Linux NativeAOT proof now retains machine-readable evidence; parser/VM fuzz, full parity, accessibility, transport, Windows/mobile AOT, and benchmark shelves remain incomplete."
+          "summary": "Named deterministic fuzz, local Unix transport, macOS/Linux accessibility, NativeAOT, and bounded benchmark proofs retain machine-readable evidence; full parity, recovery injection, remote transports, and Windows/mobile AOT remain incomplete."
         }
       ],
       "consumers": ["every-leserpent-2-gate", "release-assurance", "ci"],
@@ -1196,10 +1200,17 @@
         { "kind": "test", "path": "crates/leselang-vm/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_aot.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/leselang_fuzz.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/leserpent_accessibility.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/leserpent_transport.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/leserpent_benchmark.rs", "state": "present" },
+        { "kind": "benchmark", "path": "crates/leserpent-runtime/examples/runtime_benchmark.rs", "state": "present" },
+        { "kind": "benchmark", "path": "crates/leselang-ui/examples/ui_benchmark.rs", "state": "present" },
+        { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" },
         { "kind": "test", "path": "tests/native_validation_harness_tdd.rs", "state": "present" },
-        { "kind": "benchmark", "path": "target/validation/leserpent-2-benchmarks", "state": "planned" }
+        { "kind": "benchmark", "path": "target/validation/leserpent-benchmark", "state": "planned" }
       ],
-      "next_gate": "Add named parser/VM fuzz and UI accessibility proof jobs with retained artifacts, then extend native AOT evidence to Windows and mobile hosts."
+      "next_gate": "Add a named origin-parity and recovery-injection proof shelf, then extend NativeAOT to Windows/mobile hosts; authenticated remote transport remains a Gate 6 implementation boundary."
     },
     {
       "id": "etragon/learning-sidecar/advisory-learning",

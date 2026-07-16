@@ -426,6 +426,40 @@ Every gate maintains:
 - desktop/mobile AOT smoke tests
 - latency, memory, throughput, and package-size benchmarks
 
+The parser/VM fuzz shelf now has a named native entrypoint:
+`gewyvern_validate leselang-fuzz`. A fixed replayable seed covers 2048 arbitrary
+UTF-8 source cases and 2048 continuation mutations. The shelf checks lossless
+reconstruction, character-safe spans, deterministic syntax JSON, HIR lowering,
+bounded VM startup, fail-closed continuation decoding, and canonical image
+roundtrip while retaining its configuration and transcript. Its first run found
+and fixed an escape-followed-by-multibyte-character lexer panic.
+
+The UI accessibility shelf now has the native entrypoint
+`gewyvern_validate leserpent-accessibility`. It audits real Avalonia controls
+across all four fixtures for stable unique Automation IDs, exact names and help
+text, explicit action labels, and a 4.5 WCAG AA text-contrast floor. Managed
+macOS and physical Linux/Xvfb proofs produce matching counts, while the macOS
+NativeAOT job requires the same accessibility marker and metrics. The first run
+raised destructive-button contrast from 3.841 to 4.723.
+
+The local transport shelf now has the native entrypoint
+`gewyvern_validate leserpent-transport`. It retains separate transcripts for
+canonical wire-v1 decoding, legacy-v1 adaptation, CLI/Leselang semantic parity,
+the real authenticated native CLI-to-daemon Unix socket path, and daemon IPC
+security rejection paths. Its machine-readable summary names Windows named
+pipes and authenticated HTTPS/WebSocket as excluded future transports, so local
+proof cannot be mistaken for Gate 6 remote transport completion. macOS arm64
+and a physical Linux x86_64 host pass the same five suites, 19 tests, and 22
+declared invariants.
+
+The performance shelf now has the native entrypoint
+`gewyvern_validate leserpent-benchmark`. It measures fixed-size SQLite
+cold start, 256-runtime query latency, 10,000-effect batch throughput, a
+1,027-node UI document's generation/diff/codec costs, and release CLI/daemon
+size. Broad fail-closed budgets guard against order-of-magnitude regressions;
+raw macOS arm64 and physical Linux x86_64 results remain separate host-class
+baselines with machine-readable evidence.
+
 The desktop AOT shelf now has a named native entrypoint:
 `gewyvern_validate leserpent-aot`. It detects only checked host RIDs, performs
 the locked restore and no-restore publish, validates Mach-O/ELF signatures and

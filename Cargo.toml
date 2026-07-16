@@ -41,3 +41,9 @@ default-run = "gewyvern"
 serde.workspace = true
 serde_json.workspace = true
 x509-parser = "0.18.1"
+
+[dev-dependencies]
+leselang-hir = { path = "crates/leselang-hir" }
+leselang-syntax = { path = "crates/leselang-syntax" }
+leselang-vm = { path = "crates/leselang-vm" }
+leserpent-domain = { path = "crates/leserpent-domain" }

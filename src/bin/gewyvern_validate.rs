@@ -16,7 +16,9 @@ use gewyvern::validation_harness::{
     run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
     run_ftp_denied_container_validation, run_high_frequency_validation,
     run_juice_shop_container_validation, run_ldap_bind_denied_container_validation,
-    run_leserpent_aot_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
+    run_leselang_fuzz_validation, run_leserpent_accessibility_validation,
+    run_leserpent_aot_validation, run_leserpent_benchmark_validation,
+    run_leserpent_transport_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
     run_linux_tc_smoke, run_package_install_smoke, run_pathological_container_validation,
     run_registry_validation, run_release_container_check, run_release_gate,
     run_remote_linux_host_validation, run_resilience_bundle_validation,
@@ -38,7 +40,11 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "help",
     "high-frequency",
     "ldap-bind-denied-container-validation",
+    "leselang-fuzz",
+    "leserpent-accessibility",
     "leserpent-aot",
+    "leserpent-benchmark",
+    "leserpent-transport",
     "juice-shop-container-validation",
     "linux-attach-smoke",
     "linux-kprobe-smoke",
@@ -382,6 +388,70 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
             }
             let options = parse_options(rest)?;
             let report = run_leserpent_aot_validation(options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "leserpent-accessibility" => {
+            if wants_subcommand_help(&rest) {
+                print_leserpent_accessibility_help();
+                return Ok(());
+            }
+            let options = parse_options(rest)?;
+            let report = run_leserpent_accessibility_validation(options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "leserpent-transport" => {
+            if wants_subcommand_help(&rest) {
+                print_leserpent_transport_help();
+                return Ok(());
+            }
+            let options = parse_options(rest)?;
+            let report = run_leserpent_transport_validation(options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "leserpent-benchmark" => {
+            if wants_subcommand_help(&rest) {
+                print_leserpent_benchmark_help();
+                return Ok(());
+            }
+            let options = parse_options(rest)?;
+            let report = run_leserpent_benchmark_validation(options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "leselang-fuzz" => {
+            if wants_subcommand_help(&rest) {
+                print_leselang_fuzz_help();
+                return Ok(());
+            }
+            let options = parse_options(rest)?;
+            let report = run_leselang_fuzz_validation(options.out_dir)?;
             print_validation_report(
                 &command,
                 &report,
@@ -1099,6 +1169,8 @@ fn print_help() {
     );
     println!("  high-frequency [--out-dir <path>]");
     println!("  ldap-bind-denied-container-validation [--out-dir <path>]");
+    println!("  leserpent-transport [--out-dir <path>]");
+    println!("  leserpent-benchmark [--out-dir <path>]");
     println!("  juice-shop-container-validation [--out-dir <path>]");
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
@@ -1682,6 +1754,44 @@ fn print_leserpent_aot_help() {
         "Restore the locked Avalonia RID graph, publish NativeAOT for the current host, and run all control fixtures."
     );
     println!("Supported hosts: macOS arm64 and Linux x86_64. Linux requires xvfb-run and xauth.");
+}
+
+fn print_leserpent_accessibility_help() {
+    println!("Usage: gewyvern_validate leserpent-accessibility [--out-dir <path>]");
+    println!();
+    println!(
+        "Build the managed Avalonia shell and audit real controls across all fixtures for Automation metadata and WCAG AA text contrast."
+    );
+    println!("Supported hosts: macOS arm64 and Linux x86_64; Linux requires xvfb-run and xauth.");
+}
+
+fn print_leselang_fuzz_help() {
+    println!("Usage: gewyvern_validate leselang-fuzz [--out-dir <path>]");
+    println!();
+    println!(
+        "Run the deterministic UTF-8 parser/HIR/VM and continuation decoder fuzz shelves with retained evidence."
+    );
+    println!("The fixed seed replays 2048 source cases and 2048 continuation mutations.");
+}
+
+fn print_leserpent_transport_help() {
+    println!("Usage: gewyvern_validate leserpent-transport [--out-dir <path>]");
+    println!();
+    println!(
+        "Prove wire-v1 compatibility, CLI/Leselang parity, and authenticated local Unix IPC security with retained evidence."
+    );
+    println!(
+        "Windows named pipes and authenticated HTTPS/WebSocket remain explicit future transport boundaries."
+    );
+}
+
+fn print_leserpent_benchmark_help() {
+    println!("Usage: gewyvern_validate leserpent-benchmark [--out-dir <path>]");
+    println!();
+    println!(
+        "Measure bounded runtime, UI IR, and release-binary workloads and enforce disaster-regression budgets."
+    );
+    println!("Timing comparisons are valid only within the same host class.");
 }
 
 fn print_linux_kprobe_smoke_help() {

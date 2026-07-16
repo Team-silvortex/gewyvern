@@ -4,7 +4,11 @@ mod debugger_cross;
 mod demo_roundtrip;
 mod field_smoke;
 mod high_frequency;
+mod leselang_fuzz;
+mod leserpent_accessibility;
 mod leserpent_aot;
+mod leserpent_benchmark;
+mod leserpent_transport;
 mod linux_ebpf;
 mod registry;
 mod release_gate;
@@ -30,7 +34,11 @@ pub use demo_roundtrip::{
 };
 pub use field_smoke::run_field_smoke_validation;
 pub use high_frequency::run_high_frequency_validation;
+pub use leselang_fuzz::run_leselang_fuzz_validation;
+pub use leserpent_accessibility::run_leserpent_accessibility_validation;
 pub use leserpent_aot::run_leserpent_aot_validation;
+pub use leserpent_benchmark::run_leserpent_benchmark_validation;
+pub use leserpent_transport::run_leserpent_transport_validation;
 pub use linux_ebpf::{run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke};
 pub use registry::run_registry_validation;
 pub use release_gate::{

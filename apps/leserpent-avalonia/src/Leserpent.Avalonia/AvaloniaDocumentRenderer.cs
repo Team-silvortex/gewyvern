@@ -8,14 +8,58 @@ using Leserpent.Avalonia;
 
 internal static class LeserpentTheme
 {
-    public static readonly IBrush Canvas = Brush.Parse("#11100D");
-    public static readonly IBrush Panel = Brush.Parse("#1C1913");
+    private static readonly Color CanvasColor = Color.Parse("#11100D");
+    private static readonly Color PanelColor = Color.Parse("#1C1913");
+    private static readonly Color PrimaryColor = Color.Parse("#F4C95D");
+    private static readonly Color AccentColor = Color.Parse("#FF9418");
+    private static readonly Color BodyColor = Color.Parse("#E9E1D0");
+    private static readonly Color MutedColor = Color.Parse("#B9AA8A");
+    private static readonly Color DestructiveColor = Color.Parse("#C44D2D");
+
+    public static readonly IBrush Canvas = new SolidColorBrush(CanvasColor);
+    public static readonly IBrush Panel = new SolidColorBrush(PanelColor);
     public static readonly IBrush PanelBorder = Brush.Parse("#514224");
-    public static readonly IBrush Primary = Brush.Parse("#F4C95D");
-    public static readonly IBrush Accent = Brush.Parse("#FF9418");
-    public static readonly IBrush Body = Brush.Parse("#E9E1D0");
-    public static readonly IBrush Muted = Brush.Parse("#B9AA8A");
+    public static readonly IBrush Primary = new SolidColorBrush(PrimaryColor);
+    public static readonly IBrush Accent = new SolidColorBrush(AccentColor);
+    public static readonly IBrush Body = new SolidColorBrush(BodyColor);
+    public static readonly IBrush Muted = new SolidColorBrush(MutedColor);
+    public static readonly IBrush Destructive = new SolidColorBrush(DestructiveColor);
+
+    public static double MinimumTextContrastRatio => new[]
+    {
+        ContrastRatio(BodyColor, CanvasColor),
+        ContrastRatio(MutedColor, PanelColor),
+        ContrastRatio(PrimaryColor, CanvasColor),
+        ContrastRatio(Colors.Black, AccentColor),
+        ContrastRatio(Colors.White, DestructiveColor),
+    }.Min();
+
+    private static double ContrastRatio(Color foreground, Color background)
+    {
+        var light = Math.Max(Luminance(foreground), Luminance(background));
+        var dark = Math.Min(Luminance(foreground), Luminance(background));
+        return (light + 0.05) / (dark + 0.05);
+    }
+
+    private static double Luminance(Color color) =>
+        0.2126 * Linear(color.R) + 0.7152 * Linear(color.G) + 0.0722 * Linear(color.B);
+
+    private static double Linear(byte channel)
+    {
+        var value = channel / 255.0;
+        return value <= 0.04045
+            ? value / 12.92
+            : Math.Pow((value + 0.055) / 1.055, 2.4);
+    }
 }
+
+internal sealed record AccessibilityAudit(
+    int RealizedControls,
+    int AutomationNames,
+    int ExplicitLabels,
+    int ActionControls,
+    int HelpTexts,
+    double MinimumContrastRatio);
 
 internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 {
@@ -37,6 +81,62 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         node.ActionKind is ActionKind.DebuggerCancel
         && node.TryGetRealizedControl(out var control)
         && control is Button);
+
+    public AccessibilityAudit AuditAccessibility()
+    {
+        var automationIds = new HashSet<string>(StringComparer.Ordinal);
+        var realized = 0;
+        var names = 0;
+        var labels = 0;
+        var actions = 0;
+        var helpTexts = 0;
+        foreach (var node in nodes.Values)
+        {
+            if (!node.TryGetRealizedControl(out var control))
+            {
+                continue;
+            }
+            realized++;
+            var automationId = AutomationProperties.GetAutomationId(control!);
+            if (automationId != node.Id || !automationIds.Add(automationId))
+            {
+                throw new InvalidDataException("realized control has an invalid or duplicate AutomationId");
+            }
+            var name = AutomationProperties.GetName(control!);
+            if (name != node.AutomationName)
+            {
+                throw new InvalidDataException($"control '{node.Id}' has an invalid Automation Name");
+            }
+            names++;
+            if (node.HasExplicitLabel)
+            {
+                labels++;
+            }
+            var helpText = AutomationProperties.GetHelpText(control!);
+            if (helpText != node.AutomationDescription)
+            {
+                throw new InvalidDataException($"control '{node.Id}' has an invalid Automation HelpText");
+            }
+            if (node.AutomationDescription is not null)
+            {
+                helpTexts++;
+            }
+            if (node.ActionKind is not null)
+            {
+                if (!node.HasExplicitLabel || control is not Button)
+                {
+                    throw new InvalidDataException($"action '{node.Id}' is not an explicitly named button");
+                }
+                actions++;
+            }
+        }
+        var minimumContrast = LeserpentTheme.MinimumTextContrastRatio;
+        if (realized == 0 || names != realized || minimumContrast < 4.5)
+        {
+            throw new InvalidDataException("accessibility audit did not meet the control or contrast floor");
+        }
+        return new AccessibilityAudit(realized, names, labels, actions, helpTexts, minimumContrast);
+    }
 
     public void Mount(UiDocument document)
     {
@@ -216,7 +316,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             parent,
             false,
             false,
-            node.Action?.Kind);
+            node.Action?.Kind,
+            AutomationName(node),
+            node.Accessibility.Label is not null,
+            node.Accessibility.Description?.Fallback);
 
     private static RenderedNode LazyContainer(
         UiNode node,
@@ -232,7 +335,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             parent,
             true,
             virtualized,
-            node.Action?.Kind);
+            node.Action?.Kind,
+            AutomationName(node),
+            node.Accessibility.Label is not null,
+            node.Accessibility.Description?.Fallback);
 
     private static TextBlock BuildHeading(UiNode node) => new()
     {
@@ -281,7 +387,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         var button = new Button
         {
             Content = RequiredText(node),
-            Background = destructive ? Brush.Parse("#D85B35") : LeserpentTheme.Accent,
+            Background = destructive ? LeserpentTheme.Destructive : LeserpentTheme.Accent,
             Foreground = destructive ? Brushes.White : Brushes.Black,
             FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(18, 9),
@@ -339,6 +445,9 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         ApplyAutomation(control, node);
         return control;
     }
+
+    private static string AutomationName(UiNode node) =>
+        node.Accessibility.Label?.Fallback ?? node.Text?.Fallback ?? node.Id;
 
     private static void EnsureRenderable(UiNode node)
     {
@@ -440,7 +549,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         RenderedNode? parent,
         bool canContainChildren,
         bool usesVirtualizedHost,
-        ActionKind? actionKind)
+        ActionKind? actionKind,
+        string automationName,
+        bool hasExplicitLabel,
+        string? automationDescription)
     {
         private Control? control;
         private IChildrenHost? childrenHost;
@@ -470,6 +582,9 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         public bool CanContainChildren { get; } = canContainChildren;
         public bool UsesVirtualizedHost { get; } = usesVirtualizedHost;
         public ActionKind? ActionKind { get; } = actionKind;
+        public string AutomationName { get; } = automationName;
+        public bool HasExplicitLabel { get; } = hasExplicitLabel;
+        public string? AutomationDescription { get; } = automationDescription;
         public bool IsRealized => control is not null;
         public RenderedNode? Parent { get; set; } = parent;
         public List<RenderedNode> Children { get; } = [];

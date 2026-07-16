@@ -25,6 +25,8 @@ internal sealed class MainWindow : Window
     public int UnrealizedNodeCount => renderer.UnrealizedNodeCount;
     public int InitialDebuggerCancelButtonCount { get; }
     public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
+    public AccessibilityAudit InitialAccessibility { get; }
+    public AccessibilityAudit Accessibility => renderer.AuditAccessibility();
     public ulong Revision { get; }
 
     public MainWindow(RendererFixture fixture)
@@ -39,8 +41,10 @@ internal sealed class MainWindow : Window
         renderer = new AvaloniaDocumentRenderer(OnActionInvoked);
         renderer.Mount(fixture.Previous);
         InitialDebuggerCancelButtonCount = renderer.RealizedDebuggerCancelButtonCount;
+        InitialAccessibility = renderer.AuditAccessibility();
         renderer.Apply(fixture.Patch);
         RequireExpectedDocument(renderer.Document, fixture.Next);
+        _ = renderer.AuditAccessibility();
 
         Revision = renderer.Document.Revision;
         RenderedNodeCount = renderer.NodeCount;

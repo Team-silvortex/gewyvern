@@ -142,6 +142,14 @@ fleet root and history section now own bounded viewports backed by active
 `VirtualizingStackPanel` instances, avoiding the unbounded outer-scroll layout
 that defeats virtualization. Compiled-bound item view models now create direct
 virtualized leaves only when their XAML binding enters the realized viewport.
+
+`gewyvern_validate leserpent-accessibility` closes the renderer proof loop. It
+audits every realized semantic control for a unique stable AutomationId, the
+exact expected Automation Name and HelpText, and explicit labels on action
+buttons. The same job enforces a 4.5 WCAG AA text-contrast floor across theme
+pairs and retains one log per fixture plus a machine-readable summary. Managed
+macOS and physical Linux/Xvfb runs produce identical counts; the macOS
+NativeAOT shelf consumes the same audit parser.
 The long-history fixture proves off-screen items remain unconstructed.
 Heterogeneous container subtrees are likewise kept as stable-ID renderer models
 until realized, while patches against an unrealized parent mutate only that

@@ -6,6 +6,7 @@ use std::process::{Command, Output};
 use serde_json::json;
 
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
+use super::leserpent_accessibility::require_accessibility_proof;
 
 const FIXTURES: &[&str] = &[
     "renderer-conformance-v1.json",
@@ -82,6 +83,7 @@ pub fn run_leserpent_aot_validation(
                 "fixture `{fixture}` did not emit the Avalonia control proof marker"
             )));
         }
+        require_accessibility_proof(&text, fixture)?;
         if *fixture == "renderer-debugger-conformance-v1.json"
             && !(text.contains("initial_debugger_cancel_buttons=1")
                 && text.contains("remaining_debugger_cancel_buttons=0"))

@@ -22,6 +22,10 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"ftp-denied-container-validation\""));
     assert!(binary.contains("\"ldap-bind-denied-container-validation\""));
     assert!(binary.contains("\"leserpent-aot\""));
+    assert!(binary.contains("\"leserpent-benchmark\""));
+    assert!(binary.contains("\"leserpent-transport\""));
+    assert!(binary.contains("\"leserpent-accessibility\""));
+    assert!(binary.contains("\"leselang-fuzz\""));
     assert!(binary.contains("\"package-install-smoke\""));
     assert!(binary.contains("\"remote-linux-host-validation\""));
     assert!(binary.contains("\"linux-attach-smoke\""));
@@ -105,6 +109,10 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_ftp_denied_container_validation"));
     assert!(mod_file.contains("run_ldap_bind_denied_container_validation"));
     assert!(mod_file.contains("run_leserpent_aot_validation"));
+    assert!(mod_file.contains("run_leserpent_benchmark_validation"));
+    assert!(mod_file.contains("run_leserpent_transport_validation"));
+    assert!(mod_file.contains("run_leserpent_accessibility_validation"));
+    assert!(mod_file.contains("run_leselang_fuzz_validation"));
     assert!(mod_file.contains("run_socket_roundtrip_demo"));
     assert!(mod_file.contains("run_training_dataset_roundtrip_demo"));
     assert!(mod_file.contains("run_external_engine_roundtrip_demo"));
@@ -151,12 +159,95 @@ fn leserpent_native_aot_proof_is_native_and_fail_closed() {
     assert!(harness.contains("renderer-debugger-conformance-v1.json"));
     assert!(harness.contains("initial_debugger_cancel_buttons=1"));
     assert!(harness.contains("remaining_debugger_cancel_buttons=0"));
+    assert!(harness.contains("require_accessibility_proof"));
     assert!(harness.contains("artifact-manifest.json"));
     assert!(harness.contains("evidence-index.json"));
     assert!(!harness.contains("Command::new(\"sh\")"));
     assert!(!harness.contains("sudo"));
     assert!(binary.contains("print_leserpent_aot_help"));
     assert!(binary.contains("missing_native_aot_dependency"));
+}
+
+#[test]
+fn leserpent_accessibility_proof_audits_real_controls_and_contrast() {
+    let harness = read_repo_file("src/validation_harness/leserpent_accessibility.rs");
+    let renderer = read_repo_file(
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/AvaloniaDocumentRenderer.cs",
+    );
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(harness.contains("accessibility-summary.json"));
+    assert!(harness.contains("unique_automation_ids"));
+    assert!(harness.contains("wcag_aa_text_contrast"));
+    assert!(harness.contains("minimum_contrast"));
+    assert!(harness.contains("accessibility_valid=true"));
+    assert!(renderer.contains("AuditAccessibility"));
+    assert!(renderer.contains("AutomationProperties.GetAutomationId"));
+    assert!(renderer.contains("AutomationProperties.GetName"));
+    assert!(renderer.contains("AutomationProperties.GetHelpText"));
+    assert!(renderer.contains("minimumContrast < 4.5"));
+    assert!(renderer.contains("#C44D2D"));
+    assert!(!harness.contains("sudo"));
+    assert!(binary.contains("print_leserpent_accessibility_help"));
+}
+
+#[test]
+fn leselang_fuzz_proof_is_named_deterministic_and_retained() {
+    let harness = read_repo_file("src/validation_harness/leselang_fuzz.rs");
+    let fuzz = read_repo_file("tests/leselang_fuzz_tdd.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(harness.contains("leselang_fuzz_tdd"));
+    assert!(harness.contains("fuzz-config.json"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(fuzz.contains("FUZZ_SEED"));
+    assert!(fuzz.contains("SOURCE_CASES"));
+    assert!(fuzz.contains("CONTINUATION_CASES"));
+    assert!(fuzz.contains("decode_continuation"));
+    assert!(fuzz.contains("assert_syntax_invariants"));
+    assert!(!harness.contains("Command::new(\"sh\")"));
+    assert!(binary.contains("print_leselang_fuzz_help"));
+}
+
+#[test]
+fn leserpent_transport_proof_covers_contract_parity_and_real_ipc() {
+    let harness = read_repo_file("src/validation_harness/leserpent_transport.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(harness.contains("wire-v1-contract"));
+    assert!(harness.contains("legacy-v1-compatibility"));
+    assert!(harness.contains("cli-leselang-parity"));
+    assert!(harness.contains("authenticated-ipc-vertical"));
+    assert!(harness.contains("ipc-security-boundary"));
+    assert!(harness.contains("invalid-token-rejection"));
+    assert!(harness.contains("oversized-frame-rejection"));
+    assert!(harness.contains("transport-summary.json"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(harness.contains("excluded_future_transports"));
+    assert!(!harness.contains("Command::new(\"sh\")"));
+    assert!(binary.contains("print_leserpent_transport_help"));
+}
+
+#[test]
+fn leserpent_benchmark_proof_has_bounded_native_workloads() {
+    let harness = read_repo_file("src/validation_harness/leserpent_benchmark.rs");
+    let runtime = read_repo_file("crates/leserpent-runtime/examples/runtime_benchmark.rs");
+    let ui = read_repo_file("crates/leselang-ui/examples/ui_benchmark.rs");
+    let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+
+    assert!(harness.contains("COLD_OPEN_P95_BUDGET_MS"));
+    assert!(harness.contains("EFFECT_ENQUEUE_MIN_PER_SECOND"));
+    assert!(harness.contains("UI_PATCH_P50_BUDGET_MS"));
+    assert!(harness.contains("RELEASE_BINARY_MAX_BYTES"));
+    assert!(harness.contains("benchmark-summary.json"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(harness.contains("same_host_class_comparison_policy"));
+    assert!(runtime.contains("EFFECT_COUNT: usize = 10_000"));
+    assert!(runtime.contains("RUNTIME_COUNT: usize = 256"));
+    assert!(ui.contains("RUNTIME_COUNT: usize = 256"));
+    assert!(ui.contains("apply_patch"));
+    assert!(!harness.contains("Command::new(\"sh\")"));
+    assert!(binary.contains("print_leserpent_benchmark_help"));
 }
 
 #[test]

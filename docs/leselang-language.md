@@ -76,6 +76,13 @@ Whitespace and `//` line comments are retained as lossless tokens, including
 their byte spans. Reassembling token text must reproduce the original source.
 Source is UTF-8 and limited to 256 KiB.
 
+The deterministic fuzz shelf runs through
+`gewyvern_validate leselang-fuzz`. Its fixed seed covers arbitrary multi-byte
+UTF-8, malformed escapes, trivia, nesting, oversized source, HIR lowering, and
+bounded VM startup. Every token and diagnostic span must remain on UTF-8
+character boundaries. A parallel continuation corpus mutates encoded VM images
+and requires deterministic fail-closed decoding or canonical roundtrip.
+
 The implemented surface deliberately excludes general expressions, local
 bindings, arbitrary mutation, loops, unstructured concurrency, raw HTTP, shell
 execution, and host-language reflection. Synchronous source semantics do not expose

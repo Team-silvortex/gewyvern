@@ -52,3 +52,12 @@ The bridge is optional during source migration. When configured, failure is
 closed with `502 compatibility_bridge_failed`; the host retries one transport
 failure after restarting the child process. Packaging the bridge beside the
 1.x host remains required before it can be enabled by default.
+
+## Reproducible Proof
+
+Run `gewyvern_validate leserpent-transport` from the workspace root to prove
+the current wire-v1 and authenticated local transport boundary. The command
+retains separate logs for protocol fixtures, legacy adaptation, CLI/Leselang
+parity, the native CLI-to-daemon Unix socket, and IPC rejection paths. Its
+summary explicitly excludes Windows named pipes and remote HTTPS/WebSocket, so
+passing the local shelf does not imply Gate 6 transport completion.

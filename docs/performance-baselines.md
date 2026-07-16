@@ -13,6 +13,32 @@ numbers.
 They are the agreed local reference point for deciding whether a change keeps
 `gewyvern` within its currently accepted operational envelope.
 
+## Leserpent 2 Named Benchmark Shelf
+
+Run `gewyvern_validate leserpent-benchmark` to measure the bounded
+Leserpent runtime, renderer-neutral UI IR, and release binary surfaces. The
+shelf enforces broad disaster-regression budgets and retains exact measurements
+for same-host-class trend comparison. Timing values from unrelated machines are
+not directly comparable.
+
+The fixed workload contains 16 fresh SQLite opens, 2,000 list queries over 256
+runtimes, 10,000 effects inserted as batches of 100, and 100 iterations over a
+1,027-node UI document. The UI phase measures document generation,
+diff-plus-apply, and JSON encode-plus-decode. It also builds the native
+`leserpent` and `leserpentd` release binaries and applies a 32 MiB
+per-binary ceiling.
+
+Current `2026-07-16` references:
+
+| Host | Cold open p95 | List p50 | 10k enqueue | UI document p50 | UI patch p50 | UI codec p50 | CLI / daemon |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| macOS arm64 | `59.943 ms` | `0.887 ms` | `732.621 ms` / `13.6k/s` | `1.376 ms` | `14.899 ms` | `4.233 ms` | `0.92 / 3.36 MiB` |
+| Linux x86_64 | `14.982 ms` | `1.078 ms` | `376.523 ms` / `26.6k/s` | `0.458 ms` | `4.649 ms` | `1.281 ms` | `1.07 / 3.85 MiB` |
+
+Evidence lives under `target/validation/leserpent-benchmark/` and the
+physical Linux copy under
+`target/validation/leserpent-benchmark-linux-x64/`.
+
 Measurement notes:
 
 - date: `2026-05-20`
