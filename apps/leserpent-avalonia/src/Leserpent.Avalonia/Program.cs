@@ -47,6 +47,41 @@ internal static class Program
                 "parameterized form event valid: renderer_neutral=true, bounded=true, typed_submit=true, unknown_fields=false");
             return 0;
         }
+        if (args is ["--verify-desktop-profile"])
+        {
+            DesktopConnectionProfileStore.VerifyContract();
+            Console.WriteLine(
+                "desktop connection profile valid: bounded=true, atomic=true, private=true, token_persisted=false, unknown_fields=false");
+            return 0;
+        }
+        if (args is ["--verify-desktop-ca-store"])
+        {
+            DesktopCertificateAuthorityStore.VerifyContract();
+            Console.WriteLine(
+                "desktop CA store valid: single_pem=true, certificate_authority=true, content_addressed=true, atomic=true, private=true, idempotent=true, profile_migration=true, bounded_prune=true, stale_temp_cleanup=true, trailing_material=false, managed_replacement=false, symlink=false");
+            return 0;
+        }
+        if (args is ["--verify-desktop-lifecycle"])
+        {
+            DesktopApplicationLifecycle.VerifyContract();
+            Console.WriteLine(
+                "desktop lifecycle valid: app_menu=true, connection_settings=true, about=true, dock_reopen=true, explicit_quit=true");
+            return 0;
+        }
+        if (args is ["--verify-connection-maintenance"])
+        {
+            DesktopConnectionMaintenance.VerifyContract();
+            Console.WriteLine(
+                "desktop connection maintenance valid: endpoint_scoped_delete=true, profile_cleared=true, stale_profile_blocked=true, environment_untouched=true");
+            return 0;
+        }
+        if (args is ["--verify-packaged-profile-startup", var profilePath])
+        {
+            DesktopProductStartup.VerifyPackagedProfile(profilePath);
+            Console.WriteLine(
+                "packaged profile startup valid: saved_profile=true, platform_keychain=true, token_output=false, credential_cleaned=true");
+            return 0;
+        }
         if (args is ["--verify-remote-workspace"])
         {
             RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation();

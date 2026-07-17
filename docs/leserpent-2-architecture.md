@@ -340,10 +340,13 @@ upgrades legacy outcomes while continuing to reject unrelated divergence. A real
 proves both command bindings, real adapter execution, and subsequent WebSocket
 revisions agree without persisting the runtime or adapter endpoint. Unknown
 mutation outcomes require a later full snapshot; heartbeats carry revision
-liveness but cannot resolve command ambiguity. Desktop token resolution uses macOS Keychain or Linux Secret
-Service through AOT-compatible native bindings, scoped by canonical HTTPS
-origin; an environment token is accepted only when no platform item exists.
-Malformed stored credentials fail closed and no secret enters UI IR or cache.
+liveness but cannot resolve command ambiguity. Desktop token resolution and
+mutation use macOS Keychain or Linux Secret Service through AOT-compatible
+native bindings, scoped by canonical HTTPS origin. First-run setup accepts an
+optional protected token, validates it before platform mutation, and clears the
+control immediately after submission; an environment token is accepted only
+when no platform item exists. Malformed stored credentials fail closed and no
+secret enters the profile, UI IR, or cache.
 Mobile clients, mobile secure-storage lifecycle, and mobile cache lifecycle
 remain separate implementations that must pass the same versioned domain
 contract.
@@ -362,6 +365,16 @@ platform access.
 They do not embed privileged adapters. An optional embedded Rust library may be
 added later for offline mobile operation, but it must implement the same
 `leserpent-protocol` contract.
+
+The Android entry client is a thin platform composition rather than a domain
+fork. `MainActivity` delegates repeated start/stop callbacks to the shared
+`MobileApplicationCoordinator`, which owns secure configuration replacement,
+foreground session uniqueness, background disconnect, failure state, and
+terminal disposal. Android persists only the canonical endpoint in private
+preferences and a validated public CA in app-private files; tokens remain in
+the Keystore-backed vault. The native shell may project connection and runtime
+state, but mutations must arrive through renderer-neutral form events before
+being exposed on Android.
 
 Transport schemas are versioned independently from UI releases. Unknown fields
 are ignored only where the schema explicitly allows forward compatibility.
@@ -403,6 +416,43 @@ and capability-gated adapter.
 
 ## Performance Contract
 
+### Platform support order
+
+The native operator path is intentionally ordered by available proof quality:
+the macOS product shell and shared Linux desktop semantics first, Android only
+after the desktop application/profile/menu/release paradigm is stable, and iOS
+after Android parity. Windows operators use the authenticated Web console during
+this cycle. Windows Avalonia, NativeAOT, named-pipe, and installer work remain
+valid future extensions, but they do not block desktop stabilization.
+
+No-argument desktop launch is the product entry rather than a fixture shortcut.
+It reads a bounded, atomically persisted profile containing only the HTTPS
+origin and CA path, resolves the endpoint-scoped token from Keychain or Secret
+Service, then constructs the same `RemoteMainWindow` used by explicit CLI
+startup. Missing credentials or invalid profiles return to an accessible setup
+window. Renderers never receive the token and fixture loading remains an
+explicit conformance-only path.
+
+Desktop connection management is a product operation rather than a second
+bootstrap implementation. The macOS application menu and the renderer status
+bar open the same setup window. A new validated remote session becomes the main
+window before the previous session is disposed, so invalid replacement input
+cannot destroy a working console. Forgetting a saved connection is explicit and
+confirmed: the maintenance boundary reloads and compares the persisted profile,
+deletes only its canonical endpoint credential, then clears the profile. A
+stale UI cannot delete newly replaced state, and environment fallback is never
+mutated.
+
+Remembered desktop trust anchors are immutable application state rather than
+ambient path references. `DesktopCertificateAuthorityStore` strictly decodes one
+CA PEM, rejects trailing material, non-CA certificates, invalid signing usage,
+links, and oversized files, then canonicalizes it into a SHA-256-named private
+file. Startup migrates legacy external paths and rechecks that managed content
+still matches its fingerprint path before constructing any transport. Pruning
+is bounded to recognized regular certificate and crash-temporary names; unknown
+entries fail closed. Ephemeral connections may use an external CA for the
+current process, but never persist that path or create managed residue.
+
 The design optimizes semantic work before renderer choice:
 
 - owned or interned IDs instead of leaked `'static` strings
@@ -420,11 +470,40 @@ UI patch cost, and binary/package size before tightening budgets.
 The first desktop proof uses source-generated JSON metadata and an explicit
 NativeAOT publish profile. Its runtime, compiler, linker, targeting, and
 app-host packs share one pinned patch version, so SDK patch drift cannot silently
-change the native dependency graph. macOS arm64 produces a five-file,
-approximately 82 MiB self-contained package. A physical Ubuntu x86_64 host
+change the native dependency graph. macOS arm64 now packages that output through
+the native `gewyvern_leserpent_bundle` boundary. The boundary rejects symlinks,
+unknown payloads, and implicit replacement; excludes `.pdb` and `.dSYM`; and
+emits stable plist identity, a checked `.icns`, a native application menu, and
+Dock-reopen/explicit-Quit lifecycle behavior. The current stripped `.app` is
+approximately 40 MiB before release signing. A physical Ubuntu x86_64 host
 produces a five-file, approximately 76 MiB package with a stripped PIE ELF.
-Both native executables pass the real control-tree fixtures; Windows remains
-unproven until its artifact executes on a Windows host.
+Both native executables pass the real control-tree fixtures. Windows native
+desktop remains deliberately unclaimed until a suitable host exists; the Web
+console is the current Windows access path.
+
+The macOS release boundary is another native Rust entrypoint. It signs nested
+dylibs inside-out, refuses non-Developer-ID identities, requires Hardened
+Runtime and secure timestamps, and applies the checked empty entitlement set:
+NativeAOT needs no JIT exception and this direct-distribution build is not App
+Sandboxed. Notarization accepts only a pre-stored Keychain profile, packages
+with `ditto --keepParent`, waits for explicit acceptance, removes the temporary
+archive, staples and validates the ticket, and performs a final Gatekeeper
+assessment. Ad-hoc verification is a separately labelled local-only mode and
+cannot satisfy the formal release gate. Hardened ad-hoc code has no Team ID, so
+individually signed native libraries cannot pass runtime library validation;
+the verifier explicitly withholds a runtime-launch claim. Local UI smoke uses
+an ordinary ad-hoc bundle, while formal Hardened Runtime launch requires one
+Developer ID identity across the executable and all nested dylibs.
+
+Packaged desktop startup is not a second composition path. Both normal
+no-argument launch and its release probe call `DesktopProductStartup`, which
+loads the bounded profile, resolves the canonical endpoint credential, creates
+validated remote options, and preserves credential provenance. The macOS proof
+uses only an isolated temporary profile and high loopback endpoint, refuses to
+overwrite an existing Keychain item, generates the fixture token internally,
+and deletes it in a guarded `finally`. A subsequent system Keychain lookup must
+report no item. This proves the app bundle consumes saved profile and native
+Keychain state without introducing a test-only credential provider.
 
 The named `gewyvern_validate leserpent-benchmark` shelf now makes the
 performance contract executable for runtime cold open, command-query latency,

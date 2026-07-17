@@ -130,13 +130,64 @@ try
     Require(failing.State.Phase == MobileLifecyclePhase.Background
         && failingFactory.Sessions.Single().DisposeCount == 1,
         "session startup failure did not return to a cleaned background state");
+
+    var coordinatorStore = new FixtureSecretStore();
+    var coordinatorFactory = new FixtureSessionFactory();
+    var coordinator = new MobileApplicationCoordinator(
+        new MobileCredentialVault(coordinatorStore),
+        coordinatorFactory);
+    var applicationStates = new List<MobileApplicationSnapshot>();
+    coordinator.StateChanged += applicationStates.Add;
+    await coordinator.ConfigureAsync(
+        firstEndpoint.AbsoluteUri,
+        certificate,
+        cache,
+        firstToken);
+    Require(coordinator.State.Phase == MobileApplicationPhase.Inactive
+        && coordinatorStore.StoreCount == 1,
+        "application coordinator did not securely configure the endpoint");
+    await coordinator.EnterForegroundAsync();
+    await coordinator.EnterForegroundAsync();
+    Require(coordinator.State is
+    {
+        Phase: MobileApplicationPhase.Foreground,
+        Remote.Feed.Phase: RemoteFeedPhase.Live,
+    } && coordinatorFactory.Sessions.Count == 1,
+        "duplicate application foreground callback created another session");
+    await coordinator.EnterBackgroundAsync();
+    await coordinator.EnterBackgroundAsync();
+    Require(coordinator.State.Phase == MobileApplicationPhase.Background
+        && coordinatorFactory.Sessions.Single().DisposeCount == 1,
+        "duplicate application background callback changed session ownership");
+    await coordinator.ConfigureAsync(
+        secondEndpoint.AbsoluteUri,
+        certificate,
+        cache,
+        secondToken);
+    await coordinator.EnterForegroundAsync();
+    Require(coordinatorFactory.Sessions.Count == 2
+        && coordinatorFactory.Tokens.SequenceEqual([firstToken, secondToken])
+        && applicationStates.Any(state => state.Phase == MobileApplicationPhase.Inactive),
+        "application reconfiguration did not replace endpoint-bound ownership");
+    await coordinator.DisposeAsync();
+    await coordinator.DisposeAsync();
+    Require(coordinator.State.Phase == MobileApplicationPhase.Stopped
+        && coordinatorFactory.Sessions[1].DisposeCount == 1,
+        "application coordinator disposal was not terminal and idempotent");
+    await RequireThrowsAsync<ObjectDisposedException>(
+        () => coordinator.ConfigureAsync(
+            firstEndpoint.AbsoluteUri,
+            certificate,
+            cache,
+            firstToken).AsTask(),
+        "stopped application coordinator accepted reconfiguration");
 }
 finally
 {
     Directory.Delete(root, recursive: true);
 }
 
-Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true");
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true");
 return 0;
 
 static RemoteFeedState Live(ulong revision) => new(

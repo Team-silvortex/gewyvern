@@ -5,6 +5,12 @@ public interface IRemoteTokenStore
     string? Load(Uri endpoint);
 }
 
+public interface IRemoteTokenVault : IRemoteTokenStore
+{
+    void Store(Uri endpoint, string token);
+    void Delete(Uri endpoint);
+}
+
 public enum RemoteTokenSource
 {
     PlatformStore,
@@ -38,12 +44,24 @@ public static class RemoteTokenResolver
         return new ResolvedRemoteToken(environmentToken, RemoteTokenSource.Environment);
     }
 
+    public static void Store(
+        Uri endpoint,
+        string token,
+        IRemoteTokenVault? vault = null)
+    {
+        RemoteClientOptions.ValidateToken(token);
+        (vault ?? PlatformRemoteTokenStore.Instance).Store(endpoint, token);
+    }
+
+    public static void Delete(Uri endpoint, IRemoteTokenVault? vault = null) =>
+        (vault ?? PlatformRemoteTokenStore.Instance).Delete(endpoint);
+
     public static string Account(Uri endpoint) => endpoint.GetComponents(
         UriComponents.SchemeAndServer,
         UriFormat.UriEscaped).ToLowerInvariant();
 }
 
-public sealed class PlatformRemoteTokenStore : IRemoteTokenStore
+public sealed class PlatformRemoteTokenStore : IRemoteTokenVault
 {
     public const string Service = "org.gewyvern.leserpent.remote";
     public static PlatformRemoteTokenStore Instance { get; } = new();
@@ -77,6 +95,41 @@ public sealed class PlatformRemoteTokenStore : IRemoteTokenStore
             return null;
         }
     }
+
+    public void Store(Uri endpoint, string token)
+    {
+        RemoteClientOptions.ValidateToken(token);
+        var account = RemoteTokenResolver.Account(endpoint);
+        if (OperatingSystem.IsMacOS())
+        {
+            MacKeychain.Store(Service, account, token);
+            return;
+        }
+        if (OperatingSystem.IsLinux())
+        {
+            LinuxSecretService.Store(Service, account, token);
+            return;
+        }
+        throw new PlatformNotSupportedException(
+            "platform credential writes require macOS Keychain or Linux Secret Service");
+    }
+
+    public void Delete(Uri endpoint)
+    {
+        var account = RemoteTokenResolver.Account(endpoint);
+        if (OperatingSystem.IsMacOS())
+        {
+            MacKeychain.Delete(Service, account);
+            return;
+        }
+        if (OperatingSystem.IsLinux())
+        {
+            LinuxSecretService.Delete(Service, account);
+            return;
+        }
+        throw new PlatformNotSupportedException(
+            "platform credential deletion requires macOS Keychain or Linux Secret Service");
+    }
 }
 
 internal static partial class MacKeychain
@@ -94,12 +147,11 @@ internal static partial class MacKeychain
             out var length,
             out var data,
             out var item);
-        _ = item;
         if (status == ItemNotFound)
         {
             return null;
         }
-        if (status != 0 || data == IntPtr.Zero)
+        if (status != 0 || data == IntPtr.Zero || item == IntPtr.Zero)
         {
             throw new InvalidOperationException(
                 $"macOS Keychain rejected the remote token lookup ({status})");
@@ -112,8 +164,116 @@ internal static partial class MacKeychain
         finally
         {
             _ = SecKeychainItemFreeContent(IntPtr.Zero, data);
+            CFRelease(item);
         }
     }
+
+    public static void Store(string service, string account, string token)
+    {
+        var tokenData = Marshal.StringToCoTaskMemUTF8(token);
+        try
+        {
+            var status = SecKeychainFindGenericPassword(
+                IntPtr.Zero,
+                Utf8Length(service),
+                service,
+                Utf8Length(account),
+                account,
+                out _,
+                out var existingData,
+                out var item);
+            if (status == 0)
+            {
+                if (existingData != IntPtr.Zero)
+                {
+                    _ = SecKeychainItemFreeContent(IntPtr.Zero, existingData);
+                }
+                if (item == IntPtr.Zero)
+                {
+                    throw new InvalidOperationException("macOS Keychain returned no item reference");
+                }
+                try
+                {
+                    status = SecKeychainItemModifyAttributesAndData(
+                        item,
+                        IntPtr.Zero,
+                        Utf8Length(token),
+                        tokenData);
+                }
+                finally
+                {
+                    CFRelease(item);
+                }
+            }
+            else if (status == ItemNotFound)
+            {
+                status = SecKeychainAddGenericPassword(
+                    IntPtr.Zero,
+                    Utf8Length(service),
+                    service,
+                    Utf8Length(account),
+                    account,
+                    Utf8Length(token),
+                    tokenData,
+                    out var addedItem);
+                if (addedItem != IntPtr.Zero)
+                {
+                    CFRelease(addedItem);
+                }
+            }
+            if (status != 0)
+            {
+                throw new InvalidOperationException(
+                    $"macOS Keychain rejected the remote token write ({status})");
+            }
+        }
+        finally
+        {
+            Marshal.ZeroFreeCoTaskMemUTF8(tokenData);
+        }
+    }
+
+    public static void Delete(string service, string account)
+    {
+        var status = SecKeychainFindGenericPassword(
+            IntPtr.Zero,
+            Utf8Length(service),
+            service,
+            Utf8Length(account),
+            account,
+            out _,
+            out var data,
+            out var item);
+        if (status == ItemNotFound)
+        {
+            return;
+        }
+        if (data != IntPtr.Zero)
+        {
+            _ = SecKeychainItemFreeContent(IntPtr.Zero, data);
+        }
+        if (status != 0 || item == IntPtr.Zero)
+        {
+            throw new InvalidOperationException(
+                $"macOS Keychain rejected the remote token lookup ({status})");
+        }
+        try
+        {
+            status = SecKeychainItemDelete(item);
+        }
+        finally
+        {
+            CFRelease(item);
+        }
+        if (status != 0 && status != ItemNotFound)
+        {
+            throw new InvalidOperationException(
+                $"macOS Keychain rejected the remote token deletion ({status})");
+        }
+    }
+
+    private static uint Utf8Length(string value) => checked(
+        (uint)System.Text.Encoding.UTF8.GetByteCount(value));
 
     [LibraryImport(
         "/System/Library/Frameworks/Security.framework/Security",
@@ -132,6 +292,32 @@ internal static partial class MacKeychain
     private static partial int SecKeychainItemFreeContent(
         IntPtr attributeList,
         IntPtr data);
+
+    [LibraryImport(
+        "/System/Library/Frameworks/Security.framework/Security",
+        StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int SecKeychainAddGenericPassword(
+        IntPtr keychain,
+        uint serviceLength,
+        string serviceName,
+        uint accountLength,
+        string accountName,
+        uint passwordLength,
+        IntPtr passwordData,
+        out IntPtr itemReference);
+
+    [LibraryImport("/System/Library/Frameworks/Security.framework/Security")]
+    private static partial int SecKeychainItemModifyAttributesAndData(
+        IntPtr itemReference,
+        IntPtr attributes,
+        uint passwordLength,
+        IntPtr passwordData);
+
+    [LibraryImport("/System/Library/Frameworks/Security.framework/Security")]
+    private static partial int SecKeychainItemDelete(IntPtr itemReference);
+
+    [LibraryImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static partial void CFRelease(IntPtr value);
 }
 
 internal static partial class LinuxSecretService
@@ -191,6 +377,83 @@ internal static partial class LinuxSecretService
         }
     }
 
+    public static void Store(string service, string endpoint, string token)
+    {
+        var schema = CreateSchema(service);
+        try
+        {
+            var stored = SecretPasswordStoreSync(
+                schema,
+                IntPtr.Zero,
+                "Leserpent remote token",
+                token,
+                IntPtr.Zero,
+                out var error,
+                "service",
+                service,
+                "endpoint",
+                endpoint,
+                IntPtr.Zero);
+            EnsureMutation(stored, error, "write");
+        }
+        finally
+        {
+            SecretSchemaUnref(schema);
+        }
+    }
+
+    public static void Delete(string service, string endpoint)
+    {
+        var schema = CreateSchema(service);
+        try
+        {
+            var cleared = SecretPasswordClearSync(
+                schema,
+                IntPtr.Zero,
+                out var error,
+                "service",
+                service,
+                "endpoint",
+                endpoint,
+                IntPtr.Zero);
+            EnsureMutation(cleared, error, "deletion");
+        }
+        finally
+        {
+            SecretSchemaUnref(schema);
+        }
+    }
+
+    private static IntPtr CreateSchema(string service)
+    {
+        var schema = SecretSchemaNew(
+            service,
+            DontMatchSchemaName,
+            "service",
+            AttributeString,
+            "endpoint",
+            AttributeString,
+            IntPtr.Zero);
+        return schema == IntPtr.Zero
+            ? throw new InvalidOperationException("Linux Secret Service schema creation failed")
+            : schema;
+    }
+
+    private static void EnsureMutation(int succeeded, IntPtr error, string operation)
+    {
+        if (error != IntPtr.Zero)
+        {
+            GErrorFree(error);
+            throw new InvalidOperationException(
+                $"Linux Secret Service rejected the token {operation}");
+        }
+        if (succeeded == 0)
+        {
+            throw new InvalidOperationException(
+                $"Linux Secret Service did not complete the token {operation}");
+        }
+    }
+
     [LibraryImport("libsecret-1.so.0", EntryPoint = "secret_schema_new",
         StringMarshalling = StringMarshalling.Utf8)]
     private static partial IntPtr SecretSchemaNew(
@@ -208,6 +471,33 @@ internal static partial class LinuxSecretService
     [LibraryImport("libsecret-1.so.0", EntryPoint = "secret_password_lookup_sync",
         StringMarshalling = StringMarshalling.Utf8)]
     private static partial IntPtr SecretPasswordLookupSync(
+        IntPtr schema,
+        IntPtr cancellable,
+        out IntPtr error,
+        string serviceAttribute,
+        string service,
+        string endpointAttribute,
+        string endpoint,
+        IntPtr terminator);
+
+    [LibraryImport("libsecret-1.so.0", EntryPoint = "secret_password_store_sync",
+        StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int SecretPasswordStoreSync(
+        IntPtr schema,
+        IntPtr collection,
+        string label,
+        string password,
+        IntPtr cancellable,
+        out IntPtr error,
+        string serviceAttribute,
+        string service,
+        string endpointAttribute,
+        string endpoint,
+        IntPtr terminator);
+
+    [LibraryImport("libsecret-1.so.0", EntryPoint = "secret_password_clear_sync",
+        StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int SecretPasswordClearSync(
         IntPtr schema,
         IntPtr cancellable,
         out IntPtr error,

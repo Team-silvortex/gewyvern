@@ -380,6 +380,89 @@ Use global `--json` and `--json-out` when CI should consume the result without
 parsing human output. Windows remains outside this command until `win-x64` has
 a locked dependency graph and native-host execution evidence.
 
+### I want to package the Leserpent macOS app
+
+After publishing the locked `osx-arm64` NativeAOT directory, run:
+
+```bash
+cargo run --bin gewyvern_leserpent_bundle -- \
+  --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
+  --output artifacts/leserpent-avalonia/Leserpent.app \
+  --version 1.2.0
+```
+
+This native entrypoint validates a flat, symlink-free publish directory,
+excludes external debug symbols, copies only the Mach-O executable and dylibs,
+and writes stable bundle metadata plus the checked `.icns`. Existing output is
+never replaced implicitly. Signing and notarization consume this bundle in a
+later release step.
+
+### I want to sign and notarize the Leserpent macOS app
+
+Use the native release entrypoint after bundle creation:
+
+```bash
+cargo run --bin gewyvern_leserpent_release -- sign \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --identity 'Developer ID Application: ORGANIZATION (TEAMID)'
+
+xcrun notarytool store-credentials leserpent-notary
+
+cargo run --bin gewyvern_leserpent_release -- notarize \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --keychain-profile leserpent-notary
+```
+
+The credentials command is intentionally interactive. The release CLI has no
+Apple ID, password, API private-key, or Team ID input surface. It requires a
+timestamped Developer ID signature and Hardened Runtime, waits for an explicit
+notary `Accepted` result, staples and validates the ticket, and runs Gatekeeper.
+Use `verify --allow-adhoc` only to test local signature structure. Its output
+sets `runtime_launch=false`: ad-hoc signatures have no Team ID and therefore
+cannot establish the same-team library-validation relationship required by a
+Hardened Runtime app with separately signed dylibs. Ordinary ad-hoc bundles are
+used for local UI smoke; release launch proof requires Developer ID.
+
+For a packaged saved-profile/Keychain proof, create a bounded profile and CA
+under the current user's `$TMPDIR` with an unused high loopback port, then run:
+
+```bash
+artifacts/leserpent-avalonia/Leserpent.app/Contents/MacOS/Leserpent.Avalonia \
+  --verify-packaged-profile-startup "$TMPDIR/leserpent-proof/profile.json"
+```
+
+The executable refuses shared `/tmp`, non-loopback or low-port origins,
+out-of-root CA files, symlinked directories, and pre-existing credentials. It
+generates the non-secret fixture token internally and always removes a
+successfully created Keychain item before reporting success.
+
+To verify desktop connection switching and forgetting without touching the
+real credential store, run:
+
+```bash
+dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- \
+  --verify-connection-maintenance
+dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- \
+  --verify-connection-management-controls
+```
+
+The first command uses an injected in-memory vault to prove endpoint-scoped
+deletion, profile cleanup, and stale-profile rejection. The second opens the
+real Avalonia settings surface and audits both settings and destructive
+confirmation controls.
+
+To verify private desktop CA import and migration semantics, run:
+
+```bash
+dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- \
+  --verify-desktop-ca-store
+```
+
+The probe generates local CA and leaf fixtures, then checks strict single-PEM
+parsing, CA/key-usage policy, SHA-256 addressing, atomic private permissions,
+idempotency, managed-file replacement and symlink rejection, bounded pruning,
+and stale temporary-file cleanup. It never touches the product trust directory.
+
 ### I want to prove Leserpent local transport compatibility
 
 Run:

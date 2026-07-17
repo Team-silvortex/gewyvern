@@ -280,6 +280,22 @@ RequireThrows<ArgumentException>(() => RemoteTokenResolver.Resolve(
     "invalid platform credential silently fell back to the environment");
 RequireThrows<ArgumentException>(() => RemoteClientOptions.ValidateToken(new string('x', 4097)),
     "oversized remote token was accepted");
+var fixtureVault = new FixtureTokenVault();
+RemoteTokenResolver.Store(credentialEndpoint, storedToken, fixtureVault);
+Require(fixtureVault.Load(credentialEndpoint) == storedToken,
+    "credential vault did not retain the endpoint-scoped token");
+Require(fixtureVault.Load(new Uri("https://example.com:9444")) is null,
+    "credential vault leaked a token across endpoints");
+RequireThrows<ArgumentException>(() => RemoteTokenResolver.Store(
+    credentialEndpoint,
+    "invalid token",
+    fixtureVault),
+    "credential vault accepted an invalid token");
+Require(fixtureVault.StoreCount == 1,
+    "invalid token validation happened after credential mutation");
+RemoteTokenResolver.Delete(credentialEndpoint, fixtureVault);
+Require(fixtureVault.Load(credentialEndpoint) is null && fixtureVault.DeleteCount == 1,
+    "credential vault deletion failed");
 var trustIdentity = RemoteTrustIdentity.FromSha256(
     new Uri("https://EXAMPLE.com:9443"),
     Enumerable.Range(0, 32).Select(value => checked((byte)value)).ToArray());
@@ -340,7 +356,7 @@ RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
     "runtime-a"),
     "workspace accepted an oversized log message");
 
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false");
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, credential_mutation=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false");
 return 0;
 
 static void Require(bool condition, string message)
@@ -546,5 +562,28 @@ sealed class FixtureTokenStore(string? token) : IRemoteTokenStore
     {
         _ = endpoint;
         return token;
+    }
+}
+
+sealed class FixtureTokenVault : IRemoteTokenVault
+{
+    private readonly Dictionary<string, string> tokens = new(StringComparer.Ordinal);
+
+    public int StoreCount { get; private set; }
+    public int DeleteCount { get; private set; }
+
+    public string? Load(Uri endpoint) => tokens.GetValueOrDefault(
+        RemoteTokenResolver.Account(endpoint));
+
+    public void Store(Uri endpoint, string token)
+    {
+        StoreCount++;
+        tokens[RemoteTokenResolver.Account(endpoint)] = token;
+    }
+
+    public void Delete(Uri endpoint)
+    {
+        DeleteCount++;
+        tokens.Remove(RemoteTokenResolver.Account(endpoint));
     }
 }

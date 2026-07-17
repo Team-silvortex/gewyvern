@@ -14,9 +14,12 @@ internal static class StartupFailure
     public static bool IsExpected(Exception error) => error is
         ArgumentException
         or CryptographicException
+        or DllNotFoundException
+        or EntryPointNotFoundException
         or InvalidDataException
         or InvalidOperationException
         or IOException
+        or PlatformNotSupportedException
         or SecurityException
         or UnauthorizedAccessException;
 

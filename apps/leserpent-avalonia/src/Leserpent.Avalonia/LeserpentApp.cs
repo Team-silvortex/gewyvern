@@ -25,9 +25,36 @@ internal sealed class LeserpentApp : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            if (desktop.Args is ["--verify-desktop-connect-controls"])
+            {
+                ConfigureDesktopConnectionVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+            if (desktop.Args is ["--verify-connection-management-controls"])
+            {
+                ConfigureConnectionManagementVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (desktop.Args is ["--remote", ..])
             {
                 ConfigureRemoteWindow(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+            if (desktop.Args is null or [])
+            {
+                ConfigureInteractiveDesktop(desktop);
+                DesktopApplicationLifecycle.Configure(
+                    this,
+                    desktop,
+                    () =>
+                    {
+                        ConfigureInteractiveDesktop(desktop);
+                        desktop.MainWindow?.Show();
+                    },
+                    () => ShowConnectionManager(desktop));
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
@@ -121,6 +148,61 @@ internal sealed class LeserpentApp : Application
         desktop.MainWindow = window;
     }
 
+    private static void ConfigureDesktopConnectionVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var fixtureToken = new string('t', 32);
+        DesktopConnectionRequest? submitted = null;
+        var window = new DesktopConnectionWindow(null, null, request =>
+        {
+            submitted = request;
+            return "verification only";
+        });
+        window.Opened += (_, _) =>
+        {
+            window.VerifyAccessibility();
+            window.ProbeSecureTokenSubmission(fixtureToken);
+            if (submitted?.Token != fixtureToken)
+            {
+                throw new InvalidDataException(
+                    "desktop connection did not submit the protected token");
+            }
+            Console.WriteLine(
+                "desktop connection controls valid: controls=8, automation_ids=8, automation_names=8, live_region=true, token_input=secure, token_cleared=true");
+            DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
+    private static void ConfigureConnectionManagementVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var profile = new DesktopConnectionProfile
+        {
+            SchemaVersion = 1,
+            Endpoint = "https://control.example:9443",
+            CertificateAuthorityPath = "/verification/ca.pem",
+        };
+        var window = new DesktopConnectionWindow(
+            profile,
+            null,
+            _ => "verification only",
+            null,
+            () => "verification only");
+        window.Opened += (_, _) =>
+        {
+            window.VerifyAccessibility();
+            new DesktopForgetConnectionWindow(profile.Endpoint, () => null)
+                .VerifyAccessibility();
+            Console.WriteLine(
+                "desktop connection management controls valid: settings_controls=9, confirmation_controls=3, automation_ids=true, automation_names=true, forget_confirmation=true, endpoint_scoped=true");
+            DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
     private static void ConfigureRemoteWindow(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -150,6 +232,162 @@ internal sealed class LeserpentApp : Application
             var window = new StartupErrorWindow(description);
             window.Closed += (_, _) => desktop.Shutdown(StartupFailure.ExitCode);
             desktop.MainWindow = window;
+        }
+    }
+
+    private static void ConfigureInteractiveDesktop(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var store = new DesktopConnectionProfileStore(
+            DesktopConnectionProfileStore.DefaultPath());
+        var certificateStore = DesktopCertificateAuthorityStore.Default();
+        DesktopConnectionProfile? profile = null;
+        string? initialError = null;
+        try
+        {
+            profile = store.Load();
+            if (profile is not null)
+            {
+                profile = DesktopProductStartup.PrepareSavedProfile(
+                    profile,
+                    store,
+                    certificateStore);
+                var plan = DesktopProductStartup.Resolve(profile);
+                desktop.MainWindow = CreateProductRemoteWindow(desktop, plan);
+                return;
+            }
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            initialError = StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+        }
+
+        ShowConnectionWindow(desktop, store, profile, initialError, true);
+    }
+
+    private static void ShowConnectionManager(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var existing = desktop.Windows.OfType<DesktopConnectionWindow>().FirstOrDefault();
+        if (existing is not null)
+        {
+            existing.Show();
+            existing.Activate();
+            return;
+        }
+
+        var store = new DesktopConnectionProfileStore(
+            DesktopConnectionProfileStore.DefaultPath());
+        DesktopConnectionProfile? profile = null;
+        string? initialError = null;
+        try
+        {
+            profile = store.Load();
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            initialError = StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+        }
+        ShowConnectionWindow(desktop, store, profile, initialError, false);
+    }
+
+    private static void ShowConnectionWindow(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopConnectionProfileStore store,
+        DesktopConnectionProfile? profile,
+        string? initialError,
+        bool isInitialSetup)
+    {
+        var previousMainWindow = desktop.MainWindow;
+        var certificateStore = DesktopCertificateAuthorityStore.Default();
+        DesktopConnectionWindow? setup = null;
+        setup = new DesktopConnectionWindow(
+            profile,
+            initialError,
+            request =>
+            {
+                try
+                {
+                    var requestedProfile = new DesktopConnectionProfile
+                    {
+                        SchemaVersion = 1,
+                        Endpoint = request.Endpoint,
+                        CertificateAuthorityPath = request.Remember
+                            ? certificateStore.Import(request.CertificateAuthorityPath)
+                            : Path.GetFullPath(request.CertificateAuthorityPath),
+                    };
+                    var plan = DesktopProductStartup.Resolve(
+                        requestedProfile,
+                        request.Token);
+                    if (request.Remember)
+                    {
+                        store.Save(requestedProfile);
+                    }
+                    else
+                    {
+                        store.Clear();
+                    }
+                    certificateStore.PruneExcept(
+                        request.Remember ? requestedProfile.CertificateAuthorityPath : null);
+                    var remote = CreateProductRemoteWindow(desktop, plan);
+                    desktop.MainWindow = remote;
+                    remote.Show();
+                    setup!.Close();
+                    if (previousMainWindow is not null
+                        && !ReferenceEquals(previousMainWindow, setup))
+                    {
+                        previousMainWindow.Close();
+                    }
+                    return null;
+                }
+                catch (Exception error) when (StartupFailure.IsExpected(error))
+                {
+                    return StartupFailure.Describe(
+                        error,
+                        Environment.GetEnvironmentVariable(
+                            RemoteTokenResolver.EnvironmentVariable));
+                }
+            },
+            isInitialSetup ? () => desktop.TryShutdown(0) : null,
+            profile is null ? null : () => ForgetSavedConnection(profile, store));
+        if (isInitialSetup)
+        {
+            desktop.MainWindow = setup;
+            return;
+        }
+        if (previousMainWindow is not null)
+        {
+            setup.Show(previousMainWindow);
+        }
+        else
+        {
+            setup.Show();
+        }
+    }
+
+    private static RemoteMainWindow CreateProductRemoteWindow(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopProductStartupPlan plan) =>
+        new(plan.Options, plan.TokenSource, () => ShowConnectionManager(desktop));
+
+    private static string? ForgetSavedConnection(
+        DesktopConnectionProfile profile,
+        DesktopConnectionProfileStore store)
+    {
+        try
+        {
+            DesktopConnectionMaintenance.ForgetSavedConnection(profile, store);
+            return null;
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            return StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
         }
     }
 

@@ -56,6 +56,12 @@ internal sealed class RemoteMainWindow : Window
         IsEnabled = false,
         Padding = new Thickness(14, 7),
     };
+    private readonly Button connectionButton = new()
+    {
+        Content = "Connection...",
+        IsVisible = false,
+        Padding = new Thickness(14, 7),
+    };
     private readonly TextBlock credentialSourceText = new()
     {
         FontSize = 11,
@@ -105,7 +111,10 @@ internal sealed class RemoteMainWindow : Window
     private readonly Grid runtimeToolbarGrid = new();
     private readonly Grid statusGrid = new();
 
-    public RemoteMainWindow(RemoteClientOptions options, RemoteTokenSource tokenSource)
+    public RemoteMainWindow(
+        RemoteClientOptions options,
+        RemoteTokenSource tokenSource,
+        Action? manageConnection = null)
     {
         this.options = options;
         Width = 1080;
@@ -155,6 +164,13 @@ internal sealed class RemoteMainWindow : Window
             "Restarts the read-only event stream after automatic reconnect is exhausted. Shortcut: F5.");
         ToolTip.SetTip(reconnectButton, "Reconnect event stream (F5)");
         reconnectButton.Click += (_, _) => RequestReconnect();
+        connectionButton.IsVisible = manageConnection is not null;
+        connectionButton.Click += (_, _) => manageConnection?.Invoke();
+        AutomationProperties.SetAutomationId(connectionButton, "remote-manage-connection");
+        AutomationProperties.SetName(connectionButton, "Manage remote connection");
+        AutomationProperties.SetHelpText(
+            connectionButton,
+            "Switch the remote authority or forget the saved profile and endpoint credential.");
         AutomationProperties.SetAutomationId(runtimeFilterBox, "remote-runtime-filter");
         AutomationProperties.SetName(runtimeFilterBox, "Filter remote runtimes");
         AutomationProperties.SetHelpText(
@@ -251,6 +267,7 @@ internal sealed class RemoteMainWindow : Window
         statusGrid.Children.Add(statusText);
         statusGrid.Children.Add(credentialSourceBadge);
         statusGrid.Children.Add(revisionText);
+        statusGrid.Children.Add(connectionButton);
         statusGrid.Children.Add(reconnectButton);
         statusText.TextTrimming = TextTrimming.CharacterEllipsis;
         revisionText.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -295,11 +312,11 @@ internal sealed class RemoteMainWindow : Window
             : new Thickness(0);
 
         statusGrid.ColumnDefinitions = ColumnDefinitions.Parse(
-            compact ? "*,Auto,Auto" : "*,Auto,Auto,Auto");
+            compact ? "*,Auto,Auto,Auto" : "*,Auto,Auto,Auto,Auto");
         statusGrid.RowDefinitions = RowDefinitions.Parse(compact ? "Auto,Auto" : "Auto");
         Grid.SetColumn(statusText, 0);
         Grid.SetRow(statusText, 0);
-        Grid.SetColumnSpan(statusText, compact ? 3 : 1);
+        Grid.SetColumnSpan(statusText, compact ? 4 : 1);
         statusText.Margin = compact
             ? new Thickness(0, 0, 0, 8)
             : new Thickness(0);
@@ -307,7 +324,9 @@ internal sealed class RemoteMainWindow : Window
         Grid.SetRow(credentialSourceBadge, compact ? 1 : 0);
         Grid.SetColumn(revisionText, compact ? 1 : 2);
         Grid.SetRow(revisionText, compact ? 1 : 0);
-        Grid.SetColumn(reconnectButton, compact ? 2 : 3);
+        Grid.SetColumn(connectionButton, compact ? 2 : 3);
+        Grid.SetRow(connectionButton, compact ? 1 : 0);
+        Grid.SetColumn(reconnectButton, compact ? 3 : 4);
         Grid.SetRow(reconnectButton, compact ? 1 : 0);
     }
 
@@ -512,7 +531,7 @@ internal sealed class RemoteMainWindow : Window
         }
         var invokedAction = FindNode(renderer.Document.Root, nodeId)?.Action;
         var deploymentRuntime = invokedAction is
-            { Kind: ActionKind.RuntimeDeploy, RuntimeId: not null, Form: not null }
+        { Kind: ActionKind.RuntimeDeploy, RuntimeId: not null, Form: not null }
             ? currentState.Runtimes.FirstOrDefault(candidate =>
                 candidate.Id == invokedAction.RuntimeId)
             : null;

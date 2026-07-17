@@ -238,8 +238,11 @@ with a single pinned runtime/compiler/linker patch set. macOS arm64 and a
 physical Ubuntu x86_64 host both produce five-file self-contained native
 packages and pass all real control fixtures without a managed runtime
 installation. The Linux debugger fixture preserves the one-to-zero
-cancel-control lifecycle under Xvfb. Windows native-host evidence and mobile
-shells remain.
+cancel-control lifecycle under Xvfb. macOS/Linux regressions remain the desktop
+priority. Android entry groundwork is parked until the macOS application,
+connection profile, menu/lifecycle, and release-bundle paradigm is stable.
+Windows native desktop is deferred and Windows operators use the authenticated
+Web console in this cycle.
 
 The Avalonia renderer now maps bounded log entries to lazy monospace controls.
 The 48-entry cross-language sliding fixture applies in three operations and
@@ -442,9 +445,36 @@ and a newer revision with an unchanged capability posture remains blocked. New
 runtime projections now carry the exact command revision that produced the
 capability observation. This removes content-based ambiguity when repeated
 discovery returns identical data, remains optional for legacy snapshots, and
-has explicit old-journal replay evidence without a schema migration. The next
-renderer slice is Windows native-host
-evidence followed by reuse of this contract in the mobile shells.
+has explicit old-journal replay evidence without a schema migration. Secure
+first-run connection and endpoint-scoped Keychain/Secret Service onboarding now
+run inside the no-argument desktop product path, including bounded password
+input, immediate control clearing, and token-free profile persistence. The
+native Rust bundler now turns the arm64 NativeAOT output into a strict `.app`
+with stable plist identity, checked icon, debug-symbol exclusion, native menu,
+Dock reopen, explicit Quit, real Finder launch evidence, and strict ad-hoc
+signature verification. The native release entrypoint now enforces inside-out
+Developer ID signing, Hardened Runtime, secure timestamps, Keychain-only
+notary credentials, explicit acceptance, ticket stapling, and Gatekeeper
+assessment. The current host has no Developer ID identity, so executing and
+retaining the formal Apple-backed proof remains the only macOS release gate.
+The latest arm64 NativeAOT bundle also passes the shared product-startup probe
+against a real temporary Keychain item and saved profile; the item is deleted
+in-process and independently confirmed absent afterward.
+The product shell now also exposes one shared connection-management flow from
+the native macOS menu and remote status bar. Replacement sessions are created
+before the active session is released. Forgetting requires explicit
+confirmation, is fenced against a changed saved profile, and deletes only the
+canonical endpoint's platform credential and non-secret profile. Managed
+contract and real Avalonia control probes cover both settings and confirmation
+surfaces without exposing token material.
+Remembered desktop CA trust is now copied out of ambient user paths into an
+application-private, content-addressed trust directory. A strict contract proves
+single-PEM parsing, CA and key-usage constraints, atomic/private writes, legacy
+profile migration, valid-certificate replacement rejection, symlink rejection,
+bounded stale-CA pruning, and recognized crash-temporary cleanup. Ephemeral
+connections remain non-persistent.
+Android adoption resumes after that paradigm is stable. Windows native-host
+evidence is not a blocking gate.
 
 The authenticated deployment adapter is now reachable through a shared
 `runtime.deploy` command vertical. Domain policy separates deployment from
@@ -475,12 +505,23 @@ Exit: Rust is authoritative and the old service is an adapter, not the owner.
 
 Extend the same contracts rather than forking product behavior.
 
-- Android and iOS Avalonia entry projects
+- Android entry project and physical-device lifecycle proof
+- iOS entry project after Android contract parity is stable
 - mobile navigation and adaptive presentation
 - authenticated HTTPS/WebSocket protocol
 - reconnect, offline read cache, and explicit stale-state presentation
 - push/deep-link integration through platform adapters
 - optional embedded Rust feasibility study for offline execution
+
+The Android executable entry client now composes the validating credential
+vault, app-private CA/profile storage, `MobileApplicationCoordinator`, and
+foreground/background callbacks. Its first native shell exposes secure setup,
+connection state, and bounded runtime summaries. Host-independent conformance
+proves duplicate callback coalescing, endpoint reconfiguration, failure cleanup,
+and terminal disposal; a static entry-contract test locks Keystore-only token
+storage and private profile boundaries. APK compilation, emulator launch,
+physical-device Keystore/TLS evidence, and parameterized form-event controls
+remain before Android parity is claimed.
 
 The current desktop slice implements the event consumer and first constrained
 mutation of this gate. A pure
@@ -655,7 +696,8 @@ the locked restore and no-restore publish, validates Mach-O/ELF signatures and
 a bounded artifact manifest, executes all four control fixtures, and retains a
 versioned evidence index. macOS arm64 self-host execution is automated; Linux
 x64 uses the same command with Xvfb. Windows stays unclaimed until its lock and
-physical-host proof exist.
+physical-host proof exist, but that evidence is outside the current
+macOS/Linux-to-Android critical path; Windows uses the Web console meanwhile.
 
 ## Explicit Deferrals
 

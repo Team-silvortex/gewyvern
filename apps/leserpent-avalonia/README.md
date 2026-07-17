@@ -61,6 +61,41 @@ Avalonia controls. Stable node IDs and accessibility metadata map to Avalonia
 Automation properties. Buttons only emit their action node ID; command lowering
 remains in the shared Rust boundary.
 
+Launching `Leserpent.Avalonia` without arguments is the normal desktop product
+entry. It loads a bounded non-secret connection profile from local application
+data and opens the remote console when the matching Keychain/Secret Service
+token exists. First launch or profile failure opens an accessible setup window
+for the HTTPS authority, CA file, and an optional protected token. A submitted
+token is validated and stored under the canonical HTTPS origin in macOS
+Keychain or Linux Secret Service; leaving it blank reuses an existing platform
+credential. The input is cleared immediately after submission. The profile is
+atomically written with private permissions and never contains a token, and no
+token enters cache or UI IR; fixture paths remain test-only entrypoints. Verify
+the persistence contract with `--verify-desktop-profile` and the real setup
+controls with `--verify-desktop-connect-controls`.
+
+Remembered CA files are not referenced in place. Leserpent accepts exactly one
+UTF-8 PEM certificate with CA basic constraints and, when present, certificate-
+signing key usage. It canonicalizes the public certificate into the private
+`trust-v1` application directory under its SHA-256 fingerprint, writes it
+atomically with `0600` file and `0700` directory modes, and stores only that
+managed path in the profile. Existing external-path profiles migrate on startup.
+The fingerprint filename is revalidated on every launch, so replacing a managed
+file with another valid CA fails closed. Successful migration or connection
+switching prunes stale managed CAs and recognized crash-temporary files while
+refusing unknown entries and links. Run `--verify-desktop-ca-store` for the full
+positive and negative contract.
+
+After startup, `Connection...` in the native macOS application menu or the
+connection button in the remote status bar reopens the same secure setup flow.
+A replacement session must be constructed successfully before the current
+session closes. `Forget saved connection...` requires a second confirmation,
+revalidates that the on-disk profile has not changed, and removes only that
+canonical endpoint's Keychain/Secret Service item plus the non-secret profile;
+environment variables and other endpoint credentials are untouched. Verify the
+maintenance boundary with `--verify-connection-maintenance` and both real
+Avalonia control surfaces with `--verify-connection-management-controls`.
+
 Remote startup validation failures open a bounded, token-redacted error window
 instead of terminating with an unhandled exception. `Escape` and the explicit
 close button exit with status 2. Its real control metadata can be checked with
@@ -321,9 +356,80 @@ dotnet publish \
   -o "artifacts/leserpent-avalonia/$RID"
 ```
 
+On macOS, turn that flat NativeAOT output into a Finder/Dock application with
+the native Rust bundler:
+
+```bash
+cargo run --bin gewyvern_leserpent_bundle -- \
+  --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
+  --output artifacts/leserpent-avalonia/Leserpent.app \
+  --version 1.2.0
+```
+
+The bundler emits a deterministic `Contents/MacOS`, `Contents/Resources`, and
+`Info.plist` layout with bundle identifier `org.gewyvern.leserpent`. It copies
+only the main executable and native `.dylib` dependencies, omits `.pdb` and
+`.dSYM`, rejects symlinks and unknown files, and refuses to replace an existing
+bundle. `leserpent-icon.icns` is generated from the checked Leserpent artwork.
+The product uses a native macOS application menu, explicit Quit, and Dock
+reopen behavior; verify its code-only contract with
+`--verify-desktop-lifecycle`. Developer ID signing and Apple notarization are
+separate release steps and are not implied by local ad-hoc signing.
+
+The native release gate signs nested dylibs before the application, requires a
+`Developer ID Application:` identity, enables Hardened Runtime and a secure
+timestamp, and rejects symlinks or another bundle identity:
+
+```bash
+cargo run --bin gewyvern_leserpent_release -- sign \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --identity 'Developer ID Application: ORGANIZATION (TEAMID)'
+```
+
+Store notarization credentials through the interactive Keychain prompt; never
+put an Apple ID password in a command, environment variable, or repository:
+
+```bash
+xcrun notarytool store-credentials leserpent-notary
+
+cargo run --bin gewyvern_leserpent_release -- notarize \
+  --app artifacts/leserpent-avalonia/Leserpent.app \
+  --keychain-profile leserpent-notary
+
+cargo run --bin gewyvern_leserpent_release -- verify \
+  --app artifacts/leserpent-avalonia/Leserpent.app
+```
+
+Notarization creates a temporary `ditto --keepParent` ZIP, waits for an
+explicit `Accepted` response, removes the archive, staples and validates the
+ticket, and finishes with a Gatekeeper assessment. `verify --allow-adhoc`
+exists only for local Hardened Runtime structure tests and skips Developer ID
+and Gatekeeper claims. Because ad-hoc code has no Team ID, a separately signed
+Hardened Runtime executable and its native libraries cannot satisfy macOS
+library validation; this mode therefore reports `runtime_launch=false`. Use the
+ordinary ad-hoc bundle for local Finder/UI testing, and a single Developer ID
+identity for every nested library plus the app in release testing.
+
+Normal no-argument startup and release verification share one
+`DesktopProductStartup` composition boundary. The packaged proof accepts only a
+profile under the current user's isolated temporary directory, requires a high
+loopback port and a CA under the same temporary root, refuses an existing
+credential, writes a generated one-time token to the real platform Keychain,
+resolves the saved profile, and deletes the item in `finally` without printing
+or persisting the token. Run the packaged executable with
+`--verify-packaged-profile-startup TEMP_PROFILE`; success emits
+`saved_profile=true`, `platform_keychain=true`, and `credential_cleaned=true`.
+Connection management uses this same product composition boundary: switching
+is fail-safe against setup errors, while forgetting is endpoint-scoped and
+stale-profile fenced.
+
 The checked RID set is currently `osx-arm64;linux-x64`. NativeAOT runtime,
 compiler, linker, targeting, and app-host packs are fixed to one patch version
 in the project so hosts with different .NET SDK patches consume the same lock.
+macOS and Linux are the supported native desktop targets for this cycle.
+Android is the next native client target; iOS follows after Android parity.
+Windows native desktop is intentionally deferred, with the authenticated Web
+console serving Windows operators instead.
 
 Run the published executable through the same control smoke fixture:
 
@@ -333,8 +439,10 @@ artifacts/leserpent-avalonia/osx-arm64/Leserpent.Avalonia \
   apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json
 ```
 
-The macOS arm64 proof produces a five-file, approximately 82 MiB self-contained
-directory and a native arm64 Mach-O executable. The Ubuntu x86_64 physical-host
+The macOS arm64 proof produces a native arm64 Mach-O executable. Its `.app`
+contains the executable, three native libraries, a valid plist, and the native
+icon; the current stripped bundle is approximately 40 MiB before release
+signing. The Ubuntu x86_64 physical-host
 proof produces a five-file, approximately 76 MiB directory and a stripped PIE
 ELF; all four control fixtures pass under Xvfb. The debugger fixture records one
 realized cancel button before re-entry and zero afterward on both hosts. Other

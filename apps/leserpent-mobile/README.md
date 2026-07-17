@@ -38,5 +38,19 @@ Both implement `IMobileSecretStore` behind the validating
 before write and after read, and fences cancelled operations before they reach
 platform storage. Hosts then delegate foreground/background callbacks to
 `MobileRemoteLifecycle`; they must not use the desktop environment-token
-fallback. Platform application entry projects and physical-device AOT evidence
-remain the next slice.
+fallback.
+
+The Android project is now an executable entry client. Its native `MainActivity`
+accepts an HTTPS authority, public CA certificate, and endpoint-scoped token;
+only the endpoint is stored in private preferences, the CA is validated and
+written to app-private files, and the token goes exclusively through Android
+Keystore. `MobileApplicationCoordinator` maps duplicate platform start/stop
+callbacks onto one foreground session and generation-fenced background
+disconnect. The initial shell renders connection state and bounded runtime
+summaries without introducing Android-owned command semantics.
+
+Host-independent conformance and `tests/android_entry_contract_tdd.rs` validate
+the composition without an Android SDK. The next Android gate is a locked
+workload build, emulator launch, physical-device Keystore/TLS proof, and reuse
+of the renderer-neutral parameterized form-event contract. iOS follows only
+after that Android parity is stable.
