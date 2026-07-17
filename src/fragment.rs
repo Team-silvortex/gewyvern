@@ -18,7 +18,7 @@ use self::params::fragment_param_type_matches;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FragmentDescriptor {
-    pub id: &'static str,
+    pub id: String,
     pub version: u32,
     pub hookpoints: Vec<HookPoint>,
     pub emits: Vec<FactKindTag>,
@@ -44,7 +44,7 @@ pub enum EvidenceTier {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FragmentParamSpec {
-    pub key: &'static str,
+    pub key: String,
     pub value_type: FragmentParamType,
 }
 
@@ -57,8 +57,8 @@ pub enum FragmentParamType {
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum HookPoint {
-    TracePoint(&'static str),
-    KProbe(&'static str),
+    TracePoint(String),
+    KProbe(String),
     TCIngress,
     TCEgress,
 }
@@ -76,7 +76,7 @@ impl HookPoint {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MapSpec {
-    pub name: &'static str,
+    pub name: String,
     pub kind: MapKind,
     pub max_entries: u32,
 }
@@ -98,7 +98,7 @@ pub enum CapabilityFlag {
 
 #[derive(Clone, Debug, Default)]
 pub struct FragmentRegistry {
-    descriptors: BTreeMap<&'static str, FragmentDescriptor>,
+    descriptors: BTreeMap<String, FragmentDescriptor>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -112,13 +112,13 @@ pub struct AttachPlan {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HookBinding {
-    pub fragment_id: &'static str,
+    pub fragment_id: String,
     pub hookpoint: HookPoint,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttachFailure {
-    pub fragment_id: &'static str,
+    pub fragment_id: String,
     pub hookpoint: HookPoint,
     pub error: String,
 }
@@ -161,15 +161,15 @@ pub fn summarize_attach_failures(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactBinding {
-    pub fragment_id: &'static str,
+    pub fragment_id: String,
     pub emits: Vec<FactKindTag>,
     pub requires: Vec<FactKindTag>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DependencyEdge {
-    pub fragment_id: &'static str,
-    pub depends_on: &'static str,
+    pub fragment_id: String,
+    pub depends_on: String,
     pub fact_kind: FactKindTag,
 }
 
@@ -229,10 +229,10 @@ impl FragmentRegistry {
     }
 
     pub fn register(&mut self, descriptor: FragmentDescriptor) -> Result<(), RegistryError> {
-        if self.descriptors.contains_key(descriptor.id) {
-            return Err(RegistryError::DuplicateFragmentId(descriptor.id.into()));
+        if self.descriptors.contains_key(&descriptor.id) {
+            return Err(RegistryError::DuplicateFragmentId(descriptor.id));
         }
-        self.descriptors.insert(descriptor.id, descriptor);
+        self.descriptors.insert(descriptor.id.clone(), descriptor);
         Ok(())
     }
 
@@ -253,14 +253,14 @@ impl FragmentRegistry {
             fragments.push(descriptor);
         }
 
-        let mut hook_owners: BTreeMap<HookPoint, &'static str> = BTreeMap::new();
-        let mut fact_owners: BTreeMap<FactKindTag, &'static str> = BTreeMap::new();
+        let mut hook_owners: BTreeMap<HookPoint, String> = BTreeMap::new();
+        let mut fact_owners: BTreeMap<FactKindTag, String> = BTreeMap::new();
         let mut hook_graph = Vec::new();
         let mut fact_graph = Vec::new();
 
         for fragment in &fragments {
             for hookpoint in &fragment.hookpoints {
-                if let Some(existing) = hook_owners.insert(hookpoint.clone(), fragment.id) {
+                if let Some(existing) = hook_owners.insert(hookpoint.clone(), fragment.id.clone()) {
                     return Err(RegistryError::HookConflict(format!(
                         "{} already owned by {}",
                         hookpoint.label(),
@@ -268,13 +268,13 @@ impl FragmentRegistry {
                     )));
                 }
                 hook_graph.push(HookBinding {
-                    fragment_id: fragment.id,
+                    fragment_id: fragment.id.clone(),
                     hookpoint: hookpoint.clone(),
                 });
             }
 
             for emitted in &fragment.emits {
-                if let Some(existing) = fact_owners.insert(*emitted, fragment.id) {
+                if let Some(existing) = fact_owners.insert(*emitted, fragment.id.clone()) {
                     return Err(RegistryError::FactConflict(format!(
                         "{} emitted by both {} and {}",
                         emitted, existing, fragment.id
@@ -283,7 +283,7 @@ impl FragmentRegistry {
             }
 
             fact_graph.push(FactBinding {
-                fragment_id: fragment.id,
+                fragment_id: fragment.id.clone(),
                 emits: fragment.emits.clone(),
                 requires: fragment.requires.clone(),
             });
@@ -309,10 +309,10 @@ impl FragmentRegistry {
                     candidate
                         .emits
                         .contains(requirement)
-                        .then_some((candidate.id, requirement))
+                        .then_some((candidate.id.clone(), requirement))
                 }) {
                     dependency_graph.push(DependencyEdge {
-                        fragment_id: fragment.id,
+                        fragment_id: fragment.id.clone(),
                         depends_on: producer,
                         fact_kind: *requirement,
                     });
@@ -342,7 +342,7 @@ impl FragmentRegistry {
                 let spec = descriptor
                     .params
                     .iter()
-                    .find(|spec| spec.key == key)
+                    .find(|spec| &spec.key == key)
                     .ok_or_else(|| RegistryError::UnknownFragmentParam {
                         fragment_id: fragment_id.clone(),
                         key: key.clone(),
@@ -387,7 +387,7 @@ impl FragmentRegistry {
                 fact_producers
                     .entry(*fact)
                     .or_default()
-                    .push(descriptor.id.into());
+                    .push(descriptor.id.clone());
                 let tier = descriptor
                     .evidence_classes
                     .iter()
@@ -529,7 +529,7 @@ impl FragmentRegistry {
                 matched_failures.insert(label.clone());
                 failed_report.push(label);
             } else {
-                loaded_fragments.insert(binding.fragment_id);
+                loaded_fragments.insert(&binding.fragment_id);
                 attached.push(label);
             }
         }
@@ -541,7 +541,7 @@ impl FragmentRegistry {
         let maps = plan
             .fragments
             .iter()
-            .filter(|fragment| loaded_fragments.contains(fragment.id))
+            .filter(|fragment| loaded_fragments.contains(&fragment.id))
             .flat_map(|fragment| fragment.maps.iter())
             .filter(|spec| spec.kind == MapKind::RingBuf)
             .collect::<Vec<_>>();
@@ -550,8 +550,8 @@ impl FragmentRegistry {
             fragments_loaded: plan
                 .fragments
                 .iter()
-                .filter(|fragment| loaded_fragments.contains(fragment.id))
-                .map(|fragment| fragment.id.into())
+                .filter(|fragment| loaded_fragments.contains(&fragment.id))
+                .map(|fragment| fragment.id.clone())
                 .collect(),
             hookpoints_attached: attached,
             hookpoints_failed: failed_report,

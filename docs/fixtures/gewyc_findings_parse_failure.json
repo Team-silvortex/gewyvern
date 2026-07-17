@@ -19,7 +19,7 @@
       {
         "stage": "parse",
         "severity": "error",
-        "code": "GEWYC-PARSE-INVALID-VALUE",
+        "code": "GEWYC-PARSE-UNKNOWN-PIPELINE-STEP",
         "line": 5,
         "column": null,
         "message": "unknown pipeline DSL step 'oops'. Available pipeline steps: template, window, reason, reason_model, fragment, operation, program_model, param, evidence, program_rule, reason_rule, include, use."

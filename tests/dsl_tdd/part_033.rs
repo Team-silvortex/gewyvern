@@ -229,6 +229,49 @@ template(:use_cycle)
 }
 
 #[test]
+fn dsl_rejects_duplicate_pipeline_function_declarations() {
+    let err = compile_str(
+        r#"
+fn udp_core() =
+  |> fragment(:udp_packet_meta_fragment)
+
+fn udp_core() =
+  |> fragment(:route_meta_fragment)
+
+template(:duplicate_function)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core)
+"#,
+    )
+    .unwrap_err();
+    assert!(
+        format!("{err:?}").contains("duplicate pipeline function 'udp_core'"),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
+fn dsl_rejects_duplicate_pipeline_function_parameters() {
+    let err = compile_str(
+        r#"
+fn udp_core(model: atom, model: atom) =
+  |> program_model($model)
+
+template(:duplicate_parameter)
+|> window(:default_5s)
+|> reason(:udp_datagram_l1)
+|> use(:udp_core, :udp_model, :other_model)
+"#,
+    )
+    .unwrap_err();
+    assert!(
+        format!("{err:?}").contains("duplicate pipeline parameter 'model'"),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
 fn dsl_can_fall_back_to_default_program_model_from_reason_profile() {
     let binding = compile_str(
         r#"

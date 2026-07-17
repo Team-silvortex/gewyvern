@@ -14,7 +14,7 @@ pub(crate) fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                     .iter()
                     .map(|fragment| {
                         JsonValue::Object(BTreeMap::from([
-                            ("id".into(), JsonValue::String(fragment.id.into())),
+                            ("id".into(), JsonValue::String(fragment.id.clone())),
                             ("version".into(), JsonValue::Number(fragment.version as i64)),
                             (
                                 "hookpoints".into(),
@@ -85,7 +85,10 @@ pub(crate) fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                         .iter()
                                         .map(|map| {
                                             JsonValue::Object(BTreeMap::from([
-                                                ("name".into(), JsonValue::String(map.name.into())),
+                                                (
+                                                    "name".into(),
+                                                    JsonValue::String(map.name.clone()),
+                                                ),
                                                 (
                                                     "kind".into(),
                                                     JsonValue::String(
@@ -144,7 +147,10 @@ pub(crate) fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                                         .iter()
                                         .map(|param| {
                                             JsonValue::Object(BTreeMap::from([
-                                                ("key".into(), JsonValue::String(param.key.into())),
+                                                (
+                                                    "key".into(),
+                                                    JsonValue::String(param.key.clone()),
+                                                ),
                                                 (
                                                     "value_type".into(),
                                                     JsonValue::String(
@@ -179,7 +185,7 @@ pub(crate) fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                         JsonValue::Object(BTreeMap::from([
                             (
                                 "fragment_id".into(),
-                                JsonValue::String(binding.fragment_id.into()),
+                                JsonValue::String(binding.fragment_id.clone()),
                             ),
                             (
                                 "hookpoint".into(),
@@ -199,7 +205,7 @@ pub(crate) fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                         JsonValue::Object(BTreeMap::from([
                             (
                                 "fragment_id".into(),
-                                JsonValue::String(binding.fragment_id.into()),
+                                JsonValue::String(binding.fragment_id.clone()),
                             ),
                             (
                                 "emits".into(),
@@ -235,11 +241,11 @@ pub(crate) fn attach_plan_json(plan: &AttachPlan) -> JsonValue {
                         JsonValue::Object(BTreeMap::from([
                             (
                                 "fragment_id".into(),
-                                JsonValue::String(edge.fragment_id.into()),
+                                JsonValue::String(edge.fragment_id.clone()),
                             ),
                             (
                                 "depends_on".into(),
-                                JsonValue::String(edge.depends_on.into()),
+                                JsonValue::String(edge.depends_on.clone()),
                             ),
                             (
                                 "fact_kind".into(),

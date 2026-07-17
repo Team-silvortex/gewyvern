@@ -96,6 +96,12 @@ fn parse_pipeline_module_into(
             let signature_column = raw_line.find("fn ").map(|idx| idx + 4).unwrap_or(1);
             let (name, params) = parse_pipeline_function_signature(signature)
                 .map_err(|err| err.reanchor_line_column(line_no, signature_column))?;
+            if module.functions.contains_key(&name) {
+                return Err(DslError::InvalidValue(format!(
+                    "duplicate pipeline function '{name}'"
+                ))
+                .at_line_column(line_no, Some(signature_column)));
+            }
             let function_doc = take_pipeline_pending_docs(&mut pending_docs);
             let mut local_bindings = Vec::new();
             let mut body = Vec::new();
@@ -180,7 +186,8 @@ fn parse_pipeline_module_into(
                         &param.name,
                         param.declared_kind,
                         inferred_param_kinds.get(&param.name).copied(),
-                    )?;
+                    )
+                    .map_err(|err| err.reanchor_line_column(line_no, signature_column))?;
                     Ok(param)
                 })
                 .collect::<Result<Vec<_>, DslError>>()?;

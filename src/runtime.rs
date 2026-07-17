@@ -289,7 +289,7 @@ impl RuntimeSession {
                 .fragments
                 .iter()
                 .map(|fragment| crate::export::FragmentInventoryItem {
-                    id: fragment.id.into(),
+                    id: fragment.id.clone(),
                     version: fragment.version,
                 })
                 .collect(),

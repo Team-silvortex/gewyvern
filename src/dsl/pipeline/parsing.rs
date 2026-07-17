@@ -3,7 +3,7 @@ use crate::dsl::{
     DslError, PipelineCall, PipelineLetBinding, PipelineModule, PipelineParam, frontend,
     function_types::parse_pipeline_value_kind_name,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn push_pipeline_function_call(
     module: &mut PipelineModule,
@@ -54,6 +54,7 @@ pub(crate) fn parse_pipeline_let_binding(
     let Some(remainder) = line.strip_prefix("let ") else {
         return Ok(None);
     };
+    validate_pipeline_string_delimiters(line)?;
     let (name, value) = remainder.split_once('=').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid let binding '{line}'"))
             .at_line_column(0, Some(line.len() + 1))
@@ -75,6 +76,7 @@ pub(crate) fn parse_pipeline_let_binding(
 pub(crate) fn parse_pipeline_call(
     line: &str,
 ) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
+    validate_pipeline_string_delimiters(line)?;
     if !line.contains('(') {
         return parse_pipeline_parenless_call(line);
     }
@@ -147,6 +149,7 @@ fn parse_pipeline_parenless_call(
 pub(crate) fn parse_pipeline_function_signature(
     signature: &str,
 ) -> Result<(String, Vec<PipelineParam>), DslError> {
+    validate_pipeline_string_delimiters(signature)?;
     let open = signature.find('(').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid function signature '{signature}'"))
             .at_line_column(0, Some(signature.len() + 1))
@@ -155,7 +158,7 @@ pub(crate) fn parse_pipeline_function_signature(
         DslError::InvalidValue(format!("invalid function signature '{signature}'"))
             .at_line_column(0, Some(signature.len() + 1))
     })?;
-    if close < open {
+    if close < open || close + 1 != signature.len() {
         return Err(
             DslError::InvalidValue(format!("invalid function signature '{signature}'"))
                 .at_line_column(0, Some(close + 1)),
@@ -168,6 +171,12 @@ pub(crate) fn parse_pipeline_function_signature(
                 .at_line_column(0, Some(1)),
         );
     }
+    if !is_pipeline_identifier(name) {
+        return Err(
+            DslError::InvalidValue(format!("invalid pipeline function name '{name}'"))
+                .at_line_column(0, Some(1)),
+        );
+    }
     let params_src = &signature[open + 1..close];
     let params = if params_src.trim().is_empty() {
         Vec::new()
@@ -177,6 +186,17 @@ pub(crate) fn parse_pipeline_function_signature(
             .map(|param| parse_pipeline_param(&param))
             .collect::<Result<Vec<_>, _>>()?
     };
+    let mut param_names = BTreeSet::new();
+    if let Some(duplicate) = params
+        .iter()
+        .find(|param| !param_names.insert(param.name.as_str()))
+    {
+        return Err(DslError::InvalidValue(format!(
+            "duplicate pipeline parameter '{}'",
+            duplicate.name
+        ))
+        .at_line_column(0, Some(open + 2)));
+    }
     if let Some(non_trailing_required) =
         params.windows(2).find_map(
             |pair| match (&pair[0].default_value, &pair[1].default_value) {
@@ -247,7 +267,57 @@ pub(crate) fn parse_pipeline_param_name(param: &str) -> Result<String, DslError>
                 .at_line_column(0, Some(1)),
         );
     }
+    if !is_pipeline_identifier(&value) {
+        return Err(
+            DslError::InvalidValue(format!("invalid pipeline parameter name '{value}'"))
+                .at_line_column(0, Some(1)),
+        );
+    }
     Ok(value)
+}
+
+fn is_pipeline_identifier(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn validate_pipeline_string_delimiters(input: &str) -> Result<(), DslError> {
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut opening_column = 1usize;
+    for (index, ch) in input.char_indices() {
+        if escaped {
+            if !matches!(ch, '"' | '\\' | 'n' | 'r' | 't') {
+                return Err(DslError::InvalidValue(format!(
+                    "invalid pipeline string escape '\\{ch}'"
+                ))
+                .at_line_column(0, Some(index)));
+            }
+            escaped = false;
+            continue;
+        }
+        if in_string && ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            in_string = !in_string;
+            if in_string {
+                opening_column = index + 1;
+            }
+        }
+    }
+    if in_string {
+        return Err(
+            DslError::InvalidValue("unclosed pipeline string literal".into())
+                .at_line_column(0, Some(opening_column)),
+        );
+    }
+    Ok(())
 }
 
 pub(crate) fn split_pipeline_args(input: &str) -> Vec<String> {
@@ -261,9 +331,14 @@ fn split_pipeline_args_with_columns(input: &str, base_column: usize) -> Vec<(usi
     let mut parts = Vec::new();
     let mut start = 0usize;
     let mut in_string = false;
-    let chars = input.char_indices().peekable();
-    for (idx, ch) in chars {
+    let mut escaped = false;
+    for (idx, ch) in input.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
         match ch {
+            '\\' if in_string => escaped = true,
             '"' => in_string = !in_string,
             ',' if !in_string => {
                 let raw = &input[start..idx];
@@ -286,15 +361,58 @@ fn split_pipeline_args_with_columns(input: &str, base_column: usize) -> Vec<(usi
     parts
 }
 
-pub(crate) fn parse_pipeline_literal(value: &str) -> String {
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escaped_quotes_and_commas_stay_inside_one_pipeline_argument() {
+        let (_, args, _) = parse_pipeline_call(r#"reason_model("static:said \"hello, world\"")"#)
+            .expect("escaped quotes must not terminate the argument");
+        assert_eq!(args, vec![r#""static:said \"hello, world\"""#]);
+    }
+}
+
+pub(crate) fn parse_pipeline_literal(value: &str) -> Result<String, DslError> {
     let value = value.trim();
     if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
-        value[1..value.len() - 1].to_string()
+        decode_pipeline_string_literal(&value[1..value.len() - 1])
     } else if let Some(atom) = value.strip_prefix(':') {
-        atom.trim().to_string()
+        Ok(atom.trim().to_string())
     } else {
-        value.to_string()
+        Ok(value.to_string())
     }
+}
+
+fn decode_pipeline_string_literal(value: &str) -> Result<String, DslError> {
+    let mut decoded = String::with_capacity(value.len());
+    let mut chars = value.char_indices();
+    while let Some((index, ch)) = chars.next() {
+        if ch != '\\' {
+            decoded.push(ch);
+            continue;
+        }
+        let Some((_, escaped)) = chars.next() else {
+            return Err(DslError::InvalidValue(
+                "pipeline string literal cannot end with an escape".into(),
+            )
+            .at_line_column(0, Some(index + 2)));
+        };
+        decoded.push(match escaped {
+            '"' => '"',
+            '\\' => '\\',
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            other => {
+                return Err(DslError::InvalidValue(format!(
+                    "invalid pipeline string escape '\\{other}'"
+                ))
+                .at_line_column(0, Some(index + 2)));
+            }
+        });
+    }
+    Ok(decoded)
 }
 
 pub(crate) fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<String, DslError> {
@@ -304,7 +422,7 @@ pub(crate) fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<S
         ))
         .at_line_column(0, Some(1)));
     }
-    Ok(parse_pipeline_literal(&args[0]))
+    parse_pipeline_literal(&args[0])
 }
 
 pub(crate) fn parse_pipeline_use_call(args: &[String]) -> Result<PipelineUseCall, DslError> {
@@ -314,7 +432,7 @@ pub(crate) fn parse_pipeline_use_call(args: &[String]) -> Result<PipelineUseCall
         )
         .at_line_column(0, Some(1)));
     }
-    let function_name = parse_pipeline_literal(&args[0]);
+    let function_name = parse_pipeline_literal(&args[0])?;
     let mut positional_args = Vec::new();
     let mut named_args = BTreeMap::new();
     let mut named_section_started = false;
@@ -346,7 +464,7 @@ pub(crate) fn parse_pipeline_use_call(args: &[String]) -> Result<PipelineUseCall
                 name,
                 PipelineProvidedArg {
                     raw: value.to_string(),
-                    value: parse_pipeline_literal(value),
+                    value: parse_pipeline_literal(value)?,
                 },
             );
         } else {
@@ -359,7 +477,7 @@ pub(crate) fn parse_pipeline_use_call(args: &[String]) -> Result<PipelineUseCall
             }
             positional_args.push(PipelineProvidedArg {
                 raw: arg.to_string(),
-                value: parse_pipeline_literal(arg),
+                value: parse_pipeline_literal(arg)?,
             });
         }
     }

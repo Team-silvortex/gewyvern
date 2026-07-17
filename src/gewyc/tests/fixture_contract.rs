@@ -71,3 +71,12 @@ fn explain_validation_failure_fixture_keeps_validation_excerpt_shape() {
     assert!(json.contains("\"rule_index\": 0"));
     assert!(json.contains("\"model\": \"broken_offsets_model\""));
 }
+
+#[test]
+fn findings_parse_failure_fixture_uses_semantic_machine_code() {
+    let json = read_fixture("docs/fixtures/gewyc_findings_parse_failure.json");
+
+    assert_valid_json_document(&json);
+    assert!(json.contains("\"code\": \"GEWYC-PARSE-UNKNOWN-PIPELINE-STEP\""));
+    assert!(!json.contains("GEWYC-PARSE-INVALID-VALUE"));
+}

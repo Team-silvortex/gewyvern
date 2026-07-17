@@ -105,9 +105,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "gewylang/compiler/parser-lowering")
         .expect("GewyLang compiler cell must exist");
-    assert_eq!(gewylang.completion, 99);
-    assert_eq!(gewylang.blockers.len(), 1);
-    assert_eq!(gewylang.blockers[0].id, "export-attach-static-lifetimes");
+    assert_eq!(gewylang.maturity, Maturity::Mature);
+    assert_eq!(gewylang.completion, 100);
+    assert_eq!(gewylang.contract.stability, ContractStability::Stable);
+    assert!(gewylang.blockers.is_empty());
     assert!(
         language
             .evidence

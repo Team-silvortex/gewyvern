@@ -526,14 +526,14 @@
       "module": "compiler",
       "feature": "parser-lowering",
       "lifecycle": "current",
-      "maturity": "stabilizing",
-      "completion": 99,
+      "maturity": "mature",
+      "completion": 100,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "gewylang-frontend-contract",
-        "version": "1.3.0",
-        "stability": "evolving",
+        "version": "1.12.0",
+        "stability": "stable",
         "surfaces": [
           "gewylang-source",
           "gewyc-cli",
@@ -551,23 +551,41 @@
           "direct-fragment-parameter-lowering",
           "direct-evidence-tier-lowering",
           "direct-program-and-reason-rule-lowering",
-          "removed-field-level-string-codecs"
+          "removed-field-level-string-codecs",
+          "owned-export-attach-descriptors",
+          "custom-fragment-export-roundtrip",
+          "leak-free-export-replay",
+          "semantic-authoring-finding-codes",
+          "function-signature-error-locations",
+          "function-call-repair-codes",
+          "strict-rule-field-validation",
+          "structural-syntax-repair-codes",
+          "semantic-vocabulary-repair-codes",
+          "predicate-qualifier-repair-codes",
+          "scalar-literal-repair-codes",
+          "pipeline-step-shape-repair-codes",
+          "argument-token-source-locations",
+          "fail-closed-duplicate-function-declarations",
+          "fail-closed-duplicate-function-parameters",
+          "declaration-topology-repair-codes",
+          "package-graph-repair-codes",
+          "bounded-placeholder-expansion",
+          "fail-closed-unresolved-placeholder-expansion",
+          "placeholder-shape-repair-codes",
+          "balanced-string-delimiters",
+          "strict-function-signature-tail",
+          "referenceable-declaration-identifiers"
         ]
       },
       "depends_on": [],
-      "blockers": [
-        {
-          "id": "export-attach-static-lifetimes",
-          "summary": "Canonical parser lowering is fully typed; export attach-descriptor decoding still leaks dynamic IDs into static descriptor fields and must move to owned values."
-        }
-      ],
+      "blockers": [],
       "consumers": ["protocol-authors", "gewyvern-runtime", "model-tooling"],
       "evidence": [
         { "kind": "source", "path": "crates/gewyc/src/main.rs", "state": "present" },
         { "kind": "test", "path": "tests/gewylang_docs_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/gewylang-system.md", "state": "present" }
       ],
-      "next_gate": "Move export attach descriptors from leaked static strings to owned validated values without changing export JSON."
+      "next_gate": "Preserve the stable owned-text frontend and export contract while extending diagnostics."
     },
     {
       "id": "gewylang/protocol-packages/protocol-catalog",

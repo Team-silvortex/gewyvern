@@ -48,3 +48,38 @@ fn export_bundle_roundtrip_preserves_replay_spine() {
     assert_eq!(export.flows, replay.flows);
     assert_eq!(export.reasons, replay.reasons);
 }
+
+#[test]
+fn export_attach_descriptors_accept_runtime_owned_text() {
+    let export = run_handshake_session(vec![
+        tcp_state_fact(1, 30, 1, 2),
+        packet_fact(2, 30, 0x02),
+        route_fact(3, 30, 7),
+    ]);
+    let json = export
+        .to_json()
+        .replace("tcp_state_fragment", "runtime_custom_state_fragment")
+        .replace("sock/inet_sock_set_state", "runtime/custom_tracepoint")
+        .replace("sample_payload_offsets", "runtime_sample_offsets")
+        .replace("\"events\"", "\"runtime_events\"");
+
+    let decoded = ExportBundle::from_json(&json).expect("dynamic attach text must be owned");
+    let state = decoded
+        .attach_plan
+        .fragments
+        .iter()
+        .find(|fragment| fragment.id == "runtime_custom_state_fragment")
+        .expect("dynamic fragment id must survive decoding");
+
+    assert_eq!(
+        state.hookpoints[0].label(),
+        "tracepoint:runtime/custom_tracepoint"
+    );
+    assert_eq!(state.maps[0].name, "runtime_events");
+    assert!(decoded.attach_plan.fragments.iter().any(|fragment| {
+        fragment
+            .params
+            .iter()
+            .any(|param| param.key == "runtime_sample_offsets")
+    }));
+}

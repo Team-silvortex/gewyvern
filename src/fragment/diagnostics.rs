@@ -150,7 +150,7 @@ pub(super) fn descriptor_sampled_payload_offsets(
         .iter()
         .copied()
         .collect::<BTreeSet<_>>();
-    if let Some(params) = binding.fragment_params.get(descriptor.id) {
+    if let Some(params) = binding.fragment_params.get(&descriptor.id) {
         if let Some(value) = params.get("sample_payload_offsets") {
             match value {
                 FragmentParamValue::String(extra) => {

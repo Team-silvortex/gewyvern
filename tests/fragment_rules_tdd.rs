@@ -106,8 +106,8 @@ fn attach_report_accepts_structured_failure_records() {
     let report = registry.attach_report_with_failure_records(
         &plan,
         [AttachFailure {
-            fragment_id: "route_meta_fragment",
-            hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+            fragment_id: "route_meta_fragment".into(),
+            hookpoint: HookPoint::KProbe("ip_route_output_flow".into()),
             error: "mock attach failure".into(),
         }],
     );
@@ -133,8 +133,8 @@ fn attach_report_keeps_failures_that_are_outside_the_plan() {
     let report = registry.attach_report_with_failure_records(
         &plan,
         [AttachFailure {
-            fragment_id: "linux_tracepoint_smoke_fragment",
-            hookpoint: HookPoint::TracePoint("syscalls/definitely_missing_smoke_event"),
+            fragment_id: "linux_tracepoint_smoke_fragment".into(),
+            hookpoint: HookPoint::TracePoint("syscalls/definitely_missing_smoke_event".into()),
             error: "mock attach failure".into(),
         }],
     );
@@ -200,7 +200,7 @@ fn test_fragment(
     requires: Vec<FactKindTag>,
 ) -> FragmentDescriptor {
     FragmentDescriptor {
-        id,
+        id: id.into(),
         version: 1,
         hookpoints: vec![hookpoint],
         emits: vec![emits],
@@ -210,7 +210,7 @@ fn test_fragment(
         }],
         requires,
         maps: vec![MapSpec {
-            name: "events",
+            name: "events".into(),
             kind: MapKind::RingBuf,
             max_entries: 1024,
         }],

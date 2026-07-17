@@ -164,7 +164,7 @@ template(:broken)
             .finding
             .as_ref()
             .map(|finding| finding.code.as_str()),
-        Some("GEWYC-PARSE-INVALID-VALUE")
+        Some("GEWYC-PARSE-UNKNOWN-PIPELINE-STEP")
     );
     assert!(!report.validation.ok);
     assert!(report.validation.finding.is_none());

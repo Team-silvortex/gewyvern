@@ -257,14 +257,11 @@ fn parse_coverage(value: &JsonValue) -> Result<CoverageReport, ExportError> {
 fn parse_fragment_descriptor(value: &JsonValue) -> Result<FragmentDescriptor, ExportError> {
     let object = value.as_object()?;
     Ok(FragmentDescriptor {
-        id: Box::leak(
-            object
-                .get("id")
-                .ok_or_else(|| ExportError::InvalidShape("fragment.id".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
+        id: object
+            .get("id")
+            .ok_or_else(|| ExportError::InvalidShape("fragment.id".into()))?
+            .as_str()?
+            .to_string(),
         version: object
             .get("version")
             .ok_or_else(|| ExportError::InvalidShape("fragment.version".into()))?
@@ -357,14 +354,11 @@ fn parse_evidence_class_spec(value: &JsonValue) -> Result<EvidenceClassSpec, Exp
 fn parse_fragment_param_spec(value: &JsonValue) -> Result<FragmentParamSpec, ExportError> {
     let object = value.as_object()?;
     Ok(FragmentParamSpec {
-        key: Box::leak(
-            object
-                .get("key")
-                .ok_or_else(|| ExportError::InvalidShape("fragment.param.key".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
+        key: object
+            .get("key")
+            .ok_or_else(|| ExportError::InvalidShape("fragment.param.key".into()))?
+            .as_str()?
+            .to_string(),
         value_type: match object
             .get("value_type")
             .ok_or_else(|| ExportError::InvalidShape("fragment.param.value_type".into()))?
@@ -389,14 +383,11 @@ fn parse_hookpoint_value(value: &JsonValue) -> Result<HookPoint, ExportError> {
 fn parse_map_spec(value: &JsonValue) -> Result<MapSpec, ExportError> {
     let object = value.as_object()?;
     Ok(MapSpec {
-        name: Box::leak(
-            object
-                .get("name")
-                .ok_or_else(|| ExportError::InvalidShape("map.name".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
+        name: object
+            .get("name")
+            .ok_or_else(|| ExportError::InvalidShape("map.name".into()))?
+            .as_str()?
+            .to_string(),
         kind: match object
             .get("kind")
             .ok_or_else(|| ExportError::InvalidShape("map.kind".into()))?
@@ -417,14 +408,11 @@ fn parse_map_spec(value: &JsonValue) -> Result<MapSpec, ExportError> {
 fn parse_hook_binding(value: &JsonValue) -> Result<HookBinding, ExportError> {
     let object = value.as_object()?;
     Ok(HookBinding {
-        fragment_id: Box::leak(
-            object
-                .get("fragment_id")
-                .ok_or_else(|| ExportError::InvalidShape("hook_binding.fragment_id".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
+        fragment_id: object
+            .get("fragment_id")
+            .ok_or_else(|| ExportError::InvalidShape("hook_binding.fragment_id".into()))?
+            .as_str()?
+            .to_string(),
         hookpoint: parse_hookpoint(
             object
                 .get("hookpoint")
@@ -437,14 +425,11 @@ fn parse_hook_binding(value: &JsonValue) -> Result<HookBinding, ExportError> {
 fn parse_fact_binding(value: &JsonValue) -> Result<FactBinding, ExportError> {
     let object = value.as_object()?;
     Ok(FactBinding {
-        fragment_id: Box::leak(
-            object
-                .get("fragment_id")
-                .ok_or_else(|| ExportError::InvalidShape("fact_binding.fragment_id".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
+        fragment_id: object
+            .get("fragment_id")
+            .ok_or_else(|| ExportError::InvalidShape("fact_binding.fragment_id".into()))?
+            .as_str()?
+            .to_string(),
         emits: parse_fact_kind_list(
             object
                 .get("emits")
@@ -461,22 +446,16 @@ fn parse_fact_binding(value: &JsonValue) -> Result<FactBinding, ExportError> {
 fn parse_dependency_edge(value: &JsonValue) -> Result<DependencyEdge, ExportError> {
     let object = value.as_object()?;
     Ok(DependencyEdge {
-        fragment_id: Box::leak(
-            object
-                .get("fragment_id")
-                .ok_or_else(|| ExportError::InvalidShape("edge.fragment_id".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
-        depends_on: Box::leak(
-            object
-                .get("depends_on")
-                .ok_or_else(|| ExportError::InvalidShape("edge.depends_on".into()))?
-                .as_str()?
-                .to_string()
-                .into_boxed_str(),
-        ),
+        fragment_id: object
+            .get("fragment_id")
+            .ok_or_else(|| ExportError::InvalidShape("edge.fragment_id".into()))?
+            .as_str()?
+            .to_string(),
+        depends_on: object
+            .get("depends_on")
+            .ok_or_else(|| ExportError::InvalidShape("edge.depends_on".into()))?
+            .as_str()?
+            .to_string(),
         fact_kind: FactKindTag::from_str(
             object
                 .get("fact_kind")

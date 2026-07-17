@@ -31,14 +31,10 @@ fn parse_fact_kind_list(value: &JsonValue) -> Result<Vec<FactKindTag>, ExportErr
 
 fn parse_hookpoint(input: &str) -> Result<HookPoint, ExportError> {
     if let Some(value) = input.strip_prefix("tracepoint:") {
-        return Ok(HookPoint::TracePoint(Box::leak(
-            value.to_string().into_boxed_str(),
-        )));
+        return Ok(HookPoint::TracePoint(value.to_string()));
     }
     if let Some(value) = input.strip_prefix("kprobe:") {
-        return Ok(HookPoint::KProbe(Box::leak(
-            value.to_string().into_boxed_str(),
-        )));
+        return Ok(HookPoint::KProbe(value.to_string()));
     }
     match input {
         "tc:ingress" => Ok(HookPoint::TCIngress),

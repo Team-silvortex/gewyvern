@@ -60,8 +60,10 @@ Canonical modules now lower into source-located assignments and build
 document. Assignment values also lower directly into owned IDs, numeric window
 fields, `FragmentParamValue`, `EvidenceTier`, `ProgramRule`, and `ReasonRule`;
 the removed field-level codecs no longer assemble and split composite strings.
-Export attach-descriptor decoding has separate static lifetime debt outside this
-core frontend IR boundary.
+Export attach descriptors, hookpoints, map names, and parameter keys also own
+decoded text. Replaying exports with custom fragment registries therefore does
+not require extending input lifetimes or leaking strings, while the export JSON
+shape remains unchanged.
 
 ## Current Lowered Model Surfaces
 

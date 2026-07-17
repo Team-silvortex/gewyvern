@@ -191,6 +191,65 @@ Interpretation:
 Never claim a generated file is valid only because it resembles another
 protocol file.
 
+For automatic repair, branch on `findings[].code`, not the English message:
+
+| Finding code | Repair action |
+| --- | --- |
+| `GEWYC-PARSE-UNKNOWN-PIPELINE-STEP` | Replace the step with one from the Pipeline Steps table. |
+| `GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION` | Declare or include the named function before `use`. |
+| `GEWYC-PARSE-UNKNOWN-PARAMETER-KIND` | Use one of `atom`, `bool`, `u64`, `predicate`, `narrative`, `stage`, `key_event`, or `phase`. |
+| `GEWYC-PARSE-PARAMETER-KIND-CONFLICT` | Align the annotation with every use-site, or split the parameter. |
+| `GEWYC-PARSE-ARGUMENT-TYPE-MISMATCH` | Supply a value from the parameter's reported value family. |
+| `GEWYC-PARSE-UNKNOWN-PLACEHOLDER` | Replace `$name` with a reported in-scope parameter or local binding. |
+| `GEWYC-PARSE-UNCLOSED-PLACEHOLDER` | Close `${name}` with `}`, or use `$name`. |
+| `GEWYC-PARSE-PLACEHOLDER-EXPANSION-LIMIT` | Break the reported transitive placeholder chain into concrete values. |
+| `GEWYC-PARSE-UNKNOWN-NAMED-ARGUMENT` | Use a parameter name from the function signature. |
+| `GEWYC-PARSE-DUPLICATE-ARGUMENT` | Supply each function parameter exactly once. |
+| `GEWYC-PARSE-ARGUMENT-ORDER` | Move every positional argument before the first named argument. |
+| `GEWYC-PARSE-FUNCTION-ARITY` | Add or remove arguments to match the reported function signature. |
+| `GEWYC-PARSE-INVALID-FUNCTION-SIGNATURE` | Rebuild the declaration as `fn name(params) =`. |
+| `GEWYC-PARSE-INVALID-FUNCTION-NAME` | Use an ASCII identifier beginning with a letter or `_`. |
+| `GEWYC-PARSE-DUPLICATE-FUNCTION` | Rename or remove one function declaration; includes may not redefine functions. |
+| `GEWYC-PARSE-DUPLICATE-PARAMETER` | Keep each parameter name once in the function signature. |
+| `GEWYC-PARSE-DUPLICATE-LOCAL-BINDING` | Rename or remove the repeated local `let` binding. |
+| `GEWYC-PARSE-INVALID-PARAMETER-ORDER` | Move every required parameter before parameters with defaults. |
+| `GEWYC-PARSE-MISSING-PARAMETER-DEFAULT` | Add a value after `=`, or remove `=`. |
+| `GEWYC-PARSE-INVALID-PARAMETER-NAME` | Use an ASCII identifier beginning with a letter or `_`; later characters may include digits, `_`, or `-`. |
+| `GEWYC-PARSE-UNCLOSED-STRING` | Close the reported string with `"`; use `\"` for an embedded quote. |
+| `GEWYC-PARSE-INVALID-LET-BINDING` | Rebuild the local binding as `let name = value`. |
+| `GEWYC-PARSE-INVALID-PIPELINE-CALL` | Close the call and keep one complete pipeline call on the line. |
+| `GEWYC-PARSE-UNKNOWN-RULE-FIELD` | Replace the field with a documented rule field or alias. |
+| `GEWYC-PARSE-DUPLICATE-RULE-FIELD` | Keep only one canonical field or alias per rule value. |
+| `GEWYC-PARSE-UNKNOWN-REASON-PROFILE` | Select a reason profile from the protocol registry. |
+| `GEWYC-PARSE-UNKNOWN-STAGE` | Replace the stage with a registered signal kind, or use `none` where allowed. |
+| `GEWYC-PARSE-UNKNOWN-KEY-EVENT` | Replace the key event with a registered signal kind, or use `none`. |
+| `GEWYC-PARSE-UNKNOWN-EVIDENCE-FACT-KIND` | Select a fact kind from the protocol registry. |
+| `GEWYC-PARSE-UNKNOWN-EVIDENCE-TIER` | Use `core_requirement` or `optional_enhancement`. |
+| `GEWYC-PARSE-INVALID-FRAGMENT-PARAM-TARGET` | Rewrite the target as `fragment_id.parameter_key`. |
+| `GEWYC-PARSE-UNKNOWN-WINDOW-PROFILE` | Use `default_5s`, or provide both `duration_ms` and `lateness_ms`. |
+| `GEWYC-PARSE-INVALID-BOOLEAN` | Replace the value with the unquoted literal `true` or `false`. |
+| `GEWYC-PARSE-INVALID-INTEGER` | Replace the value with a non-negative decimal integer in range. |
+| `GEWYC-PARSE-INVALID-STEP-ARITY` | Match the argument count stated by the finding for that pipeline step. |
+| `GEWYC-PARSE-MALFORMED-ARGUMENT` | Rewrite the argument as `name: value` and ensure the value is present. |
+| `GEWYC-PARSE-RULE-PHASE-WITHOUT-MODULE` | Add `module: value`, or remove `phase`. |
+| `GEWYC-PARSE-MISSING-TEMPLATE-HEAD` | Add exactly one `template` head to the entry pipeline. |
+| `GEWYC-PARSE-DUPLICATE-TEMPLATE-HEAD` | Keep one entry-level `template` head; included modules must not declare one. |
+| `GEWYC-PARSE-MISSING-PIPELINE-PREFIX` | Prefix each step after the template with `|>`. |
+| `GEWYC-PARSE-INCLUDE-CYCLE` | Remove one include edge from the reported cycle. |
+| `GEWYC-PARSE-USE-CYCLE` | Remove one function `use` edge from the reported cycle. |
+| `GEWYC-PARSE-UNKNOWN-PACKAGE-SOURCE` | Declare the source in `gewy.pkg`, or correct its name. |
+| `GEWYC-PARSE-INVALID-SOURCE-DEPENDENCY` | Rewrite it as `source:<name>/<package>`. |
+| `GEWYC-PARSE-INCLUDE-ESCAPES-PACKAGE` | Move the file under the package or dependency root and include that path. |
+| `GEWYC-PARSE-UNRESOLVED-INCLUDE` | Resolve includes through a filesystem-backed package entry before lowering. |
+| `GEWYC-PARSE-UNSUPPORTED-SYNTAX` | Rewrite the input using the pipeline stable subset. |
+| `GEWYC-PARSE-UNKNOWN-TRANSPORT-PROTOCOL` | Use `tcp`, `udp`, or a numeric IP protocol value. |
+| `GEWYC-PARSE-UNKNOWN-PREDICATE` | Replace the predicate with one from the Predicate Vocabulary table. |
+| `GEWYC-PARSE-MISSING-PREDICATE-QUALIFIER` | Add the qualifier named by the finding before regenerating the rule. |
+| `GEWYC-PARSE-INVALID-PREDICATE-QUALIFIER` | Replace the reported qualifier with a valid port, type, width, or suffix value. |
+
+Unknown future codes must remain fatal to generation; do not guess a repair
+from message text and then claim successful validation.
+
 ## High-Value Failure Checklist
 
 Before compilation, check:

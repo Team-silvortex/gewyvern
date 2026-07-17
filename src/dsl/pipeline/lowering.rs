@@ -133,7 +133,11 @@ fn lower_pipeline_call(
                 let resolved =
                     substitute_pipeline_arg(&binding.value, &function_bindings, &binding_context)
                         .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
-                function_bindings.insert(binding.name.clone(), parse_pipeline_literal(&resolved));
+                function_bindings.insert(
+                    binding.name.clone(),
+                    parse_pipeline_literal(&resolved)
+                        .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+                );
             }
             use_stack.push(function_name.clone());
             lower_pipeline_calls(
@@ -165,7 +169,10 @@ fn lower_pipeline_call(
             let id = parse_pipeline_single_arg(&resolved_args, "reason")
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
             let profile = ReasonProfile::from_id(&id).ok_or_else(|| {
-                DslError::InvalidValue(format!("unknown reason profile '{id}'")).at_line(line_no)
+                DslError::InvalidValue(format!("unknown reason profile '{id}'")).at_line_column(
+                    line_no,
+                    call.arg_columns.first().copied().or(Some(column_no)),
+                )
             })?;
             output.push(CanonicalAssignment::new(
                 CanonicalAssignmentValue::Reason(profile),
@@ -247,6 +254,18 @@ fn build_pipeline_function_bindings(
         .iter()
         .filter(|param| param.default_value.is_none())
         .count();
+    if let Some(unknown_name) = use_call.named_args.keys().find(|name| {
+        !function
+            .params
+            .iter()
+            .any(|param| param.name == name.as_str())
+    }) {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline function call does not match {signature}: unknown named parameter '{unknown_name}'. {}",
+            known_pipeline_params_message(function_name, function)
+        ))
+        .at_line_column(0, Some(1)));
+    }
     if use_call.positional_args.len() > function.params.len() {
         return Err(DslError::InvalidValue(format!(
             "pipeline function call does not match {signature}: expected at most {} positional args, got {}",
@@ -271,7 +290,6 @@ fn build_pipeline_function_bindings(
     }
 
     let mut bindings = BTreeMap::new();
-    let mut consumed_named = BTreeMap::<String, ()>::new();
     for param in function.params.iter().take(use_call.positional_args.len()) {
         if use_call.named_args.contains_key(&param.name) {
             return Err(DslError::InvalidValue(format!(
@@ -308,7 +326,6 @@ fn build_pipeline_function_bindings(
                 )?;
             }
             bindings.insert(param.name.clone(), actual.value.clone());
-            consumed_named.insert(param.name.clone(), ());
             continue;
         }
         let default_value = param.default_value.as_ref().ok_or_else(|| {
@@ -333,18 +350,7 @@ fn build_pipeline_function_bindings(
                 ),
             )?;
         }
-        bindings.insert(param.name.clone(), parse_pipeline_literal(&resolved));
-    }
-    if let Some(unknown_name) = use_call
-        .named_args
-        .keys()
-        .find(|name| !consumed_named.contains_key(*name))
-    {
-        return Err(DslError::InvalidValue(format!(
-            "pipeline function call does not match {signature}: unknown named parameter '{unknown_name}'. {}",
-            known_pipeline_params_message(function_name, function)
-        ))
-        .at_line_column(0, Some(1)));
+        bindings.insert(param.name.clone(), parse_pipeline_literal(&resolved)?);
     }
     Ok(bindings)
 }
@@ -364,7 +370,10 @@ pub(crate) fn substitute_pipeline_arg(
         }
         iterations += 1;
         if iterations > 32 {
-            return Ok(current);
+            return Err(DslError::InvalidValue(format!(
+                "pipeline placeholder expansion exceeded 32 substitutions while {context}"
+            ))
+            .at_line_column(0, Some(1)));
         }
     }
 }
@@ -487,7 +496,7 @@ fn parse_pipeline_keywords_with_columns(
         keywords.insert(
             key.trim().to_string(),
             PipelineKeywordArg {
-                value: parse_pipeline_literal(value),
+                value: parse_pipeline_literal(value)?,
                 value_column: arg_column + key.len() + 1 + value_offset,
             },
         );
@@ -510,7 +519,12 @@ fn canonicalize_pipeline_rule_keywords(
             "dedupe" => "dedupe",
             "module" | "mod" => "module",
             "phase" => "phase",
-            _ => key.as_str(),
+            _ => {
+                return Err(DslError::InvalidValue(format!(
+                    "pipeline rule received unknown field '{key}'"
+                ))
+                .at_line_column(0, Some(value.value_column)));
+            }
         };
         if canonical.insert(normalized.to_string(), value).is_some() {
             return Err(DslError::InvalidValue(format!(
@@ -549,7 +563,7 @@ fn normalize_pipeline_rule_args(
             keywords.insert(
                 (*field).to_string(),
                 PipelineKeywordArg {
-                    value: parse_pipeline_literal(arg),
+                    value: parse_pipeline_literal(arg)?,
                     value_column: *arg_column,
                 },
             );
@@ -588,7 +602,7 @@ fn normalize_pipeline_rule_args(
         keywords.insert(
             (*field).to_string(),
             PipelineKeywordArg {
-                value: parse_pipeline_literal(arg),
+                value: parse_pipeline_literal(arg)?,
                 value_column: *arg_column,
             },
         );
@@ -617,11 +631,12 @@ pub(crate) fn lower_pipeline_window(
     output: &mut Vec<CanonicalAssignment>,
 ) -> Result<(), DslError> {
     if args.len() == 1 && !looks_like_pipeline_keyword_arg(&args[0]) {
-        let id = parse_pipeline_literal(&args[0]);
+        let id = parse_pipeline_literal(&args[0])?;
+        let value_column = arg_columns.first().copied().unwrap_or(call_column);
         output.push(CanonicalAssignment::new(
             CanonicalAssignmentValue::Window(
                 legacy::parse_window_profile(&id)
-                    .map_err(|err| err.at_line_column(0, Some(call_column)))?,
+                    .map_err(|err| err.at_line_column(0, Some(value_column)))?,
             ),
             line_no,
         ));
@@ -659,11 +674,11 @@ pub(crate) fn lower_pipeline_param(args: &[String]) -> Result<CanonicalAssignmen
         )
         .at_line_column(0, Some(1)));
     }
-    let target = parse_pipeline_literal(&args[0]);
+    let target = parse_pipeline_literal(&args[0])?;
     let (fragment_id, key) = target
         .split_once('.')
         .ok_or_else(|| DslError::InvalidValue(format!("invalid param target '{target}'")))?;
-    let value = parse_pipeline_literal(&args[1]);
+    let value = parse_pipeline_literal(&args[1])?;
     let value = if matches!(value.as_str(), "true" | "false") {
         FragmentParamValue::Bool(crate::dsl::parse_bool(&value)?)
     } else if let Ok(value) = value.parse::<u64>() {
@@ -687,11 +702,11 @@ pub(crate) fn lower_pipeline_evidence(
         )
         .at_line_column(0, Some(1)));
     }
-    let fact_kind_id = parse_pipeline_literal(&args[0]);
+    let fact_kind_id = parse_pipeline_literal(&args[0])?;
     let fact_kind = FactKindTag::from_str(&fact_kind_id).ok_or_else(|| {
         DslError::InvalidValue(format!("unknown evidence fact kind '{fact_kind_id}'"))
     })?;
-    let tier_id = parse_pipeline_literal(&args[1]);
+    let tier_id = parse_pipeline_literal(&args[1])?;
     let tier = match tier_id.as_str() {
         "core_requirement" => EvidenceTier::CoreRequirement,
         "optional_enhancement" => EvidenceTier::OptionalEnhancement,
@@ -783,4 +798,26 @@ fn lower_rule_scope(
         .at_line_column(0, Some(phase.value_column)));
     }
     Ok((module, phase))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn placeholder_expansion_limit_rejects_partially_resolved_output() {
+        let mut bindings = BTreeMap::new();
+        for index in 0..34 {
+            bindings.insert(format!("p{index}"), format!("$p{}", index + 1));
+        }
+        bindings.insert("p34".to_string(), "done".to_string());
+
+        let err = substitute_pipeline_arg("$p0", &bindings, "test expansion")
+            .expect_err("deep placeholder chains must fail closed");
+        assert!(matches!(
+            err.root(),
+            DslError::InvalidValue(message)
+                if message == "pipeline placeholder expansion exceeded 32 substitutions while test expansion"
+        ));
+    }
 }

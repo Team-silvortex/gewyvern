@@ -27,6 +27,8 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
     let legacy = fs::read_to_string(root.join("src/dsl/legacy.rs")).unwrap();
     let lowering = fs::read_to_string(root.join("src/dsl/pipeline/lowering.rs")).unwrap();
     let codec = fs::read_to_string(root.join("src/export/reason_codec/parse.rs")).unwrap();
+    let attach_codec = fs::read_to_string(root.join("src/export/attach_codec.rs")).unwrap();
+    let attach_decode = fs::read_to_string(root.join("src/export/attach_codec/decode.rs")).unwrap();
     let param_lowering = lowering
         .split("fn lower_pipeline_param")
         .nth(1)
@@ -42,6 +44,8 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
     assert!(!legacy.contains("Box::leak"));
     assert!(!param_lowering.contains("Box::leak"));
     assert!(!narrative_codec.contains("Box::leak"));
+    assert!(!attach_codec.contains("Box::leak"));
+    assert!(!attach_decode.contains("Box::leak"));
 }
 
 #[test]
@@ -136,13 +140,13 @@ fn reference_covers_registry_fragments_parameters_and_signal_ids() {
             .descriptor(fragment_id)
             .unwrap_or_else(|| panic!("built-in registry is missing {fragment_id}"));
         assert!(
-            reference.contains(fragment.id),
+            reference.contains(&fragment.id),
             "DSL reference is missing built-in fragment {}",
             fragment.id
         );
         for parameter in &fragment.params {
             assert!(
-                reference.contains(parameter.key),
+                reference.contains(&parameter.key),
                 "DSL reference is missing parameter {}.{}",
                 fragment.id,
                 parameter.key

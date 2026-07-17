@@ -319,8 +319,8 @@ fn attach_failures_are_lifted_into_program_findings_for_suspect_module_areas() {
     let config = SessionConfig::for_template(udp_process_debug_template()).unwrap();
     let loader = StaticFailureLoader {
         failures: vec![AttachFailure {
-            fragment_id: "route_meta_fragment",
-            hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+            fragment_id: "route_meta_fragment".into(),
+            hookpoint: HookPoint::KProbe("ip_route_output_flow".into()),
             error: "mock loader failure".into(),
         }],
     };

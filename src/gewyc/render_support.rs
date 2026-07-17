@@ -416,14 +416,166 @@ pub(super) fn dsl_error_code(err: &DslError) -> &'static str {
 }
 
 pub(super) fn dsl_invalid_value_code(value: &str) -> &'static str {
-    if value.starts_with("unknown pipeline function '") {
+    if value.starts_with("unknown pipeline DSL step '") {
+        "GEWYC-PARSE-UNKNOWN-PIPELINE-STEP"
+    } else if value.starts_with("unknown pipeline function '") {
         "GEWYC-PARSE-UNKNOWN-PIPELINE-FUNCTION"
+    } else if value.starts_with("unknown pipeline parameter kind '") {
+        "GEWYC-PARSE-UNKNOWN-PARAMETER-KIND"
+    } else if value.starts_with("pipeline parameter '")
+        && (value.contains(" declares kind '") || value.contains(" is inferred inconsistently "))
+    {
+        "GEWYC-PARSE-PARAMETER-KIND-CONFLICT"
+    } else if value.starts_with("unknown pipeline placeholder '$") {
+        "GEWYC-PARSE-UNKNOWN-PLACEHOLDER"
+    } else if value.starts_with("unclosed pipeline placeholder in '") {
+        "GEWYC-PARSE-UNCLOSED-PLACEHOLDER"
+    } else if value.starts_with("pipeline placeholder expansion exceeded 32 substitutions while ") {
+        "GEWYC-PARSE-PLACEHOLDER-EXPANSION-LIMIT"
+    } else if value.starts_with("pipeline function call does not match ")
+        && value.contains("unknown named parameter '")
+    {
+        "GEWYC-PARSE-UNKNOWN-NAMED-ARGUMENT"
+    } else if value.contains("received both positional and named values")
+        || value.starts_with("pipeline step 'use' received duplicate named argument '")
+    {
+        "GEWYC-PARSE-DUPLICATE-ARGUMENT"
+    } else if value.contains("cannot place positional arguments after named arguments") {
+        "GEWYC-PARSE-ARGUMENT-ORDER"
+    } else if value.starts_with("pipeline function call does not match ")
+        && (value.contains(": expected ") || value.contains(": missing required parameter '"))
+    {
+        "GEWYC-PARSE-FUNCTION-ARITY"
+    } else if value.starts_with("invalid function signature '") {
+        "GEWYC-PARSE-INVALID-FUNCTION-SIGNATURE"
+    } else if value.starts_with("invalid pipeline function name '") {
+        "GEWYC-PARSE-INVALID-FUNCTION-NAME"
+    } else if value.starts_with("duplicate pipeline function '") {
+        "GEWYC-PARSE-DUPLICATE-FUNCTION"
+    } else if value.starts_with("duplicate pipeline parameter '") {
+        "GEWYC-PARSE-DUPLICATE-PARAMETER"
+    } else if value.starts_with("duplicate pipeline local binding '") {
+        "GEWYC-PARSE-DUPLICATE-LOCAL-BINDING"
+    } else if value.starts_with("pipeline function required parameter '")
+        && value.ends_with(" cannot follow a defaulted parameter")
+    {
+        "GEWYC-PARSE-INVALID-PARAMETER-ORDER"
+    } else if value.starts_with("pipeline parameter '")
+        && value.ends_with(" requires a default value after '='")
+    {
+        "GEWYC-PARSE-MISSING-PARAMETER-DEFAULT"
+    } else if value == "pipeline parameter name cannot be empty"
+        || value.starts_with("invalid pipeline parameter name '")
+    {
+        "GEWYC-PARSE-INVALID-PARAMETER-NAME"
+    } else if value == "unclosed pipeline string literal" {
+        "GEWYC-PARSE-UNCLOSED-STRING"
+    } else if value.starts_with("invalid let binding '")
+        || value.starts_with("pipeline let binding '")
+    {
+        "GEWYC-PARSE-INVALID-LET-BINDING"
+    } else if value.starts_with("invalid pipeline call '") {
+        "GEWYC-PARSE-INVALID-PIPELINE-CALL"
+    } else if value.starts_with("pipeline rule received unknown field '") {
+        "GEWYC-PARSE-UNKNOWN-RULE-FIELD"
+    } else if value.starts_with("pipeline rule received duplicate field '")
+        || value.contains("received duplicate rule field")
+    {
+        "GEWYC-PARSE-DUPLICATE-RULE-FIELD"
+    } else if value.starts_with("unknown reason profile '") {
+        "GEWYC-PARSE-UNKNOWN-REASON-PROFILE"
+    } else if value.starts_with("unknown stage '") {
+        "GEWYC-PARSE-UNKNOWN-STAGE"
+    } else if value.starts_with("unknown reason key event '") {
+        "GEWYC-PARSE-UNKNOWN-KEY-EVENT"
+    } else if value.starts_with("unknown evidence fact kind '") {
+        "GEWYC-PARSE-UNKNOWN-EVIDENCE-FACT-KIND"
+    } else if value.starts_with("unknown evidence tier '") {
+        "GEWYC-PARSE-UNKNOWN-EVIDENCE-TIER"
+    } else if value.starts_with("invalid param target '") {
+        "GEWYC-PARSE-INVALID-FRAGMENT-PARAM-TARGET"
+    } else if value.starts_with("unknown window profile '") {
+        "GEWYC-PARSE-UNKNOWN-WINDOW-PROFILE"
+    } else if value.starts_with("invalid bool '") {
+        "GEWYC-PARSE-INVALID-BOOLEAN"
+    } else if value.starts_with("invalid u64 for '") {
+        "GEWYC-PARSE-INVALID-INTEGER"
+    } else if value.starts_with("pipeline step '")
+        && (value.contains(" expects exactly one argument")
+            || value.contains(" expects at least one argument")
+            || value.contains(" expects target and value")
+            || value.contains(" expects fact kind and tier")
+            || value.contains(" positional shorthand expects exactly ")
+            || value.contains(" positional shorthand accepts at most "))
+    {
+        "GEWYC-PARSE-INVALID-STEP-ARITY"
+    } else if value.starts_with("pipeline step '")
+        && (value.contains(" expected keyword argument, got '")
+            || value.contains(" expected named argument, got '")
+            || value.contains(" named argument '") && value.ends_with(" requires a value"))
+    {
+        "GEWYC-PARSE-MALFORMED-ARGUMENT"
+    } else if value.starts_with("pipeline rule phase '") && value.ends_with(" requires module") {
+        "GEWYC-PARSE-RULE-PHASE-WITHOUT-MODULE"
+    } else if value == "pipeline DSL must start with template(...) or template :name" {
+        "GEWYC-PARSE-MISSING-TEMPLATE-HEAD"
+    } else if value == "pipeline DSL supports exactly one template head" {
+        "GEWYC-PARSE-DUPLICATE-TEMPLATE-HEAD"
+    } else if value == "pipeline DSL steps after template must start with '|>'" {
+        "GEWYC-PARSE-MISSING-PIPELINE-PREFIX"
+    } else if value.starts_with("pipeline include cycle detected at '") {
+        "GEWYC-PARSE-INCLUDE-CYCLE"
+    } else if value.starts_with("pipeline use cycle detected at function '") {
+        "GEWYC-PARSE-USE-CYCLE"
+    } else if value.starts_with("unknown package source '") {
+        "GEWYC-PARSE-UNKNOWN-PACKAGE-SOURCE"
+    } else if value.starts_with("invalid source dependency '") {
+        "GEWYC-PARSE-INVALID-SOURCE-DEPENDENCY"
+    } else if value.starts_with("included path '") && value.contains(" escapes package root '") {
+        "GEWYC-PARSE-INCLUDE-ESCAPES-PACKAGE"
+    } else if value == "gewylang now only supports the pipeline stable subset" {
+        "GEWYC-PARSE-UNSUPPORTED-SYNTAX"
+    } else if value.starts_with("unknown datagram proto '")
+        || value.starts_with("unknown packet proto '")
+    {
+        "GEWYC-PARSE-UNKNOWN-TRANSPORT-PROTOCOL"
+    } else if value.starts_with("unknown predicate '") {
+        "GEWYC-PARSE-UNKNOWN-PREDICATE"
+    } else if (value.starts_with("missing ") && value.ends_with(" qualifier"))
+        || (value.contains(" requires a ") && value.ends_with(" qualifier"))
+    {
+        "GEWYC-PARSE-MISSING-PREDICATE-QUALIFIER"
+    } else if value.starts_with("unknown QUIC ")
+        || (value.starts_with("unknown ")
+            && (value.contains(" port '")
+                || value.contains(" predicate suffix '")
+                || value.contains(" state qualifier '")))
+        || (value.starts_with("unexpected ") && value.contains(" suffix '"))
+        || (value.starts_with("invalid ")
+            && [
+                "packet_observed",
+                "datagram_observed",
+                "quic_packet_observed",
+                "quic_frame_observed",
+                "socket_state_observed",
+            ]
+            .iter()
+            .any(|predicate| value.contains(predicate)))
+    {
+        "GEWYC-PARSE-INVALID-PREDICATE-QUALIFIER"
+    } else if value.contains(" expects ")
+        && (value.contains("-compatible value") || value.contains("atom-like identifier value"))
+    {
+        "GEWYC-PARSE-ARGUMENT-TYPE-MISMATCH"
     } else if value.starts_with("unknown package dependency '") {
         "GEWYC-PARSE-UNKNOWN-PACKAGE-DEPENDENCY"
     } else if value == "pipeline include() requires a filesystem-backed entry file" {
         "GEWYC-PARSE-INCLUDE-NONFILESYSTEM-ENTRY"
+    } else if value == "pipeline include() should be resolved before lowering" {
+        "GEWYC-PARSE-UNRESOLVED-INCLUDE"
     } else if value == "pipeline function bodies must contain '|>' steps"
         || value == "pipeline function bodies may only contain 'let' bindings or '|>' steps"
+        || value == "pipeline function expressions must contain '|>' steps"
     {
         "GEWYC-PARSE-INVALID-FUNCTION-BODY"
     } else if value == "unclosed pipeline function block" {

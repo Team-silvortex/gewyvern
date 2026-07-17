@@ -144,8 +144,8 @@ fn freeze_materializes_only_the_active_window_plus_lateness() {
 fn session_start_can_materialize_attach_failures_into_export() {
     let mut config = SessionConfig::for_template(handshake_debug_template()).unwrap();
     config.attach_failures = vec![AttachFailure {
-        fragment_id: "route_meta_fragment",
-        hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+        fragment_id: "route_meta_fragment".into(),
+        hookpoint: HookPoint::KProbe("ip_route_output_flow".into()),
         error: "mock attach failure".into(),
     }];
 
@@ -177,8 +177,8 @@ fn session_start_with_loader_materializes_structured_failures() {
     let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
     let loader = StaticFailureLoader {
         failures: vec![AttachFailure {
-            fragment_id: "route_meta_fragment",
-            hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+            fragment_id: "route_meta_fragment".into(),
+            hookpoint: HookPoint::KProbe("ip_route_output_flow".into()),
             error: "mock loader failure".into(),
         }],
     };
@@ -201,8 +201,8 @@ fn session_rejects_facts_from_fragments_that_failed_to_attach() {
     let config = SessionConfig::for_template(handshake_debug_template()).unwrap();
     let loader = StaticFailureLoader {
         failures: vec![AttachFailure {
-            fragment_id: "route_meta_fragment",
-            hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+            fragment_id: "route_meta_fragment".into(),
+            hookpoint: HookPoint::KProbe("ip_route_output_flow".into()),
             error: "mock loader failure".into(),
         }],
     };
@@ -258,12 +258,12 @@ fn rejected_fact_summary_groups_multiple_drops_by_fragment_and_reason() {
     let loader = StaticFailureLoader {
         failures: vec![
             AttachFailure {
-                fragment_id: "route_meta_fragment",
-                hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+                fragment_id: "route_meta_fragment".into(),
+                hookpoint: HookPoint::KProbe("ip_route_output_flow".into()),
                 error: "mock loader failure".into(),
             },
             AttachFailure {
-                fragment_id: "tcp_packet_meta_fragment",
+                fragment_id: "tcp_packet_meta_fragment".into(),
                 hookpoint: HookPoint::TCIngress,
                 error: "mock loader failure".into(),
             },
@@ -311,18 +311,18 @@ fn attach_failure_summary_groups_failures_by_hookpoint_kind() {
     let loader = StaticFailureLoader {
         failures: vec![
             AttachFailure {
-                fragment_id: "route_meta_fragment",
-                hookpoint: HookPoint::KProbe("ip_route_output_flow"),
+                fragment_id: "route_meta_fragment".into(),
+                hookpoint: HookPoint::KProbe("ip_route_output_flow".into()),
                 error: "mock loader failure".into(),
             },
             AttachFailure {
-                fragment_id: "tcp_packet_meta_fragment",
+                fragment_id: "tcp_packet_meta_fragment".into(),
                 hookpoint: HookPoint::TCIngress,
                 error: "mock loader failure".into(),
             },
             AttachFailure {
-                fragment_id: "linux_tracepoint_smoke_fragment",
-                hookpoint: HookPoint::TracePoint("syscalls/definitely_missing_smoke_event"),
+                fragment_id: "linux_tracepoint_smoke_fragment".into(),
+                hookpoint: HookPoint::TracePoint("syscalls/definitely_missing_smoke_event".into()),
                 error: "mock loader failure".into(),
             },
         ],

@@ -7,9 +7,9 @@ pub fn builtin_registry() -> FragmentRegistry {
     let mut registry = FragmentRegistry::new();
     let fragments = [
         FragmentDescriptor {
-            id: "tcp_state_fragment",
+            id: "tcp_state_fragment".into(),
             version: 1,
-            hookpoints: vec![HookPoint::TracePoint("sock/inet_sock_set_state")],
+            hookpoints: vec![HookPoint::TracePoint("sock/inet_sock_set_state".into())],
             emits: vec![FactKindTag::TcpState],
             evidence_classes: vec![EvidenceClassSpec {
                 fact_kind: FactKindTag::TcpState,
@@ -17,7 +17,7 @@ pub fn builtin_registry() -> FragmentRegistry {
             }],
             requires: vec![],
             maps: vec![MapSpec {
-                name: "events",
+                name: "events".into(),
                 kind: MapKind::RingBuf,
                 max_entries: 4096,
             }],
@@ -26,7 +26,7 @@ pub fn builtin_registry() -> FragmentRegistry {
             params: vec![],
         },
         FragmentDescriptor {
-            id: "tcp_packet_meta_fragment",
+            id: "tcp_packet_meta_fragment".into(),
             version: 1,
             hookpoints: vec![HookPoint::TCIngress],
             emits: vec![FactKindTag::PacketMeta, FactKindTag::QuicMeta],
@@ -42,19 +42,19 @@ pub fn builtin_registry() -> FragmentRegistry {
             ],
             requires: vec![FactKindTag::TcpState],
             maps: vec![MapSpec {
-                name: "events",
+                name: "events".into(),
                 kind: MapKind::RingBuf,
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::PacketMeta],
             sampled_payload_offsets: vec![0, 1, 4, 5, 9, 10, 13],
             params: vec![FragmentParamSpec {
-                key: "sample_payload_offsets",
+                key: "sample_payload_offsets".into(),
                 value_type: FragmentParamType::String,
             }],
         },
         FragmentDescriptor {
-            id: "udp_packet_meta_fragment",
+            id: "udp_packet_meta_fragment".into(),
             version: 1,
             hookpoints: vec![HookPoint::TCIngress],
             emits: vec![FactKindTag::PacketMeta, FactKindTag::QuicMeta],
@@ -70,7 +70,7 @@ pub fn builtin_registry() -> FragmentRegistry {
             ],
             requires: vec![],
             maps: vec![MapSpec {
-                name: "events",
+                name: "events".into(),
                 kind: MapKind::RingBuf,
                 max_entries: 4096,
             }],
@@ -78,19 +78,19 @@ pub fn builtin_registry() -> FragmentRegistry {
             sampled_payload_offsets: vec![0, 1, 4, 5, 9, 10, 13],
             params: vec![
                 FragmentParamSpec {
-                    key: "min_len",
+                    key: "min_len".into(),
                     value_type: FragmentParamType::U64,
                 },
                 FragmentParamSpec {
-                    key: "sample_payload_offsets",
+                    key: "sample_payload_offsets".into(),
                     value_type: FragmentParamType::String,
                 },
             ],
         },
         FragmentDescriptor {
-            id: "route_meta_fragment",
+            id: "route_meta_fragment".into(),
             version: 1,
-            hookpoints: vec![HookPoint::KProbe("ip_route_output_flow")],
+            hookpoints: vec![HookPoint::KProbe("ip_route_output_flow".into())],
             emits: vec![FactKindTag::RouteDecision],
             evidence_classes: vec![EvidenceClassSpec {
                 fact_kind: FactKindTag::RouteDecision,
@@ -98,7 +98,7 @@ pub fn builtin_registry() -> FragmentRegistry {
             }],
             requires: vec![],
             maps: vec![MapSpec {
-                name: "events",
+                name: "events".into(),
                 kind: MapKind::RingBuf,
                 max_entries: 4096,
             }],
@@ -107,9 +107,9 @@ pub fn builtin_registry() -> FragmentRegistry {
             params: vec![],
         },
         FragmentDescriptor {
-            id: "sock_lineage_fragment",
+            id: "sock_lineage_fragment".into(),
             version: 1,
-            hookpoints: vec![HookPoint::TracePoint("syscalls/sys_enter_connect")],
+            hookpoints: vec![HookPoint::TracePoint("syscalls/sys_enter_connect".into())],
             emits: vec![FactKindTag::SockLineage],
             evidence_classes: vec![EvidenceClassSpec {
                 fact_kind: FactKindTag::SockLineage,
@@ -117,14 +117,14 @@ pub fn builtin_registry() -> FragmentRegistry {
             }],
             requires: vec![],
             maps: vec![MapSpec {
-                name: "events",
+                name: "events".into(),
                 kind: MapKind::RingBuf,
                 max_entries: 4096,
             }],
             capabilities: vec![CapabilityFlag::SockLineage],
             sampled_payload_offsets: vec![],
             params: vec![FragmentParamSpec {
-                key: "capture_comm",
+                key: "capture_comm".into(),
                 value_type: FragmentParamType::Bool,
             }],
         },
