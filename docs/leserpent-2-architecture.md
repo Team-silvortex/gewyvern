@@ -183,11 +183,31 @@ values, and zeroize their allocation on drop. Adapter request buffers containing
 authorization headers are also zeroized immediately after the socket write,
 including write-failure paths.
 
-The daemon currently supplies an allowlisted environment-backed store for the
-optional Gewyvern admin token. Configured in-memory storage exists only as a
-provider and test boundary. Native Keychain and Secret Service providers must
-implement the same trait, preserving target and adapter semantics without
-adding platform code to the scheduler or domain model.
+The daemon supplies an allowlisted environment-backed store for the optional
+Gewyvern admin token. An explicit secret alias instead resolves through the
+native macOS Security.framework Keychain provider or Linux Secret Service;
+selecting it never silently falls back to the environment. Linux loads
+`libsecret-1.so.0` and `libglib-2.0.so.0` at runtime, so production hosts do not
+need development packages or helper subprocesses. Configured in-memory storage
+exists only as a provider and test boundary. Platform providers preserve target
+and adapter semantics without adding platform code to the scheduler or domain
+model.
+
+Gewyvern targets expose two explicit transports. The existing HTTP constructor
+accepts loopback socket addresses only. Remote targets require an
+`https://HOST[:PORT]` origin, a regular non-symlink CA file bounded to 1 MiB,
+and a secret alias; there is no HTTP or unauthenticated fallback. Rustls verifies
+the DNS name or IP and negotiates HTTP/1.1. Both transports share strict,
+bounded JSON response framing that rejects duplicate `Content-Length`, transfer
+encoding, non-JSON content, truncation, and bytes beyond the declared body.
+
+Deployment is a separate typed adapter capability, not a general HTTP or shell
+escape hatch. `gewyvern.deployment.submit` accepts only a validated runtime ID,
+idempotency key, pipeline kind, requester, explicit confirmation, and optional
+target. It always posts to `/v1/deployments`, always requires the target secret,
+and accepts only a matching `accepted` response. HTTP 200 is valid only for an
+idempotent replay and HTTP 202 only for a new intent; echoed request fields must
+match before the durable effect is completed.
 
 ## UI Contract
 

@@ -104,6 +104,7 @@ pub enum DebuggerEffectKind {
     RuntimeList,
     RuntimeInspect,
     RuntimeHistory,
+    RuntimeLogs,
     RuntimeRefresh,
 }
 
@@ -651,6 +652,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeList => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
             | DebuggerEffectKind::RuntimeHistory
+            | DebuggerEffectKind::RuntimeLogs
             | DebuggerEffectKind::RuntimeRefresh => effect.runtime_id.is_some(),
         };
         if !binding_valid {
@@ -739,6 +741,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeList => "runtime list",
             DebuggerEffectKind::RuntimeInspect => "runtime inspect",
             DebuggerEffectKind::RuntimeHistory => "runtime history",
+            DebuggerEffectKind::RuntimeLogs => "runtime logs",
             DebuggerEffectKind::RuntimeRefresh => "runtime refresh",
         };
         children.push(text_node(

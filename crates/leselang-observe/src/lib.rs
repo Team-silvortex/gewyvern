@@ -249,6 +249,11 @@ pub fn waiting_debugger_projection(
             Some(runtime_id.clone()),
             "runtime history",
         ),
+        Effect::RuntimeLogs { runtime_id } => (
+            DebuggerEffectKind::RuntimeLogs,
+            Some(runtime_id.clone()),
+            "runtime logs",
+        ),
         Effect::RuntimeRefresh { runtime_id } => (
             DebuggerEffectKind::RuntimeRefresh,
             Some(runtime_id.clone()),
@@ -304,6 +309,24 @@ mod tests {
 
     fn inspect_request() -> EffectRequest {
         inspect_vm_and_request().1
+    }
+
+    fn logs_request() -> EffectRequest {
+        let syntax = parse("fn logs() = runtime.logs(runtime_id: \"runtime-a\")");
+        let program = lower(&syntax).expect("program lowers");
+        match Vm::default().start_timed(
+            &program,
+            Principal {
+                id: "debugger-principal".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+            Some(Revision(7)),
+            1_000,
+            30_000,
+        ) {
+            Step::Effect(request) => *request,
+            other => panic!("expected effect, got {other:?}"),
+        }
     }
 
     fn inspect_vm_and_request() -> (Vm, EffectRequest) {
@@ -372,6 +395,18 @@ mod tests {
         assert!(!encoded.contains(CAPABILITY_RUNTIME_READ));
         assert!(!encoded.contains("leselang-effect-"));
         assert!(!encoded.contains("31000"));
+    }
+
+    #[test]
+    fn projects_runtime_logs_as_a_typed_waiting_effect() {
+        let projection =
+            waiting_debugger_projection(&logs_request(), "session-logs", Revision(7), 1_250)
+                .unwrap();
+        let pending = projection.pending_effect.as_ref().unwrap();
+        assert_eq!(pending.kind, DebuggerEffectKind::RuntimeLogs);
+        assert_eq!(pending.runtime_id.as_ref().unwrap().as_str(), "runtime-a");
+        assert_eq!(projection.frames[0].display, "await runtime logs");
+        debugger_document(&projection).unwrap();
     }
 
     #[test]

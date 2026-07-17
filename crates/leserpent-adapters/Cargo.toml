@@ -10,4 +10,12 @@ leserpent-domain = { path = "../leserpent-domain" }
 leserpent-runtime = { path = "../leserpent-runtime" }
 serde.workspace = true
 serde_json.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
 zeroize = "1"
+
+[dev-dependencies]
+rcgen = "0.14"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

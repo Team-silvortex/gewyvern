@@ -263,7 +263,10 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
-    use leserpent_adapters::{GEWYVERN_HEALTH_EFFECT_KIND, GewyvernHealthAdapter, GewyvernTarget};
+    use leserpent_adapters::{
+        ConfiguredSecretStore, GEWYVERN_DEPLOYMENT_EFFECT_KIND, GEWYVERN_HEALTH_EFFECT_KIND,
+        GewyvernDeploymentAdapter, GewyvernHealthAdapter, GewyvernTarget, SecretKey, SecretValue,
+    };
     use leserpent_runtime::EffectExecution;
 
     fn temp_database(label: &str) -> PathBuf {
@@ -570,7 +573,7 @@ mod tests {
             let body = br#"{"ok":true,"has_snapshot":true}"#;
             write!(
                 stream,
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 body.len()
             )
             .unwrap();
@@ -596,6 +599,61 @@ mod tests {
             host.tick().unwrap(),
             WorkerStep::Completed { ref effect_id, attempt: 1 }
                 if effect_id == "effect-health-a"
+        ));
+        server.join().unwrap();
+        drop(host);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn gewyvern_deployment_runs_through_scheduler_and_daemon_registry() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).unwrap();
+            let request = std::str::from_utf8(&request[..read]).unwrap();
+            assert!(request.starts_with("POST /v1/deployments HTTP/1.1\r\n"));
+            assert!(request.contains("X-Gewyvern-Admin-Token: test-token\r\n"));
+            let body = br#"{"deployment_id":"gdep_1","request_id":"deploy-1","pipeline_kind":"http/request","requested_by":"operator","status":"accepted","accepted_unix_ms":1,"target":"pid:42","replayed":false}"#;
+            write!(
+                stream,
+                "HTTP/1.1 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .unwrap();
+            stream.write_all(body).unwrap();
+        });
+
+        let key = SecretKey::new("runtime-a-admin").unwrap();
+        let secrets = Arc::new(
+            ConfiguredSecretStore::new([(key.clone(), SecretValue::new("test-token").unwrap())])
+                .unwrap(),
+        );
+        let target = GewyvernTarget::loopback(address, Some(key)).unwrap();
+        let adapter = GewyvernDeploymentAdapter::with_secret_store(
+            [("runtime-a".to_string(), target)],
+            secrets,
+        )
+        .unwrap();
+        let path = temp_database("gewyvern-deployment-adapter");
+        let runtime = ControlRuntime::open(&path).unwrap();
+        let mut registry = AdapterRegistry::default();
+        registry.register(adapter).unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        host.runtime_mut()
+            .enqueue_effect(
+                "effect-deploy-a",
+                GEWYVERN_DEPLOYMENT_EFFECT_KIND,
+                br#"{"runtime_id":"runtime-a","request_id":"deploy-1","pipeline_kind":"http/request","requested_by":"operator","confirmed":true,"target":"pid:42"}"#,
+                3,
+            )
+            .unwrap();
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Completed { ref effect_id, attempt: 1 }
+                if effect_id == "effect-deploy-a"
         ));
         server.join().unwrap();
         drop(host);

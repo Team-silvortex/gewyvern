@@ -387,6 +387,10 @@ version = "1.2.0"
 dependencies = [
  "leserpent-domain",
  "leserpent-runtime",
+ "libc",
+ "rcgen",
+ "rustls",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "zeroize",

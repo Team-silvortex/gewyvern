@@ -383,19 +383,33 @@ lease release after SIGINT.
 
 The first production integration now lives in the independent
 `leserpent-adapters` crate rather than the daemon host. Its typed registry
-rejects unknown effect kinds, and the initial Gewyvern health adapter accepts
-only configured loopback targets, keeps admin tokens out of scheduler payloads,
-bounds HTTP responses, and validates the `/health` JSON contract. A vertical
+rejects unknown effect kinds. The Gewyvern health and status adapters retain the
+loopback-only HTTP default while also supporting explicit authenticated HTTPS
+targets with pinned CA input and rustls hostname verification. They keep admin
+tokens out of scheduler payloads, strictly frame bounded JSON responses, and
+validate the `/health` JSON contract. A vertical
 test proves SQLite enqueue through daemon claim and adapter execution to fenced
 completion. The typed status adapter now combines `/health` and
 `/v1/latest/meta` into a frontend-neutral snapshot without journaling its admin
 token. `leserpentd` registers both health and status effect kinds for configured
 targets, and status outcomes flow through the runtime's atomic projection and
-replay path. Targets now retain only validated secret aliases; a shared
+replay path. When a target credential exists, the daemon also registers the
+typed deployment effect. It requires confirmation, posts only the bounded
+deployment intent to the fixed Gewyvern endpoint, binds success to the echoed
+idempotency fields, and distinguishes permanent request conflicts from retryable
+service failures. A SQLite-to-daemon vertical and a real authenticated TLS test
+cover this path. Targets now retain only validated secret aliases; a shared
 `SecretStore` resolves the allowlisted environment token immediately before
 network execution, redacts debug output, zeroizes temporary values, and fails
-before connecting when resolution fails. Native Keychain/Secret Service
-providers, deployment, discovery, and remote TLS remain future adapter slices.
+before connecting when resolution fails. The macOS provider now calls
+Security.framework directly and `leserpentd --gewyvern-admin-secret KEY`
+explicitly selects account `KEY` under service
+`org.gewyvern.leserpent.adapters` without environment fallback. The Linux
+provider dynamically resolves libsecret/glib without development packages and
+has physical Ubuntu 24.04 x86_64 evidence: ordinary SSH fails closed without a
+session bus, while an isolated D-Bus plus gnome-keyring session returns a strict
+clean miss. Real TLS tests cover authenticated adapter traffic and ambiguous
+HTTP framing rejection. Discovery remains the next adapter slice.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery
@@ -567,6 +581,22 @@ leserpent --json runtime list
 
 CLI endpoint and CA flags are available as `--remote` and `--remote-ca`; local
 socket and remote transport selection are mutually exclusive.
+
+Separately, `leserpentd` can monitor a remote Gewyvern API as an authenticated
+adapter target. The origin has no path, the CA is explicit, and the credential
+is resolved from the native platform secret store by alias:
+
+```bash
+leserpentd --database /var/lib/leserpent/runtime.sqlite \
+  --gewyvern-https-target \
+  runtime-a=https://gewyvern-a.example.internal:9411,/etc/leserpent/gewyvern-ca.pem \
+  --gewyvern-admin-secret runtime-a-admin
+```
+
+For environment-only development, `GEWY_API_ADMIN_TOKEN` supplies the same
+credential boundary when no alias is selected. Remote targets refuse to start
+without one of these credential sources. The existing
+`--gewyvern-target ID=LOOPBACK:PORT` remains the only plain-HTTP form.
 
 The desktop AOT shelf now has a named native entrypoint:
 `gewyvern_validate leserpent-aot`. It detects only checked host RIDs, performs

@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::fs;
+use std::io::{BufReader, Read, Write};
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,6 +11,8 @@ use leserpent_domain::{
     RuntimeStatusSnapshot,
 };
 use leserpent_runtime::EffectExecution;
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use serde::Deserialize;
 use zeroize::Zeroize;
 
@@ -16,12 +20,51 @@ use crate::{EffectAdapter, EmptySecretStore, SecretKey, SecretStore, validate_id
 
 pub const GEWYVERN_HEALTH_EFFECT_KIND: &str = "gewyvern.health.check";
 pub const GEWYVERN_STATUS_REFRESH_EFFECT_KIND: &str = RUNTIME_STATUS_REFRESH_EFFECT_KIND;
-const MAX_HTTP_RESPONSE_BYTES: u64 = 64 * 1024;
+const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
+const MAX_HTTP_BODY_BYTES: usize = 64 * 1024;
+const MAX_HTTP_REQUEST_BODY_BYTES: usize = 16 * 1024;
+const MAX_CA_FILE_BYTES: u64 = 1024 * 1024;
+
+pub(crate) struct HttpJsonResponse {
+    pub status: u16,
+    pub body: Vec<u8>,
+}
+
+#[derive(Clone)]
+pub struct GewyvernTarget {
+    transport: GewyvernTransport,
+    admin_secret: Option<SecretKey>,
+}
+
+#[derive(Clone)]
+enum GewyvernTransport {
+    Loopback(SocketAddr),
+    Https {
+        endpoint: HttpsEndpoint,
+        tls: Arc<ClientConfig>,
+    },
+}
 
 #[derive(Clone, Debug)]
-pub struct GewyvernTarget {
-    address: SocketAddr,
-    admin_secret: Option<SecretKey>,
+struct HttpsEndpoint {
+    host: String,
+    port: u16,
+    authority: String,
+    server_name: ServerName<'static>,
+}
+
+impl std::fmt::Debug for GewyvernTarget {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let transport = match &self.transport {
+            GewyvernTransport::Loopback(_) => "loopback-http",
+            GewyvernTransport::Https { .. } => "remote-https",
+        };
+        formatter
+            .debug_struct("GewyvernTarget")
+            .field("transport", &transport)
+            .field("authenticated", &self.admin_secret.is_some())
+            .finish()
+    }
 }
 
 impl GewyvernTarget {
@@ -30,10 +73,126 @@ impl GewyvernTarget {
             return Err("Gewyvern adapter currently permits loopback targets only".into());
         }
         Ok(Self {
-            address,
+            transport: GewyvernTransport::Loopback(address),
             admin_secret,
         })
     }
+
+    pub fn https(
+        origin: &str,
+        ca_path: impl AsRef<Path>,
+        admin_secret: SecretKey,
+    ) -> Result<Self, String> {
+        let endpoint = HttpsEndpoint::parse(origin)?;
+        let tls = load_tls_config(ca_path.as_ref())?;
+        Ok(Self {
+            transport: GewyvernTransport::Https {
+                endpoint,
+                tls: Arc::new(tls),
+            },
+            admin_secret: Some(admin_secret),
+        })
+    }
+
+    pub(crate) fn is_authenticated(&self) -> bool {
+        self.admin_secret.is_some()
+    }
+}
+
+impl HttpsEndpoint {
+    fn parse(value: &str) -> Result<Self, String> {
+        if value.len() > 2048 || value.bytes().any(|byte| byte <= 0x20) {
+            return Err(invalid_https_origin());
+        }
+        let authority = value
+            .strip_prefix("https://")
+            .ok_or_else(invalid_https_origin)?;
+        if authority.is_empty()
+            || authority
+                .bytes()
+                .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'@'))
+        {
+            return Err(invalid_https_origin());
+        }
+        let (host, port, host_header) = if let Some(bracketed) = authority.strip_prefix('[') {
+            let (host, suffix) = bracketed.split_once(']').ok_or_else(invalid_https_origin)?;
+            let port = match suffix.strip_prefix(':') {
+                Some(value) => parse_https_port(value)?,
+                None if suffix.is_empty() => 443,
+                None => return Err(invalid_https_origin()),
+            };
+            if host.is_empty() || host.parse::<std::net::Ipv6Addr>().is_err() {
+                return Err(invalid_https_origin());
+            }
+            (host.to_string(), port, format!("[{host}]:{port}"))
+        } else {
+            if authority.matches(':').count() > 1 {
+                return Err(invalid_https_origin());
+            }
+            let (host, port) = match authority.rsplit_once(':') {
+                Some((host, port)) => (host, parse_https_port(port)?),
+                None => (authority, 443),
+            };
+            if host.is_empty() {
+                return Err(invalid_https_origin());
+            }
+            (host.to_string(), port, format!("{host}:{port}"))
+        };
+        let server_name = ServerName::try_from(host.clone()).map_err(|_| invalid_https_origin())?;
+        Ok(Self {
+            host,
+            port,
+            authority: host_header,
+            server_name,
+        })
+    }
+}
+
+fn parse_https_port(value: &str) -> Result<u16, String> {
+    let port = value.parse::<u16>().map_err(|_| invalid_https_origin())?;
+    if port == 0 {
+        return Err(invalid_https_origin());
+    }
+    Ok(port)
+}
+
+fn invalid_https_origin() -> String {
+    "Gewyvern HTTPS origin must be https://HOST[:PORT] without path, query, or credentials".into()
+}
+
+fn load_tls_config(ca_path: &Path) -> Result<ClientConfig, String> {
+    let metadata =
+        fs::symlink_metadata(ca_path).map_err(|_| "Gewyvern CA file is unavailable".to_string())?;
+    if metadata.file_type().is_symlink()
+        || !metadata.file_type().is_file()
+        || metadata.len() == 0
+        || metadata.len() > MAX_CA_FILE_BYTES
+    {
+        return Err("Gewyvern CA must be a regular non-symlink file no larger than 1 MiB".into());
+    }
+    let mut reader = BufReader::new(
+        fs::File::open(ca_path).map_err(|_| "Gewyvern CA file cannot be opened".to_string())?,
+    );
+    let certificates = rustls_pemfile::certs(&mut reader)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Gewyvern CA contains invalid PEM".to_string())?;
+    if certificates.is_empty() {
+        return Err("Gewyvern CA contains no certificates".into());
+    }
+    let mut roots = RootCertStore::empty();
+    for certificate in certificates {
+        roots
+            .add(certificate)
+            .map_err(|_| "Gewyvern CA contains an invalid certificate".to_string())?;
+    }
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut tls = ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|error| format!("Gewyvern TLS setup failed: {error}"))?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    tls.alpn_protocols = vec![b"http/1.1".to_vec()];
+    Ok(tls)
 }
 
 pub struct GewyvernHealthAdapter {
@@ -151,7 +310,7 @@ impl EffectAdapter for GewyvernStatusRefreshAdapter {
     }
 }
 
-fn normalize_targets(
+pub(crate) fn normalize_targets(
     targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
 ) -> Result<BTreeMap<String, GewyvernTarget>, String> {
     let mut normalized = BTreeMap::new();
@@ -268,6 +427,34 @@ fn fetch_json(
     path: &str,
     timeout: Duration,
 ) -> Result<Vec<u8>, String> {
+    let response = request_json(target, secrets, "GET", path, None, timeout)?;
+    if response.status != 200 {
+        return Err("Gewyvern API request was rejected".into());
+    }
+    Ok(response.body)
+}
+
+pub(crate) fn post_json(
+    target: &GewyvernTarget,
+    secrets: &dyn SecretStore,
+    path: &str,
+    body: &[u8],
+    timeout: Duration,
+) -> Result<HttpJsonResponse, String> {
+    if body.len() > MAX_HTTP_REQUEST_BODY_BYTES {
+        return Err("Gewyvern API request body is too large".into());
+    }
+    request_json(target, secrets, "POST", path, Some(body), timeout)
+}
+
+fn request_json(
+    target: &GewyvernTarget,
+    secrets: &dyn SecretStore,
+    method: &str,
+    path: &str,
+    body: Option<&[u8]>,
+    timeout: Duration,
+) -> Result<HttpJsonResponse, String> {
     let admin_token = target
         .admin_secret
         .as_ref()
@@ -284,17 +471,70 @@ fn fetch_json(
     {
         return Err("Gewyvern admin secret is invalid".into());
     }
-    let mut stream = TcpStream::connect_timeout(&target.address, timeout)
-        .map_err(|_| "Gewyvern API connection failed".to_string())?;
+    match &target.transport {
+        GewyvernTransport::Loopback(address) => {
+            let mut stream = TcpStream::connect_timeout(address, timeout)
+                .map_err(|_| "Gewyvern API connection failed".to_string())?;
+            configure_socket(&stream, timeout)?;
+            exchange_json(
+                &mut stream,
+                &address.to_string(),
+                method,
+                path,
+                body,
+                admin_token.as_ref(),
+            )
+        }
+        GewyvernTransport::Https { endpoint, tls } => {
+            let socket = connect_https(endpoint, timeout)?;
+            configure_socket(&socket, timeout)?;
+            let connection = ClientConnection::new(Arc::clone(tls), endpoint.server_name.clone())
+                .map_err(|_| "Gewyvern TLS setup failed".to_string())?;
+            let mut stream = StreamOwned::new(connection, socket);
+            exchange_json(
+                &mut stream,
+                &endpoint.authority,
+                method,
+                path,
+                body,
+                admin_token.as_ref(),
+            )
+        }
+    }
+}
+
+fn connect_https(endpoint: &HttpsEndpoint, timeout: Duration) -> Result<TcpStream, String> {
+    let addresses = (endpoint.host.as_str(), endpoint.port)
+        .to_socket_addrs()
+        .map_err(|_| "Gewyvern HTTPS host cannot be resolved".to_string())?;
+    for address in addresses.take(8) {
+        if let Ok(stream) = TcpStream::connect_timeout(&address, timeout) {
+            return Ok(stream);
+        }
+    }
+    Err("Gewyvern API connection failed".into())
+}
+
+fn configure_socket(stream: &TcpStream, timeout: Duration) -> Result<(), String> {
     stream
         .set_read_timeout(Some(timeout))
-        .map_err(|error| error.to_string())?;
+        .map_err(|_| "Gewyvern API timeout setup failed".to_string())?;
     stream
         .set_write_timeout(Some(timeout))
-        .map_err(|error| error.to_string())?;
+        .map_err(|_| "Gewyvern API timeout setup failed".to_string())?;
+    Ok(())
+}
+
+fn exchange_json(
+    stream: &mut (impl Read + Write),
+    authority: &str,
+    method: &str,
+    path: &str,
+    body: Option<&[u8]>,
+    admin_token: Option<&crate::SecretValue>,
+) -> Result<HttpJsonResponse, String> {
     let mut request = format!(
-        "GET {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n",
-        target.address,
+        "{method} {path} HTTP/1.1\r\nHost: {authority}\r\nAccept: application/json\r\nConnection: close\r\n",
     );
     if let Some(token) = &admin_token {
         let token = token.expose_secret();
@@ -302,33 +542,100 @@ fn fetch_json(
         request.push_str(token);
         request.push_str("\r\n");
     }
+    if let Some(body) = body {
+        request.push_str("Content-Type: application/json\r\nContent-Length: ");
+        request.push_str(&body.len().to_string());
+        request.push_str("\r\n");
+    }
     request.push_str("\r\n");
+    if let Some(body) = body {
+        request.push_str(
+            std::str::from_utf8(body)
+                .map_err(|_| "Gewyvern API request body is not UTF-8".to_string())?,
+        );
+    }
     let write_result = stream.write_all(request.as_bytes());
     request.zeroize();
     write_result.map_err(|_| "Gewyvern API write failed".to_string())?;
+    stream
+        .flush()
+        .map_err(|_| "Gewyvern API write failed".to_string())?;
+    read_json_response(stream)
+}
+
+fn read_json_response(stream: &mut impl Read) -> Result<HttpJsonResponse, String> {
     let mut response = Vec::new();
     stream
-        .take(MAX_HTTP_RESPONSE_BYTES + 1)
+        .take((MAX_HTTP_HEADER_BYTES + MAX_HTTP_BODY_BYTES + 5) as u64)
         .read_to_end(&mut response)
         .map_err(|_| "Gewyvern API read failed".to_string())?;
-    if response.len() as u64 > MAX_HTTP_RESPONSE_BYTES {
+    if response.len() > MAX_HTTP_HEADER_BYTES + MAX_HTTP_BODY_BYTES + 4 {
         return Err("Gewyvern API response is too large".into());
     }
     let header_end = response
         .windows(4)
         .position(|window| window == b"\r\n\r\n")
         .ok_or_else(|| "Gewyvern API response is malformed".to_string())?;
+    if header_end > MAX_HTTP_HEADER_BYTES {
+        return Err("Gewyvern API response headers are too large".into());
+    }
     let headers = std::str::from_utf8(&response[..header_end])
         .map_err(|_| "Gewyvern API response headers are invalid".to_string())?;
-    if !headers
-        .lines()
+    let mut lines = headers.split("\r\n");
+    let status = lines
         .next()
-        .is_some_and(|line| line.starts_with("HTTP/1.1 200 "))
-    {
-        return Err("Gewyvern API request was rejected".into());
+        .ok_or_else(|| "Gewyvern API response has no status".to_string())?;
+    let mut status_parts = status.splitn(3, ' ');
+    if status_parts.next() != Some("HTTP/1.1") {
+        return Err("Gewyvern API response does not use HTTP/1.1".into());
+    }
+    let status = status_parts
+        .next()
+        .and_then(|value| value.parse::<u16>().ok())
+        .filter(|value| (100..=599).contains(value))
+        .ok_or_else(|| "Gewyvern API response status is invalid".to_string())?;
+    let mut content_length = None;
+    let mut content_type = None;
+    for line in lines {
+        let (name, value) = line
+            .split_once(':')
+            .ok_or_else(|| "Gewyvern API response header is malformed".to_string())?;
+        let value = value.trim();
+        if name.eq_ignore_ascii_case("content-length") {
+            if content_length.replace(value).is_some() {
+                return Err("Gewyvern API response repeats Content-Length".into());
+            }
+        } else if name.eq_ignore_ascii_case("content-type") {
+            if content_type.replace(value).is_some() {
+                return Err("Gewyvern API response repeats Content-Type".into());
+            }
+        } else if name.eq_ignore_ascii_case("transfer-encoding") {
+            return Err("Gewyvern API response uses unsupported transfer encoding".into());
+        }
+    }
+    if !content_type.is_some_and(|value| {
+        value
+            .split(';')
+            .next()
+            .is_some_and(|media_type| media_type.trim().eq_ignore_ascii_case("application/json"))
+    }) {
+        return Err("Gewyvern API response is not application/json".into());
+    }
+    let content_length = content_length
+        .ok_or_else(|| "Gewyvern API response has no Content-Length".to_string())?
+        .parse::<usize>()
+        .map_err(|_| "Gewyvern API response Content-Length is invalid".to_string())?;
+    if content_length > MAX_HTTP_BODY_BYTES {
+        return Err("Gewyvern API response body is too large".into());
     }
     let body = &response[header_end + 4..];
-    Ok(body.to_vec())
+    if body.len() != content_length {
+        return Err("Gewyvern API response does not match Content-Length".into());
+    }
+    Ok(HttpJsonResponse {
+        status,
+        body: body.to_vec(),
+    })
 }
 
 fn reject(error: &str) -> EffectExecution {
@@ -339,10 +646,17 @@ fn reject(error: &str) -> EffectExecution {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::io::Cursor;
     use std::net::{IpAddr, Ipv4Addr, TcpListener};
+    use std::path::PathBuf;
     use std::thread;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use leserpent_domain::Revision;
+    use rcgen::{CertifiedKey, generate_simple_self_signed};
+    use rustls::pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer};
+    use rustls::{ServerConfig, ServerConnection};
 
     use super::*;
     use crate::{ConfiguredSecretStore, SecretValue};
@@ -355,6 +669,17 @@ mod tests {
         )
         .unwrap();
         stream.write_all(body).unwrap();
+    }
+
+    fn temp_path(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "leserpent-adapter-{label}-{}-{unique}.pem",
+            std::process::id()
+        ))
     }
 
     #[test]
@@ -389,6 +714,100 @@ mod tests {
             true
         );
         server.join().unwrap();
+    }
+
+    #[test]
+    fn health_adapter_authenticates_over_verified_https() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let ca_path = temp_path("gewyvern-ca");
+        fs::write(&ca_path, cert.pem()).unwrap();
+        let private_key =
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let mut server_config = ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert.der().clone()], private_key)
+            .unwrap();
+        server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (socket, _) = listener.accept().unwrap();
+            let connection = ServerConnection::new(Arc::new(server_config)).unwrap();
+            let mut stream = StreamOwned::new(connection, socket);
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).unwrap();
+            let request = std::str::from_utf8(&request[..read]).unwrap();
+            assert!(request.starts_with("GET /health HTTP/1.1\r\n"));
+            assert!(request.contains(&format!("Host: localhost:{}\r\n", address.port())));
+            assert!(request.contains("X-Gewyvern-Admin-Token: test-token\r\n"));
+            serve_json(&mut stream, br#"{"ok":true,"has_snapshot":false}"#);
+            stream.conn.send_close_notify();
+            stream.flush().unwrap();
+        });
+        let key = SecretKey::new("runtime-a-admin").unwrap();
+        let secrets = Arc::new(
+            ConfiguredSecretStore::new([(key.clone(), SecretValue::new("test-token").unwrap())])
+                .unwrap(),
+        );
+        let target = GewyvernTarget::https(
+            &format!("https://localhost:{}", address.port()),
+            &ca_path,
+            key,
+        )
+        .unwrap();
+        let mut adapter =
+            GewyvernHealthAdapter::with_secret_store([("runtime-a".to_string(), target)], secrets)
+                .unwrap();
+        let result = adapter.execute(br#"{"runtime_id":"runtime-a"}"#);
+        assert!(matches!(result, EffectExecution::Complete(_)), "{result:?}");
+        server.join().unwrap();
+        fs::remove_file(ca_path).unwrap();
+    }
+
+    #[test]
+    fn response_parser_rejects_ambiguous_framing_and_non_json() {
+        let body = br#"{"ok":true}"#;
+        let valid = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        let mut valid = [valid, body.to_vec()].concat();
+        let response = read_json_response(&mut Cursor::new(&valid)).unwrap();
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, body);
+
+        valid.extend_from_slice(b"x");
+        assert!(read_json_response(&mut Cursor::new(&valid)).is_err());
+        for response in [
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\n{}".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\n{}".as_slice(),
+        ] {
+            assert!(read_json_response(&mut Cursor::new(response)).is_err());
+        }
+    }
+
+    #[test]
+    fn https_target_rejects_non_https_origins_and_invalid_ca_files() {
+        let key = SecretKey::new("runtime-a-admin").unwrap();
+        for origin in [
+            "http://localhost",
+            "https://localhost/path",
+            "https://user@localhost",
+            "https://localhost:0",
+        ] {
+            assert!(GewyvernTarget::https(origin, "/missing", key.clone()).is_err());
+        }
+        let empty_ca = temp_path("empty-ca");
+        fs::write(&empty_ca, []).unwrap();
+        assert!(GewyvernTarget::https("https://localhost", &empty_ca, key).is_err());
+        fs::remove_file(empty_ca).unwrap();
     }
 
     #[test]

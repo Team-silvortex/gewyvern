@@ -342,7 +342,7 @@
       "id": "boundary-leserpent-adapters",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
-      "summary": "The planned leserpent-adapters crate owns capability-gated external integrations.",
+      "summary": "The leserpent-adapters crate owns capability-gated external integrations and authenticated Gewyvern transports.",
       "source": "docs/leserpent-2-architecture.md",
       "cells": ["leserpent-2/effect-adapters/typed-integrations"]
     },
@@ -976,31 +976,32 @@
       "feature": "typed-integrations",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 50,
+      "completion": 76,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-adapter-contract",
-        "version": "0.5.0",
+        "version": "0.9.0",
         "stability": "evolving",
-        "surfaces": ["typed-adapter-trait", "adapter-registry", "cloneable-kind-handles", "same-kind-mutex", "cooperative-cancellation-context", "unknown-kind-rejection", "gewyvern-loopback-health", "gewyvern-typed-status-refresh", "bounded-http-response", "configured-secret-boundary", "typed-secret-store", "validated-secret-alias", "redacted-secret-value", "zeroized-secret-lifetime", "zeroized-authorization-request-buffer", "allowlisted-environment-secret-provider", "just-in-time-secret-resolution", "pre-network-secret-failure", "revision-bound-status-observation", "scheduler-daemon-adapter-vertical", "storage", "deployment", "discovery", "secret-store"]
+        "surfaces": ["typed-adapter-trait", "adapter-registry", "cloneable-kind-handles", "same-kind-mutex", "cooperative-cancellation-context", "unknown-kind-rejection", "gewyvern-loopback-health", "gewyvern-typed-status-refresh", "gewyvern-authenticated-https", "explicit-ca-trust", "rustls-hostname-verification", "strict-http-json-framing", "bounded-http-response", "typed-authenticated-deployment", "deployment-confirmation", "fixed-deployment-endpoint", "deployment-idempotency-binding", "deployment-status-classification", "deployment-scheduler-vertical", "configured-secret-boundary", "typed-secret-store", "validated-secret-alias", "redacted-secret-value", "zeroized-secret-lifetime", "zeroized-authorization-request-buffer", "allowlisted-environment-secret-provider", "native-macos-keychain-provider", "security-framework-ffi", "clean-keychain-miss", "native-linux-secret-service-provider", "runtime-libsecret-loading", "bounded-libsecret-value", "dbus-clean-secret-miss", "physical-ubuntu-secret-service-proof", "explicit-daemon-platform-secret-selection", "no-platform-environment-fallback", "just-in-time-secret-resolution", "pre-network-secret-failure", "revision-bound-status-observation", "scheduler-daemon-adapter-vertical", "storage", "deployment", "discovery", "secret-store"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/control-runtime/durable-authority"],
       "blockers": [
         {
           "id": "adapter-breadth",
-          "summary": "The shared adapter crate, bounded Gewyvern adapters, and provider-neutral secret-store contract exist; native Keychain/Secret Service providers, deployment, discovery, and TLS remote adapters remain."
+          "summary": "The shared adapter crate, bounded local and authenticated TLS Gewyvern health/status/deployment adapters, and native macOS Keychain plus Linux Secret Service providers exist; discovery remains."
         }
       ],
       "consumers": ["leserpent-runtime", "leserpentd"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-adapters/src/deployment.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters/src/secret.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-adapters/src/gewyvern.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Gate 5: implement native Keychain and Secret Service providers behind SecretStore, then design authenticated remote TLS targets without weakening loopback defaults."
+      "next_gate": "Gate 5: add bounded capability discovery for explicitly configured targets without introducing ambient network scanning."
     },
     {
       "id": "leserpent-2/daemon-host/daemon-lifecycle",

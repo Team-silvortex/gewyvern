@@ -5,17 +5,22 @@ use std::time::Duration;
 
 use leserpent_runtime::{EffectExecution, EffectExecutor, EffectLease};
 
+mod deployment;
 mod gewyvern;
 mod secret;
 
+pub use deployment::{
+    GEWYVERN_DEPLOYMENT_EFFECT_KIND, GewyvernDeploymentAdapter, GewyvernDeploymentRequest,
+    GewyvernDeploymentResponse,
+};
 pub use gewyvern::{
     GEWYVERN_HEALTH_EFFECT_KIND, GEWYVERN_STATUS_REFRESH_EFFECT_KIND, GewyvernHealthAdapter,
     GewyvernStatusObservation, GewyvernStatusRefreshAdapter, GewyvernStatusRefreshRequest,
     GewyvernTarget,
 };
 pub use secret::{
-    ConfiguredSecretStore, EmptySecretStore, EnvironmentSecretStore, MAX_SECRET_BYTES, SecretKey,
-    SecretStore, SecretStoreError, SecretValue,
+    ConfiguredSecretStore, EmptySecretStore, EnvironmentSecretStore, MAX_SECRET_BYTES,
+    PlatformSecretStore, SecretKey, SecretStore, SecretStoreError, SecretValue,
 };
 
 pub trait EffectAdapter: Send {
