@@ -7,6 +7,14 @@ fn repository_root() -> PathBuf {
 #[test]
 fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     let root = repository_root();
+    assert!(
+        root.join("crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs")
+            .is_file()
+    );
+    let ignore = std::fs::read_to_string(root.join(".gitignore")).unwrap();
+    assert!(ignore.contains("!**/src/bin/"));
+    assert!(ignore.contains("!**/src/bin/*.rs"));
+
     let project =
         std::fs::read_to_string(root.join("apps/leserpent/src/Leserpent/Leserpent.csproj"))
             .unwrap();

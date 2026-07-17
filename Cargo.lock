@@ -356,6 +356,7 @@ name = "leselang-syntax"
 version = "1.2.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -413,6 +414,7 @@ dependencies = [
  "rustls-pemfile",
  "serde",
  "serde_json",
+ "zeroize",
 ]
 
 [[package]]
@@ -420,6 +422,7 @@ name = "leserpent-domain"
 version = "1.2.0"
 dependencies = [
  "serde",
+ "serde_json",
 ]
 
 [[package]]

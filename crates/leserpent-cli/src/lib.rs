@@ -12,7 +12,7 @@ use leselang_syntax::{format as format_leselang, parse as parse_leselang};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
     CommandId, CommandOrigin, CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult,
-    Revision, RuntimeId, RuntimeListFilter,
+    Revision, RuntimeId, RuntimeListFilter, validate_deployment_intent,
 };
 use leserpent_protocol::{
     HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope,
@@ -879,6 +879,7 @@ pub fn send_request(
 
     use leserpent_protocol::{MAX_PROTOCOL_MESSAGE_BYTES, decode_response};
     use serde::Serialize;
+    use zeroize::Zeroizing;
 
     #[derive(Serialize)]
     struct AuthenticatedRequest<'a> {
@@ -913,8 +914,10 @@ pub fn send_request(
     stream
         .set_write_timeout(Some(Duration::from_secs(3)))
         .map_err(|error| CliError::Transport(error.to_string()))?;
-    let mut encoded = serde_json::to_vec(&AuthenticatedRequest { token, request })
-        .map_err(|error| CliError::Protocol(error.to_string()))?;
+    let mut encoded = Zeroizing::new(
+        serde_json::to_vec(&AuthenticatedRequest { token, request })
+            .map_err(|error| CliError::Protocol(error.to_string()))?,
+    );
     if encoded.len() > MAX_PROTOCOL_MESSAGE_BYTES + 1024 {
         return Err(CliError::Protocol(
             "authenticated request is too large".into(),
@@ -1127,18 +1130,12 @@ fn parse_runtime_deploy(
                 let value = arguments
                     .next()
                     .ok_or_else(|| CliError::Usage("--pipeline-kind requires a value".into()))?;
-                if !valid_deployment_token(&value) {
-                    return Err(CliError::Usage("invalid --pipeline-kind".into()));
-                }
                 pipeline_kind = Some(value);
             }
             "--target" if !target_seen => {
                 let value = arguments
                     .next()
                     .ok_or_else(|| CliError::Usage("--target requires a value".into()))?;
-                if !valid_deployment_target(&value) {
-                    return Err(CliError::Usage("invalid --target".into()));
-                }
                 target = Some(value);
                 target_seen = true;
             }
@@ -1184,6 +1181,13 @@ fn parse_runtime_deploy(
     }
     let pipeline_kind = pipeline_kind
         .ok_or_else(|| CliError::Usage("runtime deploy requires --pipeline-kind".into()))?;
+    validate_deployment_intent(&pipeline_kind, target.as_deref()).map_err(|error| {
+        let field = match error {
+            leserpent_domain::DomainError::InvalidIdentifier { field } => field,
+            _ => "deployment intent",
+        };
+        CliError::Usage(format!("invalid --{}", field.replace('_', "-")))
+    })?;
     if export_leselang
         && (export_plan
             || dry_run
@@ -1306,22 +1310,6 @@ fn valid_identifier(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'))
-}
-
-fn valid_deployment_token(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value == value.trim()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-'))
-}
-
-fn valid_deployment_target(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 256
-        && value == value.trim()
-        && !value.chars().any(char::is_control)
 }
 
 fn new_request_id() -> String {

@@ -195,11 +195,6 @@ fn temp_work_dir(prefix: &str) -> Result<PathBuf, LinuxEbpfSmokeError> {
 }
 
 fn repo_root() -> PathBuf {
-    if let Ok(current_dir) = std::env::current_dir()
-        && current_dir.join("ebpf").join("smoke").is_dir()
-    {
-        return current_dir;
-    }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
@@ -443,9 +438,15 @@ mod tests {
     use std::process::{ExitStatus, Output};
 
     use super::{
-        LinuxEbpfSmokeError, finalize_run_result, render_command, run_tc_attach_commands_with,
-        temp_work_dir, validate_netdev_name, validate_symbol_name, validate_tracepoint_name,
+        LinuxEbpfSmokeError, finalize_run_result, render_command, repo_root,
+        run_tc_attach_commands_with, temp_work_dir, validate_netdev_name, validate_symbol_name,
+        validate_tracepoint_name,
     };
+
+    #[test]
+    fn smoke_sources_are_pinned_to_the_build_workspace() {
+        assert_eq!(repo_root(), Path::new(env!("CARGO_MANIFEST_DIR")));
+    }
 
     #[cfg(unix)]
     fn successful_output(stdout: &str) -> Output {

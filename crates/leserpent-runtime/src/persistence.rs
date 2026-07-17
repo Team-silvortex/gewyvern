@@ -1480,7 +1480,11 @@ fn validate_snapshot_blob(bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-fn snapshot_checksum(schema_version: u32, through_sequence: i64, bytes: &[u8]) -> String {
+pub(crate) fn snapshot_checksum(
+    schema_version: u32,
+    through_sequence: i64,
+    bytes: &[u8],
+) -> String {
     let hash = schema_version
         .to_le_bytes()
         .into_iter()

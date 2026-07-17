@@ -17,6 +17,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly CancellationTokenSource lifetime = new();
     private readonly string principal;
     private RemoteFeedState currentState;
+    private bool isClosed;
     private bool mutationInFlight;
     private MutationObservationFence? mutationObservationFence;
     private MutationRevisionFence? mutationRevisionFence;
@@ -368,7 +369,13 @@ internal sealed class RemoteMainWindow : Window
     }
 
     private void OnStateChanged(RemoteFeedState state) =>
-        Dispatcher.UIThread.Post(() => ApplyState(state));
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!isClosed)
+            {
+                ApplyState(state);
+            }
+        });
 
     private void ApplyState(RemoteFeedState state)
     {
@@ -484,9 +491,11 @@ internal sealed class RemoteMainWindow : Window
             $"Showing {projection.VisibleRuntimeCount} of {projection.TotalRuntimeCount} remote runtimes");
     }
 
-    private async void RequestReconnect()
+    private void RequestReconnect() => ObserveUiOperation(RequestReconnectAsync());
+
+    private async Task RequestReconnectAsync()
     {
-        if (!reconnectButton.IsEnabled || lifetime.IsCancellationRequested)
+        if (!reconnectButton.IsEnabled || isClosed)
         {
             return;
         }
@@ -510,8 +519,15 @@ internal sealed class RemoteMainWindow : Window
         }
     }
 
-    private async void OnActionInvoked(string nodeId)
+    private void OnActionInvoked(string nodeId) =>
+        ObserveUiOperation(OnActionInvokedAsync(nodeId));
+
+    private async Task OnActionInvokedAsync(string nodeId)
     {
+        if (isClosed)
+        {
+            return;
+        }
         var inspectedRuntime = currentState.Runtimes.FirstOrDefault(candidate =>
             nodeId == $"runtime:{candidate.Id}:inspect");
         if (inspectedRuntime is not null)
@@ -1004,10 +1020,16 @@ internal sealed class RemoteMainWindow : Window
         workspace.Show(this);
     }
 
-    private async void OnClosed(object? sender, EventArgs eventArgs)
+    private void OnClosed(object? sender, EventArgs eventArgs)
     {
         _ = sender;
         _ = eventArgs;
+        if (isClosed)
+        {
+            return;
+        }
+        isClosed = true;
+        eventClient.StateChanged -= OnStateChanged;
         lifetime.Cancel();
         runtimeFilterTimer.Stop();
         foreach (var workspace in workspaceWindows.Values.ToArray())
@@ -1015,8 +1037,43 @@ internal sealed class RemoteMainWindow : Window
             workspace.Close();
         }
         mutationClient.Dispose();
-        await eventClient.DisposeAsync();
-        lifetime.Dispose();
+        ObserveShutdown(eventClient.DisposeAsync());
+    }
+
+    private async void ObserveUiOperation(Task operation)
+    {
+        try
+        {
+            await operation;
+        }
+        catch (Exception error) when (!isClosed)
+        {
+            mutationInFlight = false;
+            UpdateMutationAvailability();
+            SetMutationStatus(
+                $"Remote operation failed safely: {SafeDisplay(error.Message)}",
+                LeserpentTheme.Destructive);
+        }
+        catch (Exception) when (isClosed)
+        {
+            // Closing the window invalidates dialogs, controls, and clients together.
+        }
+    }
+
+    private async void ObserveShutdown(ValueTask shutdown)
+    {
+        try
+        {
+            await shutdown;
+        }
+        catch (Exception)
+        {
+            // Shutdown is best-effort after cancellation and client disposal.
+        }
+        finally
+        {
+            lifetime.Dispose();
+        }
     }
 
     private void SetMutationStatus(string text, IBrush foreground)

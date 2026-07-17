@@ -10,6 +10,7 @@ use leserpent_domain::{
     DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query,
     QueryEnvelope, QueryResult, Revision, RuntimeId, RuntimeLogRecord, RuntimeProjection,
 };
+use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 
 mod journal;
@@ -46,6 +47,7 @@ pub const MAX_STRUCTURED_VALUE_DEPTH: usize = 16;
 pub struct ContinuationToken(String);
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ContinuationImage {
     pub schema_version: u32,
     pub token: ContinuationToken,
@@ -61,6 +63,7 @@ pub struct ContinuationImage {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResourceBudget {
     pub fuel_remaining: u64,
     pub deadline_ms: u64,
@@ -93,22 +96,30 @@ pub enum EffectResult {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CurrentEffectRequestWire {
+    effect_id: String,
+    required_capability: String,
+    operation: EffectOperation,
+    continuation: ContinuationImage,
+    budget: ResourceBudget,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyQueryEffectRequestWire {
+    effect_id: String,
+    required_capability: String,
+    query: QueryEnvelope,
+    continuation: ContinuationImage,
+    budget: ResourceBudget,
+}
+
+#[derive(Deserialize)]
 #[serde(untagged)]
 enum EffectRequestWire {
-    Current {
-        effect_id: String,
-        required_capability: String,
-        operation: EffectOperation,
-        continuation: ContinuationImage,
-        budget: ResourceBudget,
-    },
-    LegacyQuery {
-        effect_id: String,
-        required_capability: String,
-        query: QueryEnvelope,
-        continuation: ContinuationImage,
-        budget: ResourceBudget,
-    },
+    Current(CurrentEffectRequestWire),
+    LegacyQuery(LegacyQueryEffectRequestWire),
 }
 
 impl<'de> Deserialize<'de> for EffectRequest {
@@ -117,34 +128,37 @@ impl<'de> Deserialize<'de> for EffectRequest {
         D: Deserializer<'de>,
     {
         let wire = EffectRequestWire::deserialize(deserializer)?;
-        Ok(match wire {
-            EffectRequestWire::Current {
+        let request = match wire {
+            EffectRequestWire::Current(CurrentEffectRequestWire {
                 effect_id,
                 required_capability,
                 operation,
                 continuation,
                 budget,
-            } => Self {
+            }) => Self {
                 effect_id,
                 required_capability,
                 operation,
                 continuation,
                 budget,
             },
-            EffectRequestWire::LegacyQuery {
+            EffectRequestWire::LegacyQuery(LegacyQueryEffectRequestWire {
                 effect_id,
                 required_capability,
                 query,
                 continuation,
                 budget,
-            } => Self {
+            }) => Self {
                 effect_id,
                 required_capability,
                 operation: EffectOperation::Query(query),
                 continuation,
                 budget,
             },
-        })
+        };
+        validate_effect_request(&request)
+            .map_err(|fault| D::Error::custom(format!("{}: {}", fault.code, fault.message)))?;
+        Ok(request)
     }
 }
 
@@ -1091,6 +1105,33 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         return Err(Fault {
             code: "LSV2006".to_string(),
             message: "invalid continuation token".to_string(),
+        });
+    }
+    if image.program_counter != 1 {
+        return Err(Fault {
+            code: "LSV2014".to_string(),
+            message: "continuation program counter is unsupported".to_string(),
+        });
+    }
+    let expected_type = match &image.pending_effect {
+        Effect::RuntimeList { .. } => Type::RuntimeList,
+        Effect::RuntimeInspect { .. } => Type::RuntimeInspect,
+        Effect::RuntimeHistory { .. } => Type::RuntimeHistory,
+        Effect::RuntimeLogs { .. } => Type::RuntimeLogs,
+        Effect::RuntimeRefresh { .. } => Type::RuntimeRefresh,
+        Effect::RuntimeCapabilitiesRefresh { .. } => Type::RuntimeCapabilitiesRefresh,
+        Effect::RuntimeDeploy { .. } => Type::RuntimeDeploy,
+        Effect::All { .. } => {
+            return Err(Fault {
+                code: "LSV2015".to_string(),
+                message: "structured all cannot be restored as a single continuation".to_string(),
+            });
+        }
+    };
+    if image.result_type != expected_type {
+        return Err(Fault {
+            code: "LSV2016".to_string(),
+            message: "continuation result type does not match its pending effect".to_string(),
         });
     }
     if image.fuel_remaining > MAX_EXECUTION_FUEL {
@@ -3191,6 +3232,68 @@ mod tests {
             encode_continuation(&forged_budget).unwrap_err().code,
             "LSV2009"
         );
+    }
+
+    #[test]
+    fn continuation_decode_rejects_ambiguous_or_incoherent_state() {
+        let mut vm = Vm::default();
+        let valid = start(&mut vm, None).continuation;
+
+        let mut unknown_root = serde_json::to_value(&valid).unwrap();
+        unknown_root["future_field"] = serde_json::json!(true);
+        assert_eq!(
+            decode_continuation(&serde_json::to_vec(&unknown_root).unwrap())
+                .unwrap_err()
+                .code,
+            "LSV3003"
+        );
+
+        let mut unknown_effect = serde_json::to_value(&valid).unwrap();
+        unknown_effect["pending_effect"]["future_field"] = serde_json::json!(true);
+        assert_eq!(
+            decode_continuation(&serde_json::to_vec(&unknown_effect).unwrap())
+                .unwrap_err()
+                .code,
+            "LSV3003"
+        );
+
+        let mut unsupported_pc = valid.clone();
+        unsupported_pc.program_counter = 2;
+        assert_eq!(
+            encode_continuation(&unsupported_pc).unwrap_err().code,
+            "LSV2014"
+        );
+
+        let mut mismatched_type = valid.clone();
+        mismatched_type.result_type = Type::RuntimeInspect;
+        assert_eq!(
+            encode_continuation(&mismatched_type).unwrap_err().code,
+            "LSV2016"
+        );
+
+        let mut structured = valid;
+        structured.pending_effect = Effect::All {
+            branches: Vec::new(),
+        };
+        structured.result_type = Type::Structured;
+        assert_eq!(
+            encode_continuation(&structured).unwrap_err().code,
+            "LSV2015"
+        );
+    }
+
+    #[test]
+    fn effect_request_decode_is_strict_and_semantically_validated() {
+        let mut vm = Vm::default();
+        let request = start(&mut vm, None);
+
+        let mut unknown = serde_json::to_value(&request).unwrap();
+        unknown["future_field"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<EffectRequest>(unknown).is_err());
+
+        let mut incoherent = serde_json::to_value(&request).unwrap();
+        incoherent["budget"]["fuel_remaining"] = serde_json::json!(0);
+        assert!(serde_json::from_value::<EffectRequest>(incoherent).is_err());
     }
 
     #[test]

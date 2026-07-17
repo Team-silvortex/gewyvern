@@ -296,32 +296,6 @@ fn split_top_level_with_columns(
 
 #[cfg(test)]
 mod tests {
-    use super::legacy::{parse_reason_rule, parse_rule};
-
-    #[test]
-    fn parse_rule_reanchors_invalid_stage_column() {
-        let input = "process_bound;not_a_stage;static:test;true";
-        let err = parse_rule(input).expect_err("invalid stage");
-        assert_eq!(err.column(), Some(input.find("not_a_stage").unwrap() + 1));
-    }
-
-    #[test]
-    fn parse_rule_reanchors_composite_predicate_child_column() {
-        let input = "all(process_bound, packet_observed:tcp:remote:mysql:byte_at:not_u16:255:1);connect_flow;static:test;true";
-        let err = parse_rule(input).expect_err("invalid composite predicate child");
-        assert_eq!(err.column(), Some(input.find("byte_at").unwrap() + 1));
-    }
-
-    #[test]
-    fn parse_reason_rule_reanchors_invalid_key_event_column() {
-        let input = "process_bound;not_a_reason_event;static:test;true";
-        let err = parse_reason_rule(input).expect_err("invalid reason key event");
-        assert_eq!(
-            err.column(),
-            Some(input.find("not_a_reason_event").unwrap() + 1)
-        );
-    }
-
     #[test]
     fn strip_comments_keeps_string_hashes_and_newlines() {
         let input = "template(:demo) # tail\n|> include(\"./a#b.gewy\")\n/* block\ncomment */\n";

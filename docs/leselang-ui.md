@@ -4,7 +4,12 @@ This document defines the implemented renderer-neutral Gate 4 UI boundary in
 `crates/leselang-ui`. Avalonia, web, mobile, persistence, transport, and adapter
 types are deliberately outside this contract.
 
-Status: **Gate 4 renderer-neutral slice complete, evolving contract 0.19.0**.
+Status: **Gate 4 renderer-neutral slice complete, stable contract 1.0.0**.
+
+Patch decoding rejects unknown operation/action fields, malformed referenced
+node identifiers, and unsafe embedded node/form metadata before a renderer may
+queue the patch. Document-dependent parent binding and graph edits remain
+transactionally validated by `apply_patch` against the current revision.
 
 ## Pure Flow
 

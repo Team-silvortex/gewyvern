@@ -7,20 +7,27 @@ use crate::dsl::{
         pipeline_declared_params_message, pipeline_unknown_placeholder_message,
     },
     function_types::{format_pipeline_function_signature, validate_pipeline_param_value_kind},
-    legacy::{self, LegacyAssignment},
+    legacy::{self, CanonicalAssignment, CanonicalAssignmentValue},
+    predicate::{parse_narrative_template, parse_reason_narrative},
 };
+use crate::fragment::EvidenceTier;
+use crate::ledger::FactKindTag;
+use crate::program::ProgramRule;
+use crate::reason::{ReasonProfile, ReasonRule};
+use crate::template::FragmentParamValue;
 use std::collections::BTreeMap;
 
 pub(crate) fn lower_pipeline_module_to_assignments(
     module: &PipelineModule,
     allow_template_head: bool,
-) -> Result<Vec<LegacyAssignment>, DslError> {
+) -> Result<Vec<CanonicalAssignment>, DslError> {
     let mut output = Vec::new();
     if let Some(template) = &module.template {
-        output.push(LegacyAssignment::new(
-            "template",
-            parse_pipeline_single_arg(&template.args, "template")
-                .map_err(|err| err.at_line(template.line_no))?,
+        output.push(CanonicalAssignment::new(
+            CanonicalAssignmentValue::Template(
+                parse_pipeline_single_arg(&template.args, "template")
+                    .map_err(|err| err.at_line(template.line_no))?,
+            ),
             template.line_no,
         ));
     } else if allow_template_head {
@@ -44,7 +51,7 @@ pub(crate) fn lower_pipeline_module_to_assignments(
 fn lower_pipeline_calls(
     calls: &[PipelineCall],
     module: &PipelineModule,
-    output: &mut Vec<LegacyAssignment>,
+    output: &mut Vec<CanonicalAssignment>,
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
@@ -67,7 +74,7 @@ fn lower_pipeline_calls(
 fn lower_pipeline_call(
     call: &PipelineCall,
     module: &PipelineModule,
-    output: &mut Vec<LegacyAssignment>,
+    output: &mut Vec<CanonicalAssignment>,
     allow_template_head: bool,
     use_stack: &mut Vec<String>,
     bindings: &BTreeMap<String, String>,
@@ -90,10 +97,11 @@ fn lower_pipeline_call(
                 )
                 .at_line(line_no));
             }
-            output.push(LegacyAssignment::new(
-                "template",
-                parse_pipeline_single_arg(&resolved_args, "template")
-                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            output.push(CanonicalAssignment::new(
+                CanonicalAssignmentValue::Template(
+                    parse_pipeline_single_arg(&resolved_args, "template")
+                        .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+                ),
                 line_no,
             ));
         }
@@ -153,58 +161,68 @@ fn lower_pipeline_call(
             output,
         )
         .map_err(|err| err.at_line(line_no))?,
-        "reason" => output.push(LegacyAssignment::new(
-            "reason",
-            parse_pipeline_single_arg(&resolved_args, "reason")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+        "reason" => {
+            let id = parse_pipeline_single_arg(&resolved_args, "reason")
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+            let profile = ReasonProfile::from_id(&id).ok_or_else(|| {
+                DslError::InvalidValue(format!("unknown reason profile '{id}'")).at_line(line_no)
+            })?;
+            output.push(CanonicalAssignment::new(
+                CanonicalAssignmentValue::Reason(profile),
+                line_no,
+            ));
+        }
+        "reason_model" => output.push(CanonicalAssignment::new(
+            CanonicalAssignmentValue::ReasonModel(
+                parse_pipeline_single_arg(&resolved_args, "reason_model")
+                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            ),
             line_no,
         )),
-        "reason_model" => output.push(LegacyAssignment::new(
-            "reason_model",
-            parse_pipeline_single_arg(&resolved_args, "reason_model")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+        "fragment" => output.push(CanonicalAssignment::new(
+            CanonicalAssignmentValue::Fragment(
+                parse_pipeline_single_arg(&resolved_args, "fragment")
+                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            ),
             line_no,
         )),
-        "fragment" => output.push(LegacyAssignment::new(
-            "fragment",
-            parse_pipeline_single_arg(&resolved_args, "fragment")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+        "program_model" => output.push(CanonicalAssignment::new(
+            CanonicalAssignmentValue::ProgramModel(
+                parse_pipeline_single_arg(&resolved_args, "program_model")
+                    .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
+            ),
             line_no,
         )),
-        "program_model" => output.push(LegacyAssignment::new(
-            "program_model",
-            parse_pipeline_single_arg(&resolved_args, "program_model")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
-            line_no,
-        )),
-        "operation" => output.push(LegacyAssignment::new(
-            "operation",
-            parse_pipeline_single_arg(&resolved_args, "operation")
-                .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
-            line_no,
-        )),
-        "param" => output.push(LegacyAssignment::new(
-            "param",
+        "operation" => {
+            let value = parse_pipeline_single_arg(&resolved_args, "operation")
+                .map_err(|err| err.reanchor_line_column(line_no, column_no))?;
+            output.push(CanonicalAssignment::new(
+                CanonicalAssignmentValue::Operation(legacy::parse_operation(&value)),
+                line_no,
+            ));
+        }
+        "param" => output.push(CanonicalAssignment::new(
             lower_pipeline_param(&resolved_args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             line_no,
         )),
-        "evidence" => output.push(LegacyAssignment::new(
-            "evidence",
+        "evidence" => output.push(CanonicalAssignment::new(
             lower_pipeline_evidence(&resolved_args)
                 .map_err(|err| err.reanchor_line_column(line_no, column_no))?,
             line_no,
         )),
-        "program_rule" => output.push(LegacyAssignment::new(
-            "rule",
-            lower_pipeline_rule(&resolved_args, &call.arg_columns, column_no, false)
-                .map_err(|err| err.at_line(line_no))?,
+        "program_rule" => output.push(CanonicalAssignment::new(
+            CanonicalAssignmentValue::ProgramRule(
+                lower_pipeline_program_rule(&resolved_args, &call.arg_columns, column_no)
+                    .map_err(|err| err.at_line(line_no))?,
+            ),
             line_no,
         )),
-        "reason_rule" => output.push(LegacyAssignment::new(
-            "reason.rule",
-            lower_pipeline_rule(&resolved_args, &call.arg_columns, column_no, true)
-                .map_err(|err| err.at_line(line_no))?,
+        "reason_rule" => output.push(CanonicalAssignment::new(
+            CanonicalAssignmentValue::ReasonRule(
+                lower_pipeline_reason_rule(&resolved_args, &call.arg_columns, column_no)
+                    .map_err(|err| err.at_line(line_no))?,
+            ),
             line_no,
         )),
         other => {
@@ -596,12 +614,15 @@ pub(crate) fn lower_pipeline_window(
     arg_columns: &[usize],
     call_column: usize,
     line_no: usize,
-    output: &mut Vec<LegacyAssignment>,
+    output: &mut Vec<CanonicalAssignment>,
 ) -> Result<(), DslError> {
     if args.len() == 1 && !looks_like_pipeline_keyword_arg(&args[0]) {
-        output.push(LegacyAssignment::new(
-            "window",
-            parse_pipeline_literal(&args[0]),
+        let id = parse_pipeline_literal(&args[0]);
+        output.push(CanonicalAssignment::new(
+            CanonicalAssignmentValue::Window(
+                legacy::parse_window_profile(&id)
+                    .map_err(|err| err.at_line_column(0, Some(call_column)))?,
+            ),
             line_no,
         ));
         return Ok(());
@@ -613,95 +634,153 @@ pub(crate) fn lower_pipeline_window(
     let lateness_ms = keywords
         .get("lateness_ms")
         .ok_or(DslError::MissingField("lateness_ms").at_line_column(0, Some(call_column)))?;
-    output.push(LegacyAssignment::new(
-        "window.duration_ms",
-        duration_ms.value.clone(),
+    output.push(CanonicalAssignment::new(
+        CanonicalAssignmentValue::WindowDuration(parse_pipeline_u64(duration_ms, "duration_ms")?),
         line_no,
     ));
-    output.push(LegacyAssignment::new(
-        "window.lateness_ms",
-        lateness_ms.value.clone(),
+    output.push(CanonicalAssignment::new(
+        CanonicalAssignmentValue::WindowLateness(parse_pipeline_u64(lateness_ms, "lateness_ms")?),
         line_no,
     ));
     Ok(())
 }
 
-pub(crate) fn lower_pipeline_param(args: &[String]) -> Result<String, DslError> {
+fn parse_pipeline_u64(arg: &PipelineKeywordArg, field: &str) -> Result<u64, DslError> {
+    arg.value.parse::<u64>().map_err(|_| {
+        DslError::InvalidValue(format!("invalid u64 for '{field}': '{}'", arg.value))
+            .at_line_column(0, Some(arg.value_column))
+    })
+}
+
+pub(crate) fn lower_pipeline_param(args: &[String]) -> Result<CanonicalAssignmentValue, DslError> {
     if args.len() != 2 {
         return Err(DslError::InvalidValue(
             "pipeline step 'param' expects target and value".into(),
         )
         .at_line_column(0, Some(1)));
     }
-    Ok(format!(
-        "{}={}",
-        parse_pipeline_literal(&args[0]),
-        parse_pipeline_literal(&args[1])
-    ))
+    let target = parse_pipeline_literal(&args[0]);
+    let (fragment_id, key) = target
+        .split_once('.')
+        .ok_or_else(|| DslError::InvalidValue(format!("invalid param target '{target}'")))?;
+    let value = parse_pipeline_literal(&args[1]);
+    let value = if matches!(value.as_str(), "true" | "false") {
+        FragmentParamValue::Bool(crate::dsl::parse_bool(&value)?)
+    } else if let Ok(value) = value.parse::<u64>() {
+        FragmentParamValue::U64(value)
+    } else {
+        FragmentParamValue::String(value)
+    };
+    Ok(CanonicalAssignmentValue::FragmentParam {
+        fragment_id: fragment_id.trim().to_string(),
+        key: key.trim().to_string(),
+        value,
+    })
 }
 
-pub(crate) fn lower_pipeline_evidence(args: &[String]) -> Result<String, DslError> {
+pub(crate) fn lower_pipeline_evidence(
+    args: &[String],
+) -> Result<CanonicalAssignmentValue, DslError> {
     if args.len() != 2 {
         return Err(DslError::InvalidValue(
             "pipeline step 'evidence' expects fact kind and tier".into(),
         )
         .at_line_column(0, Some(1)));
     }
-    Ok(format!(
-        "{}:{}",
-        parse_pipeline_literal(&args[0]),
-        parse_pipeline_literal(&args[1])
-    ))
+    let fact_kind_id = parse_pipeline_literal(&args[0]);
+    let fact_kind = FactKindTag::from_str(&fact_kind_id).ok_or_else(|| {
+        DslError::InvalidValue(format!("unknown evidence fact kind '{fact_kind_id}'"))
+    })?;
+    let tier_id = parse_pipeline_literal(&args[1]);
+    let tier = match tier_id.as_str() {
+        "core_requirement" => EvidenceTier::CoreRequirement,
+        "optional_enhancement" => EvidenceTier::OptionalEnhancement,
+        other => {
+            return Err(DslError::InvalidValue(format!(
+                "unknown evidence tier '{other}'"
+            )));
+        }
+    };
+    Ok(CanonicalAssignmentValue::EvidenceOverride { fact_kind, tier })
 }
 
-pub(crate) fn lower_pipeline_rule(
+pub(crate) fn lower_pipeline_program_rule(
     args: &[String],
     arg_columns: &[usize],
     call_column: usize,
-    reason_rule: bool,
-) -> Result<String, DslError> {
-    let keywords = normalize_pipeline_rule_args(args, arg_columns, reason_rule, call_column)?;
+) -> Result<ProgramRule, DslError> {
+    let keywords = normalize_pipeline_rule_args(args, arg_columns, false, call_column)?;
     let predicate = keywords
         .get("predicate")
         .ok_or(DslError::MissingField("predicate").at_line_column(0, Some(call_column)))?;
-    let signal_key = if reason_rule { "key_event" } else { "stage" };
     let signal = keywords
-        .get(signal_key)
-        .ok_or(DslError::MissingField(signal_key).at_line_column(0, Some(call_column)))?;
+        .get("stage")
+        .ok_or(DslError::MissingField("stage").at_line_column(0, Some(call_column)))?;
     let narrative = keywords
         .get("narrative")
         .ok_or(DslError::MissingField("narrative").at_line_column(0, Some(call_column)))?;
     let dedupe = keywords
         .get("dedupe")
         .ok_or(DslError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
-    crate::dsl::parse_flow_predicate(&predicate.value)
-        .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?;
-    if reason_rule {
-        crate::dsl::parse_reason_key_event(&signal.value)
-            .map_err(|err| err.reanchor_line_column(0, signal.value_column))?;
-    } else {
-        legacy::parse_stage(&signal.value)
-            .map_err(|err| err.reanchor_line_column(0, signal.value_column))?;
-    }
-    crate::dsl::parse_bool(&dedupe.value)
-        .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?;
-    let mut value = format!(
-        "{};{};{};{}",
-        predicate.value, signal.value, narrative.value, dedupe.value
-    );
-    if let Some(module) = keywords.get("module") {
-        value.push(';');
-        value.push_str(&module.value);
-        if let Some(phase) = keywords.get("phase") {
-            value.push(';');
-            value.push_str(&phase.value);
-        }
-    } else if let Some(phase) = keywords.get("phase") {
+    let (module, phase) = lower_rule_scope(&keywords)?;
+    Ok(ProgramRule {
+        predicate: crate::dsl::parse_flow_predicate(&predicate.value)
+            .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?,
+        signal: legacy::parse_stage(&signal.value)
+            .map_err(|err| err.reanchor_line_column(0, signal.value_column))?,
+        narrative: parse_narrative_template(&narrative.value),
+        dedupe: crate::dsl::parse_bool(&dedupe.value)
+            .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?,
+        module,
+        phase,
+    })
+}
+
+pub(crate) fn lower_pipeline_reason_rule(
+    args: &[String],
+    arg_columns: &[usize],
+    call_column: usize,
+) -> Result<ReasonRule, DslError> {
+    let keywords = normalize_pipeline_rule_args(args, arg_columns, true, call_column)?;
+    let predicate = keywords
+        .get("predicate")
+        .ok_or(DslError::MissingField("predicate").at_line_column(0, Some(call_column)))?;
+    let key_event = keywords
+        .get("key_event")
+        .ok_or(DslError::MissingField("key_event").at_line_column(0, Some(call_column)))?;
+    let narrative = keywords
+        .get("narrative")
+        .ok_or(DslError::MissingField("narrative").at_line_column(0, Some(call_column)))?;
+    let dedupe = keywords
+        .get("dedupe")
+        .ok_or(DslError::MissingField("dedupe").at_line_column(0, Some(call_column)))?;
+    let (module, phase) = lower_rule_scope(&keywords)?;
+    Ok(ReasonRule {
+        predicate: crate::dsl::parse_flow_predicate(&predicate.value)
+            .map_err(|err| err.reanchor_line_column(0, predicate.value_column))?,
+        signal: crate::dsl::parse_reason_key_event(&key_event.value)
+            .map_err(|err| err.reanchor_line_column(0, key_event.value_column))?,
+        narrative: parse_reason_narrative(&narrative.value),
+        dedupe: crate::dsl::parse_bool(&dedupe.value)
+            .map_err(|err| err.reanchor_line_column(0, dedupe.value_column))?,
+        module,
+        phase,
+    })
+}
+
+fn lower_rule_scope(
+    keywords: &BTreeMap<String, PipelineKeywordArg>,
+) -> Result<(Option<String>, Option<String>), DslError> {
+    let module = keywords.get("module").map(|value| value.value.clone());
+    let phase = keywords.get("phase").map(|value| value.value.clone());
+    if module.is_none()
+        && let Some(phase) = keywords.get("phase")
+    {
         return Err(DslError::InvalidValue(format!(
             "pipeline rule phase '{}' requires module",
             phase.value
         ))
         .at_line_column(0, Some(phase.value_column)));
     }
-    Ok(value)
+    Ok((module, phase))
 }

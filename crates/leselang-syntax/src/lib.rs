@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub const MAX_SOURCE_BYTES: usize = 256 * 1024;
 pub const MAX_CALL_DEPTH: usize = 16;
@@ -41,7 +42,7 @@ pub struct Diagnostic {
     pub span: Span,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct SyntaxTree {
     source: String,
     pub tokens: Vec<Token>,
@@ -85,17 +86,130 @@ impl SyntaxTree {
         &self.source
     }
 
-    pub fn token_text(&self, token: &Token) -> &str {
-        &self.source[token.span.start..token.span.end]
+    pub fn token_text(&self, token: &Token) -> Option<&str> {
+        self.source.get(token.span.start..token.span.end)
     }
 
-    pub fn reconstruct(&self) -> String {
+    pub fn reconstruct(&self) -> Option<String> {
         self.tokens
             .iter()
             .filter(|token| token.kind != TokenKind::Eof)
             .map(|token| self.token_text(token))
-            .collect()
+            .collect::<Option<String>>()
     }
+}
+
+#[derive(Deserialize)]
+struct SyntaxTreeWire {
+    source: String,
+    tokens: Vec<Token>,
+    function: Option<Function>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+impl<'de> Deserialize<'de> for SyntaxTree {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = SyntaxTreeWire::deserialize(deserializer)?;
+        let tree = Self {
+            source: wire.source,
+            tokens: wire.tokens,
+            function: wire.function,
+            diagnostics: wire.diagnostics,
+        };
+        tree.validate_serialized_shape().map_err(D::Error::custom)?;
+        Ok(tree)
+    }
+}
+
+impl SyntaxTree {
+    fn validate_serialized_shape(&self) -> Result<(), &'static str> {
+        if self.source.len() > MAX_SOURCE_BYTES {
+            let rejected_shape = self.function.is_none()
+                && self.tokens.as_slice()
+                    == [Token {
+                        kind: TokenKind::Eof,
+                        span: Span { start: 0, end: 0 },
+                    }]
+                && self.diagnostics.len() == 1
+                && self.diagnostics[0].code == "LSE0001"
+                && self.diagnostics[0].span
+                    == (Span {
+                        start: 0,
+                        end: self.source.len(),
+                    });
+            return rejected_shape
+                .then_some(())
+                .ok_or("invalid oversized syntax tree rejection shape");
+        }
+        if self.tokens.is_empty() {
+            return Err("invalid syntax tree token count");
+        }
+        let mut cursor = 0;
+        for (index, token) in self.tokens.iter().enumerate() {
+            validate_span(&self.source, token.span)?;
+            if token.kind == TokenKind::Eof {
+                if index + 1 != self.tokens.len()
+                    || token.span.start != self.source.len()
+                    || token.span.end != self.source.len()
+                {
+                    return Err("invalid syntax tree EOF token");
+                }
+            } else {
+                if token.span.start != cursor || token.span.end <= token.span.start {
+                    return Err("syntax tree tokens do not losslessly cover source");
+                }
+                cursor = token.span.end;
+            }
+        }
+        if cursor != self.source.len()
+            || self
+                .tokens
+                .last()
+                .is_none_or(|token| token.kind != TokenKind::Eof)
+        {
+            return Err("syntax tree token stream is incomplete");
+        }
+        for diagnostic in &self.diagnostics {
+            validate_span(&self.source, diagnostic.span)?;
+        }
+        if let Some(function) = &self.function {
+            validate_span(&self.source, function.span)?;
+            validate_expression_spans(&self.source, &function.body, 0)?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_span(source: &str, span: Span) -> Result<(), &'static str> {
+    if span.start > span.end
+        || span.end > source.len()
+        || !source.is_char_boundary(span.start)
+        || !source.is_char_boundary(span.end)
+    {
+        return Err("syntax tree span is outside UTF-8 source boundaries");
+    }
+    Ok(())
+}
+
+fn validate_expression_spans(
+    source: &str,
+    expression: &Expression,
+    depth: usize,
+) -> Result<(), &'static str> {
+    validate_span(source, expression_span(expression))?;
+    if let Expression::Call { arguments, .. } = expression {
+        if depth >= MAX_CALL_DEPTH {
+            return Err("syntax tree expression depth exceeds limit");
+        }
+        for argument in arguments {
+            validate_span(source, argument.span)?;
+            validate_expression_spans(source, &argument.value, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 pub fn format(tree: &SyntaxTree) -> Result<String, Vec<Diagnostic>> {
@@ -521,7 +635,7 @@ mod tests {
         let source = "// fleet\nfn main() = runtime.list(environment: \"prod\", role: none)\n";
         let tree = parse(source);
         assert!(tree.diagnostics.is_empty(), "{:?}", tree.diagnostics);
-        assert_eq!(tree.reconstruct(), source);
+        assert_eq!(tree.reconstruct().as_deref(), Some(source));
         assert!(
             tree.tokens
                 .iter()
@@ -549,7 +663,7 @@ mod tests {
         let source = "fn main() = all(inventory: runtime.list(role: \"edge\"), refresh: runtime.refresh(runtime_id: \"runtime-a\"))";
         let tree = parse(source);
         assert!(tree.diagnostics.is_empty(), "{:?}", tree.diagnostics);
-        assert_eq!(tree.reconstruct(), source);
+        assert_eq!(tree.reconstruct().as_deref(), Some(source));
         let Expression::Call {
             callee, arguments, ..
         } = tree.function.unwrap().body
@@ -598,7 +712,7 @@ mod tests {
         let source = "fn main() = runtime.list(environment: \"\\🙂\")";
         let tree = parse(source);
 
-        assert_eq!(tree.reconstruct(), source);
+        assert_eq!(tree.reconstruct().as_deref(), Some(source));
         assert!(tree.function.is_none());
         assert!(tree.diagnostics.iter().any(|item| item.code == "LSE1108"));
         assert!(tree.diagnostics.iter().all(|item| {
@@ -671,5 +785,18 @@ mod tests {
         assert!(source.len() <= MAX_SOURCE_BYTES);
         let errors = format(&parse(&source)).unwrap_err();
         assert_eq!(errors[0].code, "LSE2002");
+    }
+
+    #[test]
+    fn serialized_tree_rejects_invalid_spans_and_mutation_stays_panic_free() {
+        let tree = parse("fn main() = runtime.list()");
+        let mut encoded = serde_json::to_value(&tree).unwrap();
+        encoded["tokens"][0]["span"]["end"] = serde_json::json!(usize::MAX);
+        assert!(serde_json::from_value::<SyntaxTree>(encoded).is_err());
+
+        let mut mutated = tree;
+        mutated.tokens[0].span.end = usize::MAX;
+        assert_eq!(mutated.token_text(&mutated.tokens[0]), None);
+        assert_eq!(mutated.reconstruct(), None);
     }
 }

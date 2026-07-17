@@ -1,37 +1,53 @@
 use crate::flow::{ProgramOperation, ProgramStageKind};
 use crate::fragment::EvidenceTier;
 use crate::ledger::FactKindTag;
-use crate::program::{ProgramModel, ProgramNarrative, ProgramRule};
+use crate::program::{ProgramModel, ProgramRule};
 use crate::reason::{ReasonModel, ReasonProfile, ReasonRule};
 use crate::template::{
     FragmentParamValue, Template, TemplateBinding, WindowProfile, default_5s_window,
     default_program_model_for_reason_profile,
 };
 
-use super::predicate::{
-    parse_flow_predicate, parse_narrative_template, parse_reason_key_event, parse_reason_narrative,
-};
-use super::{DslError, parse_bool, split_top_level_with_columns};
+use super::DslError;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct LegacyAssignment {
-    pub key: String,
-    pub value: String,
+pub(super) struct CanonicalAssignment {
+    pub value: CanonicalAssignmentValue,
     pub line_no: usize,
 }
 
-impl LegacyAssignment {
-    pub fn new(key: impl Into<String>, value: impl Into<String>, line_no: usize) -> Self {
-        Self {
-            key: key.into(),
-            value: value.into(),
-            line_no,
-        }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) enum CanonicalAssignmentValue {
+    Template(String),
+    Window(WindowProfile),
+    WindowDuration(u64),
+    WindowLateness(u64),
+    Reason(ReasonProfile),
+    ReasonModel(String),
+    ReasonRule(ReasonRule),
+    Fragment(String),
+    ProgramModel(String),
+    Operation(ProgramOperation),
+    ProgramRule(ProgramRule),
+    FragmentParam {
+        fragment_id: String,
+        key: String,
+        value: FragmentParamValue,
+    },
+    EvidenceOverride {
+        fact_kind: FactKindTag,
+        tier: EvidenceTier,
+    },
+}
+
+impl CanonicalAssignment {
+    pub fn new(value: CanonicalAssignmentValue, line_no: usize) -> Self {
+        Self { value, line_no }
     }
 }
 
-pub(super) fn build_binding_from_assignments(
-    assignments: &[LegacyAssignment],
+pub(super) fn build_binding_from_canonical_assignments(
+    assignments: &[CanonicalAssignment],
 ) -> Result<TemplateBinding, DslError> {
     let mut template_id = None;
     let mut window_profile = None;
@@ -48,47 +64,29 @@ pub(super) fn build_binding_from_assignments(
     let mut evidence_overrides = Vec::new();
 
     for assignment in assignments {
-        let line_no = assignment.line_no;
-        let key = assignment.key.as_str();
-        let value = assignment.value.as_str();
-
-        match key {
-            "template" => template_id = Some(value.to_string()),
-            "window" => {
-                window_profile =
-                    Some(parse_window_profile(value).map_err(|err| err.at_line(line_no))?)
+        match &assignment.value {
+            CanonicalAssignmentValue::Template(value) => template_id = Some(value.clone()),
+            CanonicalAssignmentValue::Window(value) => window_profile = Some(value.clone()),
+            CanonicalAssignmentValue::WindowDuration(value) => {
+                inline_window_duration_ms = Some(*value)
             }
-            "window.duration_ms" => {
-                inline_window_duration_ms =
-                    Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
+            CanonicalAssignmentValue::WindowLateness(value) => {
+                inline_window_lateness_ms = Some(*value)
             }
-            "window.lateness_ms" => {
-                inline_window_lateness_ms =
-                    Some(parse_u64(value, key).map_err(|err| err.at_line(line_no))?);
-            }
-            "reason" => {
-                reason_profile = Some(ReasonProfile::from_id(value).ok_or_else(|| {
-                    DslError::InvalidValue(format!("unknown reason profile '{value}'"))
-                        .at_line(line_no)
-                })?)
-            }
-            "reason_model" => reason_model_id = Some(value.to_string()),
-            "reason.rule" => {
-                reason_rules.push(parse_reason_rule(value).map_err(|err| err.at_line(line_no))?)
-            }
-            "fragment" => fragment_set.push(value.to_string()),
-            "program_model" => program_model_id = Some(value.to_string()),
-            "operation" => operation = Some(parse_operation(value)),
-            "rule" => rules.push(parse_rule(value).map_err(|err| err.at_line(line_no))?),
-            "param" => {
-                fragment_params.push(parse_param_entry(value).map_err(|err| err.at_line(line_no))?)
-            }
-            "evidence" => evidence_overrides
-                .push(parse_evidence_override(value).map_err(|err| err.at_line(line_no))?),
-            other => {
-                return Err(
-                    DslError::InvalidValue(format!("unknown DSL key '{other}'")).at_line(line_no)
-                );
+            CanonicalAssignmentValue::Reason(value) => reason_profile = Some(value.clone()),
+            CanonicalAssignmentValue::ReasonModel(value) => reason_model_id = Some(value.clone()),
+            CanonicalAssignmentValue::ReasonRule(value) => reason_rules.push(value.clone()),
+            CanonicalAssignmentValue::Fragment(value) => fragment_set.push(value.clone()),
+            CanonicalAssignmentValue::ProgramModel(value) => program_model_id = Some(value.clone()),
+            CanonicalAssignmentValue::Operation(value) => operation = Some(value.clone()),
+            CanonicalAssignmentValue::ProgramRule(value) => rules.push(value.clone()),
+            CanonicalAssignmentValue::FragmentParam {
+                fragment_id,
+                key,
+                value,
+            } => fragment_params.push((fragment_id.clone(), key.clone(), value.clone())),
+            CanonicalAssignmentValue::EvidenceOverride { fact_kind, tier } => {
+                evidence_overrides.push((*fact_kind, tier.clone()))
             }
         }
     }
@@ -202,45 +200,6 @@ pub(super) fn parse_operation(value: &str) -> ProgramOperation {
     }
 }
 
-pub(crate) fn parse_rule(value: &str) -> Result<ProgramRule, DslError> {
-    let parts = split_top_level_with_columns(value, ';', 1);
-    if !(4..=6).contains(&parts.len()) {
-        return Err(DslError::InvalidValue(format!("invalid rule '{value}'"))
-            .at_line_column(0, Some(value.len() + 1)));
-    }
-
-    Ok(ProgramRule {
-        predicate: parse_flow_predicate(&parts[0].1)
-            .map_err(|err| err.reanchor_line_column(0, parts[0].0))?,
-        signal: parse_stage(&parts[1].1).map_err(|err| err.reanchor_line_column(0, parts[1].0))?,
-        narrative: parse_narrative(&parts[2].1),
-        dedupe: parse_bool(&parts[3].1).map_err(|err| err.reanchor_line_column(0, parts[3].0))?,
-        module: parts.get(4).map(|(_, value)| value.clone()),
-        phase: parts.get(5).map(|(_, value)| value.clone()),
-    })
-}
-
-pub(crate) fn parse_reason_rule(value: &str) -> Result<ReasonRule, DslError> {
-    let parts = split_top_level_with_columns(value, ';', 1);
-    if !(4..=6).contains(&parts.len()) {
-        return Err(
-            DslError::InvalidValue(format!("invalid reason rule '{value}'"))
-                .at_line_column(0, Some(value.len() + 1)),
-        );
-    }
-
-    Ok(ReasonRule {
-        predicate: parse_flow_predicate(&parts[0].1)
-            .map_err(|err| err.reanchor_line_column(0, parts[0].0))?,
-        signal: parse_reason_key_event(&parts[1].1)
-            .map_err(|err| err.reanchor_line_column(0, parts[1].0))?,
-        narrative: parse_reason_narrative(&parts[2].1),
-        dedupe: parse_bool(&parts[3].1).map_err(|err| err.reanchor_line_column(0, parts[3].0))?,
-        module: parts.get(4).map(|(_, value)| value.clone()),
-        phase: parts.get(5).map(|(_, value)| value.clone()),
-    })
-}
-
 pub(crate) fn parse_stage(value: &str) -> Result<Option<ProgramStageKind>, DslError> {
     Ok(match value {
         "none" => None,
@@ -249,60 +208,4 @@ pub(crate) fn parse_stage(value: &str) -> Result<Option<ProgramStageKind>, DslEr
                 .ok_or_else(|| DslError::InvalidValue(format!("unknown stage '{other}'")))?,
         ),
     })
-}
-
-fn parse_narrative(value: &str) -> ProgramNarrative {
-    parse_narrative_template(value)
-}
-
-fn parse_param_entry(value: &str) -> Result<(String, String, FragmentParamValue), DslError> {
-    let (lhs, rhs) = value
-        .split_once('=')
-        .ok_or_else(|| DslError::InvalidValue(format!("invalid param '{value}'")))?;
-    let (fragment_id, key) = lhs
-        .split_once('.')
-        .ok_or_else(|| DslError::InvalidValue(format!("invalid param target '{lhs}'")))?;
-
-    Ok((
-        fragment_id.trim().to_string(),
-        key.trim().to_string(),
-        parse_param_value(rhs.trim())?,
-    ))
-}
-
-fn parse_evidence_override(value: &str) -> Result<(FactKindTag, EvidenceTier), DslError> {
-    let (fact_kind, tier) = value
-        .split_once(':')
-        .ok_or_else(|| DslError::InvalidValue(format!("invalid evidence override '{value}'")))?;
-    let fact_kind = FactKindTag::from_str(fact_kind.trim()).ok_or_else(|| {
-        DslError::InvalidValue(format!("unknown evidence fact kind '{}'", fact_kind.trim()))
-    })?;
-    let tier = match tier.trim() {
-        "core_requirement" => EvidenceTier::CoreRequirement,
-        "optional_enhancement" => EvidenceTier::OptionalEnhancement,
-        other => {
-            return Err(DslError::InvalidValue(format!(
-                "unknown evidence tier '{other}'"
-            )));
-        }
-    };
-    Ok((fact_kind, tier))
-}
-
-fn parse_param_value(value: &str) -> Result<FragmentParamValue, DslError> {
-    if matches!(value, "true" | "false") {
-        return Ok(FragmentParamValue::Bool(parse_bool(value)?));
-    }
-    if let Ok(value) = value.parse::<u64>() {
-        return Ok(FragmentParamValue::U64(value));
-    }
-    Ok(FragmentParamValue::String(
-        value.trim_matches('"').to_string(),
-    ))
-}
-
-fn parse_u64(value: &str, key: &str) -> Result<u64, DslError> {
-    value
-        .parse::<u64>()
-        .map_err(|_| DslError::InvalidValue(format!("invalid u64 for '{key}': '{value}'")))
 }

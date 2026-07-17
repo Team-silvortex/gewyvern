@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use leserpent_domain::validate_deployment_intent;
 pub use leserpent_domain::{
     RUNTIME_DEPLOYMENT_EFFECT_KIND as GEWYVERN_DEPLOYMENT_EFFECT_KIND,
     RuntimeDeploymentRequest as GewyvernDeploymentRequest,
@@ -134,33 +135,13 @@ fn deployment_body(request: &GewyvernDeploymentRequest) -> Result<Vec<u8>, &'sta
 fn validate_request(request: &GewyvernDeploymentRequest) -> Result<(), ()> {
     validate_id("runtime_id", &request.runtime_id).map_err(|_| ())?;
     if !request.confirmed
-        || !valid_token(&request.request_id, 128)
-        || !valid_token(&request.pipeline_kind, 128)
-        || !valid_text(&request.requested_by, 128)
-        || request
-            .target
-            .as_deref()
-            .is_some_and(|target| !valid_text(target, 256))
+        || validate_id("request_id", &request.request_id).is_err()
+        || validate_id("requested_by", &request.requested_by).is_err()
+        || validate_deployment_intent(&request.pipeline_kind, request.target.as_deref()).is_err()
     {
         return Err(());
     }
     Ok(())
-}
-
-fn valid_token(value: &str, max_bytes: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= max_bytes
-        && value == value.trim()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-'))
-}
-
-fn valid_text(value: &str, max_bytes: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= max_bytes
-        && value == value.trim()
-        && !value.chars().any(char::is_control)
 }
 
 fn validate_response(
@@ -170,7 +151,7 @@ fn validate_response(
 ) -> Result<Vec<u8>, &'static str> {
     let response: GewyvernDeploymentResponse =
         serde_json::from_slice(body).map_err(|_| "Gewyvern deployment response JSON is invalid")?;
-    if !valid_token(&response.deployment_id, 128)
+    if validate_id("deployment_id", &response.deployment_id).is_err()
         || response.request_id != request.request_id
         || response.pipeline_kind != request.pipeline_kind
         || response.requested_by != request.requested_by
@@ -211,7 +192,7 @@ mod tests {
             runtime_id: "runtime-a".into(),
             request_id: "deploy-1".into(),
             pipeline_kind: "http/request".into(),
-            requested_by: "operator@example".into(),
+            requested_by: "operator.example".into(),
             confirmed,
             target: Some("pid:42".into()),
         })
@@ -230,7 +211,7 @@ mod tests {
     }
 
     fn accepted_response(stream: &mut impl Write) {
-        let response = br#"{"deployment_id":"gdep_0001","request_id":"deploy-1","pipeline_kind":"http/request","requested_by":"operator@example","status":"accepted","accepted_unix_ms":1700000000000,"target":"pid:42","replayed":false}"#;
+        let response = br#"{"deployment_id":"gdep_0001","request_id":"deploy-1","pipeline_kind":"http/request","requested_by":"operator.example","status":"accepted","accepted_unix_ms":1700000000000,"target":"pid:42","replayed":false}"#;
         write!(
             stream,
             "HTTP/1.1 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -356,12 +337,32 @@ mod tests {
     }
 
     #[test]
+    fn request_validation_reuses_domain_identity_and_deployment_rules() {
+        let mut request: GewyvernDeploymentRequest =
+            serde_json::from_slice(&request_payload(true)).unwrap();
+        request.request_id = "deploy:one".into();
+        assert!(validate_request(&request).is_ok());
+
+        request.request_id = "bad/request".into();
+        assert!(validate_request(&request).is_err());
+        request.request_id = "deploy:one".into();
+        request.requested_by = "operator@example".into();
+        assert!(validate_request(&request).is_err());
+        request.requested_by = "operator.example".into();
+        request.pipeline_kind = "bad kind".into();
+        assert!(validate_request(&request).is_err());
+        request.pipeline_kind = "http/request".into();
+        request.target = Some(" bad".into());
+        assert!(validate_request(&request).is_err());
+    }
+
+    #[test]
     fn response_must_echo_idempotency_and_replay_semantics() {
         let request: GewyvernDeploymentRequest =
             serde_json::from_slice(&request_payload(true)).unwrap();
-        let mismatched = br#"{"deployment_id":"gdep_1","request_id":"other","pipeline_kind":"http/request","requested_by":"operator@example","status":"accepted","accepted_unix_ms":1,"target":"pid:42","replayed":false}"#;
+        let mismatched = br#"{"deployment_id":"gdep_1","request_id":"other","pipeline_kind":"http/request","requested_by":"operator.example","status":"accepted","accepted_unix_ms":1,"target":"pid:42","replayed":false}"#;
         assert!(validate_response(&request, 202, mismatched).is_err());
-        let wrong_replay = br#"{"deployment_id":"gdep_1","request_id":"deploy-1","pipeline_kind":"http/request","requested_by":"operator@example","status":"accepted","accepted_unix_ms":1,"target":"pid:42","replayed":true}"#;
+        let wrong_replay = br#"{"deployment_id":"gdep_1","request_id":"deploy-1","pipeline_kind":"http/request","requested_by":"operator.example","status":"accepted","accepted_unix_ms":1,"target":"pid:42","replayed":true}"#;
         assert!(validate_response(&request, 202, wrong_replay).is_err());
     }
 

@@ -1,5 +1,5 @@
 use super::frontend::summarize_pipeline_module;
-use super::legacy::build_binding_from_assignments;
+use super::legacy::build_binding_from_canonical_assignments;
 use super::{
     DslError, FrontendModuleSummary, PackageContext, TemplateBinding,
     lower_pipeline_module_to_assignments, package, parse_pipeline_function_head,
@@ -56,8 +56,8 @@ fn parse_str_unvalidated_with_base(
 ) -> Result<TemplateBinding, DslError> {
     let normalized = strip_comments_preserve_layout(input);
     if looks_like_pipeline_dsl(&normalized) {
-        let assignments = pipeline_to_assignments(&normalized, package)?;
-        return build_binding_from_assignments(&assignments);
+        let assignments = pipeline_to_canonical_assignments(&normalized, package)?;
+        return build_binding_from_canonical_assignments(&assignments);
     }
     if let Some((include_input, include_package)) =
         resolve_include_entry_alias(&normalized, package)?
@@ -77,7 +77,7 @@ fn parse_str_with_frontend_unvalidated_with_base(
     if looks_like_pipeline_dsl(&normalized) {
         let module = parse_pipeline_module(&normalized, package, true)?;
         let assignments = lower_pipeline_module_to_assignments(&module, true)?;
-        let binding = build_binding_from_assignments(&assignments)?;
+        let binding = build_binding_from_canonical_assignments(&assignments)?;
         let frontend = summarize_pipeline_module(module);
         return Ok((binding, frontend));
     }
@@ -117,10 +117,10 @@ fn is_pipeline_template_head(line: &str) -> bool {
             .is_some_and(|value| !value.trim().is_empty())
 }
 
-fn pipeline_to_assignments(
+fn pipeline_to_canonical_assignments(
     input: &str,
     package: Option<&PackageContext>,
-) -> Result<Vec<super::legacy::LegacyAssignment>, DslError> {
+) -> Result<Vec<super::legacy::CanonicalAssignment>, DslError> {
     let module = parse_pipeline_module(input, package, true)?;
     lower_pipeline_module_to_assignments(&module, true)
 }

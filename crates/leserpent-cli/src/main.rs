@@ -8,6 +8,7 @@ use leserpent_cli::{
 };
 use leserpent_domain::QueryResult;
 use leserpent_protocol::{ProtocolResponse, RequestEnvelope};
+use zeroize::Zeroizing;
 
 fn main() {
     match run() {
@@ -44,7 +45,7 @@ fn run() -> Result<i32, CliError> {
                 .map_err(|_| CliError::Configuration("LESERPENT_IPC_TOKEN is required".into()))?;
             ActiveTransport::Local {
                 socket: socket.clone(),
-                token,
+                token: Zeroizing::new(token),
             }
         }
         (None, Some(remote)) => {
@@ -113,7 +114,10 @@ fn run_watch(
 }
 
 enum ActiveTransport {
-    Local { socket: PathBuf, token: String },
+    Local {
+        socket: PathBuf,
+        token: Zeroizing<String>,
+    },
     Remote(HttpsClient),
 }
 
@@ -123,7 +127,7 @@ impl ActiveTransport {
         request: &RequestEnvelope,
     ) -> Result<leserpent_protocol::ResponseEnvelope, CliError> {
         match self {
-            Self::Local { socket, token } => send_request(socket, token, request),
+            Self::Local { socket, token } => send_request(socket, token.as_str(), request),
             Self::Remote(client) => client.send(request),
         }
     }

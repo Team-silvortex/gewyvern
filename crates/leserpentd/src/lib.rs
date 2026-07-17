@@ -1,4 +1,3 @@
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
@@ -142,23 +141,27 @@ impl DaemonHost {
                 .into_iter()
                 .map(|lease| {
                     let registry = registry.clone();
-                    scope.spawn(move || {
+                    let fallback_lease = lease.clone();
+                    let handle = scope.spawn(move || {
                         let context = EffectContext::new(cancelled);
-                        let execution = catch_unwind(AssertUnwindSafe(|| {
-                            registry.execute_lease(&lease, &context)
-                        }))
-                        .unwrap_or_else(|_| {
-                            leserpent_runtime::EffectExecution::Reject {
-                                error: "adapter execution panicked".into(),
-                            }
-                        });
+                        let execution = registry.execute_lease(&lease, &context);
                         (lease, execution)
-                    })
+                    });
+                    (fallback_lease, handle)
                 })
                 .collect::<Vec<_>>();
             handles
                 .into_iter()
-                .map(|handle| handle.join().expect("adapter panic is isolated"))
+                .map(|(lease, handle)| {
+                    handle.join().unwrap_or_else(|_| {
+                        (
+                            lease,
+                            leserpent_runtime::EffectExecution::Reject {
+                                error: "adapter execution panicked".into(),
+                            },
+                        )
+                    })
+                })
                 .collect::<Vec<_>>()
         });
 

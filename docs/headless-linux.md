@@ -105,6 +105,10 @@ sudo cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev eth0
 Each smoke writes `run.log`, `target.txt`, `environment.txt`, and
 `evidence-index.json` under `target/validation/...`; the tc path also writes
 `netdev.txt` so interface state is captured next to the attach transcript.
+Native loaders and BPF objects are compiled only from the build-time
+`CARGO_MANIFEST_DIR`; the privileged path never discovers C or BPF source from
+the caller's current directory. A relocated binary without its pinned source
+tree fails closed rather than compiling ambient files.
 The TC smoke is deliberately non-destructive: it refuses to run when the target
 interface already has a `clsact` qdisc, never deletes a qdisc it failed to
 create, and cleans up only the qdisc created by that smoke run. Use a dedicated

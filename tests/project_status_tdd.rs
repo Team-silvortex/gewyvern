@@ -67,8 +67,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/domain-model/command-query-kernel")
         .expect("Leserpent Gate 1 cell must exist");
-    assert_eq!(domain.maturity, Maturity::Stabilizing);
-    assert_eq!(domain.contract.stability, ContractStability::Evolving);
+    assert_eq!(domain.maturity, Maturity::Mature);
+    assert_eq!(domain.completion, 100);
+    assert_eq!(domain.independence, Independence::ReusableLibrary);
+    assert_eq!(domain.contract.stability, ContractStability::Stable);
     assert!(
         domain
             .evidence
@@ -81,8 +83,31 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent Gate 2 cell must exist");
-    assert_eq!(language.maturity, Maturity::Stabilizing);
-    assert_eq!(language.contract.stability, ContractStability::Evolving);
+    assert_eq!(language.maturity, Maturity::Mature);
+    assert_eq!(language.completion, 100);
+    assert_eq!(language.contract.stability, ContractStability::Stable);
+    assert!(language.blockers.is_empty());
+
+    let linux_attach = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "gewyvern-core/linux-ebpf/linux-attach")
+        .expect("Gewyvern Linux attach cell must exist");
+    assert_eq!(linux_attach.completion, 98);
+    assert_eq!(linux_attach.blockers.len(), 1);
+    assert!(linux_attach.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/linux_attach_pinned_source_root.json"
+            && item.state == EvidenceState::Present
+    }));
+
+    let gewylang = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "gewylang/compiler/parser-lowering")
+        .expect("GewyLang compiler cell must exist");
+    assert_eq!(gewylang.completion, 99);
+    assert_eq!(gewylang.blockers.len(), 1);
+    assert_eq!(gewylang.blockers[0].id, "export-attach-static-lifetimes");
     assert!(
         language
             .evidence
@@ -90,6 +115,66 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .filter(|item| item.kind == EvidenceKind::Source)
             .all(|item| item.state == EvidenceState::Present)
     );
+
+    let avalonia = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/ui-renderers/avalonia-renderer")
+        .expect("Leserpent Gate 4 renderer cell must exist");
+    assert_eq!(avalonia.maturity, Maturity::Mature);
+    assert_eq!(avalonia.completion, 100);
+    assert_eq!(avalonia.contract.stability, ContractStability::Stable);
+    assert!(avalonia.blockers.is_empty());
+
+    let transport = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/transport-protocol/wire-compatibility")
+        .expect("Leserpent Gate 6 transport cell must exist");
+    assert_eq!(transport.maturity, Maturity::Mature);
+    assert_eq!(transport.completion, 100);
+    assert_eq!(transport.contract.stability, ContractStability::Stable);
+    assert!(transport.blockers.is_empty());
+
+    let cli = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/native-cli/cli-parity")
+        .expect("Leserpent native CLI cell must exist");
+    assert_eq!(cli.maturity, Maturity::Mature);
+    assert_eq!(cli.completion, 100);
+    assert_eq!(cli.contract.stability, ContractStability::Stable);
+    assert!(cli.blockers.is_empty());
+
+    let runtime = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/control-runtime/durable-authority")
+        .expect("Leserpent Gate 5 runtime cell must exist");
+    assert_eq!(runtime.maturity, Maturity::Mature);
+    assert_eq!(runtime.completion, 100);
+    assert_eq!(runtime.contract.stability, ContractStability::Stable);
+    assert!(runtime.blockers.is_empty());
+
+    let ui = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/ui-language/ui-ir-lowering")
+        .expect("Leserpent Gate 4 UI language cell must exist");
+    assert_eq!(ui.maturity, Maturity::Mature);
+    assert_eq!(ui.completion, 100);
+    assert_eq!(ui.contract.stability, ContractStability::Stable);
+    assert!(ui.blockers.is_empty());
+
+    let syntax = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-syntax/lossless-frontend")
+        .expect("Leserpent language syntax cell must exist");
+    assert_eq!(syntax.maturity, Maturity::Mature);
+    assert_eq!(syntax.completion, 100);
+    assert_eq!(syntax.contract.stability, ContractStability::Stable);
+    assert!(syntax.blockers.is_empty());
 
     let required_boundaries = [
         "boundary-leselang-syntax",
@@ -203,7 +288,7 @@ fn native_status_cli_exposes_human_and_machine_views() {
             "--lifecycle",
             "target",
             "--maturity",
-            "stabilizing",
+            "mature",
             "--json",
         ])
         .output()

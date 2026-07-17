@@ -32,6 +32,13 @@ must be a regular non-symlink PEM file no larger than 1 MiB; hostname/IP
 verification is mandatory. The token is accepted only from
 `LESERPENT_REMOTE_TOKEN`.
 
+Explicit CA trust is the stable remote CLI policy rather than a fallback for a
+missing system-trust adapter. Remote and local transport tokens are retained in
+zeroizing memory, and temporary Authorization headers or authenticated IPC
+request buffers are cleared on both success and failure paths. Windows can use
+the same HTTPS CLI contract; a future named-pipe transport is optional and does
+not change command semantics.
+
 ## Commands
 
 ```bash

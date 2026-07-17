@@ -10,6 +10,7 @@ use leserpent_protocol::{
 };
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use zeroize::Zeroizing;
 
 use crate::CliError;
 
@@ -20,7 +21,7 @@ const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
 pub struct HttpsClient {
     endpoint: HttpsEndpoint,
     tls: Arc<ClientConfig>,
-    token: String,
+    token: Zeroizing<String>,
 }
 
 impl HttpsClient {
@@ -71,7 +72,7 @@ impl HttpsClient {
         Ok(Self {
             endpoint,
             tls: Arc::new(tls),
-            token,
+            token: Zeroizing::new(token),
         })
     }
 
@@ -95,12 +96,12 @@ impl HttpsClient {
             ClientConnection::new(Arc::clone(&self.tls), self.endpoint.server_name.clone())
                 .map_err(|error| CliError::Transport(format!("TLS setup failed: {error}")))?;
         let mut stream = StreamOwned::new(connection, socket);
-        let header = format!(
+        let header = Zeroizing::new(format!(
             "POST /v1/wire HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
             self.endpoint.authority,
-            self.token,
+            self.token.as_str(),
             body.len(),
-        );
+        ));
         stream
             .write_all(header.as_bytes())
             .and_then(|()| stream.write_all(&body))

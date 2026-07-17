@@ -84,10 +84,10 @@ The intended source ownership is:
 | `leselang-observe` | validated, sanitized VM/runtime projections for UI consumers |
 | `leselang-command` | operation DSL lowering into `CommandPlan` |
 | `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch` |
-| `leserpent-domain` | IDs, commands, queries, events, revisions, capabilities |
+| `leserpent-domain` | validated IDs, commands, queries, events, revisions, capabilities, and plan authorization |
 | `leserpent-runtime` | transactions, scheduling, policy, replay, projections |
 | `leserpent-protocol` | IPC, HTTP, WebSocket, schema and compatibility |
-| `leserpent-adapters` | Gewyvern, storage, deployment, discovery integrations |
+| `leserpent-adapters` | typed Gewyvern health, status, deployment, discovery, and native secret-store integrations |
 | `leserpent-cli` | native CLI parsing and rendering |
 | `leserpentd` | local and remote runtime host |
 
@@ -282,6 +282,18 @@ renderer may map the same IR into DOM. Unsupported presentation hints degrade
 visually; unsupported commands fail at capability validation rather than being
 silently omitted.
 
+UI IR version 1 is a stable renderer-neutral boundary. Patch decoding validates
+operation references and embedded node metadata without requiring renderer
+state, while atomic application performs the remaining parent-context and graph
+checks against the exact source revision. Unknown action or patch-operation
+fields fail closed rather than being ignored by an older renderer.
+
+The desktop event boundary observes every asynchronous reconnect and mutation
+task. Window closure is an explicit lifetime fence: it cancels outstanding
+requests, unsubscribes remote state, rejects queued post-close projections, and
+contains shutdown-time disposal failures. This keeps renderer replacement and
+application shutdown independent from transport timing.
+
 Every GUI action must support:
 
 - inspection as a normalized `CommandPlan`
@@ -313,6 +325,10 @@ an explicit `resync_required` event when a requested cursor is ahead of the
 authority. A missing or older cursor receives a fresh snapshot; the daemon does
 not claim durable delta replay. Session, frame, message, write-buffer, and
 per-tick inbound work are bounded, and the event channel itself is read-only.
+All versioned Rust wire envelopes now reject unknown fields, matching the
+schema's fail-closed top-level contract and the strict .NET decoder. Health and
+remote projection payloads apply the same rule: optional v1 fields may be
+absent, but misspelled or undeclared fields cannot be silently ignored.
 
 The current transport boundary has a named reproducible proof:
 `gewyvern_validate leserpent-transport`. It composes wire-v1 and legacy fixtures,
@@ -321,7 +337,13 @@ fail-closed IPC plus HTTPS security tests into retained evidence. The HTTPS
 suite includes a real TLS loopback, strict framing/authentication rejection,
 private-key file checks, shared wire dispatch, a native CLI-to-daemon HTTPS
 vertical path with explicit CA trust, and authenticated WebSocket snapshot and
-cursor-resync tests. The Avalonia desktop client now consumes that event
+cursor-resync tests. Explicit CA trust is the stable CLI trust policy; it does
+not depend on ambient system roots. Both IPC and HTTPS credentials, plus their
+temporary authenticated request/header buffers, use zeroizing storage so
+transport teardown and error exits clear secret material. A future Windows
+named-pipe adapter is optional because the native CLI already uses the same
+authenticated HTTPS contract on that platform. The Avalonia desktop client now
+consumes that event
 contract with explicit CA and hostname verification, per-origin
 endpoint-redacted snapshot cache, immediate stale-state presentation, a capped
 eight-attempt reconnect loop, and cursor reset on `resync_required`. Its first
@@ -393,8 +415,10 @@ The runtime owns:
 
 SQLite is the default durable implementation, not the domain interface.
 Snapshots accelerate startup but are rebuildable from supported journal
-history. Sensitive pairing material is stored through a platform secret
-adapter and never serialized into UI IR, logs, model context, or ordinary
+history. Dual-generation recovery validates every candidate and returns a
+structured storage error when none is usable; authority startup contains no
+panic-only fallback. Sensitive pairing material is stored through a platform
+secret adapter and never serialized into UI IR, logs, model context, or ordinary
 exports.
 
 ## Security Boundary

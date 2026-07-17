@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-linux-bundle-smoke",
+  "platform": "linux-x86_64",
+  "kernel": "6.17.0-35-generic",
+  "leserpent_sha256": "d0fbe087c8b087ad23f32d66c35fa83f572c6b70616e9db5cad166916103b301",
+  "leserpent_bytes": 21241520,
+  "compat_bridge_sha256": "9a48ef68a6c9861140cdd6f1e7f681df248285ee570199b2496ba5f0b5d35040",
+  "compat_bridge_bytes": 756880,
+  "checks": [
+    "native-aot-elf-x86_64",
+    "rust-compat-bridge-elf-x86_64",
+    "staged-atomic-current-link",
+    "private-generated-configuration",
+    "non-writable-release-files",
+    "live-compatibility-request",
+    "live-native-aot-health"
+  ],
+  "result": "passed"
+}

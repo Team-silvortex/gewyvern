@@ -164,7 +164,7 @@ pub struct Accessibility {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UiAction {
     RuntimeInspect { runtime_id: RuntimeId },
     RuntimeRefresh { runtime_id: RuntimeId },
@@ -225,7 +225,7 @@ pub struct UiPatch {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UiPatchOperation {
     Remove {
         node_id: NodeId,
@@ -1440,6 +1440,92 @@ fn validate_patch(patch: &UiPatch) -> Result<(), UiError> {
     if patch.operations.len() > MAX_UI_PATCH_OPERATIONS {
         return Err(UiError::PatchLimitExceeded);
     }
+    for operation in &patch.operations {
+        match operation {
+            UiPatchOperation::Remove { node_id } => {
+                NodeId::new(node_id.as_str())?;
+            }
+            UiPatchOperation::Insert {
+                parent_id, node, ..
+            } => {
+                NodeId::new(parent_id.as_str())?;
+                let mut ids = BTreeSet::new();
+                validate_patch_node(node, 1, &mut ids)?;
+            }
+            UiPatchOperation::Move {
+                node_id, parent_id, ..
+            } => {
+                NodeId::new(node_id.as_str())?;
+                NodeId::new(parent_id.as_str())?;
+            }
+            UiPatchOperation::Update { node } => {
+                if !node.children.is_empty() {
+                    return Err(UiError::InvalidPatch {
+                        reason: "update nodes must be shallow",
+                    });
+                }
+                let mut ids = BTreeSet::new();
+                validate_patch_node(node, 1, &mut ids)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_patch_node(
+    node: &UiNode,
+    depth: usize,
+    ids: &mut BTreeSet<NodeId>,
+) -> Result<(), UiError> {
+    if depth > MAX_UI_DEPTH {
+        return Err(UiError::DepthLimitExceeded);
+    }
+    NodeId::new(node.id.as_str())?;
+    if !ids.insert(node.id.clone()) {
+        return Err(UiError::DuplicateNodeId {
+            node_id: node.id.as_str().to_string(),
+        });
+    }
+    validate_optional_text(node.text.as_ref())?;
+    validate_optional_text(node.accessibility.label.as_ref())?;
+    validate_optional_text(node.accessibility.description.as_ref())?;
+    if node.action.is_some() && node.accessibility.label.is_none() {
+        return Err(UiError::MissingActionLabel {
+            node_id: node.id.as_str().to_string(),
+        });
+    }
+    match (&node.kind, &node.runtime_id) {
+        (UiNodeKind::RuntimeCard | UiNodeKind::RuntimeWorkspace, Some(_)) => {}
+        (UiNodeKind::RuntimeCard | UiNodeKind::RuntimeWorkspace, None) | (_, Some(_)) => {
+            return Err(UiError::InvalidRuntimeBinding {
+                node_id: node.id.as_str().to_string(),
+            });
+        }
+        _ => {}
+    }
+    match (&node.kind, node.debugger_session_id.as_deref()) {
+        (UiNodeKind::DebuggerWorkspace, Some(session_id)) => {
+            NodeId::new(session_id)?;
+        }
+        (UiNodeKind::DebuggerWorkspace, None) | (_, Some(_)) => {
+            return Err(UiError::InvalidDebuggerBinding {
+                node_id: node.id.as_str().to_string(),
+            });
+        }
+        _ => {}
+    }
+    if let Some(UiAction::RuntimeDeploy { form, .. }) = &node.action {
+        validate_form(form)?;
+    }
+    if let Some(UiAction::DebuggerCancel { session_id }) = &node.action {
+        NodeId::new(session_id)?;
+    }
+    if ids.len() > MAX_UI_NODES {
+        return Err(UiError::NodeLimitExceeded);
+    }
+    for child in &node.children {
+        validate_patch_node(child, depth + 1, ids)?;
+    }
     Ok(())
 }
 
@@ -2504,5 +2590,26 @@ mod tests {
             decode_document(&vec![b' '; MAX_UI_IR_BYTES + 1]),
             Err(UiError::PayloadTooLarge { .. })
         ));
+
+        let mut invalid_id = serde_json::to_value(&patch).unwrap();
+        invalid_id["operations"][0]["parent_id"] = serde_json::json!("bad/parent");
+        assert_eq!(
+            decode_patch(&serde_json::to_vec(&invalid_id).unwrap()),
+            Err(UiError::InvalidNodeId)
+        );
+
+        let mut unknown_field = serde_json::to_value(&patch).unwrap();
+        unknown_field["operations"][0]["unexpected"] = serde_json::json!(true);
+        assert!(matches!(
+            decode_patch(&serde_json::to_vec(&unknown_field).unwrap()),
+            Err(UiError::InvalidJson(_))
+        ));
+
+        let mut invalid_node = serde_json::to_value(&patch).unwrap();
+        invalid_node["operations"][0]["node"]["id"] = serde_json::json!("bad/node");
+        assert_eq!(
+            decode_patch(&serde_json::to_vec(&invalid_node).unwrap()),
+            Err(UiError::InvalidNodeId)
+        );
     }
 }

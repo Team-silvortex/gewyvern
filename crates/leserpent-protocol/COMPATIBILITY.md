@@ -1,5 +1,11 @@
 # Leserpent Protocol Compatibility
 
+Wire v1 is a strict versioned boundary. Request, response, and event envelopes,
+health payloads, protocol errors, queue health, and remote runtime projections
+reject unknown fields instead of silently discarding them. Additive wire fields
+therefore require an explicit schema-version transition; documented optional
+v1 fields may still be absent for legacy peers.
+
 This policy governs the migration bridge between the Leserpent 1.x ASP.NET API
 and the Rust domain/protocol kernel. The bridge translates representations; it
 does not own business rules.

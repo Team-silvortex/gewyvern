@@ -20,9 +20,11 @@ pub enum ProtocolRequest {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct HealthRequest {}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RequestEnvelope {
     pub schema_version: u32,
     pub request: ProtocolRequest,
@@ -38,6 +40,7 @@ pub enum ProtocolResponse {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct HealthResponse {
     pub status: String,
     pub authority_owned: bool,
@@ -47,6 +50,7 @@ pub struct HealthResponse {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct EffectQueueHealth {
     pub ready: u64,
     pub leased: u64,
@@ -59,18 +63,21 @@ pub struct EffectQueueHealth {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ResponseEnvelope {
     pub schema_version: u32,
     pub response: ProtocolResponse,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProtocolError {
     pub code: String,
     pub message: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct EventEnvelope {
     pub schema_version: u32,
     pub event: ProtocolEvent,
@@ -94,6 +101,7 @@ pub enum ProtocolEvent {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RemoteRuntimeProjection {
     pub id: RuntimeId,
     pub name: String,
@@ -307,6 +315,44 @@ mod tests {
         assert!(matches!(
             decode_request(source),
             Err(DecodeError::InvalidSchemaVersion { .. })
+        ));
+    }
+
+    #[test]
+    fn decoders_reject_unknown_versioned_envelope_fields() {
+        let request =
+            br#"{"schema_version":1,"request":{"kind":"health","payload":{}},"schemaVersion":1}"#;
+        assert!(matches!(
+            decode_request(request),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+
+        let response = br#"{"schema_version":1,"response":{"kind":"health","payload":{"status":"ready","authority_owned":true,"protocol_schema_version":1}},"request_id":"ignored"}"#;
+        assert!(matches!(
+            decode_response(response),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+
+        let event = br#"{"schema_version":1,"event":{"kind":"heartbeat","payload":{"revision":1}},"cursor":1}"#;
+        assert!(matches!(
+            decode_event(event),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+    }
+
+    #[test]
+    fn health_payload_rejects_unknown_fields() {
+        let request =
+            br#"{"schema_version":1,"request":{"kind":"health","payload":{"admin":true}}}"#;
+        assert!(matches!(
+            decode_request(request),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+
+        let response = br#"{"schema_version":1,"response":{"kind":"health","payload":{"status":"ready","authority_owned":true,"protocol_schema_version":1,"effect_queue":null,"healthy":true}}}"#;
+        assert!(matches!(
+            decode_response(response),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
         ));
     }
 

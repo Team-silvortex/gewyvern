@@ -16,6 +16,16 @@ output contains both native executables, the SQLite native library, dashboard
 assets, and a `deploy` directory. Linux bundles must be built on Linux so the
 bridge architecture matches the selected RID.
 
+Validate the complete bundle without changing the host installation:
+
+```bash
+scripts/validation/leserpent_linux_bundle_smoke.sh artifacts/leserpent/linux-x64
+```
+
+The smoke uses a temporary `DESTDIR`, executes a real bridge request, starts the
+Native AOT host on loopback, and retains a machine-readable result below
+`target/validation/leserpent-linux-bundle-smoke/`.
+
 ## Install or upgrade
 
 ```bash

@@ -25,11 +25,12 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
     let root = repository_root();
     let predicate = fs::read_to_string(root.join("src/dsl/predicate.rs")).unwrap();
     let legacy = fs::read_to_string(root.join("src/dsl/legacy.rs")).unwrap();
+    let lowering = fs::read_to_string(root.join("src/dsl/pipeline/lowering.rs")).unwrap();
     let codec = fs::read_to_string(root.join("src/export/reason_codec/parse.rs")).unwrap();
-    let param_parser = legacy
-        .split("fn parse_param_entry")
+    let param_lowering = lowering
+        .split("fn lower_pipeline_param")
         .nth(1)
-        .and_then(|tail| tail.split("fn parse_evidence_override").next())
+        .and_then(|tail| tail.split("fn lower_pipeline_evidence").next())
         .unwrap();
     let narrative_codec = codec
         .split("fn parse_narrative_template")
@@ -39,7 +40,7 @@ fn dynamic_narrative_and_parameter_lowering_paths_do_not_leak_static_text() {
 
     assert!(!predicate.contains("Box::leak"));
     assert!(!legacy.contains("Box::leak"));
-    assert!(!param_parser.contains("Box::leak"));
+    assert!(!param_lowering.contains("Box::leak"));
     assert!(!narrative_codec.contains("Box::leak"));
 }
 
@@ -52,7 +53,11 @@ fn canonical_pipeline_lowering_does_not_round_trip_through_legacy_text() {
     assert!(!entry.contains("pipeline_to_legacy"));
     assert!(!entry.contains("parse_legacy_str_unvalidated"));
     assert!(!lowering.contains("lower_pipeline_module_to_legacy"));
-    assert!(entry.contains("build_binding_from_assignments"));
+    assert!(entry.contains("build_binding_from_canonical_assignments"));
+    assert!(!entry.contains("build_binding_from_assignments"));
+    assert!(!lowering.contains("LegacyAssignment"));
+    assert!(!lowering.contains("format!(\"{}={}\""));
+    assert!(!lowering.contains("format!(\"{}:{}\""));
 }
 
 fn repository_root() -> PathBuf {

@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use leselang_syntax::{Expression, Span, SyntaxTree};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
-    RuntimeId, RuntimeListFilter,
+    DomainError, RuntimeId, RuntimeListFilter, validate_deployment_intent,
 };
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +31,7 @@ pub struct HirBranch {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Effect {
     RuntimeList {
         filter: RuntimeListFilter,
@@ -200,8 +200,8 @@ fn lower_runtime_effect(
                 }),
             },
             ("runtime.deploy", "pipeline_kind") => match value {
-                Some(value) if valid_deployment_token(&value) => pipeline_kind = Some(value),
-                _ => diagnostics.push(Diagnostic {
+                Some(value) => pipeline_kind = Some(value),
+                None => diagnostics.push(Diagnostic {
                     code: "LSH1106".to_string(),
                     message: "runtime.deploy pipeline_kind must be a valid token string"
                         .to_string(),
@@ -209,14 +209,8 @@ fn lower_runtime_effect(
                 }),
             },
             ("runtime.deploy", "target") => match value {
-                Some(value) if valid_deployment_target(&value) => target = Some(value),
+                Some(value) => target = Some(value),
                 None => target = None,
-                _ => diagnostics.push(Diagnostic {
-                    code: "LSH1107".to_string(),
-                    message: "runtime.deploy target must be a bounded text string or none"
-                        .to_string(),
-                    span: Some(argument.span),
-                }),
             },
             _ => diagnostics.push(Diagnostic {
                 code: "LSH1103".to_string(),
@@ -246,6 +240,28 @@ fn lower_runtime_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1108".to_string(),
             message: "runtime.deploy requires pipeline_kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "runtime.deploy"
+        && diagnostics.is_empty()
+        && let Some(pipeline_kind) = pipeline_kind.as_deref()
+        && let Err(DomainError::InvalidIdentifier { field }) =
+            validate_deployment_intent(pipeline_kind, target.as_deref())
+    {
+        diagnostics.push(Diagnostic {
+            code: if field == "target" {
+                "LSH1107"
+            } else {
+                "LSH1106"
+            }
+            .to_string(),
+            message: if field == "target" {
+                "runtime.deploy target must be a bounded text string or none"
+            } else {
+                "runtime.deploy pipeline_kind must be a valid token string"
+            }
+            .to_string(),
             span: Some(span),
         });
     }
@@ -312,22 +328,6 @@ fn lower_runtime_effect(
         result_type,
         required_capabilities: vec![required_capability.to_string()],
     })
-}
-
-fn valid_deployment_token(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value == value.trim()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-'))
-}
-
-fn valid_deployment_target(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 256
-        && value == value.trim()
-        && !value.chars().any(char::is_control)
 }
 
 fn lower_all(
@@ -475,6 +475,27 @@ mod tests {
     }
 
     #[test]
+    fn runtime_capability_refresh_has_a_typed_shared_capability_contract() {
+        let program = lower(&parse(
+            "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::RuntimeCapabilitiesRefresh
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_RUNTIME_REFRESH]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::RuntimeCapabilitiesRefresh { ref runtime_id }
+                if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
     fn runtime_inspect_lowers_to_typed_read_effect() {
         let program = lower(&parse(
             "fn main() = runtime.inspect(runtime_id: \"runtime-a\")",
@@ -578,6 +599,7 @@ mod tests {
             "fn main() = runtime.deploy(runtime_id: \"runtime-a\")",
             "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: none)",
             "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"bad kind\")",
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: \" bad\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),

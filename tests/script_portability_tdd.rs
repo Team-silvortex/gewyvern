@@ -89,6 +89,7 @@ fn documented_shell_entrypoints_are_executable() {
         "scripts/validation/ftp_denied_container_validation.sh",
         "scripts/validation/high_frequency_validation.sh",
         "scripts/validation/juice_shop_container_validation.sh",
+        "scripts/validation/leserpent_linux_bundle_smoke.sh",
         "scripts/validation/ldap_bind_denied_container_validation.sh",
         "scripts/validation/pathological_container_validation.sh",
         "scripts/remote/headless_linux.sh",

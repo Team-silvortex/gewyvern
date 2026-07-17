@@ -185,7 +185,9 @@ checks, and evidence retrieval; `ssh` and `rsync` must never resolve it to
 different users. Builds still run unprivileged and always incrementally rebuild
 the current `gewyvern_validate` source. Only the three kernel attach commands
 enter `sudo`, and an exit trap restores the eBPF evidence directory to the
-authenticated user.
+authenticated user. Those privileged commands compile smoke sources only from
+the validator's build-time workspace root; changing the remote working
+directory cannot substitute loader or BPF source files.
 
 Defaults:
 

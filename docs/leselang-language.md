@@ -5,8 +5,9 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.13.0**. The current vertical slice parses,
-lowers, authorizes, suspends, serializes, restores, and resumes the read-only
+Status: **Gate 2 execution and syntax contracts stable at 1.0.0**. The current
+vertical slice parses, lowers, authorizes, suspends,
+serializes, restores, and resumes the read-only
 `runtime.list`, `runtime.inspect`, `runtime.history`, and `runtime.logs` effects
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` command effects.
@@ -103,6 +104,12 @@ escape        = "\\", ( '"' | "\\" | "n" | "r" | "t" ) ;
 Whitespace and `//` line comments are retained as lossless tokens, including
 their byte spans. Reassembling token text must reproduce the original source.
 Source is UTF-8 and limited to 256 KiB.
+
+Serialized syntax trees validate source bounds, exact token coverage and EOF,
+UTF-8-safe token/diagnostic/AST spans, and call depth before acceptance.
+`token_text` and `reconstruct` return `Option`, so even a caller that later
+mutates public token spans receives failure rather than a slicing panic. The
+single oversized-source rejection-tree shape remains round-trip compatible.
 
 ## Canonical Formatting
 
@@ -219,12 +226,17 @@ Malformed, missing, duplicate, or unexpected completions fail closed. Structured
 values are limited to 16 levels, branch names to 64 ASCII identifier bytes, and
 the caller's output-item budget. The merged terminal value uses the existing
 journal schema and remains replayable after restart. This kernel is public VM
-protocol today; source-level `all(...)` parsing and typed lowering are
-implemented, while durable multi-branch continuations remain integration work.
+protocol today. Source-level `all(...)` parsing, typed lowering, atomic graph
+creation, durable branch dispatch, restart recovery, and final declared-order
+aggregation are implemented for one nesting level.
 
 Continuation images are versioned and capped at 64 KiB. Execution also enforces
 a source-size limit, fuel limit, 24-hour maximum deadline budget, and
 10,000-item output limit.
+Decoding rejects unknown image and effect fields, unsupported program counters,
+standalone structured `all` images, and mismatched pending-effect/result-type
+pairs. Effect requests use strict current and explicit legacy-query shapes, then
+must pass semantic validation before entering the VM or journal.
 Restored continuations advance their token sequence so a restart cannot reuse a
 live token.
 
@@ -287,9 +299,9 @@ the current domain kernel commits the refresh once and replays its first result.
 This is not a blanket exactly-once guarantee for arbitrary external adapters;
 each future mutating effect must prove the same end-to-end contract.
 Terminal replay is guaranteed only while the record remains inside the explicit
-retention window; a compacted token becomes unknown (`LSV2004`). Deterministic
-merge semantics are implemented, while structured `all` continuation wiring
-remains Gate 2 work.
+retention window; a compacted token becomes unknown (`LSV2004`). One-level
+structured `all` is part of the stable execution contract; nested `all` remains
+a deliberate future language extension and fails before sequence allocation.
 
 ## Diagnostics
 

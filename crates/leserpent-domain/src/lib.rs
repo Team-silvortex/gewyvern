@@ -17,15 +17,15 @@ pub const MAX_RUNTIME_HISTORY_ENTRIES: usize = 32;
 pub const MAX_RUNTIME_LOG_QUERY_ENTRIES: u16 = 256;
 pub const MAX_RUNTIME_LOG_MESSAGE_BYTES: usize = 64 * 1024;
 
-#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct RuntimeId(String);
 
-#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct CommandId(String);
 
-#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct IdempotencyKey(String);
 
@@ -260,6 +260,7 @@ pub enum CommandPlanError {
     UnsupportedDomainSchema { actual: u32, expected: u32 },
     CapabilityMismatch { expected: &'static str },
     MissingCapability { capability: &'static str },
+    InvalidPrincipal,
     InvalidDebuggerSessionId,
     InvalidDeploymentIntent,
     DeploymentConfirmationRequired,
@@ -445,6 +446,24 @@ impl IdempotencyKey {
     }
 }
 
+macro_rules! impl_validated_identifier_deserialize {
+    ($identifier:ident) => {
+        impl<'de> Deserialize<'de> for $identifier {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let value = String::deserialize(deserializer)?;
+                Self::new(value).map_err(serde::de::Error::custom)
+            }
+        }
+    };
+}
+
+impl_validated_identifier_deserialize!(RuntimeId);
+impl_validated_identifier_deserialize!(CommandId);
+impl_validated_identifier_deserialize!(IdempotencyKey);
+
 impl CapabilitySet {
     pub fn new(values: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self(values.into_iter().map(Into::into).collect())
@@ -462,6 +481,13 @@ impl CommandPlan {
                 actual: self.schema_version,
                 expected: COMMAND_PLAN_SCHEMA_VERSION,
             });
+        }
+        let principal = match &self.operation {
+            PlannedOperation::Query(envelope) => &envelope.principal,
+            PlannedOperation::Command(envelope) => &envelope.principal,
+        };
+        if validate_principal(principal).is_err() {
+            return Err(CommandPlanError::InvalidPrincipal);
         }
         let (required_capability, domain_schema, capabilities) = match &self.operation {
             PlannedOperation::Query(envelope) => match &envelope.query {
@@ -545,6 +571,7 @@ impl fmt::Display for CommandPlanError {
             Self::MissingCapability { capability } => {
                 write!(formatter, "plan is missing capability '{capability}'")
             }
+            Self::InvalidPrincipal => write!(formatter, "plan has an invalid principal"),
             Self::InvalidDebuggerSessionId => {
                 write!(formatter, "debugger plan has an invalid session ID")
             }
@@ -1160,7 +1187,8 @@ fn validated_identifier(field: &'static str, value: String) -> Result<String, Do
         .ok_or(DomainError::InvalidIdentifier { field })
 }
 
-fn validate_deployment_intent(
+/// Validates the deployment fields shared by language, CLI, plan, and runtime boundaries.
+pub fn validate_deployment_intent(
     pipeline_kind: &str,
     target: Option<&str>,
 ) -> Result<(), DomainError> {
@@ -1317,6 +1345,36 @@ mod tests {
             dry_run: false,
             command: Command::RuntimeRefresh { runtime_id },
         }
+    }
+
+    #[test]
+    fn identifier_deserialization_enforces_the_constructor_contract() {
+        assert_eq!(
+            serde_json::from_str::<RuntimeId>(r#""runtime-a""#).unwrap(),
+            RuntimeId::new("runtime-a").unwrap()
+        );
+        for invalid in [String::new(), "bad/id".into(), "x".repeat(129)] {
+            let encoded = serde_json::to_string(&invalid).unwrap();
+            assert!(serde_json::from_str::<RuntimeId>(&encoded).is_err());
+            assert!(serde_json::from_str::<CommandId>(&encoded).is_err());
+            assert!(serde_json::from_str::<IdempotencyKey>(&encoded).is_err());
+        }
+    }
+
+    #[test]
+    fn command_plan_rejects_an_invalid_principal_before_dispatch() {
+        let mut envelope = refresh_envelope(
+            RuntimeId::new("runtime-a").unwrap(),
+            "command-a",
+            "effect-a",
+        );
+        envelope.principal.id = "bad principal".into();
+        let plan = CommandPlan {
+            schema_version: COMMAND_PLAN_SCHEMA_VERSION,
+            required_capability: CAPABILITY_RUNTIME_REFRESH.into(),
+            operation: PlannedOperation::Command(envelope),
+        };
+        assert_eq!(plan.validate(), Err(CommandPlanError::InvalidPrincipal));
     }
 
     #[test]

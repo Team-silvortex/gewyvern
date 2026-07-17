@@ -57,10 +57,11 @@ and export JSON remain unchanged.
 
 Canonical modules now lower into source-located assignments and build
 `TemplateBinding` directly. They no longer generate and reparse a legacy text
-document. The remaining frontend migration is to replace the assignment
-values' field-level string codecs with strongly typed lowering. Export
-attach-descriptor decoding has separate static lifetime debt outside this core
-frontend IR boundary.
+document. Assignment values also lower directly into owned IDs, numeric window
+fields, `FragmentParamValue`, `EvidenceTier`, `ProgramRule`, and `ReasonRule`;
+the removed field-level codecs no longer assemble and split composite strings.
+Export attach-descriptor decoding has separate static lifetime debt outside this
+core frontend IR boundary.
 
 ## Current Lowered Model Surfaces
 

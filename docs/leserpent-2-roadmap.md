@@ -53,7 +53,10 @@ future examples in this roadmap, defines what callers may use today.
 The syntax boundary now includes a bounded canonical formatter with stable
 two-space layout, supported string escapes, declaration-order preservation, and
 deterministic parse-format idempotence in the retained fuzz shelf. Native CLI
-source export consumes this formatter directly.
+source export consumes this formatter directly. Syntax-tree JSON validates
+contiguous token coverage, EOF placement, UTF-8 spans, and bounded AST depth;
+token access also remains panic-free after caller mutation. This syntax v1
+contract is stable while HIR and VM contracts continue to evolve independently.
 
 - lossless parser and first-class diagnostics
 - HIR, lightweight static types, effects, and capability checking
@@ -62,6 +65,11 @@ source export consumes this formatter directly.
 - versioned continuation serialization
 - effect journal and exactly-once continuation consumption
 - formatter, explain output, and model-oriented language guide
+
+The execution protocol v1 rejects unknown continuation/effect fields,
+unsupported program counters, standalone structured-group images, incoherent
+effect/result-type pairs, and semantically invalid effect requests. Explicit
+legacy query-request decoding remains covered for journal migration.
 
 Current evidence covers the `runtime.list` vertical slice, including a bounded
 SQLite journal, transactional sequence allocation, pending recovery, and
@@ -100,15 +108,15 @@ branch returns the declared-order aggregate, and SQLite restart resumes only the
 remaining branches. Nested `all` remains deliberately rejected before sequence
 allocation; the one-level structured-execution VM contract has exited Gate 2.
 
-The `leselang-command` boundary now lowers authorized runtime list, inspect,
-history, logs, and refresh HIR effects into frontend-neutral `CommandPlan` values. The VM
-consumes that crate rather than constructing domain envelopes itself, and tests
-prove that CLI and Leselang origins preserve identical command semantics apart
-from audit origin metadata. The CLI now uses that shared lowering function for
-real refresh requests and can export deterministic, validated, versioned plans
-locally without daemon credentials. The bounded `runtime.logs` read uses one
-shared no-cursor query plan across VM and CLI; broader orchestration and
-deployment coverage remains.
+The `leselang-command` boundary lowers every current authorized runtime query and
+mutation into frontend-neutral `CommandPlan` values, including bounded logs,
+capability refresh, confirmed deployment, and VM-authority-only debugger
+cancellation. The VM, CLI, and UI consume that crate rather than constructing
+domain envelopes themselves. Parity tests cover every CLI-exportable Leselang
+operation, while deterministic validated plan export remains local and requires
+no daemon credentials. Debugger cancellation crosses the separately audited
+`leselang-observe` boundary and is deliberately rejected by the ordinary daemon
+command executor.
 
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 
@@ -158,6 +166,11 @@ Build the first replaceable GUI path.
 - fleet list, runtime child workspace, logs, and one debugger workflow
 - GUI action inspection, dry-run, Leselang export, and audit correlation
 
+Gate 4's renderer-neutral UI IR and replaceable Avalonia renderer contracts are
+complete and stable. Formal Developer ID signing and notarization are
+release-assurance evidence rather than renderer blockers; mobile client work
+remains owned by Gate 6.
+
 The first renderer-neutral slice now exists in `crates/leselang-ui`. It lowers
 the typed fleet projection into a bounded `UiDocument`, resolves revision-fenced
 typed events through the shared `CommandPlan` path, and computes deterministic
@@ -165,7 +178,8 @@ remove/insert/move/update patches over stable node IDs. Validation rejects
 duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. Broader renderer and
-debugger interaction coverage remains. A framework-independent
+debugger interactions are covered by the stable v1 contract and conformance
+fixtures. A framework-independent
 patch application reference now fences revisions and rejects malformed graph
 edits; round-trip fixtures establish the semantic renderer conformance baseline.
 The runtime child workspace now combines same-revision inspect and bounded
@@ -362,13 +376,21 @@ frozen as `1.0.0`. This freezes the runtime cell, not the wider Leserpent 2.0
 architecture; daemon platform parity, adapters, renderers, and remote control
 continue on their own status-tensor tracks.
 
-The initial `leserpentd` crate now hosts `ControlRuntime` as a standalone
-process. It drives explicit owner heartbeats and bounded worker steps through a
-typed adapter registry, supports finite-step smoke execution, and stays in a
+Snapshot startup is also panic-free when every retained generation is
+unusable. Recovery exhausts the bounded generation history and returns the last
+structured storage error through an explicit match; a negative test constructs
+two integrity-valid snapshots with unsupported domain schemas to exercise this
+exact authority-startup path.
+
+The `leserpentd` crate hosts `ControlRuntime` as a stable standalone authority.
+It drives explicit owner heartbeats and bounded worker steps through a typed
+adapter registry, supports finite-step smoke execution, and stays in a
 heartbeat-only safe mode when no adapter is installed. Graceful Unix signal
-shutdown, authenticated local health, and bounded synchronous worker concurrency
-are implemented; Windows IPC parity and broader production adapters remain
-before the daemon can become authoritative.
+shutdown, authenticated local and opt-in remote health, bounded synchronous
+worker concurrency, panic-safe lease settlement, and physical Linux stress are
+implemented. Adapter breadth remains owned by `leserpent-adapters`; Android and
+Windows/Web client parity remain client transport concerns rather than daemon
+lifecycle blockers.
 
 On Unix, `leserpentd` now exposes the existing wire-v1 request and response
 envelopes over a private `0600` Unix socket. Each bounded line frame carries an
@@ -467,6 +489,11 @@ confirmation, is fenced against a changed saved profile, and deletes only the
 canonical endpoint's platform credential and non-secret profile. Managed
 contract and real Avalonia control probes cover both settings and confirmation
 surfaces without exposing token material.
+Remote UI operations now enter through observed tasks rather than naked async
+event handlers. Closing the fleet window cancels work, removes the event
+subscription, fences already queued state updates, closes child workspaces, and
+contains client-disposal failures without writing back into a closed control
+tree.
 Remembered desktop CA trust is now copied out of ambient user paths into an
 application-private, content-addressed trust directory. A strict contract proves
 single-PEM parsing, CA and key-usage constraints, atomic/private writes, legacy
@@ -618,6 +645,10 @@ snapshots and explicit future-cursor resynchronization. Its summary still
 excludes Windows named pipes, remote GUI, and mobile clients. macOS arm64 and a
 physical Linux x86_64 host pass the same eight suites, 28 tests, and 41 declared
 invariants.
+The shared wire-v1 transport contract is now stable: Rust rejects unknown
+versioned envelope and security-relevant projection fields just as the schema
+and .NET client do. Remaining Gate 6 work is mobile-client lifecycle and device
+evidence, not transport-protocol maturity.
 
 The performance shelf now has the native entrypoint
 `gewyvern_validate leserpent-benchmark`. It measures fixed-size SQLite

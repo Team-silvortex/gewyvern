@@ -14,6 +14,7 @@ serde.workspace = true
 serde_json.workspace = true
 rustls.workspace = true
 rustls-pemfile.workspace = true
+zeroize = "1"
 
 [dev-dependencies]
 leselang-hir = { path = "../leselang-hir" }

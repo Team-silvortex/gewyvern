@@ -187,12 +187,10 @@ impl ControlRuntime {
                 }
             }
         }
-        let (control, through_sequence) = match restored {
-            Some(restored) => restored,
-            None if snapshot_error.is_none() => (InMemoryControlPlane::default(), 0),
-            None => {
-                return Err(RuntimeError::Storage(snapshot_error.unwrap()));
-            }
+        let (control, through_sequence) = match (restored, snapshot_error) {
+            (Some(restored), _) => restored,
+            (None, None) => (InMemoryControlPlane::default(), 0),
+            (None, Some(error)) => return Err(RuntimeError::Storage(error)),
         };
         let entries = journal
             .load(through_sequence)
@@ -1679,6 +1677,70 @@ mod tests {
             panic!("runtime.list must return a query result");
         };
         assert_eq!(runtimes.len(), 2);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn sqlite_snapshot_reports_error_when_every_generation_is_unsupported() {
+        let path = temp_journal("snapshot-all-unsupported");
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            runtime
+                .register_runtime(
+                    RuntimeId::new("runtime-a").unwrap(),
+                    "Runtime A",
+                    "https://runtime-a.invalid",
+                )
+                .unwrap();
+            runtime.create_snapshot().unwrap();
+            runtime
+                .register_runtime(
+                    RuntimeId::new("runtime-b").unwrap(),
+                    "Runtime B",
+                    "https://runtime-b.invalid",
+                )
+                .unwrap();
+            runtime.create_snapshot().unwrap();
+        }
+
+        let mut connection = Connection::open(&path).unwrap();
+        let snapshots = {
+            let mut statement = connection
+                .prepare("SELECT generation, through_sequence, payload FROM runtime_snapshots")
+                .unwrap();
+            statement
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, Vec<u8>>(2)?,
+                    ))
+                })
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        let transaction = connection.transaction().unwrap();
+        for (generation, through_sequence, payload) in snapshots {
+            let unsupported_schema = leserpent_domain::DOMAIN_SNAPSHOT_SCHEMA_VERSION + 1;
+            let checksum =
+                persistence::snapshot_checksum(unsupported_schema, through_sequence, &payload);
+            transaction
+                .execute(
+                    "UPDATE runtime_snapshots
+                     SET domain_schema = ?1, checksum = ?2
+                     WHERE generation = ?3",
+                    rusqlite::params![unsupported_schema, checksum, generation],
+                )
+                .unwrap();
+        }
+        transaction.commit().unwrap();
+
+        assert!(matches!(
+            ControlRuntime::open(&path),
+            Err(RuntimeError::Storage(ref error))
+                if error.contains("uses domain schema") && error.contains("expected")
+        ));
         fs::remove_file(path).unwrap();
     }
 

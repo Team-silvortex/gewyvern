@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "validated_on": "2026-07-17",
+  "architecture": "x86_64",
+  "kernel_release": "6.17.0-35-generic",
+  "host_fingerprint": "sha256:4b650dcd40407c878a2c23bdf8efd208c451335e550b03744492270429c2b8fe",
+  "source_root": "$HOME/.cache/gewyvern/remote-source",
+  "source_root_policy": "build_time_cargo_manifest_dir",
+  "ambient_working_directory_sources": false,
+  "results": {
+    "tracepoint_attach": "ok",
+    "kprobe_attach": "ok",
+    "tc_ingress_attach": "ok"
+  },
+  "attach_seconds": 0.504,
+  "matrix": {
+    "unique_hosts": 1,
+    "unique_kernels": 1,
+    "minimum_hosts": 2,
+    "minimum_kernels": 2,
+    "ready": false
+  },
+  "release_gate_signal": "watch"
+}

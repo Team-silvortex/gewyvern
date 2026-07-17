@@ -123,7 +123,7 @@ fn assert_syntax_invariants(source: &str, tree: &SyntaxTree) {
     assert_eq!(tree.tokens.last().unwrap().kind, TokenKind::Eof);
 
     if source.len() <= MAX_SOURCE_BYTES {
-        assert_eq!(tree.reconstruct(), source);
+        assert_eq!(tree.reconstruct().as_deref(), Some(source));
         let mut cursor = 0usize;
         for token in tree
             .tokens

@@ -285,6 +285,10 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     let kprobe_script = read_repo_file("scripts/linux/linux_kprobe_smoke.sh");
     let tc_script = read_repo_file("scripts/linux/linux_tc_smoke.sh");
     let entrypoints = read_repo_file("docs/script-entrypoints.md");
+    let pinned_source_evidence: serde_json::Value = serde_json::from_str(&read_repo_file(
+        "docs/fixtures/linux_attach_pinned_source_root.json",
+    ))
+    .expect("pinned Linux attach source-root evidence must be valid JSON");
 
     assert!(smoke.contains("run_tracepoint_attach_smoke"));
     assert!(smoke.contains("run_kprobe_attach_smoke"));
@@ -292,9 +296,20 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     assert!(smoke.contains("Command::new(\"clang\")"));
     assert!(smoke.contains("Command::new(\"cc\")"));
     assert!(smoke.contains("Command::new(\"tc\")"));
-    assert!(smoke.contains("std::env::current_dir()"));
-    assert!(smoke.contains("current_dir.join(\"ebpf\").join(\"smoke\").is_dir()"));
     assert!(smoke.contains("env!(\"CARGO_MANIFEST_DIR\")"));
+    assert!(!smoke.contains("std::env::current_dir()"));
+    assert_eq!(
+        pinned_source_evidence["source_root_policy"],
+        "build_time_cargo_manifest_dir"
+    );
+    assert_eq!(
+        pinned_source_evidence["ambient_working_directory_sources"],
+        false
+    );
+    assert_eq!(pinned_source_evidence["results"]["tracepoint_attach"], "ok");
+    assert_eq!(pinned_source_evidence["results"]["kprobe_attach"], "ok");
+    assert_eq!(pinned_source_evidence["results"]["tc_ingress_attach"], "ok");
+    assert_eq!(pinned_source_evidence["matrix"]["ready"], false);
     assert!(smoke.contains("finalize_run_result"));
     assert!(smoke.contains("write_transcript"));
     assert!(harness.contains("run_linux_attach_smoke"));
