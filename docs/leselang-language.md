@@ -5,10 +5,10 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
-Status: **Gate 2, evolving contract 0.12.0**. The current vertical slice parses,
+Status: **Gate 2, evolving contract 0.13.0**. The current vertical slice parses,
 lowers, authorizes, suspends, serializes, restores, and resumes the read-only
-`runtime.list`, `runtime.inspect`, and `runtime.history` effects plus the idempotent
-`runtime.refresh` command effect.
+`runtime.list`, `runtime.inspect`, `runtime.history`, and `runtime.logs` effects
+plus the idempotent `runtime.refresh` command effect.
 
 ## Canonical Program
 
@@ -44,6 +44,17 @@ fn main() = runtime.history(runtime_id: "runtime-a")
 results for one runtime, ordered from newest to oldest revision. It reads stable
 domain history rather than exposing persistence rows, daemon logs, or secrets.
 
+The canonical bounded log query is:
+
+```leselang
+fn main() = runtime.logs(runtime_id: "runtime-a")
+```
+
+`runtime.logs` requires `runtime.read` and returns the newest bounded window of
+at most 256 typed log records for exactly one runtime. Its canonical lowering
+uses no cursor; incremental polling remains a host/watch responsibility rather
+than introducing asynchronous source semantics.
+
 The canonical mutating program is:
 
 ```leselang
@@ -76,12 +87,27 @@ Whitespace and `//` line comments are retained as lossless tokens, including
 their byte spans. Reassembling token text must reproduce the original source.
 Source is UTF-8 and limited to 256 KiB.
 
+## Canonical Formatting
+
+`leselang_syntax::format` is the single canonical source formatter. It removes
+comments and trivia, preserves declared argument and `all` branch order, keeps
+zero- and single-argument calls on one line, and renders wider calls with
+two-space indentation plus trailing commas. Output ends with exactly one
+newline and is rejected if escaping would expand it beyond 256 KiB.
+
+Formatting requires a diagnostic-free syntax tree and is idempotent:
+parsing and formatting canonical output must reproduce the same bytes. Native
+CLI Leselang exports pass through this formatter rather than maintaining a
+frontend-specific printer.
+
 The deterministic fuzz shelf runs through
 `gewyvern_validate leselang-fuzz`. Its fixed seed covers arbitrary multi-byte
 UTF-8, malformed escapes, trivia, nesting, oversized source, HIR lowering, and
-bounded VM startup. Every token and diagnostic span must remain on UTF-8
-character boundaries. A parallel continuation corpus mutates encoded VM images
-and requires deterministic fail-closed decoding or canonical roundtrip.
+bounded VM startup. Diagnostic-free syntax also exercises deterministic,
+bounded, idempotent canonical formatting. Every token and diagnostic span must
+remain on UTF-8 character boundaries. A parallel continuation corpus mutates
+encoded VM images and requires deterministic fail-closed decoding or canonical
+roundtrip.
 
 The implemented surface deliberately excludes general expressions, local
 bindings, arbitrary mutation, loops, unstructured concurrency, raw HTTP, shell
@@ -109,9 +135,9 @@ Nested `all` remains outside the current language surface and fails with
 
 ## HIR And Authorization
 
-The syntax tree lowers into typed `RuntimeList` or `RuntimeRefresh` effects. Lowering rejects
-unknown effects, duplicate named arguments, unknown arguments, and values with
-the wrong shape.
+The syntax tree lowers each implemented operation into its corresponding typed
+runtime effect. Lowering rejects unknown effects, duplicate named arguments,
+unknown arguments, and values with the wrong shape.
 
 Authorization is explicit and occurs before VM execution. A caller without
 the effect's required capability receives a capability diagnostic; the VM does not emit an

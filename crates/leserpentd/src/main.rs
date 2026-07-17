@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use leserpent_adapters::{GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget};
+use leserpent_adapters::{
+    EnvironmentSecretStore, GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget,
+    SecretKey,
+};
 use leserpent_runtime::ControlRuntime;
 #[cfg(unix)]
 use leserpentd::IpcServer;
@@ -105,15 +108,29 @@ fn run() -> Result<(), String> {
     let runtime = ControlRuntime::open(database).map_err(|error| error.to_string())?;
     let mut registry = AdapterRegistry::default();
     if !gewyvern_targets.is_empty() {
-        let token = std::env::var("GEWY_API_ADMIN_TOKEN").ok();
+        let admin_secret =
+            SecretKey::new("gewyvern-admin").map_err(|error| format!("{error:?}"))?;
+        let configured_admin_secret = std::env::var_os("GEWY_API_ADMIN_TOKEN")
+            .is_some()
+            .then(|| admin_secret.clone());
+        let secrets = Arc::new(
+            EnvironmentSecretStore::new([(admin_secret, "GEWY_API_ADMIN_TOKEN".to_string())])
+                .map_err(|error| format!("{error:?}"))?,
+        );
         let targets = gewyvern_targets
             .into_iter()
             .map(|(runtime_id, address)| {
-                GewyvernTarget::loopback(address, token.clone()).map(|target| (runtime_id, target))
+                GewyvernTarget::loopback(address, configured_admin_secret.clone())
+                    .map(|target| (runtime_id, target))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        registry.register(GewyvernHealthAdapter::new(targets.clone())?)?;
-        registry.register(GewyvernStatusRefreshAdapter::new(targets)?)?;
+        registry.register(GewyvernHealthAdapter::with_secret_store(
+            targets.clone(),
+            secrets.clone(),
+        )?)?;
+        registry.register(GewyvernStatusRefreshAdapter::with_secret_store(
+            targets, secrets,
+        )?)?;
     }
     let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default())?;
     let stop = Arc::new(AtomicBool::new(false));

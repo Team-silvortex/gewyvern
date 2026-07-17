@@ -31,7 +31,7 @@ fn run() -> Result<i32, CliError> {
         std::env::var("LESERPENT_PRINCIPAL").ok(),
     )?;
     if let Some(source) = export_leselang(&options) {
-        println!("{source}");
+        print!("{source}");
         return Ok(0);
     }
     if let Some(plan) = export_plan(&options)? {

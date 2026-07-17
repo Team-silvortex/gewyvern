@@ -8,7 +8,7 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use leserpent_domain::RuntimeId;
+use leserpent_domain::{RuntimeId, RuntimeLogLevel};
 use leserpent_runtime::ControlRuntime;
 use leserpentd::RemoteServer;
 use rcgen::{CertifiedKey, generate_simple_self_signed};
@@ -42,6 +42,13 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
                 RuntimeId::new("runtime-a").unwrap(),
                 "Runtime A",
                 "https://secret-runtime.invalid",
+            )
+            .unwrap();
+        runtime
+            .append_runtime_log(
+                &RuntimeId::new("runtime-a").unwrap(),
+                RuntimeLogLevel::Warning,
+                "bounded warning\ncontinued",
             )
             .unwrap();
         let mut remote = RemoteServer::bind(
@@ -120,7 +127,7 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
         inspect_stdout.contains("remote conformance valid: revision=2, runtimes=1, stale=false")
     );
     assert!(inspect_stdout.contains(
-        "remote workspace conformance valid: revision=2, runtime=runtime-a, history=1, endpoint_retained=false"
+        "remote workspace conformance valid: revision=2, runtime=runtime-a, history=1, logs=1, endpoint_retained=false"
     ));
     assert!(!refresh_stdout.contains("secret-runtime.invalid"));
     assert!(!inspect_stdout.contains("secret-runtime.invalid"));

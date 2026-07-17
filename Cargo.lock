@@ -389,6 +389,7 @@ dependencies = [
  "leserpent-runtime",
  "serde",
  "serde_json",
+ "zeroize",
 ]
 
 [[package]]

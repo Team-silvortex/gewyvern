@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 
 if (args is ["--credential-resolve", var credentialOrigin])
 {
@@ -85,8 +86,10 @@ if (args.Length is 4 or 6 && args[0] == "--connect")
             "workspace query changed runtime identity");
         Require(liveWorkspace.History.Count <= RemoteWorkspaceClient.MaxHistoryEntries,
             "workspace query exceeded its history bound");
+        Require(liveWorkspace.Logs.Count <= RemoteWorkspaceClient.MaxLogEntries,
+            "workspace query exceeded its log bound");
         Console.WriteLine(
-            $"remote workspace conformance valid: revision={liveWorkspace.Revision}, runtime={liveWorkspace.Runtime.Id}, history={liveWorkspace.History.Count}, endpoint_retained=false");
+            $"remote workspace conformance valid: revision={liveWorkspace.Revision}, runtime={liveWorkspace.Runtime.Id}, history={liveWorkspace.History.Count}, logs={liveWorkspace.Logs.Count}, endpoint_retained=false");
     }
     return 0;
 }
@@ -199,30 +202,56 @@ Require(trustIdentity.Origin == "https://example.com:9443"
 var decodedWorkspace = RemoteWorkspaceCodec.Compose(
     Fixtures.InspectResponse(7, "runtime-a"),
     Fixtures.HistoryResponse(7, "runtime-a"),
+    Fixtures.LogsResponse(7, "runtime-a", "bounded warning\ncontinued"),
     "runtime-a");
 Require(decodedWorkspace.Revision == 7
     && decodedWorkspace.Runtime.Id == "runtime-a"
-    && decodedWorkspace.History is [{ CommandId: "command-a", Revision: 7, Status: "applied" }],
+    && decodedWorkspace.History is [{ CommandId: "command-a", Revision: 7, Status: "applied" }]
+    && decodedWorkspace.Logs is [{ Sequence: 41, Level: "warning", Display: "bounded warning continued" }],
     "workspace query did not preserve the bounded safe projection");
 Require(decodedWorkspace.Runtime.GetType().GetProperty("Endpoint") is null,
     "workspace safe projection retained the remote endpoint");
 RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
     Fixtures.InspectResponse(7, "runtime-a"),
     Fixtures.HistoryResponse(8, "runtime-a"),
+    Fixtures.LogsResponse(7, "runtime-a"),
     "runtime-a"),
     "workspace accepted torn query revisions");
 RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
     Fixtures.InspectResponse(7, "runtime-a"),
     Fixtures.HistoryResponse(7, "runtime-b"),
+    Fixtures.LogsResponse(7, "runtime-a"),
     "runtime-a"),
     "workspace accepted history from another runtime");
 RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
     Fixtures.InspectResponse(7, "runtime-a", extraRuntimeField: true),
     Fixtures.HistoryResponse(7, "runtime-a"),
+    Fixtures.LogsResponse(7, "runtime-a"),
     "runtime-a"),
     "workspace accepted an unknown runtime field");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Fixtures.InspectResponse(7, "runtime-a"),
+    Fixtures.HistoryResponse(7, "runtime-a"),
+    Fixtures.LogsResponse(8, "runtime-a"),
+    "runtime-a"),
+    "workspace accepted torn log revision");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Fixtures.InspectResponse(7, "runtime-a"),
+    Fixtures.HistoryResponse(7, "runtime-a"),
+    Fixtures.LogsResponse(7, "runtime-b"),
+    "runtime-a"),
+    "workspace accepted logs from another runtime");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Fixtures.InspectResponse(7, "runtime-a"),
+    Fixtures.HistoryResponse(7, "runtime-a"),
+    Fixtures.LogsResponse(
+        7,
+        "runtime-a",
+        new string('x', RemoteWorkspaceClient.MaxLogMessageBytes + 1)),
+    "runtime-a"),
+    "workspace accepted an oversized log message");
 
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, endpoint_retained=false");
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false");
 return 0;
 
 static void Require(bool condition, string message)
@@ -280,6 +309,29 @@ public static byte[] HistoryResponse(ulong revision, string runtimeId) =>
         "status": "applied",
         "runtime": {{RuntimeJson(revision, runtimeId)}},
         "events": []
+      }]
+    }
+  }
+}
+""");
+
+public static byte[] LogsResponse(
+    ulong revision,
+    string runtimeId,
+    string message = "bounded warning") => Encoding.UTF8.GetBytes($$"""
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "query",
+    "payload": {
+      "kind": "runtime_logs",
+      "revision": {{revision}},
+      "runtime_id": "{{runtimeId}}",
+      "runtime_name": "Runtime A",
+      "entries": [{
+        "sequence": 41,
+        "level": "warning",
+        "message": {{JsonSerializer.Serialize(message)}}
       }]
     }
   }

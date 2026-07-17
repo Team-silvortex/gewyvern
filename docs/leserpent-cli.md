@@ -43,6 +43,8 @@ leserpent runtime inspect runtime-a
 leserpent --json runtime inspect runtime-a
 leserpent runtime history runtime-a
 leserpent --json runtime history runtime-a
+leserpent runtime logs runtime-a
+leserpent --json runtime logs runtime-a
 leserpent runtime watch runtime-a
 leserpent --json runtime watch runtime-a --count 100 --interval-ms 500
 leserpent runtime list --environment production --export-leselang
@@ -51,6 +53,8 @@ leserpent runtime inspect runtime-a --export-leselang
 leserpent runtime inspect runtime-a --export-plan
 leserpent runtime history runtime-a --export-leselang
 leserpent runtime history runtime-a --export-plan
+leserpent runtime logs runtime-a --export-leselang
+leserpent runtime logs runtime-a --export-plan
 leserpent runtime refresh runtime-a --dry-run --expected-revision 1
 leserpent runtime refresh runtime-a --yes --idempotency-key deploy-2026-07-15
 leserpent runtime refresh runtime-a --export-leselang
@@ -71,6 +75,11 @@ revision first. Human output is a terminal-safe table; JSON preserves the typed
 wire response. The command reads domain history and never opens the SQLite
 journal directly.
 
+`runtime logs` returns the newest bounded window of at most 256 typed records
+for one runtime. Execution, plan export, and canonical Leselang export all use
+the shared `runtime.logs` lowering with no cursor, so CLI and language semantics
+cannot drift.
+
 `runtime watch` is a bounded CLI transport loop over the same normalized
 `runtime.inspect` query. It emits the first projection and then only changed
 revisions, flushing each human line or JSON envelope immediately. The default is
@@ -83,9 +92,10 @@ confirmation, rendering, and exit-code semantics. The HTTPS client requires
 unique JSON `Content-Length`/`Content-Type` response framing, rejects transfer
 encoding and redirects, and retains the wire-v1 1 MiB response limit.
 
-All three read queries support local `--export-leselang` and `--export-plan`. These
+All four read queries support local `--export-leselang` and `--export-plan`. These
 paths require neither socket nor token. List exports normalize filters before
-rendering, and plan exports use the same shared lowering functions as real IPC
+rendering. Every source export passes through the shared canonical Leselang
+formatter; plan exports use the same shared lowering functions as real IPC
 execution, so exported and executed query envelopes cannot drift.
 
 Real refresh execution requires `--yes`; preview uses `--dry-run` and cannot be

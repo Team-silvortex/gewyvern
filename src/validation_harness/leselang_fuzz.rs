@@ -51,6 +51,8 @@ pub fn run_leselang_fuzz_validation(
         out_dir,
         checks: vec![
             "utf8_parser_lossless_spans".to_string(),
+            "canonical_formatter_idempotence".to_string(),
+            "formatted_source_bound".to_string(),
             "hir_vm_bounded_start".to_string(),
             "continuation_decode_fail_closed".to_string(),
             "deterministic_seed_replay".to_string(),

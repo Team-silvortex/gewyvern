@@ -173,6 +173,22 @@ schema is no longer compatible.
 - Host adapters may use Rust async internally, but async types never enter
   Leselang or the domain contract.
 
+## Adapter Secret Boundary
+
+Rust effect targets carry validated `SecretKey` aliases, never secret values.
+`SecretStore` resolves an alias immediately before network execution; missing,
+invalid, or unavailable values fail before a connection is opened. Temporary
+`SecretValue` instances redact `Debug` output, reject line breaks and oversized
+values, and zeroize their allocation on drop. Adapter request buffers containing
+authorization headers are also zeroized immediately after the socket write,
+including write-failure paths.
+
+The daemon currently supplies an allowlisted environment-backed store for the
+optional Gewyvern admin token. Configured in-memory storage exists only as a
+provider and test boundary. Native Keychain and Secret Service providers must
+implement the same trait, preserving target and adapter semantics without
+adding platform code to the scheduler or domain model.
+
 ## UI Contract
 
 Leselang UI functions are pure:

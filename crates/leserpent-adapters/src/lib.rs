@@ -6,11 +6,16 @@ use std::time::Duration;
 use leserpent_runtime::{EffectExecution, EffectExecutor, EffectLease};
 
 mod gewyvern;
+mod secret;
 
 pub use gewyvern::{
     GEWYVERN_HEALTH_EFFECT_KIND, GEWYVERN_STATUS_REFRESH_EFFECT_KIND, GewyvernHealthAdapter,
     GewyvernStatusObservation, GewyvernStatusRefreshAdapter, GewyvernStatusRefreshRequest,
     GewyvernTarget,
+};
+pub use secret::{
+    ConfiguredSecretStore, EmptySecretStore, EnvironmentSecretStore, MAX_SECRET_BYTES, SecretKey,
+    SecretStore, SecretStoreError, SecretValue,
 };
 
 pub trait EffectAdapter: Send {

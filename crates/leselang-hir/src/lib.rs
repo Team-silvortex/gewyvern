@@ -36,6 +36,7 @@ pub enum Effect {
     RuntimeList { filter: RuntimeListFilter },
     RuntimeInspect { runtime_id: RuntimeId },
     RuntimeHistory { runtime_id: RuntimeId },
+    RuntimeLogs { runtime_id: RuntimeId },
     RuntimeRefresh { runtime_id: RuntimeId },
     All { branches: Vec<HirBranch> },
 }
@@ -46,6 +47,7 @@ pub enum Type {
     RuntimeList,
     RuntimeInspect,
     RuntimeHistory,
+    RuntimeLogs,
     RuntimeRefresh,
     Structured,
 }
@@ -107,9 +109,8 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         }]);
     };
     match callee.as_str() {
-        "runtime.list" | "runtime.inspect" | "runtime.history" | "runtime.refresh" => {
-            lower_runtime_effect(callee, arguments, *span)
-        }
+        "runtime.list" | "runtime.inspect" | "runtime.history" | "runtime.logs"
+        | "runtime.refresh" => lower_runtime_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -153,16 +154,17 @@ fn lower_runtime_effect(
             ("runtime.list", "environment") => filter.environment = value,
             ("runtime.list", "cluster") => filter.cluster = value,
             ("runtime.list", "role") => filter.role = value,
-            ("runtime.inspect" | "runtime.history" | "runtime.refresh", "runtime_id") => {
-                match value.and_then(|value| RuntimeId::new(value).ok()) {
-                    Some(value) => runtime_id = Some(value),
-                    None => diagnostics.push(Diagnostic {
-                        code: "LSH1104".to_string(),
-                        message: format!("{callee} runtime_id must be a valid identifier string"),
-                        span: Some(argument.span),
-                    }),
-                }
-            }
+            (
+                "runtime.inspect" | "runtime.history" | "runtime.logs" | "runtime.refresh",
+                "runtime_id",
+            ) => match value.and_then(|value| RuntimeId::new(value).ok()) {
+                Some(value) => runtime_id = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1104".to_string(),
+                    message: format!("{callee} runtime_id must be a valid identifier string"),
+                    span: Some(argument.span),
+                }),
+            },
             _ => diagnostics.push(Diagnostic {
                 code: "LSH1103".to_string(),
                 message: format!("unknown {callee} argument '{}'", argument.name),
@@ -172,7 +174,7 @@ fn lower_runtime_effect(
     }
     if matches!(
         callee,
-        "runtime.inspect" | "runtime.history" | "runtime.refresh"
+        "runtime.inspect" | "runtime.history" | "runtime.logs" | "runtime.refresh"
     ) && runtime_id.is_none()
         && diagnostics.is_empty()
     {
@@ -206,6 +208,13 @@ fn lower_runtime_effect(
                 runtime_id: runtime_id.expect("validated runtime.history identifier"),
             },
             Type::RuntimeHistory,
+            CAPABILITY_RUNTIME_READ,
+        ),
+        "runtime.logs" => (
+            Effect::RuntimeLogs {
+                runtime_id: runtime_id.expect("validated runtime.logs identifier"),
+            },
+            Type::RuntimeLogs,
             CAPABILITY_RUNTIME_READ,
         ),
         "runtime.refresh" => (
@@ -403,11 +412,42 @@ mod tests {
     }
 
     #[test]
+    fn runtime_logs_lowers_to_typed_read_effect() {
+        let program = lower(&parse(
+            "fn main() = runtime.logs(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::RuntimeLogs);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_RUNTIME_READ]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::RuntimeLogs { ref runtime_id } if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
     fn runtime_refresh_requires_one_valid_identifier() {
         for source in [
             "fn main() = runtime.refresh()",
             "fn main() = runtime.refresh(runtime_id: none)",
             "fn main() = runtime.refresh(runtime_id: \"bad/id\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn runtime_logs_requires_one_valid_identifier() {
+        for source in [
+            "fn main() = runtime.logs()",
+            "fn main() = runtime.logs(runtime_id: none)",
+            "fn main() = runtime.logs(runtime_id: \"bad/id\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),

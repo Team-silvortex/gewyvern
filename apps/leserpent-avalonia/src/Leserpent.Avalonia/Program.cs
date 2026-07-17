@@ -30,7 +30,7 @@ internal static class Program
         {
             RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation();
             Console.WriteLine(
-                "remote workspace projection valid: semantic=true, endpoint_retained=false, history_bounded=true");
+                "remote workspace projection valid: semantic=true, endpoint_retained=false, history_bounded=true, logs_bounded=true");
             return 0;
         }
         try

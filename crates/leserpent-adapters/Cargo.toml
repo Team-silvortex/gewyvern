@@ -10,3 +10,4 @@ leserpent-domain = { path = "../leserpent-domain" }
 leserpent-runtime = { path = "../leserpent-runtime" }
 serde.workspace = true
 serde_json.workspace = true
+zeroize = "1"

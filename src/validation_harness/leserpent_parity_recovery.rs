@@ -166,7 +166,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         id: "avalonia-remote-state-conformance",
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
-            success_marker: "remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, endpoint_retained=false",
+            success_marker: "remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false",
         },
         expected_min_tests: 1,
         invariants: &[
@@ -203,6 +203,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "authenticated-dotnet-runtime-inspect",
             "same-revision-workspace-composition",
             "bounded-runtime-history",
+            "bounded-sanitized-runtime-logs",
             "endpoint-redacted-workspace-output",
         ],
     },

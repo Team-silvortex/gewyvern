@@ -1,5 +1,5 @@
 use leselang_hir::lower;
-use leselang_syntax::{MAX_SOURCE_BYTES, SyntaxTree, TokenKind, parse};
+use leselang_syntax::{MAX_SOURCE_BYTES, SyntaxTree, TokenKind, format as format_source, parse};
 use leselang_vm::{Step, Vm, decode_continuation, encode_continuation};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Principal,
@@ -13,6 +13,7 @@ const CONTINUATION_CASES: usize = 2_048;
 fn deterministic_utf8_parser_hir_vm_fuzz_shelf() {
     let mut random = DeterministicRandom::new(FUZZ_SEED);
     let mut lowered = 0usize;
+    let mut formatted = 0usize;
     for source in source_corpus(&mut random) {
         let tree = parse(&source);
         assert_syntax_invariants(&source, &tree);
@@ -26,6 +27,19 @@ fn deterministic_utf8_parser_hir_vm_fuzz_shelf() {
             tree,
             "parse was not deterministic for `{source}`"
         );
+
+        if tree.diagnostics.is_empty() {
+            let first = format_source(&tree);
+            let second = format_source(&tree);
+            assert_eq!(first, second, "format was not deterministic for `{source}`");
+            if let Ok(canonical) = first {
+                formatted += 1;
+                assert!(canonical.len() <= MAX_SOURCE_BYTES);
+                let reparsed = parse(&canonical);
+                assert!(reparsed.diagnostics.is_empty());
+                assert_eq!(format_source(&reparsed).unwrap(), canonical);
+            }
+        }
 
         let Ok(program) = lower(&tree) else {
             continue;
@@ -51,7 +65,13 @@ fn deterministic_utf8_parser_hir_vm_fuzz_shelf() {
         ));
     }
     assert!(lowered >= 5, "valid seed programs did not reach the VM");
-    println!("leselang source fuzz valid: seed={FUZZ_SEED} cases={SOURCE_CASES} lowered={lowered}");
+    assert!(
+        formatted >= 5,
+        "valid seed programs did not reach the formatter"
+    );
+    println!(
+        "leselang source fuzz valid: seed={FUZZ_SEED} cases={SOURCE_CASES} lowered={lowered} formatted={formatted}"
+    );
 }
 
 #[test]

@@ -218,13 +218,18 @@ stale projection. It never retries a mutation. `resync_required` clears the
 cursor before requesting a complete snapshot. Each runtime card exposes typed
 `runtime.inspect` and `runtime.refresh` actions. Inspect opens one reusable
 child window per runtime, with an eight-window safety bound. The child requests
-`RuntimeInspect` and bounded `RuntimeHistory` together over the same authenticated
-`/v1/wire` transport and mounts a document only when both responses carry the
-same revision and runtime identity. Runtime endpoints exist only in the strict
-wire decode DTO and are discarded before snapshot, history, UI IR, cache, or
-automation state is created. A newer live event revision reloads the matching
-open workspace; malformed, torn, or mismatched query state fails closed without
-retaining a partial document. Refresh is blocked while state is stale, requires
+`RuntimeInspect`, bounded `RuntimeHistory`, and bounded `RuntimeLogs` together
+over the same authenticated `/v1/wire` transport and mounts a document only when
+all three responses carry the same revision and runtime identity. Logs are
+limited to 256 strictly ordered entries; raw messages are limited to 64 KiB,
+control characters are normalized, and display text is UTF-8 safely capped at
+768 bytes. Runtime endpoints exist only in the strict wire decode DTO and are
+discarded before snapshot, history, logs, UI IR, cache, or automation state is
+created. A newer live event revision reloads the matching open workspace.
+Because log append does not advance the control-plane revision, each workspace
+also exposes a persistent Reload button and `F5` shortcut. Malformed, torn, or
+mismatched query state fails closed without retaining a partial document.
+Refresh is blocked while state is stale, requires
 an explicit confirmation dialog, carries the displayed runtime
 revision for optimistic concurrency, and is never retried automatically after
 an ambiguous network failure. Refresh controls remain disabled during
@@ -247,17 +252,18 @@ dotnet run --project \
 It checks strict Rust event decoding, monotonic revisions, stale transitions,
 the reconnect bound and cursor-preserving manual resume, resync cursor reset,
 malformed-cache rejection, per-origin cache binding, atomic workspace query
-composition, runtime identity, and endpoint omission without requiring a UI or
-network service. The semantic workspace projection can be checked separately
+composition, runtime/log identity, bounded sanitized logs, and endpoint omission
+without requiring a UI or network service. The semantic workspace projection can be checked separately
 with `--verify-remote-workspace` on the Avalonia project. Against an authorized
 live server, append `--connect HTTPS_ORIGIN CA_PATH CACHE_PATH --inspect
-RUNTIME_ID` to verify the complete authenticated Inspect/History path.
+RUNTIME_ID` to verify the complete authenticated Inspect/History/Logs path.
 `gewyvern_validate leserpent-parity-recovery` runs this check together with an
 ignored-by-default integration test that connects the .NET client to a real
 Rust TLS/WebSocket authority, applies a confirmed HTTPS refresh, and waits for
 the matching revision on the event stream. The same authority is then queried
-through authenticated Inspect and History calls; the proof requires revision 2,
-one bounded history entry, and endpoint-free stdout plus cache state. macOS arm64 and physical Linux
+through authenticated Inspect, History, and Logs calls; the proof requires
+revision 2, one bounded history entry, one sanitized log entry, and endpoint-free
+stdout plus cache state. macOS arm64 and physical Linux
 x86_64 retain matching eleven-suite, 134-test, 79-invariant evidence for the
 current vertical contract.
 

@@ -2,8 +2,8 @@ use leselang_hir::Effect;
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
     CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, Confirmation,
-    DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query, QueryEnvelope, Revision, RuntimeId,
-    RuntimeListFilter,
+    DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query,
+    QueryEnvelope, Revision, RuntimeId, RuntimeListFilter,
 };
 pub use leserpent_domain::{COMMAND_PLAN_SCHEMA_VERSION, CommandPlan, PlannedOperation};
 
@@ -75,7 +75,8 @@ pub fn lower_effect(
     let required_capability = match effect {
         Effect::RuntimeList { .. }
         | Effect::RuntimeInspect { .. }
-        | Effect::RuntimeHistory { .. } => CAPABILITY_RUNTIME_READ,
+        | Effect::RuntimeHistory { .. }
+        | Effect::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
         Effect::RuntimeRefresh { .. } => CAPABILITY_RUNTIME_REFRESH,
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
     };
@@ -88,6 +89,7 @@ pub fn lower_effect(
         Effect::RuntimeList { filter } => plan_runtime_list(filter, context)?,
         Effect::RuntimeInspect { runtime_id } => plan_runtime_inspect(runtime_id, context)?,
         Effect::RuntimeHistory { runtime_id } => plan_runtime_history(runtime_id, context)?,
+        Effect::RuntimeLogs { runtime_id } => plan_runtime_logs(runtime_id, context)?,
         Effect::RuntimeRefresh { runtime_id } => plan_runtime_refresh(runtime_id, context)?,
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
     };
@@ -125,6 +127,20 @@ pub fn plan_runtime_history(
     plan_runtime_query(
         Query::RuntimeHistory {
             runtime_id: runtime_id.clone(),
+        },
+        context,
+    )
+}
+
+pub fn plan_runtime_logs(
+    runtime_id: &RuntimeId,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    plan_runtime_query(
+        Query::RuntimeLogs {
+            runtime_id: runtime_id.clone(),
+            after_sequence: None,
+            limit: MAX_RUNTIME_LOG_QUERY_ENTRIES,
         },
         context,
     )
@@ -348,6 +364,28 @@ mod tests {
             plan.operation,
             PlannedOperation::Query(QueryEnvelope {
                 query: Query::RuntimeHistory { runtime_id },
+                ..
+            }) if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn runtime_logs_lowers_to_bounded_frontend_neutral_query_plan() {
+        let program = lower(&parse(
+            "fn main() = runtime.logs(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let plan =
+            lower_effect(&program.function.effect, &context(CommandOrigin::Leselang)).unwrap();
+        assert_eq!(plan.required_capability, CAPABILITY_RUNTIME_READ);
+        assert!(matches!(
+            plan.operation,
+            PlannedOperation::Query(QueryEnvelope {
+                query: Query::RuntimeLogs {
+                    runtime_id,
+                    after_sequence: None,
+                    limit: MAX_RUNTIME_LOG_QUERY_ENTRIES,
+                },
                 ..
             }) if runtime_id.as_str() == "runtime-a"
         ));

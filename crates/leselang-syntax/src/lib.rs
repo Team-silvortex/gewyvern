@@ -98,6 +98,97 @@ impl SyntaxTree {
     }
 }
 
+pub fn format(tree: &SyntaxTree) -> Result<String, Vec<Diagnostic>> {
+    if !tree.diagnostics.is_empty() {
+        return Err(tree.diagnostics.clone());
+    }
+    let Some(function) = &tree.function else {
+        return Err(vec![Diagnostic {
+            code: "LSE2001".to_string(),
+            message: "cannot format a syntax tree without a function".to_string(),
+            span: Span { start: 0, end: 0 },
+        }]);
+    };
+    let mut output = format!("fn {}() = ", function.name);
+    format_expression(&function.body, 0, &mut output);
+    output.push('\n');
+    if output.len() > MAX_SOURCE_BYTES {
+        return Err(vec![Diagnostic {
+            code: "LSE2002".to_string(),
+            message: format!("formatted source exceeds {MAX_SOURCE_BYTES} bytes"),
+            span: function.span,
+        }]);
+    }
+    Ok(output)
+}
+
+fn format_expression(expression: &Expression, indent: usize, output: &mut String) {
+    match expression {
+        Expression::Call {
+            callee, arguments, ..
+        } if arguments.is_empty() => {
+            output.push_str(callee);
+            output.push_str("()");
+        }
+        Expression::Call {
+            callee, arguments, ..
+        } if expression_is_inline(expression) => {
+            output.push_str(callee);
+            output.push('(');
+            let argument = &arguments[0];
+            output.push_str(&argument.name);
+            output.push_str(": ");
+            format_expression(&argument.value, indent, output);
+            output.push(')');
+        }
+        Expression::Call {
+            callee, arguments, ..
+        } => {
+            output.push_str(callee);
+            output.push_str("(\n");
+            let child_indent = indent + 2;
+            for argument in arguments {
+                output.push_str(&" ".repeat(child_indent));
+                output.push_str(&argument.name);
+                output.push_str(": ");
+                format_expression(&argument.value, child_indent, output);
+                output.push_str(",\n");
+            }
+            output.push_str(&" ".repeat(indent));
+            output.push(')');
+        }
+        Expression::String { value, .. } => format_string(value, output),
+        Expression::None { .. } => output.push_str("none"),
+    }
+}
+
+fn expression_is_inline(expression: &Expression) -> bool {
+    match expression {
+        Expression::Call { arguments, .. } => {
+            arguments.len() <= 1
+                && arguments
+                    .first()
+                    .is_none_or(|argument| expression_is_inline(&argument.value))
+        }
+        Expression::String { .. } | Expression::None { .. } => true,
+    }
+}
+
+fn format_string(value: &str, output: &mut String) {
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+}
+
 pub fn parse(source: &str) -> SyntaxTree {
     if source.len() > MAX_SOURCE_BYTES {
         return SyntaxTree {
@@ -524,5 +615,61 @@ mod tests {
         let tree = parse(&source);
         assert_eq!(tree.diagnostics[0].code, "LSE0001");
         assert!(tree.function.is_none());
+    }
+
+    #[test]
+    fn formatter_erases_trivia_into_one_canonical_program() {
+        let compact =
+            parse("fn main()=runtime.list(environment:\"production\",cluster:none,role:\"edge\")");
+        let commented = parse(
+            "// inventory\nfn main ( ) = runtime.list( environment: \"production\", // local\n cluster: none, role: \"edge\", )",
+        );
+        let expected = "fn main() = runtime.list(\n  environment: \"production\",\n  cluster: none,\n  role: \"edge\",\n)\n";
+        assert_eq!(format(&compact).unwrap(), expected);
+        assert_eq!(format(&commented).unwrap(), expected);
+    }
+
+    #[test]
+    fn formatter_preserves_branch_order_and_is_idempotent() {
+        let tree = parse(
+            "fn main() = all(refresh: runtime.refresh(runtime_id: \"runtime-a\"), inventory: runtime.list())",
+        );
+        let formatted = format(&tree).unwrap();
+        assert_eq!(
+            formatted,
+            "fn main() = all(\n  refresh: runtime.refresh(runtime_id: \"runtime-a\"),\n  inventory: runtime.list(),\n)\n"
+        );
+        assert_eq!(format(&parse(&formatted)).unwrap(), formatted);
+    }
+
+    #[test]
+    fn formatter_uses_only_supported_string_escapes() {
+        let formatted = format(&parse(
+            "fn main() = runtime.list(role: \"line\\n\\\"quoted\\\"\\\\tab\\t\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            formatted,
+            "fn main() = runtime.list(role: \"line\\n\\\"quoted\\\"\\\\tab\\t\")\n"
+        );
+        assert!(parse(&formatted).diagnostics.is_empty());
+    }
+
+    #[test]
+    fn formatter_refuses_invalid_syntax() {
+        let tree = parse("fn main() = runtime.list(role: @)");
+        let errors = format(&tree).unwrap_err();
+        assert!(errors.iter().any(|error| error.code == "LSE0002"));
+    }
+
+    #[test]
+    fn formatter_rejects_output_expansion_past_source_limit() {
+        let source = format!(
+            "fn main() = runtime.list(role: \"{}\")",
+            "\t".repeat(MAX_SOURCE_BYTES / 2)
+        );
+        assert!(source.len() <= MAX_SOURCE_BYTES);
+        let errors = format(&parse(&source)).unwrap_err();
+        assert_eq!(errors[0].code, "LSE2002");
     }
 }

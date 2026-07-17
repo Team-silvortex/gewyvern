@@ -1,9 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text;
 
 public sealed class RemoteWorkspaceClient : IDisposable
 {
     public const int MaxHistoryEntries = 32;
+    public const int MaxLogEntries = 256;
+    public const int MaxLogMessageBytes = 64 * 1024;
+    public const int MaxLogDisplayBytes = 768;
     private readonly RemoteWireTransport transport;
 
     public RemoteWorkspaceClient(RemoteClientOptions options)
@@ -20,8 +24,13 @@ public sealed class RemoteWorkspaceClient : IDisposable
         RemoteQueryValidation.RequireIdentifier(principal, "principal");
         var inspect = SendAsync("runtime_inspect", runtimeId, principal, cancellationToken);
         var history = SendAsync("runtime_history", runtimeId, principal, cancellationToken);
-        await Task.WhenAll(inspect, history).ConfigureAwait(false);
-        return RemoteWorkspaceCodec.Compose(inspect.Result, history.Result, runtimeId);
+        var logs = SendAsync("runtime_logs", runtimeId, principal, cancellationToken);
+        await Task.WhenAll(inspect, history, logs).ConfigureAwait(false);
+        return RemoteWorkspaceCodec.Compose(
+            inspect.Result,
+            history.Result,
+            logs.Result,
+            runtimeId);
     }
 
     public void Dispose() => transport.Dispose();
@@ -44,6 +53,7 @@ public sealed class RemoteWorkspaceClient : IDisposable
                     {
                         Kind = queryKind,
                         RuntimeId = runtimeId,
+                        Limit = queryKind == "runtime_logs" ? MaxLogEntries : 0,
                     },
                 },
             },
@@ -58,18 +68,25 @@ public sealed class RemoteWorkspaceClient : IDisposable
 public sealed record RemoteWorkspaceSnapshot(
     ulong Revision,
     RemoteRuntimeProjection Runtime,
-    IReadOnlyList<RemoteHistoryProjection> History);
+    IReadOnlyList<RemoteHistoryProjection> History,
+    IReadOnlyList<RemoteLogProjection> Logs);
 
 public sealed record RemoteHistoryProjection(
     string CommandId,
     ulong Revision,
     string Status);
 
+public sealed record RemoteLogProjection(
+    ulong Sequence,
+    string Level,
+    string Display);
+
 public static class RemoteWorkspaceCodec
 {
     public static RemoteWorkspaceSnapshot Compose(
         ReadOnlySpan<byte> inspectPayload,
         ReadOnlySpan<byte> historyPayload,
+        ReadOnlySpan<byte> logsPayload,
         string expectedRuntimeId)
     {
         RemoteQueryValidation.RequireIdentifier(expectedRuntimeId, "runtime ID");
@@ -81,17 +98,32 @@ public static class RemoteWorkspaceCodec
             historyPayload,
             "runtime_history",
             RemoteWorkspaceJsonContext.Default.RuntimeHistoryQueryResult);
-        if (inspect.Runtime is null || history.Entries is null)
+        var logs = Decode<RuntimeLogsQueryResult>(
+            logsPayload,
+            "runtime_logs",
+            RemoteWorkspaceJsonContext.Default.RuntimeLogsQueryResult);
+        if (inspect.Runtime is null || history.Entries is null || logs.Entries is null)
         {
             throw new InvalidDataException(
                 "remote workspace query result is missing required data");
         }
-        if (inspect.Revision != history.Revision)
+        if (inspect.Revision != history.Revision || inspect.Revision != logs.Revision)
         {
             throw new InvalidDataException(
                 "remote workspace query revisions do not match");
         }
         ValidateRuntime(inspect.Runtime, expectedRuntimeId);
+        if (logs.RuntimeId is null || logs.RuntimeName is null)
+        {
+            throw new InvalidDataException(
+                "remote workspace log identity is missing required data");
+        }
+        RemoteQueryValidation.RequireIdentifier(logs.RuntimeId, "runtime ID");
+        RemoteQueryValidation.RequireDisplay(logs.RuntimeName, "runtime name");
+        if (logs.RuntimeId != expectedRuntimeId || logs.RuntimeName != inspect.Runtime.Name)
+        {
+            throw new InvalidDataException("remote workspace log identity is invalid");
+        }
         if (inspect.Runtime.Revision > inspect.Revision)
         {
             throw new InvalidDataException(
@@ -129,10 +161,44 @@ public static class RemoteWorkspaceCodec
                 entry.Runtime.Revision,
                 entry.Status));
         }
+        if (logs.Entries.Count > RemoteWorkspaceClient.MaxLogEntries)
+        {
+            throw new InvalidDataException("remote workspace logs exceed their item limit");
+        }
+        var projectedLogs = new List<RemoteLogProjection>(logs.Entries.Count);
+        ulong? previousSequence = null;
+        foreach (var entry in logs.Entries)
+        {
+            if (entry is null || entry.Level is null || entry.Message is null)
+            {
+                throw new InvalidDataException(
+                    "remote workspace log entry is missing required data");
+            }
+            if (previousSequence is { } previous && entry.Sequence <= previous)
+            {
+                throw new InvalidDataException(
+                    "remote workspace log sequence is not strictly increasing");
+            }
+            if (entry.Level is not ("trace" or "debug" or "info" or "warning" or "error"))
+            {
+                throw new InvalidDataException("remote workspace log level is invalid");
+            }
+            if (Encoding.UTF8.GetByteCount(entry.Message)
+                > RemoteWorkspaceClient.MaxLogMessageBytes)
+            {
+                throw new InvalidDataException("remote workspace log message is oversized");
+            }
+            previousSequence = entry.Sequence;
+            projectedLogs.Add(new RemoteLogProjection(
+                entry.Sequence,
+                entry.Level,
+                SanitizeLogDisplay(entry.Message)));
+        }
         return new RemoteWorkspaceSnapshot(
             inspect.Revision,
             Project(inspect.Runtime),
-            projectedHistory);
+            projectedHistory,
+            projectedLogs);
     }
 
     private static T Decode<T>(
@@ -228,6 +294,23 @@ public static class RemoteWorkspaceCodec
         Status = runtime.Status,
     };
 
+    private static string SanitizeLogDisplay(string message)
+    {
+        var display = new StringBuilder(Math.Min(message.Length, 256));
+        var bytes = 0;
+        foreach (var rune in message.EnumerateRunes())
+        {
+            var safe = Rune.IsControl(rune) ? new Rune(' ') : rune;
+            if (bytes + safe.Utf8SequenceLength > RemoteWorkspaceClient.MaxLogDisplayBytes)
+            {
+                break;
+            }
+            display.Append(safe.ToString());
+            bytes += safe.Utf8SequenceLength;
+        }
+        return display.ToString();
+    }
+
     private static string RequiredString(JsonElement element, string property) =>
         element.GetProperty(property).GetString()
         ?? throw new InvalidDataException(
@@ -288,6 +371,8 @@ public sealed class RuntimeQuery
 {
     public required string Kind { get; set; }
     public required string RuntimeId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Limit { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -304,6 +389,24 @@ public sealed class RuntimeHistoryQueryResult
     public required string Kind { get; set; }
     public ulong Revision { get; set; }
     public required List<WireCommandResult> Entries { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class RuntimeLogsQueryResult
+{
+    public required string Kind { get; set; }
+    public ulong Revision { get; set; }
+    public required string RuntimeId { get; set; }
+    public required string RuntimeName { get; set; }
+    public required List<WireRuntimeLogRecord> Entries { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireRuntimeLogRecord
+{
+    public ulong Sequence { get; set; }
+    public required string Level { get; set; }
+    public required string Message { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -334,4 +437,5 @@ public sealed class WireRuntimeProjection
 [JsonSerializable(typeof(WireResponseEnvelope))]
 [JsonSerializable(typeof(RuntimeInspectQueryResult))]
 [JsonSerializable(typeof(RuntimeHistoryQueryResult))]
+[JsonSerializable(typeof(RuntimeLogsQueryResult))]
 public partial class RemoteWorkspaceJsonContext : JsonSerializerContext;

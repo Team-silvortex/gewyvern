@@ -32,13 +32,15 @@ endpoint and persistence details remain absent. Stable workspace and history
 entry IDs allow an empty history to become an incremental insert rather than a
 full document replacement.
 
-The Avalonia remote shell now supplies that pair through two concurrent,
-authenticated `/v1/wire` queries. Its strict transport DTO is the only layer
+The Avalonia remote shell now supplies Inspect, History, and Logs through three
+concurrent, authenticated `/v1/wire` queries. Its strict transport DTO is the only layer
 that can represent a runtime endpoint; the composed `RemoteWorkspaceSnapshot`
-retains only renderer-neutral runtime and bounded command-history fields.
-Revision mismatch, runtime rebinding, unknown fields, null required data, and
-history beyond the domain limit all reject the complete workspace rather than
-mounting partial state.
+retains only renderer-neutral runtime, bounded command-history fields, and
+sanitized log displays. Revision mismatch, runtime/name rebinding, unknown
+fields, null required data, non-monotonic log sequences, and history/log limits
+all reject the complete workspace rather than mounting partial state. Raw log
+messages are admitted only up to the 64 KiB domain bound, then control characters
+are normalized and the UI display is UTF-8 safely capped at 768 bytes.
 
 The log slice consumes a renderer-neutral `RuntimeLogProjection`, not raw
 adapter output. A trusted runtime producer supplies only revision, runtime

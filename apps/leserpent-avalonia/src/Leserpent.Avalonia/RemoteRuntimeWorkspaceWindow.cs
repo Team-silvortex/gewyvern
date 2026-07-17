@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 
 internal sealed class RemoteRuntimeWorkspaceWindow : Window
@@ -15,10 +16,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         FontWeight = FontWeight.SemiBold,
         TextWrapping = TextWrapping.Wrap,
     };
-    private readonly Button retryButton = new()
+    private readonly Button reloadButton = new()
     {
-        Content = "Retry",
-        IsVisible = false,
+        Content = "Reload",
         Padding = new Thickness(12, 6),
     };
     private bool loadInFlight;
@@ -45,9 +45,12 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         AutomationProperties.SetAutomationId(statusText, "runtime-workspace-status");
         AutomationProperties.SetName(statusText, "Runtime workspace query status");
         AutomationProperties.SetLiveSetting(statusText, AutomationLiveSetting.Polite);
-        AutomationProperties.SetAutomationId(retryButton, "runtime-workspace-retry");
-        AutomationProperties.SetName(retryButton, "Retry loading runtime workspace");
-        retryButton.Click += (_, _) => _ = ReloadAsync();
+        AutomationProperties.SetAutomationId(reloadButton, "runtime-workspace-reload");
+        AutomationProperties.SetName(reloadButton, "Reload runtime workspace");
+        AutomationProperties.SetHelpText(
+            reloadButton,
+            "Reloads status, history, and logs through one revision-consistent query group. Shortcut: F5.");
+        reloadButton.Click += (_, _) => _ = ReloadAsync();
         var status = new Border
         {
             Background = LeserpentTheme.Panel,
@@ -58,10 +61,10 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             {
                 ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"),
                 ColumnSpacing = 12,
-                Children = { statusText, retryButton },
+                Children = { statusText, reloadButton },
             },
         };
-        Grid.SetColumn(retryButton, 1);
+        Grid.SetColumn(reloadButton, 1);
         Content = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("Auto,*"),
@@ -69,6 +72,14 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         };
         Grid.SetRow(renderer.Surface, 1);
         Opened += (_, _) => _ = ReloadAsync();
+        KeyDown += (_, eventArgs) =>
+        {
+            if (eventArgs.Key == Key.F5 && reloadButton.IsEnabled)
+            {
+                eventArgs.Handled = true;
+                _ = ReloadAsync();
+            }
+        };
         Closed += (_, _) =>
         {
             lifetime.Cancel();
@@ -99,7 +110,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         }
         loadInFlight = true;
         var loaded = false;
-        retryButton.IsVisible = false;
+        reloadButton.IsEnabled = false;
         SetStatus("Loading authenticated runtime snapshot...", LeserpentTheme.Primary);
         try
         {
@@ -142,6 +153,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         finally
         {
             loadInFlight = false;
+            reloadButton.IsEnabled = !lifetime.IsCancellationRequested;
             if (loaded && desiredRevision > loadedRevision)
             {
                 _ = ReloadAsync();
@@ -152,7 +164,6 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
     private void ShowFailure(string message)
     {
         SetStatus(message, LeserpentTheme.Destructive);
-        retryButton.IsVisible = true;
     }
 
     private void SetStatus(string text, IBrush foreground)

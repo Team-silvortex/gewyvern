@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::sync::Arc;
 use std::time::Duration;
 
 use leserpent_domain::{
@@ -9,8 +10,9 @@ use leserpent_domain::{
 };
 use leserpent_runtime::EffectExecution;
 use serde::Deserialize;
+use zeroize::Zeroize;
 
-use crate::{EffectAdapter, validate_id};
+use crate::{EffectAdapter, EmptySecretStore, SecretKey, SecretStore, validate_id};
 
 pub const GEWYVERN_HEALTH_EFFECT_KIND: &str = "gewyvern.health.check";
 pub const GEWYVERN_STATUS_REFRESH_EFFECT_KIND: &str = RUNTIME_STATUS_REFRESH_EFFECT_KIND;
@@ -19,33 +21,30 @@ const MAX_HTTP_RESPONSE_BYTES: u64 = 64 * 1024;
 #[derive(Clone, Debug)]
 pub struct GewyvernTarget {
     address: SocketAddr,
-    admin_token: Option<String>,
+    admin_secret: Option<SecretKey>,
 }
 
 impl GewyvernTarget {
-    pub fn loopback(address: SocketAddr, admin_token: Option<String>) -> Result<Self, String> {
+    pub fn loopback(address: SocketAddr, admin_secret: Option<SecretKey>) -> Result<Self, String> {
         if !address.ip().is_loopback() {
             return Err("Gewyvern adapter currently permits loopback targets only".into());
         }
-        if admin_token.as_ref().is_some_and(|token| {
-            token.is_empty() || token.len() > 256 || token.contains('\r') || token.contains('\n')
-        }) {
-            return Err("Gewyvern admin token is invalid".into());
-        }
         Ok(Self {
             address,
-            admin_token,
+            admin_secret,
         })
     }
 }
 
 pub struct GewyvernHealthAdapter {
     targets: BTreeMap<String, GewyvernTarget>,
+    secrets: Arc<dyn SecretStore>,
     timeout: Duration,
 }
 
 pub struct GewyvernStatusRefreshAdapter {
     targets: BTreeMap<String, GewyvernTarget>,
+    secrets: Arc<dyn SecretStore>,
     timeout: Duration,
 }
 
@@ -57,8 +56,16 @@ impl GewyvernHealthAdapter {
     pub fn new(
         targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
     ) -> Result<Self, String> {
+        Self::with_secret_store(targets, Arc::new(EmptySecretStore))
+    }
+
+    pub fn with_secret_store(
+        targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
+        secrets: Arc<dyn SecretStore>,
+    ) -> Result<Self, String> {
         Ok(Self {
             targets: normalize_targets(targets)?,
+            secrets,
             timeout: Duration::from_secs(3),
         })
     }
@@ -68,8 +75,16 @@ impl GewyvernStatusRefreshAdapter {
     pub fn new(
         targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
     ) -> Result<Self, String> {
+        Self::with_secret_store(targets, Arc::new(EmptySecretStore))
+    }
+
+    pub fn with_secret_store(
+        targets: impl IntoIterator<Item = (String, GewyvernTarget)>,
+        secrets: Arc<dyn SecretStore>,
+    ) -> Result<Self, String> {
         Ok(Self {
             targets: normalize_targets(targets)?,
+            secrets,
             timeout: Duration::from_secs(3),
         })
     }
@@ -97,7 +112,7 @@ impl EffectAdapter for GewyvernHealthAdapter {
         let Some(target) = self.targets.get(&request.runtime_id) else {
             return reject("Gewyvern runtime is not configured");
         };
-        match fetch_health(target, self.timeout) {
+        match fetch_health(target, self.secrets.as_ref(), self.timeout) {
             Ok(body) => EffectExecution::Complete(body),
             Err(error) => EffectExecution::Retry {
                 error,
@@ -123,7 +138,7 @@ impl EffectAdapter for GewyvernStatusRefreshAdapter {
         let Some(target) = self.targets.get(&request.runtime_id) else {
             return reject("Gewyvern runtime is not configured");
         };
-        match fetch_status(target, self.timeout, &request) {
+        match fetch_status(target, self.secrets.as_ref(), self.timeout, &request) {
             Ok(observation) => match serde_json::to_vec(&observation) {
                 Ok(encoded) => EffectExecution::Complete(encoded),
                 Err(_) => reject("Gewyvern status observation cannot be encoded"),
@@ -152,8 +167,12 @@ fn normalize_targets(
     Ok(normalized)
 }
 
-fn fetch_health(target: &GewyvernTarget, timeout: Duration) -> Result<Vec<u8>, String> {
-    let body = fetch_json(target, "/health", timeout)?;
+fn fetch_health(
+    target: &GewyvernTarget,
+    secrets: &dyn SecretStore,
+    timeout: Duration,
+) -> Result<Vec<u8>, String> {
+    let body = fetch_json(target, secrets, "/health", timeout)?;
     let health: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|_| "Gewyvern health response JSON is invalid".to_string())?;
     if health.get("ok") != Some(&serde_json::Value::Bool(true)) {
@@ -197,17 +216,18 @@ struct MetaDocument {
 
 fn fetch_status(
     target: &GewyvernTarget,
+    secrets: &dyn SecretStore,
     timeout: Duration,
     request: &GewyvernStatusRefreshRequest,
 ) -> Result<GewyvernStatusObservation, String> {
     let health: HealthDocument =
-        serde_json::from_slice(&fetch_json(target, "/health", timeout)?)
+        serde_json::from_slice(&fetch_json(target, secrets, "/health", timeout)?)
             .map_err(|_| "Gewyvern health response JSON is invalid".to_string())?;
     if !health.ok {
         return Err("Gewyvern health response is not ready".into());
     }
     let meta: MetaDocument = if health.has_snapshot {
-        serde_json::from_slice(&fetch_json(target, "/v1/latest/meta", timeout)?)
+        serde_json::from_slice(&fetch_json(target, secrets, "/v1/latest/meta", timeout)?)
             .map_err(|_| "Gewyvern snapshot metadata JSON is invalid".to_string())?
     } else {
         MetaDocument::default()
@@ -242,7 +262,28 @@ fn fetch_status(
     })
 }
 
-fn fetch_json(target: &GewyvernTarget, path: &str, timeout: Duration) -> Result<Vec<u8>, String> {
+fn fetch_json(
+    target: &GewyvernTarget,
+    secrets: &dyn SecretStore,
+    path: &str,
+    timeout: Duration,
+) -> Result<Vec<u8>, String> {
+    let admin_token = target
+        .admin_secret
+        .as_ref()
+        .map(|key| {
+            secrets
+                .load(key)
+                .map_err(|_| "Gewyvern admin secret is unavailable".to_string())?
+                .ok_or_else(|| "Gewyvern admin secret is missing".to_string())
+        })
+        .transpose()?;
+    if admin_token
+        .as_ref()
+        .is_some_and(|token| token.expose_secret().len() > 256)
+    {
+        return Err("Gewyvern admin secret is invalid".into());
+    }
     let mut stream = TcpStream::connect_timeout(&target.address, timeout)
         .map_err(|_| "Gewyvern API connection failed".to_string())?;
     stream
@@ -255,15 +296,16 @@ fn fetch_json(target: &GewyvernTarget, path: &str, timeout: Duration) -> Result<
         "GET {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n",
         target.address,
     );
-    if let Some(token) = &target.admin_token {
+    if let Some(token) = &admin_token {
+        let token = token.expose_secret();
         request.push_str("X-Gewyvern-Admin-Token: ");
         request.push_str(token);
         request.push_str("\r\n");
     }
     request.push_str("\r\n");
-    stream
-        .write_all(request.as_bytes())
-        .map_err(|_| "Gewyvern API write failed".to_string())?;
+    let write_result = stream.write_all(request.as_bytes());
+    request.zeroize();
+    write_result.map_err(|_| "Gewyvern API write failed".to_string())?;
     let mut response = Vec::new();
     stream
         .take(MAX_HTTP_RESPONSE_BYTES + 1)
@@ -303,6 +345,7 @@ mod tests {
     use leserpent_domain::Revision;
 
     use super::*;
+    use crate::{ConfiguredSecretStore, SecretValue};
 
     fn serve_json(stream: &mut impl Write, body: &[u8]) {
         write!(
@@ -328,8 +371,15 @@ mod tests {
             let body = br#"{"ok":true,"has_snapshot":false}"#;
             serve_json(&mut stream, body);
         });
-        let target = GewyvernTarget::loopback(address, Some("test-token".into())).unwrap();
-        let mut adapter = GewyvernHealthAdapter::new([("runtime-a".to_string(), target)]).unwrap();
+        let key = SecretKey::new("runtime-a-admin").unwrap();
+        let secrets = Arc::new(
+            ConfiguredSecretStore::new([(key.clone(), SecretValue::new("test-token").unwrap())])
+                .unwrap(),
+        );
+        let target = GewyvernTarget::loopback(address, Some(key)).unwrap();
+        let mut adapter =
+            GewyvernHealthAdapter::with_secret_store([("runtime-a".to_string(), target)], secrets)
+                .unwrap();
         let result = adapter.execute(br#"{"runtime_id":"runtime-a"}"#);
         let EffectExecution::Complete(body) = result else {
             panic!("health request should complete");
@@ -361,9 +411,17 @@ mod tests {
                 serve_json(&mut stream, body);
             }
         });
-        let target = GewyvernTarget::loopback(address, Some("test-token".into())).unwrap();
-        let mut adapter =
-            GewyvernStatusRefreshAdapter::new([("runtime-a".to_string(), target)]).unwrap();
+        let key = SecretKey::new("runtime-a-admin").unwrap();
+        let secrets = Arc::new(
+            ConfiguredSecretStore::new([(key.clone(), SecretValue::new("test-token").unwrap())])
+                .unwrap(),
+        );
+        let target = GewyvernTarget::loopback(address, Some(key)).unwrap();
+        let mut adapter = GewyvernStatusRefreshAdapter::with_secret_store(
+            [("runtime-a".to_string(), target)],
+            secrets,
+        )
+        .unwrap();
         let result = adapter.execute(br#"{"runtime_id":"runtime-a","expected_revision":7}"#);
         let EffectExecution::Complete(body) = result else {
             panic!("status refresh should complete");
@@ -448,6 +506,20 @@ mod tests {
         assert!(matches!(
             adapter.execute(br#"{"runtime_id":"runtime-missing"}"#),
             EffectExecution::Reject { .. }
+        ));
+    }
+
+    #[test]
+    fn missing_configured_secret_fails_before_network_access() {
+        let target = GewyvernTarget::loopback(
+            "127.0.0.1:9".parse().unwrap(),
+            Some(SecretKey::new("runtime-a-admin").unwrap()),
+        )
+        .unwrap();
+        let mut adapter = GewyvernHealthAdapter::new([("runtime-a".to_string(), target)]).unwrap();
+        assert!(matches!(
+            adapter.execute(br#"{"runtime_id":"runtime-a"}"#),
+            EffectExecution::Retry { error, .. } if error == "Gewyvern admin secret is missing"
         ));
     }
 }

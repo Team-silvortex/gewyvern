@@ -25,6 +25,27 @@ internal static class RemoteWorkspaceDocumentProjection
                 Accessibility = new Accessibility(),
                 Children = [],
             }).ToArray();
+        var logs = snapshot.Logs.Count == 0
+            ?
+            [
+                TextNode(
+                    $"{prefix}:logs:empty",
+                    UiNodeKind.Text,
+                    "runtime.logs.empty",
+                    "No log entries"),
+            ]
+            : snapshot.Logs.Select(entry => new UiNode
+            {
+                Id = $"{prefix}:logs:{entry.Sequence}",
+                Kind = UiNodeKind.LogEntry,
+                Text = new LocalizedText
+                {
+                    Key = "runtime.logs.entry",
+                    Fallback = $"[{entry.Level.ToUpperInvariant()}] {entry.Display}",
+                },
+                Accessibility = new Accessibility(),
+                Children = [],
+            }).ToArray();
         return new UiDocument
         {
             SchemaVersion = 1,
@@ -94,6 +115,17 @@ internal static class RemoteWorkspaceDocumentProjection
                         },
                         Children = [.. history],
                     },
+                    new UiNode
+                    {
+                        Id = $"{prefix}:logs",
+                        Kind = UiNodeKind.Section,
+                        Text = Localized("runtime.logs.title", "Logs"),
+                        Accessibility = new Accessibility
+                        {
+                            Label = Localized("runtime.logs.title", "Runtime logs"),
+                        },
+                        Children = [.. logs],
+                    },
                 ],
             },
         };
@@ -112,16 +144,32 @@ internal static class RemoteWorkspaceDocumentProjection
                 Tags = new RuntimeTags(),
                 Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
             },
-            [new RemoteHistoryProjection("command-a", 7, "applied")]);
+            [new RemoteHistoryProjection("command-a", 7, "applied")],
+            [new RemoteLogProjection(1, "warning", "bounded warning")]);
         var document = Project(snapshot);
         var renderer = new SemanticRenderer();
         renderer.Mount(document);
         if (document.Root.RuntimeId != "runtime-a"
-            || document.Root.Children.Any(node =>
-                node.Text?.Fallback.Contains("https://", StringComparison.Ordinal) == true))
+            || Descendants(document.Root).Any(node =>
+                node.Text?.Fallback.Contains("https://", StringComparison.Ordinal) == true)
+            || Descendants(document.Root).Single(node =>
+                node.Id == "workspace:runtime-a:logs:1").Text?.Fallback
+                != "[WARNING] bounded warning")
         {
             throw new InvalidDataException(
                 "remote workspace projection leaked transport identity");
+        }
+    }
+
+    private static IEnumerable<UiNode> Descendants(UiNode node)
+    {
+        yield return node;
+        foreach (var child in node.Children)
+        {
+            foreach (var descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
         }
     }
 

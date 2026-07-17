@@ -50,6 +50,11 @@ The implemented language surface and its explicit limits are maintained in the
 [Leselang language contract](leselang-language.md). That contract, rather than
 future examples in this roadmap, defines what callers may use today.
 
+The syntax boundary now includes a bounded canonical formatter with stable
+two-space layout, supported string escapes, declaration-order preservation, and
+deterministic parse-format idempotence in the retained fuzz shelf. Native CLI
+source export consumes this formatter directly.
+
 - lossless parser and first-class diagnostics
 - HIR, lightweight static types, effects, and capability checking
 - stackless evaluator with `Done / Effect / Yield / Cancelled / Failed / Fault`
@@ -95,14 +100,15 @@ branch returns the declared-order aggregate, and SQLite restart resumes only the
 remaining branches. Nested `all` remains deliberately rejected before sequence
 allocation; the one-level structured-execution VM contract has exited Gate 2.
 
-The `leselang-command` boundary now lowers authorized `runtime.list` and
-`runtime.refresh` HIR effects into frontend-neutral `CommandPlan` values. The VM
+The `leselang-command` boundary now lowers authorized runtime list, inspect,
+history, logs, and refresh HIR effects into frontend-neutral `CommandPlan` values. The VM
 consumes that crate rather than constructing domain envelopes itself, and tests
 prove that CLI and Leselang origins preserve identical command semantics apart
 from audit origin metadata. The CLI now uses that shared lowering function for
 real refresh requests and can export deterministic, validated, versioned plans
-locally without daemon credentials. Broader command coverage remains before
-Gate 2 exits.
+locally without daemon credentials. The bounded `runtime.logs` read uses one
+shared no-cursor query plan across VM and CLI; broader orchestration and
+deployment coverage remains.
 
 Exit: programs can suspend, restart, re-enter, and replay deterministically.
 
@@ -132,7 +138,8 @@ covers the dedicated `runtime inspect` query. Runtime list and inspect now also
 export canonical Leselang and validated plans locally through the same lowering
 used for IPC execution. Bounded `runtime history` now returns newest-first domain
 results through authenticated IPC, VM re-entry, canonical export, and a parity
-fixture without exposing journal rows. The native CLI now adds a bounded,
+fixture without exposing journal rows. Bounded `runtime logs` now follows the
+same execution/export/plan path and returns at most 256 records. The native CLI now adds a bounded,
 revision-deduplicated watch loop over the same normalized inspect plan, with
 line-flushed human and JSON output. Local Gate 3 operation breadth is complete;
 authenticated remote CLI transport remains under the Gate 6 transport boundary.
@@ -210,9 +217,11 @@ Fleet cards now declare a runtime-bound Inspect action alongside Refresh. The
 Inspect event is revision-fenced and lowers in Rust to a frontend-neutral
 `runtime.read` query plan; .NET validates the same runtime binding and renders
 the action without constructing a query itself. The remote desktop now executes
-that plan through the authenticated wire boundary: it composes Inspect and
-bounded History only at the same revision, discards endpoint-bearing wire DTOs
-before creating safe state, and opens one reusable child window per runtime.
+that plan through the authenticated wire boundary: it composes Inspect, bounded
+History, and bounded sanitized Logs only at the same revision, discards
+endpoint-bearing wire DTOs before creating safe state, and opens one reusable
+child window per runtime. Log append does not advance the control revision, so
+the child exposes explicit Reload/F5 instead of pretending event-driven freshness.
 Open workspaces refresh from newer live event revisions and share the fleet
 window's mutation confirmation/fencing path. A fixed eight-window bound prevents
 accidental connection and window fan-out.
@@ -382,8 +391,11 @@ completion. The typed status adapter now combines `/health` and
 `/v1/latest/meta` into a frontend-neutral snapshot without journaling its admin
 token. `leserpentd` registers both health and status effect kinds for configured
 targets, and status outcomes flow through the runtime's atomic projection and
-replay path. Deployment, discovery, remote TLS, and secret storage remain future
-adapter slices.
+replay path. Targets now retain only validated secret aliases; a shared
+`SecretStore` resolves the allowlisted environment token immediately before
+network execution, redacts debug output, zeroizes temporary values, and fails
+before connecting when resolution fails. Native Keychain/Secret Service
+providers, deployment, discovery, and remote TLS remain future adapter slices.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery
