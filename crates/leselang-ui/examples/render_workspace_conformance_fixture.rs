@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -5,7 +6,8 @@ use leselang_ui::{UiDocument, UiPatch, diff, runtime_workspace_document};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope,
     CommandId, CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
-    InMemoryControlPlane, Principal, Query, QueryEnvelope, QueryResult, Revision, RuntimeId,
+    InMemoryControlPlane, Principal, Query, QueryEnvelope, QueryResult, Revision,
+    RuntimeCapabilitySnapshot, RuntimeId,
 };
 use serde::Serialize;
 
@@ -32,8 +34,27 @@ fn main() {
     for index in 0..32 {
         refresh(&mut control, &runtime_id, index, Revision(index + 1));
     }
+    control
+        .complete_runtime_capability_refresh(
+            &runtime_id,
+            Revision(33),
+            RuntimeCapabilitySnapshot {
+                source: "gewyvern-api".into(),
+                service: "gewyvern-api".into(),
+                version: "1.2.0".into(),
+                latest_snapshot: true,
+                authenticated_deployment: true,
+                serve_required: true,
+                external_sidecar_context: true,
+                target_path_segment_encoding: "percent-encoding".into(),
+                target_direct_path_chars: "A-Z a-z 0-9 . _ ~ :".into(),
+                endpoints: vec!["/v1/capabilities".into(), "/v1/deployments".into()],
+                extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
+            },
+        )
+        .unwrap();
     let previous = workspace(&control, &runtime_id);
-    refresh(&mut control, &runtime_id, 32, Revision(33));
+    refresh(&mut control, &runtime_id, 32, Revision(34));
     let next = workspace(&control, &runtime_id);
     let patch = diff(&previous, &next).unwrap();
     let bytes = serde_json::to_vec_pretty(&Fixture {

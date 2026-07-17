@@ -71,6 +71,10 @@ public static class RemoteEventCodec
             {
                 throw new InvalidDataException("remote snapshot contains an invalid runtime ID");
             }
+            ValidateCapabilities(
+                runtime.Capabilities,
+                runtime.CapabilitiesObservedForRevision,
+                runtime.Revision);
         }
         return new RemoteEvent.Snapshot(
             payload.Revision,
@@ -81,6 +85,85 @@ public static class RemoteEventCodec
     private static bool IsIdentifier(string value) => value.Length is > 0 and <= 128
         && value.All(character => char.IsAsciiLetterOrDigit(character)
             || character is '-' or '_' or '.' or ':');
+
+    internal static void ValidateCapabilities(
+        RuntimeCapabilitySnapshot? capabilities,
+        ulong? observedForRevision = null,
+        ulong? runtimeRevision = null)
+    {
+        if (capabilities is null)
+        {
+            if (observedForRevision is not null)
+            {
+                throw new InvalidDataException(
+                    "missing runtime capabilities carry an observation revision");
+            }
+            return;
+        }
+        if (capabilities.Source is null
+            || capabilities.Service is null
+            || capabilities.Version is null
+            || capabilities.TargetPathSegmentEncoding is null
+            || capabilities.TargetDirectPathChars is null
+            || capabilities.Endpoints is null
+            || capabilities.Extensions is null)
+        {
+            throw new InvalidDataException(
+                "remote snapshot contains incomplete runtime capabilities");
+        }
+        if (capabilities.IsUnobserved)
+        {
+            if (observedForRevision is not null)
+            {
+                throw new InvalidDataException(
+                    "unobserved runtime capabilities carry an observation revision");
+            }
+            return;
+        }
+        if (observedForRevision is { } observed
+            && (runtimeRevision is not { } current || observed >= current))
+        {
+            throw new InvalidDataException(
+                "runtime capability observation revision is invalid");
+        }
+        var endpointsValid = capabilities.Endpoints.Count is > 0 and <= 128
+            && capabilities.Endpoints.SequenceEqual(
+                capabilities.Endpoints.Distinct(StringComparer.Ordinal)
+                    .Order(StringComparer.Ordinal))
+            && capabilities.Endpoints.All(endpoint => endpoint.Length <= 256
+                && endpoint.StartsWith('/')
+                && !endpoint.StartsWith("//", StringComparison.Ordinal)
+                && !endpoint.Contains('?')
+                && !endpoint.Contains('#')
+                && endpoint.All(character => char.IsAscii(character)
+                    && !char.IsControl(character)
+                    && !char.IsWhiteSpace(character)));
+        var extensionsValid = capabilities.Extensions.Count <= 64
+            && capabilities.Extensions.Keys.All(key => key.Length is > 0 and <= 64
+                && key.All(character => character is >= 'a' and <= 'z'
+                    || char.IsAsciiDigit(character)
+                    || character is '_' or '-'));
+        var versionValid = capabilities.Version.Length is > 0 and <= 32
+            && capabilities.Version.All(character => char.IsAsciiLetterOrDigit(character)
+                || character is '.' or '-' or '+');
+        var directCharsValid = capabilities.TargetDirectPathChars.Length is > 0 and <= 64
+            && capabilities.TargetDirectPathChars.All(character => char.IsAscii(character)
+                && !char.IsControl(character));
+        if (capabilities.Source != "gewyvern-api"
+            || capabilities.Service != "gewyvern-api"
+            || !versionValid
+            || capabilities.TargetPathSegmentEncoding != "percent-encoding"
+            || !directCharsValid
+            || !endpointsValid
+            || !extensionsValid
+            || !capabilities.Endpoints.Contains("/v1/capabilities", StringComparer.Ordinal)
+            || capabilities.AuthenticatedDeployment
+                != capabilities.Endpoints.Contains("/v1/deployments", StringComparer.Ordinal))
+        {
+            throw new InvalidDataException(
+                "remote snapshot contains invalid runtime capabilities");
+        }
+    }
 }
 
 public abstract record RemoteEvent
@@ -151,6 +234,37 @@ public sealed class RemoteRuntimeProjection
     public RefreshStatus RefreshStatus { get; set; }
     public required RuntimeTags Tags { get; set; }
     public required RuntimeStatusSnapshot Status { get; set; }
+    public RuntimeCapabilitySnapshot? Capabilities { get; set; }
+    public ulong? CapabilitiesObservedForRevision { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class RuntimeCapabilitySnapshot
+{
+    public string Source { get; set; } = string.Empty;
+    public string Service { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public bool LatestSnapshot { get; set; }
+    public bool AuthenticatedDeployment { get; set; }
+    public bool ServeRequired { get; set; }
+    public bool ExternalSidecarContext { get; set; }
+    public string TargetPathSegmentEncoding { get; set; } = string.Empty;
+    public string TargetDirectPathChars { get; set; } = string.Empty;
+    public List<string> Endpoints { get; set; } = [];
+    public Dictionary<string, bool> Extensions { get; set; } = new(StringComparer.Ordinal);
+
+    [JsonIgnore]
+    public bool IsUnobserved => Source.Length == 0
+        && Service.Length == 0
+        && Version.Length == 0
+        && !LatestSnapshot
+        && !AuthenticatedDeployment
+        && !ServeRequired
+        && !ExternalSidecarContext
+        && TargetPathSegmentEncoding.Length == 0
+        && TargetDirectPathChars.Length == 0
+        && Endpoints.Count == 0
+        && Extensions.Count == 0;
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

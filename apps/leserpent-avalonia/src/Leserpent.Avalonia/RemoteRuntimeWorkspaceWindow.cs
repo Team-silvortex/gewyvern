@@ -90,8 +90,15 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
 
     public string RuntimeId { get; }
 
-    public void SetRefreshAvailability(bool enabled, string? reason) =>
+    public void SetRefreshAvailability(bool enabled, string? reason)
+    {
         renderer.SetActionAvailability(ActionKind.RuntimeRefresh, enabled, reason);
+        renderer.SetActionAvailability(
+            ActionKind.RuntimeCapabilitiesRefresh,
+            enabled,
+            reason);
+        renderer.SetActionAvailability(ActionKind.RuntimeDeploy, enabled, reason);
+    }
 
     public void ReloadIfOlder(ulong revision)
     {

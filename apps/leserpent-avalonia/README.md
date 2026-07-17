@@ -229,13 +229,21 @@ created. A newer live event revision reloads the matching open workspace.
 Because log append does not advance the control-plane revision, each workspace
 also exposes a persistent Reload button and `F5` shortcut. Malformed, torn, or
 mismatched query state fails closed without retaining a partial document.
-Refresh is blocked while state is stale, requires
+Runtime and capability refresh are blocked while state is stale, require
 an explicit confirmation dialog, carries the displayed runtime
 revision for optimistic concurrency, and is never retried automatically after
 an ambiguous network failure. Refresh controls remain disabled during
-confirmation and transport. A successful response stays fenced until its
-runtime revision appears on the event stream; an unknown outcome stays fenced
-until a subsequent live event is observed. Disabled reasons are exposed through
+confirmation and transport. A successful runtime refresh stays fenced until its
+command revision appears on the event stream. Capability discovery remains
+fenced beyond the command revision until a later observed capability projection
+arrives, preventing a second command from invalidating the in-flight
+observation. An unknown outcome stays fenced until a later full runtime snapshot
+resolves it; revision heartbeats cannot release the fence. For capability
+discovery, a snapshot carrying a newer revision but the old capability posture
+remains ambiguous and blocked. New projections carry
+`capabilities_observed_for_revision`, so identical discovery results still
+resolve the exact command without content comparison; legacy projections omit
+the field and retain the conservative behavior. Disabled reasons are exposed through
 the tooltip and automation help text. Operation progress and outcomes use a
 separate persistent, dismissible live-region banner, so connection heartbeats
 cannot overwrite them. Confirmation dialogs focus Cancel by default and Escape
@@ -256,13 +264,28 @@ composition, runtime/log identity, bounded sanitized logs, and endpoint omission
 without requiring a UI or network service. The semantic workspace projection can be checked separately
 with `--verify-remote-workspace` on the Avalonia project. Against an authorized
 live server, append `--connect HTTPS_ORIGIN CA_PATH CACHE_PATH --inspect
-RUNTIME_ID` to verify the complete authenticated Inspect/History/Logs path.
+RUNTIME_ID` to verify the complete authenticated Inspect/History/Logs path, or
+use `--refresh-capabilities RUNTIME_ID` to verify the typed capability mutation.
+
+Authenticated runtime workspaces expose `Deploy pipeline` only after the strict
+capability projection advertises authenticated deployment. The form bounds the
+pipeline kind and optional target, repeats runtime/revision context before
+confirmation, and submits `runtime_deploy` under the separate `runtime.deploy`
+capability. Request identity, principal, and confirmation are not editable.
+Run the Avalonia project with `--verify-deployment-contract` to check the
+source-generated JSON shape, null omission, and fail-closed input validation.
+Run it with `--verify-parameterized-form` to verify the renderer-neutral form
+description, typed `submit` event, field whitelist, and input constraints.
+
 `gewyvern_validate leserpent-parity-recovery` runs this check together with an
 ignored-by-default integration test that connects the .NET client to a real
-Rust TLS/WebSocket authority, applies a confirmed HTTPS refresh, and waits for
-the matching revision on the event stream. The same authority is then queried
+Rust TLS/WebSocket authority, applies confirmed HTTPS runtime and capability
+refreshes, executes the discovery adapter against a fixed loopback capability
+service, and waits for the command and observation revisions on the event
+stream. The same authority is then queried
 through authenticated Inspect, History, and Logs calls; the proof requires
-revision 2, one bounded history entry, one sanitized log entry, and endpoint-free
+revision 4, an observed `1.2.0` capability projection, two bounded history
+entries, one sanitized log entry, and endpoint-free
 stdout plus cache state. macOS arm64 and physical Linux
 x86_64 retain matching eleven-suite, 134-test, 79-invariant evidence for the
 current vertical contract.

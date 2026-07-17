@@ -259,6 +259,16 @@ pub fn waiting_debugger_projection(
             Some(runtime_id.clone()),
             "runtime refresh",
         ),
+        Effect::RuntimeCapabilitiesRefresh { runtime_id } => (
+            DebuggerEffectKind::RuntimeCapabilitiesRefresh,
+            Some(runtime_id.clone()),
+            "runtime capabilities refresh",
+        ),
+        Effect::RuntimeDeploy { runtime_id, .. } => (
+            DebuggerEffectKind::RuntimeDeploy,
+            Some(runtime_id.clone()),
+            "runtime deploy",
+        ),
         Effect::All { .. } => {
             return Err(ObserveError::InvalidEffectRequest(Fault {
                 code: "LSO1001".to_string(),

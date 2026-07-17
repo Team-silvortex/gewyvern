@@ -13,7 +13,8 @@ public sealed record RemoteFeedState(
     IReadOnlyList<RemoteRuntimeProjection> Runtimes,
     int ConsecutiveFailures,
     bool IsStale,
-    string Detail)
+    string Detail,
+    ulong SnapshotGeneration = 0)
 {
     public static RemoteFeedState Initial { get; } = new(
         RemoteFeedPhase.Connecting,
@@ -26,6 +27,7 @@ public sealed record RemoteFeedState(
 
 public sealed class RemoteFeedStateMachine(int maxReconnectAttempts = 8)
 {
+    private ulong snapshotGeneration;
     public RemoteFeedState State { get; private set; } = RemoteFeedState.Initial;
     public bool ResyncRequested { get; private set; }
 
@@ -51,13 +53,15 @@ public sealed class RemoteFeedStateMachine(int maxReconnectAttempts = 8)
         {
             case RemoteEvent.Snapshot snapshot:
                 RequireMonotonic(snapshot.Revision);
+                snapshotGeneration = checked(snapshotGeneration + 1);
                 State = new RemoteFeedState(
                     RemoteFeedPhase.Live,
                     snapshot.Revision,
                     snapshot.Runtimes,
                     0,
                     false,
-                    $"Live at revision {snapshot.Revision}");
+                    $"Live at revision {snapshot.Revision}",
+                    snapshotGeneration);
                 ResyncRequested = false;
                 break;
             case RemoteEvent.Heartbeat heartbeat:

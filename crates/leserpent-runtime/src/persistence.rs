@@ -13,7 +13,7 @@ use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
 use crate::{EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH};
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 8;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 9;
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
@@ -29,6 +29,7 @@ pub enum JournalEntryKind {
     RuntimeRegistration,
     CommandPlan,
     RuntimeStatusObservation,
+    RuntimeCapabilityObservation,
 }
 
 impl JournalEntryKind {
@@ -37,6 +38,7 @@ impl JournalEntryKind {
             Self::RuntimeRegistration => "runtime_registration",
             Self::CommandPlan => "command_plan",
             Self::RuntimeStatusObservation => "runtime_status_observation",
+            Self::RuntimeCapabilityObservation => "runtime_capability_observation",
         }
     }
 
@@ -45,6 +47,7 @@ impl JournalEntryKind {
             "runtime_registration" => Ok(Self::RuntimeRegistration),
             "command_plan" => Ok(Self::CommandPlan),
             "runtime_status_observation" => Ok(Self::RuntimeStatusObservation),
+            "runtime_capability_observation" => Ok(Self::RuntimeCapabilityObservation),
             other => Err(format!("unknown runtime journal entry kind '{other}'")),
         }
     }
@@ -972,10 +975,35 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         5 => migrate_schema_5_to_6(connection),
         6 => migrate_schema_6_to_7(connection),
         7 => migrate_schema_7_to_8(connection),
+        8 => migrate_schema_8_to_9(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_8_to_9(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (9, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 9 WHERE key = 'schema_version' AND value = 8",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(9)
 }
 
 fn migrate_schema_7_to_8(connection: &mut Connection) -> Result<i64, String> {
@@ -1241,9 +1269,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (8, 1, 8) {
-        return Err("invalid runtime journal schema 8 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (9, 1, 9) {
+        return Err("invalid runtime journal schema 9 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -1253,23 +1281,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 8 timestamp column".into());
+        return Err("invalid runtime journal schema 9 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -1281,9 +1309,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 8 effect columns".into());
+        return Err("invalid runtime journal schema 9 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -1293,20 +1321,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 8 effect claim index".into());
+        return Err("invalid runtime journal schema 9 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM runtime_journal
-             WHERE kind NOT IN ('runtime_registration', 'command_plan', 'runtime_status_observation')",
+             WHERE kind NOT IN (
+                 'runtime_registration', 'command_plan', 'runtime_status_observation',
+                 'runtime_capability_observation'
+             )",
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 8 journal kind".into());
+        return Err("invalid runtime journal schema 9 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -1315,9 +1346,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 8 log columns".into());
+        return Err("invalid runtime journal schema 9 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -1327,9 +1358,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 8: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 8 log index".into());
+        return Err("invalid runtime journal schema 9 log index".into());
     }
     Ok(())
 }

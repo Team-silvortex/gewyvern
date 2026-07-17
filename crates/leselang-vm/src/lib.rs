@@ -5,10 +5,10 @@ use std::path::Path;
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{Effect, HirProgram, Type, authorize};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope,
-    CommandId, CommandOrigin, CommandResult, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION,
-    IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query, QueryEnvelope, QueryResult,
-    Revision, RuntimeId, RuntimeLogRecord, RuntimeProjection,
+    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
+    Command, CommandEnvelope, CommandId, CommandOrigin, CommandResult, CommandStatus, Confirmation,
+    DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query,
+    QueryEnvelope, QueryResult, Revision, RuntimeId, RuntimeLogRecord, RuntimeProjection,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -309,6 +309,12 @@ pub enum Value {
     RuntimeRefresh {
         result: Box<CommandResult>,
     },
+    RuntimeCapabilitiesRefresh {
+        result: Box<CommandResult>,
+    },
+    RuntimeDeploy {
+        result: Box<CommandResult>,
+    },
     Structured {
         fields: Vec<StructuredField>,
     },
@@ -604,7 +610,11 @@ impl Vm {
                 idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
                     .expect("generated idempotency key is valid"),
                 origin: CommandOrigin::Leselang,
-                confirmation: Confirmation::NotRequired,
+                confirmation: if matches!(effect, Effect::RuntimeDeploy { .. }) {
+                    Confirmation::Confirmed
+                } else {
+                    Confirmation::NotRequired
+                },
                 dry_run: false,
             },
         )
@@ -701,7 +711,12 @@ impl Vm {
         if stored != image {
             return fault("LSV2005", "continuation image does not match pending state");
         }
-        if matches!(image.pending_effect, Effect::RuntimeRefresh { .. }) {
+        if matches!(
+            image.pending_effect,
+            Effect::RuntimeRefresh { .. }
+                | Effect::RuntimeCapabilitiesRefresh { .. }
+                | Effect::RuntimeDeploy { .. }
+        ) {
             return fault(
                 "LSV2110",
                 "mutating effects must be completed through dispatch acknowledgement",
@@ -1210,6 +1225,62 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                         if command_runtime_id == runtime_id
                 )
         }
+        (Effect::RuntimeCapabilitiesRefresh { runtime_id }, EffectOperation::Command(command)) => {
+            validate_effect_identity(
+                command.schema_version,
+                &command.principal,
+                &command.capabilities,
+                &request.required_capability,
+                CAPABILITY_RUNTIME_REFRESH,
+            )?;
+            command.command_id
+                == CommandId::new(format!("leselang-command-{token_suffix}"))
+                    .expect("canonical command identifier is valid")
+                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+                && command.expected_revision == request.continuation.expected_revision
+                && command.origin == CommandOrigin::Leselang
+                && command.confirmation == Confirmation::NotRequired
+                && !command.dry_run
+                && matches!(
+                    &command.command,
+                    Command::RuntimeCapabilitiesRefresh { runtime_id: command_runtime_id }
+                        if command_runtime_id == runtime_id
+                )
+        }
+        (
+            Effect::RuntimeDeploy {
+                runtime_id,
+                pipeline_kind,
+                target,
+            },
+            EffectOperation::Command(command),
+        ) => {
+            validate_effect_identity(
+                command.schema_version,
+                &command.principal,
+                &command.capabilities,
+                &request.required_capability,
+                CAPABILITY_RUNTIME_DEPLOY,
+            )?;
+            command.command_id
+                == CommandId::new(format!("leselang-command-{token_suffix}"))
+                    .expect("canonical command identifier is valid")
+                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+                && command.expected_revision == request.continuation.expected_revision
+                && command.origin == CommandOrigin::Leselang
+                && command.confirmation == Confirmation::Confirmed
+                && !command.dry_run
+                && matches!(
+                    &command.command,
+                    Command::RuntimeDeploy {
+                        runtime_id: command_runtime_id,
+                        pipeline_kind: command_pipeline_kind,
+                        target: command_target,
+                    } if command_runtime_id == runtime_id
+                        && command_pipeline_kind == pipeline_kind
+                        && command_target == target
+                )
+        }
         _ => false,
     };
     if !operation_valid
@@ -1480,7 +1551,9 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(entries.len())
         }
-        Value::RuntimeRefresh { .. } => Ok(1),
+        Value::RuntimeRefresh { .. }
+        | Value::RuntimeCapabilitiesRefresh { .. }
+        | Value::RuntimeDeploy { .. } => Ok(1),
         Value::Structured { fields } if (2..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
             let mut names = BTreeSet::new();
             let mut output_items = 0usize;
@@ -1706,6 +1779,28 @@ fn step_from_effect_result(
         {
             Step::Done(Value::RuntimeRefresh { result })
         }
+        (
+            Effect::RuntimeCapabilitiesRefresh { runtime_id },
+            Type::RuntimeCapabilitiesRefresh,
+            Some(EffectOperation::Command(command)),
+            EffectResult::Command(result),
+        ) if result.runtime.id == *runtime_id
+            && result.command_id == command.command_id
+            && result.status == CommandStatus::Applied =>
+        {
+            Step::Done(Value::RuntimeCapabilitiesRefresh { result })
+        }
+        (
+            Effect::RuntimeDeploy { runtime_id, .. },
+            Type::RuntimeDeploy,
+            Some(EffectOperation::Command(command)),
+            EffectResult::Command(result),
+        ) if result.runtime.id == *runtime_id
+            && result.command_id == command.command_id
+            && result.status == CommandStatus::Applied =>
+        {
+            Step::Done(Value::RuntimeDeploy { result })
+        }
         _ => fault("LSV2103", "effect result does not match pending effect"),
     }
 }
@@ -1876,6 +1971,42 @@ mod tests {
             Some(expected_revision),
         ) else {
             panic!("expected refresh effect");
+        };
+        *request
+    }
+
+    fn start_capabilities_refresh(vm: &mut Vm, expected_revision: Revision) -> EffectRequest {
+        let program = lower(&parse(
+            "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+            Some(expected_revision),
+        ) else {
+            panic!("expected capabilities refresh effect");
+        };
+        *request
+    }
+
+    fn start_deploy(vm: &mut Vm, expected_revision: Revision) -> EffectRequest {
+        let program = lower(&parse(
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: \"pid:42\")",
+        ))
+        .unwrap();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+            Some(expected_revision),
+        ) else {
+            panic!("expected deployment effect");
         };
         *request
     }
@@ -2857,6 +2988,74 @@ mod tests {
             EffectResult::Command(Box::new(result)),
         );
         assert!(matches!(step, Step::Fault(Fault { ref code, .. }) if code == "LSV2110"));
+    }
+
+    #[test]
+    fn capabilities_refresh_reenters_only_through_dispatch_acknowledgement() {
+        let mut vm = Vm::default();
+        start_capabilities_refresh(&mut vm, Revision(1));
+        let lease = vm.claim_effect(1_000, 50).unwrap().unwrap();
+        let EffectOperation::Command(command) = lease.request.operation.clone() else {
+            panic!("expected command operation");
+        };
+        assert!(matches!(
+            command.command,
+            Command::RuntimeCapabilitiesRefresh { .. }
+        ));
+
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(
+            RuntimeId::new("runtime-a").unwrap(),
+            "Alpha",
+            "http://runtime-a",
+        );
+        let result = control.execute(command).unwrap();
+        let completed = vm.acknowledge_effect(
+            &lease,
+            1_001,
+            EffectResult::Command(Box::new(result.clone())),
+        );
+        assert!(matches!(
+            completed,
+            Step::Done(Value::RuntimeCapabilitiesRefresh { result: ref value })
+                if **value == result
+        ));
+    }
+
+    #[test]
+    fn deployment_is_confirmed_and_reenters_only_through_dispatch_acknowledgement() {
+        let mut vm = Vm::default();
+        start_deploy(&mut vm, Revision(1));
+        let lease = vm.claim_effect(1_000, 50).unwrap().unwrap();
+        let EffectOperation::Command(command) = lease.request.operation.clone() else {
+            panic!("expected deployment command");
+        };
+        assert_eq!(command.confirmation, Confirmation::Confirmed);
+        assert!(matches!(
+            command.command,
+            Command::RuntimeDeploy {
+                ref pipeline_kind,
+                target: Some(ref target),
+                ..
+            } if pipeline_kind == "http/request" && target == "pid:42"
+        ));
+
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(
+            RuntimeId::new("runtime-a").unwrap(),
+            "Alpha",
+            "http://runtime-a",
+        );
+        let result = control.execute(command).unwrap();
+        let completed = vm.acknowledge_effect(
+            &lease,
+            1_001,
+            EffectResult::Command(Box::new(result.clone())),
+        );
+        assert!(matches!(
+            completed,
+            Step::Done(Value::RuntimeDeploy { result: ref value }) if **value == result
+        ));
     }
 
     #[test]

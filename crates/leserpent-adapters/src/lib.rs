@@ -6,12 +6,17 @@ use std::time::Duration;
 use leserpent_runtime::{EffectExecution, EffectExecutor, EffectLease};
 
 mod deployment;
+mod discovery;
 mod gewyvern;
 mod secret;
 
 pub use deployment::{
     GEWYVERN_DEPLOYMENT_EFFECT_KIND, GewyvernDeploymentAdapter, GewyvernDeploymentRequest,
     GewyvernDeploymentResponse,
+};
+pub use discovery::{
+    GEWYVERN_DISCOVERY_EFFECT_KIND, GewyvernCapabilityObservation, GewyvernDiscoveryAdapter,
+    GewyvernDiscoveryRequest,
 };
 pub use gewyvern::{
     GEWYVERN_HEALTH_EFFECT_KIND, GEWYVERN_STATUS_REFRESH_EFFECT_KIND, GewyvernHealthAdapter,

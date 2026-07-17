@@ -1,4 +1,6 @@
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -8,9 +10,10 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use leserpent_adapters::{GewyvernDiscoveryAdapter, GewyvernTarget};
 use leserpent_domain::{RuntimeId, RuntimeLogLevel};
 use leserpent_runtime::ControlRuntime;
-use leserpentd::RemoteServer;
+use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
@@ -28,6 +31,24 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
     fs::write(&private_key, signing_key.serialize_pem()).unwrap();
     #[cfg(unix)]
     fs::set_permissions(&private_key, fs::Permissions::from_mode(0o600)).unwrap();
+
+    let capability_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let capability_address = capability_listener.local_addr().unwrap();
+    let capability_server = thread::spawn(move || {
+        let (mut stream, _) = capability_listener.accept().unwrap();
+        let mut request = [0_u8; 2048];
+        let read = stream.read(&mut request).unwrap();
+        let request = std::str::from_utf8(&request[..read]).unwrap();
+        assert!(request.starts_with("GET /v1/capabilities HTTP/1.1\r\n"));
+        let body = br#"{"service":"gewyvern-api","version":"1.2.0","latest_snapshot":true,"authenticated_deployment":false,"serve_required":true,"external_sidecar_context":true,"target_path_segment_encoding":"percent-encoding","target_direct_path_chars":"A-Z a-z 0-9 . _ ~ :","endpoints":["/v1/capabilities"],"protocol_catalog":true}"#;
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .unwrap();
+        stream.write_all(body).unwrap();
+    });
 
     let stop = Arc::new(AtomicBool::new(false));
     let (ready_tx, ready_rx) = mpsc::channel();
@@ -51,6 +72,19 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
                 "bounded warning\ncontinued",
             )
             .unwrap();
+        let target = GewyvernTarget::loopback(capability_address, None).unwrap();
+        let adapter = GewyvernDiscoveryAdapter::new([("runtime-a".to_string(), target)]).unwrap();
+        let mut registry = AdapterRegistry::default();
+        registry.register(adapter).unwrap();
+        let mut host = DaemonHost::new(
+            runtime,
+            registry,
+            DaemonConfig {
+                idle_interval: Duration::from_millis(1),
+                ..DaemonConfig::default()
+            },
+        )
+        .unwrap();
         let mut remote = RemoteServer::bind(
             "127.0.0.1:0".parse().unwrap(),
             server_certificate,
@@ -60,7 +94,8 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
         .unwrap();
         ready_tx.send(remote.local_addr().unwrap()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
-            remote.poll_once(&mut runtime).unwrap();
+            remote.poll_once(host.runtime_mut()).unwrap();
+            host.tick().unwrap();
             thread::sleep(Duration::from_millis(1));
         }
     });
@@ -93,6 +128,26 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
         String::from_utf8_lossy(&refresh_output.stderr),
     );
 
+    let capability_output = Command::new("dotnet")
+        .current_dir(&root)
+        .args(["run", "--project"])
+        .arg(root.join(
+            "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
+        ))
+        .args(["--configuration", "Release", "--", "--connect", &endpoint])
+        .arg(&certificate)
+        .arg(&cache)
+        .args(["--refresh-capabilities", "runtime-a"])
+        .env("LESERPENT_REMOTE_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert!(
+        capability_output.status.success(),
+        "capability stdout:\n{}\ncapability stderr:\n{}",
+        String::from_utf8_lossy(&capability_output.stdout),
+        String::from_utf8_lossy(&capability_output.stderr),
+    );
+
     let inspect_output = Command::new("dotnet")
         .current_dir(&root)
         .args(["run", "--project"])
@@ -109,6 +164,7 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();
+    capability_server.join().unwrap();
     assert!(
         inspect_output.status.success(),
         "inspect stdout:\n{}\ninspect stderr:\n{}",
@@ -116,24 +172,34 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
         String::from_utf8_lossy(&inspect_output.stderr),
     );
     let refresh_stdout = String::from_utf8(refresh_output.stdout).unwrap();
+    let capability_stdout = String::from_utf8(capability_output.stdout).unwrap();
     assert!(
         refresh_stdout.contains("remote conformance valid: revision=1, runtimes=1, stale=false")
     );
     assert!(refresh_stdout.contains(
-        "remote mutation conformance valid: initial_revision=1, applied_revision=2, event_revision=2, runtime=runtime-a, stale=false"
+        "remote mutation conformance valid: kind=runtime_refresh, initial_revision=1, applied_revision=2, event_revision=2, capabilities_observed=false, capabilities_observed_for_revision=none, runtime=runtime-a, stale=false"
+    ));
+    assert!(capability_stdout.contains(
+        "remote mutation conformance valid: kind=runtime_capabilities_refresh, initial_revision=2, applied_revision=3, event_revision=4, capabilities_observed=true, capabilities_observed_for_revision=3, runtime=runtime-a, stale=false"
     ));
     let inspect_stdout = String::from_utf8(inspect_output.stdout).unwrap();
     assert!(
-        inspect_stdout.contains("remote conformance valid: revision=2, runtimes=1, stale=false")
+        inspect_stdout.contains("remote conformance valid: revision=4, runtimes=1, stale=false")
     );
     assert!(inspect_stdout.contains(
-        "remote workspace conformance valid: revision=2, runtime=runtime-a, history=1, logs=1, endpoint_retained=false"
+        "remote workspace conformance valid: revision=4, runtime=runtime-a, history=2, logs=1, endpoint_retained=false"
     ));
     assert!(!refresh_stdout.contains("secret-runtime.invalid"));
+    assert!(!capability_stdout.contains("secret-runtime.invalid"));
     assert!(!inspect_stdout.contains("secret-runtime.invalid"));
+    assert!(inspect_stdout.contains("capabilities_observed=true"));
+    assert!(inspect_stdout.contains("capabilities_observed_for_revision=3"));
+    assert!(inspect_stdout.contains("capability_version=1.2.0"));
     let cached = fs::read_to_string(&cache).unwrap();
     assert!(cached.contains("runtime-a"));
-    assert!(cached.contains("\"revision\":2"));
+    assert!(cached.contains("\"revision\":4"));
+    assert!(cached.contains("\"capabilities_observed_for_revision\":3"));
+    assert!(cached.contains("\"version\":\"1.2.0\""));
     assert!(!cached.contains("secret-runtime.invalid"));
     #[cfg(unix)]
     assert_eq!(

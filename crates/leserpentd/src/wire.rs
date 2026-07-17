@@ -48,7 +48,10 @@ pub(crate) fn execute_request(
             | Query::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
         },
         ProtocolRequest::Command(command) => match command.command {
-            Command::RuntimeRefresh { .. } => CAPABILITY_RUNTIME_REFRESH,
+            Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => {
+                CAPABILITY_RUNTIME_REFRESH
+            }
+            Command::RuntimeDeploy { .. } => leserpent_domain::CAPABILITY_RUNTIME_DEPLOY,
             Command::DebuggerCancel { .. } => leserpent_domain::CAPABILITY_DEBUGGER_CONTROL,
         },
         ProtocolRequest::Health(_) => unreachable!(),

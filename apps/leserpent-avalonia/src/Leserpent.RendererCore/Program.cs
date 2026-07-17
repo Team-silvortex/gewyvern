@@ -42,6 +42,40 @@ public sealed class SemanticRenderer
         }
     }
 
+    public UiEvent CreateFormSubmission(
+        string nodeId,
+        IReadOnlyDictionary<string, string> values)
+    {
+        var node = Find(Document.Root, nodeId)
+            ?? throw new InvalidDataException("form event target was not found");
+        var form = node.Action is { Kind: ActionKind.RuntimeDeploy, Form: not null }
+            ? node.Action.Form
+            : throw new InvalidDataException("form event target has no parameterized action");
+        if (values.Keys.Any(key => form.Fields.All(field => field.Key != key)))
+        {
+            throw new InvalidDataException("form event contains an unknown field");
+        }
+        foreach (var field in form.Fields)
+        {
+            var value = values.TryGetValue(field.Key, out var provided)
+                ? provided
+                : string.Empty;
+            if (!ValidFormValue(value, field))
+            {
+                throw new InvalidDataException($"form field '{field.Key}' is invalid");
+            }
+        }
+        return new UiEvent
+        {
+            NodeId = nodeId,
+            Kind = UiEventKind.Submit,
+            Values = values.ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value,
+                StringComparer.Ordinal),
+        };
+    }
+
     private void ApplyOperation(UiPatchOperation operation)
     {
         switch (operation.Kind)
@@ -145,15 +179,24 @@ public sealed class SemanticRenderer
         {
             var validAction = node.Action.Kind switch
             {
-                ActionKind.RuntimeInspect or ActionKind.RuntimeRefresh =>
+                ActionKind.RuntimeInspect
+                    or ActionKind.RuntimeRefresh
+                    or ActionKind.RuntimeCapabilitiesRefresh =>
                     node.Action.RuntimeId is not null
                     && IsIdentifier(node.Action.RuntimeId)
                     && node.Action.RuntimeId == runtimeContext
-                    && node.Action.SessionId is null,
+                    && node.Action.SessionId is null
+                    && node.Action.Form is null,
+                ActionKind.RuntimeDeploy => node.Action.RuntimeId is not null
+                    && IsIdentifier(node.Action.RuntimeId)
+                    && node.Action.RuntimeId == runtimeContext
+                    && node.Action.SessionId is null
+                    && ValidForm(node.Action.Form),
                 ActionKind.DebuggerCancel => node.Action.RuntimeId is null
                     && node.Action.SessionId is not null
                     && IsIdentifier(node.Action.SessionId)
-                    && node.Action.SessionId == debuggerContext,
+                    && node.Action.SessionId == debuggerContext
+                    && node.Action.Form is null,
                 _ => false,
             };
             Require(validAction, "action context binding is invalid");
@@ -169,6 +212,48 @@ public sealed class SemanticRenderer
         if (text is null) return;
         Require(IsIdentifier(text.Key) && text.Fallback.Length <= 1024
             && !text.Fallback.Any(char.IsControl), "invalid localized text");
+    }
+
+    private static bool ValidForm(UiForm? form)
+    {
+        if (form is null || form.Fields.Count is < 1 or > 16)
+        {
+            return false;
+        }
+        ValidateText(form.Title);
+        ValidateText(form.SubmitLabel);
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var field in form.Fields)
+        {
+            ValidateText(field.Label);
+            ValidateText(field.Placeholder);
+            if (!IsIdentifier(field.Key)
+                || !keys.Add(field.Key)
+                || field.MaxLength is < 1 or > 256)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool ValidFormValue(string value, UiFormField field)
+    {
+        if ((field.Required && value.Length == 0)
+            || value.Length > field.MaxLength
+            || value.Length > 256)
+        {
+            return false;
+        }
+        return field.InputKind switch
+        {
+            UiFormInputKind.PathToken => value.Length > 0
+                && value.All(character => char.IsAsciiLetterOrDigit(character)
+                    || character is '.' or '/' or '_' or '-'),
+            UiFormInputKind.TrimmedText => value == value.Trim()
+                && !value.Any(char.IsControl),
+            _ => false,
+        };
     }
 
     private static bool IsIdentifier(string value) => value.Length is > 0 and <= 128
@@ -227,6 +312,7 @@ public sealed class SemanticRenderer
             Kind = node.Action.Kind,
             RuntimeId = node.Action.RuntimeId,
             SessionId = node.Action.SessionId,
+            Form = Clone(node.Action.Form),
         },
         Children = node.Children.Select(Clone).ToList(),
     };
@@ -235,6 +321,21 @@ public sealed class SemanticRenderer
     {
         Key = text.Key,
         Fallback = text.Fallback,
+    };
+
+    private static UiForm? Clone(UiForm? form) => form is null ? null : new()
+    {
+        Title = Clone(form.Title)!,
+        SubmitLabel = Clone(form.SubmitLabel)!,
+        Fields = form.Fields.Select(field => new UiFormField
+        {
+            Key = field.Key,
+            Label = Clone(field.Label)!,
+            Placeholder = Clone(field.Placeholder),
+            Required = field.Required,
+            MaxLength = field.MaxLength,
+            InputKind = field.InputKind,
+        }).ToList(),
     };
 
     private static void Require(bool condition, string message)
@@ -293,6 +394,34 @@ public sealed class UiAction
     public ActionKind Kind { get; set; }
     public string? RuntimeId { get; set; }
     public string? SessionId { get; set; }
+    public UiForm? Form { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class UiForm
+{
+    public required LocalizedText Title { get; set; }
+    public required LocalizedText SubmitLabel { get; set; }
+    public required List<UiFormField> Fields { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class UiFormField
+{
+    public required string Key { get; set; }
+    public required LocalizedText Label { get; set; }
+    public LocalizedText? Placeholder { get; set; }
+    public bool Required { get; set; }
+    public int MaxLength { get; set; }
+    public UiFormInputKind InputKind { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class UiEvent
+{
+    public required string NodeId { get; set; }
+    public UiEventKind Kind { get; set; }
+    public required Dictionary<string, string> Values { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -335,7 +464,23 @@ public enum ActionKind
 {
     [JsonStringEnumMemberName("runtime_inspect")] RuntimeInspect,
     [JsonStringEnumMemberName("runtime_refresh")] RuntimeRefresh,
+    [JsonStringEnumMemberName("runtime_capabilities_refresh")] RuntimeCapabilitiesRefresh,
+    [JsonStringEnumMemberName("runtime_deploy")] RuntimeDeploy,
     [JsonStringEnumMemberName("debugger_cancel")] DebuggerCancel,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<UiFormInputKind>))]
+public enum UiFormInputKind
+{
+    [JsonStringEnumMemberName("path_token")] PathToken,
+    [JsonStringEnumMemberName("trimmed_text")] TrimmedText,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<UiEventKind>))]
+public enum UiEventKind
+{
+    [JsonStringEnumMemberName("activate")] Activate,
+    [JsonStringEnumMemberName("submit")] Submit,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PatchKind>))]
@@ -351,4 +496,5 @@ public enum PatchKind
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
 [JsonSerializable(typeof(RendererFixture))]
 [JsonSerializable(typeof(UiDocument))]
+[JsonSerializable(typeof(UiEvent))]
 public partial class RendererJsonContext : JsonSerializerContext;

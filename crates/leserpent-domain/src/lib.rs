@@ -8,8 +8,11 @@ pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
 pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
+pub const CAPABILITY_RUNTIME_DEPLOY: &str = "runtime.deploy";
 pub const CAPABILITY_DEBUGGER_CONTROL: &str = "debugger.control";
 pub const RUNTIME_STATUS_REFRESH_EFFECT_KIND: &str = "gewyvern.status.refresh";
+pub const RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND: &str = "gewyvern.capabilities.discover";
+pub const RUNTIME_DEPLOYMENT_EFFECT_KIND: &str = "gewyvern.deployment.submit";
 pub const MAX_RUNTIME_HISTORY_ENTRIES: usize = 32;
 pub const MAX_RUNTIME_LOG_QUERY_ENTRIES: u16 = 256;
 pub const MAX_RUNTIME_LOG_MESSAGE_BYTES: usize = 64 * 1024;
@@ -59,8 +62,20 @@ pub enum Confirmation {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Command {
-    RuntimeRefresh { runtime_id: RuntimeId },
-    DebuggerCancel { session_id: String },
+    RuntimeRefresh {
+        runtime_id: RuntimeId,
+    },
+    RuntimeCapabilitiesRefresh {
+        runtime_id: RuntimeId,
+    },
+    RuntimeDeploy {
+        runtime_id: RuntimeId,
+        pipeline_kind: String,
+        target: Option<String>,
+    },
+    DebuggerCancel {
+        session_id: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -155,6 +170,54 @@ pub struct RuntimeStatusRefreshRequest {
     pub expected_revision: Revision,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeCapabilitySnapshot {
+    pub source: String,
+    pub service: String,
+    pub version: String,
+    pub latest_snapshot: bool,
+    pub authenticated_deployment: bool,
+    pub serve_required: bool,
+    pub external_sidecar_context: bool,
+    pub target_path_segment_encoding: String,
+    pub target_direct_path_chars: String,
+    pub endpoints: Vec<String>,
+    pub extensions: BTreeMap<String, bool>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeCapabilityObservation {
+    pub runtime_id: String,
+    pub expected_revision: Revision,
+    pub capabilities: RuntimeCapabilitySnapshot,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeCapabilityRefreshRequest {
+    pub runtime_id: String,
+    pub expected_revision: Revision,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeDeploymentRequest {
+    pub runtime_id: String,
+    pub request_id: String,
+    pub pipeline_kind: String,
+    pub requested_by: String,
+    pub confirmed: bool,
+    pub target: Option<String>,
+}
+
+impl RuntimeCapabilitySnapshot {
+    pub fn is_unobserved(&self) -> bool {
+        self == &Self::default()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CommandEnvelope {
     pub schema_version: u32,
@@ -198,6 +261,8 @@ pub enum CommandPlanError {
     CapabilityMismatch { expected: &'static str },
     MissingCapability { capability: &'static str },
     InvalidDebuggerSessionId,
+    InvalidDeploymentIntent,
+    DeploymentConfirmationRequired,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -210,6 +275,10 @@ pub struct RuntimeProjection {
     pub refresh_status: RefreshStatus,
     pub tags: RuntimeTags,
     pub status: RuntimeStatusSnapshot,
+    #[serde(default)]
+    pub capabilities: RuntimeCapabilitySnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities_observed_for_revision: Option<Revision>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -228,6 +297,20 @@ pub enum DomainEvent {
         runtime_id: RuntimeId,
         revision: Revision,
         command_id: CommandId,
+    },
+    RuntimeCapabilitiesRefreshRequested {
+        runtime_id: RuntimeId,
+        revision: Revision,
+        command_id: CommandId,
+    },
+    RuntimeDeploymentRequested {
+        runtime_id: RuntimeId,
+        revision: Revision,
+        command_id: CommandId,
+        request_id: String,
+        pipeline_kind: String,
+        requested_by: String,
+        target: Option<String>,
     },
 }
 
@@ -313,6 +396,7 @@ pub enum DomainError {
     IdempotencyConflict {
         key: String,
     },
+    ConfirmationRequired,
     InvalidQuery {
         reason: &'static str,
     },
@@ -391,11 +475,27 @@ impl CommandPlan {
                 ),
             },
             PlannedOperation::Command(envelope) => match &envelope.command {
-                Command::RuntimeRefresh { .. } => (
+                Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => (
                     CAPABILITY_RUNTIME_REFRESH,
                     envelope.schema_version,
                     &envelope.capabilities,
                 ),
+                Command::RuntimeDeploy {
+                    pipeline_kind,
+                    target,
+                    ..
+                } => {
+                    validate_deployment_intent(pipeline_kind, target.as_deref())
+                        .map_err(|_| CommandPlanError::InvalidDeploymentIntent)?;
+                    if !envelope.dry_run && envelope.confirmation != Confirmation::Confirmed {
+                        return Err(CommandPlanError::DeploymentConfirmationRequired);
+                    }
+                    (
+                        CAPABILITY_RUNTIME_DEPLOY,
+                        envelope.schema_version,
+                        &envelope.capabilities,
+                    )
+                }
                 Command::DebuggerCancel { session_id } => {
                     if validated_identifier("session_id", session_id.clone()).is_err() {
                         return Err(CommandPlanError::InvalidDebuggerSessionId);
@@ -447,6 +547,12 @@ impl fmt::Display for CommandPlanError {
             }
             Self::InvalidDebuggerSessionId => {
                 write!(formatter, "debugger plan has an invalid session ID")
+            }
+            Self::InvalidDeploymentIntent => {
+                write!(formatter, "deployment plan has an invalid intent")
+            }
+            Self::DeploymentConfirmationRequired => {
+                write!(formatter, "deployment plan requires explicit confirmation")
             }
         }
     }
@@ -578,6 +684,8 @@ impl InMemoryControlPlane {
             refresh_status: RefreshStatus::NeverRequested,
             tags,
             status,
+            capabilities: RuntimeCapabilitySnapshot::default(),
+            capabilities_observed_for_revision: None,
         };
         self.runtimes.insert(id, projection.clone());
         projection
@@ -630,6 +738,13 @@ impl InMemoryControlPlane {
                     .filter_map(|applied| match &applied.command {
                         Command::RuntimeRefresh {
                             runtime_id: command_runtime_id,
+                        }
+                        | Command::RuntimeCapabilitiesRefresh {
+                            runtime_id: command_runtime_id,
+                        }
+                        | Command::RuntimeDeploy {
+                            runtime_id: command_runtime_id,
+                            ..
                         } if command_runtime_id == &runtime_id => Some(applied.result.clone()),
                         _ => None,
                     })
@@ -657,8 +772,19 @@ impl InMemoryControlPlane {
         validate_schema(envelope.schema_version)?;
         validate_principal(&envelope.principal)?;
         match &envelope.command {
-            Command::RuntimeRefresh { .. } => {
+            Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => {
                 require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_REFRESH)?;
+            }
+            Command::RuntimeDeploy {
+                pipeline_kind,
+                target,
+                ..
+            } => {
+                require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_DEPLOY)?;
+                validate_deployment_intent(pipeline_kind, target.as_deref())?;
+                if !envelope.dry_run && envelope.confirmation != Confirmation::Confirmed {
+                    return Err(DomainError::ConfirmationRequired);
+                }
             }
             Command::DebuggerCancel { .. } => {
                 require_capability(&envelope.capabilities, CAPABILITY_DEBUGGER_CONTROL)?;
@@ -731,6 +857,106 @@ impl InMemoryControlPlane {
                 }
                 Ok(result)
             }
+            Command::RuntimeCapabilitiesRefresh { runtime_id } => {
+                let current = self.runtimes.get(&runtime_id).cloned().ok_or_else(|| {
+                    DomainError::RuntimeNotFound {
+                        runtime_id: runtime_id.as_str().to_string(),
+                    }
+                })?;
+                if let Some(expected) = envelope.expected_revision
+                    && expected != current.revision
+                {
+                    return Err(DomainError::RevisionConflict {
+                        expected,
+                        actual: current.revision,
+                    });
+                }
+
+                let mut next = current;
+                next.revision = Revision(self.revision + 1);
+                let event = DomainEvent::RuntimeCapabilitiesRefreshRequested {
+                    runtime_id: runtime_id.clone(),
+                    revision: next.revision,
+                    command_id: envelope.command_id.clone(),
+                };
+                let result = CommandResult {
+                    command_id: envelope.command_id,
+                    status: if envelope.dry_run {
+                        CommandStatus::Planned
+                    } else {
+                        CommandStatus::Applied
+                    },
+                    runtime: next.clone(),
+                    events: vec![event],
+                };
+
+                if !envelope.dry_run {
+                    self.revision += 1;
+                    self.runtimes.insert(runtime_id, next);
+                    self.applied.insert(
+                        idempotency_scope,
+                        AppliedCommand {
+                            command: envelope.command,
+                            result: result.clone(),
+                        },
+                    );
+                }
+                Ok(result)
+            }
+            Command::RuntimeDeploy {
+                runtime_id,
+                pipeline_kind,
+                target,
+            } => {
+                let current = self.runtimes.get(&runtime_id).cloned().ok_or_else(|| {
+                    DomainError::RuntimeNotFound {
+                        runtime_id: runtime_id.as_str().to_string(),
+                    }
+                })?;
+                if let Some(expected) = envelope.expected_revision
+                    && expected != current.revision
+                {
+                    return Err(DomainError::RevisionConflict {
+                        expected,
+                        actual: current.revision,
+                    });
+                }
+
+                let mut next = current;
+                next.revision = Revision(self.revision + 1);
+                let event = DomainEvent::RuntimeDeploymentRequested {
+                    runtime_id: runtime_id.clone(),
+                    revision: next.revision,
+                    command_id: envelope.command_id.clone(),
+                    request_id: envelope.idempotency_key.as_str().to_string(),
+                    pipeline_kind,
+                    requested_by: envelope.principal.id.clone(),
+                    target,
+                };
+                let result = CommandResult {
+                    command_id: envelope.command_id,
+                    status: if envelope.dry_run {
+                        CommandStatus::Planned
+                    } else {
+                        CommandStatus::Applied
+                    },
+                    runtime: next.clone(),
+                    events: vec![event],
+                };
+
+                if !envelope.dry_run {
+                    self.revision += 1;
+                    self.runtimes.insert(runtime_id, next);
+                    self.applied.insert(
+                        idempotency_scope,
+                        AppliedCommand {
+                            command: envelope.command,
+                            result: result.clone(),
+                        },
+                    );
+                }
+                Ok(result)
+            }
             Command::DebuggerCancel { .. } => unreachable!("debugger commands returned above"),
         }
     }
@@ -767,6 +993,36 @@ impl InMemoryControlPlane {
         self.runtimes.insert(runtime_id.clone(), next.clone());
         Ok(next)
     }
+
+    pub fn complete_runtime_capability_refresh(
+        &mut self,
+        runtime_id: &RuntimeId,
+        expected_revision: Revision,
+        capabilities: RuntimeCapabilitySnapshot,
+    ) -> Result<RuntimeProjection, DomainError> {
+        validate_runtime_capabilities(&capabilities)?;
+        let current =
+            self.runtimes
+                .get(runtime_id)
+                .cloned()
+                .ok_or_else(|| DomainError::RuntimeNotFound {
+                    runtime_id: runtime_id.as_str().to_string(),
+                })?;
+        if current.revision != expected_revision {
+            return Err(DomainError::RevisionConflict {
+                expected: expected_revision,
+                actual: current.revision,
+            });
+        }
+
+        self.revision += 1;
+        let mut next = current;
+        next.revision = Revision(self.revision);
+        next.capabilities = capabilities;
+        next.capabilities_observed_for_revision = Some(expected_revision);
+        self.runtimes.insert(runtime_id.clone(), next.clone());
+        Ok(next)
+    }
 }
 
 impl DomainSnapshot {
@@ -794,6 +1050,13 @@ impl DomainSnapshot {
                     reason: "duplicate runtime identifier",
                 });
             }
+            if !runtime.capabilities.source.is_empty() {
+                validate_runtime_capabilities(&runtime.capabilities).map_err(|_| {
+                    DomainSnapshotError::Invalid {
+                        reason: "invalid runtime capabilities",
+                    }
+                })?;
+            }
         }
         let mut idempotency_scopes = BTreeSet::new();
         for applied in &self.applied_commands {
@@ -817,10 +1080,15 @@ impl DomainSnapshot {
                     reason: "duplicate applied-command idempotency scope",
                 });
             }
-            let Command::RuntimeRefresh { runtime_id } = &applied.command else {
-                return Err(DomainSnapshotError::Invalid {
-                    reason: "unsupported command in control-plane snapshot",
-                });
+            let runtime_id = match &applied.command {
+                Command::RuntimeRefresh { runtime_id }
+                | Command::RuntimeCapabilitiesRefresh { runtime_id }
+                | Command::RuntimeDeploy { runtime_id, .. } => runtime_id,
+                Command::DebuggerCancel { .. } => {
+                    return Err(DomainSnapshotError::Invalid {
+                        reason: "unsupported command in control-plane snapshot",
+                    });
+                }
             };
             if runtime_id != &applied.result.runtime.id
                 || !runtime_ids.contains(runtime_id)
@@ -873,6 +1141,7 @@ impl fmt::Display for DomainError {
             Self::IdempotencyConflict { key } => {
                 write!(formatter, "idempotency key '{key}' was reused")
             }
+            Self::ConfirmationRequired => write!(formatter, "explicit confirmation is required"),
             Self::InvalidQuery { reason } => write!(formatter, "invalid query: {reason}"),
         }
     }
@@ -889,6 +1158,100 @@ fn validated_identifier(field: &'static str, value: String) -> Result<String, Do
     valid
         .then_some(value)
         .ok_or(DomainError::InvalidIdentifier { field })
+}
+
+fn validate_deployment_intent(
+    pipeline_kind: &str,
+    target: Option<&str>,
+) -> Result<(), DomainError> {
+    let pipeline_valid = !pipeline_kind.is_empty()
+        && pipeline_kind.len() <= 128
+        && pipeline_kind == pipeline_kind.trim()
+        && pipeline_kind
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-'));
+    let target_valid = target.is_none_or(|target| {
+        !target.is_empty()
+            && target.len() <= 256
+            && target == target.trim()
+            && !target.chars().any(char::is_control)
+    });
+    if !pipeline_valid {
+        return Err(DomainError::InvalidIdentifier {
+            field: "pipeline_kind",
+        });
+    }
+    if !target_valid {
+        return Err(DomainError::InvalidIdentifier { field: "target" });
+    }
+    Ok(())
+}
+
+fn validate_runtime_capabilities(
+    capabilities: &RuntimeCapabilitySnapshot,
+) -> Result<(), DomainError> {
+    let endpoints_valid = !capabilities.endpoints.is_empty()
+        && capabilities.endpoints.len() <= 128
+        && capabilities
+            .endpoints
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        && capabilities
+            .endpoints
+            .iter()
+            .all(|endpoint| valid_capability_endpoint(endpoint));
+    let extensions_valid = capabilities.extensions.len() <= 64
+        && capabilities.extensions.keys().all(|key| {
+            !key.is_empty()
+                && key.len() <= 64
+                && key.bytes().all(|byte| {
+                    byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || matches!(byte, b'_' | b'-')
+                })
+        });
+    let version_valid = !capabilities.version.is_empty()
+        && capabilities.version.len() <= 32
+        && capabilities
+            .version
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+'));
+    let direct_chars_valid = !capabilities.target_direct_path_chars.is_empty()
+        && capabilities.target_direct_path_chars.len() <= 64
+        && capabilities
+            .target_direct_path_chars
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() || byte == b' ');
+    if capabilities.source != "gewyvern-api"
+        || capabilities.service != "gewyvern-api"
+        || !version_valid
+        || capabilities.target_path_segment_encoding != "percent-encoding"
+        || !direct_chars_valid
+        || !endpoints_valid
+        || !extensions_valid
+        || !capabilities
+            .endpoints
+            .iter()
+            .any(|item| item == "/v1/capabilities")
+        || capabilities.authenticated_deployment
+            != capabilities
+                .endpoints
+                .iter()
+                .any(|item| item == "/v1/deployments")
+    {
+        return Err(DomainError::InvalidQuery {
+            reason: "runtime capability observation is invalid",
+        });
+    }
+    Ok(())
+}
+
+fn valid_capability_endpoint(value: &str) -> bool {
+    value.len() <= 256
+        && value.starts_with('/')
+        && !value.starts_with("//")
+        && !value.contains(['?', '#'])
+        && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
 fn validate_schema(actual: u32) -> Result<(), DomainError> {
@@ -1226,5 +1589,101 @@ mod tests {
             .unwrap();
         assert_eq!(completed.refresh_status, RefreshStatus::Failed);
         assert_eq!(completed.revision, Revision(3));
+    }
+
+    #[test]
+    fn capability_refresh_is_revision_checked_and_domain_validated() {
+        let mut control = InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        control.register_runtime(runtime_id.clone(), "A", "http://a");
+        let capabilities = RuntimeCapabilitySnapshot {
+            source: "gewyvern-api".into(),
+            service: "gewyvern-api".into(),
+            version: "1.2.0".into(),
+            latest_snapshot: true,
+            authenticated_deployment: true,
+            serve_required: true,
+            external_sidecar_context: true,
+            target_path_segment_encoding: "percent-encoding".into(),
+            target_direct_path_chars: "A-Z a-z 0-9 . _ ~ :".into(),
+            endpoints: vec!["/v1/capabilities".into(), "/v1/deployments".into()],
+            extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
+        };
+        assert!(matches!(
+            control.complete_runtime_capability_refresh(
+                &runtime_id,
+                Revision(2),
+                capabilities.clone()
+            ),
+            Err(DomainError::RevisionConflict { .. })
+        ));
+        let completed = control
+            .complete_runtime_capability_refresh(&runtime_id, Revision(1), capabilities.clone())
+            .unwrap();
+        assert_eq!(completed.revision, Revision(2));
+        assert_eq!(completed.capabilities, capabilities);
+        assert_eq!(
+            completed.capabilities_observed_for_revision,
+            Some(Revision(1))
+        );
+
+        let mut invalid = completed.capabilities;
+        invalid.endpoints.reverse();
+        assert!(matches!(
+            control.complete_runtime_capability_refresh(&runtime_id, Revision(2), invalid),
+            Err(DomainError::InvalidQuery { .. })
+        ));
+        assert_eq!(
+            control.runtime_projection(&runtime_id).unwrap().revision,
+            Revision(2)
+        );
+    }
+
+    #[test]
+    fn deployment_requires_capability_confirmation_and_a_bounded_intent() {
+        let mut control = InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        control.register_runtime(runtime_id.clone(), "A", "http://a");
+        let mut envelope = CommandEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            command_id: CommandId::new("deploy-command").unwrap(),
+            idempotency_key: IdempotencyKey::new("deploy-request").unwrap(),
+            expected_revision: Some(Revision(1)),
+            principal: Principal {
+                id: "operator-a".into(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+            origin: CommandOrigin::Cli,
+            confirmation: Confirmation::NotRequired,
+            dry_run: false,
+            command: Command::RuntimeDeploy {
+                runtime_id: runtime_id.clone(),
+                pipeline_kind: "http/request".into(),
+                target: Some("pid:42".into()),
+            },
+        };
+        assert_eq!(
+            control.execute(envelope.clone()),
+            Err(DomainError::ConfirmationRequired)
+        );
+        envelope.confirmation = Confirmation::Confirmed;
+        let result = control.execute(envelope).unwrap();
+        assert_eq!(result.status, CommandStatus::Applied);
+        assert!(matches!(
+            result.events.as_slice(),
+            [DomainEvent::RuntimeDeploymentRequested {
+                runtime_id: event_runtime_id,
+                revision: Revision(2),
+                request_id,
+                pipeline_kind,
+                requested_by,
+                target: Some(target),
+                ..
+            }] if event_runtime_id == &runtime_id
+                && request_id == "deploy-request"
+                && pipeline_kind == "http/request"
+                && requested_by == "operator-a"
+                && target == "pid:42"
+        ));
     }
 }

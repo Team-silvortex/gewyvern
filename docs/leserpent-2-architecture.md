@@ -209,6 +209,59 @@ and accepts only a matching `accepted` response. HTTP 200 is valid only for an
 idempotent replay and HTTP 202 only for a new intent; echoed request fields must
 match before the durable effect is completed.
 
+The adapter is reached through the shared `runtime.deploy` operator command,
+never by exposing the effect queue. Domain authorization uses the independent
+`runtime.deploy` capability and requires confirmation for non-dry-run commands.
+Leselang, CLI, and deterministic plan export share one lowering function. The
+durable runtime derives requester, request ID, and confirmed state from the
+command envelope, then materializes only the bounded runtime/pipeline/target
+intent.
+
+Avalonia remote workspaces adopt the same command boundary only when the strict
+capability projection advertises authenticated deployment. UI IR declares a
+bounded parameterized form with localized labels, required fields, maximum
+lengths, and renderer-neutral input constraints. Avalonia generates controls
+from that declaration and emits a typed `submit` event whose values are checked
+again by the semantic renderer before mutation. Rust validates the same field
+whitelist and constraints before lowering the event through the shared
+`runtime.deploy` function. Runtime/revision context remains visible, mutation
+fences cover success and ambiguous network outcomes, and principal, request
+identity, capability, and confirmation are never editable fields.
+
+Capability discovery is similarly target-scoped. The discovery adapter accepts
+only a configured runtime ID and always reads `/v1/capabilities` from that
+target; it has no subnet, broadcast, DNS enumeration, redirect, or target
+creation surface. Core claims are typed, endpoint paths are bounded and
+canonicalized, deployment claims must agree with the advertised endpoint, and
+future extensions are accepted only as bounded boolean flags. The observation
+omits the target origin and credentials. A shared revision-bound domain contract
+validates the observation again before SQLite schema 9 atomically commits the
+journal entry, effect completion, and updated runtime projection. Replay and
+snapshot restore reproduce the same capability state; stale observations are
+rejected without projection mutation.
+
+Capability refresh is an operator command, not an effect-queue API. Leselang
+`runtime.refresh_capabilities`, CLI `runtime refresh-capabilities`, and GUI
+actions all lower to `RuntimeCapabilitiesRefresh` under the existing
+`runtime.refresh` capability. Domain execution advances the runtime revision and
+emits a typed event; only the durable runtime may translate that event into a
+`gewyvern.capabilities.discover` request carrying the new expected revision.
+
+Capability presentation consumes only the validated domain projection. Native
+CLI inspect and renderer-neutral runtime workspaces distinguish unobserved from
+observed state and expose only service/version, typed core flags, canonical
+endpoint paths, and bounded boolean extensions. They do not receive or render
+the configured target origin, secret alias, authorization header, or raw
+adapter response.
+
+The authenticated HTTPS vertical exercises this boundary without a mock wire
+shortcut. A separate CLI process submits `RuntimeCapabilitiesRefresh`; the
+daemon commits its revision, materializes the durable discovery task, executes
+the real target-scoped HTTP adapter, atomically commits the observation, and
+serves the resulting projection to a later CLI inspect. The proof asserts every
+revision transition and verifies that the adapter's network origin is absent
+from human output.
+
 ## UI Contract
 
 Leselang UI functions are pure:
@@ -272,13 +325,22 @@ cursor-resync tests. The Avalonia desktop client now consumes that event
 contract with explicit CA and hostname verification, per-origin
 endpoint-redacted snapshot cache, immediate stale-state presentation, a capped
 eight-attempt reconnect loop, and cursor reset on `resync_required`. Its first
-mutation is deliberately not generic: a runtime-bound UI action opens explicit
-confirmation and sends only `runtime.refresh` through authenticated `POST
-/v1/wire`, with `runtime.refresh` capability, principal, idempotency key, and
-the displayed runtime revision. Stale state cannot mutate and ambiguous network
-failures are not retried automatically. A real Rust-to-.NET vertical proves the
-command response and subsequent WebSocket revision agree without persisting the
-runtime endpoint. Desktop token resolution uses macOS Keychain or Linux Secret
+mutations are deliberately not generic: runtime-bound actions open explicit
+confirmation and send only typed `runtime_refresh` or
+`runtime_capabilities_refresh` commands through authenticated `POST /v1/wire`,
+with `runtime.refresh` capability, principal, idempotency key, and the displayed
+runtime revision. Stale state cannot mutate and ambiguous network failures are
+not retried automatically. Strict capability decoding applies the same source,
+version, endpoint, deployment-consistency, and extension bounds as the Rust
+domain. Capability controls remain fenced until a projection newer than the
+command revision carries an observed snapshot whose
+`capabilities_observed_for_revision` binds it to that command. The optional
+field keeps old snapshots readable; capability journal replay semantically
+upgrades legacy outcomes while continuing to reject unrelated divergence. A real Rust-to-.NET vertical
+proves both command bindings, real adapter execution, and subsequent WebSocket
+revisions agree without persisting the runtime or adapter endpoint. Unknown
+mutation outcomes require a later full snapshot; heartbeats carry revision
+liveness but cannot resolve command ambiguity. Desktop token resolution uses macOS Keychain or Linux Secret
 Service through AOT-compatible native bindings, scoped by canonical HTTPS
 origin; an environment token is accepted only when no platform item exists.
 Malformed stored credentials fail closed and no secret enters UI IR or cache.

@@ -427,11 +427,20 @@ fn fetch_json(
     path: &str,
     timeout: Duration,
 ) -> Result<Vec<u8>, String> {
-    let response = request_json(target, secrets, "GET", path, None, timeout)?;
+    let response = get_json(target, secrets, path, timeout)?;
     if response.status != 200 {
         return Err("Gewyvern API request was rejected".into());
     }
     Ok(response.body)
+}
+
+pub(crate) fn get_json(
+    target: &GewyvernTarget,
+    secrets: &dyn SecretStore,
+    path: &str,
+    timeout: Duration,
+) -> Result<HttpJsonResponse, String> {
+    request_json(target, secrets, "GET", path, None, timeout)
 }
 
 pub(crate) fn post_json(

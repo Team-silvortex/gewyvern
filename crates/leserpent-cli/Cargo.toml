@@ -17,6 +17,7 @@ rustls-pemfile.workspace = true
 
 [dev-dependencies]
 leselang-hir = { path = "../leselang-hir" }
+leserpent-adapters = { path = "../leserpent-adapters" }
 leserpent-runtime = { path = "../leserpent-runtime" }
 leserpentd = { path = "../leserpentd" }
 rcgen = "0.14"

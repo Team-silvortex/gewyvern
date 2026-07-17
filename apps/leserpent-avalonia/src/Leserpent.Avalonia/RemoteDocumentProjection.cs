@@ -65,6 +65,8 @@ internal static class RemoteDocumentProjection
         runtime.Status.StatusSource,
         runtime.Status.StatusFetchError,
         runtime.Status.ResilienceStatus,
+        runtime.Capabilities?.Service,
+        runtime.Capabilities?.Version,
     }.Any(value => value?.Contains(filter, StringComparison.OrdinalIgnoreCase) == true);
 
     public static void VerifyFilterContract()
@@ -90,6 +92,14 @@ internal static class RemoteDocumentProjection
         if (all.VisibleRuntimeCount != 2 || all.TotalRuntimeCount != 2)
         {
             throw new InvalidDataException("empty runtime filter did not restore all runtimes");
+        }
+        if (all.Document.Root.Children
+            .Where(node => node.Kind == UiNodeKind.RuntimeCard)
+            .Any(card => card.Children.All(node =>
+                node.Action?.Kind != ActionKind.RuntimeCapabilitiesRefresh)))
+        {
+            throw new InvalidDataException(
+                "runtime card omitted the capability discovery action");
         }
         var empty = Project(state, "does-not-exist");
         if (empty.VisibleRuntimeCount != 0
@@ -232,6 +242,35 @@ internal static class RemoteDocumentProjection
                     Action = new UiAction
                     {
                         Kind = ActionKind.RuntimeRefresh,
+                        RuntimeId = runtime.Id,
+                    },
+                    Children = [],
+                },
+                new UiNode
+                {
+                    Id = $"runtime:{runtime.Id}:capabilities-refresh",
+                    Kind = UiNodeKind.Action,
+                    Text = new LocalizedText
+                    {
+                        Key = "runtime.capabilities.refresh",
+                        Fallback = "Discover capabilities",
+                    },
+                    Accessibility = new Accessibility
+                    {
+                        Label = new LocalizedText
+                        {
+                            Key = "runtime.capabilities.refresh",
+                            Fallback = $"Discover capabilities for {Safe(runtime.Name)}",
+                        },
+                        Description = new LocalizedText
+                        {
+                            Key = "runtime.capabilities.refresh.description",
+                            Fallback = "Requires explicit confirmation before querying the remote runtime",
+                        },
+                    },
+                    Action = new UiAction
+                    {
+                        Kind = ActionKind.RuntimeCapabilitiesRefresh,
                         RuntimeId = runtime.Id,
                     },
                     Children = [],

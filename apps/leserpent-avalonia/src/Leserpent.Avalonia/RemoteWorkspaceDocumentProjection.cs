@@ -104,6 +104,7 @@ internal static class RemoteWorkspaceDocumentProjection
                         },
                         Children = [],
                     },
+                    CapabilitySection(prefix, runtime),
                     new UiNode
                     {
                         Id = $"{prefix}:history",
@@ -131,6 +132,146 @@ internal static class RemoteWorkspaceDocumentProjection
         };
     }
 
+    private static UiNode CapabilitySection(
+        string prefix,
+        RemoteRuntimeProjection runtime)
+    {
+        var capabilities = runtime.Capabilities;
+        UiNode[] details = capabilities is null || capabilities.IsUnobserved
+            ?
+            [
+                TextNode(
+                    $"{prefix}:capabilities:unobserved",
+                    UiNodeKind.Text,
+                    "runtime.capabilities.unobserved",
+                    "Capabilities have not been observed"),
+            ]
+            :
+            [
+                TextNode(
+                    $"{prefix}:capabilities:summary",
+                    UiNodeKind.Text,
+                    "runtime.capabilities.summary",
+                    $"{Safe(capabilities.Service)} {Safe(capabilities.Version)} / latest snapshot {YesNo(capabilities.LatestSnapshot)} / authenticated deployment {YesNo(capabilities.AuthenticatedDeployment)} / serve required {YesNo(capabilities.ServeRequired)} / sidecar context {YesNo(capabilities.ExternalSidecarContext)}"),
+                TextNode(
+                    $"{prefix}:capabilities:binding",
+                    UiNodeKind.Text,
+                    "runtime.capabilities.binding",
+                    runtime.CapabilitiesObservedForRevision is { } observedFor
+                        ? $"Observed for command revision {observedFor}"
+                        : "Observation command revision unavailable (legacy projection)"),
+                TextNode(
+                    $"{prefix}:capabilities:encoding",
+                    UiNodeKind.Text,
+                    "runtime.capabilities.encoding",
+                    $"Target encoding: {Safe(capabilities.TargetPathSegmentEncoding)} / direct characters: {Safe(capabilities.TargetDirectPathChars)}"),
+                .. capabilities.Endpoints.Select((endpoint, index) => TextNode(
+                    $"{prefix}:capabilities:endpoint:{index}",
+                    UiNodeKind.Text,
+                    "runtime.capabilities.endpoint",
+                    $"Endpoint: {Safe(endpoint)}")),
+                .. capabilities.Extensions.OrderBy(entry => entry.Key, StringComparer.Ordinal)
+                    .Select((entry, index) => TextNode(
+                        $"{prefix}:capabilities:extension:{index}",
+                        UiNodeKind.Text,
+                        "runtime.capabilities.extension",
+                        $"Extension {Safe(entry.Key)}: {YesNo(entry.Value)}")),
+            ];
+        var children = new List<UiNode>(details)
+        {
+            new UiNode
+            {
+                Id = $"runtime:{runtime.Id}:capabilities-refresh",
+                Kind = UiNodeKind.Action,
+                Text = Localized(
+                    "runtime.capabilities.refresh",
+                    "Discover capabilities"),
+                Accessibility = new Accessibility
+                {
+                    Label = Localized(
+                        "runtime.capabilities.refresh",
+                        $"Discover capabilities for {Safe(runtime.Name)}"),
+                    Description = Localized(
+                        "runtime.capabilities.refresh.description",
+                        "Requires confirmation in the fleet window"),
+                },
+                Action = new UiAction
+                {
+                    Kind = ActionKind.RuntimeCapabilitiesRefresh,
+                    RuntimeId = runtime.Id,
+                },
+                Children = [],
+            },
+        };
+        if (capabilities is { AuthenticatedDeployment: true })
+        {
+            children.Add(new UiNode
+            {
+                Id = $"runtime:{runtime.Id}:deploy",
+                Kind = UiNodeKind.Action,
+                Text = Localized("runtime.deploy", "Deploy pipeline"),
+                Accessibility = new Accessibility
+                {
+                    Label = Localized(
+                        "runtime.deploy",
+                        $"Deploy a pipeline to {Safe(runtime.Name)}"),
+                    Description = Localized(
+                        "runtime.deploy.description",
+                        "Opens a bounded deployment form and requires explicit confirmation"),
+                },
+                Action = new UiAction
+                {
+                    Kind = ActionKind.RuntimeDeploy,
+                    RuntimeId = runtime.Id,
+                    Form = DeploymentForm(),
+                },
+                Children = [],
+            });
+        }
+        return new UiNode
+        {
+            Id = $"{prefix}:capabilities",
+            Kind = UiNodeKind.Section,
+            Text = Localized("runtime.capabilities.title", "Capabilities"),
+            Accessibility = new Accessibility
+            {
+                Label = Localized("runtime.capabilities.title", "Runtime capabilities"),
+            },
+            Children = children,
+        };
+    }
+
+    private static UiForm DeploymentForm() => new()
+    {
+        Title = Localized("runtime.deploy.form.title", "Confirm remote deployment"),
+        SubmitLabel = Localized("runtime.deploy.form.submit", "Deploy pipeline"),
+        Fields =
+        [
+            new UiFormField
+            {
+                Key = "pipeline_kind",
+                Label = Localized("runtime.deploy.form.pipeline_kind", "Pipeline kind"),
+                Placeholder = Localized(
+                    "runtime.deploy.form.pipeline_kind.placeholder",
+                    "http/request"),
+                Required = true,
+                MaxLength = 128,
+                InputKind = UiFormInputKind.PathToken,
+            },
+            new UiFormField
+            {
+                Key = "target",
+                Label = Localized("runtime.deploy.form.target", "Optional target"),
+                Placeholder = Localized(
+                    "runtime.deploy.form.target.placeholder",
+                    "For example pid:42"),
+                Required = false,
+                MaxLength = 256,
+                InputKind = UiFormInputKind.TrimmedText,
+            },
+        ],
+    };
+
     public static void VerifyEndpointIsolation()
     {
         var snapshot = new RemoteWorkspaceSnapshot(
@@ -143,6 +284,24 @@ internal static class RemoteWorkspaceDocumentProjection
                 RefreshStatus = RefreshStatus.Ready,
                 Tags = new RuntimeTags(),
                 Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+                CapabilitiesObservedForRevision = 6,
+                Capabilities = new RuntimeCapabilitySnapshot
+                {
+                    Source = "gewyvern-api",
+                    Service = "gewyvern-api",
+                    Version = "1.2.0",
+                    LatestSnapshot = true,
+                    AuthenticatedDeployment = true,
+                    ServeRequired = true,
+                    ExternalSidecarContext = true,
+                    TargetPathSegmentEncoding = "percent-encoding",
+                    TargetDirectPathChars = "A-Z a-z 0-9 . _ ~ :",
+                    Endpoints = ["/v1/capabilities", "/v1/deployments"],
+                    Extensions = new Dictionary<string, bool>(StringComparer.Ordinal)
+                    {
+                        ["protocol_catalog"] = true,
+                    },
+                },
             },
             [new RemoteHistoryProjection("command-a", 7, "applied")],
             [new RemoteLogProjection(1, "warning", "bounded warning")]);
@@ -154,11 +313,102 @@ internal static class RemoteWorkspaceDocumentProjection
                 node.Text?.Fallback.Contains("https://", StringComparison.Ordinal) == true)
             || Descendants(document.Root).Single(node =>
                 node.Id == "workspace:runtime-a:logs:1").Text?.Fallback
-                != "[WARNING] bounded warning")
+                != "[WARNING] bounded warning"
+            || Descendants(document.Root).All(node =>
+                node.Action?.Kind != ActionKind.RuntimeCapabilitiesRefresh)
+            || Descendants(document.Root).All(node =>
+                node.Action?.Kind != ActionKind.RuntimeDeploy)
+            || Descendants(document.Root).All(node =>
+                node.Text?.Fallback == "Endpoint: /v1/capabilities")
+            || Descendants(document.Root).All(node =>
+                node.Text?.Fallback == "Observed for command revision 6"))
         {
             throw new InvalidDataException(
                 "remote workspace projection leaked transport identity");
         }
+
+        var capabilities = snapshot.Runtime.Capabilities
+            ?? throw new InvalidDataException("verification snapshot lost capabilities");
+        capabilities.AuthenticatedDeployment = false;
+        capabilities.Endpoints = ["/v1/capabilities"];
+        var restrictedDocument = Project(snapshot);
+        if (Descendants(restrictedDocument.Root).Any(node =>
+                node.Action?.Kind == ActionKind.RuntimeDeploy))
+        {
+            throw new InvalidDataException(
+                "remote workspace exposed deployment without an authenticated capability");
+        }
+    }
+
+    public static void VerifyParameterizedFormContract()
+    {
+        var document = new UiDocument
+        {
+            SchemaVersion = 1,
+            Revision = 7,
+            Root = new UiNode
+            {
+                Id = "runtime:runtime-a",
+                Kind = UiNodeKind.RuntimeWorkspace,
+                RuntimeId = "runtime-a",
+                Accessibility = new Accessibility
+                {
+                    Label = Localized("runtime.workspace", "Runtime A"),
+                },
+                Children =
+                [
+                    new UiNode
+                    {
+                        Id = "runtime:runtime-a:deploy",
+                        Kind = UiNodeKind.Action,
+                        Text = Localized("runtime.deploy", "Deploy pipeline"),
+                        Accessibility = new Accessibility
+                        {
+                            Label = Localized("runtime.deploy", "Deploy pipeline"),
+                        },
+                        Action = new UiAction
+                        {
+                            Kind = ActionKind.RuntimeDeploy,
+                            RuntimeId = "runtime-a",
+                            Form = DeploymentForm(),
+                        },
+                        Children = [],
+                    },
+                ],
+            },
+        };
+        var renderer = new SemanticRenderer();
+        renderer.Mount(document);
+        var submission = renderer.CreateFormSubmission(
+            "runtime:runtime-a:deploy",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["pipeline_kind"] = "http/request",
+                ["target"] = "pid:42",
+            });
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            submission,
+            RendererJsonContext.Default.UiEvent);
+        if (submission.Kind != UiEventKind.Submit
+            || submission.Values["pipeline_kind"] != "http/request"
+            || !json.Contains("\"kind\":\"submit\"", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("parameterized form event was not preserved");
+        }
+        try
+        {
+            renderer.CreateFormSubmission(
+                "runtime:runtime-a:deploy",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["pipeline_kind"] = "unsafe value",
+                });
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidDataException("parameterized form accepted an invalid value");
     }
 
     private static IEnumerable<UiNode> Descendants(UiNode node)
@@ -200,6 +450,8 @@ internal static class RemoteWorkspaceDocumentProjection
         Key = key,
         Fallback = fallback,
     };
+
+    private static string YesNo(bool value) => value ? "yes" : "no";
 
     private static string Safe(string value) => new(value
         .Where(character => !char.IsControl(character))

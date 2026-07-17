@@ -2,7 +2,7 @@
   "schema_version": 1,
   "previous": {
     "schema_version": 1,
-    "revision": 33,
+    "revision": 34,
     "root": {
       "id": "workspace-runtime-history",
       "kind": "runtime_workspace",
@@ -41,7 +41,7 @@
           "debugger_session_id": null,
           "text": {
             "key": "runtime.workspace.revision",
-            "fallback": "Revision 33"
+            "fallback": "Revision 34"
           },
           "accessibility": {
             "label": null,
@@ -83,6 +83,187 @@
           "children": []
         },
         {
+          "id": "workspace-runtime-history-capabilities",
+          "kind": "section",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "runtime.workspace.capabilities.title",
+            "fallback": "Capabilities"
+          },
+          "accessibility": {
+            "label": {
+              "key": "runtime.workspace.capabilities.title",
+              "fallback": "Runtime capabilities"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "workspace-runtime-history-capabilities-identity",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.identity",
+                "fallback": "gewyvern-api 1.2.0"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-summary",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.summary",
+                "fallback": "Latest snapshot: true; authenticated deployment: true; serve required: true; external sidecar context: true"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-binding",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.binding",
+                "fallback": "Observed for command revision 33"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-endpoint-0",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.endpoint",
+                "fallback": "Endpoint: /v1/capabilities"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-endpoint-1",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.endpoint",
+                "fallback": "Endpoint: /v1/deployments"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-extension-0",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.extension",
+                "fallback": "Extension: protocol_catalog=true"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-deploy",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.deploy",
+                "fallback": "Deploy pipeline"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "runtime.deploy",
+                  "fallback": "Deploy pipeline"
+                },
+                "description": {
+                  "key": "runtime.deploy.description",
+                  "fallback": "Opens a bounded deployment form and requires explicit confirmation"
+                }
+              },
+              "action": {
+                "kind": "runtime_deploy",
+                "runtime_id": "runtime-history",
+                "form": {
+                  "title": {
+                    "key": "runtime.deploy.form.title",
+                    "fallback": "Confirm remote deployment"
+                  },
+                  "submit_label": {
+                    "key": "runtime.deploy.form.submit",
+                    "fallback": "Deploy pipeline"
+                  },
+                  "fields": [
+                    {
+                      "key": "pipeline_kind",
+                      "label": {
+                        "key": "runtime.deploy.form.pipeline_kind",
+                        "fallback": "Pipeline kind"
+                      },
+                      "placeholder": {
+                        "key": "runtime.deploy.form.pipeline_kind.placeholder",
+                        "fallback": "http/request"
+                      },
+                      "required": true,
+                      "max_length": 128,
+                      "input_kind": "path_token"
+                    },
+                    {
+                      "key": "target",
+                      "label": {
+                        "key": "runtime.deploy.form.target",
+                        "fallback": "Optional target"
+                      },
+                      "placeholder": {
+                        "key": "runtime.deploy.form.target.placeholder",
+                        "fallback": "For example pid:42"
+                      },
+                      "required": false,
+                      "max_length": 256,
+                      "input_kind": "trimmed_text"
+                    }
+                  ]
+                }
+              },
+              "children": []
+            }
+          ]
+        },
+        {
           "id": "workspace-runtime-history-refresh",
           "kind": "action",
           "runtime_id": null,
@@ -100,6 +281,28 @@
           },
           "action": {
             "kind": "runtime_refresh",
+            "runtime_id": "runtime-history"
+          },
+          "children": []
+        },
+        {
+          "id": "workspace-runtime-history-capabilities-refresh",
+          "kind": "action",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "runtime.workspace.capabilities.refresh",
+            "fallback": "Refresh capabilities"
+          },
+          "accessibility": {
+            "label": {
+              "key": "runtime.workspace.capabilities.refresh",
+              "fallback": "Refresh runtime capabilities"
+            },
+            "description": null
+          },
+          "action": {
+            "kind": "runtime_capabilities_refresh",
             "runtime_id": "runtime-history"
           },
           "children": []
@@ -641,8 +844,8 @@
   },
   "patch": {
     "schema_version": 1,
-    "from_revision": 33,
-    "to_revision": 34,
+    "from_revision": 34,
+    "to_revision": 35,
     "operations": [
       {
         "kind": "remove",
@@ -653,13 +856,13 @@
         "parent_id": "workspace-runtime-history-history",
         "index": 0,
         "node": {
-          "id": "workspace-runtime-history-history-34-history-command-32",
+          "id": "workspace-runtime-history-history-35-history-command-32",
           "kind": "history_entry",
           "runtime_id": null,
           "debugger_session_id": null,
           "text": {
             "key": "runtime.history.entry",
-            "fallback": "Revision 34: applied"
+            "fallback": "Revision 35: applied"
           },
           "accessibility": {
             "label": null,
@@ -678,7 +881,7 @@
           "debugger_session_id": null,
           "text": {
             "key": "runtime.workspace.revision",
-            "fallback": "Revision 34"
+            "fallback": "Revision 35"
           },
           "accessibility": {
             "label": null,
@@ -692,7 +895,7 @@
   },
   "next": {
     "schema_version": 1,
-    "revision": 34,
+    "revision": 35,
     "root": {
       "id": "workspace-runtime-history",
       "kind": "runtime_workspace",
@@ -731,7 +934,7 @@
           "debugger_session_id": null,
           "text": {
             "key": "runtime.workspace.revision",
-            "fallback": "Revision 34"
+            "fallback": "Revision 35"
           },
           "accessibility": {
             "label": null,
@@ -773,6 +976,187 @@
           "children": []
         },
         {
+          "id": "workspace-runtime-history-capabilities",
+          "kind": "section",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "runtime.workspace.capabilities.title",
+            "fallback": "Capabilities"
+          },
+          "accessibility": {
+            "label": {
+              "key": "runtime.workspace.capabilities.title",
+              "fallback": "Runtime capabilities"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "workspace-runtime-history-capabilities-identity",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.identity",
+                "fallback": "gewyvern-api 1.2.0"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-summary",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.summary",
+                "fallback": "Latest snapshot: true; authenticated deployment: true; serve required: true; external sidecar context: true"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-binding",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.binding",
+                "fallback": "Observed for command revision 33"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-endpoint-0",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.endpoint",
+                "fallback": "Endpoint: /v1/capabilities"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-endpoint-1",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.endpoint",
+                "fallback": "Endpoint: /v1/deployments"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-capabilities-extension-0",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.workspace.capabilities.extension",
+                "fallback": "Extension: protocol_catalog=true"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "workspace-runtime-history-deploy",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "runtime.deploy",
+                "fallback": "Deploy pipeline"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "runtime.deploy",
+                  "fallback": "Deploy pipeline"
+                },
+                "description": {
+                  "key": "runtime.deploy.description",
+                  "fallback": "Opens a bounded deployment form and requires explicit confirmation"
+                }
+              },
+              "action": {
+                "kind": "runtime_deploy",
+                "runtime_id": "runtime-history",
+                "form": {
+                  "title": {
+                    "key": "runtime.deploy.form.title",
+                    "fallback": "Confirm remote deployment"
+                  },
+                  "submit_label": {
+                    "key": "runtime.deploy.form.submit",
+                    "fallback": "Deploy pipeline"
+                  },
+                  "fields": [
+                    {
+                      "key": "pipeline_kind",
+                      "label": {
+                        "key": "runtime.deploy.form.pipeline_kind",
+                        "fallback": "Pipeline kind"
+                      },
+                      "placeholder": {
+                        "key": "runtime.deploy.form.pipeline_kind.placeholder",
+                        "fallback": "http/request"
+                      },
+                      "required": true,
+                      "max_length": 128,
+                      "input_kind": "path_token"
+                    },
+                    {
+                      "key": "target",
+                      "label": {
+                        "key": "runtime.deploy.form.target",
+                        "fallback": "Optional target"
+                      },
+                      "placeholder": {
+                        "key": "runtime.deploy.form.target.placeholder",
+                        "fallback": "For example pid:42"
+                      },
+                      "required": false,
+                      "max_length": 256,
+                      "input_kind": "trimmed_text"
+                    }
+                  ]
+                }
+              },
+              "children": []
+            }
+          ]
+        },
+        {
           "id": "workspace-runtime-history-refresh",
           "kind": "action",
           "runtime_id": null,
@@ -790,6 +1174,28 @@
           },
           "action": {
             "kind": "runtime_refresh",
+            "runtime_id": "runtime-history"
+          },
+          "children": []
+        },
+        {
+          "id": "workspace-runtime-history-capabilities-refresh",
+          "kind": "action",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "runtime.workspace.capabilities.refresh",
+            "fallback": "Refresh capabilities"
+          },
+          "accessibility": {
+            "label": {
+              "key": "runtime.workspace.capabilities.refresh",
+              "fallback": "Refresh runtime capabilities"
+            },
+            "description": null
+          },
+          "action": {
+            "kind": "runtime_capabilities_refresh",
             "runtime_id": "runtime-history"
           },
           "children": []
@@ -813,13 +1219,13 @@
           "action": null,
           "children": [
             {
-              "id": "workspace-runtime-history-history-34-history-command-32",
+              "id": "workspace-runtime-history-history-35-history-command-32",
               "kind": "history_entry",
               "runtime_id": null,
               "debugger_session_id": null,
               "text": {
                 "key": "runtime.history.entry",
-                "fallback": "Revision 34: applied"
+                "fallback": "Revision 35: applied"
               },
               "accessibility": {
                 "label": null,

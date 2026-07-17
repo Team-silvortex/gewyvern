@@ -3,8 +3,8 @@ use leselang_hir::lower;
 use leselang_syntax::parse;
 use leserpent_cli::{CliCommand, export_leselang, parse_args, request_for};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandId,
-    CommandOrigin, Confirmation, IdempotencyKey, Principal,
+    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
+    Command, CommandId, CommandOrigin, Confirmation, IdempotencyKey, Principal,
 };
 use leserpent_protocol::ProtocolRequest;
 
@@ -46,6 +46,62 @@ fn exported_refresh_lowers_to_the_same_domain_command() {
         panic!("refresh export must lower to runtime refresh");
     };
     assert_eq!(runtime_id, cli_refresh.runtime_id);
+}
+
+#[test]
+fn exported_deployment_lowers_to_the_same_confirmed_domain_command() {
+    let options = parse_args(
+        [
+            "runtime",
+            "deploy",
+            "runtime-a",
+            "--pipeline-kind",
+            "http/request",
+            "--target",
+            "pid:42",
+            "--export-leselang",
+        ]
+        .into_iter()
+        .map(str::to_string),
+        None,
+        Some("operator-a".into()),
+    )
+    .unwrap();
+    let CliCommand::RuntimeDeploy(cli_deploy) = &options.command else {
+        panic!("CLI must parse runtime deploy");
+    };
+    let source = export_leselang(&options).unwrap();
+    let program = lower(&parse(&source)).unwrap();
+    let plan = lower_effect(
+        &program.function.effect,
+        &LoweringContext {
+            principal: Principal {
+                id: "operator-a".into(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+            expected_revision: None,
+            command_id: CommandId::new("parity-command").unwrap(),
+            idempotency_key: IdempotencyKey::new("parity-effect").unwrap(),
+            origin: CommandOrigin::Leselang,
+            confirmation: Confirmation::Confirmed,
+            dry_run: false,
+        },
+    )
+    .unwrap();
+    let PlannedOperation::Command(command) = plan.operation else {
+        panic!("exported deployment must lower to a command");
+    };
+    assert_eq!(command.confirmation, Confirmation::Confirmed);
+    assert!(matches!(
+        command.command,
+        Command::RuntimeDeploy {
+            runtime_id,
+            pipeline_kind,
+            target,
+        } if runtime_id == cli_deploy.runtime_id
+            && pipeline_kind == cli_deploy.pipeline_kind
+            && target == cli_deploy.target
+    ));
 }
 
 #[test]

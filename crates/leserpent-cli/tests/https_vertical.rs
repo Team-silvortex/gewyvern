@@ -1,4 +1,6 @@
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -8,10 +10,11 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use leserpent_adapters::{GewyvernDiscoveryAdapter, GewyvernTarget};
 use leserpent_domain::RuntimeId;
 use leserpent_protocol::{ProtocolResponse, decode_response};
 use leserpent_runtime::ControlRuntime;
-use leserpentd::RemoteServer;
+use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
@@ -28,6 +31,24 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
     #[cfg(unix)]
     fs::set_permissions(&private_key, fs::Permissions::from_mode(0o600)).unwrap();
 
+    let capability_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let capability_address = capability_listener.local_addr().unwrap();
+    let capability_server = thread::spawn(move || {
+        let (mut stream, _) = capability_listener.accept().unwrap();
+        let mut request = [0_u8; 2048];
+        let read = stream.read(&mut request).unwrap();
+        let request = std::str::from_utf8(&request[..read]).unwrap();
+        assert!(request.starts_with("GET /v1/capabilities HTTP/1.1\r\n"));
+        let body = br#"{"service":"gewyvern-api","version":"1.2.0","latest_snapshot":true,"authenticated_deployment":false,"serve_required":true,"external_sidecar_context":true,"target_path_segment_encoding":"percent-encoding","target_direct_path_chars":"A-Z a-z 0-9 . _ ~ :","endpoints":["/v1/capabilities"],"protocol_catalog":true}"#;
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .unwrap();
+        stream.write_all(body).unwrap();
+    });
+
     let stop = Arc::new(AtomicBool::new(false));
     let (ready_tx, ready_rx) = mpsc::channel();
     let server_stop = Arc::clone(&stop);
@@ -40,9 +61,22 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
             .register_runtime(
                 RuntimeId::new("runtime-a").unwrap(),
                 "Runtime A",
-                "https://secret-runtime.invalid",
+                "runtime://runtime-a",
             )
             .unwrap();
+        let target = GewyvernTarget::loopback(capability_address, None).unwrap();
+        let adapter = GewyvernDiscoveryAdapter::new([("runtime-a".to_string(), target)]).unwrap();
+        let mut registry = AdapterRegistry::default();
+        registry.register(adapter).unwrap();
+        let mut host = DaemonHost::new(
+            runtime,
+            registry,
+            DaemonConfig {
+                idle_interval: Duration::from_millis(1),
+                ..DaemonConfig::default()
+            },
+        )
+        .unwrap();
         let mut https = RemoteServer::bind(
             "127.0.0.1:0".parse().unwrap(),
             server_certificate,
@@ -52,7 +86,8 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
         .unwrap();
         ready_tx.send(https.local_addr().unwrap()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
-            https.poll_once(&mut runtime).unwrap();
+            https.poll_once(host.runtime_mut()).unwrap();
+            host.tick().unwrap();
             thread::sleep(Duration::from_millis(1));
         }
     });
@@ -84,6 +119,58 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
             if runtimes.len() == 1 && runtimes[0].id.as_str() == "runtime-a"
     ));
 
+    let refresh_capabilities = remote_command(binary, &endpoint, &certificate)
+        .args([
+            "--json",
+            "runtime",
+            "refresh-capabilities",
+            "runtime-a",
+            "--yes",
+            "--expected-revision",
+            "1",
+            "--idempotency-key",
+            "remote-integration-capabilities",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        refresh_capabilities.status.success(),
+        "{}",
+        stderr(&refresh_capabilities)
+    );
+    let refreshed = decode_response(trim_ascii_whitespace(&refresh_capabilities.stdout)).unwrap();
+    assert!(matches!(
+        refreshed.response,
+        ProtocolResponse::Command(ref result)
+            if result.status == leserpent_domain::CommandStatus::Applied
+                && result.runtime.revision.0 == 2
+    ));
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(3);
+    let observed = loop {
+        let inspect = remote_command(binary, &endpoint, &certificate)
+            .args(["runtime", "inspect", "runtime-a"])
+            .output()
+            .unwrap();
+        assert!(inspect.status.success(), "{}", stderr(&inspect));
+        let output = String::from_utf8(inspect.stdout).unwrap();
+        if output.contains("capabilities=observed") {
+            break output;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "capability discovery did not complete: {output}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(observed.contains("revision=3"));
+    assert!(observed.contains("capabilities_observed_for_revision=2"));
+    assert!(observed.contains("service=gewyvern-api version=1.2.0"));
+    assert!(observed.contains("capability_endpoints=/v1/capabilities"));
+    assert!(observed.contains("capability_extensions=protocol_catalog=true"));
+    assert!(!observed.contains(&capability_address.to_string()));
+    assert!(!observed.contains("Authorization"));
+
     let watch = remote_command(binary, &endpoint, &certificate)
         .args([
             "runtime",
@@ -97,7 +184,10 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
         .output()
         .unwrap();
     assert!(watch.status.success(), "{}", stderr(&watch));
-    assert_eq!(String::from_utf8(watch.stdout).unwrap().lines().count(), 1);
+    let watch_stdout = String::from_utf8(watch.stdout).unwrap();
+    assert_eq!(watch_stdout.lines().count(), 4);
+    assert!(watch_stdout.contains("capabilities=observed"));
+    assert!(watch_stdout.contains("capabilities_observed_for_revision=2"));
 
     let apply = remote_command(binary, &endpoint, &certificate)
         .args([
@@ -107,7 +197,7 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
             "runtime-a",
             "--yes",
             "--expected-revision",
-            "1",
+            "3",
             "--idempotency-key",
             "remote-integration-refresh",
         ])
@@ -119,7 +209,7 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
         applied.response,
         ProtocolResponse::Command(ref result)
             if result.status == leserpent_domain::CommandStatus::Applied
-                && result.runtime.revision.0 == 2
+                && result.runtime.revision.0 == 4
     ));
 
     let unauthorized = Command::new(binary)
@@ -138,6 +228,7 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();
+    capability_server.join().unwrap();
     fs::remove_file(database).unwrap();
     fs::remove_file(certificate).unwrap();
     fs::remove_file(private_key).unwrap();

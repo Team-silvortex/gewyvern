@@ -18,8 +18,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly string principal;
     private RemoteFeedState currentState;
     private bool mutationInFlight;
-    private long feedStateSerial;
-    private long? mutationObservationFence;
+    private MutationObservationFence? mutationObservationFence;
     private MutationRevisionFence? mutationRevisionFence;
     private readonly TextBlock statusText = new()
     {
@@ -354,10 +353,6 @@ internal sealed class RemoteMainWindow : Window
 
     private void ApplyState(RemoteFeedState state)
     {
-        if (feedStateSerial < long.MaxValue)
-        {
-            feedStateSerial++;
-        }
         currentState = state;
         ClearSatisfiedMutationFences(state);
         RenderProjection();
@@ -515,8 +510,22 @@ internal sealed class RemoteMainWindow : Window
             SetMutationStatus("Refresh blocked: remote state is not live", LeserpentTheme.Destructive);
             return;
         }
-        var runtime = currentState.Runtimes.FirstOrDefault(candidate =>
+        var invokedAction = FindNode(renderer.Document.Root, nodeId)?.Action;
+        var deploymentRuntime = invokedAction is
+            { Kind: ActionKind.RuntimeDeploy, RuntimeId: not null, Form: not null }
+            ? currentState.Runtimes.FirstOrDefault(candidate =>
+                candidate.Id == invokedAction.RuntimeId)
+            : null;
+        if (deploymentRuntime is not null && invokedAction?.Form is { } deploymentForm)
+        {
+            await DeployRuntimeAsync(deploymentRuntime, nodeId, deploymentForm);
+            return;
+        }
+        var capabilityRuntime = currentState.Runtimes.FirstOrDefault(candidate =>
+            nodeId == $"runtime:{candidate.Id}:capabilities-refresh");
+        var runtime = capabilityRuntime ?? currentState.Runtimes.FirstOrDefault(candidate =>
             nodeId == $"runtime:{candidate.Id}:refresh");
+        var refreshCapabilities = capabilityRuntime is not null;
         if (runtime is null)
         {
             SetMutationStatus("Refresh blocked: action context is invalid", LeserpentTheme.Destructive);
@@ -524,7 +533,9 @@ internal sealed class RemoteMainWindow : Window
         }
         mutationInFlight = true;
         UpdateMutationAvailability();
-        var confirmed = await new RuntimeRefreshConfirmationWindow(runtime)
+        var confirmed = await new RuntimeRefreshConfirmationWindow(
+                runtime,
+                refreshCapabilities)
             .ShowDialog<bool>(this);
         if (!confirmed || lifetime.IsCancellationRequested)
         {
@@ -545,20 +556,34 @@ internal sealed class RemoteMainWindow : Window
                 LeserpentTheme.Destructive);
             return;
         }
+        var mutationSnapshotGeneration = currentState.SnapshotGeneration;
         SetMutationStatus(
-            $"Refreshing {SafeDisplay(runtime.Name)} at revision {runtime.Revision}...",
+            refreshCapabilities
+                ? $"Discovering capabilities for {SafeDisplay(runtime.Name)} at revision {runtime.Revision}..."
+                : $"Refreshing {SafeDisplay(runtime.Name)} at revision {runtime.Revision}...",
             LeserpentTheme.Primary);
         try
         {
-            var result = await mutationClient.RefreshAsync(
+            var result = refreshCapabilities
+                ? await mutationClient.RefreshCapabilitiesAsync(
+                    runtime.Id,
+                    runtime.Revision,
+                    principal,
+                    lifetime.Token)
+                : await mutationClient.RefreshAsync(
+                    runtime.Id,
+                    runtime.Revision,
+                    principal,
+                    lifetime.Token);
+            mutationRevisionFence = new MutationRevisionFence(
                 runtime.Id,
-                runtime.Revision,
-                principal,
-                lifetime.Token);
-            mutationRevisionFence = new MutationRevisionFence(runtime.Id, result.Revision);
+                result.Revision,
+                refreshCapabilities);
             ClearSatisfiedMutationFences(currentState);
             SetMutationStatus(
-                $"Refresh applied to {SafeDisplay(runtime.Name)} at revision {result.Revision}",
+                refreshCapabilities
+                    ? $"Capability discovery requested for {SafeDisplay(runtime.Name)} at revision {result.Revision}"
+                    : $"Refresh applied to {SafeDisplay(runtime.Name)} at revision {result.Revision}",
                 LeserpentTheme.Accent);
         }
         catch (RemoteMutationException error)
@@ -581,9 +606,12 @@ internal sealed class RemoteMainWindow : Window
         }
         catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
         {
-            FenceUntilNextLiveObservation();
+            FenceUntilAuthoritativeSnapshot(
+                runtime,
+                refreshCapabilities,
+                mutationSnapshotGeneration);
             SetMutationStatus(
-                "Refresh outcome unknown after timeout; wait for the event stream before retrying",
+                "Refresh outcome unknown after timeout; wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
@@ -596,9 +624,12 @@ internal sealed class RemoteMainWindow : Window
         }
         catch (HttpRequestException)
         {
-            FenceUntilNextLiveObservation();
+            FenceUntilAuthoritativeSnapshot(
+                runtime,
+                refreshCapabilities,
+                mutationSnapshotGeneration);
             SetMutationStatus(
-                "Refresh outcome unknown after a network failure; wait for the event stream before retrying",
+                "Refresh outcome unknown after a network failure; wait for an authoritative snapshot before retrying",
                 LeserpentTheme.Destructive);
         }
         finally
@@ -608,46 +639,308 @@ internal sealed class RemoteMainWindow : Window
         }
     }
 
-    private void FenceUntilNextLiveObservation()
+    private async Task DeployRuntimeAsync(
+        RemoteRuntimeProjection runtime,
+        string nodeId,
+        UiForm form)
     {
-        mutationObservationFence = feedStateSerial == long.MaxValue
-            ? long.MaxValue
-            : feedStateSerial + 1;
+        if (runtime.Capabilities is not { AuthenticatedDeployment: true })
+        {
+            SetMutationStatus(
+                "Deployment blocked: runtime has not advertised authenticated deployment",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        mutationInFlight = true;
+        UpdateMutationAvailability();
+        var intent = await new ParameterizedActionFormWindow(
+                form,
+                $"{SafeDisplay(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
+                "This submits an authenticated, revision-checked deployment and is not retried automatically.")
+            .ShowDialog<ParameterizedFormIntent?>(this);
+        if (intent is null || lifetime.IsCancellationRequested)
+        {
+            mutationInFlight = false;
+            UpdateMutationAvailability();
+            return;
+        }
+        UiEvent submission;
+        try
+        {
+            submission = renderer.CreateFormSubmission(nodeId, intent.Values);
+        }
+        catch (InvalidDataException error)
+        {
+            mutationInFlight = false;
+            UpdateMutationAvailability();
+            SetMutationStatus(
+                $"Deployment blocked: {SafeDisplay(error.Message)}",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        if (!submission.Values.TryGetValue("pipeline_kind", out var pipelineKind))
+        {
+            mutationInFlight = false;
+            UpdateMutationAvailability();
+            SetMutationStatus(
+                "Deployment blocked: form did not provide pipeline_kind",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        submission.Values.TryGetValue("target", out var target);
+        var confirmedRuntime = currentState.Runtimes.FirstOrDefault(candidate =>
+            candidate.Id == runtime.Id);
+        if (currentState.Phase != RemoteFeedPhase.Live
+            || currentState.IsStale
+            || confirmedRuntime?.Revision != runtime.Revision
+            || confirmedRuntime.Capabilities is not { AuthenticatedDeployment: true })
+        {
+            mutationInFlight = false;
+            UpdateMutationAvailability();
+            SetMutationStatus(
+                "Deployment blocked: remote state changed during confirmation",
+                LeserpentTheme.Destructive);
+            return;
+        }
+        var mutationSnapshotGeneration = currentState.SnapshotGeneration;
+        SetMutationStatus(
+            $"Deploying {SafeDisplay(pipelineKind)} to {SafeDisplay(runtime.Name)} at revision {runtime.Revision}...",
+            LeserpentTheme.Primary);
+        try
+        {
+            var result = await mutationClient.DeployAsync(
+                runtime.Id,
+                runtime.Revision,
+                principal,
+                pipelineKind,
+                target,
+                lifetime.Token);
+            mutationRevisionFence = new MutationRevisionFence(
+                runtime.Id,
+                result.Revision,
+                false);
+            ClearSatisfiedMutationFences(currentState);
+            SetMutationStatus(
+                $"Deployment accepted for {SafeDisplay(runtime.Name)} at revision {result.Revision}",
+                LeserpentTheme.Accent);
+        }
+        catch (RemoteMutationException error)
+        {
+            SetMutationStatus(
+                $"Deployment rejected ({SafeDisplay(error.Code)}): {SafeDisplay(error.Message)}",
+                LeserpentTheme.Destructive);
+        }
+        catch (InvalidDataException error)
+        {
+            SetMutationStatus(
+                $"Deployment response rejected: {SafeDisplay(error.Message)}",
+                LeserpentTheme.Destructive);
+        }
+        catch (ArgumentException error)
+        {
+            SetMutationStatus(
+                $"Deployment blocked: {SafeDisplay(error.Message)}",
+                LeserpentTheme.Destructive);
+        }
+        catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
+        {
+            FenceUntilAuthoritativeSnapshot(runtime, false, mutationSnapshotGeneration);
+            SetMutationStatus(
+                "Deployment outcome unknown after timeout; wait for an authoritative snapshot before retrying",
+                LeserpentTheme.Destructive);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            // Window shutdown owns this cancellation.
+        }
+        catch (ObjectDisposedException) when (lifetime.IsCancellationRequested)
+        {
+            // The HTTP client may be disposed while the window is closing.
+        }
+        catch (HttpRequestException)
+        {
+            FenceUntilAuthoritativeSnapshot(runtime, false, mutationSnapshotGeneration);
+            SetMutationStatus(
+                "Deployment outcome unknown after a network failure; wait for an authoritative snapshot before retrying",
+                LeserpentTheme.Destructive);
+        }
+        finally
+        {
+            mutationInFlight = false;
+            UpdateMutationAvailability();
+        }
     }
+
+    private void FenceUntilAuthoritativeSnapshot(
+        RemoteRuntimeProjection runtime,
+        bool requiresCapabilityChange,
+        ulong snapshotGeneration) => mutationObservationFence = new(
+            runtime.Id,
+            runtime.Revision,
+            snapshotGeneration,
+            requiresCapabilityChange);
 
     private void ClearSatisfiedMutationFences(RemoteFeedState state)
     {
         if (mutationRevisionFence is { } revisionFence
-            && state.Runtimes.Any(runtime => runtime.Id == revisionFence.RuntimeId
-                && runtime.Revision >= revisionFence.Revision))
+            && state.Runtimes.Any(runtime => SatisfiesMutationFence(
+                runtime,
+                revisionFence)))
         {
             mutationRevisionFence = null;
         }
         if (mutationObservationFence is { } observationFence
-            && feedStateSerial >= observationFence
-            && state.Phase == RemoteFeedPhase.Live
-            && !state.IsStale)
+            && SatisfiesObservationFence(state, observationFence))
         {
             mutationObservationFence = null;
         }
+    }
+
+    internal static void VerifyMutationFenceContract()
+    {
+        var runtime = new RemoteRuntimeProjection
+        {
+            Id = "runtime-a",
+            Name = "Runtime A",
+            Revision = 7,
+            RefreshStatus = RefreshStatus.Ready,
+            Tags = new RuntimeTags(),
+            Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+        };
+        var ordinary = new MutationRevisionFence("runtime-a", 7, false);
+        var capability = new MutationRevisionFence("runtime-a", 7, true);
+        if (!SatisfiesMutationFence(runtime, ordinary)
+            || SatisfiesMutationFence(runtime, capability))
+        {
+            throw new InvalidDataException(
+                "mutation fence did not distinguish command and observation revisions");
+        }
+        runtime.Revision = 8;
+        if (SatisfiesMutationFence(runtime, capability))
+        {
+            throw new InvalidDataException(
+                "mutation fence accepted an unobserved capability revision");
+        }
+        runtime.Capabilities = new RuntimeCapabilitySnapshot
+        {
+            Source = "gewyvern-api",
+        };
+        runtime.CapabilitiesObservedForRevision = 7;
+        if (!SatisfiesMutationFence(runtime, capability))
+        {
+            throw new InvalidDataException(
+                "mutation fence rejected a later observed capability revision");
+        }
+
+        runtime.Revision = 7;
+        runtime.Capabilities = null;
+        var ordinaryUnknown = new MutationObservationFence(
+            "runtime-a",
+            7,
+            4,
+            false);
+        var capabilityUnknown = new MutationObservationFence(
+            "runtime-a",
+            7,
+            4,
+            true);
+        var heartbeat = new RemoteFeedState(
+            RemoteFeedPhase.Live,
+            7,
+            [runtime],
+            0,
+            false,
+            "heartbeat",
+            4);
+        if (SatisfiesObservationFence(heartbeat, ordinaryUnknown))
+        {
+            throw new InvalidDataException(
+                "mutation observation fence was released by a heartbeat");
+        }
+        var snapshot = heartbeat with { SnapshotGeneration = 5 };
+        if (!SatisfiesObservationFence(snapshot, ordinaryUnknown)
+            || !SatisfiesObservationFence(snapshot, capabilityUnknown))
+        {
+            throw new InvalidDataException(
+                "mutation observation fence rejected an unchanged authoritative snapshot");
+        }
+        runtime.Revision = 8;
+        if (SatisfiesObservationFence(snapshot, capabilityUnknown))
+        {
+            throw new InvalidDataException(
+                "mutation observation fence accepted a pending capability projection");
+        }
+        runtime.Capabilities = new RuntimeCapabilitySnapshot
+        {
+            Source = "gewyvern-api",
+        };
+        runtime.CapabilitiesObservedForRevision = 8;
+        runtime.Revision = 9;
+        if (!SatisfiesObservationFence(snapshot, capabilityUnknown))
+        {
+            throw new InvalidDataException(
+                "mutation observation fence rejected a changed capability snapshot");
+        }
+    }
+
+    private static bool SatisfiesMutationFence(
+        RemoteRuntimeProjection runtime,
+        MutationRevisionFence fence) => runtime.Id == fence.RuntimeId
+        && runtime.Revision >= fence.Revision
+        && (!fence.RequiresLaterCapabilityObservation
+            || runtime.Capabilities is { IsUnobserved: false }
+                && runtime.CapabilitiesObservedForRevision is { } observedFor
+                && observedFor >= fence.Revision);
+
+    private static bool SatisfiesObservationFence(
+        RemoteFeedState state,
+        MutationObservationFence fence)
+    {
+        if (state.Phase != RemoteFeedPhase.Live
+            || state.IsStale
+            || state.SnapshotGeneration <= fence.SnapshotGeneration)
+        {
+            return false;
+        }
+        var runtime = state.Runtimes.FirstOrDefault(candidate =>
+            candidate.Id == fence.RuntimeId);
+        if (runtime is null || !fence.RequiresCapabilityChange)
+        {
+            return runtime is not null;
+        }
+        if (runtime.Revision == fence.Revision)
+        {
+            return true;
+        }
+        return runtime.Revision > fence.Revision
+            && runtime.Capabilities is { IsUnobserved: false }
+            && runtime.CapabilitiesObservedForRevision is { } observedFor
+            && observedFor > fence.Revision;
     }
 
     private void UpdateMutationAvailability()
     {
         var live = currentState.Phase == RemoteFeedPhase.Live && !currentState.IsStale;
         var reason = mutationInFlight
-            ? "A remote refresh is awaiting confirmation or completion"
+            ? "A remote change is awaiting confirmation or completion"
             : mutationRevisionFence is { } revisionFence
-                ? $"Waiting for event revision {revisionFence.Revision} before another refresh"
+                ? revisionFence.RequiresLaterCapabilityObservation
+                    ? $"Waiting for a capability observation after revision {revisionFence.Revision}"
+                    : $"Waiting for event revision {revisionFence.Revision} before another remote change"
                 : mutationObservationFence is not null
-                    ? "Waiting for a live event after an unknown refresh outcome"
+                    ? "Waiting for an authoritative snapshot after an unknown remote outcome"
                     : live
                         ? null
-                        : "Remote refresh is unavailable while the event stream is not live";
+                        : "Remote changes are unavailable while the event stream is not live";
         renderer.SetActionAvailability(
             ActionKind.RuntimeRefresh,
             reason is null,
             reason);
+        renderer.SetActionAvailability(
+            ActionKind.RuntimeCapabilitiesRefresh,
+            reason is null,
+            reason);
+        renderer.SetActionAvailability(ActionKind.RuntimeDeploy, reason is null, reason);
         renderer.SetActionAvailability(
             ActionKind.RuntimeInspect,
             live,
@@ -743,14 +1036,43 @@ internal sealed class RemoteMainWindow : Window
         return string.IsNullOrWhiteSpace(sanitized) ? "Unavailable" : sanitized;
     }
 
-    private sealed record MutationRevisionFence(string RuntimeId, ulong Revision);
+    private static UiNode? FindNode(UiNode node, string nodeId)
+    {
+        if (node.Id == nodeId)
+        {
+            return node;
+        }
+        foreach (var child in node.Children)
+        {
+            if (FindNode(child, nodeId) is { } found)
+            {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private sealed record MutationRevisionFence(
+        string RuntimeId,
+        ulong Revision,
+        bool RequiresLaterCapabilityObservation);
+
+    private sealed record MutationObservationFence(
+        string RuntimeId,
+        ulong Revision,
+        ulong SnapshotGeneration,
+        bool RequiresCapabilityChange);
 }
 
 internal sealed class RuntimeRefreshConfirmationWindow : Window
 {
-    public RuntimeRefreshConfirmationWindow(RemoteRuntimeProjection runtime)
+    public RuntimeRefreshConfirmationWindow(
+        RemoteRuntimeProjection runtime,
+        bool refreshCapabilities)
     {
-        Title = "Confirm remote refresh";
+        var operation = refreshCapabilities ? "capability discovery" : "runtime refresh";
+        var action = refreshCapabilities ? "Discover capabilities" : "Refresh runtime";
+        Title = $"Confirm remote {operation}";
         Width = 480;
         MinWidth = 420;
         SizeToContent = SizeToContent.Height;
@@ -765,16 +1087,24 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
         };
         var confirm = new Button
         {
-            Content = "Refresh runtime",
+            Content = action,
             Background = LeserpentTheme.Accent,
             Foreground = Brushes.Black,
             FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(18, 9),
         };
-        AutomationProperties.SetAutomationId(cancel, "runtime-refresh-cancel");
-        AutomationProperties.SetName(cancel, "Cancel runtime refresh");
-        AutomationProperties.SetAutomationId(confirm, "runtime-refresh-confirm");
-        AutomationProperties.SetName(confirm, "Confirm runtime refresh");
+        AutomationProperties.SetAutomationId(
+            cancel,
+            refreshCapabilities
+                ? "runtime-capabilities-refresh-cancel"
+                : "runtime-refresh-cancel");
+        AutomationProperties.SetName(cancel, $"Cancel {operation}");
+        AutomationProperties.SetAutomationId(
+            confirm,
+            refreshCapabilities
+                ? "runtime-capabilities-refresh-confirm"
+                : "runtime-refresh-confirm");
+        AutomationProperties.SetName(confirm, $"Confirm {operation}");
         cancel.Click += (_, _) => Close(false);
         confirm.Click += (_, _) => Close(true);
         Opened += (_, _) => cancel.Focus();
@@ -804,7 +1134,9 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
                 {
                     new TextBlock
                     {
-                        Text = "Refresh this remote runtime?",
+                        Text = refreshCapabilities
+                            ? "Discover this runtime's capabilities?"
+                            : "Refresh this remote runtime?",
                         Foreground = LeserpentTheme.Primary,
                         FontSize = 22,
                         FontWeight = FontWeight.Bold,
@@ -829,6 +1161,179 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
             },
         };
     }
+
+    private static string Safe(string value) => new(value
+        .Where(character => !char.IsControl(character))
+        .Take(256)
+        .ToArray());
+}
+
+internal sealed record ParameterizedFormIntent(IReadOnlyDictionary<string, string> Values);
+
+internal sealed class ParameterizedActionFormWindow : Window
+{
+    public ParameterizedActionFormWindow(UiForm form, string context, string warning)
+    {
+        Title = form.Title.Fallback;
+        Width = 520;
+        MinWidth = 440;
+        SizeToContent = SizeToContent.Height;
+        CanResize = false;
+        Background = LeserpentTheme.Canvas;
+        FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
+
+        var inputs = new Dictionary<string, (UiFormField Field, TextBox Input)>(
+            StringComparer.Ordinal);
+        var fields = new StackPanel { Spacing = 8 };
+        foreach (var field in form.Fields)
+        {
+            var input = new TextBox
+            {
+                PlaceholderText = field.Placeholder?.Fallback,
+                MaxLength = field.MaxLength,
+            };
+            AutomationProperties.SetAutomationId(input, $"parameter-form-{field.Key}");
+            AutomationProperties.SetName(input, field.Label.Fallback);
+            fields.Children.Add(new TextBlock
+            {
+                Text = field.Required
+                    ? $"{field.Label.Fallback} (required)"
+                    : field.Label.Fallback,
+                Foreground = LeserpentTheme.Body,
+                FontWeight = FontWeight.SemiBold,
+            });
+            fields.Children.Add(input);
+            if (!inputs.TryAdd(field.Key, (field, input)))
+            {
+                throw new InvalidDataException("parameterized form contains duplicate fields");
+            }
+        }
+        var validation = new TextBlock
+        {
+            Foreground = LeserpentTheme.Destructive,
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var cancel = new Button
+        {
+            Content = "Cancel",
+            Padding = new Thickness(18, 9),
+        };
+        var submit = new Button
+        {
+            Content = form.SubmitLabel.Fallback,
+            Background = LeserpentTheme.Accent,
+            Foreground = Brushes.Black,
+            FontWeight = FontWeight.SemiBold,
+            Padding = new Thickness(18, 9),
+            IsEnabled = false,
+        };
+        AutomationProperties.SetAutomationId(cancel, "parameter-form-cancel");
+        AutomationProperties.SetName(cancel, "Cancel form submission");
+        AutomationProperties.SetAutomationId(submit, "parameter-form-submit");
+        AutomationProperties.SetName(submit, form.SubmitLabel.Fallback);
+
+        void Validate()
+        {
+            var invalid = inputs.Values.FirstOrDefault(entry =>
+                !ValidValue(entry.Input.Text ?? string.Empty, entry.Field));
+            submit.IsEnabled = invalid.Field is null;
+            validation.Text = invalid.Field is null
+                ? string.Empty
+                : $"{invalid.Field.Label.Fallback}: {ValidationMessage(invalid.Field)}";
+        }
+        foreach (var (_, input) in inputs.Values)
+        {
+            input.TextChanged += (_, _) => Validate();
+        }
+        cancel.Click += (_, _) => Close(null);
+        submit.Click += (_, _) => Close(new ParameterizedFormIntent(inputs
+            .Where(entry => !string.IsNullOrEmpty(entry.Value.Input.Text))
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value.Input.Text!,
+                StringComparer.Ordinal)));
+        Opened += (_, _) => inputs.Values.First().Input.Focus();
+        KeyDown += (_, eventArgs) =>
+        {
+            if (eventArgs.Key == Key.Escape)
+            {
+                eventArgs.Handled = true;
+                Close(null);
+            }
+        };
+
+        var buttons = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = 12,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Children = { cancel, submit },
+        };
+        Content = new Border
+        {
+            Padding = new Thickness(28),
+            Child = new StackPanel
+            {
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = form.Title.Fallback,
+                        Foreground = LeserpentTheme.Primary,
+                        FontSize = 22,
+                        FontWeight = FontWeight.Bold,
+                    },
+                    new TextBlock
+                    {
+                        Text = Safe(context),
+                        Foreground = LeserpentTheme.Body,
+                        FontSize = 14,
+                        LineHeight = 22,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    fields,
+                    validation,
+                    new TextBlock
+                    {
+                        Text = Safe(warning),
+                        Foreground = LeserpentTheme.Muted,
+                        FontSize = 13,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    buttons,
+                },
+            },
+        };
+        Validate();
+    }
+
+    private static bool ValidValue(string value, UiFormField field)
+    {
+        if ((field.Required && value.Length == 0) || value.Length > field.MaxLength)
+        {
+            return false;
+        }
+        return field.InputKind switch
+        {
+            UiFormInputKind.PathToken => value.Length > 0
+                && value.All(character => char.IsAsciiLetterOrDigit(character)
+                    || character is '.' or '/' or '_' or '-'),
+            UiFormInputKind.TrimmedText => value == value.Trim()
+                && !value.Any(char.IsControl),
+            _ => false,
+        };
+    }
+
+    private static string ValidationMessage(UiFormField field) => field.InputKind switch
+    {
+        UiFormInputKind.PathToken =>
+            "use only letters, digits, '.', '/', '_' and '-' within the declared limit",
+        UiFormInputKind.TrimmedText =>
+            "use trimmed text without control characters within the declared limit",
+        _ => "unsupported input constraint",
+    };
 
     private static string Safe(string value) => new(value
         .Where(character => !char.IsControl(character))

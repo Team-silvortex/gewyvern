@@ -8,7 +8,8 @@ syntax is not part of this contract.
 Status: **Gate 2, evolving contract 0.13.0**. The current vertical slice parses,
 lowers, authorizes, suspends, serializes, restores, and resumes the read-only
 `runtime.list`, `runtime.inspect`, `runtime.history`, and `runtime.logs` effects
-plus the idempotent `runtime.refresh` command effect.
+plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
+explicitly confirmed `runtime.deploy` command effects.
 
 ## Canonical Program
 
@@ -65,6 +66,22 @@ fn main() = runtime.refresh(runtime_id: "runtime-a")
 expected runtime revision supplied to `Vm::start`. The VM derives stable
 `leselang-command-N` and `leselang-effect-N` identifiers from the continuation
 sequence and persists the complete `CommandEnvelope` before dispatch.
+
+Deployment remains a narrow typed operation:
+
+```leselang
+fn main() = runtime.deploy(
+  runtime_id: "runtime-a",
+  pipeline_kind: "http/request",
+  target: "pid:42",
+)
+```
+
+The call requires `runtime.deploy`; its presence is the auditable language-level
+confirmation and lowers to `Confirmation::Confirmed`. Pipeline kind and target
+are bounded before execution. Principal and idempotency identity come from the
+VM host, and only the durable control runtime may materialize the fixed
+`gewyvern.deployment.submit` adapter effect.
 
 ## Grammar
 

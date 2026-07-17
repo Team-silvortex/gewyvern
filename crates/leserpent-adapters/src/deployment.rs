@@ -2,24 +2,15 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+pub use leserpent_domain::{
+    RUNTIME_DEPLOYMENT_EFFECT_KIND as GEWYVERN_DEPLOYMENT_EFFECT_KIND,
+    RuntimeDeploymentRequest as GewyvernDeploymentRequest,
+};
 use leserpent_runtime::EffectExecution;
 use serde::{Deserialize, Serialize};
 
 use crate::gewyvern::{GewyvernTarget, HttpJsonResponse, normalize_targets, post_json};
 use crate::{EffectAdapter, EmptySecretStore, SecretStore, validate_id};
-
-pub const GEWYVERN_DEPLOYMENT_EFFECT_KIND: &str = "gewyvern.deployment.submit";
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct GewyvernDeploymentRequest {
-    pub runtime_id: String,
-    pub request_id: String,
-    pub pipeline_kind: String,
-    pub requested_by: String,
-    pub confirmed: bool,
-    pub target: Option<String>,
-}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

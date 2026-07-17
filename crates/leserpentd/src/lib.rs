@@ -264,8 +264,9 @@ mod tests {
 
     use super::*;
     use leserpent_adapters::{
-        ConfiguredSecretStore, GEWYVERN_DEPLOYMENT_EFFECT_KIND, GEWYVERN_HEALTH_EFFECT_KIND,
-        GewyvernDeploymentAdapter, GewyvernHealthAdapter, GewyvernTarget, SecretKey, SecretValue,
+        ConfiguredSecretStore, GEWYVERN_DEPLOYMENT_EFFECT_KIND, GEWYVERN_DISCOVERY_EFFECT_KIND,
+        GEWYVERN_HEALTH_EFFECT_KIND, GewyvernDeploymentAdapter, GewyvernDiscoveryAdapter,
+        GewyvernHealthAdapter, GewyvernTarget, SecretKey, SecretValue,
     };
     use leserpent_runtime::EffectExecution;
 
@@ -655,6 +656,68 @@ mod tests {
             WorkerStep::Completed { ref effect_id, attempt: 1 }
                 if effect_id == "effect-deploy-a"
         ));
+        server.join().unwrap();
+        drop(host);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn gewyvern_discovery_runs_through_scheduler_without_ambient_targets() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 2048];
+            let read = stream.read(&mut request).unwrap();
+            assert!(
+                std::str::from_utf8(&request[..read])
+                    .unwrap()
+                    .starts_with("GET /v1/capabilities HTTP/1.1\r\n")
+            );
+            let body = br#"{"service":"gewyvern-api","version":"1.2.0","latest_snapshot":true,"authenticated_deployment":false,"serve_required":true,"external_sidecar_context":true,"target_path_segment_encoding":"percent-encoding","target_direct_path_chars":"A-Z a-z 0-9 . _ ~ :","endpoints":["/v1/capabilities"],"protocol_catalog":true}"#;
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .unwrap();
+            stream.write_all(body).unwrap();
+        });
+
+        let target = GewyvernTarget::loopback(address, None).unwrap();
+        let adapter = GewyvernDiscoveryAdapter::new([("runtime-a".to_string(), target)]).unwrap();
+        let path = temp_database("gewyvern-discovery-adapter");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .register_runtime(
+                leserpent_domain::RuntimeId::new("runtime-a").unwrap(),
+                "Runtime A",
+                "http://127.0.0.1:9411",
+            )
+            .unwrap();
+        let mut registry = AdapterRegistry::default();
+        registry.register(adapter).unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        host.runtime_mut()
+            .enqueue_effect(
+                "effect-discovery-a",
+                GEWYVERN_DISCOVERY_EFFECT_KIND,
+                br#"{"runtime_id":"runtime-a","expected_revision":1}"#,
+                3,
+            )
+            .unwrap();
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Completed { ref effect_id, attempt: 1 }
+                if effect_id == "effect-discovery-a"
+        ));
+        let (_, runtimes) = host.runtime_mut().runtime_event_state();
+        assert_eq!(runtimes[0].revision, leserpent_domain::Revision(2));
+        assert_eq!(runtimes[0].capabilities.service, "gewyvern-api");
+        assert_eq!(
+            runtimes[0].capabilities.extensions.get("protocol_catalog"),
+            Some(&true)
+        );
         server.join().unwrap();
         drop(host);
         fs::remove_file(path).unwrap();

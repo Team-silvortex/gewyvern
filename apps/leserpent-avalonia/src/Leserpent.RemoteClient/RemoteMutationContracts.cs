@@ -41,6 +41,10 @@ public sealed class RuntimeRefreshCommand
 {
     public string Kind { get; set; } = "runtime_refresh";
     public required string RuntimeId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PipelineKind { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Target { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

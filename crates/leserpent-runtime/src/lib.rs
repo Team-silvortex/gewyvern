@@ -2,8 +2,10 @@ use leserpent_domain::{
     CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
     DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
     MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES, PlannedOperation, Query,
-    QueryEnvelope, QueryResult, RUNTIME_STATUS_REFRESH_EFFECT_KIND, Revision, RuntimeId,
-    RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection, RuntimeStatusObservation,
+    QueryEnvelope, QueryResult, RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
+    RUNTIME_DEPLOYMENT_EFFECT_KIND, RUNTIME_STATUS_REFRESH_EFFECT_KIND, Revision,
+    RuntimeCapabilityObservation, RuntimeCapabilityRefreshRequest, RuntimeDeploymentRequest,
+    RuntimeId, RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection, RuntimeStatusObservation,
     RuntimeStatusRefreshRequest,
 };
 use serde::{Deserialize, Serialize};
@@ -274,6 +276,41 @@ impl ControlRuntime {
                         });
                     }
                 }
+                JournalEntryKind::RuntimeCapabilityObservation => {
+                    let observation: RuntimeCapabilityObservation =
+                        serde_json::from_slice(&entry.payload)
+                            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+                    let runtime_id =
+                        RuntimeId::new(observation.runtime_id).map_err(RuntimeError::Domain)?;
+                    let projection = runtime
+                        .control
+                        .complete_runtime_capability_refresh(
+                            &runtime_id,
+                            observation.expected_revision,
+                            observation.capabilities,
+                        )
+                        .map_err(RuntimeError::Domain)?;
+                    let encoded = serde_json::to_vec(&projection)
+                        .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+                    if entry.outcome.as_deref() != Some(encoded.as_slice()) {
+                        let mut legacy: RuntimeProjection = entry
+                            .outcome
+                            .as_deref()
+                            .and_then(|outcome| serde_json::from_slice(outcome).ok())
+                            .ok_or(RuntimeError::ReplayMismatch {
+                                sequence: entry.sequence,
+                            })?;
+                        if legacy.capabilities_observed_for_revision.is_none() {
+                            legacy.capabilities_observed_for_revision =
+                                Some(observation.expected_revision);
+                        }
+                        if legacy != projection {
+                            return Err(RuntimeError::ReplayMismatch {
+                                sequence: entry.sequence,
+                            });
+                        }
+                    }
+                }
             }
         }
         runtime.journal = Some(journal);
@@ -476,31 +513,46 @@ impl ControlRuntime {
         match execution {
             EffectExecution::Complete(outcome) => {
                 if lease.kind == RUNTIME_STATUS_REFRESH_EFFECT_KIND {
-                    match self.complete_runtime_status_effect(&lease, &outcome) {
+                    match self.complete_runtime_status_effect(lease, &outcome) {
                         Ok(()) => Ok(WorkerStep::Completed { effect_id, attempt }),
                         Err(
                             error @ (RuntimeError::Domain(_)
                             | RuntimeError::InvalidEffectOutcome(_)),
                         ) => {
                             self.reject_effect(
-                                &lease,
+                                lease,
                                 &format!("runtime status observation was rejected: {error}"),
                             )?;
                             Ok(WorkerStep::Rejected { effect_id, attempt })
                         }
                         Err(error) => Err(error),
                     }
+                } else if lease.kind == RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND {
+                    match self.complete_runtime_capability_effect(lease, &outcome) {
+                        Ok(()) => Ok(WorkerStep::Completed { effect_id, attempt }),
+                        Err(
+                            error @ (RuntimeError::Domain(_)
+                            | RuntimeError::InvalidEffectOutcome(_)),
+                        ) => {
+                            self.reject_effect(
+                                lease,
+                                &format!("runtime capability observation was rejected: {error}"),
+                            )?;
+                            Ok(WorkerStep::Rejected { effect_id, attempt })
+                        }
+                        Err(error) => Err(error),
+                    }
                 } else {
-                    self.complete_effect(&lease, &outcome)?;
+                    self.complete_effect(lease, &outcome)?;
                     Ok(WorkerStep::Completed { effect_id, attempt })
                 }
             }
             EffectExecution::Retry { error, after } => {
-                self.fail_effect(&lease, &error, after)?;
+                self.fail_effect(lease, &error, after)?;
                 Ok(WorkerStep::RetryScheduled { effect_id, attempt })
             }
             EffectExecution::Reject { error } => {
-                self.reject_effect(&lease, &error)?;
+                self.reject_effect(lease, &error)?;
                 Ok(WorkerStep::Rejected { effect_id, attempt })
             }
         }
@@ -536,6 +588,45 @@ impl ControlRuntime {
             .complete_effect_with_journal(
                 lease,
                 JournalEntryKind::RuntimeStatusObservation,
+                &payload,
+                &projection,
+                outcome,
+            )
+            .map_err(RuntimeError::Storage)?;
+        self.control = staged;
+        Ok(())
+    }
+
+    fn complete_runtime_capability_effect(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+    ) -> Result<(), RuntimeError> {
+        let observation: RuntimeCapabilityObservation = serde_json::from_slice(outcome)
+            .map_err(|_| RuntimeError::InvalidEffectOutcome("invalid runtime capability JSON"))?;
+        let runtime_id =
+            RuntimeId::new(observation.runtime_id.clone()).map_err(RuntimeError::Domain)?;
+        let mut staged = self.control.clone();
+        let projection = staged
+            .complete_runtime_capability_refresh(
+                &runtime_id,
+                observation.expected_revision,
+                observation.capabilities.clone(),
+            )
+            .map_err(RuntimeError::Domain)?;
+        let payload = serde_json::to_vec(&observation)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let projection = serde_json::to_vec(&projection)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "capability effect completion requires persistent storage".into(),
+            ));
+        };
+        journal
+            .complete_effect_with_journal(
+                lease,
+                JournalEntryKind::RuntimeCapabilityObservation,
                 &payload,
                 &projection,
                 outcome,
@@ -742,22 +833,54 @@ impl ControlRuntime {
             return Ok(());
         }
         for event in &result.events {
-            let DomainEvent::RuntimeRefreshRequested {
-                runtime_id,
-                revision,
-                command_id,
-            } = event;
-            let payload = serde_json::to_vec(&RuntimeStatusRefreshRequest {
-                runtime_id: runtime_id.as_str().to_string(),
-                expected_revision: *revision,
-            })
-            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-            self.enqueue_effect(
-                command_id.as_str(),
-                RUNTIME_STATUS_REFRESH_EFFECT_KIND,
-                &payload,
-                3,
-            )?;
+            let (command_id, kind, payload) = match event {
+                DomainEvent::RuntimeRefreshRequested {
+                    runtime_id,
+                    revision,
+                    command_id,
+                } => (
+                    command_id,
+                    RUNTIME_STATUS_REFRESH_EFFECT_KIND,
+                    serde_json::to_vec(&RuntimeStatusRefreshRequest {
+                        runtime_id: runtime_id.as_str().to_string(),
+                        expected_revision: *revision,
+                    }),
+                ),
+                DomainEvent::RuntimeCapabilitiesRefreshRequested {
+                    runtime_id,
+                    revision,
+                    command_id,
+                } => (
+                    command_id,
+                    RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
+                    serde_json::to_vec(&RuntimeCapabilityRefreshRequest {
+                        runtime_id: runtime_id.as_str().to_string(),
+                        expected_revision: *revision,
+                    }),
+                ),
+                DomainEvent::RuntimeDeploymentRequested {
+                    runtime_id,
+                    command_id,
+                    request_id,
+                    pipeline_kind,
+                    requested_by,
+                    target,
+                    ..
+                } => (
+                    command_id,
+                    RUNTIME_DEPLOYMENT_EFFECT_KIND,
+                    serde_json::to_vec(&RuntimeDeploymentRequest {
+                        runtime_id: runtime_id.as_str().to_string(),
+                        request_id: request_id.clone(),
+                        pipeline_kind: pipeline_kind.clone(),
+                        requested_by: requested_by.clone(),
+                        confirmed: true,
+                        target: target.clone(),
+                    }),
+                ),
+            };
+            let payload = payload.map_err(|error| RuntimeError::Storage(error.to_string()))?;
+            self.enqueue_effect(command_id.as_str(), kind, &payload, 3)?;
         }
         Ok(())
     }
@@ -765,13 +888,14 @@ impl ControlRuntime {
 
 #[cfg(test)]
 mod tests {
-    use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
+    use leselang_command::{LoweringContext, PlannedOperation, lower_effect, plan_runtime_deploy};
     use leselang_hir::lower;
     use leselang_syntax::parse;
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandId,
-        CommandOrigin, Confirmation, IdempotencyKey, Principal, QueryResult, RefreshStatus,
-        Revision, RuntimeStatusObservation, RuntimeStatusSnapshot,
+        CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
+        CapabilitySet, CommandId, CommandOrigin, Confirmation, IdempotencyKey, Principal,
+        QueryResult, RefreshStatus, Revision, RuntimeCapabilityObservation,
+        RuntimeCapabilitySnapshot, RuntimeStatusObservation, RuntimeStatusSnapshot,
     };
     use rusqlite::Connection;
     use std::collections::VecDeque;
@@ -796,6 +920,22 @@ mod tests {
         }
     }
 
+    fn capability_snapshot() -> RuntimeCapabilitySnapshot {
+        RuntimeCapabilitySnapshot {
+            source: "gewyvern-api".into(),
+            service: "gewyvern-api".into(),
+            version: "1.2.0".into(),
+            latest_snapshot: true,
+            authenticated_deployment: true,
+            serve_required: true,
+            external_sidecar_context: true,
+            target_path_segment_encoding: "percent-encoding".into(),
+            target_direct_path_chars: "A-Z a-z 0-9 . _ ~ :".into(),
+            endpoints: vec!["/v1/capabilities".into(), "/v1/deployments".into()],
+            extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
+        }
+    }
+
     fn temp_journal(label: &str) -> PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -810,6 +950,16 @@ mod tests {
     fn refresh_plan(expected_revision: Revision) -> CommandPlan {
         let program = lower(&parse(
             "fn main() = runtime.refresh(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let mut context = context();
+        context.expected_revision = Some(expected_revision);
+        lower_effect(&program.function.effect, &context).unwrap()
+    }
+
+    fn capabilities_refresh_plan(expected_revision: Revision) -> CommandPlan {
+        let program = lower(&parse(
+            "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")",
         ))
         .unwrap();
         let mut context = context();
@@ -1260,8 +1410,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 8);
-        assert_eq!(migration_count, 8);
+        assert_eq!(schema, 9);
+        assert_eq!(migration_count, 9);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1269,7 +1419,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v8");
+        let path = temp_journal("incomplete-v9");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -1284,14 +1434,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 8);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 9);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 8")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 9")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1310,6 +1460,12 @@ mod tests {
         connection
             .execute(
                 "DELETE FROM runtime_schema_migrations WHERE version = 8",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 9",
                 [],
             )
             .unwrap();
@@ -1338,7 +1494,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 8);
+        assert_eq!(schema, 9);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1359,7 +1515,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 8 journal kind")
+                if error.contains("invalid runtime journal schema 9 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1372,14 +1528,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (9, 0)",
+                 VALUES (10, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 8 migration history")
+                if error.contains("invalid runtime journal schema 9 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1618,7 +1774,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 8);
+        assert_eq!(schema, 9);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1751,7 +1907,9 @@ mod tests {
             max_attempts: 1,
         };
         assert_eq!(
-            runtime.enqueue_effect_batch(&[existing.clone()]).unwrap(),
+            runtime
+                .enqueue_effect_batch(std::slice::from_ref(&existing))
+                .unwrap(),
             0
         );
         let overflow = EffectEnqueue {
@@ -2066,6 +2224,176 @@ mod tests {
     }
 
     #[test]
+    fn capability_effect_atomically_updates_projection_and_replays() {
+        let path = temp_journal("capability-effect-replay");
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let registered = runtime
+                .register_runtime(
+                    RuntimeId::new("runtime-a").unwrap(),
+                    "Runtime A",
+                    "http://127.0.0.1:9411",
+                )
+                .unwrap();
+            runtime
+                .enqueue_effect(
+                    "capability-a",
+                    RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
+                    br#"{"runtime_id":"runtime-a","expected_revision":1}"#,
+                    3,
+                )
+                .unwrap();
+            let observation = RuntimeCapabilityObservation {
+                runtime_id: "runtime-a".into(),
+                expected_revision: registered.revision,
+                capabilities: capability_snapshot(),
+            };
+            let mut executor = ScriptedExecutor {
+                outcomes: VecDeque::from([EffectExecution::Complete(
+                    serde_json::to_vec(&observation).unwrap(),
+                )]),
+            };
+            assert_eq!(
+                runtime
+                    .run_effect_once("worker-a", Duration::from_secs(30), &mut executor)
+                    .unwrap(),
+                WorkerStep::Completed {
+                    effect_id: "capability-a".into(),
+                    attempt: 1,
+                }
+            );
+            let (_, runtimes) = runtime.runtime_event_state();
+            assert_eq!(runtimes[0].revision, Revision(2));
+            assert_eq!(runtimes[0].capabilities, capability_snapshot());
+            assert_eq!(
+                runtimes[0].capabilities_observed_for_revision,
+                Some(Revision(1))
+            );
+        }
+
+        let recovered = ControlRuntime::open(&path).unwrap();
+        let (_, runtimes) = recovered.runtime_event_state();
+        assert_eq!(runtimes[0].revision, Revision(2));
+        assert_eq!(runtimes[0].capabilities, capability_snapshot());
+        assert_eq!(
+            runtimes[0].capabilities_observed_for_revision,
+            Some(Revision(1))
+        );
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn legacy_capability_outcome_replays_with_observation_binding() {
+        let path = temp_journal("legacy-capability-binding");
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let registered = runtime
+                .register_runtime(
+                    RuntimeId::new("runtime-a").unwrap(),
+                    "Runtime A",
+                    "http://127.0.0.1:9411",
+                )
+                .unwrap();
+            runtime
+                .enqueue_effect(
+                    "capability-a",
+                    RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
+                    br#"{"runtime_id":"runtime-a","expected_revision":1}"#,
+                    3,
+                )
+                .unwrap();
+            let observation = RuntimeCapabilityObservation {
+                runtime_id: "runtime-a".into(),
+                expected_revision: registered.revision,
+                capabilities: capability_snapshot(),
+            };
+            let mut executor = ScriptedExecutor {
+                outcomes: VecDeque::from([EffectExecution::Complete(
+                    serde_json::to_vec(&observation).unwrap(),
+                )]),
+            };
+            runtime
+                .run_effect_once("worker-a", Duration::from_secs(30), &mut executor)
+                .unwrap();
+        }
+        let connection = Connection::open(&path).unwrap();
+        let outcome: Vec<u8> = connection
+            .query_row(
+                "SELECT outcome FROM runtime_journal WHERE kind = 'runtime_capability_observation'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let mut legacy: serde_json::Value = serde_json::from_slice(&outcome).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("capabilities_observed_for_revision");
+        connection
+            .execute(
+                "UPDATE runtime_journal SET outcome = ?1 WHERE kind = 'runtime_capability_observation'",
+                [serde_json::to_vec(&legacy).unwrap()],
+            )
+            .unwrap();
+        drop(connection);
+
+        let recovered = ControlRuntime::open(&path).unwrap();
+        let (_, runtimes) = recovered.runtime_event_state();
+        assert_eq!(
+            runtimes[0].capabilities_observed_for_revision,
+            Some(Revision(1))
+        );
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn stale_capability_effect_is_rejected_without_projection_mutation() {
+        let path = temp_journal("capability-effect-stale");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .register_runtime(
+                RuntimeId::new("runtime-a").unwrap(),
+                "Runtime A",
+                "http://127.0.0.1:9411",
+            )
+            .unwrap();
+        runtime
+            .enqueue_effect(
+                "capability-stale",
+                RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
+                br#"{"runtime_id":"runtime-a","expected_revision":99}"#,
+                3,
+            )
+            .unwrap();
+        let observation = RuntimeCapabilityObservation {
+            runtime_id: "runtime-a".into(),
+            expected_revision: Revision(99),
+            capabilities: capability_snapshot(),
+        };
+        let mut executor = ScriptedExecutor {
+            outcomes: VecDeque::from([EffectExecution::Complete(
+                serde_json::to_vec(&observation).unwrap(),
+            )]),
+        };
+        assert!(matches!(
+            runtime
+                .run_effect_once("worker-a", Duration::from_secs(30), &mut executor)
+                .unwrap(),
+            WorkerStep::Rejected { .. }
+        ));
+        let (_, runtimes) = runtime.runtime_event_state();
+        assert_eq!(runtimes[0].revision, Revision(1));
+        assert_eq!(
+            runtimes[0].capabilities,
+            RuntimeCapabilitySnapshot::default()
+        );
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn restart_repairs_missing_effect_for_applied_refresh_command() {
         let path = temp_journal("refresh-effect-repair");
         {
@@ -2102,6 +2430,72 @@ mod tests {
         assert_eq!(request.runtime_id, "runtime-a");
         assert_eq!(request.expected_revision, Revision(2));
         drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn capabilities_refresh_command_schedules_a_revision_fenced_discovery() {
+        let path = temp_journal("capabilities-refresh-command");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let registered = runtime
+            .register_runtime(
+                RuntimeId::new("runtime-a").unwrap(),
+                "Runtime A",
+                "http://127.0.0.1:9411",
+            )
+            .unwrap();
+
+        runtime
+            .execute_plan(capabilities_refresh_plan(registered.revision))
+            .unwrap();
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.kind, RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND);
+        let request: RuntimeCapabilityRefreshRequest =
+            serde_json::from_slice(&lease.payload).unwrap();
+        assert_eq!(request.runtime_id, "runtime-a");
+        assert_eq!(request.expected_revision, Revision(2));
+
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn deployment_command_schedules_only_the_typed_confirmed_intent() {
+        let path = temp_journal("deployment-command");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let registered = runtime
+            .register_runtime(
+                RuntimeId::new("runtime-a").unwrap(),
+                "Runtime A",
+                "http://127.0.0.1:9411",
+            )
+            .unwrap();
+        let mut lowering = context();
+        lowering.capabilities = CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]);
+        lowering.expected_revision = Some(registered.revision);
+        lowering.idempotency_key = IdempotencyKey::new("deploy-request").unwrap();
+        lowering.confirmation = Confirmation::Confirmed;
+        let plan =
+            plan_runtime_deploy(&registered.id, "http/request", Some("pid:42"), &lowering).unwrap();
+
+        runtime.execute_plan(plan).unwrap();
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.kind, RUNTIME_DEPLOYMENT_EFFECT_KIND);
+        let request: RuntimeDeploymentRequest = serde_json::from_slice(&lease.payload).unwrap();
+        assert_eq!(request.runtime_id, "runtime-a");
+        assert_eq!(request.request_id, "deploy-request");
+        assert_eq!(request.pipeline_kind, "http/request");
+        assert_eq!(request.requested_by, "operator-a");
+        assert!(request.confirmed);
+        assert_eq!(request.target.as_deref(), Some("pid:42"));
+
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 

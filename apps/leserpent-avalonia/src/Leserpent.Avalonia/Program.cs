@@ -26,6 +26,27 @@ internal static class Program
                 "remote responsive layout valid: min_width=compact, breakpoint=780, default_width=wide");
             return 0;
         }
+        if (args is ["--verify-remote-mutation-fence"])
+        {
+            RemoteMainWindow.VerifyMutationFenceContract();
+            Console.WriteLine(
+                "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, pending_projection_blocked=true");
+            return 0;
+        }
+        if (args is ["--verify-deployment-contract"])
+        {
+            RemoteMutationClient.VerifyDeploymentContract();
+            Console.WriteLine(
+                "deployment mutation contract valid: typed=true, confirmed=true, bounded=true, null_omission=true");
+            return 0;
+        }
+        if (args is ["--verify-parameterized-form"])
+        {
+            RemoteWorkspaceDocumentProjection.VerifyParameterizedFormContract();
+            Console.WriteLine(
+                "parameterized form event valid: renderer_neutral=true, bounded=true, typed_submit=true, unknown_fields=false");
+            return 0;
+        }
         if (args is ["--verify-remote-workspace"])
         {
             RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation();

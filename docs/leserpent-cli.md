@@ -60,6 +60,14 @@ leserpent runtime refresh runtime-a --yes --idempotency-key deploy-2026-07-15
 leserpent runtime refresh runtime-a --export-leselang
 leserpent runtime refresh runtime-a --dry-run --expected-revision 7 \
   --idempotency-key plan-a --export-plan
+leserpent runtime refresh-capabilities runtime-a --yes
+leserpent runtime refresh-capabilities runtime-a --export-leselang
+leserpent runtime refresh-capabilities runtime-a --dry-run \
+  --idempotency-key capabilities-plan-a --export-plan
+leserpent runtime deploy runtime-a --pipeline-kind http/request \
+  --target pid:42 --yes --idempotency-key deploy-a
+leserpent runtime deploy runtime-a --pipeline-kind http/request \
+  --target pid:42 --export-leselang
 ```
 
 Human list output is tabular and replaces terminal control characters. JSON
@@ -69,6 +77,15 @@ fields.
 `runtime inspect` performs a dedicated `runtime.read` query and returns one
 projection. Missing identifiers fail through the daemon's typed
 `RuntimeNotFound` path; the CLI never downloads the fleet and filters it locally.
+Human output includes a bounded capability summary. It reports `unobserved`
+until discovery completes; observed output contains the service/version, typed
+boolean claims, canonical endpoint paths, and sorted boolean extensions. It
+never renders adapter request JSON, target origins, secret aliases, or tokens.
+The stable `capabilities_observed_for_revision` field is `none` before discovery,
+the originating command revision after a current observation, and
+`legacy-unknown` only for a compatible projection written before revision
+binding existed. `runtime inspect` and every `runtime watch` sample use the same
+renderer.
 
 `runtime history` returns at most 32 applied results for one runtime, newest
 revision first. Human output is a terminal-safe table; JSON preserves the typed
@@ -110,6 +127,24 @@ For refresh, `--export-plan` is also local-only and emits the validated, version
 either `--dry-run` or `--yes` so confirmation intent is never implicit. CLI
 execution, plan export, and Leselang lowering share the same runtime-refresh
 normalization function.
+
+`runtime refresh-capabilities` follows the same confirmation, optimistic
+revision, idempotency, Leselang export, and deterministic plan-export rules. It
+submits the shared domain command; only the durable runtime may materialize the
+underlying discovery effect.
+
+The authenticated HTTPS vertical proves this command end to end through the
+daemon scheduler and real Gewyvern discovery adapter, then reads the observed
+projection back with `runtime inspect`. It also verifies that the configured
+adapter origin and authorization material are not rendered.
+
+`runtime deploy` promotes the bounded deployment adapter to an operator command.
+It requires the independent `runtime.deploy` capability, a valid pipeline kind,
+optional bounded target, optimistic revision, caller idempotency, and explicit
+`--yes` for execution. The principal, request identity, and confirmation in the
+adapter payload come from the shared command envelope; CLI arguments cannot
+override them. Dry-run, canonical Leselang export, and deterministic plan export
+use the same lowering function.
 
 Exit code `0` means success, `2` means local usage/configuration/transport
 failure, and `3` means the daemon returned a protocol error.

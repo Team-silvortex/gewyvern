@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use leselang_command::{
-    LoweringContext, LoweringError, plan_debugger_cancel, plan_runtime_inspect,
-    plan_runtime_refresh,
+    LoweringContext, LoweringError, plan_debugger_cancel, plan_runtime_capabilities_refresh,
+    plan_runtime_deploy, plan_runtime_inspect, plan_runtime_refresh,
 };
 use leserpent_domain::{CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId};
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,8 @@ pub const MAX_RUNTIME_LOG_DISPLAY_BYTES: usize = 768;
 pub const MAX_DEBUGGER_FRAMES: usize = 64;
 pub const MAX_DEBUGGER_DISPLAY_BYTES: usize = 512;
 pub const MAX_DEBUGGER_DEADLINE_REMAINING_MS: u64 = 24 * 60 * 60 * 1_000;
+pub const MAX_UI_FORM_FIELDS: usize = 16;
+pub const MAX_UI_FORM_VALUE_BYTES: usize = 256;
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -106,6 +108,8 @@ pub enum DebuggerEffectKind {
     RuntimeHistory,
     RuntimeLogs,
     RuntimeRefresh,
+    RuntimeCapabilitiesRefresh,
+    RuntimeDeploy,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -164,7 +168,35 @@ pub struct Accessibility {
 pub enum UiAction {
     RuntimeInspect { runtime_id: RuntimeId },
     RuntimeRefresh { runtime_id: RuntimeId },
+    RuntimeCapabilitiesRefresh { runtime_id: RuntimeId },
+    RuntimeDeploy { runtime_id: RuntimeId, form: UiForm },
     DebuggerCancel { session_id: String },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiForm {
+    pub title: LocalizedText,
+    pub submit_label: LocalizedText,
+    pub fields: Vec<UiFormField>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiFormField {
+    pub key: String,
+    pub label: LocalizedText,
+    pub placeholder: Option<LocalizedText>,
+    pub required: bool,
+    pub max_length: usize,
+    pub input_kind: UiFormInputKind,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFormInputKind {
+    PathToken,
+    TrimmedText,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -172,12 +204,15 @@ pub enum UiAction {
 pub struct UiEvent {
     pub node_id: NodeId,
     pub kind: UiEventKind,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub values: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UiEventKind {
     Activate,
+    Submit,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -262,6 +297,10 @@ pub enum UiError {
     },
     EventTargetHasNoAction {
         node_id: String,
+    },
+    InvalidForm,
+    InvalidFormInput {
+        field: String,
     },
     Lowering(LoweringError),
 }
@@ -368,6 +407,27 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                     }),
                     children: Vec::new(),
                 },
+                UiNode {
+                    id: NodeId::new(format!("{prefix}-capabilities-refresh"))?,
+                    kind: UiNodeKind::Action,
+                    runtime_id: None,
+                    debugger_session_id: None,
+                    text: Some(localized(
+                        "fleet.runtime.capabilities.refresh",
+                        "Refresh capabilities",
+                    )?),
+                    accessibility: Accessibility {
+                        label: Some(localized(
+                            "fleet.runtime.capabilities.refresh",
+                            "Refresh runtime capabilities",
+                        )?),
+                        description: None,
+                    },
+                    action: Some(UiAction::RuntimeCapabilitiesRefresh {
+                        runtime_id: runtime.id.clone(),
+                    }),
+                    children: Vec::new(),
+                },
             ],
         });
     }
@@ -423,6 +483,12 @@ pub fn runtime_workspace_document(
         RefreshStatus::Ready => "Ready",
         RefreshStatus::Failed => "Refresh failed",
     };
+    let capability_children = capability_nodes(
+        &prefix,
+        &runtime.id,
+        &runtime.capabilities,
+        runtime.capabilities_observed_for_revision,
+    )?;
     let mut history_children = Vec::with_capacity(entries.len().max(1));
     for entry in entries {
         history_children.push(UiNode {
@@ -503,6 +569,25 @@ pub fn runtime_workspace_document(
                     },
                 )?,
                 UiNode {
+                    id: NodeId::new(format!("{prefix}-capabilities"))?,
+                    kind: UiNodeKind::Section,
+                    runtime_id: None,
+                    debugger_session_id: None,
+                    text: Some(localized(
+                        "runtime.workspace.capabilities.title",
+                        "Capabilities",
+                    )?),
+                    accessibility: Accessibility {
+                        label: Some(localized(
+                            "runtime.workspace.capabilities.title",
+                            "Runtime capabilities",
+                        )?),
+                        description: None,
+                    },
+                    action: None,
+                    children: capability_children,
+                },
+                UiNode {
                     id: NodeId::new(format!("{prefix}-refresh"))?,
                     kind: UiNodeKind::Action,
                     runtime_id: None,
@@ -513,6 +598,27 @@ pub fn runtime_workspace_document(
                         description: None,
                     },
                     action: Some(UiAction::RuntimeRefresh {
+                        runtime_id: runtime.id.clone(),
+                    }),
+                    children: Vec::new(),
+                },
+                UiNode {
+                    id: NodeId::new(format!("{prefix}-capabilities-refresh"))?,
+                    kind: UiNodeKind::Action,
+                    runtime_id: None,
+                    debugger_session_id: None,
+                    text: Some(localized(
+                        "runtime.workspace.capabilities.refresh",
+                        "Refresh capabilities",
+                    )?),
+                    accessibility: Accessibility {
+                        label: Some(localized(
+                            "runtime.workspace.capabilities.refresh",
+                            "Refresh runtime capabilities",
+                        )?),
+                        description: None,
+                    },
+                    action: Some(UiAction::RuntimeCapabilitiesRefresh {
                         runtime_id: runtime.id.clone(),
                     }),
                     children: Vec::new(),
@@ -535,6 +641,121 @@ pub fn runtime_workspace_document(
     };
     validate_document(&document)?;
     Ok(document)
+}
+
+fn capability_nodes(
+    prefix: &str,
+    runtime_id: &RuntimeId,
+    capabilities: &leserpent_domain::RuntimeCapabilitySnapshot,
+    observed_for_revision: Option<Revision>,
+) -> Result<Vec<UiNode>, UiError> {
+    if capabilities.is_unobserved() {
+        return Ok(vec![text_node(
+            &format!("{prefix}-capabilities-unobserved"),
+            UiNodeKind::Text,
+            "runtime.workspace.capabilities.unobserved",
+            "Capabilities not observed",
+        )?]);
+    }
+
+    let mut nodes =
+        Vec::with_capacity(3 + capabilities.endpoints.len() + capabilities.extensions.len());
+    nodes.push(text_node(
+        &format!("{prefix}-capabilities-identity"),
+        UiNodeKind::Text,
+        "runtime.workspace.capabilities.identity",
+        &format!("{} {}", capabilities.service, capabilities.version),
+    )?);
+    nodes.push(text_node(
+        &format!("{prefix}-capabilities-summary"),
+        UiNodeKind::Text,
+        "runtime.workspace.capabilities.summary",
+        &format!(
+            "Latest snapshot: {}; authenticated deployment: {}; serve required: {}; external sidecar context: {}",
+            capabilities.latest_snapshot,
+            capabilities.authenticated_deployment,
+            capabilities.serve_required,
+            capabilities.external_sidecar_context,
+        ),
+    )?);
+    nodes.push(text_node(
+        &format!("{prefix}-capabilities-binding"),
+        UiNodeKind::Text,
+        "runtime.workspace.capabilities.binding",
+        &observed_for_revision.map_or_else(
+            || "Observation command revision unavailable (legacy projection)".to_string(),
+            |revision| format!("Observed for command revision {}", revision.0),
+        ),
+    )?);
+    for (index, endpoint) in capabilities.endpoints.iter().enumerate() {
+        nodes.push(text_node(
+            &format!("{prefix}-capabilities-endpoint-{index}"),
+            UiNodeKind::Text,
+            "runtime.workspace.capabilities.endpoint",
+            &format!("Endpoint: {endpoint}"),
+        )?);
+    }
+    for (index, (name, enabled)) in capabilities.extensions.iter().enumerate() {
+        nodes.push(text_node(
+            &format!("{prefix}-capabilities-extension-{index}"),
+            UiNodeKind::Text,
+            "runtime.workspace.capabilities.extension",
+            &format!("Extension: {name}={enabled}"),
+        )?);
+    }
+    if capabilities.authenticated_deployment {
+        nodes.push(UiNode {
+            id: NodeId::new(format!("{prefix}-deploy"))?,
+            kind: UiNodeKind::Action,
+            runtime_id: None,
+            debugger_session_id: None,
+            text: Some(localized("runtime.deploy", "Deploy pipeline")?),
+            accessibility: Accessibility {
+                label: Some(localized("runtime.deploy", "Deploy pipeline")?),
+                description: Some(localized(
+                    "runtime.deploy.description",
+                    "Opens a bounded deployment form and requires explicit confirmation",
+                )?),
+            },
+            action: Some(UiAction::RuntimeDeploy {
+                runtime_id: runtime_id.clone(),
+                form: deployment_form()?,
+            }),
+            children: Vec::new(),
+        });
+    }
+    Ok(nodes)
+}
+
+fn deployment_form() -> Result<UiForm, UiError> {
+    Ok(UiForm {
+        title: localized("runtime.deploy.form.title", "Confirm remote deployment")?,
+        submit_label: localized("runtime.deploy.form.submit", "Deploy pipeline")?,
+        fields: vec![
+            UiFormField {
+                key: "pipeline_kind".into(),
+                label: localized("runtime.deploy.form.pipeline_kind", "Pipeline kind")?,
+                placeholder: Some(localized(
+                    "runtime.deploy.form.pipeline_kind.placeholder",
+                    "http/request",
+                )?),
+                required: true,
+                max_length: 128,
+                input_kind: UiFormInputKind::PathToken,
+            },
+            UiFormField {
+                key: "target".into(),
+                label: localized("runtime.deploy.form.target", "Optional target")?,
+                placeholder: Some(localized(
+                    "runtime.deploy.form.target.placeholder",
+                    "For example pid:42",
+                )?),
+                required: false,
+                max_length: MAX_UI_FORM_VALUE_BYTES,
+                input_kind: UiFormInputKind::TrimmedText,
+            },
+        ],
+    })
 }
 
 pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocument, UiError> {
@@ -653,7 +874,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeInspect
             | DebuggerEffectKind::RuntimeHistory
             | DebuggerEffectKind::RuntimeLogs
-            | DebuggerEffectKind::RuntimeRefresh => effect.runtime_id.is_some(),
+            | DebuggerEffectKind::RuntimeRefresh
+            | DebuggerEffectKind::RuntimeCapabilitiesRefresh
+            | DebuggerEffectKind::RuntimeDeploy => effect.runtime_id.is_some(),
         };
         if !binding_valid {
             return Err(UiError::InvalidState);
@@ -743,6 +966,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeHistory => "runtime history",
             DebuggerEffectKind::RuntimeLogs => "runtime logs",
             DebuggerEffectKind::RuntimeRefresh => "runtime refresh",
+            DebuggerEffectKind::RuntimeCapabilitiesRefresh => "runtime capabilities refresh",
+            DebuggerEffectKind::RuntimeDeploy => "runtime deploy",
         };
         children.push(text_node(
             &format!("{prefix}-pending-effect"),
@@ -839,18 +1064,85 @@ pub fn plan_event(
             node_id: event.node_id.as_str().to_string(),
         })?;
     match (&event.kind, &node.action) {
-        (UiEventKind::Activate, Some(UiAction::RuntimeInspect { runtime_id })) => {
+        (UiEventKind::Activate, Some(UiAction::RuntimeInspect { runtime_id }))
+            if event.values.is_empty() =>
+        {
             plan_runtime_inspect(runtime_id, context).map_err(UiError::Lowering)
         }
-        (UiEventKind::Activate, Some(UiAction::RuntimeRefresh { runtime_id })) => {
+        (UiEventKind::Activate, Some(UiAction::RuntimeRefresh { runtime_id }))
+            if event.values.is_empty() =>
+        {
             plan_runtime_refresh(runtime_id, context).map_err(UiError::Lowering)
         }
-        (UiEventKind::Activate, Some(UiAction::DebuggerCancel { session_id })) => {
+        (UiEventKind::Activate, Some(UiAction::RuntimeCapabilitiesRefresh { runtime_id }))
+            if event.values.is_empty() =>
+        {
+            plan_runtime_capabilities_refresh(runtime_id, context).map_err(UiError::Lowering)
+        }
+        (UiEventKind::Submit, Some(UiAction::RuntimeDeploy { runtime_id, form })) => {
+            validate_form_values(form, &event.values)?;
+            let pipeline_kind =
+                event
+                    .values
+                    .get("pipeline_kind")
+                    .ok_or_else(|| UiError::InvalidFormInput {
+                        field: "pipeline_kind".into(),
+                    })?;
+            let target = event.values.get("target").filter(|value| !value.is_empty());
+            plan_runtime_deploy(
+                runtime_id,
+                pipeline_kind,
+                target.map(String::as_str),
+                context,
+            )
+            .map_err(UiError::Lowering)
+        }
+        (UiEventKind::Activate, Some(UiAction::DebuggerCancel { session_id }))
+            if event.values.is_empty() =>
+        {
             plan_debugger_cancel(session_id, context).map_err(UiError::Lowering)
         }
         _ => Err(UiError::EventTargetHasNoAction {
             node_id: event.node_id.as_str().to_string(),
         }),
+    }
+}
+
+fn validate_form_values(form: &UiForm, values: &BTreeMap<String, String>) -> Result<(), UiError> {
+    if values
+        .keys()
+        .any(|key| !form.fields.iter().any(|field| field.key == *key))
+    {
+        return Err(UiError::InvalidFormInput {
+            field: "unknown".into(),
+        });
+    }
+    for field in &form.fields {
+        let value = values.get(&field.key).map_or("", String::as_str);
+        if (field.required && value.is_empty())
+            || value.len() > field.max_length
+            || value.len() > MAX_UI_FORM_VALUE_BYTES
+            || !valid_form_value(value, field.input_kind)
+        {
+            return Err(UiError::InvalidFormInput {
+                field: field.key.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn valid_form_value(value: &str, input_kind: UiFormInputKind) -> bool {
+    match input_kind {
+        UiFormInputKind::PathToken => {
+            !value.is_empty()
+                && value.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-')
+                })
+        }
+        UiFormInputKind::TrimmedText => {
+            value.trim() == value && !value.chars().any(char::is_control)
+        }
     }
 }
 
@@ -1232,15 +1524,19 @@ fn validate_node(
     };
     if let Some(action) = &node.action {
         let runtime_id = match action {
-            UiAction::RuntimeInspect { runtime_id } | UiAction::RuntimeRefresh { runtime_id } => {
-                Some(runtime_id)
-            }
+            UiAction::RuntimeInspect { runtime_id }
+            | UiAction::RuntimeRefresh { runtime_id }
+            | UiAction::RuntimeCapabilitiesRefresh { runtime_id }
+            | UiAction::RuntimeDeploy { runtime_id, .. } => Some(runtime_id),
             UiAction::DebuggerCancel { .. } => None,
         };
         if runtime_id.is_some() && runtime_context != runtime_id {
             return Err(UiError::InvalidRuntimeBinding {
                 node_id: node.id.as_str().to_string(),
             });
+        }
+        if let UiAction::RuntimeDeploy { form, .. } = action {
+            validate_form(form)?;
         }
     }
     if let Some(UiAction::DebuggerCancel { session_id }) = &node.action
@@ -1255,6 +1551,32 @@ fn validate_node(
     }
     for child in &node.children {
         validate_node(child, depth + 1, runtime_context, debugger_context, ids)?;
+    }
+    Ok(())
+}
+
+fn validate_form(form: &UiForm) -> Result<(), UiError> {
+    validate_optional_text(Some(&form.title))?;
+    validate_optional_text(Some(&form.submit_label))?;
+    if form.fields.is_empty() || form.fields.len() > MAX_UI_FORM_FIELDS {
+        return Err(UiError::InvalidForm);
+    }
+    let mut keys = BTreeSet::new();
+    for field in &form.fields {
+        if field.key.is_empty()
+            || field.key.len() > 128
+            || !field
+                .key
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+            || !keys.insert(field.key.as_str())
+            || field.max_length == 0
+            || field.max_length > MAX_UI_FORM_VALUE_BYTES
+        {
+            return Err(UiError::InvalidForm);
+        }
+        validate_optional_text(Some(&field.label))?;
+        validate_optional_text(field.placeholder.as_ref())?;
     }
     Ok(())
 }
@@ -1389,9 +1711,10 @@ fn shallow_node(
 #[cfg(test)]
 mod tests {
     use leserpent_domain::{
-        CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
-        CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, Confirmation,
-        DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query, QueryEnvelope, RuntimeListFilter,
+        CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+        CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope, CommandId,
+        CommandOrigin, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query,
+        QueryEnvelope, RuntimeListFilter,
     };
 
     use super::*;
@@ -1614,6 +1937,7 @@ mod tests {
             &UiEvent {
                 node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
                 kind: UiEventKind::Activate,
+                values: BTreeMap::new(),
             },
             &context(),
         )
@@ -1629,6 +1953,30 @@ mod tests {
     }
 
     #[test]
+    fn capabilities_action_lowers_to_shared_command_plan() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let plan = plan_event(
+            &document,
+            &UiEvent {
+                node_id: NodeId::new("runtime-runtime-a-capabilities-refresh").unwrap(),
+                kind: UiEventKind::Activate,
+                values: BTreeMap::new(),
+            },
+            &context(),
+        )
+        .unwrap();
+        let leserpent_domain::PlannedOperation::Command(command) = plan.operation else {
+            panic!("capabilities refresh action must lower to a command");
+        };
+        assert!(matches!(
+            command.command,
+            Command::RuntimeCapabilitiesRefresh { runtime_id }
+                if runtime_id.as_str() == "runtime-a"
+        ));
+        assert_eq!(command.origin, CommandOrigin::Gui);
+    }
+
+    #[test]
     fn inspect_action_lowers_to_frontend_neutral_read_plan() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let plan = plan_event(
@@ -1636,6 +1984,7 @@ mod tests {
             &UiEvent {
                 node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
                 kind: UiEventKind::Activate,
+                values: BTreeMap::new(),
             },
             &context(),
         )
@@ -1667,6 +2016,13 @@ mod tests {
             )
             .is_some()
         );
+        assert!(
+            find_node(
+                &document.root,
+                &NodeId::new("workspace-runtime-a-capabilities-unobserved").unwrap()
+            )
+            .is_some()
+        );
         let json = serde_json::to_string(&document).unwrap();
         assert!(!json.contains("hidden-workspace-endpoint"));
 
@@ -1678,11 +2034,145 @@ mod tests {
                 &UiEvent {
                     node_id: NodeId::new("workspace-runtime-a-refresh").unwrap(),
                     kind: UiEventKind::Activate,
+                    values: BTreeMap::new(),
                 },
                 &workspace_context,
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn runtime_workspace_renders_bounded_capability_projection() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities = leserpent_domain::RuntimeCapabilitySnapshot {
+            source: "gewyvern-api".into(),
+            service: "gewyvern-api".into(),
+            version: "1.2.0".into(),
+            latest_snapshot: true,
+            authenticated_deployment: true,
+            serve_required: true,
+            external_sidecar_context: false,
+            target_path_segment_encoding: "percent-encoding".into(),
+            target_direct_path_chars: "A-Za-z0-9._~:".into(),
+            endpoints: vec!["/v1/capabilities".into(), "/v1/deployments".into()],
+            extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
+        };
+
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let identity = find_node(
+            &document.root,
+            &NodeId::new("workspace-runtime-a-capabilities-identity").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            identity.text.as_ref().map(|text| text.fallback.as_str()),
+            Some("gewyvern-api 1.2.0")
+        );
+        assert!(
+            find_node(
+                &document.root,
+                &NodeId::new("workspace-runtime-a-capabilities-endpoint-1").unwrap(),
+            )
+            .is_some()
+        );
+        assert!(
+            find_node(
+                &document.root,
+                &NodeId::new("workspace-runtime-a-capabilities-extension-0").unwrap(),
+            )
+            .is_some()
+        );
+        let deploy = find_node(
+            &document.root,
+            &NodeId::new("workspace-runtime-a-deploy").unwrap(),
+        )
+        .unwrap();
+        let Some(UiAction::RuntimeDeploy { form, .. }) = &deploy.action else {
+            panic!("authenticated deployment must expose a parameterized form")
+        };
+        assert_eq!(form.fields.len(), 2);
+        let json = serde_json::to_string(&document).unwrap();
+        assert!(!json.contains("hidden-workspace-endpoint"));
+        assert!(!json.contains("secret"));
+        assert!(!json.contains("Authorization"));
+    }
+
+    #[test]
+    fn deployment_form_event_lowers_and_rejects_untrusted_values() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        runtime.capabilities.source = "gewyvern-api".into();
+        runtime.capabilities.service = "gewyvern-api".into();
+        runtime.capabilities.version = "1.2.0".into();
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let node_id = NodeId::new("workspace-runtime-a-deploy").unwrap();
+        let mut deployment_context = context();
+        deployment_context.capabilities = CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]);
+        let valid_values = BTreeMap::from([
+            ("pipeline_kind".into(), "http/request".into()),
+            ("target".into(), "pid:42".into()),
+        ]);
+        let plan = plan_event(
+            &document,
+            &UiEvent {
+                node_id: node_id.clone(),
+                kind: UiEventKind::Submit,
+                values: valid_values.clone(),
+            },
+            &deployment_context,
+        )
+        .unwrap();
+        let leserpent_domain::PlannedOperation::Command(command) = plan.operation else {
+            panic!("deployment form must lower to a command")
+        };
+        assert!(matches!(
+            command.command,
+            Command::RuntimeDeploy { runtime_id, pipeline_kind, target }
+                if runtime_id.as_str() == "runtime-a"
+                    && pipeline_kind == "http/request"
+                    && target.as_deref() == Some("pid:42")
+        ));
+
+        for values in [
+            BTreeMap::new(),
+            BTreeMap::from([("pipeline_kind".into(), "unsafe value".into())]),
+            BTreeMap::from([
+                ("pipeline_kind".into(), "http/request".into()),
+                ("unknown".into(), "value".into()),
+            ]),
+        ] {
+            assert!(matches!(
+                plan_event(
+                    &document,
+                    &UiEvent {
+                        node_id: node_id.clone(),
+                        kind: UiEventKind::Submit,
+                        values,
+                    },
+                    &deployment_context,
+                ),
+                Err(UiError::InvalidFormInput { .. })
+            ));
+        }
+        assert!(matches!(
+            plan_event(
+                &document,
+                &UiEvent {
+                    node_id,
+                    kind: UiEventKind::Activate,
+                    values: valid_values,
+                },
+                &deployment_context,
+            ),
+            Err(UiError::EventTargetHasNoAction { .. })
+        ));
     }
 
     #[test]
@@ -1798,6 +2288,7 @@ mod tests {
             &UiEvent {
                 node_id: cancel_id,
                 kind: UiEventKind::Activate,
+                values: BTreeMap::new(),
             },
             &debugger_context(previous.revision),
         )
@@ -1886,7 +2377,8 @@ mod tests {
                     &document,
                     &UiEvent {
                         node_id: NodeId::new(node_id).unwrap(),
-                        kind: UiEventKind::Activate
+                        kind: UiEventKind::Activate,
+                        values: BTreeMap::new(),
                     },
                     &context(),
                 )
@@ -1901,6 +2393,7 @@ mod tests {
                 &UiEvent {
                     node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
                     kind: UiEventKind::Activate,
+                    values: BTreeMap::new(),
                 },
                 &stale,
             ),

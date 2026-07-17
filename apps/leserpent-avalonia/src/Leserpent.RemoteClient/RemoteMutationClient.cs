@@ -13,11 +13,94 @@ public sealed class RemoteMutationClient : IDisposable
         string runtimeId,
         ulong expectedRevision,
         string principal,
+        CancellationToken cancellationToken = default) => await ExecuteAsync(
+            runtimeId,
+            expectedRevision,
+            principal,
+            "runtime_refresh",
+            "runtime.refresh",
+            null,
+            null,
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<RemoteMutationResult> RefreshCapabilitiesAsync(
+        string runtimeId,
+        ulong expectedRevision,
+        string principal,
+        CancellationToken cancellationToken = default) => await ExecuteAsync(
+            runtimeId,
+            expectedRevision,
+            principal,
+            "runtime_capabilities_refresh",
+            "runtime.refresh",
+            null,
+            null,
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<RemoteMutationResult> DeployAsync(
+        string runtimeId,
+        ulong expectedRevision,
+        string principal,
+        string pipelineKind,
+        string? target,
         CancellationToken cancellationToken = default)
+    {
+        RequireDeploymentToken(pipelineKind, "pipeline kind");
+        if (target is not null)
+        {
+            RequireDeploymentTarget(target);
+        }
+        return await ExecuteAsync(
+            runtimeId,
+            expectedRevision,
+            principal,
+            "runtime_deploy",
+            "runtime.deploy",
+            pipelineKind,
+            target,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<RemoteMutationResult> ExecuteAsync(
+        string runtimeId,
+        ulong expectedRevision,
+        string principal,
+        string commandKind,
+        string capability,
+        string? pipelineKind,
+        string? target,
+        CancellationToken cancellationToken)
     {
         RequireIdentifier(runtimeId, "runtime ID");
         RequireIdentifier(principal, "principal");
         var commandId = $"gui-{Guid.NewGuid():N}";
+        var payload = EncodeRequest(
+            commandId,
+            runtimeId,
+            expectedRevision,
+            principal,
+            commandKind,
+            capability,
+            pipelineKind,
+            target);
+        var responsePayload = await transport.PostAsync(
+            payload,
+            "mutation",
+            cancellationToken)
+            .ConfigureAwait(false);
+        return DecodeResponse(responsePayload, commandId, runtimeId, expectedRevision);
+    }
+
+    private static byte[] EncodeRequest(
+        string commandId,
+        string runtimeId,
+        ulong expectedRevision,
+        string principal,
+        string commandKind,
+        string capability,
+        string? pipelineKind,
+        string? target)
+    {
         var envelope = new WireCommandRequestEnvelope
         {
             Request = new WireCommandRequest
@@ -28,20 +111,70 @@ public sealed class RemoteMutationClient : IDisposable
                     IdempotencyKey = commandId,
                     ExpectedRevision = expectedRevision,
                     Principal = new RemotePrincipal { Id = principal },
-                    Capabilities = ["runtime.refresh"],
-                    Command = new RuntimeRefreshCommand { RuntimeId = runtimeId },
+                    Capabilities = [capability],
+                    Command = new RuntimeRefreshCommand
+                    {
+                        Kind = commandKind,
+                        RuntimeId = runtimeId,
+                        PipelineKind = pipelineKind,
+                        Target = target,
+                    },
                 },
             },
         };
-        var payload = JsonSerializer.SerializeToUtf8Bytes(
+        return JsonSerializer.SerializeToUtf8Bytes(
             envelope,
             RemoteMutationJsonContext.Default.WireCommandRequestEnvelope);
-        var responsePayload = await transport.PostAsync(
-            payload,
-            "mutation",
-            cancellationToken)
-            .ConfigureAwait(false);
-        return DecodeResponse(responsePayload, commandId, runtimeId, expectedRevision);
+    }
+
+    public static void VerifyDeploymentContract()
+    {
+        var refresh = EncodeRequest(
+            "command-refresh", "runtime-a", 7, "operator-a",
+            "runtime_refresh", "runtime.refresh", null, null);
+        using var refreshDocument = JsonDocument.Parse(refresh);
+        var refreshCommand = refreshDocument.RootElement
+            .GetProperty("request").GetProperty("payload").GetProperty("command");
+        if (refreshCommand.TryGetProperty("pipeline_kind", out _)
+            || refreshCommand.TryGetProperty("target", out _))
+        {
+            throw new InvalidDataException(
+                "refresh mutation serialized deployment-only fields");
+        }
+
+        RequireDeploymentToken("http/request", "pipeline kind");
+        RequireDeploymentTarget("pid:42");
+        var deployment = EncodeRequest(
+            "command-deploy", "runtime-a", 7, "operator-a",
+            "runtime_deploy", "runtime.deploy", "http/request", "pid:42");
+        using var deploymentDocument = JsonDocument.Parse(deployment);
+        var payload = deploymentDocument.RootElement
+            .GetProperty("request").GetProperty("payload");
+        var command = payload.GetProperty("command");
+        if (payload.GetProperty("confirmation").GetString() != "confirmed"
+            || payload.GetProperty("capabilities")[0].GetString() != "runtime.deploy"
+            || command.GetProperty("kind").GetString() != "runtime_deploy"
+            || command.GetProperty("pipeline_kind").GetString() != "http/request"
+            || command.GetProperty("target").GetString() != "pid:42")
+        {
+            throw new InvalidDataException("deployment mutation contract is invalid");
+        }
+        try
+        {
+            RequireDeploymentToken("bad kind", "pipeline kind");
+            throw new InvalidDataException("invalid deployment token was accepted");
+        }
+        catch (ArgumentException)
+        {
+        }
+        try
+        {
+            RequireDeploymentTarget("pid:42\nforged");
+            throw new InvalidDataException("invalid deployment target was accepted");
+        }
+        catch (ArgumentException)
+        {
+        }
     }
 
     public void Dispose()
@@ -114,6 +247,27 @@ public sealed class RemoteMutationClient : IDisposable
                 || character is '-' or '_' or '.' or ':'))
         {
             throw new ArgumentException($"invalid {label}");
+        }
+    }
+
+    private static void RequireDeploymentToken(string value, string label)
+    {
+        if (value.Length is < 1 or > 128
+            || value != value.Trim()
+            || !value.All(character => char.IsAsciiLetterOrDigit(character)
+                || character is '.' or '/' or '_' or '-'))
+        {
+            throw new ArgumentException($"invalid {label}");
+        }
+    }
+
+    private static void RequireDeploymentTarget(string value)
+    {
+        if (value.Length is < 1 or > 256
+            || value != value.Trim()
+            || value.Any(char.IsControl))
+        {
+            throw new ArgumentException("invalid deployment target");
         }
     }
 }

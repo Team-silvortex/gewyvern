@@ -104,6 +104,8 @@ fn fleet_result(revision: Revision, changed: bool) -> Result<QueryResult, String
                 },
                 tags: RuntimeTags::default(),
                 status: RuntimeStatusSnapshot::default(),
+                capabilities: Default::default(),
+                capabilities_observed_for_revision: None,
             })
         })
         .collect::<Result<Vec<_>, String>>()?;

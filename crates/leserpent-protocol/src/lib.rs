@@ -1,6 +1,7 @@
 use leserpent_domain::{
     CommandEnvelope, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError, QueryEnvelope, QueryResult,
-    RefreshStatus, Revision, RuntimeId, RuntimeProjection, RuntimeStatusSnapshot, RuntimeTags,
+    RefreshStatus, Revision, RuntimeCapabilitySnapshot, RuntimeId, RuntimeProjection,
+    RuntimeStatusSnapshot, RuntimeTags,
 };
 use serde::{Deserialize, Serialize};
 
@@ -101,6 +102,13 @@ pub struct RemoteRuntimeProjection {
     pub refresh_status: RefreshStatus,
     pub tags: RuntimeTags,
     pub status: RuntimeStatusSnapshot,
+    #[serde(
+        default,
+        skip_serializing_if = "RuntimeCapabilitySnapshot::is_unobserved"
+    )]
+    pub capabilities: RuntimeCapabilitySnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities_observed_for_revision: Option<Revision>,
 }
 
 impl From<RuntimeProjection> for RemoteRuntimeProjection {
@@ -113,6 +121,8 @@ impl From<RuntimeProjection> for RemoteRuntimeProjection {
             refresh_status: runtime.refresh_status,
             tags: runtime.tags,
             status: runtime.status,
+            capabilities: runtime.capabilities,
+            capabilities_observed_for_revision: runtime.capabilities_observed_for_revision,
         }
     }
 }
@@ -210,6 +220,7 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
         DomainError::RuntimeNotFound { .. } => "runtime_not_found",
         DomainError::RevisionConflict { .. } => "revision_conflict",
         DomainError::IdempotencyConflict { .. } => "idempotency_conflict",
+        DomainError::ConfirmationRequired => "confirmation_required",
         DomainError::InvalidQuery { .. } => "invalid_query",
     };
     ResponseEnvelope {

@@ -1,9 +1,9 @@
 use leselang_hir::Effect;
 use leserpent_domain::{
-    CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
-    CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, Confirmation,
-    DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query,
-    QueryEnvelope, Revision, RuntimeId, RuntimeListFilter,
+    CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin,
+    Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal,
+    Query, QueryEnvelope, Revision, RuntimeId, RuntimeListFilter,
 };
 pub use leserpent_domain::{COMMAND_PLAN_SCHEMA_VERSION, CommandPlan, PlannedOperation};
 
@@ -77,7 +77,10 @@ pub fn lower_effect(
         | Effect::RuntimeInspect { .. }
         | Effect::RuntimeHistory { .. }
         | Effect::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
-        Effect::RuntimeRefresh { .. } => CAPABILITY_RUNTIME_REFRESH,
+        Effect::RuntimeRefresh { .. } | Effect::RuntimeCapabilitiesRefresh { .. } => {
+            CAPABILITY_RUNTIME_REFRESH
+        }
+        Effect::RuntimeDeploy { .. } => CAPABILITY_RUNTIME_DEPLOY,
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
     };
     if !context.capabilities.contains(required_capability) {
@@ -91,6 +94,14 @@ pub fn lower_effect(
         Effect::RuntimeHistory { runtime_id } => plan_runtime_history(runtime_id, context)?,
         Effect::RuntimeLogs { runtime_id } => plan_runtime_logs(runtime_id, context)?,
         Effect::RuntimeRefresh { runtime_id } => plan_runtime_refresh(runtime_id, context)?,
+        Effect::RuntimeCapabilitiesRefresh { runtime_id } => {
+            plan_runtime_capabilities_refresh(runtime_id, context)?
+        }
+        Effect::RuntimeDeploy {
+            runtime_id,
+            pipeline_kind,
+            target,
+        } => plan_runtime_deploy(runtime_id, pipeline_kind, target.as_deref(), context)?,
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
     };
     Ok(plan)
@@ -194,6 +205,72 @@ pub fn plan_runtime_refresh(
             },
         }),
     })
+}
+
+pub fn plan_runtime_capabilities_refresh(
+    runtime_id: &RuntimeId,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    if !context.capabilities.contains(CAPABILITY_RUNTIME_REFRESH) {
+        return Err(LoweringError::MissingCapability {
+            capability: CAPABILITY_RUNTIME_REFRESH,
+        });
+    }
+    Ok(CommandPlan {
+        schema_version: COMMAND_PLAN_SCHEMA_VERSION,
+        required_capability: CAPABILITY_RUNTIME_REFRESH.to_string(),
+        operation: PlannedOperation::Command(CommandEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            command_id: context.command_id.clone(),
+            idempotency_key: context.idempotency_key.clone(),
+            expected_revision: context.expected_revision,
+            principal: context.principal.clone(),
+            capabilities: context.capabilities.clone(),
+            origin: context.origin,
+            confirmation: context.confirmation,
+            dry_run: context.dry_run,
+            command: Command::RuntimeCapabilitiesRefresh {
+                runtime_id: runtime_id.clone(),
+            },
+        }),
+    })
+}
+
+pub fn plan_runtime_deploy(
+    runtime_id: &RuntimeId,
+    pipeline_kind: &str,
+    target: Option<&str>,
+    context: &LoweringContext,
+) -> Result<CommandPlan, LoweringError> {
+    if !context.capabilities.contains(CAPABILITY_RUNTIME_DEPLOY) {
+        return Err(LoweringError::MissingCapability {
+            capability: CAPABILITY_RUNTIME_DEPLOY,
+        });
+    }
+    let plan = CommandPlan {
+        schema_version: COMMAND_PLAN_SCHEMA_VERSION,
+        required_capability: CAPABILITY_RUNTIME_DEPLOY.to_string(),
+        operation: PlannedOperation::Command(CommandEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            command_id: context.command_id.clone(),
+            idempotency_key: context.idempotency_key.clone(),
+            expected_revision: context.expected_revision,
+            principal: context.principal.clone(),
+            capabilities: context.capabilities.clone(),
+            origin: context.origin,
+            confirmation: context.confirmation,
+            dry_run: context.dry_run,
+            command: Command::RuntimeDeploy {
+                runtime_id: runtime_id.clone(),
+                pipeline_kind: pipeline_kind.to_string(),
+                target: target.map(str::to_string),
+            },
+        }),
+    };
+    plan.validate().map_err(|_| LoweringError::InvalidInput {
+        field: "deployment_intent",
+    })?;
+    Ok(plan)
 }
 
 pub fn plan_debugger_cancel(
@@ -309,6 +386,26 @@ mod tests {
     }
 
     #[test]
+    fn runtime_capabilities_refresh_uses_the_shared_mutation_contract() {
+        let program = lower(&parse(
+            "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")",
+        ))
+        .unwrap();
+        let plan =
+            lower_effect(&program.function.effect, &context(CommandOrigin::Leselang)).unwrap();
+
+        assert_eq!(plan.required_capability, CAPABILITY_RUNTIME_REFRESH);
+        assert!(matches!(
+            plan.operation,
+            PlannedOperation::Command(CommandEnvelope {
+                origin: CommandOrigin::Leselang,
+                command: Command::RuntimeCapabilitiesRefresh { runtime_id },
+                ..
+            }) if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
     fn debugger_cancel_plan_is_capability_gated_and_session_validated() {
         let mut context = context(CommandOrigin::Gui);
         context.capabilities = CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]);
@@ -389,6 +486,43 @@ mod tests {
                 ..
             }) if runtime_id.as_str() == "runtime-a"
         ));
+    }
+
+    #[test]
+    fn runtime_deploy_lowers_to_confirmed_typed_command_plan() {
+        let program = lower(&parse(
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: none)",
+        ))
+        .unwrap();
+        let mut context = context(CommandOrigin::Leselang);
+        context.capabilities = CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]);
+        context.confirmation = Confirmation::Confirmed;
+        context.dry_run = false;
+        let plan = lower_effect(&program.function.effect, &context).unwrap();
+        assert_eq!(plan.required_capability, CAPABILITY_RUNTIME_DEPLOY);
+        assert!(matches!(
+            plan.operation,
+            PlannedOperation::Command(CommandEnvelope {
+                confirmation: Confirmation::Confirmed,
+                command: Command::RuntimeDeploy {
+                    runtime_id,
+                    pipeline_kind,
+                    target: None,
+                },
+                ..
+            }) if runtime_id.as_str() == "runtime-a" && pipeline_kind == "http/request"
+        ));
+
+        context.confirmation = Confirmation::NotRequired;
+        context.dry_run = false;
+        assert_eq!(
+            lower_effect(&program.function.effect, &context),
+            Err(LoweringError::InvalidInput {
+                field: "deployment_intent",
+            })
+        );
+        context.dry_run = true;
+        assert!(lower_effect(&program.function.effect, &context).is_ok());
     }
 
     #[test]

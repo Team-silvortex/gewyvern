@@ -72,28 +72,41 @@ internal sealed class MainWindow : Window
 
     public void ProbeActionAvailability()
     {
-        if (renderer.RealizedActionCount(ActionKind.RuntimeRefresh) == 0)
+        ActionKind[] mutationKinds =
+        [
+            ActionKind.RuntimeRefresh,
+            ActionKind.RuntimeCapabilitiesRefresh,
+            ActionKind.RuntimeDeploy,
+        ];
+        var realizedActions = mutationKinds.Sum(renderer.RealizedActionCount);
+        if (realizedActions == 0)
         {
             DisabledActionProbeCount = 0;
             _ = renderer.AuditAccessibility();
             return;
         }
-        renderer.SetActionAvailability(
-            ActionKind.RuntimeRefresh,
-            false,
-            "Verification action is temporarily unavailable");
-        DisabledActionProbeCount = renderer.RealizedDisabledActionCount(
-            ActionKind.RuntimeRefresh);
-        if (DisabledActionProbeCount == 0)
+        foreach (var kind in mutationKinds)
         {
-            throw new InvalidDataException(
-                "Avalonia action availability did not disable a realized action");
+            renderer.SetActionAvailability(
+                kind,
+                false,
+                "Verification action is temporarily unavailable");
         }
-        renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null);
-        if (renderer.RealizedDisabledActionCount(ActionKind.RuntimeRefresh) != 0)
+        DisabledActionProbeCount = mutationKinds.Sum(
+            renderer.RealizedDisabledActionCount);
+        if (DisabledActionProbeCount != realizedActions)
         {
             throw new InvalidDataException(
-                "Avalonia action availability did not restore a realized action");
+                "Avalonia action availability did not disable every realized mutation action");
+        }
+        foreach (var kind in mutationKinds)
+        {
+            renderer.SetActionAvailability(kind, true, null);
+        }
+        if (mutationKinds.Sum(renderer.RealizedDisabledActionCount) != 0)
+        {
+            throw new InvalidDataException(
+                "Avalonia action availability did not restore every realized mutation action");
         }
         _ = renderer.AuditAccessibility();
     }

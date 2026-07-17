@@ -281,6 +281,10 @@ public static class RemoteWorkspaceCodec
         RemoteQueryValidation.RequireDisplay(runtime.Name, "runtime name");
         RemoteQueryValidation.RequireDisplay(runtime.Endpoint, "runtime endpoint");
         RemoteQueryValidation.RequireDisplay(runtime.Status.StatusSource, "status source");
+        RemoteEventCodec.ValidateCapabilities(
+            runtime.Capabilities,
+            runtime.CapabilitiesObservedForRevision,
+            runtime.Revision);
     }
 
     private static RemoteRuntimeProjection Project(WireRuntimeProjection runtime) => new()
@@ -292,6 +296,8 @@ public static class RemoteWorkspaceCodec
         RefreshStatus = runtime.RefreshStatus,
         Tags = runtime.Tags,
         Status = runtime.Status,
+        Capabilities = runtime.Capabilities,
+        CapabilitiesObservedForRevision = runtime.CapabilitiesObservedForRevision,
     };
 
     private static string SanitizeLogDisplay(string message)
@@ -429,6 +435,8 @@ public sealed class WireRuntimeProjection
     public RefreshStatus RefreshStatus { get; set; }
     public required RuntimeTags Tags { get; set; }
     public required RuntimeStatusSnapshot Status { get; set; }
+    public RuntimeCapabilitySnapshot? Capabilities { get; set; }
+    public ulong? CapabilitiesObservedForRevision { get; set; }
 }
 
 [JsonSourceGenerationOptions(

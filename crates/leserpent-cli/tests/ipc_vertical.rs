@@ -108,7 +108,9 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
         .unwrap();
     assert!(watch.status.success());
     let watch_stdout = String::from_utf8(watch.stdout).unwrap();
-    assert_eq!(watch_stdout.lines().count(), 1);
+    assert_eq!(watch_stdout.lines().count(), 2);
+    assert!(watch_stdout.contains("capabilities=unobserved"));
+    assert!(watch_stdout.contains("capabilities_observed_for_revision=none"));
     assert!(watch_stdout.contains("runtime=runtime-a"));
 
     let unconfirmed = Command::new(binary)

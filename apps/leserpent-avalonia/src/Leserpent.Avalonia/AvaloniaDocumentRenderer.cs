@@ -106,6 +106,11 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         && node.TryGetRealizedControl(out var control)
         && control!.Focus();
 
+    public UiEvent CreateFormSubmission(
+        string nodeId,
+        IReadOnlyDictionary<string, string> values) =>
+        semanticRenderer.CreateFormSubmission(nodeId, values);
+
     public void SetActionAvailability(ActionKind kind, bool enabled, string? unavailableReason)
     {
         if (!enabled && string.IsNullOrWhiteSpace(unavailableReason))

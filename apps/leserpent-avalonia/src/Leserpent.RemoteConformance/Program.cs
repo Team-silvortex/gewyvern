@@ -12,15 +12,19 @@ if (args is ["--credential-resolve", var credentialOrigin])
 
 if (args.Length is 4 or 6 && args[0] == "--connect")
 {
-    if (args.Length == 6 && args[4] is not ("--refresh" or "--inspect"))
+    if (args.Length == 6
+        && args[4] is not ("--refresh" or "--refresh-capabilities" or "--inspect"))
     {
-        Console.Error.WriteLine("usage: Leserpent.RemoteConformance --connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --inspect RUNTIME_ID]");
+        Console.Error.WriteLine("usage: Leserpent.RemoteConformance --connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --refresh-capabilities RUNTIME_ID | --inspect RUNTIME_ID]");
         return 2;
     }
     var endpoint = args[1];
     var certificate = args[2];
     var cache = args[3];
     var refreshRuntimeId = args.Length == 6 && args[4] == "--refresh" ? args[5] : null;
+    var capabilityRuntimeId = args.Length == 6 && args[4] == "--refresh-capabilities"
+        ? args[5]
+        : null;
     var inspectRuntimeId = args.Length == 6 && args[4] == "--inspect" ? args[5] : null;
     var token = Environment.GetEnvironmentVariable("LESERPENT_REMOTE_TOKEN")
         ?? throw new InvalidOperationException("LESERPENT_REMOTE_TOKEN is required");
@@ -45,36 +49,76 @@ if (args.Length is 4 or 6 && args[0] == "--connect")
     var live = await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
     Console.WriteLine(
         $"remote conformance valid: revision={live.Revision}, runtimes={live.Runtimes.Count}, stale={live.IsStale.ToString().ToLowerInvariant()}");
-    if (refreshRuntimeId is not null)
+    var mutationRuntimeId = refreshRuntimeId ?? capabilityRuntimeId;
+    if (mutationRuntimeId is not null)
     {
-        var runtime = live.Runtimes.Single(candidate => candidate.Id == refreshRuntimeId);
+        var runtime = live.Runtimes.Single(candidate => candidate.Id == mutationRuntimeId);
         var updated = new TaskCompletionSource<RemoteFeedState>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        client.StateChanged += state =>
+        var updateGate = new object();
+        ulong? appliedRevision = null;
+        var latestMutationState = live;
+        bool MutationSettled(RemoteFeedState state)
         {
             var changedRuntime = state.Runtimes.FirstOrDefault(candidate =>
-                candidate.Id == refreshRuntimeId);
-            if (state.Phase == RemoteFeedPhase.Live
+                candidate.Id == mutationRuntimeId);
+            return state.Phase == RemoteFeedPhase.Live
                 && changedRuntime is not null
-                && changedRuntime.Revision > runtime.Revision)
+                && (capabilityRuntimeId is null
+                    ? changedRuntime.Revision > runtime.Revision
+                    : appliedRevision is { } revision
+                        && changedRuntime.CapabilitiesObservedForRevision is { } observedFor
+                        && observedFor >= revision);
+        }
+        client.StateChanged += state =>
+        {
+            lock (updateGate)
             {
-                updated.TrySetResult(state);
+                latestMutationState = state;
+                if (MutationSettled(state))
+                {
+                    updated.TrySetResult(state);
+                }
             }
         };
         using var mutation = new RemoteMutationClient(options);
-        var result = await mutation.RefreshAsync(
-            refreshRuntimeId,
-            runtime.Revision,
-            "dotnet-conformance");
+        var result = capabilityRuntimeId is not null
+            ? await mutation.RefreshCapabilitiesAsync(
+                mutationRuntimeId,
+                runtime.Revision,
+                "dotnet-conformance")
+            : await mutation.RefreshAsync(
+                mutationRuntimeId,
+                runtime.Revision,
+                "dotnet-conformance");
+        lock (updateGate)
+        {
+            appliedRevision = result.Revision;
+            if (MutationSettled(latestMutationState))
+            {
+                updated.TrySetResult(latestMutationState);
+            }
+        }
         var eventState = await updated.Task.WaitAsync(TimeSpan.FromSeconds(15));
         var eventRuntime = eventState.Runtimes.Single(candidate =>
-            candidate.Id == refreshRuntimeId);
-        Require(result.Revision == eventRuntime.Revision,
-            "mutation response and event stream revisions diverged");
-        Require(eventRuntime.RefreshStatus == RefreshStatus.Pending,
-            "mutation event did not expose the pending refresh state");
+            candidate.Id == mutationRuntimeId);
+        if (capabilityRuntimeId is not null)
+        {
+            Require(eventRuntime.Revision > result.Revision
+                && eventRuntime.Capabilities is { IsUnobserved: false }
+                && eventRuntime.CapabilitiesObservedForRevision is { } observedFor
+                && observedFor >= result.Revision,
+                "capability mutation did not settle to an observed projection");
+        }
+        else
+        {
+            Require(result.Revision == eventRuntime.Revision,
+                "mutation response and event stream revisions diverged");
+            Require(eventRuntime.RefreshStatus == RefreshStatus.Pending,
+                "mutation event did not expose the pending refresh state");
+        }
         Console.WriteLine(
-            $"remote mutation conformance valid: initial_revision={runtime.Revision}, applied_revision={result.Revision}, event_revision={eventRuntime.Revision}, runtime={eventRuntime.Id}, stale={eventState.IsStale.ToString().ToLowerInvariant()}");
+            $"remote mutation conformance valid: kind={(capabilityRuntimeId is null ? "runtime_refresh" : "runtime_capabilities_refresh")}, initial_revision={runtime.Revision}, applied_revision={result.Revision}, event_revision={eventRuntime.Revision}, capabilities_observed={(eventRuntime.Capabilities is { IsUnobserved: false }).ToString().ToLowerInvariant()}, capabilities_observed_for_revision={eventRuntime.CapabilitiesObservedForRevision?.ToString() ?? "none"}, runtime={eventRuntime.Id}, stale={eventState.IsStale.ToString().ToLowerInvariant()}");
     }
     if (inspectRuntimeId is not null)
     {
@@ -88,15 +132,16 @@ if (args.Length is 4 or 6 && args[0] == "--connect")
             "workspace query exceeded its history bound");
         Require(liveWorkspace.Logs.Count <= RemoteWorkspaceClient.MaxLogEntries,
             "workspace query exceeded its log bound");
+        var workspaceCapabilities = liveWorkspace.Runtime.Capabilities;
         Console.WriteLine(
-            $"remote workspace conformance valid: revision={liveWorkspace.Revision}, runtime={liveWorkspace.Runtime.Id}, history={liveWorkspace.History.Count}, logs={liveWorkspace.Logs.Count}, endpoint_retained=false");
+            $"remote workspace conformance valid: revision={liveWorkspace.Revision}, runtime={liveWorkspace.Runtime.Id}, history={liveWorkspace.History.Count}, logs={liveWorkspace.Logs.Count}, endpoint_retained=false, capabilities_observed={(workspaceCapabilities is { IsUnobserved: false }).ToString().ToLowerInvariant()}, capabilities_observed_for_revision={liveWorkspace.Runtime.CapabilitiesObservedForRevision?.ToString() ?? "none"}, capability_version={workspaceCapabilities?.Version ?? "unobserved"}");
     }
     return 0;
 }
 
 if (args.Length != 0)
 {
-    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --inspect RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN]");
+    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --refresh-capabilities RUNTIME_ID | --inspect RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN]");
     return 2;
 }
 
@@ -109,11 +154,55 @@ Require(snapshot is RemoteEvent.Snapshot
 }, "snapshot codec did not preserve revisions or runtimes");
 var decodedSnapshot = (RemoteEvent.Snapshot)snapshot;
 Require(decodedSnapshot.Runtimes[0].Id == "runtime-a", "snapshot codec changed runtime identity");
+Require(decodedSnapshot.Runtimes[0].Capabilities is
+    {
+        Service: "gewyvern-api",
+        Version: "1.2.0",
+        AuthenticatedDeployment: true,
+        Endpoints.Count: 2,
+    }, "snapshot codec did not preserve runtime capabilities");
+Require(decodedSnapshot.Runtimes[0].CapabilitiesObservedForRevision == 6,
+    "snapshot codec did not preserve the capability observation binding");
+RequireThrows<InvalidDataException>(() => RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.SnapshotJson.Replace(
+        "\"source\": \"gewyvern-api\"",
+        "\"source\": \"untrusted\"",
+        StringComparison.Ordinal))),
+    "snapshot accepted an untrusted capability source");
+RequireThrows<InvalidDataException>(() => RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.SnapshotJson.Replace(
+        "\"/v1/capabilities\"",
+        "\"/v1/capabilities?unsafe=true\"",
+        StringComparison.Ordinal))),
+    "snapshot accepted a non-canonical capability endpoint");
+RequireThrows<InvalidDataException>(() => RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.SnapshotJson.Replace(
+        "\"authenticated_deployment\": true",
+        "\"authenticated_deployment\": false",
+        StringComparison.Ordinal))),
+    "snapshot accepted an inconsistent authenticated deployment capability");
+RequireThrows<InvalidDataException>(() => RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.SnapshotJson.Replace(
+        "\"endpoints\": [\"/v1/capabilities\", \"/v1/deployments\"]",
+        "\"endpoints\": null",
+        StringComparison.Ordinal))),
+    "snapshot accepted null capability endpoints");
+RequireThrows<InvalidDataException>(() => RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.SnapshotJson.Replace(
+        "\"capabilities_observed_for_revision\": 6",
+        "\"capabilities_observed_for_revision\": 7",
+        StringComparison.Ordinal))),
+    "snapshot accepted a non-prior capability observation revision");
 
 var stateMachine = new RemoteFeedStateMachine();
 var liveState = stateMachine.Accept(decodedSnapshot);
 Require(!liveState.IsStale && liveState.Phase == RemoteFeedPhase.Live,
     "snapshot did not establish a live state");
+Require(liveState.SnapshotGeneration == 1,
+    "snapshot did not advance the projection generation");
+var heartbeatState = stateMachine.Accept(new RemoteEvent.Heartbeat(7));
+Require(heartbeatState.SnapshotGeneration == 1,
+    "heartbeat incorrectly advanced the projection generation");
 var reconnecting = stateMachine.ConnectionLost("test disconnect");
 Require(reconnecting.IsStale && reconnecting.Phase == RemoteFeedPhase.Reconnecting,
     "disconnect did not mark cached data stale");
@@ -373,6 +462,20 @@ private static string RuntimeJson(
     "socket_service_status": null,
     "socket_consecutive_idle_timeouts": null,
     "socket_total_idle_timeouts": null
+  },
+  "capabilities_observed_for_revision": {{revision - 1}},
+  "capabilities": {
+    "source": "gewyvern-api",
+    "service": "gewyvern-api",
+    "version": "1.2.0",
+    "latest_snapshot": true,
+    "authenticated_deployment": true,
+    "serve_required": true,
+    "external_sidecar_context": true,
+    "target_path_segment_encoding": "percent-encoding",
+    "target_direct_path_chars": "A-Z a-z 0-9 . _ ~ :",
+    "endpoints": ["/v1/capabilities", "/v1/deployments"],
+    "extensions": {"protocol_catalog": true}
   }{{(extraRuntimeField ? ",\n  \"unexpected\": true" : string.Empty)}}
 }
 """;
@@ -415,6 +518,20 @@ public const string SnapshotJson = """
           "socket_service_status": null,
           "socket_consecutive_idle_timeouts": null,
           "socket_total_idle_timeouts": null
+        },
+        "capabilities_observed_for_revision": 6,
+        "capabilities": {
+          "source": "gewyvern-api",
+          "service": "gewyvern-api",
+          "version": "1.2.0",
+          "latest_snapshot": true,
+          "authenticated_deployment": true,
+          "serve_required": true,
+          "external_sidecar_context": true,
+          "target_path_segment_encoding": "percent-encoding",
+          "target_direct_path_chars": "A-Z a-z 0-9 . _ ~ :",
+          "endpoints": ["/v1/capabilities", "/v1/deployments"],
+          "extensions": {"protocol_catalog": true}
         }
       }]
     }

@@ -409,7 +409,58 @@ provider dynamically resolves libsecret/glib without development packages and
 has physical Ubuntu 24.04 x86_64 evidence: ordinary SSH fails closed without a
 session bus, while an isolated D-Bus plus gnome-keyring session returns a strict
 clean miss. Real TLS tests cover authenticated adapter traffic and ambiguous
-HTTP framing rejection. Discovery remains the next adapter slice.
+HTTP framing rejection. Bounded capability discovery now queries only explicitly
+configured targets, canonicalizes endpoint claims, accepts safe boolean schema
+extensions, and rejects scan-like payload fields or inconsistent deployment
+advertisements. SQLite schema 9 adds the revision-bound capability observation
+journal kind. Effect completion and projection update commit atomically, replay
+restores the same state, and stale or forged observations fail closed. The
+shared `runtime.refresh_capabilities` command now lowers through the same typed
+plan from Leselang, CLI (`runtime refresh-capabilities`), and GUI actions. The
+runtime converts its domain event into the revision-fenced discovery effect;
+none of those operator surfaces can access the low-level effect queue. CLI
+inspect and renderer-neutral runtime workspaces now render the same bounded
+capability posture: explicit unobserved state, service/version, core booleans,
+canonical endpoint paths, and sorted boolean extensions, with no target origin,
+secret alias, credential, or raw adapter payload. A real TLS vertical now proves
+the remote closed loop: the native CLI submits the capability command, the
+daemon persists and schedules it, the real discovery adapter queries only its
+configured loopback target, and a later CLI inspect reads revision 3 with the
+validated projection. The adapter origin and authorization material remain
+absent. Avalonia now strictly decodes and validates that projection, renders the
+same bounded capability section, and binds a separately typed discovery action
+to the authenticated mutation client. Rust-generated UI fixtures pass the .NET
+semantic renderer and real Avalonia control probes. A Rust daemon-to-.NET TLS
+vertical additionally submits the capability command at revision 3, runs the
+real discovery adapter against a fixed loopback service, observes the validated
+projection at revision 4 over WebSocket, and reads the two-entry workspace from
+an independent process without retaining either endpoint. Avalonia keeps the
+mutation fenced between those revisions so a repeated command cannot invalidate
+the in-flight observation. Ambiguous network outcomes additionally require a
+later full snapshot: heartbeat-only liveness never releases the mutation fence,
+and a newer revision with an unchanged capability posture remains blocked. New
+runtime projections now carry the exact command revision that produced the
+capability observation. This removes content-based ambiguity when repeated
+discovery returns identical data, remains optional for legacy snapshots, and
+has explicit old-journal replay evidence without a schema migration. The next
+renderer slice is Windows native-host
+evidence followed by reuse of this contract in the mobile shells.
+
+The authenticated deployment adapter is now reachable through a shared
+`runtime.deploy` command vertical. Domain policy separates deployment from
+refresh authority, rejects unconfirmed execution, and validates bounded
+pipeline/target input. Leselang, native CLI, and deterministic plan export lower
+identically; the durable runtime derives requester and request identity from the
+envelope before scheduling the fixed deployment effect. VM dispatch
+acknowledgement and real adapter TLS tests preserve synchronous re-entry and wire
+compatibility. Avalonia remote workspaces now expose a bounded deployment form
+only for runtimes with an authenticated deployment claim. Rust UI IR declares
+the fields and emits a typed renderer-neutral `submit` event; Rust lowering and
+the .NET semantic renderer independently reject unknown, missing, oversized, or
+invalid values. Source-generated JSON probes verify the fixed capability,
+explicit confirmation, typed arguments, refresh-field omission, and
+cross-renderer event shape. Mobile shells can therefore reuse the form contract
+without duplicating deployment semantics.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery

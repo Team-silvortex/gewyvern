@@ -4,7 +4,7 @@ This document defines the implemented renderer-neutral Gate 4 UI boundary in
 `crates/leselang-ui`. Avalonia, web, mobile, persistence, transport, and adapter
 types are deliberately outside this contract.
 
-Status: **Gate 4 renderer-neutral slice complete, evolving contract 0.13.0**.
+Status: **Gate 4 renderer-neutral slice complete, evolving contract 0.19.0**.
 
 ## Pure Flow
 
@@ -31,6 +31,12 @@ bounded newest-first command history. Mismatched revisions fail as torn state;
 endpoint and persistence details remain absent. Stable workspace and history
 entry IDs allow an empty history to become an incremental insert rather than a
 full document replacement.
+
+Observed capability sections include the command revision that their discovery
+completed for. This binding is projection metadata rather than an adapter claim:
+it lets every renderer distinguish a command event from its later observation,
+even when repeated discovery returns identical content. Legacy projections may
+omit the binding and render an explicit unavailable marker instead of guessing.
 
 The Avalonia remote shell now supplies Inspect, History, and Logs through three
 concurrent, authenticated `/v1/wire` queries. Its strict transport DTO is the only layer
@@ -98,6 +104,8 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum debugger logical frames: `64`
 - maximum debugger display text: `512` bytes
 - maximum debugger remaining deadline: `24 hours`
+- maximum parameterized form fields: `16`
+- maximum parameterized form value: `256` bytes
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -109,11 +117,14 @@ reject unknown fields rather than silently accepting producer/renderer drift.
 
 ## Events
 
-`UiEvent` identifies a node and a typed event kind; it never carries a command
-or arbitrary payload. Event planning resolves only actions already declared in
-the validated document. The lowering context must fence exactly the document
-revision, and both refresh and debugger-cancel actions use the shared
-`leselang-command` normalization path.
+`UiEvent` identifies a node and a typed event kind; it never carries a command.
+An `activate` event carries no values. A `submit` event may carry only fields
+declared by the target action's parameterized form. Forms bound their field
+count, keys, localization, required state, maximum lengths, and input kinds;
+unknown, missing, oversized, or invalid values fail closed in both Rust and the
+.NET semantic renderer. Deployment submission then uses the same
+`leselang-command` normalization path as textual Leselang and the native CLI.
+The lowering context must fence exactly the document revision.
 
 Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 and forged runtime or debugger-session bindings fail closed.
@@ -142,8 +153,10 @@ fixture proves a sliding window remains executable and avoids redundant moves.
 
 The first Avalonia 12 desktop slice maps the validated renderer-core tree to
 actual semantic controls. Stable IDs and accessibility metadata become
-Automation properties, while action controls emit only their node ID and never
-construct commands in .NET. Its platform smoke mode renders the cross-language
+Automation properties. Ordinary action controls emit only their node ID;
+parameterized actions generate controls from UI IR and emit a bounded typed
+`submit` event after semantic revalidation. Neither path constructs domain
+commands in the renderer. Its platform smoke mode renders the cross-language
 fixture through the real control stack. The mounted tree applies all four patch
 operations incrementally through a checked stable-ID index. A transactional
 semantic candidate validates the final document before visual mutation, and

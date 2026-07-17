@@ -651,12 +651,12 @@
       "feature": "command-query-kernel",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 96,
+      "completion": 99,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-domain-contract",
-        "version": "0.11.0",
+        "version": "0.13.0",
         "stability": "evolving",
         "surfaces": [
           "command-envelope",
@@ -677,6 +677,11 @@
           "bounded-runtime-log-query",
           "typed-runtime-log-record",
           "cursor-log-window",
+          "capability-observed-for-revision",
+          "legacy-optional-observation-binding",
+          "runtime-deploy-capability",
+          "confirmed-deployment-command",
+          "typed-deployment-event",
           "debugger-control-capability",
           "debugger-cancel-command"
         ]
@@ -703,9 +708,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-wire-contract",
-        "version": "0.14.0",
+        "version": "0.17.0",
         "stability": "evolving",
-        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "authenticated-https-wire", "authenticated-https-cli", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "bounded-http-framing", "tls-key-file-safety", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof"]
+        "surfaces": ["wire-envelope", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "runtime-deploy-wire-command", "authenticated-https-wire", "authenticated-https-cli", "remote-capability-refresh-vertical", "remote-discovery-inspect-readback", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "bounded-http-framing", "tls-key-file-safety", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [
@@ -769,14 +774,14 @@
       "feature": "typed-effects",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 96,
+      "completion": 98,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-hir-contract",
-        "version": "0.13.0",
+        "version": "0.14.0",
         "stability": "evolving",
-        "surfaces": ["typed-hir", "capability-check", "effect-union", "declared-branch-order", "runtime-inspect-effect", "runtime-history-effect", "runtime-logs-effect"]
+        "surfaces": ["typed-hir", "capability-check", "effect-union", "declared-branch-order", "runtime-inspect-effect", "runtime-history-effect", "runtime-logs-effect", "runtime-deploy-effect", "bounded-deployment-intent"]
       },
       "depends_on": ["leserpent-2/language-syntax/lossless-frontend", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [
@@ -805,7 +810,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "0.18.0",
+        "version": "0.19.0",
         "stability": "evolving",
         "surfaces": [
           "step",
@@ -865,7 +870,9 @@
           "final-branch-program-result",
           "typed-runtime-inspect-reentry",
           "bounded-runtime-history-reentry",
-          "bounded-runtime-logs-reentry"
+          "bounded-runtime-logs-reentry",
+          "confirmed-runtime-deploy-effect",
+          "runtime-deploy-dispatch-reentry"
         ]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
@@ -886,14 +893,14 @@
       "feature": "command-plan-lowering",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 78,
+      "completion": 88,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-command-contract",
-        "version": "0.10.0",
+        "version": "0.11.0",
         "stability": "evolving",
-        "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-refresh-command", "debugger-cancel-command", "debugger-control-capability", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang", "shared-cli-query-lowering", "shared-cli-command-lowering", "deterministic-local-plan-export"]
+        "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-refresh-command", "runtime-deploy-command", "independent-runtime-deploy-capability", "debugger-cancel-command", "debugger-control-capability", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang", "shared-cli-query-lowering", "shared-cli-command-lowering", "deterministic-local-plan-export"]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [
@@ -923,9 +930,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-ui-contract",
-        "version": "0.15.0",
+        "version": "0.19.0",
         "stability": "evolving",
-        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "bounded-json-codec", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-log-projection", "runtime-log-document-lowering", "runtime-log-source-producer", "bounded-log-source-batch", "newest-log-window", "utf8-safe-log-sanitization", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "bounded-logical-frames", "debugger-secret-omission", "validated-vm-producer", "relative-deadline-projection", "debugger-cancel-plan", "safe-mutation-inspection", "debugger-dry-run", "session-revision-fenced-cancel", "confirmation-gated-cancel", "atomic-persistent-debugger-audit", "restart-safe-debugger-audit-replay", "debugger-workspace-session-binding", "session-bound-debugger-action", "debugger-action-command-lowering", "token-free-mutation-result", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "revision-fenced-event", "runtime-bound-action", "runtime-inspect-action", "frontend-neutral-inspect-plan", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
+        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "bounded-json-codec", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-capability-projection", "explicit-unobserved-capabilities", "canonical-capability-endpoint-nodes", "sorted-capability-extension-nodes", "capability-secret-omission", "runtime-log-projection", "runtime-log-document-lowering", "runtime-log-source-producer", "bounded-log-source-batch", "newest-log-window", "utf8-safe-log-sanitization", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "runtime-deploy-debugger-kind", "bounded-logical-frames", "debugger-secret-omission", "validated-vm-producer", "relative-deadline-projection", "debugger-cancel-plan", "safe-mutation-inspection", "debugger-dry-run", "session-revision-fenced-cancel", "confirmation-gated-cancel", "atomic-persistent-debugger-audit", "restart-safe-debugger-audit-replay", "debugger-workspace-session-binding", "session-bound-debugger-action", "debugger-action-command-lowering", "token-free-mutation-result", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "parameterized-form-description", "typed-submit-event", "bounded-form-value-validation", "runtime-deploy-form-lowering", "revision-fenced-event", "runtime-bound-action", "runtime-inspect-action", "frontend-neutral-inspect-plan", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/command-lowering/command-plan-lowering"],
       "blockers": [],
@@ -938,7 +945,7 @@
         { "kind": "test", "path": "crates/leselang-observe/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-ui/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Preserve and stabilize the completed Gate 4 renderer-neutral contract while renderer packaging and remote-console work proceed independently."
+      "next_gate": "Preserve parameterized form and capability projections while mobile shells adopt the same typed submit contract without frontend-owned command lowering."
     },
     {
       "id": "leserpent-2/control-runtime/durable-authority",
@@ -952,9 +959,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-runtime-contract",
-        "version": "1.1.0",
+        "version": "1.3.0",
         "stability": "stable",
-        "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "owner-heartbeat", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "sqlite-v7-semantic-fence", "sqlite-v8-runtime-logs", "strict-v8-migration-history", "indexed-runtime-log-query", "per-runtime-log-retention", "initial-newest-log-window", "cursor-log-increment", "journal-kind-validation", "effect-schema-validation", "idempotent-effect-enqueue", "atomic-batch-enqueue", "bounded-enqueue-batch", "batch-conflict-rollback", "capacity-atomicity", "full-capacity-idempotent-replay", "transactional-effect-claim", "kind-excluding-batch-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "synchronous-worker-step", "public-effect-settlement", "complete-retry-reject", "durable-event-effect-materialization", "restart-outbox-repair", "typed-status-observation", "atomic-effect-projection-completion", "status-replay-validation", "effect-queue-state-counters", "active-capacity-saturation", "bounded-terminal-retention", "active-task-preservation", "transactions", "policy"]
+        "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "owner-heartbeat", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "sqlite-v7-semantic-fence", "sqlite-v8-runtime-logs", "sqlite-v9-capability-observation", "strict-v9-migration-history", "indexed-runtime-log-query", "per-runtime-log-retention", "initial-newest-log-window", "cursor-log-increment", "journal-kind-validation", "effect-schema-validation", "idempotent-effect-enqueue", "atomic-batch-enqueue", "bounded-enqueue-batch", "batch-conflict-rollback", "capacity-atomicity", "full-capacity-idempotent-replay", "transactional-effect-claim", "kind-excluding-batch-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "synchronous-worker-step", "public-effect-settlement", "complete-retry-reject", "durable-event-effect-materialization", "restart-outbox-repair", "typed-status-observation", "typed-capability-observation", "shared-capability-refresh-command", "shared-deployment-command", "confirmed-deployment-materialization", "envelope-derived-deployment-identity", "revision-fenced-discovery-materialization", "revision-bound-capability-projection", "atomic-effect-projection-completion", "status-replay-validation", "capability-replay-validation", "effect-queue-state-counters", "active-capacity-saturation", "bounded-terminal-retention", "active-task-preservation", "transactions", "policy"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel"],
       "blockers": [],
@@ -976,20 +983,20 @@
       "feature": "typed-integrations",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 76,
+      "completion": 94,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-adapter-contract",
-        "version": "0.9.0",
+        "version": "0.14.0",
         "stability": "evolving",
-        "surfaces": ["typed-adapter-trait", "adapter-registry", "cloneable-kind-handles", "same-kind-mutex", "cooperative-cancellation-context", "unknown-kind-rejection", "gewyvern-loopback-health", "gewyvern-typed-status-refresh", "gewyvern-authenticated-https", "explicit-ca-trust", "rustls-hostname-verification", "strict-http-json-framing", "bounded-http-response", "typed-authenticated-deployment", "deployment-confirmation", "fixed-deployment-endpoint", "deployment-idempotency-binding", "deployment-status-classification", "deployment-scheduler-vertical", "configured-secret-boundary", "typed-secret-store", "validated-secret-alias", "redacted-secret-value", "zeroized-secret-lifetime", "zeroized-authorization-request-buffer", "allowlisted-environment-secret-provider", "native-macos-keychain-provider", "security-framework-ffi", "clean-keychain-miss", "native-linux-secret-service-provider", "runtime-libsecret-loading", "bounded-libsecret-value", "dbus-clean-secret-miss", "physical-ubuntu-secret-service-proof", "explicit-daemon-platform-secret-selection", "no-platform-environment-fallback", "just-in-time-secret-resolution", "pre-network-secret-failure", "revision-bound-status-observation", "scheduler-daemon-adapter-vertical", "storage", "deployment", "discovery", "secret-store"]
+        "surfaces": ["typed-adapter-trait", "adapter-registry", "cloneable-kind-handles", "same-kind-mutex", "cooperative-cancellation-context", "unknown-kind-rejection", "gewyvern-loopback-health", "gewyvern-typed-status-refresh", "gewyvern-authenticated-https", "explicit-ca-trust", "rustls-hostname-verification", "strict-http-json-framing", "bounded-http-response", "typed-authenticated-deployment", "shared-domain-deployment-request", "deployment-confirmation", "fixed-deployment-endpoint", "deployment-idempotency-binding", "deployment-status-classification", "deployment-scheduler-vertical", "configured-target-capability-discovery", "fixed-capability-endpoint", "no-ambient-network-scan", "bounded-capability-schema", "canonical-capability-endpoints", "capability-claim-consistency", "discovery-scheduler-vertical", "authenticated-command-discovery-readback", "adapter-origin-omission-proof", "configured-secret-boundary", "typed-secret-store", "validated-secret-alias", "redacted-secret-value", "zeroized-secret-lifetime", "zeroized-authorization-request-buffer", "allowlisted-environment-secret-provider", "native-macos-keychain-provider", "security-framework-ffi", "clean-keychain-miss", "native-linux-secret-service-provider", "runtime-libsecret-loading", "bounded-libsecret-value", "dbus-clean-secret-miss", "physical-ubuntu-secret-service-proof", "explicit-daemon-platform-secret-selection", "no-platform-environment-fallback", "just-in-time-secret-resolution", "pre-network-secret-failure", "revision-bound-status-observation", "scheduler-daemon-adapter-vertical", "storage", "deployment", "discovery", "secret-store"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/control-runtime/durable-authority"],
       "blockers": [
         {
           "id": "adapter-breadth",
-          "summary": "The shared adapter crate, bounded local and authenticated TLS Gewyvern health/status/deployment adapters, and native macOS Keychain plus Linux Secret Service providers exist; discovery remains."
+          "summary": "Bounded local and authenticated TLS health/status/deployment/discovery adapters, atomic capability projection, shared operator trigger, and authenticated command-to-readback proof exist; external storage breadth remains."
         }
       ],
       "consumers": ["leserpent-runtime", "leserpentd"],
@@ -997,11 +1004,12 @@
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters/src/deployment.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-adapters/src/discovery.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters/src/secret.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-adapters/src/gewyvern.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Gate 5: add bounded capability discovery for explicitly configured targets without introducing ambient network scanning."
+      "next_gate": "Gate 5: preserve the Avalonia-proven discovery boundary; add external storage only behind an equally typed adapter contract."
     },
     {
       "id": "leserpent-2/daemon-host/daemon-lifecycle",
@@ -1045,14 +1053,14 @@
       "feature": "cli-parity",
       "lifecycle": "target",
       "maturity": "stabilizing",
-      "completion": 92,
+      "completion": 98,
       "confidence": "high",
       "independence": "standalone-tool",
       "contract": {
         "id": "leserpent-cli-contract",
-        "version": "0.11.0",
+        "version": "0.15.0",
         "stability": "evolving",
-        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract"]
+        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "runtime-deploy-command", "bounded-deployment-arguments", "runtime-capability-refresh-command", "remote-capability-refresh-command", "remote-discovery-inspect-readback", "bounded-capability-summary", "explicit-unobserved-capabilities", "capability-observation-revision-output", "canonical-capability-endpoint-output", "sorted-capability-extension-output", "capability-secret-omission", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "cli-leselang-deployment-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract"]
       },
       "depends_on": [
         "leserpent-2/transport-protocol/wire-compatibility",
@@ -1073,7 +1081,7 @@
         { "kind": "test", "path": "crates/leserpent-cli/tests/ipc_vertical.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" }
       ],
-      "next_gate": "Preserve local/remote CLI parity while GUI clients adopt WebSocket events; add system trust and Windows transport only through explicit adapters."
+      "next_gate": "Preserve the authenticated capability closed loop and its Avalonia binding while retaining local/remote CLI parity."
     },
     {
       "id": "leserpent-2/ui-renderers/avalonia-renderer",
@@ -1082,14 +1090,14 @@
       "feature": "avalonia-renderer",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 95,
+      "completion": 99,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-avalonia-contract",
-        "version": "0.15.0",
+        "version": "0.21.0",
         "stability": "evolving",
-        "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "stable-node-focus-retention", "runtime-inspect-control", "independent-runtime-workspace-window", "single-window-per-runtime", "bounded-workspace-window-fanout", "live-revision-workspace-reload", "runtime-log-workspace-section", "manual-workspace-reload-control", "workspace-reload-f5", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "remote-snapshot-ui-projection", "visible-remote-stale-state", "leserpent-brand-icon", "native-aot-publish-profile", "pinned-native-aot-toolchain", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "automation-metadata", "unique-automation-id-audit", "complete-automation-name-audit", "automation-help-text-audit", "explicit-action-label-audit", "wcag-aa-theme-contrast", "managed-macos-accessibility-proof", "physical-linux-accessibility-proof", "native-aot-accessibility-proof", "action-node-event", "control-smoke-mode"]
+        "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "runtime-capability-action-binding-validation", "capability-observation-mutation-fence", "heartbeat-resistant-unknown-mutation-fence", "mutation-fence-policy-probe", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "capability-workspace-conformance-fixture", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "stable-node-focus-retention", "runtime-inspect-control", "runtime-capability-discovery-control", "capability-gated-deployment-control", "bounded-deployment-form", "deployment-form-automation-metadata", "parameterized-form-description", "renderer-neutral-submit-event", "generic-form-control-generation", "form-event-contract-probe", "independent-runtime-workspace-window", "single-window-per-runtime", "bounded-workspace-window-fanout", "live-revision-workspace-reload", "runtime-log-workspace-section", "runtime-capability-workspace-section", "manual-workspace-reload-control", "workspace-reload-f5", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "remote-snapshot-ui-projection", "strict-remote-capability-projection", "visible-remote-stale-state", "leserpent-brand-icon", "native-aot-publish-profile", "pinned-native-aot-toolchain", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "automation-metadata", "unique-automation-id-audit", "complete-automation-name-audit", "automation-help-text-audit", "explicit-action-label-audit", "wcag-aa-theme-contrast", "managed-macos-accessibility-proof", "physical-linux-accessibility-proof", "native-aot-accessibility-proof", "action-node-event", "control-smoke-mode"]
       },
       "depends_on": [
         "leserpent-2/ui-language/ui-ir-lowering",
@@ -1117,7 +1125,7 @@
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-log-conformance-v1.json", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json", "state": "present" }
       ],
-      "next_gate": "Gate 4 renderer follow-up: add Windows native-host AOT evidence, then reuse the same strict renderer contract for mobile shells."
+  "next_gate": "Gate 4 renderer follow-up: add Windows native-host AOT evidence, then reuse the parameterized form-event contract in mobile shells."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",
@@ -1126,14 +1134,14 @@
       "feature": "remote-mobile-console",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 88,
+      "completion": 94,
       "confidence": "medium",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-remote-console",
-        "version": "0.13.0",
+        "version": "0.19.0",
         "stability": "draft",
-        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "remote-auth-exit-contract", "tls12-and-tls13", "platform-first-bearer-token", "bounded-environment-token-fallback", "macos-keychain-token", "linux-secret-service-token", "endpoint-scoped-credential", "malformed-stored-token-fail-closed", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "shared-dotnet-wire-transport", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "strict-aot-workspace-query-codec", "concurrent-inspect-history-logs-query", "same-revision-workspace-composition", "torn-workspace-rejection", "runtime-history-identity-fence", "runtime-log-identity-fence", "bounded-sanitized-runtime-logs", "utf8-safe-log-display", "endpoint-transient-decode-only", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "bounded-reconnect", "explicit-readonly-manual-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "token-redacted-startup-recovery", "visible-credential-provenance", "visible-trust-identity", "responsive-remote-desktop-layout", "stable-node-focus-retention", "bounded-local-runtime-filter", "runtime-bound-inspect-action", "runtime-bound-refresh-action", "explicit-mutation-confirmation", "stale-mutation-rejection", "optimistic-runtime-revision", "no-automatic-mutation-retry", "mutation-observation-ui-fence", "persistent-operation-status-live-region", "endpoint-free-mutation-result", "rust-dotnet-mutation-vertical", "mobile-lifecycle-core", "foreground-session-ownership", "background-disconnect", "mobile-credential-reload", "mobile-generation-fence", "mobile-failure-cleanup", "android-keystore-aes-gcm-token", "ios-this-device-only-keychain-token", "adaptive-navigation"]
+        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "remote-auth-exit-contract", "tls12-and-tls13", "platform-first-bearer-token", "bounded-environment-token-fallback", "macos-keychain-token", "linux-secret-service-token", "endpoint-scoped-credential", "malformed-stored-token-fail-closed", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "shared-dotnet-wire-transport", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "strict-aot-capability-codec", "strict-aot-workspace-query-codec", "runtime-snapshot-generation", "heartbeat-preserved-snapshot-generation", "concurrent-inspect-history-logs-query", "same-revision-workspace-composition", "torn-workspace-rejection", "runtime-history-identity-fence", "runtime-log-identity-fence", "bounded-sanitized-runtime-logs", "utf8-safe-log-display", "endpoint-transient-decode-only", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "bounded-reconnect", "explicit-readonly-manual-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "token-redacted-startup-recovery", "visible-credential-provenance", "visible-trust-identity", "responsive-remote-desktop-layout", "stable-node-focus-retention", "bounded-local-runtime-filter", "runtime-bound-inspect-action", "runtime-bound-refresh-action", "runtime-bound-capability-refresh-action", "runtime-bound-deployment-action", "typed-dotnet-deployment-mutation", "deployment-json-contract-probe", "renderer-neutral-deployment-form-event", "explicit-mutation-confirmation", "stale-mutation-rejection", "optimistic-runtime-revision", "no-automatic-mutation-retry", "mutation-observation-ui-fence", "capability-observation-ui-fence", "persistent-operation-status-live-region", "endpoint-free-mutation-result", "rust-dotnet-mutation-vertical", "rust-dotnet-capability-mutation-vertical", "rust-dotnet-capability-discovery-vertical", "mobile-lifecycle-core", "foreground-session-ownership", "background-disconnect", "mobile-credential-reload", "mobile-generation-fence", "mobile-failure-cleanup", "android-keystore-aes-gcm-token", "ios-this-device-only-keychain-token", "adaptive-navigation"]
       },
       "depends_on": ["leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/daemon-host/daemon-lifecycle"],
       "blockers": [
@@ -1160,7 +1168,7 @@
         { "kind": "source", "path": "apps/leserpent-mobile/src/Leserpent.Mobile.Android", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-mobile/src/Leserpent.Mobile.iOS", "state": "present" }
       ],
-      "next_gate": "Gate 6: compose the native stores with Android/iOS application entry clients, then prove lifecycle and AOT behavior on simulators and physical devices."
+  "next_gate": "Gate 6: compose native stores and parameterized form events with Android/iOS entry clients, then prove lifecycle and AOT behavior on simulators and physical devices."
     },
     {
       "id": "leserpent-2/release-assurance/two-zero-seal",

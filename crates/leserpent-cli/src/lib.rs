@@ -4,14 +4,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use leselang_command::{
-    LoweringContext, PlannedOperation, encode_plan, plan_runtime_history, plan_runtime_inspect,
-    plan_runtime_list, plan_runtime_logs, plan_runtime_refresh,
+    LoweringContext, PlannedOperation, encode_plan, plan_runtime_capabilities_refresh,
+    plan_runtime_deploy, plan_runtime_history, plan_runtime_inspect, plan_runtime_list,
+    plan_runtime_logs, plan_runtime_refresh,
 };
 use leselang_syntax::{format as format_leselang, parse as parse_leselang};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, CommandId, CommandOrigin,
-    CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult, Revision, RuntimeId,
-    RuntimeListFilter,
+    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
+    CommandId, CommandOrigin, CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult,
+    Revision, RuntimeId, RuntimeListFilter,
 };
 use leserpent_protocol::{
     HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope,
@@ -52,6 +53,8 @@ pub enum CliCommand {
     RuntimeLogs(RuntimeId),
     RuntimeWatch(RuntimeWatchOptions),
     RuntimeRefresh(RuntimeRefreshOptions),
+    RuntimeCapabilitiesRefresh(RuntimeRefreshOptions),
+    RuntimeDeploy(RuntimeDeployOptions),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -64,6 +67,19 @@ pub struct RuntimeWatchOptions {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RuntimeRefreshOptions {
     pub runtime_id: RuntimeId,
+    pub expected_revision: Option<Revision>,
+    pub dry_run: bool,
+    pub confirmed: bool,
+    pub idempotency_key: Option<String>,
+    pub export_leselang: bool,
+    pub export_plan: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeDeployOptions {
+    pub runtime_id: RuntimeId,
+    pub pipeline_kind: String,
+    pub target: Option<String>,
     pub expected_revision: Option<Revision>,
     pub dry_run: bool,
     pub confirmed: bool,
@@ -93,7 +109,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -216,7 +232,18 @@ pub fn parse_args_with_remote(
                 None,
             ),
             Some("refresh") => (
-                CliCommand::RuntimeRefresh(parse_runtime_refresh(arguments)?),
+                CliCommand::RuntimeRefresh(parse_runtime_refresh(arguments, "runtime refresh")?),
+                None,
+            ),
+            Some("refresh-capabilities") => (
+                CliCommand::RuntimeCapabilitiesRefresh(parse_runtime_refresh(
+                    arguments,
+                    "runtime refresh-capabilities",
+                )?),
+                None,
+            ),
+            Some("deploy") => (
+                CliCommand::RuntimeDeploy(parse_runtime_deploy(arguments)?),
                 None,
             ),
             Some(command) => {
@@ -252,6 +279,18 @@ pub fn parse_args_with_remote(
                 export_leselang: true,
                 ..
             }) | CliCommand::RuntimeRefresh(RuntimeRefreshOptions {
+                export_plan: true,
+                ..
+            }) | CliCommand::RuntimeCapabilitiesRefresh(RuntimeRefreshOptions {
+                export_leselang: true,
+                ..
+            }) | CliCommand::RuntimeCapabilitiesRefresh(RuntimeRefreshOptions {
+                export_plan: true,
+                ..
+            }) | CliCommand::RuntimeDeploy(RuntimeDeployOptions {
+                export_leselang: true,
+                ..
+            }) | CliCommand::RuntimeDeploy(RuntimeDeployOptions {
                 export_plan: true,
                 ..
             })
@@ -375,6 +414,90 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
                 "Leselang export does not produce a daemon request".into(),
             ));
         }
+        CliCommand::RuntimeCapabilitiesRefresh(refresh)
+            if !refresh.export_leselang && !refresh.export_plan =>
+        {
+            let request_id = new_request_id();
+            let idempotency_key = refresh
+                .idempotency_key
+                .clone()
+                .unwrap_or_else(|| request_id.clone());
+            let plan = plan_runtime_capabilities_refresh(
+                &refresh.runtime_id,
+                &LoweringContext {
+                    principal: Principal {
+                        id: options.principal.clone(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+                    expected_revision: refresh.expected_revision,
+                    command_id: CommandId::new(request_id)
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    idempotency_key: IdempotencyKey::new(idempotency_key)
+                        .map_err(|error| CliError::Usage(error.to_string()))?,
+                    origin: CommandOrigin::Cli,
+                    confirmation: if refresh.confirmed {
+                        Confirmation::Confirmed
+                    } else {
+                        Confirmation::NotRequired
+                    },
+                    dry_run: refresh.dry_run,
+                },
+            )
+            .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+            let PlannedOperation::Command(command) = plan.operation else {
+                return Err(CliError::Protocol(
+                    "runtime capabilities refresh lowered to a non-command operation".into(),
+                ));
+            };
+            ProtocolRequest::Command(command)
+        }
+        CliCommand::RuntimeCapabilitiesRefresh(_) => {
+            return Err(CliError::Usage(
+                "Leselang export does not produce a daemon request".into(),
+            ));
+        }
+        CliCommand::RuntimeDeploy(deploy) if !deploy.export_leselang && !deploy.export_plan => {
+            let request_id = new_request_id();
+            let idempotency_key = deploy
+                .idempotency_key
+                .clone()
+                .unwrap_or_else(|| request_id.clone());
+            let plan = plan_runtime_deploy(
+                &deploy.runtime_id,
+                &deploy.pipeline_kind,
+                deploy.target.as_deref(),
+                &LoweringContext {
+                    principal: Principal {
+                        id: options.principal.clone(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+                    expected_revision: deploy.expected_revision,
+                    command_id: CommandId::new(request_id)
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    idempotency_key: IdempotencyKey::new(idempotency_key)
+                        .map_err(|error| CliError::Usage(error.to_string()))?,
+                    origin: CommandOrigin::Cli,
+                    confirmation: if deploy.confirmed {
+                        Confirmation::Confirmed
+                    } else {
+                        Confirmation::NotRequired
+                    },
+                    dry_run: deploy.dry_run,
+                },
+            )
+            .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
+            let PlannedOperation::Command(command) = plan.operation else {
+                return Err(CliError::Protocol(
+                    "runtime deploy lowered to a non-command operation".into(),
+                ));
+            };
+            ProtocolRequest::Command(command)
+        }
+        CliCommand::RuntimeDeploy(_) => {
+            return Err(CliError::Usage(
+                "Leselang export does not produce a daemon request".into(),
+            ));
+        }
     };
     Ok(RequestEnvelope {
         schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -409,6 +532,19 @@ pub fn export_leselang(options: &CliOptions) -> Option<String> {
             "fn main() = runtime.refresh(runtime_id: {})",
             serde_json::to_string(refresh.runtime_id.as_str())
                 .expect("string encoding cannot fail")
+        )),
+        (CliCommand::RuntimeCapabilitiesRefresh(refresh), _) if refresh.export_leselang => {
+            Some(format!(
+                "fn main() = runtime.refresh_capabilities(runtime_id: {})",
+                serde_json::to_string(refresh.runtime_id.as_str())
+                    .expect("string encoding cannot fail")
+            ))
+        }
+        (CliCommand::RuntimeDeploy(deploy), _) if deploy.export_leselang => Some(format!(
+            "fn main() = runtime.deploy(runtime_id: {}, pipeline_kind: {}, target: {})",
+            serde_json::to_string(deploy.runtime_id.as_str()).expect("string encoding cannot fail"),
+            serde_json::to_string(&deploy.pipeline_kind).expect("string encoding cannot fail"),
+            leselang_optional_string(deploy.target.as_deref()),
         )),
         _ => None,
     }?;
@@ -456,6 +592,62 @@ pub fn export_plan(options: &CliOptions) -> Result<Option<String>, CliError> {
                         Confirmation::NotRequired
                     },
                     dry_run: refresh.dry_run,
+                },
+            )
+        }
+        (CliCommand::RuntimeCapabilitiesRefresh(refresh), _) if refresh.export_plan => {
+            let idempotency_key = refresh
+                .idempotency_key
+                .as_ref()
+                .expect("validated plan export idempotency key");
+            plan_runtime_capabilities_refresh(
+                &refresh.runtime_id,
+                &LoweringContext {
+                    principal: Principal {
+                        id: options.principal.clone(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REFRESH]),
+                    expected_revision: refresh.expected_revision,
+                    command_id: CommandId::new(idempotency_key.clone())
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    idempotency_key: IdempotencyKey::new(idempotency_key.clone())
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    origin: CommandOrigin::Cli,
+                    confirmation: if refresh.confirmed {
+                        Confirmation::Confirmed
+                    } else {
+                        Confirmation::NotRequired
+                    },
+                    dry_run: refresh.dry_run,
+                },
+            )
+        }
+        (CliCommand::RuntimeDeploy(deploy), _) if deploy.export_plan => {
+            let idempotency_key = deploy
+                .idempotency_key
+                .as_ref()
+                .expect("validated plan export idempotency key");
+            plan_runtime_deploy(
+                &deploy.runtime_id,
+                &deploy.pipeline_kind,
+                deploy.target.as_deref(),
+                &LoweringContext {
+                    principal: Principal {
+                        id: options.principal.clone(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+                    expected_revision: deploy.expected_revision,
+                    command_id: CommandId::new(idempotency_key.clone())
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    idempotency_key: IdempotencyKey::new(idempotency_key.clone())
+                        .map_err(|error| CliError::Protocol(error.to_string()))?,
+                    origin: CommandOrigin::Cli,
+                    confirmation: if deploy.confirmed {
+                        Confirmation::Confirmed
+                    } else {
+                        Confirmation::NotRequired
+                    },
+                    dry_run: deploy.dry_run,
                 },
             )
         }
@@ -534,20 +726,28 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             }
             Ok(output.trim_end().to_string())
         }
-        ProtocolResponse::Query(QueryResult::RuntimeInspect { revision, runtime }) => Ok(format!(
-            "revision={} runtime={} name={} endpoint={} refresh_status={} source={}",
-            revision.0,
-            safe_cell(runtime.id.as_str()),
-            safe_cell(&runtime.name),
-            safe_cell(&runtime.endpoint),
-            match runtime.refresh_status {
-                leserpent_domain::RefreshStatus::NeverRequested => "never_requested",
-                leserpent_domain::RefreshStatus::Pending => "pending",
-                leserpent_domain::RefreshStatus::Ready => "ready",
-                leserpent_domain::RefreshStatus::Failed => "failed",
-            },
-            safe_cell(&runtime.status.status_source),
-        )),
+        ProtocolResponse::Query(QueryResult::RuntimeInspect { revision, runtime }) => {
+            let mut output = format!(
+                "revision={} runtime={} name={} endpoint={} refresh_status={} source={}",
+                revision.0,
+                safe_cell(runtime.id.as_str()),
+                safe_cell(&runtime.name),
+                safe_cell(&runtime.endpoint),
+                match runtime.refresh_status {
+                    leserpent_domain::RefreshStatus::NeverRequested => "never_requested",
+                    leserpent_domain::RefreshStatus::Pending => "pending",
+                    leserpent_domain::RefreshStatus::Ready => "ready",
+                    leserpent_domain::RefreshStatus::Failed => "failed",
+                },
+                safe_cell(&runtime.status.status_source),
+            );
+            append_capability_summary(
+                &mut output,
+                &runtime.capabilities,
+                runtime.capabilities_observed_for_revision,
+            );
+            Ok(output)
+        }
         ProtocolResponse::Query(QueryResult::RuntimeHistory { revision, entries }) => {
             let mut output = format!("revision={} entries={}\n", revision.0, entries.len());
             output.push_str("COMMAND\tRUNTIME\tREVISION\tSTATUS\n");
@@ -615,6 +815,54 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
                 leserpent_domain::RefreshStatus::Failed => "failed",
             }
         )),
+    }
+}
+
+fn append_capability_summary(
+    output: &mut String,
+    capabilities: &leserpent_domain::RuntimeCapabilitySnapshot,
+    observed_for_revision: Option<Revision>,
+) {
+    if capabilities.is_unobserved() {
+        output.push_str("\ncapabilities=unobserved capabilities_observed_for_revision=none");
+        return;
+    }
+    let observed_for_revision = observed_for_revision
+        .map(|revision| revision.0.to_string())
+        .unwrap_or_else(|| "legacy-unknown".into());
+    output.push_str(&format!(
+        "\ncapabilities=observed capabilities_observed_for_revision={} service={} version={} latest_snapshot={} authenticated_deployment={} serve_required={} external_sidecar_context={} endpoints={} extensions={}",
+        observed_for_revision,
+        safe_cell(&capabilities.service),
+        safe_cell(&capabilities.version),
+        capabilities.latest_snapshot,
+        capabilities.authenticated_deployment,
+        capabilities.serve_required,
+        capabilities.external_sidecar_context,
+        capabilities.endpoints.len(),
+        capabilities.extensions.len(),
+    ));
+    if !capabilities.endpoints.is_empty() {
+        output.push_str("\ncapability_endpoints=");
+        output.push_str(
+            &capabilities
+                .endpoints
+                .iter()
+                .map(|endpoint| safe_cell(endpoint))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+    }
+    if !capabilities.extensions.is_empty() {
+        output.push_str("\ncapability_extensions=");
+        output.push_str(
+            &capabilities
+                .extensions
+                .iter()
+                .map(|(name, enabled)| format!("{}={enabled}", safe_cell(name)))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
     }
 }
 
@@ -766,10 +1014,11 @@ fn parse_local_export(
 
 fn parse_runtime_refresh(
     mut arguments: impl Iterator<Item = String>,
+    command_name: &str,
 ) -> Result<RuntimeRefreshOptions, CliError> {
     let runtime_id = arguments
         .next()
-        .ok_or_else(|| CliError::Usage("runtime refresh requires RUNTIME_ID".into()))?;
+        .ok_or_else(|| CliError::Usage(format!("{command_name} requires RUNTIME_ID")))?;
     let runtime_id =
         RuntimeId::new(runtime_id).map_err(|error| CliError::Usage(error.to_string()))?;
     let mut expected_revision = None;
@@ -813,7 +1062,7 @@ fn parse_runtime_refresh(
             }
             _ => {
                 return Err(CliError::Usage(format!(
-                    "unknown runtime refresh option '{argument}'"
+                    "unknown {command_name} option '{argument}'"
                 )));
             }
         }
@@ -840,12 +1089,131 @@ fn parse_runtime_refresh(
         ));
     }
     if !export_leselang && !dry_run && !confirmed {
-        return Err(CliError::Usage(
-            "runtime refresh requires --dry-run or explicit --yes confirmation".into(),
-        ));
+        return Err(CliError::Usage(format!(
+            "{command_name} requires --dry-run or explicit --yes confirmation"
+        )));
     }
     Ok(RuntimeRefreshOptions {
         runtime_id,
+        expected_revision,
+        dry_run,
+        confirmed,
+        idempotency_key,
+        export_leselang,
+        export_plan,
+    })
+}
+
+fn parse_runtime_deploy(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<RuntimeDeployOptions, CliError> {
+    let runtime_id = arguments
+        .next()
+        .ok_or_else(|| CliError::Usage("runtime deploy requires RUNTIME_ID".into()))?;
+    let runtime_id =
+        RuntimeId::new(runtime_id).map_err(|error| CliError::Usage(error.to_string()))?;
+    let mut pipeline_kind = None;
+    let mut target = None;
+    let mut target_seen = false;
+    let mut expected_revision = None;
+    let mut dry_run = false;
+    let mut confirmed = false;
+    let mut idempotency_key = None;
+    let mut export_leselang = false;
+    let mut export_plan = false;
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--pipeline-kind" if pipeline_kind.is_none() => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--pipeline-kind requires a value".into()))?;
+                if !valid_deployment_token(&value) {
+                    return Err(CliError::Usage("invalid --pipeline-kind".into()));
+                }
+                pipeline_kind = Some(value);
+            }
+            "--target" if !target_seen => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--target requires a value".into()))?;
+                if !valid_deployment_target(&value) {
+                    return Err(CliError::Usage("invalid --target".into()));
+                }
+                target = Some(value);
+                target_seen = true;
+            }
+            "--expected-revision" if expected_revision.is_none() => {
+                let value = arguments.next().ok_or_else(|| {
+                    CliError::Usage("--expected-revision requires an integer".into())
+                })?;
+                expected_revision = Some(Revision(value.parse::<u64>().map_err(|_| {
+                    CliError::Usage("--expected-revision requires an integer".into())
+                })?));
+            }
+            "--idempotency-key" if idempotency_key.is_none() => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--idempotency-key requires a value".into()))?;
+                if !valid_identifier(&value) {
+                    return Err(CliError::Usage("invalid --idempotency-key".into()));
+                }
+                idempotency_key = Some(value);
+            }
+            "--dry-run" if !dry_run => dry_run = true,
+            "--yes" if !confirmed => confirmed = true,
+            "--export-leselang" if !export_leselang => export_leselang = true,
+            "--export-plan" if !export_plan => export_plan = true,
+            "--pipeline-kind"
+            | "--target"
+            | "--expected-revision"
+            | "--idempotency-key"
+            | "--dry-run"
+            | "--yes"
+            | "--export-leselang"
+            | "--export-plan" => {
+                return Err(CliError::Usage(format!(
+                    "{argument} was provided more than once"
+                )));
+            }
+            _ => {
+                return Err(CliError::Usage(format!(
+                    "unknown runtime deploy option '{argument}'"
+                )));
+            }
+        }
+    }
+    let pipeline_kind = pipeline_kind
+        .ok_or_else(|| CliError::Usage("runtime deploy requires --pipeline-kind".into()))?;
+    if export_leselang
+        && (export_plan
+            || dry_run
+            || confirmed
+            || expected_revision.is_some()
+            || idempotency_key.is_some())
+    {
+        return Err(CliError::Usage(
+            "--export-leselang cannot be combined with execution options".into(),
+        ));
+    }
+    if export_plan && idempotency_key.is_none() {
+        return Err(CliError::Usage(
+            "--export-plan requires --idempotency-key for deterministic output".into(),
+        ));
+    }
+    if dry_run && confirmed {
+        return Err(CliError::Usage(
+            "--dry-run cannot be combined with --yes".into(),
+        ));
+    }
+    if !export_leselang && !dry_run && !confirmed {
+        return Err(CliError::Usage(
+            "runtime deploy requires --dry-run or explicit --yes confirmation".into(),
+        ));
+    }
+    Ok(RuntimeDeployOptions {
+        runtime_id,
+        pipeline_kind,
+        target,
         expected_revision,
         dry_run,
         confirmed,
@@ -940,6 +1308,22 @@ fn valid_identifier(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b':' | b'.'))
 }
 
+fn valid_deployment_token(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value == value.trim()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-'))
+}
+
+fn valid_deployment_target(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value == value.trim()
+        && !value.chars().any(char::is_control)
+}
+
 fn new_request_id() -> String {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -964,6 +1348,8 @@ fn safe_cell(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use leserpent_domain::{Command, Query};
 
     use super::*;
@@ -996,6 +1382,88 @@ mod tests {
         assert_eq!(filter.environment.as_deref(), Some("production"));
         assert_eq!(filter.role.as_deref(), Some("edge"));
         assert!(query.capabilities.contains(CAPABILITY_RUNTIME_READ));
+    }
+
+    #[test]
+    fn inspect_renders_bounded_capabilities_without_adapter_secrets() {
+        let mut control = leserpent_domain::InMemoryControlPlane::default();
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        control.register_runtime(
+            runtime_id.clone(),
+            "Runtime A",
+            "https://configured-origin.invalid",
+        );
+        control
+            .complete_runtime_capability_refresh(
+                &runtime_id,
+                Revision(1),
+                leserpent_domain::RuntimeCapabilitySnapshot {
+                    source: "gewyvern-api".into(),
+                    service: "gewyvern-api".into(),
+                    version: "1.2.0".into(),
+                    latest_snapshot: true,
+                    authenticated_deployment: true,
+                    serve_required: true,
+                    external_sidecar_context: false,
+                    target_path_segment_encoding: "percent-encoding".into(),
+                    target_direct_path_chars: "A-Za-z0-9._~:".into(),
+                    endpoints: vec!["/v1/capabilities".into(), "/v1/deployments".into()],
+                    extensions: BTreeMap::from([
+                        ("protocol_catalog".into(), true),
+                        ("training".into(), false),
+                    ]),
+                },
+            )
+            .unwrap();
+        let query = control
+            .query(leserpent_domain::QueryEnvelope {
+                schema_version: leserpent_domain::DOMAIN_SCHEMA_VERSION,
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                query: Query::RuntimeInspect { runtime_id },
+            })
+            .unwrap();
+        let rendered = render_response(
+            &ResponseEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                response: ProtocolResponse::Query(query),
+            },
+            false,
+        )
+        .unwrap();
+
+        assert!(rendered.contains("capabilities=observed capabilities_observed_for_revision=1"));
+        assert!(rendered.contains("service=gewyvern-api version=1.2.0"));
+        assert!(rendered.contains("capability_endpoints=/v1/capabilities,/v1/deployments"));
+        assert!(rendered.contains("capability_extensions=protocol_catalog=true,training=false"));
+        assert!(!rendered.contains("Authorization"));
+        assert!(!rendered.contains("secret"));
+    }
+
+    #[test]
+    fn capability_summary_marks_legacy_observations_without_inventing_a_revision() {
+        let mut output = String::new();
+        append_capability_summary(
+            &mut output,
+            &leserpent_domain::RuntimeCapabilitySnapshot {
+                source: "gewyvern-api".into(),
+                service: "gewyvern-api".into(),
+                version: "1.2.0".into(),
+                latest_snapshot: true,
+                authenticated_deployment: false,
+                serve_required: true,
+                external_sidecar_context: false,
+                target_path_segment_encoding: "percent-encoding".into(),
+                target_direct_path_chars: "A-Za-z0-9._~:".into(),
+                endpoints: Vec::new(),
+                extensions: BTreeMap::new(),
+            },
+            None,
+        );
+
+        assert!(output.contains("capabilities_observed_for_revision=legacy-unknown"));
     }
 
     #[test]
@@ -1143,6 +1611,78 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn capabilities_refresh_exports_canonical_leselang() {
+        let options = parse_args(
+            [
+                "runtime",
+                "refresh-capabilities",
+                "runtime-a",
+                "--export-leselang",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            None,
+            None,
+        )
+        .unwrap();
+        let source = export_leselang(&options).unwrap();
+        assert_eq!(
+            source,
+            "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")\n"
+        );
+        let program = leselang_hir::lower(&parse_leselang(&source)).unwrap();
+        assert!(matches!(
+            program.function.effect,
+            leselang_hir::Effect::RuntimeCapabilitiesRefresh { runtime_id }
+                if runtime_id.as_str() == "runtime-a"
+        ));
+    }
+
+    #[test]
+    fn deployment_parser_requires_explicit_confirmation_and_canonicalizes_export() {
+        let unconfirmed = parse_args(
+            [
+                "runtime",
+                "deploy",
+                "runtime-a",
+                "--pipeline-kind",
+                "http/request",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some("/tmp/leserpent.sock".into()),
+            None,
+        );
+        assert!(
+            matches!(unconfirmed, Err(CliError::Usage(ref error)) if error.contains("explicit --yes"))
+        );
+
+        let exported = parse_args(
+            [
+                "runtime",
+                "deploy",
+                "runtime-a",
+                "--pipeline-kind",
+                "http/request",
+                "--target",
+                "pid:42",
+                "--export-leselang",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            export_leselang(&exported).as_deref(),
+            Some(
+                "fn main() = runtime.deploy(\n  runtime_id: \"runtime-a\",\n  pipeline_kind: \"http/request\",\n  target: \"pid:42\",\n)\n"
+            )
+        );
     }
 
     #[test]

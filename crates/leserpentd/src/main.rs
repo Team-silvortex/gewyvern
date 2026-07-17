@@ -4,8 +4,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use leserpent_adapters::{
-    EnvironmentSecretStore, GewyvernDeploymentAdapter, GewyvernHealthAdapter,
-    GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore, SecretKey, SecretStore,
+    EnvironmentSecretStore, GewyvernDeploymentAdapter, GewyvernDiscoveryAdapter,
+    GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore,
+    SecretKey, SecretStore,
 };
 use leserpent_runtime::ControlRuntime;
 #[cfg(unix)]
@@ -179,6 +180,10 @@ fn run() -> Result<(), String> {
             ));
         }
         registry.register(GewyvernHealthAdapter::with_secret_store(
+            targets.clone(),
+            secrets.clone(),
+        )?)?;
+        registry.register(GewyvernDiscoveryAdapter::with_secret_store(
             targets.clone(),
             secrets.clone(),
         )?)?;

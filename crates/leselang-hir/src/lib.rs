@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use leselang_syntax::{Expression, Span, SyntaxTree};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, RuntimeId,
-    RuntimeListFilter,
+    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
+    RuntimeId, RuntimeListFilter,
 };
 use serde::{Deserialize, Serialize};
 
@@ -33,12 +33,32 @@ pub struct HirBranch {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Effect {
-    RuntimeList { filter: RuntimeListFilter },
-    RuntimeInspect { runtime_id: RuntimeId },
-    RuntimeHistory { runtime_id: RuntimeId },
-    RuntimeLogs { runtime_id: RuntimeId },
-    RuntimeRefresh { runtime_id: RuntimeId },
-    All { branches: Vec<HirBranch> },
+    RuntimeList {
+        filter: RuntimeListFilter,
+    },
+    RuntimeInspect {
+        runtime_id: RuntimeId,
+    },
+    RuntimeHistory {
+        runtime_id: RuntimeId,
+    },
+    RuntimeLogs {
+        runtime_id: RuntimeId,
+    },
+    RuntimeRefresh {
+        runtime_id: RuntimeId,
+    },
+    RuntimeCapabilitiesRefresh {
+        runtime_id: RuntimeId,
+    },
+    RuntimeDeploy {
+        runtime_id: RuntimeId,
+        pipeline_kind: String,
+        target: Option<String>,
+    },
+    All {
+        branches: Vec<HirBranch>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -49,6 +69,8 @@ pub enum Type {
     RuntimeHistory,
     RuntimeLogs,
     RuntimeRefresh,
+    RuntimeCapabilitiesRefresh,
+    RuntimeDeploy,
     Structured,
 }
 
@@ -109,8 +131,13 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         }]);
     };
     match callee.as_str() {
-        "runtime.list" | "runtime.inspect" | "runtime.history" | "runtime.logs"
-        | "runtime.refresh" => lower_runtime_effect(callee, arguments, *span),
+        "runtime.list"
+        | "runtime.inspect"
+        | "runtime.history"
+        | "runtime.logs"
+        | "runtime.refresh"
+        | "runtime.refresh_capabilities"
+        | "runtime.deploy" => lower_runtime_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -128,6 +155,8 @@ fn lower_runtime_effect(
     let mut seen = BTreeSet::new();
     let mut filter = RuntimeListFilter::default();
     let mut runtime_id = None;
+    let mut pipeline_kind = None;
+    let mut target = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
         if !seen.insert(argument.name.as_str()) {
@@ -155,13 +184,37 @@ fn lower_runtime_effect(
             ("runtime.list", "cluster") => filter.cluster = value,
             ("runtime.list", "role") => filter.role = value,
             (
-                "runtime.inspect" | "runtime.history" | "runtime.logs" | "runtime.refresh",
+                "runtime.inspect"
+                | "runtime.history"
+                | "runtime.logs"
+                | "runtime.refresh"
+                | "runtime.refresh_capabilities"
+                | "runtime.deploy",
                 "runtime_id",
             ) => match value.and_then(|value| RuntimeId::new(value).ok()) {
                 Some(value) => runtime_id = Some(value),
                 None => diagnostics.push(Diagnostic {
                     code: "LSH1104".to_string(),
                     message: format!("{callee} runtime_id must be a valid identifier string"),
+                    span: Some(argument.span),
+                }),
+            },
+            ("runtime.deploy", "pipeline_kind") => match value {
+                Some(value) if valid_deployment_token(&value) => pipeline_kind = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1106".to_string(),
+                    message: "runtime.deploy pipeline_kind must be a valid token string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("runtime.deploy", "target") => match value {
+                Some(value) if valid_deployment_target(&value) => target = Some(value),
+                None => target = None,
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1107".to_string(),
+                    message: "runtime.deploy target must be a bounded text string or none"
+                        .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -174,13 +227,25 @@ fn lower_runtime_effect(
     }
     if matches!(
         callee,
-        "runtime.inspect" | "runtime.history" | "runtime.logs" | "runtime.refresh"
+        "runtime.inspect"
+            | "runtime.history"
+            | "runtime.logs"
+            | "runtime.refresh"
+            | "runtime.refresh_capabilities"
+            | "runtime.deploy"
     ) && runtime_id.is_none()
         && diagnostics.is_empty()
     {
         diagnostics.push(Diagnostic {
             code: "LSH1105".to_string(),
             message: format!("{callee} requires runtime_id"),
+            span: Some(span),
+        });
+    }
+    if callee == "runtime.deploy" && pipeline_kind.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1108".to_string(),
+            message: "runtime.deploy requires pipeline_kind".to_string(),
             span: Some(span),
         });
     }
@@ -224,6 +289,22 @@ fn lower_runtime_effect(
             Type::RuntimeRefresh,
             CAPABILITY_RUNTIME_REFRESH,
         ),
+        "runtime.refresh_capabilities" => (
+            Effect::RuntimeCapabilitiesRefresh {
+                runtime_id: runtime_id.expect("validated runtime.refresh_capabilities identifier"),
+            },
+            Type::RuntimeCapabilitiesRefresh,
+            CAPABILITY_RUNTIME_REFRESH,
+        ),
+        "runtime.deploy" => (
+            Effect::RuntimeDeploy {
+                runtime_id: runtime_id.expect("validated runtime.deploy identifier"),
+                pipeline_kind: pipeline_kind.expect("validated runtime.deploy pipeline kind"),
+                target,
+            },
+            Type::RuntimeDeploy,
+            CAPABILITY_RUNTIME_DEPLOY,
+        ),
         _ => unreachable!("unknown effects returned above"),
     };
     Ok(LoweredEffect {
@@ -231,6 +312,22 @@ fn lower_runtime_effect(
         result_type,
         required_capabilities: vec![required_capability.to_string()],
     })
+}
+
+fn valid_deployment_token(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value == value.trim()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'/' | b'_' | b'-'))
+}
+
+fn valid_deployment_target(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value == value.trim()
+        && !value.chars().any(char::is_control)
 }
 
 fn lower_all(
@@ -448,6 +545,39 @@ mod tests {
             "fn main() = runtime.logs()",
             "fn main() = runtime.logs(runtime_id: none)",
             "fn main() = runtime.logs(runtime_id: \"bad/id\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn runtime_deploy_lowers_a_bounded_explicit_intent() {
+        let program = lower(&parse(
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: \"pid:42\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::RuntimeDeploy);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_RUNTIME_DEPLOY]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::RuntimeDeploy {
+                ref runtime_id,
+                ref pipeline_kind,
+                target: Some(ref target),
+            } if runtime_id.as_str() == "runtime-a"
+                && pipeline_kind == "http/request"
+                && target == "pid:42"
+        ));
+        for source in [
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\")",
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: none)",
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"bad kind\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
