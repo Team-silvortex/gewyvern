@@ -29,6 +29,12 @@ if (args.Length is 4 or 6 && args[0] == "--connect")
     var token = Environment.GetEnvironmentVariable("LESERPENT_REMOTE_TOKEN")
         ?? throw new InvalidOperationException("LESERPENT_REMOTE_TOKEN is required");
     var options = RemoteClientOptions.Create(endpoint, certificate, token, cache);
+    using (var healthClient = new RemoteHealthClient(options))
+    {
+        var preflightHealth = await healthClient.CheckAsync();
+        Console.WriteLine(
+            $"remote health valid: status={preflightHealth.Status}, authority_owned={preflightHealth.AuthorityOwned.ToString().ToLowerInvariant()}, protocol_schema_version={preflightHealth.ProtocolSchemaVersion}, queue_present={(preflightHealth.EffectQueue is not null).ToString().ToLowerInvariant()}");
+    }
     await using var client = new RemoteEventClient(options);
     var completed = new TaskCompletionSource<RemoteFeedState>(
         TaskCreationOptions.RunContinuationsAsynchronously);
@@ -146,6 +152,36 @@ if (args.Length != 0)
 }
 
 var snapshot = RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.SnapshotJson));
+var fixtureHealth = RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.HealthJson));
+Require(fixtureHealth is
+{
+    Status: "ready",
+    AuthorityOwned: true,
+    ProtocolSchemaVersion: 1,
+    EffectQueue.Active: 1,
+    EffectQueue.Terminal: 5,
+}, "health codec did not preserve authority and queue state");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.HealthJson.Replace(
+        "\"active\": 1",
+        "\"active\": 2",
+        StringComparison.Ordinal))),
+    "health codec accepted inconsistent active counters");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.HealthJson.Replace(
+        "\"authority_owned\": true",
+        "\"authority_owned\": false",
+        StringComparison.Ordinal))),
+    "health codec accepted an unowned authority");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.HealthJson.Replace(
+        "\"effect_queue\": {",
+        "\"unexpected\": true, \"effect_queue\": {",
+        StringComparison.Ordinal))),
+    "health codec accepted an unknown field");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(
+    new byte[RemoteEventCodec.MaxMessageBytes + 1]),
+    "health codec accepted an oversized response");
 Require(snapshot is RemoteEvent.Snapshot
 {
     Revision: 7,
@@ -356,7 +392,9 @@ RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
     "runtime-a"),
     "workspace accepted an oversized log message");
 
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, credential_mutation=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false");
+Console.WriteLine(
+    "remote health conformance valid: codec=true, fail_closed=true, queue_consistent=true");
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false");
 return 0;
 
 static void Require(bool condition, string message)
@@ -383,6 +421,30 @@ static void RequireThrows<TException>(Action action, string message)
 
 static class Fixtures
 {
+public const string HealthJson = """
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "health",
+    "payload": {
+      "status": "ready",
+      "authority_owned": true,
+      "protocol_schema_version": 1,
+      "effect_queue": {
+        "ready": 1,
+        "leased": 0,
+        "completed": 3,
+        "failed": 2,
+        "active": 1,
+        "terminal": 5,
+        "capacity": 10,
+        "saturated": false
+      }
+    }
+  }
+}
+""";
+
 public static byte[] InspectResponse(
     ulong revision,
     string runtimeId,

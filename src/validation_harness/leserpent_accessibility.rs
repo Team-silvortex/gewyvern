@@ -38,7 +38,7 @@ pub fn run_leserpent_accessibility_validation(
             .current_dir(&root)
             .arg("restore")
             .arg(&app)
-            .args(["-p:PublishProfile=NativeAot", "--locked-mode"]),
+            .arg("--locked-mode"),
         &out_dir.join("restore.log"),
         "locked Avalonia restore failed",
     )?;

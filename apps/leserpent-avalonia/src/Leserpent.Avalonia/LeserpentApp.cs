@@ -153,14 +153,25 @@ internal sealed class LeserpentApp : Application
     {
         var fixtureToken = new string('t', 32);
         DesktopConnectionRequest? submitted = null;
+        var testCount = 0;
         var window = new DesktopConnectionWindow(null, null, request =>
         {
             submitted = request;
             return "verification only";
+        }, (_, _) =>
+        {
+            testCount++;
+            return Task.FromResult<string?>(null);
         });
-        window.Opened += (_, _) =>
+        window.Opened += async (_, _) =>
         {
             window.VerifyAccessibility();
+            await window.ProbeConnectionTestAsync();
+            if (testCount != 1)
+            {
+                throw new InvalidDataException(
+                    "desktop connection test was not invoked exactly once");
+            }
             window.ProbeSecureTokenSubmission(fixtureToken);
             if (submitted?.Token != fixtureToken)
             {
@@ -168,7 +179,7 @@ internal sealed class LeserpentApp : Application
                     "desktop connection did not submit the protected token");
             }
             Console.WriteLine(
-                "desktop connection controls valid: controls=8, automation_ids=8, automation_names=8, live_region=true, token_input=secure, token_cleared=true");
+                "desktop connection controls valid: controls=9, automation_ids=9, automation_names=9, live_region=true, token_input=secure, token_cleared=true, connection_test=true, test_side_effects=false");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -188,6 +199,7 @@ internal sealed class LeserpentApp : Application
             profile,
             null,
             _ => "verification only",
+            (_, _) => Task.FromResult<string?>(null),
             null,
             () => "verification only");
         window.Opened += (_, _) =>
@@ -196,7 +208,7 @@ internal sealed class LeserpentApp : Application
             new DesktopForgetConnectionWindow(profile.Endpoint, () => null)
                 .VerifyAccessibility();
             Console.WriteLine(
-                "desktop connection management controls valid: settings_controls=9, confirmation_controls=3, automation_ids=true, automation_names=true, forget_confirmation=true, endpoint_scoped=true");
+                "desktop connection management controls valid: settings_controls=10, confirmation_controls=3, automation_ids=true, automation_names=true, forget_confirmation=true, endpoint_scoped=true, connection_test=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -352,6 +364,7 @@ internal sealed class LeserpentApp : Application
                             RemoteTokenResolver.EnvironmentVariable));
                 }
             },
+            TestConnectionAsync,
             isInitialSetup ? () => desktop.TryShutdown(0) : null,
             profile is null ? null : () => ForgetSavedConnection(profile, store));
         if (isInitialSetup)
@@ -373,6 +386,36 @@ internal sealed class LeserpentApp : Application
         IClassicDesktopStyleApplicationLifetime desktop,
         DesktopProductStartupPlan plan) =>
         new(plan.Options, plan.TokenSource, () => ShowConnectionManager(desktop));
+
+    private static async Task<string?> TestConnectionAsync(
+        DesktopConnectionRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var endpoint = RemoteClientOptions.ParseEndpoint(request.Endpoint);
+            var token = request.Token ?? RemoteTokenResolver.Resolve(endpoint).Value;
+            var options = RemoteClientOptions.Create(
+                request.Endpoint,
+                Path.GetFullPath(request.CertificateAuthorityPath),
+                token);
+            using var client = new RemoteHealthClient(options);
+            await client.CheckAsync(cancellationToken);
+            return null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            return StartupFailure.Describe(
+                error,
+                request.Token,
+                Environment.GetEnvironmentVariable(
+                    RemoteTokenResolver.EnvironmentVariable));
+        }
+    }
 
     private static string? ForgetSavedConnection(
         DesktopConnectionProfile profile,

@@ -46,8 +46,13 @@ Build the Avalonia 12 desktop shell and verify its real control tree without
 leaving a window open:
 
 ```bash
+dotnet restore \
+  apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
+  --locked-mode
+
 dotnet build \
-  apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj
+  apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
+  --no-restore
 
 dotnet run --project \
   apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
@@ -101,6 +106,18 @@ instead of terminating with an unhandled exception. `Escape` and the explicit
 close button exit with status 2. Its real control metadata can be checked with
 `dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-startup-error`.
 
+The connection window can test an authority before committing the profile.
+`Test connection` validates the selected CA, endpoint-scoped credential,
+wire-v1 protocol version, ready state, authority ownership, and effect-queue
+counter consistency. The preflight does not import the CA, save the profile, or
+write the credential; those side effects remain exclusive to `Connect`.
+
+Once connected, the trust identity bar runs the same authenticated health check
+and exposes current effect-queue pressure as `QUEUE active/capacity`. Operators
+can refresh it without changing remote state. Saturation is shown explicitly,
+uses an assertive accessibility announcement, and remains independent from
+runtime mutation fences.
+
 The remote desktop toolbar filters the local runtime projection by name, ID,
 tag, or status. Input is bounded to 128 characters and debounced; `Ctrl+F` or
 `Cmd+F` focuses it, Escape clears it, and no filter text is sent to the server
@@ -128,7 +145,9 @@ labels on every action button, exact HelpText mapping, and a WCAG AA text
 contrast floor of 4.5. Evidence is retained under
 `target/validation/leserpent-accessibility/`. The current minimum is 4.723;
 the destructive button uses `#C44D2D` with white text instead of the previous
-3.841-contrast color.
+3.841-contrast color. This managed Release shelf restores the development lock
+graph; `leserpent-aot` independently runs the same four control fixtures
+against the native executable restored from the AOT lock graph.
 
 The smoke fixture mounts revision 3, then applies remove, update, move, and
 insert operations directly to the mounted control tree. Each runtime card
@@ -343,12 +362,17 @@ The desktop shell has a checked NativeAOT profile. Restore the complete locked
 RID graph first, then publish for the current host RID without another restore.
 Do not cross-compile platform UI dependencies:
 
+The project deliberately keeps separate lock graphs: ordinary desktop builds
+use `packages.development.lock.json`, while `PublishAot=true` selects
+`packages.lock.json` with the pinned IL compiler, linker, and RID packs. This
+prevents a normal IDE or probe restore from rewriting the release graph.
+
 ```bash
 RID=osx-arm64 # or linux-x64
 
 dotnet restore \
   apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
-  -p:PublishProfile=NativeAot --locked-mode
+  -p:PublishProfile=NativeAot -p:PublishAot=true --locked-mode
 
 dotnet publish \
   apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \

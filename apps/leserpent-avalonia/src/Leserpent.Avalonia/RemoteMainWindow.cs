@@ -10,6 +10,7 @@ internal sealed class RemoteMainWindow : Window
     private const int MaxOpenWorkspaces = 8;
     private readonly AvaloniaDocumentRenderer renderer;
     private readonly RemoteEventClient eventClient;
+    private readonly RemoteHealthClient healthClient;
     private readonly RemoteMutationClient mutationClient;
     private readonly RemoteClientOptions options;
     private readonly Dictionary<string, RemoteRuntimeWorkspaceWindow> workspaceWindows =
@@ -18,6 +19,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly string principal;
     private RemoteFeedState currentState;
     private bool isClosed;
+    private bool healthInFlight;
     private bool mutationInFlight;
     private MutationObservationFence? mutationObservationFence;
     private MutationRevisionFence? mutationRevisionFence;
@@ -93,6 +95,24 @@ internal sealed class RemoteMainWindow : Window
         FontSize = 11,
         FontWeight = FontWeight.SemiBold,
     };
+    private readonly TextBlock authorityHealthText = new()
+    {
+        Foreground = LeserpentTheme.Muted,
+        FontSize = 11,
+        FontWeight = FontWeight.Bold,
+        Text = "AUTHORITY / awaiting check",
+    };
+    private readonly Button authorityHealthButton = new()
+    {
+        Content = "Refresh health",
+        Padding = new Thickness(12, 6),
+    };
+    private readonly StackPanel authorityHealthPanel = new()
+    {
+        Orientation = Avalonia.Layout.Orientation.Horizontal,
+        Spacing = 10,
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+    };
     private readonly TextBlock runtimeCountText = new()
     {
         Foreground = LeserpentTheme.Muted,
@@ -128,6 +148,7 @@ internal sealed class RemoteMainWindow : Window
 
         renderer = new AvaloniaDocumentRenderer(OnActionInvoked);
         eventClient = new RemoteEventClient(options);
+        healthClient = new RemoteHealthClient(options);
         mutationClient = new RemoteMutationClient(options);
         ConfigureTrustIdentity(eventClient.TrustIdentity);
         principal = Environment.GetEnvironmentVariable("LESERPENT_PRINCIPAL")
@@ -141,6 +162,7 @@ internal sealed class RemoteMainWindow : Window
         runtimeFilterBox.TextChanged += OnRuntimeFilterChanged;
         runtimeFilterBox.KeyDown += OnRuntimeFilterKeyDown;
         clearRuntimeFilterButton.Click += (_, _) => ClearRuntimeFilter();
+        authorityHealthButton.Click += (_, _) => RefreshAuthorityHealth();
         ConfigureCredentialSource(tokenSource);
 
         AutomationProperties.SetAutomationId(statusText, "remote-connection-state");
@@ -183,6 +205,24 @@ internal sealed class RemoteMainWindow : Window
             clearRuntimeFilterButton,
             "remote-runtime-filter-clear");
         AutomationProperties.SetName(clearRuntimeFilterButton, "Clear runtime filter");
+        AutomationProperties.SetAutomationId(
+            authorityHealthText,
+            "remote-authority-health");
+        AutomationProperties.SetName(
+            authorityHealthText,
+            "Remote authority health has not been checked");
+        AutomationProperties.SetLiveSetting(
+            authorityHealthText,
+            AutomationLiveSetting.Polite);
+        AutomationProperties.SetAutomationId(
+            authorityHealthButton,
+            "remote-authority-health-refresh");
+        AutomationProperties.SetName(
+            authorityHealthButton,
+            "Refresh remote authority health");
+        AutomationProperties.SetHelpText(
+            authorityHealthButton,
+            "Checks authority ownership, protocol readiness, and effect queue pressure without changing remote state.");
         Content = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("*,Auto,Auto"),
@@ -196,7 +236,11 @@ internal sealed class RemoteMainWindow : Window
         ApplyResponsiveLayout(RemoteResponsiveLayout.Select(Width));
         ApplyState(currentState);
         eventClient.StateChanged += OnStateChanged;
-        Opened += (_, _) => eventClient.Start();
+        Opened += (_, _) =>
+        {
+            eventClient.Start();
+            RefreshAuthorityHealth();
+        };
         KeyDown += OnKeyDown;
         SizeChanged += (_, eventArgs) => ApplyResponsiveLayout(
             RemoteResponsiveLayout.Select(eventArgs.NewSize.Width));
@@ -208,6 +252,9 @@ internal sealed class RemoteMainWindow : Window
         identityGrid.ColumnSpacing = 14;
         identityGrid.Children.Add(remoteOriginText);
         identityGrid.Children.Add(caFingerprintText);
+        authorityHealthPanel.Children.Add(authorityHealthText);
+        authorityHealthPanel.Children.Add(authorityHealthButton);
+        identityGrid.Children.Add(authorityHealthPanel);
         var identity = new Border
         {
             Background = LeserpentTheme.Panel,
@@ -283,8 +330,10 @@ internal sealed class RemoteMainWindow : Window
             ? new Thickness(18, 16)
             : new Thickness(32, 28);
 
-        identityGrid.ColumnDefinitions = ColumnDefinitions.Parse(compact ? "*" : "*,Auto");
-        identityGrid.RowDefinitions = RowDefinitions.Parse(compact ? "Auto,Auto" : "Auto");
+        identityGrid.ColumnDefinitions = ColumnDefinitions.Parse(
+            compact ? "*" : "*,Auto,Auto");
+        identityGrid.RowDefinitions = RowDefinitions.Parse(
+            compact ? "Auto,Auto,Auto" : "Auto");
         Grid.SetColumn(remoteOriginText, 0);
         Grid.SetRow(remoteOriginText, 0);
         Grid.SetColumnSpan(remoteOriginText, 1);
@@ -292,6 +341,11 @@ internal sealed class RemoteMainWindow : Window
         Grid.SetRow(caFingerprintText, compact ? 1 : 0);
         caFingerprintText.Margin = compact
             ? new Thickness(0, 6, 0, 0)
+            : new Thickness(0);
+        Grid.SetColumn(authorityHealthPanel, compact ? 0 : 2);
+        Grid.SetRow(authorityHealthPanel, compact ? 2 : 0);
+        authorityHealthPanel.Margin = compact
+            ? new Thickness(0, 8, 0, 0)
             : new Thickness(0);
 
         runtimeToolbarGrid.ColumnDefinitions = ColumnDefinitions.Parse(
@@ -492,6 +546,75 @@ internal sealed class RemoteMainWindow : Window
     }
 
     private void RequestReconnect() => ObserveUiOperation(RequestReconnectAsync());
+
+    private void RefreshAuthorityHealth() =>
+        ObserveHealthOperation(RefreshAuthorityHealthAsync());
+
+    private async Task RefreshAuthorityHealthAsync()
+    {
+        if (healthInFlight || isClosed)
+        {
+            return;
+        }
+        healthInFlight = true;
+        authorityHealthButton.IsEnabled = false;
+        authorityHealthText.Text = "AUTHORITY / checking";
+        authorityHealthText.Foreground = LeserpentTheme.Muted;
+        AutomationProperties.SetName(
+            authorityHealthText,
+            "Checking remote authority health");
+        try
+        {
+            var health = await healthClient.CheckAsync(lifetime.Token);
+            if (isClosed)
+            {
+                return;
+            }
+            var presentation = AuthorityHealthPresentation.Create(health);
+            authorityHealthText.Text = presentation.Label;
+            authorityHealthText.Foreground = presentation.IsSaturated
+                ? LeserpentTheme.Destructive
+                : LeserpentTheme.Accent;
+            AutomationProperties.SetName(
+                authorityHealthText,
+                presentation.AutomationName);
+            AutomationProperties.SetLiveSetting(
+                authorityHealthText,
+                presentation.IsSaturated
+                    ? AutomationLiveSetting.Assertive
+                    : AutomationLiveSetting.Polite);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            // Window shutdown owns this cancellation.
+        }
+        catch (Exception error) when (error is
+            ArgumentException
+            or HttpRequestException
+            or InvalidDataException
+            or IOException)
+        {
+            if (!isClosed)
+            {
+                authorityHealthText.Text = "AUTHORITY / unavailable";
+                authorityHealthText.Foreground = LeserpentTheme.Destructive;
+                AutomationProperties.SetName(
+                    authorityHealthText,
+                    $"Remote authority health unavailable: {SafeDisplay(error.Message)}");
+                AutomationProperties.SetLiveSetting(
+                    authorityHealthText,
+                    AutomationLiveSetting.Assertive);
+            }
+        }
+        finally
+        {
+            healthInFlight = false;
+            if (!isClosed)
+            {
+                authorityHealthButton.IsEnabled = true;
+            }
+        }
+    }
 
     private async Task RequestReconnectAsync()
     {
@@ -1036,6 +1159,7 @@ internal sealed class RemoteMainWindow : Window
         {
             workspace.Close();
         }
+        healthClient.Dispose();
         mutationClient.Dispose();
         ObserveShutdown(eventClient.DisposeAsync());
     }
@@ -1057,6 +1181,29 @@ internal sealed class RemoteMainWindow : Window
         catch (Exception) when (isClosed)
         {
             // Closing the window invalidates dialogs, controls, and clients together.
+        }
+    }
+
+    private async void ObserveHealthOperation(Task operation)
+    {
+        try
+        {
+            await operation;
+        }
+        catch (Exception) when (!isClosed)
+        {
+            authorityHealthText.Text = "AUTHORITY / unavailable";
+            authorityHealthText.Foreground = LeserpentTheme.Destructive;
+            AutomationProperties.SetName(
+                authorityHealthText,
+                "Remote authority health failed safely");
+            AutomationProperties.SetLiveSetting(
+                authorityHealthText,
+                AutomationLiveSetting.Assertive);
+        }
+        catch (Exception) when (isClosed)
+        {
+            // Closing the window invalidates the health client and controls together.
         }
     }
 
@@ -1132,6 +1279,37 @@ internal sealed class RemoteMainWindow : Window
         string RuntimeId,
         ulong Revision,
         bool RequiresLaterCapabilityObservation);
+
+    internal sealed record AuthorityHealthPresentation(
+        string Label,
+        string AutomationName,
+        bool IsSaturated)
+    {
+        public static AuthorityHealthPresentation Create(RemoteHealth health)
+        {
+            if (health.Status != "ready"
+                || !health.AuthorityOwned
+                || health.ProtocolSchemaVersion != 1)
+            {
+                throw new InvalidDataException(
+                    "authority health presentation requires a ready protocol-v1 authority");
+            }
+            if (health.EffectQueue is not { } queue)
+            {
+                return new AuthorityHealthPresentation(
+                    "AUTHORITY / ready",
+                    "Remote authority ready; effect queue metrics unavailable",
+                    false);
+            }
+            var label = queue.Saturated
+                ? $"QUEUE SATURATED / {queue.Active}/{queue.Capacity}"
+                : $"QUEUE / {queue.Active}/{queue.Capacity}";
+            return new AuthorityHealthPresentation(
+                label,
+                $"Remote authority ready; effect queue active {queue.Active} of {queue.Capacity}; saturated {queue.Saturated.ToString().ToLowerInvariant()}",
+                queue.Saturated);
+        }
+    }
 
     private sealed record MutationObservationFence(
         string RuntimeId,

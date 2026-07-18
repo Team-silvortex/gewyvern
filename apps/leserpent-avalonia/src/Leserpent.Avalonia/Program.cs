@@ -26,6 +26,35 @@ internal static class Program
                 "remote responsive layout valid: min_width=compact, breakpoint=780, default_width=wide");
             return 0;
         }
+        if (args is ["--verify-authority-health-presentation"])
+        {
+            var ready = RemoteMainWindow.AuthorityHealthPresentation.Create(
+                new RemoteHealth("ready", true, 1, null));
+            var nominal = RemoteMainWindow.AuthorityHealthPresentation.Create(
+                new RemoteHealth(
+                    "ready",
+                    true,
+                    1,
+                    new RemoteEffectQueueHealth(2, 1, 4, 0, 3, 4, 16, false)));
+            var saturated = RemoteMainWindow.AuthorityHealthPresentation.Create(
+                new RemoteHealth(
+                    "ready",
+                    true,
+                    1,
+                    new RemoteEffectQueueHealth(16, 0, 4, 0, 16, 4, 16, true)));
+            if (ready.Label != "AUTHORITY / ready"
+                || nominal.Label != "QUEUE / 3/16"
+                || nominal.IsSaturated
+                || saturated.Label != "QUEUE SATURATED / 16/16"
+                || !saturated.IsSaturated)
+            {
+                throw new InvalidDataException(
+                    "authority health presentation contract drifted");
+            }
+            Console.WriteLine(
+                "authority health presentation valid: ready=true, queue_pressure=true, saturation_visible=true, endpoint_retained=false");
+            return 0;
+        }
         if (args is ["--verify-remote-mutation-fence"])
         {
             RemoteMainWindow.VerifyMutationFenceContract();

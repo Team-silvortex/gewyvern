@@ -14,8 +14,11 @@ internal sealed record DesktopConnectionRequest(
 internal sealed class DesktopConnectionWindow : Window
 {
     private readonly Func<DesktopConnectionRequest, string?> connect;
+    private readonly Func<DesktopConnectionRequest, CancellationToken, Task<string?>>
+        testConnection;
     private readonly DesktopConnectionProfile? savedProfile;
     private readonly Func<string?>? forgetSavedConnection;
+    private readonly CancellationTokenSource lifetime = new();
     private readonly List<Control> auditedControls = [];
     private readonly TextBox endpoint = new()
     {
@@ -60,15 +63,24 @@ internal sealed class DesktopConnectionWindow : Window
         FontWeight = FontWeight.SemiBold,
         Padding = new Thickness(18, 9),
     };
+    private readonly Button testButton = new()
+    {
+        Content = "Test connection",
+        Padding = new Thickness(18, 9),
+    };
+    private bool operationInFlight;
+    private bool isClosed;
 
     public DesktopConnectionWindow(
         DesktopConnectionProfile? profile,
         string? initialError,
         Func<DesktopConnectionRequest, string?> connect,
+        Func<DesktopConnectionRequest, CancellationToken, Task<string?>> testConnection,
         Action? closeWindow = null,
         Func<string?>? forgetSavedConnection = null)
     {
         this.connect = connect;
+        this.testConnection = testConnection;
         savedProfile = profile;
         this.forgetSavedConnection = forgetSavedConnection;
         Title = "Leserpent / Connect";
@@ -102,6 +114,7 @@ internal sealed class DesktopConnectionWindow : Window
         browse.Click += async (_, _) => await ChooseCertificateAsync();
         close.Click += (_, _) => (closeWindow ?? Close)();
         forget.Click += async (_, _) => await ConfirmForgetAsync(forget);
+        testButton.Click += async (_, _) => await TestConnectionAsync();
         connectButton.Click += (_, _) => Submit();
         KeyDown += (_, eventArgs) =>
         {
@@ -112,6 +125,12 @@ internal sealed class DesktopConnectionWindow : Window
             }
         };
         Opened += (_, _) => endpoint.Focus();
+        Closed += (_, _) =>
+        {
+            isClosed = true;
+            lifetime.Cancel();
+            lifetime.Dispose();
+        };
 
         AutomationProperties.SetAutomationId(endpoint, "desktop-connect-endpoint");
         AutomationProperties.SetName(endpoint, "Remote HTTPS authority");
@@ -125,6 +144,11 @@ internal sealed class DesktopConnectionWindow : Window
         AutomationProperties.SetName(remember, "Remember non-secret connection profile");
         AutomationProperties.SetAutomationId(connectButton, "desktop-connect-submit");
         AutomationProperties.SetName(connectButton, "Connect to remote authority");
+        AutomationProperties.SetAutomationId(testButton, "desktop-connect-test");
+        AutomationProperties.SetName(testButton, "Test remote authority connection");
+        AutomationProperties.SetHelpText(
+            testButton,
+            "Checks TLS, authentication, protocol version, and authority readiness without saving the connection.");
         AutomationProperties.SetAutomationId(close, "desktop-connect-close");
         AutomationProperties.SetName(
             close,
@@ -135,7 +159,7 @@ internal sealed class DesktopConnectionWindow : Window
         AutomationProperties.SetName(status, "Connection setup status");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
         auditedControls.AddRange(
-            [endpoint, certificate, token, browse, remember, connectButton, close, status]);
+            [endpoint, certificate, token, browse, remember, testButton, connectButton, close, status]);
         if (forget.IsVisible)
         {
             auditedControls.Add(forget);
@@ -153,7 +177,7 @@ internal sealed class DesktopConnectionWindow : Window
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 12,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-            Children = { close, connectButton },
+            Children = { close, testButton, connectButton },
         };
         Content = new Border
         {
@@ -221,7 +245,7 @@ internal sealed class DesktopConnectionWindow : Window
                     "desktop connection control accessibility metadata is incomplete");
             }
         }
-        var expectedControlCount = forgetSavedConnection is null || savedProfile is null ? 8 : 9;
+        var expectedControlCount = forgetSavedConnection is null || savedProfile is null ? 9 : 10;
         if (auditedControls.Count != expectedControlCount
             || token.PasswordChar == default
             || AutomationProperties.GetLiveSetting(status) != AutomationLiveSetting.Assertive)
@@ -237,6 +261,17 @@ internal sealed class DesktopConnectionWindow : Window
         if (!string.IsNullOrEmpty(token.Text))
         {
             throw new InvalidDataException("desktop token input was retained after submission");
+        }
+    }
+
+    public async Task ProbeConnectionTestAsync()
+    {
+        await TestConnectionAsync();
+        if (!status.IsVisible
+            || status.Text != "Connection verified. The remote authority is ready."
+            || operationInFlight)
+        {
+            throw new InvalidDataException("desktop connection test contract drifted");
         }
     }
 
@@ -292,22 +327,90 @@ internal sealed class DesktopConnectionWindow : Window
 
     private void Submit()
     {
+        if (operationInFlight)
+        {
+            return;
+        }
+        operationInFlight = true;
         connectButton.IsEnabled = false;
+        testButton.IsEnabled = false;
         status.IsVisible = false;
-        var submittedToken = string.IsNullOrWhiteSpace(token.Text)
-            ? null
-            : token.Text;
-        token.Text = string.Empty;
-        var error = connect(new DesktopConnectionRequest(
-            endpoint.Text?.Trim() ?? string.Empty,
-            certificate.Text?.Trim() ?? string.Empty,
-            submittedToken,
-            remember.IsChecked == true));
+        var error = connect(Request(clearToken: true));
         if (error is not null)
         {
             ShowError(error);
             connectButton.IsEnabled = true;
+            testButton.IsEnabled = true;
+            operationInFlight = false;
         }
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        if (operationInFlight || isClosed)
+        {
+            return;
+        }
+        operationInFlight = true;
+        connectButton.IsEnabled = false;
+        testButton.IsEnabled = false;
+        status.Text = "Testing TLS, authentication, and authority readiness...";
+        status.Foreground = LeserpentTheme.Muted;
+        status.IsVisible = true;
+        AutomationProperties.SetName(status, "Testing remote connection");
+        try
+        {
+            var error = await testConnection(
+                Request(clearToken: false),
+                lifetime.Token);
+            if (isClosed)
+            {
+                return;
+            }
+            if (error is not null)
+            {
+                ShowError(error);
+                return;
+            }
+            status.Text = "Connection verified. The remote authority is ready.";
+            status.Foreground = LeserpentTheme.Accent;
+            AutomationProperties.SetName(status, "Remote connection verified successfully");
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            if (!isClosed)
+            {
+                ShowError("Connection test failed safely.");
+            }
+        }
+        finally
+        {
+            operationInFlight = false;
+            if (!isClosed)
+            {
+                connectButton.IsEnabled = true;
+                testButton.IsEnabled = true;
+            }
+        }
+    }
+
+    private DesktopConnectionRequest Request(bool clearToken)
+    {
+        var submittedToken = string.IsNullOrWhiteSpace(token.Text)
+            ? null
+            : token.Text;
+        if (clearToken)
+        {
+            token.Text = string.Empty;
+        }
+        return new DesktopConnectionRequest(
+            endpoint.Text?.Trim() ?? string.Empty,
+            certificate.Text?.Trim() ?? string.Empty,
+            submittedToken,
+            remember.IsChecked == true);
     }
 
     private void UpdateAccount()

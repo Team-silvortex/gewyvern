@@ -170,6 +170,8 @@ const PROOF_SUITES: &[ProofSuite] = &[
         },
         expected_min_tests: 1,
         invariants: &[
+            "strict-health-codec",
+            "authority-health-fail-closed",
             "strict-aot-event-codec",
             "monotonic-event-revision",
             "bounded-gui-reconnect",
@@ -190,6 +192,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         },
         expected_min_tests: 1,
         invariants: &[
+            "authenticated-dotnet-health-preflight",
             "cross-language-revision-parity",
             "authenticated-dotnet-runtime-refresh",
             "explicit-confirmed-remote-mutation",
@@ -211,7 +214,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         id: "mobile-lifecycle-conformance",
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-mobile/src/Leserpent.MobileConformance/Leserpent.MobileConformance.csproj",
-            success_marker: "mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true",
+            success_marker: "mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true",
         },
         expected_min_tests: 1,
         invariants: &[
@@ -221,6 +224,9 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "mobile-credential-reload-on-reentry",
             "mobile-session-generation-fence",
             "mobile-startup-failure-cleanup",
+            "mobile-application-entry",
+            "mobile-duplicate-callback-coalescing",
+            "mobile-safe-reconfiguration",
             "mobile-terminal-disposal-idempotency",
             "mobile-missing-credential-fail-closed",
             "mobile-credential-endpoint-isolation",

@@ -46,7 +46,11 @@ pub fn run_leserpent_aot_validation(
             .current_dir(&root)
             .arg("restore")
             .arg(&app)
-            .args(["-p:PublishProfile=NativeAot", "--locked-mode"]),
+            .args([
+                "-p:PublishProfile=NativeAot",
+                "-p:PublishAot=true",
+                "--locked-mode",
+            ]),
         &out_dir.join("restore.log"),
         "locked NativeAOT restore failed",
     )?;

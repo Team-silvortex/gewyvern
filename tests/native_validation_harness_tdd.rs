@@ -151,8 +151,16 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
 fn leserpent_native_aot_proof_is_native_and_fail_closed() {
     let harness = read_repo_file("src/validation_harness/leserpent_aot.rs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+    let project =
+        read_repo_file("apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj");
+    let development_lock = read_repo_file(
+        "apps/leserpent-avalonia/src/Leserpent.Avalonia/packages.development.lock.json",
+    );
+    let aot_lock =
+        read_repo_file("apps/leserpent-avalonia/src/Leserpent.Avalonia/packages.lock.json");
 
     assert!(harness.contains("--locked-mode"));
+    assert!(harness.contains("-p:PublishAot=true"));
     assert!(harness.contains("--no-restore"));
     assert!(harness.contains("NativeMagic::Elf"));
     assert!(harness.contains("NativeMagic::MachO64"));
@@ -168,6 +176,12 @@ fn leserpent_native_aot_proof_is_native_and_fail_closed() {
     assert!(!harness.contains("sudo"));
     assert!(binary.contains("print_leserpent_aot_help"));
     assert!(binary.contains("missing_native_aot_dependency"));
+    assert!(project.contains("packages.development.lock.json"));
+    assert!(project.contains("'$(PublishAot)' != 'true'"));
+    assert!(project.contains("'$(PublishAot)' == 'true'"));
+    assert!(development_lock.contains("Avalonia.Desktop"));
+    assert!(!development_lock.contains("Microsoft.DotNet.ILCompiler"));
+    assert!(aot_lock.contains("Microsoft.DotNet.ILCompiler"));
 }
 
 #[test]
@@ -178,6 +192,9 @@ fn leserpent_accessibility_proof_audits_real_controls_and_contrast() {
     );
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
 
+    assert!(harness.contains("--locked-mode"));
+    assert!(!harness.contains("PublishProfile=NativeAot"));
+    assert!(!harness.contains("PublishAot=true"));
     assert!(harness.contains("accessibility-summary.json"));
     assert!(harness.contains("unique_automation_ids"));
     assert!(harness.contains("wcag_aa_text_contrast"));
@@ -269,6 +286,9 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("proof-summary.json"));
     assert!(harness.contains("evidence-index.json"));
     assert!(harness.contains("worker-crash-final-attempt"));
+    assert!(harness.contains("strict-health-codec"));
+    assert!(harness.contains("authority-health-fail-closed"));
+    assert!(harness.contains("authenticated-dotnet-health-preflight"));
     assert!(harness.contains("same-revision-workspace-composition"));
     assert!(harness.contains("endpoint-redacted-workspace-output"));
     assert!(harness.contains("workspace_atomic=true, logs_bounded=true, endpoint_retained=false"));

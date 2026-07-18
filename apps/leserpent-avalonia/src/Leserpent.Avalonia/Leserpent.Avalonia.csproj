@@ -7,6 +7,8 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath Condition="'$(PublishAot)' != 'true'">$(MSBuildProjectDirectory)/packages.development.lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(PublishAot)' == 'true'">$(MSBuildProjectDirectory)/packages.lock.json</NuGetLockFilePath>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationIcon>../../../../assets/branding/leserpent-icon.ico</ApplicationIcon>
     <ApplicationTitle>Leserpent</ApplicationTitle>
