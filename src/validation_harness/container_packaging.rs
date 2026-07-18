@@ -214,12 +214,7 @@ fn run_deb_validation(
     body: &'static str,
     install_curl: bool,
 ) -> Result<(), ValidationError> {
-    let deb_path = find_latest_package(packages_dir, "deb")?.ok_or_else(|| {
-        ValidationError::new(format!(
-            "no .deb artifact found under {}",
-            packages_dir.display()
-        ))
-    })?;
+    let deb_path = package_from_manifest(packages_dir, "deb", "deb")?;
     let package_name = deb_path
         .file_name()
         .and_then(|name| name.to_str())
@@ -264,12 +259,7 @@ fn run_rpm_validation(
     install_curl: bool,
 ) -> Result<(), ValidationError> {
     let rpm_dir = packages_dir.join("rpm");
-    let rpm_path = find_latest_package(&rpm_dir, "rpm")?.ok_or_else(|| {
-        ValidationError::new(format!(
-            "no .rpm artifact found under {}",
-            rpm_dir.display()
-        ))
-    })?;
+    let rpm_path = package_from_manifest(packages_dir, "rpm", "rpm")?;
     let package_name = rpm_path
         .file_name()
         .and_then(|name| name.to_str())
@@ -388,17 +378,141 @@ fn run_docker_script(
     Ok(())
 }
 
-fn find_latest_package(dir: &Path, extension: &str) -> Result<Option<PathBuf>, ValidationError> {
-    if !dir.is_dir() {
-        return Ok(None);
+fn package_from_manifest(
+    packages_dir: &Path,
+    key: &str,
+    extension: &str,
+) -> Result<PathBuf, ValidationError> {
+    let manifest = packages_dir.join("build-manifest.txt");
+    let metadata = fs::symlink_metadata(&manifest).map_err(|error| {
+        ValidationError::new(format!(
+            "package build manifest is unavailable: {}: {error}",
+            manifest.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(ValidationError::new(format!(
+            "package build manifest is not a regular file: {}",
+            manifest.display()
+        )));
+    }
+    let body = fs::read_to_string(&manifest)?;
+    let mut values = Vec::new();
+    for (index, line) in body.lines().enumerate() {
+        let (observed, value) = line.split_once('=').ok_or_else(|| {
+            ValidationError::new(format!(
+                "package build manifest line {} is malformed",
+                index + 1
+            ))
+        })?;
+        if observed.is_empty() || value.is_empty() {
+            return Err(ValidationError::new(format!(
+                "package build manifest line {} contains an empty key or value",
+                index + 1
+            )));
+        }
+        if observed == key {
+            values.push(value);
+        }
+    }
+    let value = values.first().copied().ok_or_else(|| {
+        ValidationError::new(format!(
+            "package build manifest does not contain a {key} artifact"
+        ))
+    })?;
+    if values.len() != 1 {
+        return Err(ValidationError::new(format!(
+            "package build manifest contains duplicate {key} artifacts"
+        )));
+    }
+    let path = PathBuf::from(value);
+    if path
+        .strip_prefix(packages_dir)
+        .ok()
+        .is_none_or(|relative| relative.as_os_str().is_empty())
+    {
+        return Err(ValidationError::new(format!(
+            "package build manifest {key} artifact escapes the package root: {}",
+            path.display()
+        )));
+    }
+    if path.extension().and_then(|ext| ext.to_str()) != Some(extension) {
+        return Err(ValidationError::new(format!(
+            "package build manifest {key} artifact has the wrong extension: {}",
+            path.display()
+        )));
+    }
+    let file_type = fs::symlink_metadata(&path)
+        .map_err(|error| {
+            ValidationError::new(format!(
+                "package build manifest {key} artifact is unavailable: {}: {error}",
+                path.display()
+            ))
+        })?
+        .file_type();
+    if file_type.is_symlink() || !file_type.is_file() {
+        return Err(ValidationError::new(format!(
+            "package candidate is not a regular file: {}",
+            path.display()
+        )));
+    }
+    Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_manifest(root: &Path, lines: &[(&str, &Path)]) {
+        let body = lines
+            .iter()
+            .map(|(key, path)| format!("{key}={}", path.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(root.join("build-manifest.txt"), format!("{body}\n")).unwrap();
     }
 
-    let mut candidates = fs::read_dir(dir)?
-        .filter_map(|entry| entry.ok().map(|item| item.path()))
-        .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some(extension))
-        .collect::<Vec<_>>();
-    candidates.sort();
-    Ok(candidates.pop())
+    #[test]
+    fn package_discovery_uses_the_manifest_instead_of_filename_order() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-package-discovery-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let current = root.join("gewyvern_1.10.0-1_amd64.deb");
+        fs::write(&current, b"current-package").unwrap();
+        fs::write(root.join("gewyvern_1.9.0-1_amd64.deb"), b"stale-package").unwrap();
+        write_manifest(&root, &[("deb", &current)]);
+        assert_eq!(package_from_manifest(&root, "deb", "deb").unwrap(), current);
+
+        let duplicate = root.join("gewyvern_1.10.0-2_amd64.deb");
+        fs::write(&duplicate, b"duplicate-package").unwrap();
+        write_manifest(&root, &[("deb", &current), ("deb", &duplicate)]);
+        assert!(package_from_manifest(&root, "deb", "deb").is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn package_discovery_rejects_non_file_and_out_of_root_candidates() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-package-boundary-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let fake = root.join("fake.deb");
+        fs::create_dir(&fake).unwrap();
+        write_manifest(&root, &[("deb", &fake)]);
+        assert!(package_from_manifest(&root, "deb", "deb").is_err());
+
+        let outside = root.with_extension("deb");
+        fs::write(&outside, b"outside-package").unwrap();
+        write_manifest(&root, &[("deb", &outside)]);
+        assert!(package_from_manifest(&root, "deb", "deb").is_err());
+        fs::remove_file(outside).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
 }
 
 fn require_cmd(name: &str) -> Result<(), ValidationError> {
@@ -801,7 +915,7 @@ echo "container runtime validation: ok"
 
 fn package_install_smoke_deb_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.2.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.0}"
 
 dpkg-deb -c "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q './usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt
@@ -821,7 +935,7 @@ test -f /usr/share/gewyvern/examples/gewyvern.toml.example
 
 fn package_install_smoke_rpm_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.2.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.0}"
 
 rpm -qpl "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q '/usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt

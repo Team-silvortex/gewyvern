@@ -45,9 +45,11 @@ exercises capability, confirmation, revision, principal-scoped idempotency,
 continuation restart, lease fencing, snapshot fallback, worker-crash
 settlement, outbox repair, Avalonia reconnect/cache state, and the real
 Rust-to-.NET WebSocket path. Each Cargo suite must report a nonzero minimum test
-count, while external conformance runners must emit exactly one declared success
-marker, preventing cfg, filter, or adapter drift from turning the proof into a
-vacuous pass.
+count, the xUnit suite must emit one internally consistent nonzero success
+summary, and external conformance runners must emit exactly one declared
+success marker, preventing cfg, filter, or adapter drift from turning the proof
+into a vacuous pass. Each summary binds the result to bounded kernel and
+toolchain provenance and removes stale success metadata before execution.
 
 ## System Shape
 

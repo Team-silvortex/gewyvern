@@ -12,6 +12,7 @@ pub mod ir;
 pub mod ledger;
 pub mod linux_ebpf_smoke;
 pub mod loader;
+pub mod native_binary;
 pub mod program;
 pub mod project_status;
 pub mod protocol_profiles;

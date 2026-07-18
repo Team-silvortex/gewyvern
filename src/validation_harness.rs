@@ -2,6 +2,7 @@ mod command;
 mod container_packaging;
 mod debugger_cross;
 mod demo_roundtrip;
+mod evidence_codec;
 mod field_smoke;
 mod high_frequency;
 mod leselang_fuzz;
@@ -33,6 +34,7 @@ pub use demo_roundtrip::{
     run_external_engine_roundtrip_demo, run_socket_roundtrip_demo,
     run_training_dataset_roundtrip_demo,
 };
+pub use evidence_codec::parse_bounded_unique_key_values;
 pub use field_smoke::run_field_smoke_validation;
 pub use high_frequency::run_high_frequency_validation;
 pub use leselang_fuzz::run_leselang_fuzz_validation;

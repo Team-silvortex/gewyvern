@@ -16,6 +16,7 @@ use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, validation_command_stdout,
     validation_log,
 };
+use super::evidence_codec::parse_bounded_unique_key_values;
 
 static EVIDENCE_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static REMOTE_RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -58,7 +59,7 @@ pub fn run_remote_linux_host_validation(
         .clone()
         .unwrap_or_else(default_remote_dir);
     let remote_path = remote_workspace_path(&remote_dir);
-    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.2.0".to_string());
+    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.4.0".to_string());
 
     validation_log(format!("[remote-host] host: {}", options.host));
     validation_log(format!(
@@ -144,10 +145,24 @@ pub fn run_remote_linux_host_validation(
         checks.push("remote_workspace_materialized".to_string());
 
         if options.build_packages {
+            let target_dir = shell_single_quote(&remote_cargo_target_dir(&preflight.home_dir));
+            validation_log("[remote-host] ----------------------------------------");
+            validation_log("[remote-host] checking all Linux workspace targets");
+            measure_phase(&mut phase_timings, "remote_linux_target_check", || {
+                run_ssh_command(
+                    admin_auth.as_ref(),
+                    &options.host,
+                    &format!(
+                        "mkdir -p {target_dir} && cd {validation_workspace} && CARGO_TARGET_DIR={target_dir} cargo check --quiet --workspace --all-targets"
+                    ),
+                    "remote Linux workspace target check failed",
+                )
+            })?;
+            checks.push("remote_linux_target_check".to_string());
+
             validation_log("[remote-host] ----------------------------------------");
             validation_log("[remote-host] building x86_64 packages on remote host");
             measure_phase(&mut phase_timings, "remote_package_build", || {
-                let target_dir = shell_single_quote(&remote_cargo_target_dir(&preflight.home_dir));
                 run_ssh_command(
                     admin_auth.as_ref(),
                     &options.host,
@@ -177,14 +192,16 @@ pub fn run_remote_linux_host_validation(
             artifact_manifest.render(),
         )?;
         if options.build_packages {
-            if let Ok(timings) = collect_remote_package_build_timings(
+            let timings = collect_remote_package_build_timings(
                 admin_auth.as_ref(),
                 &options.host,
                 &validation_workspace,
-            ) {
-                fs::write(out_dir.join("remote-package-build-timings.txt"), timings)?;
-                checks.push("remote_package_build_timings".to_string());
-            }
+            )?;
+            fs::write(
+                out_dir.join("remote-package-build-timings.txt"),
+                timings.render(),
+            )?;
+            checks.push("remote_package_build_timings".to_string());
         }
         checks.push("remote_artifacts_present".to_string());
 
@@ -200,35 +217,40 @@ pub fn run_remote_linux_host_validation(
             )
         })?;
         checks.push("remote_package_smoke".to_string());
-        if let Ok(timings) = collect_remote_package_smoke_timings(
+        let timings = collect_remote_package_smoke_timings(
             admin_auth.as_ref(),
             &options.host,
             &validation_workspace,
-        ) {
-            fs::write(out_dir.join("remote-package-smoke-timings.txt"), timings)?;
-            checks.push("remote_package_smoke_timings".to_string());
-        }
+        )?;
+        fs::write(
+            out_dir.join("remote-package-smoke-timings.txt"),
+            timings.render(),
+        )?;
+        checks.push("remote_package_smoke_timings".to_string());
 
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] running remote runtime smoke");
         measure_phase(&mut phase_timings, "remote_runtime_smoke", || {
+            let runtime_smoke_script = remote_runtime_smoke_script();
             run_ssh_script(
                 admin_auth.as_ref(),
                 &options.host,
                 &format!("cd {validation_workspace} && bash -s"),
-                REMOTE_RUNTIME_SMOKE_SCRIPT,
+                &runtime_smoke_script,
                 "remote runtime smoke failed",
             )
         })?;
         checks.push("remote_runtime_smoke".to_string());
-        if let Ok(timings) = collect_remote_runtime_smoke_timings(
+        let timings = collect_remote_runtime_smoke_timings(
             admin_auth.as_ref(),
             &options.host,
             &validation_workspace,
-        ) {
-            fs::write(out_dir.join("remote-runtime-smoke-timings.txt"), timings)?;
-            checks.push("remote_runtime_smoke_timings".to_string());
-        }
+        )?;
+        fs::write(
+            out_dir.join("remote-runtime-smoke-timings.txt"),
+            timings.render(),
+        )?;
+        checks.push("remote_runtime_smoke_timings".to_string());
 
         validation_log("[remote-host] ----------------------------------------");
         validation_log("[remote-host] collecting remote eBPF smoke evidence");
@@ -332,6 +354,20 @@ struct PhaseTiming {
     elapsed: Duration,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct RemotePhaseTimings(BTreeMap<String, f64>);
+
+impl RemotePhaseTimings {
+    fn render(&self) -> String {
+        let lines = self
+            .0
+            .iter()
+            .map(|(name, seconds)| format!("{name}={seconds:.3}"))
+            .collect::<Vec<_>>();
+        format!("{}\n", lines.join("\n"))
+    }
+}
+
 fn measure_phase<T>(
     phase_timings: &mut Vec<PhaseTiming>,
     name: &str,
@@ -403,6 +439,11 @@ fn write_remote_ebpf_history(
             "arch": preflight.arch,
             "kernel": preflight.kernel,
             "host_fingerprint": preflight.host_fingerprint,
+            "rustc_version": preflight.rustc_version,
+            "cargo_version": preflight.cargo_version,
+            "dpkg_deb_version": preflight.dpkg_deb_version,
+            "rpm_version": preflight.rpm_version,
+            "rpmbuild_version": preflight.rpmbuild_version,
             "sudo_available": preflight.sudo_available,
             "default_route_device": preflight.default_route_device,
         },
@@ -1055,8 +1096,6 @@ fn sync_workspace(
         .arg("--exclude")
         .arg("node_modules/")
         .arg("--exclude")
-        .arg("tests/")
-        .arg("--exclude")
         .arg("apps/**/obj/")
         .arg("--exclude")
         .arg("apps/**/bin/")
@@ -1592,9 +1631,6 @@ fn is_relevant_workspace_path(path: &str) -> bool {
     if path == "target" || path.starts_with("target/") {
         return false;
     }
-    if path == "tests" || path.starts_with("tests/") {
-        return false;
-    }
     if path == "node_modules" || path.starts_with("node_modules/") {
         return false;
     }
@@ -1904,6 +1940,11 @@ struct RemotePreflight {
     host_fingerprint: Option<String>,
     home_dir: String,
     required_commands: Vec<String>,
+    rustc_version: Option<String>,
+    cargo_version: Option<String>,
+    dpkg_deb_version: Option<String>,
+    rpm_version: Option<String>,
+    rpmbuild_version: Option<String>,
     sudo_available: bool,
     default_route_device: Option<String>,
 }
@@ -1911,13 +1952,18 @@ struct RemotePreflight {
 impl RemotePreflight {
     fn render(&self) -> String {
         format!(
-            "os={}\narch={}\nkernel={}\nhost_fingerprint={}\nhome_dir={}\ncommands={}\nsudo_available={}\ndefault_route_device={}\n",
+            "os={}\narch={}\nkernel={}\nhost_fingerprint={}\nhome_dir={}\ncommands={}\nrustc_version={}\ncargo_version={}\ndpkg_deb_version={}\nrpm_version={}\nrpmbuild_version={}\nsudo_available={}\ndefault_route_device={}\n",
             self.os,
             self.arch,
             self.kernel,
             self.host_fingerprint.as_deref().unwrap_or(""),
             self.home_dir,
             self.required_commands.join(","),
+            self.rustc_version.as_deref().unwrap_or(""),
+            self.cargo_version.as_deref().unwrap_or(""),
+            self.dpkg_deb_version.as_deref().unwrap_or(""),
+            self.rpm_version.as_deref().unwrap_or(""),
+            self.rpmbuild_version.as_deref().unwrap_or(""),
             self.sudo_available,
             self.default_route_device.as_deref().unwrap_or("")
         )
@@ -1966,7 +2012,18 @@ fn collect_remote_preflight(
     build_packages: bool,
 ) -> Result<RemotePreflight, ValidationError> {
     let mut required = vec![
-        "bash", "curl", "dpkg-deb", "rpm2cpio", "cpio", "find", "grep", "mktemp",
+        "bash",
+        "curl",
+        "dpkg-deb",
+        "rpm",
+        "rpm2cpio",
+        "cpio",
+        "find",
+        "flock",
+        "grep",
+        "mktemp",
+        "realpath",
+        "sha256sum",
     ];
     if build_packages {
         required.extend(["cargo", "rustc", "python3", "rpmbuild"]);
@@ -1992,6 +2049,18 @@ for cmd in {commands}; do
     exit 19
   }}
 done
+tool_version() {{
+  local value
+  command -v "$1" >/dev/null 2>&1 || return 0
+  value=$("$1" --version 2>/dev/null || true)
+  value=${{value%%$'\n'*}}
+  printf '%s' "${{value:0:256}}"
+}}
+printf 'rustc_version=%s\n' "$(tool_version rustc)"
+printf 'cargo_version=%s\n' "$(tool_version cargo)"
+printf 'dpkg_deb_version=%s\n' "$(tool_version dpkg-deb)"
+printf 'rpm_version=%s\n' "$(tool_version rpm)"
+printf 'rpmbuild_version=%s\n' "$(tool_version rpmbuild)"
 if sudo -n true >/dev/null 2>&1; then
   printf 'sudo_available=true\n'
 else
@@ -2011,6 +2080,14 @@ printf 'commands=%s\n' "{commands}"
     )?;
     let preflight = parse_remote_preflight(&output)?;
 
+    require_preflight_tool_version("dpkg-deb", preflight.dpkg_deb_version.as_deref())?;
+    require_preflight_tool_version("rpm", preflight.rpm_version.as_deref())?;
+    if build_packages {
+        require_preflight_tool_version("rustc", preflight.rustc_version.as_deref())?;
+        require_preflight_tool_version("cargo", preflight.cargo_version.as_deref())?;
+        require_preflight_tool_version("rpmbuild", preflight.rpmbuild_version.as_deref())?;
+    }
+
     if preflight.os != "Linux" {
         return Err(ValidationError::new(format!(
             "remote host must be Linux, got `{}`",
@@ -2028,63 +2105,158 @@ printf 'commands=%s\n' "{commands}"
     Ok(preflight)
 }
 
-fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationError> {
-    let mut os = None;
-    let mut arch = None;
-    let mut kernel = None;
-    let mut host_fingerprint = None;
-    let mut home_dir = None;
-    let mut commands = None;
-    let mut sudo_available = None;
-    let mut default_route_device = None;
-
-    for line in output.lines() {
-        if let Some(value) = line.strip_prefix("os=") {
-            os = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("arch=") {
-            arch = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("kernel=") {
-            kernel = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("host_fingerprint=") {
-            if !value.is_empty() {
-                if !valid_host_fingerprint(value) {
-                    return Err(ValidationError::new(
-                        "remote preflight host fingerprint is invalid",
-                    ));
-                }
-                host_fingerprint = Some(value.to_string());
-            }
-        } else if let Some(value) = line.strip_prefix("home_dir=") {
-            home_dir = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("commands=") {
-            commands = Some(
-                value
-                    .split_whitespace()
-                    .map(ToOwned::to_owned)
-                    .collect::<Vec<_>>(),
-            );
-        } else if let Some(value) = line.strip_prefix("sudo_available=") {
-            sudo_available = Some(matches!(value, "true"));
-        } else if let Some(value) = line.strip_prefix("default_route_device=") {
-            if !value.is_empty() {
-                default_route_device = Some(value.to_string());
-            }
-        }
+fn require_preflight_tool_version(tool: &str, value: Option<&str>) -> Result<(), ValidationError> {
+    if value.is_none() {
+        return Err(ValidationError::new(format!(
+            "remote preflight could not collect {tool} version"
+        )));
     }
+    Ok(())
+}
+
+fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationError> {
+    let mut values = parse_bounded_unique_key_values(
+        output,
+        "remote preflight",
+        &[
+            "os",
+            "arch",
+            "kernel",
+            "host_fingerprint",
+            "home_dir",
+            "commands",
+            "rustc_version",
+            "cargo_version",
+            "dpkg_deb_version",
+            "rpm_version",
+            "rpmbuild_version",
+            "sudo_available",
+            "default_route_device",
+        ],
+    )?;
+    let host_fingerprint = values
+        .remove("host_fingerprint")
+        .filter(|value| !value.is_empty());
+    if host_fingerprint
+        .as_deref()
+        .is_some_and(|value| !valid_host_fingerprint(value))
+    {
+        return Err(ValidationError::new(
+            "remote preflight host fingerprint is invalid",
+        ));
+    }
+    let commands = required_remote_value(&mut values, "commands", "remote preflight")?
+        .split_whitespace()
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    if commands.is_empty() {
+        return Err(ValidationError::new(
+            "remote preflight commands must not be empty",
+        ));
+    }
+    let sudo_available =
+        match required_remote_value(&mut values, "sudo_available", "remote preflight")?.as_str() {
+            "true" => true,
+            "false" => false,
+            _ => {
+                return Err(ValidationError::new(
+                    "remote preflight sudo_available must be true or false",
+                ));
+            }
+        };
 
     Ok(RemotePreflight {
-        os: os.ok_or_else(|| ValidationError::new("remote preflight missing os"))?,
-        arch: arch.ok_or_else(|| ValidationError::new("remote preflight missing arch"))?,
-        kernel: kernel.ok_or_else(|| ValidationError::new("remote preflight missing kernel"))?,
+        os: required_remote_value(&mut values, "os", "remote preflight")?,
+        arch: required_remote_value(&mut values, "arch", "remote preflight")?,
+        kernel: required_remote_value(&mut values, "kernel", "remote preflight")?,
         host_fingerprint,
-        home_dir: home_dir
-            .ok_or_else(|| ValidationError::new("remote preflight missing home_dir"))?,
-        required_commands: commands
-            .ok_or_else(|| ValidationError::new("remote preflight missing commands"))?,
-        sudo_available: sudo_available
-            .ok_or_else(|| ValidationError::new("remote preflight missing sudo_available"))?,
-        default_route_device,
+        home_dir: required_remote_value(&mut values, "home_dir", "remote preflight")?,
+        required_commands: commands,
+        rustc_version: parse_preflight_tool_version(
+            "rustc",
+            values.remove("rustc_version").as_deref().unwrap_or(""),
+        )?,
+        cargo_version: parse_preflight_tool_version(
+            "cargo",
+            values.remove("cargo_version").as_deref().unwrap_or(""),
+        )?,
+        dpkg_deb_version: parse_preflight_tool_version(
+            "dpkg-deb",
+            values.remove("dpkg_deb_version").as_deref().unwrap_or(""),
+        )?,
+        rpm_version: parse_preflight_tool_version(
+            "rpm",
+            values.remove("rpm_version").as_deref().unwrap_or(""),
+        )?,
+        rpmbuild_version: parse_preflight_tool_version(
+            "rpmbuild",
+            values.remove("rpmbuild_version").as_deref().unwrap_or(""),
+        )?,
+        sudo_available,
+        default_route_device: values
+            .remove("default_route_device")
+            .filter(|value| !value.is_empty()),
     })
+}
+
+fn required_remote_value(
+    values: &mut BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<String, ValidationError> {
+    let value = values
+        .remove(key)
+        .ok_or_else(|| ValidationError::new(format!("{context} missing {key}")))?;
+    if value.is_empty() {
+        return Err(ValidationError::new(format!(
+            "{context} {key} must not be empty"
+        )));
+    }
+    Ok(value)
+}
+
+fn parse_remote_phase_timings(
+    output: &str,
+    context: &str,
+    allowed_keys: &[&str],
+    required_keys: &[&str],
+) -> Result<RemotePhaseTimings, ValidationError> {
+    const MAX_SECONDS: f64 = 24.0 * 60.0 * 60.0;
+
+    let raw = parse_bounded_unique_key_values(output, context, allowed_keys)?;
+    for key in required_keys {
+        if !raw.contains_key(*key) {
+            return Err(ValidationError::new(format!("{context} missing {key}")));
+        }
+    }
+    let mut timings = BTreeMap::new();
+    for (name, value) in raw {
+        let seconds = value
+            .parse::<f64>()
+            .map_err(|_| ValidationError::new(format!("{context} {name} is not a valid number")))?;
+        if !seconds.is_finite() || !(0.0..=MAX_SECONDS).contains(&seconds) {
+            return Err(ValidationError::new(format!(
+                "{context} {name} must be finite and between 0 and {MAX_SECONDS} seconds"
+            )));
+        }
+        timings.insert(name, seconds);
+    }
+    Ok(RemotePhaseTimings(timings))
+}
+
+fn parse_preflight_tool_version(
+    tool: &str,
+    value: &str,
+) -> Result<Option<String>, ValidationError> {
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if value.len() > 256 || value.chars().any(char::is_control) {
+        return Err(ValidationError::new(format!(
+            "remote preflight {tool} version is invalid"
+        )));
+    }
+    Ok(Some(value.to_string()))
 }
 
 fn valid_host_fingerprint(value: &str) -> bool {
@@ -2210,9 +2382,9 @@ sudo -n env \
       chown -R "$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID" target/validation/remote-ebpf
     }}
     trap restore_evidence_owner EXIT
-    "$GEWY_VALIDATE_BIN" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
-    "$GEWY_VALIDATE_BIN" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
-    "$GEWY_VALIDATE_BIN" linux-tc-smoke --dev "$GEWY_TC_DEVICE" --out-dir target/validation/remote-ebpf/linux-tc-smoke
+    "$GEWY_VALIDATE_BIN" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke >&2
+    "$GEWY_VALIDATE_BIN" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke >&2
+    "$GEWY_VALIDATE_BIN" linux-tc-smoke --dev "$GEWY_TC_DEVICE" --out-dir target/validation/remote-ebpf/linux-tc-smoke >&2
   '
 printf 'status=ok\n'
 printf 'reason=all_smokes_passed\n'
@@ -2244,9 +2416,9 @@ printf '%s\n' "$GEWY_REMOTE_SUDO_PASSWORD" | sudo -S -p '' -k env \
       chown -R "$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID" target/validation/remote-ebpf
     }}
     trap restore_evidence_owner EXIT
-    "$GEWY_VALIDATE_BIN" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke
-    "$GEWY_VALIDATE_BIN" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke
-    "$GEWY_VALIDATE_BIN" linux-tc-smoke --dev "$GEWY_TC_DEVICE" --out-dir target/validation/remote-ebpf/linux-tc-smoke
+    "$GEWY_VALIDATE_BIN" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke >&2
+    "$GEWY_VALIDATE_BIN" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke >&2
+    "$GEWY_VALIDATE_BIN" linux-tc-smoke --dev "$GEWY_TC_DEVICE" --out-dir target/validation/remote-ebpf/linux-tc-smoke >&2
   '
 printf 'status=ok\n'
 printf 'reason=all_smokes_passed_admin_ssh\n'
@@ -2348,12 +2520,11 @@ fn collect_remote_artifact_manifest(
         r#"set -euo pipefail
 cd {remote_path}
 MANIFEST=target/packages/build-manifest.txt
-[ -f "$MANIFEST" ] || {{
-  echo "missing remote package manifest under target/packages/build-manifest.txt" >&2
-  exit 20
-}}
-cat "$MANIFEST"
-"#
+{manifest_helper}
+printf 'deb=%s\n' "$(package_from_manifest deb deb)"
+printf 'rpm=%s\n' "$(package_from_manifest rpm rpm)"
+"#,
+        manifest_helper = REMOTE_PACKAGE_MANIFEST_HELPER,
     );
     let output = run_ssh_script_capture_with_auth(
         auth,
@@ -2369,19 +2540,25 @@ fn collect_remote_package_build_timings(
     auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
-) -> Result<String, ValidationError> {
+) -> Result<RemotePhaseTimings, ValidationError> {
     let script = format!(
         r#"set -euo pipefail
 cd {remote_path}
 cat target/packages/build-timings.txt
 "#
     );
-    run_ssh_script_capture_with_auth(
+    let output = run_ssh_script_capture_with_auth(
         auth,
         host,
         "bash -s",
         &script,
         "remote package build timings missing; rerun without --skip-build or inspect target/packages/build-timings.txt on the host",
+    )?;
+    parse_remote_phase_timings(
+        &output,
+        "remote package build timings",
+        &["release_build", "stage_layout", "package_all", "total"],
+        &["release_build", "stage_layout", "package_all", "total"],
     )
 }
 
@@ -2389,19 +2566,39 @@ fn collect_remote_package_smoke_timings(
     auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
-) -> Result<String, ValidationError> {
+) -> Result<RemotePhaseTimings, ValidationError> {
     let script = format!(
         r#"set -euo pipefail
 cd {remote_path}
 cat target/packages/package-smoke-timings.txt
 "#
     );
-    run_ssh_script_capture_with_auth(
+    let output = run_ssh_script_capture_with_auth(
         auth,
         host,
         "bash -s",
         &script,
         "remote package smoke timings missing; rerun the package smoke or inspect target/packages/package-smoke-timings.txt on the host",
+    )?;
+    parse_remote_phase_timings(
+        &output,
+        "remote package smoke timings",
+        &[
+            "deb_list_contents",
+            "deb_unpack_cache_refresh",
+            "deb_verify",
+            "rpm_list_contents",
+            "rpm_unpack_cache_refresh",
+            "rpm_verify",
+            "total",
+        ],
+        &[
+            "deb_list_contents",
+            "deb_verify",
+            "rpm_list_contents",
+            "rpm_verify",
+            "total",
+        ],
     )
 }
 
@@ -2409,63 +2606,70 @@ fn collect_remote_runtime_smoke_timings(
     auth: Option<&RemoteAdminAuth>,
     host: &str,
     remote_path: &str,
-) -> Result<String, ValidationError> {
+) -> Result<RemotePhaseTimings, ValidationError> {
     let script = format!(
         r#"set -euo pipefail
 cd {remote_path}
 cat target/packages/runtime-smoke-timings.txt
 "#
     );
-    run_ssh_script_capture_with_auth(
+    let output = run_ssh_script_capture_with_auth(
         auth,
         host,
         "bash -s",
         &script,
         "remote runtime smoke timings missing; rerun the runtime smoke or inspect target/packages/runtime-smoke-timings.txt on the host",
+    )?;
+    parse_remote_phase_timings(
+        &output,
+        "remote runtime smoke timings",
+        &[
+            "unpack_cache_refresh",
+            "tcp_boot_health",
+            "udp_boot_health",
+            "tcp_summary",
+            "udp_summary",
+            "udp_analysis",
+            "tcp_health_after_bad",
+            "tcp_analysis",
+            "total",
+        ],
+        &[
+            "tcp_boot_health",
+            "udp_boot_health",
+            "tcp_summary",
+            "udp_summary",
+            "udp_analysis",
+            "tcp_health_after_bad",
+            "tcp_analysis",
+            "total",
+        ],
     )
 }
 
 fn parse_remote_artifact_manifest(output: &str) -> Result<RemoteArtifactManifest, ValidationError> {
-    let mut deb = None;
-    let mut rpm = None;
-
-    for line in output.lines() {
-        if let Some(value) = line.strip_prefix("deb=") {
-            deb = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("rpm=") {
-            rpm = Some(value.to_string());
-        }
-    }
+    let mut values =
+        parse_bounded_unique_key_values(output, "remote artifact manifest", &["deb", "rpm"])?;
 
     Ok(RemoteArtifactManifest {
-        deb: deb.ok_or_else(|| ValidationError::new("remote artifact manifest missing deb"))?,
-        rpm: rpm.ok_or_else(|| ValidationError::new("remote artifact manifest missing rpm"))?,
+        deb: required_remote_value(&mut values, "deb", "remote artifact manifest")?,
+        rpm: required_remote_value(&mut values, "rpm", "remote artifact manifest")?,
     })
 }
 
 fn parse_remote_ebpf_evidence(output: &str) -> Result<RemoteEbpfEvidence, ValidationError> {
-    let mut status = None;
-    let mut reason = None;
-    let mut default_route_device = None;
-
-    for line in output.lines() {
-        if let Some(value) = line.strip_prefix("status=") {
-            status = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("reason=") {
-            reason = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("default_route_device=") {
-            if !value.is_empty() {
-                default_route_device = Some(value.to_string());
-            }
-        }
-    }
+    let mut values = parse_bounded_unique_key_values(
+        output,
+        "remote eBPF evidence",
+        &["status", "reason", "default_route_device"],
+    )?;
 
     Ok(RemoteEbpfEvidence {
-        status: status
-            .ok_or_else(|| ValidationError::new("remote eBPF evidence missing status"))?,
-        reason: reason
-            .ok_or_else(|| ValidationError::new("remote eBPF evidence missing reason"))?,
-        default_route_device,
+        status: required_remote_value(&mut values, "status", "remote eBPF evidence")?,
+        reason: required_remote_value(&mut values, "reason", "remote eBPF evidence")?,
+        default_route_device: values
+            .remove("default_route_device")
+            .filter(|value| !value.is_empty()),
     })
 }
 
@@ -2473,12 +2677,55 @@ fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', r#"'\''"#))
 }
 
+const REMOTE_PACKAGE_MANIFEST_HELPER: &str = r#"package_from_manifest() {
+  local key="$1"
+  local extension="$2"
+  local package_root count value resolved
+
+  [ -f "$MANIFEST" ] && [ ! -L "$MANIFEST" ] || {
+    echo "package manifest must be a regular non-symlink file: $MANIFEST" >&2
+    return 20
+  }
+  awk -F= 'index($0, "=") == 0 || $1 == "" || substr($0, length($1) + 2) == "" || ($1 != "deb" && $1 != "rpm") { exit 1 }' "$MANIFEST" || {
+    echo "package manifest contains a malformed entry: $MANIFEST" >&2
+    return 21
+  }
+  count=$(awk -F= -v wanted="$key" '$1 == wanted { count++ } END { print count + 0 }' "$MANIFEST")
+  [ "$count" -eq 1 ] || {
+    echo "package manifest must contain exactly one $key entry: $MANIFEST" >&2
+    return 22
+  }
+  value=$(awk -F= -v wanted="$key" '$1 == wanted { print substr($0, length($1) + 2) }' "$MANIFEST")
+  [ -f "$value" ] && [ ! -L "$value" ] || {
+    echo "package manifest $key entry must reference a regular non-symlink file: $value" >&2
+    return 23
+  }
+  package_root=$(realpath target/packages)
+  resolved=$(realpath "$value")
+  case "$resolved" in
+    "$package_root"/*) ;;
+    *)
+      echo "package manifest $key entry escapes package root: $value" >&2
+      return 24
+      ;;
+  esac
+  case "$resolved" in
+    *."$extension") ;;
+    *)
+      echo "package manifest $key entry has the wrong extension: $value" >&2
+      return 25
+      ;;
+  esac
+  printf '%s\n' "$resolved"
+}"#;
+
 fn remote_package_smoke_script(release_line: &str) -> String {
     format!(
         r#"set -euo pipefail
 MANIFEST=target/packages/build-manifest.txt
-DEB=$(awk -F= '/^deb=/{{print $2; exit}}' "$MANIFEST")
-RPM=$(awk -F= '/^rpm=/{{print $2; exit}}' "$MANIFEST")
+{manifest_helper}
+DEB=$(package_from_manifest deb deb)
+RPM=$(package_from_manifest rpm rpm)
 TIMINGS=target/packages/package-smoke-timings.txt
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -2552,14 +2799,28 @@ test -f "$RPM_ROOT/usr/share/gewyvern/examples/gewyvern.toml.example"
 record_timing rpm_verify "$(duration_seconds "$RPM_VERIFY_STARTED" "$(now_seconds)")"
 record_timing total "$(duration_seconds "$DEB_LIST_STARTED" "$(now_seconds)")"
 echo 'remote package smoke: ok'
-"#
+"#,
+        manifest_helper = REMOTE_PACKAGE_MANIFEST_HELPER,
     )
 }
 
-const REMOTE_RUNTIME_SMOKE_SCRIPT: &str = r#"set -euo pipefail
+fn remote_runtime_smoke_script() -> String {
+    let mut script = String::from(
+        r#"set -euo pipefail
 MANIFEST=target/packages/build-manifest.txt
-DEB=$(awk -F= '/^deb=/{{print $2; exit}}' "$MANIFEST")
-TIMINGS=target/packages/runtime-smoke-timings.txt
+"#,
+    );
+    script.push_str(REMOTE_PACKAGE_MANIFEST_HELPER);
+    script.push_str(
+        r#"
+DEB=$(package_from_manifest deb deb)
+"#,
+    );
+    script.push_str(REMOTE_RUNTIME_SMOKE_BODY);
+    script
+}
+
+const REMOTE_RUNTIME_SMOKE_BODY: &str = r#"TIMINGS=target/packages/runtime-smoke-timings.txt
 TMP=$(mktemp -d)
 trap 'kill ${TCP_PID:-} ${UDP_PID:-} >/dev/null 2>&1 || true; wait ${TCP_PID:-} ${UDP_PID:-} >/dev/null 2>&1 || true; rm -rf "$TMP"' EXIT
 RUNTIME_ROOT="target/packages/.runtime-smoke/$(basename "$DEB" .deb)"
@@ -2741,14 +3002,16 @@ fn rsync_remote_target(auth: Option<&RemoteAdminAuth>, host: &str, remote_path: 
 #[cfg(test)]
 mod tests {
     use super::{
-        RemoteAdminAuth, acquire_remote_ebpf_history_lock, acquire_remote_validation_run_lock,
-        atomic_write_evidence, default_remote_dir, parse_remote_artifact_manifest,
-        parse_remote_ebpf_evidence, parse_remote_preflight, read_remote_ebpf_history,
-        resolve_remote_execution_path, resolve_remote_workspace_path, rsync_remote_target,
-        ssh_auth_target, ssh_password_mode_args, summarize_remote_ebpf_history,
-        validate_remote_host,
+        REMOTE_PACKAGE_MANIFEST_HELPER, RemoteAdminAuth, acquire_remote_ebpf_history_lock,
+        acquire_remote_validation_run_lock, atomic_write_evidence, default_remote_dir,
+        is_relevant_workspace_path, parse_remote_artifact_manifest, parse_remote_ebpf_evidence,
+        parse_remote_phase_timings, parse_remote_preflight, read_remote_ebpf_history,
+        remote_package_smoke_script, remote_runtime_smoke_script, resolve_remote_execution_path,
+        resolve_remote_workspace_path, rsync_remote_target, ssh_auth_target,
+        ssh_password_mode_args, summarize_remote_ebpf_history, validate_remote_host,
     };
     use std::fs;
+    use std::process::Command;
     use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
@@ -2937,7 +3200,7 @@ mod tests {
     #[test]
     fn parse_remote_preflight_accepts_linux_x86_64_manifest() {
         let preflight = parse_remote_preflight(
-            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n",
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=Debian dpkg-deb 1.22.6\nrpm_version=RPM version 4.19.1\nrpmbuild_version=RPM version 4.19.1\n",
         )
         .unwrap();
 
@@ -2952,6 +3215,35 @@ mod tests {
         assert!(preflight.sudo_available);
         assert_eq!(preflight.default_route_device.as_deref(), Some("eth0"));
         assert!(preflight.required_commands.contains(&"cargo".to_string()));
+        assert_eq!(preflight.rustc_version.as_deref(), Some("rustc 1.95.0"));
+        assert_eq!(preflight.cargo_version.as_deref(), Some("cargo 1.95.0"));
+        assert_eq!(
+            preflight.dpkg_deb_version.as_deref(),
+            Some("Debian dpkg-deb 1.22.6")
+        );
+    }
+
+    #[test]
+    fn parse_remote_preflight_rejects_unbounded_tool_versions() {
+        let manifest = format!(
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash cargo rustc\nrustc_version={}\nsudo_available=false\ndefault_route_device=\n",
+            "x".repeat(257)
+        );
+        let error = parse_remote_preflight(&manifest).unwrap_err();
+        assert!(error.to_string().contains("rustc version is invalid"));
+    }
+
+    #[test]
+    fn parse_remote_preflight_rejects_ambiguous_or_unknown_entries() {
+        let base = "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash\nsudo_available=false\ndefault_route_device=\n";
+        for suffix in ["os=Linux\n", "unknown=value\n", "malformed\n"] {
+            let error = parse_remote_preflight(&format!("{base}{suffix}")).unwrap_err();
+            assert!(!error.to_string().is_empty(), "{suffix}");
+        }
+        let error =
+            parse_remote_preflight(&base.replace("sudo_available=false", "sudo_available=maybe"))
+                .unwrap_err();
+        assert!(error.to_string().contains("must be true or false"));
     }
 
     #[test]
@@ -2972,12 +3264,98 @@ mod tests {
     #[test]
     fn parse_remote_artifact_manifest_requires_both_package_formats() {
         let manifest = parse_remote_artifact_manifest(
-            "deb=target/packages/gewyvern_1.2.0-1_amd64.deb\nrpm=target/packages/rpm/gewyvern-1.2.0-1.x86_64.rpm\n",
+            "deb=target/packages/gewyvern_1.4.0-1_amd64.deb\nrpm=target/packages/rpm/gewyvern-1.4.0-1.x86_64.rpm\n",
         )
         .unwrap();
 
         assert!(manifest.deb.ends_with("_amd64.deb"));
         assert!(manifest.rpm.ends_with(".x86_64.rpm"));
+    }
+
+    #[test]
+    fn parse_remote_artifact_manifest_rejects_ambiguous_or_malformed_entries() {
+        for body in [
+            "deb=one.deb\ndeb=two.deb\nrpm=one.rpm\n",
+            "deb=one.deb\nrpm=one.rpm\nrpm=two.rpm\n",
+            "deb=one.deb\nrpm=\n",
+            "deb=one.deb\nrpm=one.rpm\nunknown=value\n",
+            "deb=one.deb\nrpm=one.rpm\nmalformed\n",
+        ] {
+            assert!(parse_remote_artifact_manifest(body).is_err(), "{body}");
+        }
+    }
+
+    #[test]
+    fn remote_package_manifest_helper_confines_selected_artifacts() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("gewyvern-package-manifest-{unique}"));
+        let packages = root.join("target/packages");
+        fs::create_dir_all(&packages).unwrap();
+        let deb = packages.join("gewyvern.deb");
+        fs::write(&deb, b"deb").unwrap();
+        let manifest = packages.join("build-manifest.txt");
+        fs::write(&manifest, format!("deb={}\n", deb.display())).unwrap();
+
+        let script = format!(
+            "set -euo pipefail\nMANIFEST=target/packages/build-manifest.txt\n{REMOTE_PACKAGE_MANIFEST_HELPER}\npackage_from_manifest deb deb\n"
+        );
+        let valid = Command::new("bash")
+            .arg("-c")
+            .arg(&script)
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        assert!(valid.status.success(), "{:?}", valid.stderr);
+        assert_eq!(
+            String::from_utf8(valid.stdout).unwrap().trim(),
+            fs::canonicalize(&deb).unwrap().to_string_lossy()
+        );
+
+        let outside = root.join("outside.deb");
+        fs::write(&outside, b"outside").unwrap();
+        fs::write(&manifest, format!("deb={}\n", outside.display())).unwrap();
+        let escaped = Command::new("bash")
+            .arg("-c")
+            .arg(&script)
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        assert!(!escaped.status.success());
+        assert!(
+            String::from_utf8(escaped.stderr)
+                .unwrap()
+                .contains("escapes package root")
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn generated_remote_package_scripts_are_valid_bash() {
+        for script in [
+            remote_package_smoke_script("v1.4.0"),
+            remote_runtime_smoke_script(),
+        ] {
+            let output = Command::new("bash")
+                .arg("-n")
+                .arg("-c")
+                .arg(script)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{:?}", output.stderr);
+        }
+    }
+
+    #[test]
+    fn remote_sync_includes_root_and_nested_test_shelves() {
+        assert!(is_relevant_workspace_path("tests/linux_smoke_tdd.rs"));
+        assert!(is_relevant_workspace_path("apps/etragon/src/tests/mod.rs"));
+        assert!(is_relevant_workspace_path(
+            "crates/leserpent-cli/tests/compat.rs"
+        ));
     }
 
     #[test]
@@ -2990,6 +3368,48 @@ mod tests {
         assert_eq!(evidence.status, "ok");
         assert_eq!(evidence.reason, "all_smokes_passed");
         assert_eq!(evidence.default_route_device.as_deref(), Some("ens5"));
+    }
+
+    #[test]
+    fn parse_remote_ebpf_evidence_rejects_ambiguous_or_unknown_entries() {
+        for body in [
+            "status=ok\nstatus=skipped\nreason=test\ndefault_route_device=\n",
+            "status=ok\nreason=test\ndefault_route_device=\nunknown=value\n",
+            "status=ok\nreason=\ndefault_route_device=\n",
+        ] {
+            assert!(parse_remote_ebpf_evidence(body).is_err(), "{body}");
+        }
+    }
+
+    #[test]
+    fn parse_remote_phase_timings_requires_finite_unique_known_phases() {
+        let timings = parse_remote_phase_timings(
+            "build=1.250\ntotal=2.500\n",
+            "test timings",
+            &["build", "total", "optional"],
+            &["build", "total"],
+        )
+        .unwrap();
+        assert_eq!(timings.render(), "build=1.250\ntotal=2.500\n");
+
+        for body in [
+            "build=1.0\n",
+            "build=1.0\ntotal=NaN\n",
+            "build=-1.0\ntotal=2.0\n",
+            "build=1.0\ntotal=2.0\ntotal=3.0\n",
+            "build=1.0\ntotal=2.0\nunknown=3.0\n",
+        ] {
+            assert!(
+                parse_remote_phase_timings(
+                    body,
+                    "test timings",
+                    &["build", "total", "optional"],
+                    &["build", "total"],
+                )
+                .is_err(),
+                "{body}"
+            );
+        }
     }
 
     #[test]

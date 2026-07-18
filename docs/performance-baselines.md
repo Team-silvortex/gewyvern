@@ -58,7 +58,7 @@ Measurement notes:
 
 ## Release-Candidate Interpretation
 
-For the active `1.2.0` line, the intended acceptance rule is:
+For the active `1.4.0` line, the intended acceptance rule is:
 
 - compare against the `median`
 - judge regressions on the same developer-class machine, not across unrelated
@@ -178,6 +178,27 @@ path is getting slower or less reliable as the 1.0 core hardens.
 | `remote_ebpf_evidence_sync` | `0.496` | syncs remote eBPF shelf back locally |
 | `remote_workspace_cleanup` | `0.114` | removes transient remote workspace |
 | `total` | `4.599` | full remote validation wall-clock time |
+
+A publication-hardening verification on `2026-07-18` forced an incremental
+Linux release rebuild after changing the loader and package builder. It passed
+DEB/RPM construction, strict manifest resolution, package smoke, TCP/UDP
+runtime smoke, and all three admin-assisted eBPF attach probes in `22.110`
+seconds. The dominant phase was `remote_package_build=18.267`; workspace sync
+was `0.957` and eBPF attach was `0.827`. This is a rebuild-path observation,
+not a replacement for the warm-cache baseline above.
+
+After adding the Linux all-target compile proof, a second `2026-07-18` physical
+run completed in `30.908` seconds. `remote_linux_target_check=8.232` compiled
+the filtered workspace's Linux targets before the release build;
+`remote_package_build=18.849` remained dominant. Package/runtime smoke and all
+eBPF probes stayed green, confirming the extra compile shelf composes with the
+full release path.
+
+The completed root-integration-target run finished in `26.190` seconds after
+syncing the full 1.6 MiB test shelf. Workspace sync was `2.454`; the incremental
+Linux all-target check no longer appeared among the three slowest phases, while
+`remote_package_build=18.638` remained dominant. This is the current stronger
+compile-coverage observation.
 
 The synchronized evidence for this baseline lives under:
 

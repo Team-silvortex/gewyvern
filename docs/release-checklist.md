@@ -1,12 +1,12 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`1.2.0` line.
+`1.4.0` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
 
-- can we still ship `1.2.0` with confidence?
+- can we still ship `1.4.0` with confidence?
 - did we exercise the real packaged artifacts?
 - did standalone and multi-project paths both survive?
 
@@ -56,9 +56,9 @@ For those, use:
   for the protocol-breadth and physical-host validation baseline that this line
   inherits
 
-## Current `1.2.0` Gate
+## Current `1.4.0` Gate
 
-Treat `1.2.0` as release-ready only when all of the following stay true:
+Treat `1.4.0` as release-ready only when all of the following stay true:
 
 1. current native artifacts are rebuilt from the current source tree
 2. packaged `deb` and `rpm` install smoke both pass
@@ -104,9 +104,9 @@ Expected outputs:
 - `target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm`
 
 The `<version>` value is read from the root `gewyvern` package metadata in
-`Cargo.toml`. For the current tree, that resolves to `1.2.0`, so the concrete
-artifact names should look like `gewyvern_1.2.0-1_<deb-arch>.deb` and
-`gewyvern-1.2.0-1.<rpm-arch>.rpm`.
+`Cargo.toml`. For the current tree, that resolves to `1.4.0`, so the concrete
+artifact names should look like `gewyvern_1.4.0-1_<deb-arch>.deb` and
+`gewyvern-1.4.0-1.<rpm-arch>.rpm`.
 
 The package smoke must always verify the artifacts that the tree actually
 builds today.
@@ -394,7 +394,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `1.2.0` line, a good practical ship read is:
+For the active `1.4.0` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +
@@ -423,6 +423,10 @@ cargo test -p etragon tests::daemon::request_limits::daemon_request_reader_rejec
 cargo test -p etragon tests::daemon::request_limits::daemon_handler_returns_400_for_invalid_request_headers --bin etragon -- --exact --nocapture
 cargo test -p etragon tests::daemon::routes::daemon_remote_token_checks_trim_and_match_headers_case_insensitively --bin etragon -- --exact --nocapture
 ```
+
+The Leserpent security project explicitly declares `IsTestProject=true` for
+.NET 10. A successful command must report a nonzero discovered and executed
+test count; a build-only exit with no test summary is not release evidence.
 
 What this shelf proves:
 

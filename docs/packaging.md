@@ -114,10 +114,18 @@ artifact. It records:
 
 The default current values are intentionally conservative:
 
-- `release_line = "v0.19.x"`
+- `release_line = "v1.4.0"`
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`
+
+Packaged container validation never guesses an artifact from filename order.
+Both local and remote checks read the unique `deb` or `rpm` entry from
+`target/packages/build-manifest.txt`, reject malformed or duplicate keys, and
+require the referenced regular non-symlink file to remain inside the package
+root with the expected extension. Remote artifact collection, package smoke,
+and runtime smoke share this resolver; package-cache reuse applies the same
+unique-key and non-symlink policy instead of trusting the first matching line.
 
 Package builders can override the minor line and schema markers with:
 
@@ -182,6 +190,12 @@ because packaging ran at a different wall-clock second.
 When the release binaries and packaging inputs are unchanged, the script also
 reuses the existing native package artifacts instead of restaging and
 reassembling them again.
+
+Package generation is serialized per output directory with a bounded lock.
+DEB/RPM payloads, the build manifest, and the cache key are published through
+same-directory atomic replacement, so readers observe either the previous
+complete package set or the new complete set. `--layout-only` bypasses package
+cache reuse and never removes or replaces the published package manifest.
 
 It does not require `dpkg-deb` or `rpmbuild`.
 

@@ -156,8 +156,18 @@ cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation
 
 This syncs the current workspace to a remote Linux host over SSH, builds
 `x86_64` packages there, then runs host-mode package and runtime smoke checks.
+Before the release build it runs a cached Linux
+`cargo check --workspace --all-targets` over the filtered workspace, catching
+target-specific library, binary, example, benchmark, and inline-test compile
+drift, including the root integration-test targets and Linux-only eBPF tests.
 Before any package/run step, it records a remote preflight snapshot so failures
 separate environment drift from runtime regressions.
+The snapshot and bounded history entry include the observed Rust, Cargo,
+`dpkg-deb`, RPM, and `rpmbuild` version lines, making toolchain drift visible
+without retaining unbounded command output.
+Remote preflight, artifact, and eBPF key/value evidence share one strict parser:
+inputs are capped at 8 KiB and 32 lines, keys must be unique and known, control
+characters are rejected, and required values cannot be empty.
 It also records Linux eBPF smoke evidence: when passwordless `sudo` and a
 default-route device are available, it runs the native attach/kprobe/tc smokes;
 otherwise it records an explicit `skipped` reason instead of turning an
@@ -171,9 +181,12 @@ that stable cache first, then each validation run repoints its requested remote
 workspace path at that cache on the remote host itself instead of copying the
 same tree twice.
 The workspace sync for this command is intentionally narrower than the full
-monorepo: it skips `tests/`, transient `apps/**/bin/` / `apps/**/obj/` outputs,
+monorepo: it skips transient `apps/**/bin/` / `apps/**/obj/` outputs,
 `__pycache__`, and similar local-only residue because the remote host package
-and runtime checks do not consume those shelves.
+and runtime checks do not consume those shelves. Root integration tests and
+nested crate/application test modules remain synchronized because the Linux
+all-target compile proof consumes them; the complete test shelf adds only about
+1.6 MiB to a cold sync.
 When that filtered workspace snapshot is unchanged, the command now reuses a
 workspace sync cache marker and skips the rsync phase entirely.
 
@@ -222,9 +235,21 @@ The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
 materialization, build, package smoke, runtime smoke, or the privileged eBPF
 attach path.
+Remote build/package/runtime subphase timing files are mandatory after their
+corresponding successful stage. They use the shared bounded unique-key parser,
+accept only known phases and finite non-negative values up to 24 hours, and
+require every non-cache phase before canonical local persistence.
+The CLI summary then reuses the same bounded unique-key codec when reading
+local evidence. It rejects non-regular files, files over 8 KiB, schema drift,
+duplicate keys, invalid booleans, and invalid timing values instead of emitting
+a partially populated success summary.
 Artifact verification now prefers the package build manifest emitted under
 `target/packages/build-manifest.txt` instead of rescanning the package
-directories on every run.
+directories on every run. Local packaged container checks use the same
+manifest-bound selection and reject duplicate keys, stale filename ordering,
+out-of-root paths, symlinks, and extension-shaped directories.
+Remote artifact collection, package smoke, and runtime smoke use one strict
+resolver, so no remote entrypoint can fall back to first-match manifest parsing.
 The package smoke path now also emits a subphase timing file and uses
 content-stamped unpack caches for both DEB and RPM payloads, so repeated runs
 reuse verified package trees without silently masking changed artifacts.
@@ -276,6 +301,12 @@ That currently includes the full `total`, `workspace_sync`,
 `remote_ebpf_smoke` phase remains readable.
 When local remote-eBPF history exists, the summary also prints a compact recent
 trend line plus the newest recent-history entries.
+The local summary reader treats synchronized evidence as untrusted input: keyed
+files must use the strict unique-key schema, the history summary must be a
+regular non-symlink JSON file no larger than 64 KiB, and recent evidence is
+limited to five nonempty 512-byte lines in a regular file no larger than 16 KiB.
+Malformed, missing, ambiguous, or oversized evidence fails the command instead
+of silently producing a partial summary.
 
 For machine-readable consumption, use:
 
@@ -389,15 +420,16 @@ After publishing the locked `osx-arm64` NativeAOT directory, run:
 ```bash
 cargo run --bin gewyvern_leserpent_bundle -- \
   --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
-  --output artifacts/leserpent-avalonia/Leserpent.app \
-  --version 1.2.0
+  --output artifacts/leserpent-avalonia/Leserpent.app
 ```
 
 This native entrypoint validates a flat, symlink-free publish directory,
 excludes external debug symbols, copies only the Mach-O executable and dylibs,
 and writes stable bundle metadata plus the checked `.icns`. Existing output is
-never replaced implicitly. Signing and notarization consume this bundle in a
-later release step.
+never replaced implicitly. With `--version` omitted, the official bundle
+inherits the root Rust workspace version for both plist version fields; the
+option remains available only for deliberate downstream overrides. Signing and
+notarization consume this bundle in a later release step.
 
 ### I want to sign and notarize the Leserpent macOS app
 
@@ -499,10 +531,11 @@ Run:
 cargo run --quiet --bin gewyvern_validate -- leserpent-parity-recovery
 ```
 
-The command runs eleven suites over the current migrated command surface:
+The command runs thirteen suites over the current migrated command surface:
 frontend-neutral lowering, authorization/confirmation/idempotency,
 CLI/Leselang parity, VM continuation and journal re-entry, and runtime SQLite
-recovery injection, plus authenticated remote wire, native CLI parity, the
+recovery injection, plus the non-vacuous .NET control-plane security suite,
+authenticated remote wire, native CLI parity, the
 Avalonia remote-state conformance runner, and a real Rust daemon to .NET
 WebSocket plus HTTPS mutation vertical, and the mobile lifecycle conformance
 runner. It covers
@@ -514,9 +547,11 @@ Evidence is retained under
 `target/validation/leserpent-parity-recovery/`. The summary records
 actual test counts and the validator fails if any suite runs fewer than its
 declared minimum, including a zero-test filter mistake.
-The macOS arm64 and physical Linux x86_64 summaries carry explicit host
-metadata with matching eleven-suite, 134-test, 79-invariant counts for the
-current lifecycle contract.
+The current macOS arm64 and physical Linux x86_64 checkpoints both prove 13
+suites, 231 observed tests, and 155 invariants against a minimum of 206 tests.
+The Linux summary records kernel `6.17.0-35-generic`, Rust/Cargo `1.95.0`, and
+.NET `10.0.109`. Every summary now records bounded kernel and toolchain
+provenance, and stale summary/index files are removed before a new run starts.
 
 ### I want to validate built-in protocol packages
 

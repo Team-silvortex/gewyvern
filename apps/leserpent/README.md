@@ -298,6 +298,7 @@ JSON state 默认路径：
 - state import 的 Orchestra 批量替换失败会返回 `503 persistence_import_unavailable` 并恢复导入前的内存 registry
 - guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
 - runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
+- control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件
 - runtime 存在 `queued`/`running` Orchestra run 时，单删和批量删除会返回 `409 runtime_delete_orchestra_active` 及 `activeRuns`；批量操作不会部分删除其他 idle runtime
 - 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。
 

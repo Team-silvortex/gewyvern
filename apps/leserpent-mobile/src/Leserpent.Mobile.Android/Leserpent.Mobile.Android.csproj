@@ -5,7 +5,7 @@
     <ApplicationId>org.gewyvern.leserpent</ApplicationId>
     <ApplicationTitle>Leserpent</ApplicationTitle>
     <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>1.2.0</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
     <SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>
     <AndroidPackageFormat Condition="'$(Configuration)' == 'Release'">aab</AndroidPackageFormat>
     <ImplicitUsings>enable</ImplicitUsings>

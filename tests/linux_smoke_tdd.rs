@@ -74,7 +74,7 @@ fn runtime_session_start_can_probe_linux_loader_failure() {
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn runtime_session_can_probe_real_tcp_state_fragment_attach() {
     let mut template = handshake_debug_template();
-    template.id = "tcp_state_probe";
+    template.id = "tcp_state_probe".to_string();
     template.fragment_set = vec!["tcp_state_fragment".into()];
     let config = SessionConfig::for_template(template).unwrap();
     let session = RuntimeSession::start_with_linux_tracepoint_probes(config).unwrap();
@@ -96,7 +96,7 @@ fn runtime_session_can_probe_real_tcp_state_fragment_attach() {
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn runtime_session_can_probe_real_route_meta_fragment_attach() {
     let mut template = handshake_debug_template();
-    template.id = "route_meta_probe";
+    template.id = "route_meta_probe".to_string();
     template.fragment_set = vec!["tcp_state_fragment".into(), "route_meta_fragment".into()];
     let config = SessionConfig::for_template(template).unwrap();
     let session = RuntimeSession::start_with_linux_kernel_probes(config).unwrap();
@@ -124,7 +124,7 @@ fn runtime_session_can_probe_real_route_meta_fragment_attach() {
 #[ignore = "requires a Linux eBPF-capable environment"]
 fn runtime_session_can_probe_real_tcp_packet_meta_fragment_attach() {
     let mut template = handshake_debug_template();
-    template.id = "packet_meta_probe";
+    template.id = "packet_meta_probe".to_string();
     template.fragment_set = vec![
         "tcp_state_fragment".into(),
         "tcp_packet_meta_fragment".into(),

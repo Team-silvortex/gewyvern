@@ -98,6 +98,14 @@ fn leserpent_uses_the_root_dotnet_version_without_app_specific_version() {
     let root_manifest = read_repo_file("Cargo.toml");
     let root_props = read_repo_file("Directory.Build.props");
     let project = read_repo_file("apps/leserpent/src/Leserpent/Leserpent.csproj");
+    let desktop =
+        read_repo_file("apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj");
+    let android = read_repo_file(
+        "apps/leserpent-mobile/src/Leserpent.Mobile.Android/Leserpent.Mobile.Android.csproj",
+    );
+    let ios = read_repo_file(
+        "apps/leserpent-mobile/src/Leserpent.Mobile.iOS/Leserpent.Mobile.iOS.csproj",
+    );
     let frontend_package = read_repo_file("apps/leserpent/package.json");
     let frontend_lock = read_repo_file("apps/leserpent/package-lock.json");
     let workspace_version = section_version(&root_manifest, "workspace.package");
@@ -106,8 +114,34 @@ fn leserpent_uses_the_root_dotnet_version_without_app_specific_version() {
     assert_eq!(dotnet_version, workspace_version);
     assert!(!project.contains("<Version>0.1.9</Version>"));
     assert!(!project.contains("<Version>"));
+    assert!(!desktop.contains("<Version>"));
+    assert!(!android.contains("<Version>"));
+    assert!(!ios.contains("<Version>"));
+    assert!(android.contains("<ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>"));
+    assert!(!android.contains("<ApplicationDisplayVersion>1.4.0</ApplicationDisplayVersion>"));
     assert!(!frontend_package.contains("\"version\""));
     assert!(!frontend_lock.contains("\"version\": \"0.1.9\""));
+}
+
+#[test]
+fn macos_bundle_inherits_the_workspace_version_by_default() {
+    let bundler = read_repo_file("src/bin/gewyvern_leserpent_bundle.rs");
+    let release = read_repo_file("src/bin/gewyvern_leserpent_release.rs");
+    let app_readme = read_repo_file("apps/leserpent-avalonia/README.md");
+    let entrypoints = read_repo_file("docs/script-entrypoints.md");
+
+    assert!(bundler.contains("env!(\"CARGO_PKG_VERSION\").to_string()"));
+    assert!(bundler.contains("<key>CFBundleShortVersionString</key>"));
+    assert!(bundler.contains("<key>CFBundleVersion</key>"));
+    assert!(bundler.contains("plist != info_plist(version)"));
+    assert!(release.contains("const PRODUCT_VERSION: &str = env!(\"CARGO_PKG_VERSION\")"));
+    assert!(release.contains("Info.plist contains duplicate {key}"));
+    assert!(release.contains("CFBundleShortVersionString"));
+    assert!(release.contains("CFBundleVersion"));
+    assert!(app_readme.contains("inherit the root Rust workspace release automatically"));
+    assert!(entrypoints.contains("inherits the root Rust workspace version"));
+    assert!(!app_readme.contains("--version 1.4.0"));
+    assert!(!entrypoints.contains("--version 1.4.0"));
 }
 
 #[test]
@@ -118,9 +152,9 @@ fn docs_describe_one_shared_mainline_version() {
     let root_manifest = read_repo_file("Cargo.toml");
     let workspace_version = section_version(&root_manifest, "workspace.package");
 
-    assert_eq!(workspace_version, "1.2.0");
-    assert!(readme.starts_with("# gewyvern v1.2.0\n"));
-    assert!(readme.contains("project version: `1.2.0`"));
+    assert_eq!(workspace_version, "1.4.0");
+    assert!(readme.starts_with("# gewyvern v1.4.0\n"));
+    assert!(readme.contains("project version: `1.4.0`"));
 
     assert!(readme.contains("follows the root `gewyvern` version"));
     assert!(monorepo.contains("one shared mainline version"));

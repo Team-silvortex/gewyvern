@@ -19,6 +19,9 @@ enum ProofCommand {
         app_args: &'static [&'static str],
         success_marker: &'static str,
     },
+    DotnetTest {
+        project: &'static str,
+    },
 }
 
 struct ProofSuite {
@@ -161,6 +164,18 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "remote-cli-watch-parity",
             "remote-cli-confirmation-idempotency",
             "remote-cli-auth-failure",
+        ],
+    },
+    ProofSuite {
+        id: "dotnet-control-plane-security",
+        command: ProofCommand::DotnetTest {
+            project: "apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj",
+        },
+        expected_min_tests: 72,
+        invariants: &[
+            "non-vacuous-dotnet-test-discovery",
+            "serialized-durable-state-save",
+            "failed-save-snapshot-preservation",
         ],
     },
     ProofSuite {
@@ -320,6 +335,7 @@ pub fn run_leserpent_parity_recovery_validation(
 ) -> Result<ValidationReport, ValidationError> {
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-parity-recovery"));
     fs::create_dir_all(&out_dir)?;
+    clear_previous_proof_evidence(&out_dir)?;
     let dotnet_artifacts = out_dir.join("dotnet-artifacts");
     if dotnet_artifacts.exists() {
         fs::remove_dir_all(&dotnet_artifacts)?;
@@ -329,6 +345,7 @@ pub fn run_leserpent_parity_recovery_validation(
     let mut checks = Vec::new();
     let mut suites = Vec::with_capacity(PROOF_SUITES.len());
     let mut total_tests = 0;
+    let host = proof_host_metadata()?;
     for suite in PROOF_SUITES {
         let log = format!("{}.log", suite.id);
         let log_path = out_dir.join(&log);
@@ -356,10 +373,7 @@ pub fn run_leserpent_parity_recovery_validation(
         out_dir.join("proof-summary.json"),
         serde_json::to_string_pretty(&json!({
             "schema_version": 1,
-            "host": {
-                "os": std::env::consts::OS,
-                "arch": std::env::consts::ARCH,
-            },
+            "host": host,
             "suite_count": suites.len(),
             "observed_tests": total_tests,
             "invariant_count": checks.len(),
@@ -396,6 +410,100 @@ pub fn run_leserpent_parity_recovery_validation(
         out_dir,
         checks,
     })
+}
+
+fn clear_previous_proof_evidence(out_dir: &Path) -> Result<(), ValidationError> {
+    for name in ["proof-summary.json", "evidence-index.json"]
+        .into_iter()
+        .chain(PROOF_SUITES.iter().map(|suite| suite.id))
+    {
+        let path = if name.ends_with(".json") {
+            out_dir.join(name)
+        } else {
+            out_dir.join(format!("{name}.log"))
+        };
+        match fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(ValidationError::new(format!(
+                    "failed to remove stale proof evidence '{}': {error}",
+                    path.display()
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn proof_host_metadata() -> Result<serde_json::Value, ValidationError> {
+    let captured_unix_seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| ValidationError::new(format!("host clock predates Unix epoch: {error}")))?
+        .as_secs();
+    Ok(json!({
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "kernel": kernel_release()?,
+        "rustc": command_version("rustc", &["--version"])?,
+        "cargo": command_version("cargo", &["--version"])?,
+        "dotnet": command_version("dotnet", &["--version"])?,
+        "captured_unix_seconds": captured_unix_seconds,
+    }))
+}
+
+#[cfg(unix)]
+fn kernel_release() -> Result<String, ValidationError> {
+    command_version("uname", &["-r"])
+}
+
+#[cfg(not(unix))]
+fn kernel_release() -> Result<String, ValidationError> {
+    Ok("unavailable".to_string())
+}
+
+fn command_version(command: &str, args: &[&str]) -> Result<String, ValidationError> {
+    const MAX_OUTPUT_BYTES: usize = 1024;
+    const MAX_LINE_BYTES: usize = 256;
+
+    let output = Command::new(command)
+        .args(args)
+        .output()
+        .map_err(|error| ValidationError::new(format!("failed to run {command}: {error}")))?;
+    if !output.status.success() {
+        return Err(ValidationError::new(format!(
+            "{command} version probe failed with status {}",
+            output.status
+        )));
+    }
+    parse_bounded_version_output(command, &output.stdout, MAX_OUTPUT_BYTES, MAX_LINE_BYTES)
+}
+
+fn parse_bounded_version_output(
+    command: &str,
+    stdout: &[u8],
+    max_output_bytes: usize,
+    max_line_bytes: usize,
+) -> Result<String, ValidationError> {
+    if stdout.len() > max_output_bytes {
+        return Err(ValidationError::new(format!(
+            "{command} version output exceeds {max_output_bytes} bytes"
+        )));
+    }
+    let stdout = std::str::from_utf8(stdout).map_err(|error| {
+        ValidationError::new(format!("{command} version is not UTF-8: {error}"))
+    })?;
+    let line = stdout
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(str::trim)
+        .ok_or_else(|| ValidationError::new(format!("{command} version output is empty")))?;
+    if line.len() > max_line_bytes || line.chars().any(char::is_control) {
+        return Err(ValidationError::new(format!(
+            "{command} version line violates the bounded text contract"
+        )));
+    }
+    Ok(line.to_string())
 }
 
 fn execute_suite(
@@ -478,6 +586,48 @@ fn execute_suite(
                 }),
             ))
         }
+        ProofCommand::DotnetTest { project } => {
+            let suite_artifacts = dotnet_artifacts.join(suite.id);
+            let output = Command::new("dotnet")
+                .current_dir(repo_root())
+                .env("DOTNET_CLI_UI_LANGUAGE", "en-US")
+                .env("VSLANG", "1033")
+                .args([
+                    "test",
+                    project,
+                    "--configuration",
+                    "Release",
+                    "--artifacts-path",
+                ])
+                .arg(&suite_artifacts)
+                .args([
+                    "-p:RestoreLockedMode=true",
+                    "--logger",
+                    "console;verbosity=minimal",
+                ])
+                .output()
+                .map_err(|error| {
+                    ValidationError::new(format!("failed to run dotnet tests: {error}"))
+                })?;
+            write_output(log_path, &output)?;
+            if !output.status.success() {
+                return Err(ValidationError::new(format!(
+                    "dotnet test suite '{}' failed with status {}",
+                    suite.id, output.status
+                )));
+            }
+            let observed_tests = dotnet_passed_test_count(&output.stdout, &output.stderr)?;
+            fs::remove_dir_all(&suite_artifacts)?;
+            Ok((
+                observed_tests,
+                json!({
+                    "runner": "dotnet-test",
+                    "project": project,
+                    "restore_locked": true,
+                    "output_locale": "en-US",
+                }),
+            ))
+        }
     }
 }
 
@@ -507,6 +657,55 @@ fn passed_test_count(log_path: &Path) -> Result<usize, ValidationError> {
         })
 }
 
+fn dotnet_passed_test_count(stdout: &[u8], stderr: &[u8]) -> Result<usize, ValidationError> {
+    let stdout = String::from_utf8_lossy(stdout);
+    let stderr = String::from_utf8_lossy(stderr);
+    let summaries = stdout
+        .lines()
+        .chain(stderr.lines())
+        .filter(|line| line.trim_start().starts_with("Passed!"))
+        .collect::<Vec<_>>();
+    if summaries.len() != 1 {
+        return Err(ValidationError::new(format!(
+            "dotnet test output contained {} success summaries, expected exactly one",
+            summaries.len()
+        )));
+    }
+    let summary = summaries[0];
+    let failed = labeled_dotnet_count(summary, "Failed:")?;
+    let passed = labeled_dotnet_count(summary, "Passed:")?;
+    let skipped = labeled_dotnet_count(summary, "Skipped:")?;
+    let total = labeled_dotnet_count(summary, "Total:")?;
+    if failed != 0 || passed == 0 || total != passed + skipped {
+        return Err(ValidationError::new(format!(
+            "dotnet test summary is not a non-vacuous success: {summary}"
+        )));
+    }
+    Ok(passed)
+}
+
+fn labeled_dotnet_count(summary: &str, label: &str) -> Result<usize, ValidationError> {
+    let tail = summary
+        .split_once(label)
+        .map(|(_, tail)| tail)
+        .ok_or_else(|| ValidationError::new(format!("dotnet test summary missing {label}")))?;
+    let digits = tail
+        .trim_start()
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .collect::<String>();
+    if digits.is_empty() {
+        return Err(ValidationError::new(format!(
+            "dotnet test summary has invalid {label} count"
+        )));
+    }
+    digits.parse::<usize>().map_err(|error| {
+        ValidationError::new(format!(
+            "dotnet test summary has invalid {label} count: {error}"
+        ))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -515,13 +714,13 @@ mod tests {
 
     #[test]
     fn proof_suite_manifest_has_non_vacuous_coverage() {
-        assert_eq!(PROOF_SUITES.len(), 12);
+        assert_eq!(PROOF_SUITES.len(), 13);
         assert_eq!(
             PROOF_SUITES
                 .iter()
                 .map(|suite| suite.expected_min_tests)
                 .sum::<usize>(),
-            134
+            206
         );
         assert!(
             PROOF_SUITES
@@ -580,5 +779,58 @@ mod tests {
         fs::write(&path, "running 0 tests\n").unwrap();
         assert!(passed_test_count(&path).is_err());
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn dotnet_summary_parser_requires_one_consistent_nonzero_success() {
+        let success = b"Passed!  - Failed:     0, Passed:    72, Skipped:     0, Total:    72\n";
+        assert_eq!(dotnet_passed_test_count(success, b"").unwrap(), 72);
+
+        for invalid in [
+            b"Build succeeded.\n".as_slice(),
+            b"Passed! - Failed: 0, Passed: 0, Skipped: 0, Total: 0\n".as_slice(),
+            b"Passed! - Failed: 1, Passed: 71, Skipped: 0, Total: 72\n".as_slice(),
+            b"Passed! - Failed: 0, Passed: 72, Skipped: 1, Total: 72\n".as_slice(),
+        ] {
+            assert!(dotnet_passed_test_count(invalid, b"").is_err());
+        }
+        let duplicate = [success.as_slice(), success.as_slice()].concat();
+        assert!(dotnet_passed_test_count(&duplicate, b"").is_err());
+    }
+
+    #[test]
+    fn version_output_parser_is_bounded_and_single_line() {
+        assert_eq!(
+            parse_bounded_version_output("tool", b"tool 1.2.3\nextra\n", 64, 32).unwrap(),
+            "tool 1.2.3"
+        );
+        assert!(parse_bounded_version_output("tool", &[0xff], 64, 32).is_err());
+        assert!(parse_bounded_version_output("tool", b"tool\t1.2.3\n", 64, 32).is_err());
+        assert!(parse_bounded_version_output("tool", &[b'x'; 65], 64, 64).is_err());
+    }
+
+    #[test]
+    fn proof_start_removes_only_known_stale_evidence() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let out_dir = std::env::temp_dir().join(format!(
+            "leserpent-stale-proof-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&out_dir).unwrap();
+        fs::write(out_dir.join("proof-summary.json"), "stale").unwrap();
+        fs::write(out_dir.join("evidence-index.json"), "stale").unwrap();
+        fs::write(out_dir.join(format!("{}.log", PROOF_SUITES[0].id)), "stale").unwrap();
+        fs::write(out_dir.join("operator-note.txt"), "retain").unwrap();
+
+        clear_previous_proof_evidence(&out_dir).unwrap();
+
+        assert!(!out_dir.join("proof-summary.json").exists());
+        assert!(!out_dir.join("evidence-index.json").exists());
+        assert!(!out_dir.join(format!("{}.log", PROOF_SUITES[0].id)).exists());
+        assert!(out_dir.join("operator-note.txt").is_file());
+        fs::remove_dir_all(out_dir).unwrap();
     }
 }

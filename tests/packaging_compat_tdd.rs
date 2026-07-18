@@ -12,7 +12,7 @@ fn read_repo_file(relative: &str) -> String {
 fn package_layout_writes_compat_manifest() {
     let build_script = read_repo_file("scripts/packaging/build_packages.sh");
 
-    assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.2.0}\""));
+    assert!(build_script.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.4.0}\""));
     assert!(build_script.contains("LAYOUT_VERSION=\"${GEWY_LAYOUT_VERSION:-1}\""));
     assert!(build_script.contains("CONFIG_SCHEMA_VERSION=\"${GEWY_CONFIG_SCHEMA_VERSION:-1}\""));
     assert!(build_script.contains("TARGET_ROOT=\"${CARGO_TARGET_DIR:-${ROOT}/target}\""));
@@ -42,6 +42,14 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("can_reuse_cached_packages()"));
     assert!(build_script.contains("reusing cached package artifacts..."));
     assert!(build_script.contains("write_cache_key"));
+    assert!(build_script.contains("GEWY_PACKAGE_LOCK_TIMEOUT_SECONDS:-120"));
+    assert!(build_script.contains("flock -w \"${PACKAGE_LOCK_TIMEOUT_SECONDS}\" 9"));
+    assert!(build_script.contains("PENDING_MANIFEST_FILE=\"$(mktemp"));
+    assert!(build_script.contains("mv -f \"${PENDING_MANIFEST_FILE}\""));
+    assert!(build_script.contains("expected exactly one RPM from this build"));
+    assert!(!build_script.contains("sort | tail -n 1"));
+    assert!(build_script.contains(".package-deb.XXXXXX"));
+    assert!(build_script.contains(".package-rpm.XXXXXX"));
     assert!(build_script.contains("--define \"use_source_date_epoch_as_buildtime 1\""));
     assert!(build_script.contains("--define \"clamp_mtime_to_source_date_epoch 1\""));
 }
@@ -64,7 +72,7 @@ fn install_smoke_validates_packaged_compat_artifacts() {
     assert!(harness.contains("run_package_install_smoke"));
     assert!(harness.contains("GEWY_DEB_SMOKE_IMAGE"));
     assert!(harness.contains("GEWY_RPM_SMOKE_IMAGE"));
-    assert!(harness.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.2.0}\""));
+    assert!(harness.contains("RELEASE_LINE=\"${GEWY_RELEASE_LINE:-v1.4.0}\""));
     assert!(harness.contains("test -f /usr/share/gewyvern/package-compat.toml"));
     assert!(harness.contains("grep -q '^schema_version = 1$'"));
     assert!(harness.contains("release_line = \\\"${RELEASE_LINE}\\\""));

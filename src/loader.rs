@@ -78,7 +78,7 @@ impl Loader for LinuxProbeLoader {
 
 #[cfg(target_os = "linux")]
 pub fn linux_tracepoint_smoke_failures(
-    hookpoint_name: &'static str,
+    hookpoint_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
     crate::linux_ebpf_smoke::validate_tracepoint_name(hookpoint_name).map_err(map_smoke_error)?;
@@ -88,23 +88,23 @@ pub fn linux_tracepoint_smoke_failures(
     };
 
     Ok(vec![AttachFailure {
-        fragment_id: LINUX_SMOKE_FRAGMENT_ID,
-        hookpoint: HookPoint::TracePoint(hookpoint_name),
+        fragment_id: LINUX_SMOKE_FRAGMENT_ID.to_string(),
+        hookpoint: HookPoint::TracePoint(hookpoint_name.to_string()),
         error: message,
     }])
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn linux_tracepoint_smoke_failures(
-    _hookpoint_name: &'static str,
+    _hookpoint_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     Err(LoaderError::UnsupportedPlatform)
 }
 
 #[cfg(target_os = "linux")]
 pub fn linux_probe_tracepoint_hook(
-    fragment_id: &'static str,
-    hookpoint_name: &'static str,
+    fragment_id: &str,
+    hookpoint_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
     crate::linux_ebpf_smoke::validate_tracepoint_name(hookpoint_name).map_err(map_smoke_error)?;
@@ -114,24 +114,24 @@ pub fn linux_probe_tracepoint_hook(
     };
 
     Ok(vec![AttachFailure {
-        fragment_id,
-        hookpoint: HookPoint::TracePoint(hookpoint_name),
+        fragment_id: fragment_id.to_string(),
+        hookpoint: HookPoint::TracePoint(hookpoint_name.to_string()),
         error: message,
     }])
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn linux_probe_tracepoint_hook(
-    _fragment_id: &'static str,
-    _hookpoint_name: &'static str,
+    _fragment_id: &str,
+    _hookpoint_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     Err(LoaderError::UnsupportedPlatform)
 }
 
 #[cfg(target_os = "linux")]
 pub fn linux_probe_kprobe_hook(
-    fragment_id: &'static str,
-    symbol_name: &'static str,
+    fragment_id: &str,
+    symbol_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
     crate::linux_ebpf_smoke::validate_symbol_name(symbol_name).map_err(map_smoke_error)?;
@@ -141,24 +141,24 @@ pub fn linux_probe_kprobe_hook(
     };
 
     Ok(vec![AttachFailure {
-        fragment_id,
-        hookpoint: HookPoint::KProbe(symbol_name),
+        fragment_id: fragment_id.to_string(),
+        hookpoint: HookPoint::KProbe(symbol_name.to_string()),
         error: message,
     }])
 }
 
 #[cfg(not(target_os = "linux"))]
 pub fn linux_probe_kprobe_hook(
-    _fragment_id: &'static str,
-    _symbol_name: &'static str,
+    _fragment_id: &str,
+    _symbol_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     Err(LoaderError::UnsupportedPlatform)
 }
 
 #[cfg(target_os = "linux")]
 pub fn linux_probe_tc_ingress_hook(
-    fragment_id: &'static str,
-    dev_name: &'static str,
+    fragment_id: &str,
+    dev_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     use crate::fragment::HookPoint;
     crate::linux_ebpf_smoke::validate_netdev_name(dev_name).map_err(map_smoke_error)?;
@@ -168,7 +168,7 @@ pub fn linux_probe_tc_ingress_hook(
     };
 
     Ok(vec![AttachFailure {
-        fragment_id,
+        fragment_id: fragment_id.to_string(),
         hookpoint: HookPoint::TCIngress,
         error: message,
     }])
@@ -176,8 +176,8 @@ pub fn linux_probe_tc_ingress_hook(
 
 #[cfg(not(target_os = "linux"))]
 pub fn linux_probe_tc_ingress_hook(
-    _fragment_id: &'static str,
-    _dev_name: &'static str,
+    _fragment_id: &str,
+    _dev_name: &str,
 ) -> Result<Vec<AttachFailure>, LoaderError> {
     Err(LoaderError::UnsupportedPlatform)
 }
@@ -189,8 +189,8 @@ pub fn linux_probe_tracepoint_hooks(plan: &AttachPlan) -> Result<Vec<AttachFailu
     let mut failures = Vec::new();
 
     for binding in &plan.hook_graph {
-        if let HookPoint::TracePoint(name) = binding.hookpoint {
-            failures.extend(linux_probe_tracepoint_hook(binding.fragment_id, name)?);
+        if let HookPoint::TracePoint(name) = &binding.hookpoint {
+            failures.extend(linux_probe_tracepoint_hook(&binding.fragment_id, name)?);
         }
     }
 
@@ -209,15 +209,15 @@ pub fn linux_probe_kernel_hooks(plan: &AttachPlan) -> Result<Vec<AttachFailure>,
     let mut failures = Vec::new();
 
     for binding in &plan.hook_graph {
-        match binding.hookpoint {
+        match &binding.hookpoint {
             HookPoint::TracePoint(name) => {
-                failures.extend(linux_probe_tracepoint_hook(binding.fragment_id, name)?);
+                failures.extend(linux_probe_tracepoint_hook(&binding.fragment_id, name)?);
             }
             HookPoint::KProbe(name) => {
-                failures.extend(linux_probe_kprobe_hook(binding.fragment_id, name)?);
+                failures.extend(linux_probe_kprobe_hook(&binding.fragment_id, name)?);
             }
             HookPoint::TCIngress => {
-                failures.extend(linux_probe_tc_ingress_hook(binding.fragment_id, "eth0")?);
+                failures.extend(linux_probe_tc_ingress_hook(&binding.fragment_id, "eth0")?);
             }
             HookPoint::TCEgress => {}
         }
@@ -250,7 +250,11 @@ fn map_smoke_error(err: crate::linux_ebpf_smoke::LinuxEbpfSmokeError) -> LoaderE
 
 #[cfg(test)]
 mod tests {
-    use super::LoaderError;
+    use super::{
+        LoaderError, linux_probe_kprobe_hook, linux_probe_tc_ingress_hook,
+        linux_probe_tracepoint_hook,
+    };
+    use crate::fragment::AttachFailure;
     use crate::linux_ebpf_smoke::{
         validate_netdev_name, validate_symbol_name, validate_tracepoint_name,
     };
@@ -280,5 +284,13 @@ mod tests {
             super::map_smoke_error(err),
             LoaderError::InvalidProbeTarget(_)
         ));
+    }
+
+    #[test]
+    fn linux_probe_api_accepts_borrowed_plan_strings() {
+        type ProbeFn = fn(&str, &str) -> Result<Vec<AttachFailure>, LoaderError>;
+        let _: ProbeFn = linux_probe_tracepoint_hook;
+        let _: ProbeFn = linux_probe_kprobe_hook;
+        let _: ProbeFn = linux_probe_tc_ingress_hook;
     }
 }

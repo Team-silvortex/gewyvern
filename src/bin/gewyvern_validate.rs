@@ -11,9 +11,10 @@ mod gewyvern_validate_stack;
 
 use gewyvern::validation_harness::{
     ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions, ValidationError,
-    run_container_operator_path_validation, run_container_protocol_validation,
-    run_container_runtime_validation, run_container_validation_summary,
-    run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
+    parse_bounded_unique_key_values, run_container_operator_path_validation,
+    run_container_protocol_validation, run_container_runtime_validation,
+    run_container_validation_summary, run_debugger_cross_validation,
+    run_external_engine_roundtrip_demo, run_field_smoke_validation,
     run_ftp_denied_container_validation, run_high_frequency_validation,
     run_juice_shop_container_validation, run_ldap_bind_denied_container_validation,
     run_leselang_fuzz_validation, run_leserpent_accessibility_validation,
@@ -634,7 +635,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
             }
             let options = parse_remote_linux_host_options(rest)?;
             let report = run_remote_linux_host_validation(options)?;
-            let extra = remote_linux_host_summary_value(&report.out_dir);
+            let extra = remote_linux_host_summary_value(&report.out_dir)?;
             print_validation_report(
                 &command,
                 &report,
@@ -651,7 +652,7 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
             }
             let options = parse_release_gate_options(rest)?;
             let report = run_release_gate(options)?;
-            let extra = release_gate_summary_value(&report);
+            let extra = release_gate_summary_value(&report)?;
             print_validation_report(
                 &command,
                 &report,
@@ -1278,7 +1279,9 @@ fn print_validation_report(
     match command {
         "release-container-check" => print_release_container_check_summary(report),
         "remote-linux-host-validation" => {
-            print_remote_linux_host_validation_summary(&report.out_dir)
+            if let Some(extra) = extra.as_ref() {
+                print_remote_linux_host_validation_summary(extra);
+            }
         }
         _ => {
             if let Some(extra) = extra {
@@ -1859,8 +1862,7 @@ fn print_remote_linux_host_validation_help() {
     );
 }
 
-fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
-    let summary = remote_linux_host_summary_value(out_dir);
+fn print_remote_linux_host_validation_summary(summary: &serde_json::Value) {
     if let Some(kernel) = summary
         .get("preflight")
         .and_then(|value| value.get("kernel"))
@@ -1970,17 +1972,122 @@ fn print_remote_linux_host_validation_summary(out_dir: &std::path::Path) {
     }
 }
 
-fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Value {
-    let run = parse_key_value_file(&out_dir.join("remote-run.txt"));
-    let preflight = parse_key_value_file(&out_dir.join("remote-preflight.txt"));
-    let ebpf = parse_key_value_file(&out_dir.join("remote-ebpf.txt"));
-    let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
-    let package_build_timings =
-        parse_phase_timings(&out_dir.join("remote-package-build-timings.txt"));
-    let package_smoke_timings =
-        parse_phase_timings(&out_dir.join("remote-package-smoke-timings.txt"));
-    let runtime_smoke_timings =
-        parse_phase_timings(&out_dir.join("remote-runtime-smoke-timings.txt"));
+fn remote_linux_host_summary_value(
+    out_dir: &std::path::Path,
+) -> Result<serde_json::Value, ValidationError> {
+    let run = parse_evidence_key_value_file(
+        &out_dir.join("remote-run.txt"),
+        "remote run evidence",
+        &[
+            "host",
+            "remote_dir",
+            "build_packages",
+            "keep_remote_dir",
+            "checks",
+        ],
+    )?;
+    let preflight = parse_evidence_key_value_file(
+        &out_dir.join("remote-preflight.txt"),
+        "remote preflight evidence",
+        &[
+            "os",
+            "arch",
+            "kernel",
+            "host_fingerprint",
+            "home_dir",
+            "commands",
+            "rustc_version",
+            "cargo_version",
+            "dpkg_deb_version",
+            "rpm_version",
+            "rpmbuild_version",
+            "sudo_available",
+            "default_route_device",
+        ],
+    )?;
+    let ebpf = parse_evidence_key_value_file(
+        &out_dir.join("remote-ebpf.txt"),
+        "remote eBPF evidence",
+        &["status", "reason", "default_route_device"],
+    )?;
+    let timings = parse_phase_timings(
+        &out_dir.join("remote-phase-timings.txt"),
+        "remote phase timings",
+        &[
+            "remote_preflight",
+            "remote_workspace_create",
+            "workspace_sync",
+            "remote_workspace_materialize",
+            "remote_linux_target_check",
+            "remote_package_build",
+            "remote_artifact_verify",
+            "remote_package_smoke",
+            "remote_runtime_smoke",
+            "remote_ebpf_validator_build",
+            "remote_ebpf_attach",
+            "remote_ebpf_evidence_sync",
+            "remote_workspace_cleanup",
+            "total",
+        ],
+        &["total"],
+    )?;
+    let build_packages_enabled =
+        parse_required_bool(&run, "build_packages", "remote run evidence")?;
+    let package_build_timings = if build_packages_enabled {
+        parse_phase_timings(
+            &out_dir.join("remote-package-build-timings.txt"),
+            "remote package build timings",
+            &["release_build", "stage_layout", "package_all", "total"],
+            &["release_build", "stage_layout", "package_all", "total"],
+        )?
+    } else {
+        Vec::new()
+    };
+    let package_smoke_timings = parse_phase_timings(
+        &out_dir.join("remote-package-smoke-timings.txt"),
+        "remote package smoke timings",
+        &[
+            "deb_list_contents",
+            "deb_unpack_cache_refresh",
+            "deb_verify",
+            "rpm_list_contents",
+            "rpm_unpack_cache_refresh",
+            "rpm_verify",
+            "total",
+        ],
+        &[
+            "deb_list_contents",
+            "deb_verify",
+            "rpm_list_contents",
+            "rpm_verify",
+            "total",
+        ],
+    )?;
+    let runtime_smoke_timings = parse_phase_timings(
+        &out_dir.join("remote-runtime-smoke-timings.txt"),
+        "remote runtime smoke timings",
+        &[
+            "unpack_cache_refresh",
+            "tcp_boot_health",
+            "udp_boot_health",
+            "tcp_summary",
+            "udp_summary",
+            "udp_analysis",
+            "tcp_health_after_bad",
+            "tcp_analysis",
+            "total",
+        ],
+        &[
+            "tcp_boot_health",
+            "udp_boot_health",
+            "tcp_summary",
+            "udp_summary",
+            "udp_analysis",
+            "tcp_health_after_bad",
+            "tcp_analysis",
+            "total",
+        ],
+    )?;
     let mut summary = serde_json::Map::new();
 
     if let Some(remote_dir) = run.get("remote_dir") {
@@ -1999,12 +2106,18 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
     if let Some(build_packages) = run.get("build_packages") {
         summary.insert("build_packages".to_string(), json!(build_packages));
     }
-    if let Some(build_packages) = parse_bool_string(run.get("build_packages")) {
-        summary.insert("build_packages_enabled".to_string(), json!(build_packages));
-    }
-    if let Some(keep_remote_dir) = parse_bool_string(run.get("keep_remote_dir")) {
-        summary.insert("keep_remote_dir".to_string(), json!(keep_remote_dir));
-    }
+    summary.insert(
+        "build_packages_enabled".to_string(),
+        json!(build_packages_enabled),
+    );
+    summary.insert(
+        "keep_remote_dir".to_string(),
+        json!(parse_required_bool(
+            &run,
+            "keep_remote_dir",
+            "remote run evidence"
+        )?),
+    );
     if let Some(checks) = run.get("checks") {
         summary.insert(
             "remote_checks".to_string(),
@@ -2028,6 +2141,11 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
                 "commands": preflight
                     .get("commands")
                     .map(|value| value.split(',').filter(|item| !item.is_empty()).collect::<Vec<_>>()),
+                "rustc_version": preflight.get("rustc_version"),
+                "cargo_version": preflight.get("cargo_version"),
+                "dpkg_deb_version": preflight.get("dpkg_deb_version"),
+                "rpm_version": preflight.get("rpm_version"),
+                "rpmbuild_version": preflight.get("rpmbuild_version"),
                 "sudo_available": parse_bool_string(preflight.get("sudo_available")),
                 "default_route_device": preflight.get("default_route_device"),
             }),
@@ -2050,7 +2168,10 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
             }),
         );
     }
-    if let Some(history_summary) = parse_json_file(&out_dir.join("remote-ebpf-status-summary.json"))
+    let history_summary = parse_bounded_json_file(
+        &out_dir.join("remote-ebpf-status-summary.json"),
+        "remote eBPF status summary",
+    )?;
     {
         if let Some(entries) = history_summary
             .get("entries")
@@ -2083,7 +2204,10 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
             summary.insert("recent_ebpf_trend".to_string(), json!(trend));
         }
     }
-    let recent_lines = read_trimmed_lines(&out_dir.join("remote-ebpf-recent.txt"));
+    let recent_lines = read_bounded_recent_lines(
+        &out_dir.join("remote-ebpf-recent.txt"),
+        "remote eBPF recent evidence",
+    )?;
     if !recent_lines.is_empty() {
         summary.insert("recent_ebpf_lines".to_string(), json!(recent_lines));
     }
@@ -2180,7 +2304,7 @@ fn remote_linux_host_summary_value(out_dir: &std::path::Path) -> serde_json::Val
         json!(linux_proof_complete),
     );
     summary.insert("requires_followup".to_string(), json!(requires_followup));
-    serde_json::Value::Object(summary)
+    Ok(serde_json::Value::Object(summary))
 }
 
 fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
@@ -2217,21 +2341,21 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
 
 fn release_gate_summary_value(
     report: &gewyvern::validation_harness::ValidationReport,
-) -> serde_json::Value {
+) -> Result<serde_json::Value, ValidationError> {
     let checks = &report.checks;
     let remote_out_dir = report.out_dir.join("remote-linux-host-validation");
     let remote_ran = checks
         .iter()
         .any(|check| check == "remote_linux_host_validation");
     let remote = if remote_ran && remote_out_dir.is_dir() {
-        remote_linux_host_summary_value(&remote_out_dir)
+        remote_linux_host_summary_value(&remote_out_dir)?
     } else {
         serde_json::Value::Null
     };
     let (gate_posture, ship_signal, next_step) =
         summarize_release_gate_posture(checks, remote.as_object());
 
-    json!({
+    Ok(json!({
         "stages": {
             "build_packages": checks.iter().any(|check| check == "build_packages_in_container"),
             "release_container_check": checks.iter().any(|check| check == "release_container_check"),
@@ -2244,7 +2368,7 @@ fn release_gate_summary_value(
         "gate_posture": gate_posture,
         "ship_signal": ship_signal,
         "next_step": next_step
-    })
+    }))
 }
 
 fn summarize_release_gate_posture(
@@ -2360,42 +2484,164 @@ fn summarize_release_gate_posture(
     }
 }
 
-fn parse_key_value_file(path: &std::path::Path) -> BTreeMap<String, String> {
-    let Ok(contents) = fs::read_to_string(path) else {
-        return BTreeMap::new();
-    };
-    let mut values = BTreeMap::new();
-    for line in contents.lines() {
-        if let Some((key, value)) = line.split_once('=') {
-            values.insert(key.to_string(), value.to_string());
+fn parse_evidence_key_value_file(
+    path: &std::path::Path,
+    context: &str,
+    allowed_keys: &[&str],
+) -> Result<BTreeMap<String, String>, ValidationError> {
+    const MAX_BYTES: u64 = 8 * 1024;
+
+    let metadata = fs::symlink_metadata(path).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to inspect {context} '{}': {err}",
+            path.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(ValidationError::new(format!(
+            "{context} must be a regular non-symlink file: {}",
+            path.display()
+        )));
+    }
+    if metadata.len() > MAX_BYTES {
+        return Err(ValidationError::new(format!(
+            "{context} '{}' exceeds {MAX_BYTES} bytes",
+            path.display()
+        )));
+    }
+    let contents = fs::read_to_string(path).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to read {context} '{}': {err}",
+            path.display()
+        ))
+    })?;
+    parse_bounded_unique_key_values(&contents, context, allowed_keys)
+}
+
+fn parse_phase_timings(
+    path: &std::path::Path,
+    context: &str,
+    allowed_keys: &[&str],
+    required_keys: &[&str],
+) -> Result<Vec<(String, f64)>, ValidationError> {
+    const MAX_SECONDS: f64 = 24.0 * 60.0 * 60.0;
+
+    let values = parse_evidence_key_value_file(path, context, allowed_keys)?;
+    for key in required_keys {
+        if !values.contains_key(*key) {
+            return Err(ValidationError::new(format!("{context} missing {key}")));
         }
     }
     values
-}
-
-fn parse_phase_timings(path: &std::path::Path) -> Vec<(String, f64)> {
-    parse_key_value_file(path)
         .into_iter()
-        .filter_map(|(name, value)| value.parse::<f64>().ok().map(|seconds| (name, seconds)))
+        .map(|(name, value)| {
+            let seconds = value.parse::<f64>().map_err(|_| {
+                ValidationError::new(format!("{context} {name} is not a valid number"))
+            })?;
+            if !seconds.is_finite() || !(0.0..=MAX_SECONDS).contains(&seconds) {
+                return Err(ValidationError::new(format!(
+                    "{context} {name} must be finite and between 0 and {MAX_SECONDS} seconds"
+                )));
+            }
+            Ok((name, seconds))
+        })
         .collect()
 }
 
-fn parse_json_file(path: &std::path::Path) -> Option<serde_json::Value> {
-    let body = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&body).ok()
+fn parse_required_bool(
+    values: &BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<bool, ValidationError> {
+    match values.get(key).map(String::as_str) {
+        Some("true") => Ok(true),
+        Some("false") => Ok(false),
+        Some(_) => Err(ValidationError::new(format!(
+            "{context} {key} must be true or false"
+        ))),
+        None => Err(ValidationError::new(format!("{context} missing {key}"))),
+    }
 }
 
-fn read_trimmed_lines(path: &std::path::Path) -> Vec<String> {
-    fs::read_to_string(path)
-        .ok()
-        .map(|body| {
-            body.lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty())
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
+fn parse_bounded_json_file(
+    path: &std::path::Path,
+    context: &str,
+) -> Result<serde_json::Value, ValidationError> {
+    const MAX_BYTES: u64 = 64 * 1024;
+
+    let metadata = fs::symlink_metadata(path).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to inspect {context} '{}': {err}",
+            path.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(ValidationError::new(format!(
+            "{context} must be a regular non-symlink file: {}",
+            path.display()
+        )));
+    }
+    if metadata.len() > MAX_BYTES {
+        return Err(ValidationError::new(format!(
+            "{context} '{}' exceeds {MAX_BYTES} bytes",
+            path.display()
+        )));
+    }
+    let body = fs::read_to_string(path).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to read {context} '{}': {err}",
+            path.display()
+        ))
+    })?;
+    serde_json::from_str(&body).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to parse {context} '{}': {err}",
+            path.display()
+        ))
+    })
+}
+
+fn read_bounded_recent_lines(
+    path: &std::path::Path,
+    context: &str,
+) -> Result<Vec<String>, ValidationError> {
+    const MAX_BYTES: u64 = 16 * 1024;
+    const MAX_LINES: usize = 5;
+    const MAX_LINE_BYTES: usize = 512;
+
+    let metadata = fs::symlink_metadata(path).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to inspect {context} '{}': {err}",
+            path.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > MAX_BYTES {
+        return Err(ValidationError::new(format!(
+            "{context} must be a regular file no larger than {MAX_BYTES} bytes: {}",
+            path.display()
+        )));
+    }
+    let body = fs::read_to_string(path).map_err(|err| {
+        ValidationError::new(format!(
+            "failed to read {context} '{}': {err}",
+            path.display()
+        ))
+    })?;
+    let lines = body
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    if lines.len() > MAX_LINES
+        || lines
+            .iter()
+            .any(|line| line.len() > MAX_LINE_BYTES || line.chars().any(char::is_control))
+    {
+        return Err(ValidationError::new(format!(
+            "{context} exceeds its bounded line contract"
+        )));
+    }
+    Ok(lines.into_iter().map(ToOwned::to_owned).collect())
 }
 
 fn summarize_recent_ebpf_trend(history_summary: &serde_json::Value) -> Option<String> {
@@ -2642,7 +2888,7 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-preflight.txt"),
-            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nsudo_available=true\ndefault_route_device=eth0\n",
+            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=dpkg-deb 1.22.6\nrpm_version=RPM version 4.18.2\nrpmbuild_version=RPM version 4.18.2\nsudo_available=true\ndefault_route_device=eth0\n",
         )
         .unwrap();
         fs::write(
@@ -2667,24 +2913,71 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-package-build-timings.txt"),
-            "cargo_build=12.5\npackage_bundle=1.25\n",
+            "release_build=12.5\nstage_layout=0.5\npackage_all=1.25\ntotal=14.25\n",
         )
         .unwrap();
         fs::write(
             temp.path.join("remote-package-smoke-timings.txt"),
-            "deb_verify=0.4\nrpm_verify=0.6\n",
+            "deb_list_contents=0.1\ndeb_verify=0.4\nrpm_list_contents=0.2\nrpm_verify=0.6\ntotal=1.3\n",
         )
         .unwrap();
         fs::write(
             temp.path.join("remote-runtime-smoke-timings.txt"),
-            "tcp_boot_health=0.7\nudp_analysis=0.5\n",
+            "tcp_boot_health=0.7\nudp_boot_health=0.6\ntcp_summary=0.4\nudp_summary=0.3\nudp_analysis=0.5\ntcp_health_after_bad=0.2\ntcp_analysis=0.4\ntotal=3.1\n",
         )
         .unwrap();
 
-        let summary = remote_linux_host_summary_value(&temp.path);
+        let summary = remote_linux_host_summary_value(&temp.path).unwrap();
         let expected =
             read_fixture("docs/fixtures/gewyvern_validate_remote_linux_host_summary.json");
         assert_eq!(summary, expected);
+    }
+
+    #[test]
+    fn local_evidence_reader_rejects_ambiguous_unknown_and_unbounded_files() {
+        let temp = TempDirGuard::new("gewyvern-local-evidence-codec");
+        let path = temp.path.join("evidence.txt");
+
+        for body in ["status=ok\nstatus=bad\n", "unknown=value\n", "malformed\n"] {
+            fs::write(&path, body).unwrap();
+            assert!(
+                parse_evidence_key_value_file(&path, "test evidence", &["status"]).is_err(),
+                "{body}"
+            );
+        }
+        fs::write(&path, "x".repeat(8 * 1024 + 1)).unwrap();
+        assert!(parse_evidence_key_value_file(&path, "test evidence", &["status"]).is_err());
+    }
+
+    #[test]
+    fn local_summary_reader_rejects_malformed_and_unbounded_json() {
+        let temp = TempDirGuard::new("gewyvern-local-summary-json");
+        let path = temp.path.join("summary.json");
+
+        fs::write(&path, "not-json").unwrap();
+        assert!(parse_bounded_json_file(&path, "test summary").is_err());
+
+        fs::write(
+            &path,
+            format!("{{\"padding\":\"{}\"}}", "x".repeat(64 * 1024)),
+        )
+        .unwrap();
+        assert!(parse_bounded_json_file(&path, "test summary").is_err());
+    }
+
+    #[test]
+    fn local_recent_reader_enforces_line_contract() {
+        let temp = TempDirGuard::new("gewyvern-local-recent-lines");
+        let path = temp.path.join("recent.txt");
+
+        fs::write(&path, "one\ntwo\nthree\nfour\nfive\nsix\n").unwrap();
+        assert!(read_bounded_recent_lines(&path, "test recent evidence").is_err());
+
+        fs::write(&path, format!("{}\n", "x".repeat(513))).unwrap();
+        assert!(read_bounded_recent_lines(&path, "test recent evidence").is_err());
+
+        fs::write(&path, "valid\ninvalid\u{0007}\n").unwrap();
+        assert!(read_bounded_recent_lines(&path, "test recent evidence").is_err());
     }
 
     #[test]

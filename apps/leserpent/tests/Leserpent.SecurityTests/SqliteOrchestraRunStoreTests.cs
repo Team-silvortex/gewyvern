@@ -152,6 +152,80 @@ public sealed class SqliteOrchestraRunStoreTests
         DeleteDatabase(databasePath);
     }
 
+    [Fact]
+    public async Task ControlPlaneStateStoreSerializesConcurrentDurableSaves()
+    {
+        var statePath = TemporaryPath("json");
+        var store = CreateStateStore(statePath);
+        var candidates = Enumerable.Range(0, 32)
+            .Select(index => CreateRun(
+                $"concurrent-run-{index}",
+                $"concurrent-request-{index}",
+                "succeeded"))
+            .ToArray();
+
+        await Task.WhenAll(candidates.Select(run => Task.Run(() =>
+            store.Save(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { run }))));
+
+        var restored = Assert.IsType<PersistedControlPlaneState>(store.Load());
+        var persistedRuns = Assert.IsAssignableFrom<IReadOnlyList<OrchestraRunSummary>>(
+            restored.OrchestraRuns);
+        var persistedRun = Assert.Single(persistedRuns);
+        Assert.Contains(candidates, candidate => candidate.RunId == persistedRun.RunId);
+        Assert.False(store.IsDirty);
+        Assert.Null(store.LastSaveError);
+        Assert.Empty(Directory.EnumerateFiles(
+            Path.GetDirectoryName(statePath)!,
+            $"{Path.GetFileName(statePath)}.*.tmp"));
+        DeleteState(statePath);
+    }
+
+    [Fact]
+    public void ControlPlaneStateStorePreservesSnapshotAndCleansTempAfterBackupFailure()
+    {
+        var statePath = TemporaryPath("json");
+        var backupPath = $"{statePath}.bak";
+        var store = CreateStateStore(statePath);
+        var original = CreateRun("original-run", "original-request", "succeeded");
+
+        try
+        {
+            store.Save(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { original });
+            Directory.CreateDirectory(backupPath);
+
+            store.Save(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { CreateRun("replacement-run", "replacement-request", "succeeded") });
+
+            Assert.True(store.IsDirty);
+            Assert.NotNull(store.LastSaveError);
+            Assert.Empty(Directory.EnumerateFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}.*.tmp"));
+
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                CreateStateStore(statePath).Load());
+            var restoredRuns = Assert.IsAssignableFrom<IReadOnlyList<OrchestraRunSummary>>(
+                restored.OrchestraRuns);
+            Assert.Equal("original-run", Assert.Single(restoredRuns).RunId);
+        }
+        finally
+        {
+            if (Directory.Exists(backupPath))
+            {
+                Directory.Delete(backupPath, recursive: true);
+            }
+            DeleteState(statePath);
+        }
+    }
+
     private static OrchestraRunSummary CreateRun(
         string runId,
         string requestId,
@@ -245,6 +319,12 @@ public sealed class SqliteOrchestraRunStoreTests
         File.Delete(path);
         File.Delete($"{path}.bak");
         File.Delete($"{path}.tmp");
+        foreach (var tempPath in Directory.EnumerateFiles(
+            Path.GetDirectoryName(path)!,
+            $"{Path.GetFileName(path)}.*.tmp"))
+        {
+            File.Delete(tempPath);
+        }
     }
 
     private sealed class TestHostEnvironment : IHostEnvironment

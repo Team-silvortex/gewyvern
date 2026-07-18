@@ -474,7 +474,15 @@ input, immediate control clearing, and token-free profile persistence. The
 native Rust bundler now turns the arm64 NativeAOT output into a strict `.app`
 with stable plist identity, checked icon, debug-symbol exclusion, native menu,
 Dock reopen, explicit Quit, real Finder launch evidence, and strict ad-hoc
-signature verification. The native release entrypoint now enforces inside-out
+signature verification. Its self-check requires the generated plist to match
+the canonical template exactly. The native release entrypoint independently
+requires unique identity, executable, package-type, display-version, and
+build-version fields; both version fields must match the release tool's
+workspace version before any signing or notarization command can run. A shared
+bounded native-header reader additionally requires every main executable and
+`.dylib` to be a thin 64-bit ARM Mach-O payload, including the ARM64 CPU type,
+at AOT proof, bundle creation, and release validation boundaries. The
+native release entrypoint now enforces inside-out
 Developer ID signing, Hardened Runtime, secure timestamps, Keychain-only
 notary credentials, explicit acceptance, ticket stapling, and Gatekeeper
 assessment. The current host has no Developer ID identity, so executing and
@@ -676,6 +684,14 @@ Accessibility and NativeAOT now restore and build through proof-local .NET
 artifacts roots. A concurrent regression run proves both shelves can execute
 without contending for shared reference assemblies or PDBs, and successful
 runs remove intermediate graphs while retaining evidence.
+The NativeAOT inventory is fail closed as well: unreadable entries, directories,
+symlinks, and non-UTF-8 names cannot disappear from the bounded artifact count,
+and every retained evidence-index entry must be unique and resolve to a regular
+file before the shelf reports success.
+Release signing snapshots, resilience log directories, and package discovery
+follow the same rule: enumeration errors, symlinks, unknown payloads, and
+extension-shaped directories are explicit failures rather than silently
+filtered absences.
 
 The transport shelf now has the native entrypoint
 `gewyvern_validate leserpent-transport`. It retains separate transcripts for
@@ -714,11 +730,12 @@ test-local artifacts root that is removed automatically, closing the inner
 process boundary that the outer parity harness cannot configure directly.
 
 The current command-origin and recovery shelf now has the native entrypoint
-`gewyvern_validate leserpent-parity-recovery`. Twelve non-vacuous suites
-currently execute 159 tests across neutral command lowering, domain
+`gewyvern_validate leserpent-parity-recovery`. Thirteen non-vacuous suites
+currently execute 231 tests across neutral command lowering, domain
 authorization/idempotency, debugger confirmation, CLI/Leselang equivalence,
 VM continuation/journal re-entry, runtime SQLite recovery injection, and the
-authenticated remote wire boundary, native remote CLI parity, deterministic
+72-test .NET control-plane security shelf, authenticated remote wire boundary,
+native remote CLI parity, deterministic
 Avalonia remote-state conformance, a real Rust-to-.NET WebSocket plus HTTPS
 mutation and Inspect/History workspace vertical, and deterministic mobile
 lifecycle recovery. The workspace proof rejects endpoint disclosure in both
@@ -729,9 +746,10 @@ command surface, shared local/remote CLI dispatch, and GUI event
 delivery/reconnect/cache plus constrained runtime-refresh semantics. Future
 mobile operations still require their own parity fixtures. Cross-host retained
 counts are refreshed after every vertical-contract change rather than inferred
-from earlier evidence. The current macOS arm64 run reports twelve suites, 159
-tests, and 152 declared invariants; physical Linux x86_64 evidence must be
-refreshed independently before claiming the same count on that host class.
+from earlier evidence. The current macOS arm64 and physical Linux x86_64 runs
+both report thirteen suites, 231 tests, and 155 declared invariants. The Linux
+summary additionally binds the result to kernel `6.17.0-35-generic`,
+Rust/Cargo `1.95.0`, and .NET `10.0.109`.
 
 The HTTPS listener is intentionally opt-in:
 

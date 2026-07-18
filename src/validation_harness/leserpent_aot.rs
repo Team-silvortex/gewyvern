@@ -1,9 +1,12 @@
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use serde_json::json;
+
+use crate::native_binary::is_mach_o_arm64;
 
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 use super::leserpent_accessibility::require_accessibility_proof;
@@ -15,6 +18,9 @@ const FIXTURES: &[&str] = &[
     "renderer-workspace-conformance-v1.json",
 ];
 const MAX_ARTIFACT_FILES: usize = 12;
+const MAX_DEBUG_SYMBOL_ENTRIES: usize = 16;
+const MAX_DEBUG_SYMBOL_FILES: usize = 8;
+const MAX_DEBUG_SYMBOL_BYTES: u64 = 128 * 1024 * 1024;
 
 pub fn run_leserpent_aot_validation(
     out_dir: Option<PathBuf>,
@@ -77,11 +83,11 @@ pub fn run_leserpent_aot_validation(
 
     let executable = artifact_dir.join(target.executable_name);
     let executable_bytes = validate_native_executable(&executable, target.magic)?;
-    let artifact_files = artifact_files(&artifact_dir)?;
-    if artifact_files.is_empty() || artifact_files.len() > MAX_ARTIFACT_FILES {
+    let artifact_inventory = artifact_inventory(&artifact_dir, target.executable_name)?;
+    if artifact_inventory.files.is_empty() || artifact_inventory.files.len() > MAX_ARTIFACT_FILES {
         return Err(ValidationError::new(format!(
             "NativeAOT artifact file count must be 1..={MAX_ARTIFACT_FILES}, got {}",
-            artifact_files.len()
+            artifact_inventory.files.len()
         )));
     }
 
@@ -123,7 +129,11 @@ pub fn run_leserpent_aot_validation(
         "rid": target.rid,
         "executable": target.executable_name,
         "executable_bytes": executable_bytes,
-        "files": artifact_files,
+        "files": artifact_inventory.files,
+        "debug_symbols": {
+            "files": artifact_inventory.debug_symbol_files,
+            "total_bytes": artifact_inventory.debug_symbol_bytes,
+        },
         "fixtures": FIXTURES,
     });
     fs::write(
@@ -142,6 +152,7 @@ pub fn run_leserpent_aot_validation(
             .iter()
             .map(|fixture| format!("fixture-{fixture}.log")),
     );
+    validate_evidence_files(&out_dir, &evidence_files)?;
     fs::write(
         out_dir.join("evidence-index.json"),
         serde_json::to_string_pretty(&json!({
@@ -160,8 +171,10 @@ pub fn run_leserpent_aot_validation(
             "native_publish".to_string(),
             "native_executable_magic".to_string(),
             "bounded_artifact_manifest".to_string(),
+            "strict_artifact_inventory".to_string(),
             "four_control_fixtures".to_string(),
             "debugger_cancel_lifecycle".to_string(),
+            "complete_evidence_index".to_string(),
             "isolated_dotnet_artifacts".to_string(),
         ],
     })
@@ -290,7 +303,7 @@ fn validate_native_executable(path: &Path, expected: NativeMagic) -> Result<u64,
     })?;
     let valid = match expected {
         NativeMagic::Elf => bytes.starts_with(b"\x7fELF"),
-        NativeMagic::MachO64 => bytes.starts_with(&[0xcf, 0xfa, 0xed, 0xfe]),
+        NativeMagic::MachO64 => is_mach_o_arm64(&bytes),
     };
     if !valid {
         return Err(ValidationError::new(format!(
@@ -302,19 +315,137 @@ fn validate_native_executable(path: &Path, expected: NativeMagic) -> Result<u64,
         .map_err(|_| ValidationError::new("native executable size does not fit in u64"))
 }
 
-fn artifact_files(dir: &Path) -> Result<Vec<String>, ValidationError> {
-    let mut files = fs::read_dir(dir)?
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            entry
-                .file_type()
-                .ok()
-                .filter(|kind| kind.is_file())
-                .map(|_| entry.file_name().to_string_lossy().to_string())
-        })
-        .collect::<Vec<_>>();
+struct ArtifactInventory {
+    files: Vec<String>,
+    debug_symbol_files: Vec<String>,
+    debug_symbol_bytes: u64,
+}
+
+fn artifact_inventory(
+    dir: &Path,
+    executable_name: &str,
+) -> Result<ArtifactInventory, ValidationError> {
+    let mut files = Vec::new();
+    let mut debug_symbol_files = Vec::new();
+    let mut debug_symbol_bytes = 0_u64;
+    let debug_bundle_name = format!("{executable_name}.dSYM");
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_file() {
+            let name = entry.file_name().into_string().map_err(|_| {
+                ValidationError::new("NativeAOT artifact inventory contains a non-UTF-8 filename")
+            })?;
+            files.push(name);
+        } else if file_type.is_dir() && entry.file_name() == debug_bundle_name.as_str() {
+            let debug_inventory = debug_symbol_inventory(dir, &entry.path())?;
+            if debug_inventory.0.is_empty() {
+                return Err(ValidationError::new(
+                    "NativeAOT debug symbol bundle contains no files",
+                ));
+            }
+            debug_symbol_files = debug_inventory.0;
+            debug_symbol_bytes = debug_inventory.1;
+        } else {
+            return Err(ValidationError::new(format!(
+                "NativeAOT artifact inventory contains a non-file entry: {}",
+                entry.path().display()
+            )));
+        }
+    }
     files.sort();
-    Ok(files)
+    Ok(ArtifactInventory {
+        files,
+        debug_symbol_files,
+        debug_symbol_bytes,
+    })
+}
+
+fn debug_symbol_inventory(
+    root: &Path,
+    bundle: &Path,
+) -> Result<(Vec<String>, u64), ValidationError> {
+    let mut pending = vec![bundle.to_path_buf()];
+    let mut files = Vec::new();
+    let mut total_bytes = 0_u64;
+    let mut entries = 0_usize;
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(directory)? {
+            let entry = entry?;
+            entries += 1;
+            if entries > MAX_DEBUG_SYMBOL_ENTRIES {
+                return Err(ValidationError::new(format!(
+                    "NativeAOT debug symbols exceed the {MAX_DEBUG_SYMBOL_ENTRIES}-entry limit"
+                )));
+            }
+            let file_type = entry.file_type()?;
+            if file_type.is_dir() {
+                pending.push(entry.path());
+                continue;
+            }
+            if !file_type.is_file() {
+                return Err(ValidationError::new(format!(
+                    "NativeAOT debug symbols contain a non-file entry: {}",
+                    entry.path().display()
+                )));
+            }
+            if files.len() >= MAX_DEBUG_SYMBOL_FILES {
+                return Err(ValidationError::new(format!(
+                    "NativeAOT debug symbols exceed the {MAX_DEBUG_SYMBOL_FILES}-file limit"
+                )));
+            }
+            let metadata = entry.metadata()?;
+            total_bytes = total_bytes.checked_add(metadata.len()).ok_or_else(|| {
+                ValidationError::new("NativeAOT debug symbol byte count overflowed")
+            })?;
+            if total_bytes > MAX_DEBUG_SYMBOL_BYTES {
+                return Err(ValidationError::new(format!(
+                    "NativeAOT debug symbols exceed the {MAX_DEBUG_SYMBOL_BYTES}-byte limit"
+                )));
+            }
+            let path = entry.path();
+            let relative = path.strip_prefix(root).map_err(|_| {
+                ValidationError::new("NativeAOT debug symbol escaped the artifact root")
+            })?;
+            files.push(
+                relative
+                    .to_str()
+                    .ok_or_else(|| {
+                        ValidationError::new(
+                            "NativeAOT debug symbol inventory contains a non-UTF-8 path",
+                        )
+                    })?
+                    .to_string(),
+            );
+        }
+    }
+    files.sort();
+    Ok((files, total_bytes))
+}
+
+fn validate_evidence_files(root: &Path, files: &[String]) -> Result<(), ValidationError> {
+    let mut unique = BTreeSet::new();
+    for file in files {
+        if !unique.insert(file) {
+            return Err(ValidationError::new(format!(
+                "NativeAOT evidence index contains a duplicate entry: {file}"
+            )));
+        }
+        let path = root.join(file);
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            ValidationError::new(format!(
+                "NativeAOT evidence file is unavailable: {}: {error}",
+                path.display()
+            ))
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(ValidationError::new(format!(
+                "NativeAOT evidence entry is not a regular file: {}",
+                path.display()
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn first_stdout_line(output: &Output) -> String {
@@ -353,6 +484,60 @@ mod tests {
             11
         );
         assert!(validate_native_executable(&elf, NativeMagic::MachO64).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn artifact_inventory_rejects_entries_it_cannot_account_for() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-aot-inventory-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("Leserpent.Avalonia"), b"artifact").unwrap();
+        fs::create_dir(root.join("unaccounted")).unwrap();
+        assert!(artifact_inventory(&root, "Leserpent.Avalonia").is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn artifact_inventory_accounts_for_bounded_debug_symbols() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-aot-debug-inventory-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let debug = root.join("Leserpent.Avalonia.dSYM/Contents/Resources/DWARF");
+        fs::create_dir_all(&debug).unwrap();
+        fs::write(root.join("Leserpent.Avalonia"), b"artifact").unwrap();
+        fs::write(debug.join("Leserpent.Avalonia"), b"debug-symbols").unwrap();
+
+        let inventory = artifact_inventory(&root, "Leserpent.Avalonia").unwrap();
+        assert_eq!(inventory.files, ["Leserpent.Avalonia"]);
+        assert_eq!(
+            inventory.debug_symbol_files,
+            ["Leserpent.Avalonia.dSYM/Contents/Resources/DWARF/Leserpent.Avalonia"]
+        );
+        assert_eq!(inventory.debug_symbol_bytes, 13);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn evidence_index_requires_unique_regular_files() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-aot-evidence-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("proof.log"), b"proof").unwrap();
+        assert!(validate_evidence_files(&root, &["proof.log".to_string()]).is_ok());
+        assert!(
+            validate_evidence_files(&root, &["proof.log".to_string(), "proof.log".to_string()])
+                .is_err()
+        );
+        assert!(validate_evidence_files(&root, &["missing.log".to_string()]).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 }

@@ -3,8 +3,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output};
 
+use gewyvern::native_binary::file_is_mach_o_arm64;
+
 const BUNDLE_ID: &str = "org.gewyvern.leserpent";
 const EXECUTABLE: &str = "Leserpent.Avalonia";
+const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_ENTITLEMENTS: &str = "assets/packaging/leserpent-macos.entitlements";
 
 fn main() {
@@ -307,11 +310,7 @@ fn validate_app(app: &Path) -> Result<(), String> {
     }
     let plist = fs::read_to_string(app.join("Contents/Info.plist"))
         .map_err(|error| format!("Info.plist is unavailable: {error}"))?;
-    if !plist.contains(&format!("<string>{BUNDLE_ID}</string>"))
-        || !plist.contains(&format!("<string>{EXECUTABLE}</string>"))
-    {
-        return Err("app bundle identity does not match Leserpent".to_string());
-    }
+    validate_plist(&plist)?;
     validate_regular_file(
         &app.join("Contents/MacOS").join(EXECUTABLE),
         "main executable",
@@ -319,6 +318,47 @@ fn validate_app(app: &Path) -> Result<(), String> {
     validate_macos_payload(app)?;
     reject_symlinks(app)?;
     Ok(())
+}
+
+fn validate_plist(plist: &str) -> Result<(), String> {
+    for (key, expected) in [
+        ("CFBundleIdentifier", BUNDLE_ID),
+        ("CFBundleExecutable", EXECUTABLE),
+        ("CFBundlePackageType", "APPL"),
+        ("CFBundleShortVersionString", PRODUCT_VERSION),
+        ("CFBundleVersion", PRODUCT_VERSION),
+    ] {
+        let observed = plist_string_value(plist, key)?;
+        if observed != expected {
+            return Err(format!(
+                "Info.plist {key} does not match the release contract"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn plist_string_value<'a>(plist: &'a str, key: &str) -> Result<&'a str, String> {
+    let marker = format!("<key>{key}</key>");
+    let mut matches = plist.match_indices(&marker);
+    let (offset, _) = matches
+        .next()
+        .ok_or_else(|| format!("Info.plist is missing {key}"))?;
+    if matches.next().is_some() {
+        return Err(format!("Info.plist contains duplicate {key}"));
+    }
+    let tail = plist[offset + marker.len()..].trim_start();
+    let tail = tail
+        .strip_prefix("<string>")
+        .ok_or_else(|| format!("Info.plist {key} must be a string"))?;
+    let end = tail
+        .find("</string>")
+        .ok_or_else(|| format!("Info.plist {key} string is unterminated"))?;
+    let value = &tail[..end];
+    if value.contains(['<', '>']) {
+        return Err(format!("Info.plist {key} contains nested markup"));
+    }
+    Ok(value)
 }
 
 fn validate_macos_payload(app: &Path) -> Result<(), String> {
@@ -332,6 +372,14 @@ fn validate_macos_payload(app: &Path) -> Result<(), String> {
         if !file_type.is_file() || (entry.file_name() != EXECUTABLE && !is_library) {
             return Err(format!(
                 "app bundle contains an unsupported MacOS payload: {}",
+                entry.path().display()
+            ));
+        }
+        if !file_is_mach_o_arm64(&entry.path())
+            .map_err(|error| format!("failed to inspect {}: {error}", entry.path().display()))?
+        {
+            return Err(format!(
+                "app bundle contains a non-ARM64 Mach-O payload: {}",
                 entry.path().display()
             ));
         }
@@ -361,12 +409,36 @@ fn reject_symlinks(root: &Path) -> Result<(), String> {
 
 fn native_libraries(app: &Path) -> Result<Vec<PathBuf>, String> {
     let directory = app.join("Contents/MacOS");
-    let mut libraries = fs::read_dir(directory)
-        .map_err(|error| error.to_string())?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|value| value == "dylib"))
-        .collect::<Vec<_>>();
+    let mut libraries = Vec::new();
+    for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| {
+            format!(
+                "failed to enumerate native payload under {}: {error}",
+                directory.display()
+            )
+        })?;
+        if entry.file_name() == EXECUTABLE {
+            validate_regular_file(&entry.path(), "main executable")?;
+            continue;
+        }
+        let path = entry.path();
+        if path.extension().is_none_or(|value| value != "dylib") {
+            return Err(format!(
+                "native signing snapshot contains an unsupported payload: {}",
+                path.display()
+            ));
+        }
+        validate_regular_file(&path, "native library")?;
+        if !file_is_mach_o_arm64(&path)
+            .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?
+        {
+            return Err(format!(
+                "native signing snapshot contains a non-ARM64 Mach-O library: {}",
+                path.display()
+            ));
+        }
+        libraries.push(path);
+    }
     libraries.sort();
     Ok(libraries)
 }
@@ -424,6 +496,16 @@ mod tests {
 
     fn parse(arguments: &[&str]) -> Result<Options, String> {
         Options::parse(arguments.iter().map(|value| value.to_string()))
+    }
+
+    fn valid_plist() -> String {
+        format!(
+            "<dict><key>CFBundleIdentifier</key><string>{BUNDLE_ID}</string>\
+             <key>CFBundleExecutable</key><string>{EXECUTABLE}</string>\
+             <key>CFBundlePackageType</key><string>APPL</string>\
+             <key>CFBundleShortVersionString</key><string>{PRODUCT_VERSION}</string>\
+             <key>CFBundleVersion</key><string>{PRODUCT_VERSION}</string></dict>"
+        )
     }
 
     #[test]
@@ -505,5 +587,71 @@ mod tests {
     fn withholds_release_and_runtime_claims_from_adhoc_verification() {
         assert!(!formal_release_claims(true));
         assert!(formal_release_claims(false));
+    }
+
+    #[test]
+    fn plist_validation_binds_unique_identity_and_workspace_version_fields() {
+        let valid = valid_plist();
+        assert!(validate_plist(&valid).is_ok());
+
+        let duplicate = valid.replace(
+            "<key>CFBundleVersion</key>",
+            "<key>CFBundleVersion</key><string>0</string><key>CFBundleVersion</key>",
+        );
+        assert!(validate_plist(&duplicate).is_err());
+        assert!(
+            validate_plist(&valid.replace(
+                &format!("<string>{PRODUCT_VERSION}</string></dict>"),
+                "<string>0.0.0</string></dict>",
+            ))
+            .is_err()
+        );
+        assert!(
+            validate_plist(&valid.replace(
+                "<key>CFBundlePackageType</key><string>APPL</string>",
+                "<key>CFBundlePackageType</key><true/>",
+            ))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn app_validation_rejects_non_arm64_executables_and_libraries() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-leserpent-release-payload-{}",
+            process::id()
+        ));
+        let app = root.join("Leserpent.app");
+        let contents = app.join("Contents");
+        let macos = contents.join("MacOS");
+        fs::create_dir_all(&macos).unwrap();
+        fs::write(contents.join("Info.plist"), valid_plist()).unwrap();
+        let executable = macos.join(EXECUTABLE);
+        fs::write(&executable, b"#!/bin/sh\nexit 0\n").unwrap();
+        assert!(validate_app(&app).unwrap_err().contains("non-ARM64 Mach-O"));
+
+        fs::write(&executable, b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01payload").unwrap();
+        fs::write(macos.join("fake.dylib"), b"not-a-library").unwrap();
+        assert!(validate_app(&app).unwrap_err().contains("non-ARM64 Mach-O"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn signing_snapshot_rejects_unknown_payloads() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-leserpent-release-snapshot-{}",
+            process::id()
+        ));
+        let app = root.join("Leserpent.app");
+        let macos = app.join("Contents/MacOS");
+        fs::create_dir_all(&macos).unwrap();
+        let payload = b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01payload";
+        fs::write(macos.join(EXECUTABLE), payload).unwrap();
+        fs::write(macos.join("native.dylib"), payload).unwrap();
+        assert_eq!(native_libraries(&app).unwrap().len(), 1);
+
+        fs::write(macos.join("late-addition.txt"), b"unexpected").unwrap();
+        assert!(native_libraries(&app).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 }

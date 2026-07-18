@@ -13,7 +13,6 @@
     <ApplicationIcon>../../../../assets/branding/leserpent-icon.ico</ApplicationIcon>
     <ApplicationTitle>Leserpent</ApplicationTitle>
     <Product>Leserpent</Product>
-    <Version>1.2.0</Version>
     <NativeAotToolchainVersion Condition="'$(NativeAotToolchainVersion)' == ''">10.0.5</NativeAotToolchainVersion>
     <RuntimeFrameworkVersion Condition="'$(PublishAot)' == 'true'">$(NativeAotToolchainVersion)</RuntimeFrameworkVersion>
     <TargetLatestRuntimePatch Condition="'$(PublishAot)' == 'true'">false</TargetLatestRuntimePatch>

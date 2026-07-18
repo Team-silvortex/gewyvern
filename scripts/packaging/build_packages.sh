@@ -13,10 +13,11 @@ LAYOUT_ONLY=0
 TIMINGS_FILE=""
 MANIFEST_FILE=""
 CACHE_KEY_FILE=""
+PENDING_MANIFEST_FILE=""
 MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-OpenAI Codex <codex@example.invalid>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.2.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.0}"
 LAYOUT_VERSION="${GEWY_LAYOUT_VERSION:-1}"
 CONFIG_SCHEMA_VERSION="${GEWY_CONFIG_SCHEMA_VERSION:-1}"
 RPM_DIST="${GEWY_RPM_DIST:-}"
@@ -77,7 +78,16 @@ record_manifest() {
 
 write_cache_key() {
   local value="$1"
-  printf '%s\n' "$value" >"${CACHE_KEY_FILE}"
+  local pending
+  pending="$(mktemp "${OUT_DIR}/.build-cache-key.XXXXXX")"
+  if ! printf '%s\n' "$value" >"${pending}"; then
+    rm -f "${pending}"
+    return 1
+  fi
+  if ! mv -f "${pending}" "${CACHE_KEY_FILE}"; then
+    rm -f "${pending}"
+    return 1
+  fi
 }
 
 resolve_source_date_epoch() {
@@ -281,8 +291,8 @@ can_reuse_cached_packages() {
   local manifest_deb="$2"
   local manifest_rpm="$3"
 
-  [[ -f "${CACHE_KEY_FILE}" ]] || return 1
-  [[ -f "${MANIFEST_FILE}" ]] || return 1
+  [[ -f "${CACHE_KEY_FILE}" && ! -L "${CACHE_KEY_FILE}" ]] || return 1
+  [[ -f "${MANIFEST_FILE}" && ! -L "${MANIFEST_FILE}" ]] || return 1
 
   local current_key
   current_key="$(cat "${CACHE_KEY_FILE}")"
@@ -290,21 +300,49 @@ can_reuse_cached_packages() {
 
   case "${FORMAT}" in
     deb)
-      [[ -n "${manifest_deb}" && -f "${manifest_deb}" ]] || return 1
+      package_cache_artifact_valid "${manifest_deb}" deb || return 1
       ;;
     rpm)
-      [[ -n "${manifest_rpm}" && -f "${manifest_rpm}" ]] || return 1
+      package_cache_artifact_valid "${manifest_rpm}" rpm || return 1
       ;;
     all)
-      [[ -n "${manifest_deb}" && -f "${manifest_deb}" ]] || return 1
-      [[ -n "${manifest_rpm}" && -f "${manifest_rpm}" ]] || return 1
+      package_cache_artifact_valid "${manifest_deb}" deb || return 1
+      package_cache_artifact_valid "${manifest_rpm}" rpm || return 1
       ;;
   esac
 }
 
+package_cache_artifact_valid() {
+  local artifact="$1"
+  local extension="$2"
+  local package_root resolved
+
+  [[ -n "${artifact}" && -f "${artifact}" && ! -L "${artifact}" ]] || return 1
+  package_root="$(realpath "${OUT_DIR}")" || return 1
+  resolved="$(realpath "${artifact}")" || return 1
+  case "${resolved}" in
+    "${package_root}"/*) ;;
+    *) return 1 ;;
+  esac
+  [[ "${resolved}" == *."${extension}" ]] || return 1
+}
+
 read_manifest_value() {
   local key="$1"
-  awk -F= -v wanted="${key}" '$1 == wanted { print substr($0, length($1) + 2); exit }' "${MANIFEST_FILE}"
+  awk -F= -v wanted="${key}" '
+    index($0, "=") == 0 || $1 == "" || substr($0, length($1) + 2) == "" || ($1 != "deb" && $1 != "rpm") {
+      malformed = 1
+      next
+    }
+    $1 == wanted {
+      count++
+      value = substr($0, length($1) + 2)
+    }
+    END {
+      if (malformed || count != 1) exit 1
+      print value
+    }
+  ' "${MANIFEST_FILE}"
 }
 
 build_release_binaries() {
@@ -324,6 +362,7 @@ build_deb() {
   local deb_root="${WORK_DIR}/deb"
   local control_dir="${deb_root}/DEBIAN"
   local deb_path="${OUT_DIR}/${PACKAGE_NAME}_${version}-${PACKAGE_RELEASE}_${deb_arch}.deb"
+  local built_deb="${WORK_DIR}/${PACKAGE_NAME}_${version}-${PACKAGE_RELEASE}_${deb_arch}.deb"
 
   mkdir -p "${control_dir}"
   cp -a "${stage_root}/." "${deb_root}/"
@@ -346,7 +385,14 @@ build_deb() {
     exit 1
   fi
 
-  dpkg-deb --root-owner-group --build "${deb_root}" "${deb_path}"
+  dpkg-deb --root-owner-group --build "${deb_root}" "${built_deb}"
+  local pending_deb
+  pending_deb="$(mktemp "${OUT_DIR}/.package-deb.XXXXXX")"
+  if ! install -m 0644 "${built_deb}" "${pending_deb}"; then
+    rm -f "${pending_deb}"
+    return 1
+  fi
+  mv -f "${pending_deb}" "${deb_path}"
   record_manifest "deb" "${deb_path}"
   echo "built ${deb_path}"
 }
@@ -396,12 +442,21 @@ build_rpm() {
     --define "use_source_date_epoch_as_buildtime 1" \
     --define "clamp_mtime_to_source_date_epoch 1" \
     -bb "${spec_path}"
-  find "${rpm_topdir}/RPMS" -type f -name '*.rpm' -exec cp '{}' "${rpm_out_dir}/" ';'
-  local rpm_path
-  rpm_path="$(find "${rpm_out_dir}" -maxdepth 1 -type f -name '*.rpm' | sort | tail -n 1)"
-  if [[ -n "${rpm_path}" ]]; then
-    record_manifest "rpm" "${rpm_path}"
+  local rpm_candidates=()
+  mapfile -t rpm_candidates < <(find "${rpm_topdir}/RPMS" -type f -name '*.rpm' -print | sort)
+  if [[ "${#rpm_candidates[@]}" -ne 1 ]]; then
+    echo "expected exactly one RPM from this build, found ${#rpm_candidates[@]}" >&2
+    return 1
   fi
+  local rpm_path="${rpm_out_dir}/$(basename "${rpm_candidates[0]}")"
+  local pending_rpm
+  pending_rpm="$(mktemp "${rpm_out_dir}/.package-rpm.XXXXXX")"
+  if ! install -m 0644 "${rpm_candidates[0]}" "${pending_rpm}"; then
+    rm -f "${pending_rpm}"
+    return 1
+  fi
+  mv -f "${pending_rpm}" "${rpm_path}"
+  record_manifest "rpm" "${rpm_path}"
   echo "built rpm packages in ${rpm_out_dir}"
 }
 
@@ -469,6 +524,22 @@ mkdir -p "${OUT_DIR}"
 TIMINGS_FILE="${OUT_DIR}/build-timings.txt"
 MANIFEST_FILE="${OUT_DIR}/build-manifest.txt"
 CACHE_KEY_FILE="${OUT_DIR}/build-cache-key.txt"
+PACKAGE_LOCK_FILE="${OUT_DIR}/.build-packages.lock"
+PACKAGE_LOCK_TIMEOUT_SECONDS="${GEWY_PACKAGE_LOCK_TIMEOUT_SECONDS:-120}"
+if [[ ! "${PACKAGE_LOCK_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] ||
+  ((PACKAGE_LOCK_TIMEOUT_SECONDS < 1 || PACKAGE_LOCK_TIMEOUT_SECONDS > 3600)); then
+  echo "GEWY_PACKAGE_LOCK_TIMEOUT_SECONDS must be an integer from 1 through 3600" >&2
+  exit 2
+fi
+if [[ -L "${PACKAGE_LOCK_FILE}" ]]; then
+  echo "package build lock must not be a symlink: ${PACKAGE_LOCK_FILE}" >&2
+  exit 2
+fi
+exec 9>"${PACKAGE_LOCK_FILE}"
+if ! flock -w "${PACKAGE_LOCK_TIMEOUT_SECONDS}" 9; then
+  echo "timed out waiting for package build lock: ${PACKAGE_LOCK_FILE}" >&2
+  exit 3
+fi
 rm -f "${TIMINGS_FILE}"
 TOTAL_STARTED="$(now_seconds)"
 
@@ -482,7 +553,7 @@ fi
 STAGE_ROOT="${WORK_DIR}/stage"
 
 if [[ "${KEEP_WORK_DIR}" -eq 0 ]]; then
-  trap 'rm -rf "${WORK_DIR}"' EXIT
+  trap 'rm -rf "${WORK_DIR}"; if [[ -n "${PENDING_MANIFEST_FILE}" ]]; then rm -f "${PENDING_MANIFEST_FILE}"; fi' EXIT
 fi
 
 echo "building release binaries for packaging..."
@@ -493,28 +564,30 @@ RELEASE_BUILD_FINISHED="$(now_seconds)"
 record_timing "release_build" "$(duration_seconds "${RELEASE_BUILD_STARTED}" "${RELEASE_BUILD_FINISHED}")"
 
 PACKAGE_CACHE_KEY="$(compute_package_cache_key)"
-MANIFEST_DEB="$(read_manifest_value deb || true)"
-MANIFEST_RPM="$(read_manifest_value rpm || true)"
-if can_reuse_cached_packages "${PACKAGE_CACHE_KEY}" "${MANIFEST_DEB}" "${MANIFEST_RPM}"; then
-  echo "reusing cached package artifacts..."
-  record_timing "stage_layout" "0.000"
-  case "${FORMAT}" in
-    deb)
-      record_timing "package_deb" "0.000"
-      ;;
-    rpm)
-      record_timing "package_rpm" "0.000"
-      ;;
-    all)
-      record_timing "package_all" "0.000"
-      ;;
-  esac
-  TOTAL_FINISHED="$(now_seconds)"
-  record_timing "total" "$(duration_seconds "${TOTAL_STARTED}" "${TOTAL_FINISHED}")"
-  exit 0
+if [[ "${LAYOUT_ONLY}" -eq 0 ]]; then
+  MANIFEST_DEB="$(read_manifest_value deb || true)"
+  MANIFEST_RPM="$(read_manifest_value rpm || true)"
+  if can_reuse_cached_packages "${PACKAGE_CACHE_KEY}" "${MANIFEST_DEB}" "${MANIFEST_RPM}"; then
+    echo "reusing cached package artifacts..."
+    record_timing "stage_layout" "0.000"
+    case "${FORMAT}" in
+      deb)
+        record_timing "package_deb" "0.000"
+        ;;
+      rpm)
+        record_timing "package_rpm" "0.000"
+        ;;
+      all)
+        record_timing "package_all" "0.000"
+        ;;
+    esac
+    TOTAL_FINISHED="$(now_seconds)"
+    record_timing "total" "$(duration_seconds "${TOTAL_STARTED}" "${TOTAL_FINISHED}")"
+    exit 0
+  fi
+  PENDING_MANIFEST_FILE="$(mktemp "${OUT_DIR}/.build-manifest.XXXXXX")"
+  MANIFEST_FILE="${PENDING_MANIFEST_FILE}"
 fi
-
-rm -f "${MANIFEST_FILE}"
 
 echo "staging install tree..."
 STAGE_LAYOUT_STARTED="$(now_seconds)"
@@ -547,8 +620,28 @@ esac
 
 TOTAL_FINISHED="$(now_seconds)"
 record_timing "total" "$(duration_seconds "${TOTAL_STARTED}" "${TOTAL_FINISHED}")"
-write_cache_key "${PACKAGE_CACHE_KEY}"
 
 if [[ "${LAYOUT_ONLY}" -eq 1 ]]; then
   echo "staged layout available at ${STAGE_ROOT}"
+else
+  case "${FORMAT}" in
+    deb)
+      PENDING_DEB="$(read_manifest_value deb)"
+      package_cache_artifact_valid "${PENDING_DEB}" deb
+      ;;
+    rpm)
+      PENDING_RPM="$(read_manifest_value rpm)"
+      package_cache_artifact_valid "${PENDING_RPM}" rpm
+      ;;
+    all)
+      PENDING_DEB="$(read_manifest_value deb)"
+      PENDING_RPM="$(read_manifest_value rpm)"
+      package_cache_artifact_valid "${PENDING_DEB}" deb
+      package_cache_artifact_valid "${PENDING_RPM}" rpm
+      ;;
+  esac
+  mv -f "${PENDING_MANIFEST_FILE}" "${OUT_DIR}/build-manifest.txt"
+  PENDING_MANIFEST_FILE=""
+  MANIFEST_FILE="${OUT_DIR}/build-manifest.txt"
+  write_cache_key "${PACKAGE_CACHE_KEY}"
 fi

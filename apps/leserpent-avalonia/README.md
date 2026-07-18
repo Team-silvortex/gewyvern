@@ -491,15 +491,17 @@ the native Rust bundler:
 ```bash
 cargo run --bin gewyvern_leserpent_bundle -- \
   --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
-  --output artifacts/leserpent-avalonia/Leserpent.app \
-  --version 1.2.0
+  --output artifacts/leserpent-avalonia/Leserpent.app
 ```
 
 The bundler emits a deterministic `Contents/MacOS`, `Contents/Resources`, and
 `Info.plist` layout with bundle identifier `org.gewyvern.leserpent`. It copies
 only the main executable and native `.dylib` dependencies, omits `.pdb` and
 `.dSYM`, rejects symlinks and unknown files, and refuses to replace an existing
-bundle. `leserpent-icon.icns` is generated from the checked Leserpent artwork.
+bundle. The official path omits `--version`, so both bundle version fields
+inherit the root Rust workspace release automatically; downstream packagers may
+still override that value explicitly. `leserpent-icon.icns` is generated from
+the checked Leserpent artwork.
 The product uses a native macOS application menu, explicit Quit, and Dock
 reopen behavior; verify its code-only contract with
 `--verify-desktop-lifecycle`. Developer ID signing and Apple notarization are

@@ -8,6 +8,7 @@ public sealed class ControlPlaneStateStore
 
     private readonly string statePath;
     private readonly string backupStatePath;
+    private readonly object saveSync = new();
     private readonly ILogger<ControlPlaneStateStore> logger;
     private readonly JsonSerializerOptions serializerOptions = new()
     {
@@ -98,37 +99,56 @@ public sealed class ControlPlaneStateStore
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null)
     {
-        IsDirty = true;
-        var state = CreateState(runtimes, sessions, orchestraRuns);
-
-        try
+        lock (saveSync)
         {
-            var directory = Path.GetDirectoryName(statePath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            IsDirty = true;
+            var state = CreateState(runtimes, sessions, orchestraRuns);
+            var tempPath = $"{statePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
 
-            var tempPath = $"{statePath}.tmp";
-            using (var stream = File.Create(tempPath))
+            try
             {
-                JsonSerializer.Serialize(stream, state, jsonContext.PersistedControlPlaneState);
-            }
+                var directory = Path.GetDirectoryName(statePath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
 
-            if (File.Exists(statePath))
+                using (var stream = new FileStream(
+                    tempPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None))
+                {
+                    JsonSerializer.Serialize(stream, state, jsonContext.PersistedControlPlaneState);
+                    stream.Flush(flushToDisk: true);
+                }
+
+                if (File.Exists(statePath))
+                {
+                    File.Copy(statePath, backupStatePath, overwrite: true);
+                }
+
+                File.Move(tempPath, statePath, overwrite: true);
+                LastSavedAt = state.SavedAt;
+                IsDirty = false;
+                LastSaveError = null;
+            }
+            catch (Exception ex)
             {
-                File.Copy(statePath, backupStatePath, overwrite: true);
+                LastSaveError = ex.Message;
+                logger.LogError(ex, "Failed to persist control-plane state to {StatePath}.", statePath);
             }
-
-            File.Move(tempPath, statePath, overwrite: true);
-            LastSavedAt = state.SavedAt;
-            IsDirty = false;
-            LastSaveError = null;
-        }
-        catch (Exception ex)
-        {
-            LastSaveError = ex.Message;
-            logger.LogError(ex, "Failed to persist control-plane state to {StatePath}.", statePath);
+            finally
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to clean temporary control-plane state file at {TempPath}.", tempPath);
+                }
+            }
         }
     }
 

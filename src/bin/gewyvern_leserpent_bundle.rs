@@ -3,9 +3,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use gewyvern::native_binary::file_is_mach_o_arm64;
+
 const EXECUTABLE: &str = "Leserpent.Avalonia";
 const MAX_PUBLISH_FILES: usize = 32;
 const MAX_ICON_BYTES: u64 = 16 * 1024 * 1024;
+#[cfg(test)]
+const PRODUCT_VERSION_FOR_TEST: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
     match Options::parse(env::args().skip(1))
@@ -98,6 +102,9 @@ fn create_bundle(options: &Options) -> Result<(), String> {
     {
         return Err(format!("publish directory does not contain {EXECUTABLE}"));
     }
+    for path in &files {
+        require_mach_o_arm64(path)?;
+    }
 
     let contents = options.output.join("Contents");
     let macos = contents.join("MacOS");
@@ -121,6 +128,18 @@ fn create_bundle(options: &Options) -> Result<(), String> {
         let _ = fs::remove_dir_all(&options.output);
     }
     result
+}
+
+fn require_mach_o_arm64(path: &Path) -> Result<(), String> {
+    if !file_is_mach_o_arm64(path)
+        .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?
+    {
+        return Err(format!(
+            "bundle payload is not a 64-bit ARM Mach-O file: {}",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 fn publish_files(directory: &Path) -> Result<Vec<PathBuf>, String> {
@@ -213,15 +232,8 @@ fn verify_bundle(bundle: &Path, version: &str) -> Result<(), String> {
     )?;
     let plist = fs::read_to_string(bundle.join("Contents/Info.plist"))
         .map_err(|error| error.to_string())?;
-    for required in [
-        "<string>org.gewyvern.leserpent</string>",
-        "<string>Leserpent.Avalonia</string>",
-        "<string>APPL</string>",
-        &format!("<string>{version}</string>"),
-    ] {
-        if !plist.contains(required) {
-            return Err("generated Info.plist failed its identity contract".to_string());
-        }
+    if plist != info_plist(version) {
+        return Err("generated Info.plist failed its exact metadata contract".to_string());
     }
     Ok(())
 }
@@ -279,6 +291,10 @@ mod tests {
         ))
     }
 
+    fn mach_o_arm64_fixture() -> &'static [u8] {
+        b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01payload"
+    }
+
     #[test]
     fn options_require_safe_bundle_identity() {
         assert!(
@@ -331,6 +347,64 @@ mod tests {
     }
 
     #[test]
+    fn bundle_verification_rejects_ambiguous_or_mismatched_plist_metadata() {
+        let root = fixture_root("plist-metadata");
+        let publish = root.join("publish");
+        let output = root.join("Leserpent.app");
+        let icon = root.join("leserpent.icns");
+        fs::create_dir_all(&publish).unwrap();
+        let executable = publish.join(EXECUTABLE);
+        fs::write(&executable, mach_o_arm64_fixture()).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        fs::write(&icon, b"icns-fixture").unwrap();
+        let options = Options {
+            publish_dir: publish,
+            output: output.clone(),
+            icon,
+            version: "1.2.0".to_string(),
+        };
+        create_bundle(&options).unwrap();
+
+        let plist_path = output.join("Contents/Info.plist");
+        let ambiguous = info_plist("1.2.0").replace(
+            "<key>CFBundleVersion</key>",
+            "<key>CFBundleVersion</key>\n  <key>CFBundleVersion</key>",
+        );
+        fs::write(&plist_path, ambiguous).unwrap();
+        assert!(verify_bundle(&output, "1.2.0").is_err());
+
+        fs::write(&plist_path, info_plist("1.2.1")).unwrap();
+        assert!(verify_bundle(&output, "1.2.0").is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn bundle_creation_rejects_non_arm64_payloads_before_writing_output() {
+        let root = fixture_root("non-arm64");
+        let publish = root.join("publish");
+        let output = root.join("Leserpent.app");
+        let icon = root.join("leserpent.icns");
+        fs::create_dir_all(&publish).unwrap();
+        fs::write(publish.join(EXECUTABLE), b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::write(&icon, b"icns-fixture").unwrap();
+        let options = Options {
+            publish_dir: publish,
+            output: output.clone(),
+            icon,
+            version: PRODUCT_VERSION_FOR_TEST.to_string(),
+        };
+
+        assert!(create_bundle(&options).unwrap_err().contains("ARM Mach-O"));
+        assert!(!output.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn creates_complete_bundle_and_refuses_replacement() {
         let root = fixture_root("complete");
         let publish = root.join("publish");
@@ -338,14 +412,18 @@ mod tests {
         let icon = root.join("leserpent.icns");
         fs::create_dir_all(&publish).unwrap();
         let executable = publish.join(EXECUTABLE);
-        fs::write(&executable, b"native-app").unwrap();
+        fs::write(&executable, mach_o_arm64_fixture()).unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
 
             fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
         }
-        fs::write(publish.join("libHarfBuzzSharp.dylib"), b"native-library").unwrap();
+        fs::write(
+            publish.join("libHarfBuzzSharp.dylib"),
+            mach_o_arm64_fixture(),
+        )
+        .unwrap();
         fs::write(publish.join("Leserpent.RemoteClient.pdb"), b"debug-symbols").unwrap();
         fs::create_dir(publish.join(format!("{EXECUTABLE}.dSYM"))).unwrap();
         fs::write(&icon, b"icns-fixture").unwrap();

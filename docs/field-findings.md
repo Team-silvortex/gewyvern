@@ -1,6 +1,6 @@
 # Field Findings
 
-This note records the highest-signal findings inherited by the active `1.2.0` line
+This note records the highest-signal findings inherited by the active `1.4.0` line
 while preserving a shorter historical tail from the earlier `0.15.x`
 field-validation phase.
 
@@ -42,6 +42,47 @@ For those, use:
 - [docs/release-checklist.md](docs/release-checklist.md)
 - [docs/history/v1.0.0.md](docs/history/v1.0.0.md)
 - [docs/history/v0.20.x.md](docs/history/v0.20.x.md)
+
+## `2026-07-18` Linux Publication-Hardening Finding
+
+A physical Ubuntu `6.17.0-35-generic` run exposed a Linux-only ownership drift
+in the eBPF loader that macOS compilation could not see. After changing the
+probe API to borrow dynamic plan strings and own only emitted failure evidence,
+the complete remote validation passed: Linux x86_64 release build, atomic
+DEB/RPM publication, strict manifest verification, package/runtime smoke, and
+tracepoint, kprobe, and tc eBPF attach. The retained failed workspace was
+removed after the successful rerun; synchronized evidence remains under
+`target/validation/remote-linux-host-validation`.
+
+The follow-up added a remote Linux all-target compile phase. Its first run
+showed that an unanchored rsync `tests/` exclusion had removed Etragon's nested
+inline-test module; anchoring the exclusion to the repository root preserved
+nested crate/application tests without syncing the root integration shelf. The
+corrected physical-host run passed the compile phase and the complete release
+path, and the temporary failed workspace was removed.
+
+Because the root integration shelf is only about 1.6 MiB and contains the
+Linux-only eBPF tests, it is now synchronized as well. The first complete
+compile found three stale borrowed-string assignments in `linux_smoke_tdd`;
+after converting them to owned IDs, the full root and nested test targets plus
+the release/package/runtime/eBPF path passed on the physical host.
+
+Remote preflight evidence now also pins bounded first-line toolchain identity.
+The verified host reported Rust/Cargo `1.95.0`, dpkg-deb `1.22.6`, and
+RPM/rpmbuild `4.18.2`; the same values are retained in the latest eBPF history
+entry so later failures can be compared against environment drift.
+
+Strict shared parsing of remote preflight, artifact, and eBPF key/value evidence
+then exposed that human attach summaries had been mixed into the eBPF stdout
+protocol. Redirecting those summaries to stderr preserved operator visibility
+while making stdout machine-only. The physical-host rerun passed with a clean
+five-entry history and five successful eBPF outcomes.
+
+Remote build, package-smoke, and runtime-smoke timings are now mandatory strict
+evidence rather than best-effort files. The physical run produced complete,
+canonically ordered finite timing sets for all core phases (with unpack refresh
+remaining the only optional cache phase) and completed with six consecutive
+successful eBPF outcomes.
 
 ## `2026-07-10` Findings Inherited From `1.0.0`
 
@@ -360,9 +401,40 @@ That is useful and intentional, but it is not the same thing as saying:
 
 - every negative demo path already yields a strong, human-like final diagnosis
 
+## Strict Remote Evidence Consumption
+
+The `1.4.0` validation CLI now consumes synchronized Linux-host evidence with
+the same fail-closed posture used by the producer. Key-value evidence has a
+shared bounded unique-key codec, phase timings require complete finite schemas,
+and local history JSON and recent-history text have explicit file and record
+limits. Human and JSON summaries reuse one parsed value, so they cannot disagree
+because of a second read.
+
+The latest physical Linux package, runtime, and eBPF run completed successfully
+before this consumer-only hardening and extended the retained eBPF trend to
+`7/7`. The hardened consumer is additionally covered by the real summary
+fixture and malformed, duplicate, unknown, oversized, overlong, and
+control-character negative tests.
+
+## Non-Vacuous Leserpent Security Proof
+
+The Leserpent parity/recovery shelf now executes the .NET control-plane security
+project as a first-class proof suite instead of relying on a manual release
+command. Its parser requires one internally consistent nonzero `Passed!`
+summary and locked, proof-local build artifacts. Current macOS arm64 and
+physical Linux x86_64 runs both completed 13 suites with 231 observed tests and
+155 invariants; the xUnit contribution was 72 passed, zero failed, and zero
+skipped. The Linux summary binds this result to kernel `6.17.0-35-generic`,
+Rust/Cargo `1.95.0`, and .NET `10.0.109`. Proof-local .NET artifacts were
+removed after evidence capture.
+
+The shelf now removes its known summary, index, and suite logs before starting.
+A failed rerun therefore cannot leave an earlier green summary available as if
+it described the attempted run.
+
 ## Practical Read Of The Current Line
 
-The current `1.2.0` line inherits strength in these areas:
+The current `1.4.0` line inherits strength in these areas:
 
 - protocol/package shelf is stable
 - current tree-native artifacts are the ones being exercised

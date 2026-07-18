@@ -64,6 +64,8 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("JSON_SCHEMA_VERSION"));
     assert!(binary.contains("release_gate_summary_value"));
     assert!(binary.contains("remote_linux_host_summary_value"));
+    assert!(binary.contains("parse_bounded_json_file"));
+    assert!(binary.contains("read_bounded_recent_lines"));
     assert!(binary.contains("summarize_remote_validation_posture"));
     assert!(binary.contains("parse_bool_string"));
     assert!(binary.contains("\"commands\""));
@@ -169,6 +171,9 @@ fn leserpent_native_aot_proof_is_native_and_fail_closed() {
     assert!(harness.contains("NativeMagic::MachO64"));
     assert!(!harness.contains("NativeMagic::Pe"));
     assert!(harness.contains("MAX_ARTIFACT_FILES"));
+    assert!(harness.contains("strict_artifact_inventory"));
+    assert!(harness.contains("complete_evidence_index"));
+    assert!(harness.contains("validate_evidence_files"));
     assert!(harness.contains("renderer-debugger-conformance-v1.json"));
     assert!(harness.contains("initial_debugger_cancel_buttons=1"));
     assert!(harness.contains("remaining_debugger_cancel_buttons=0"));
@@ -303,6 +308,16 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("cli-leselang-origin-parity"));
     assert!(harness.contains("vm-reentry-recovery"));
     assert!(harness.contains("runtime-recovery-injection"));
+    assert!(harness.contains("dotnet-control-plane-security"));
+    assert!(harness.contains("ProofCommand::DotnetTest"));
+    assert!(harness.contains("expected_min_tests: 72"));
+    assert!(harness.contains("RestoreLockedMode=true"));
+    assert!(harness.contains("dotnet_passed_test_count"));
+    assert!(harness.contains("summaries.len() != 1"));
+    assert!(harness.contains("clear_previous_proof_evidence"));
+    assert!(harness.contains("proof_host_metadata"));
+    assert!(harness.contains("captured_unix_seconds"));
+    assert!(harness.contains("command_version(\"dotnet\""));
     assert!(harness.contains("expected_min_tests: 65"));
     assert!(harness.contains("expected_min_tests: 35"));
     assert!(harness.contains("passed_test_count"));
@@ -476,6 +491,9 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains(".gewy-workspace-sync-key"));
     assert!(remote_host.contains("workspace sync cache hit; skipping rsync"));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_build\""));
+    assert!(
+        remote_host.contains("measure_phase(&mut phase_timings, \"remote_linux_target_check\"")
+    );
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_smoke\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_runtime_smoke\""));
     assert!(remote_host.contains("\"remote_ebpf_validator_build\""));
@@ -669,6 +687,15 @@ fn control_plane_security_limits_large_persistence_imports() {
 }
 
 #[test]
+fn leserpent_security_project_cannot_silently_skip_dotnet_tests() {
+    let project = read_repo_file(
+        "apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj",
+    );
+
+    assert!(project.contains("<IsTestProject>true</IsTestProject>"));
+}
+
+#[test]
 fn control_plane_state_defaults_avoid_source_tree_runtime_state() {
     let store =
         read_repo_file("apps/leserpent/src/Leserpent/ControlPlane/ControlPlaneStateStore.cs");
@@ -712,6 +739,8 @@ fn resilience_validation_bundle_is_native_with_legacy_wrappers() {
     assert!(resilience.contains("TcpStream::connect"));
     assert!(resilience.contains("external_analysis_circuit_open"));
     assert!(resilience.contains("backoff_ms="));
+    assert!(resilience.contains("resilience input must not be a symlink"));
+    assert!(!resilience.contains("filter_map(Result::ok)"));
     assert!(fault.contains("resilience-emit-helper"));
     assert!(fault.contains("resilience-drive-bad-json"));
     assert!(evidence.contains("resilience-log-evidence"));
@@ -758,6 +787,13 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(build_packages.contains("-C link-arg=-fuse-ld=lld"));
     assert!(build_packages.contains("build-manifest.txt"));
     assert!(build_packages.contains("record_manifest"));
+    assert!(build_packages.contains("package_cache_artifact_valid"));
+    assert!(build_packages.contains("count != 1"));
+    assert!(build_packages.contains("realpath \"${OUT_DIR}\""));
+    assert!(build_packages.contains("! -L \"${artifact}\""));
+    assert!(packaging.contains("package_from_manifest"));
+    assert!(packaging.contains("package build manifest contains duplicate"));
+    assert!(!packaging.contains("find_latest_package"));
     assert!(packaging.contains("fn has_command(name: &str) -> bool"));
     assert!(packaging.contains("env::split_paths(&path)"));
     assert!(!packaging.contains(".arg(format!(\"command -v {name} >/dev/null 2>&1\"))"));
@@ -784,6 +820,8 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("remote_linux_host_validation"));
     assert!(release_gate.contains("remote_ebpf_smoke"));
     assert!(release_gate.contains("remote_ebpf_smoke_skipped"));
+    assert!(packaging.contains("package candidate is not a regular file"));
+    assert!(!packaging.contains("filter_map(Result::ok)"));
     assert!(release_gate.contains("debugger_cross_validation"));
     assert!(smoke.contains("gewyvern_validate"));
     assert!(smoke.contains("package-install-smoke"));
@@ -801,6 +839,7 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
 #[test]
 fn remote_linux_host_validation_is_native_and_ssh_backed() {
     let remote = read_repo_file("src/validation_harness/remote_host.rs");
+    let evidence_codec = read_repo_file("src/validation_harness/evidence_codec.rs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
     let docs = read_repo_file("docs/script-entrypoints.md");
 
@@ -815,8 +854,21 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("remote-ebpf.txt"));
     assert!(remote.contains("build-manifest.txt"));
     assert!(remote.contains("collect_remote_preflight"));
+    assert!(remote.contains("rustc_version"));
+    assert!(remote.contains("cargo_version"));
+    assert!(remote.contains("dpkg_deb_version"));
+    assert!(remote.contains("rpmbuild_version"));
+    assert!(remote.contains("parse_preflight_tool_version"));
+    assert!(remote.contains("parse_bounded_unique_key_values"));
+    assert!(evidence_codec.contains("contains duplicate key"));
+    assert!(evidence_codec.contains("contains unexpected key"));
+    assert!(binary.contains("remote eBPF status summary"));
+    assert!(binary.contains("remote eBPF recent evidence"));
     assert!(remote.contains("collect_remote_artifact_manifest"));
     assert!(remote.contains("collect_remote_package_build_timings"));
+    assert!(remote.contains("parse_remote_phase_timings"));
+    assert!(remote.contains("must be finite and between 0"));
+    assert!(!remote.contains("if let Ok(timings) = collect_remote_package_build_timings"));
     assert!(remote.contains("collect_remote_ebpf_evidence"));
     assert!(remote.contains("sync_remote_ebpf_evidence"));
     assert!(remote.contains("release/gewyvern_validate"));
@@ -828,7 +880,8 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("chown -R \"$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID\""));
     assert!(remote.contains("command -v ld.lld"));
     assert!(remote.contains("-C link-arg=-fuse-ld=lld"));
-    assert!(remote.contains(".arg(\"tests/\")"));
+    assert!(!remote.contains(".arg(\"/tests/\")"));
+    assert!(!remote.contains(".arg(\"tests/\")"));
     assert!(remote.contains(".arg(\"apps/**/obj/\")"));
     assert!(remote.contains(".arg(\"apps/**/bin/\")"));
     assert!(remote.contains(".arg(\"**/__pycache__/\")"));
@@ -851,6 +904,12 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains(
         "CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
     ));
+    assert!(
+        remote.contains(
+            "CARGO_TARGET_DIR={target_dir} cargo check --quiet --workspace --all-targets"
+        )
+    );
+    assert!(remote.contains("remote_linux_target_check"));
     assert!(remote.contains(
         "CARGO_TARGET_DIR={target_dir} cargo build --quiet --release --bin gewyvern_validate"
     ));
@@ -859,10 +918,18 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("remote_ebpf_smoke"));
     assert!(remote.contains("remote_ebpf_validator_build"));
     assert!(remote.contains("remote_ebpf_attach"));
+    assert!(remote.contains(
+        "linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke >&2"
+    ));
+    assert!(remote.contains(
+        "linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke >&2"
+    ));
     assert!(remote.contains("remote_ebpf_evidence_synced"));
     assert!(remote.contains("remote_ebpf_smoke_skipped"));
     assert!(remote.contains("uname -s"));
     assert!(remote.contains("uname -m"));
+    assert!(remote.contains("\"realpath\""));
+    assert!(remote.contains("\"sha256sum\""));
     assert!(remote.contains("sudo_available"));
     assert!(remote.contains("default_route_device"));
     assert!(remote.contains("sudo_not_available"));
@@ -891,8 +958,14 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("record_timing udp_summary"));
     assert!(remote.contains("record_timing udp_analysis"));
     assert!(remote.contains("record_timing total"));
-    assert!(remote.contains("awk -F= '/^deb=/{{print $2; exit}}' \"$MANIFEST\""));
-    assert!(remote.contains("awk -F= '/^rpm=/{{print $2; exit}}' \"$MANIFEST\""));
+    assert!(remote.contains("package_from_manifest()"));
+    assert!(remote.contains("must contain exactly one $key entry"));
+    assert!(remote.contains("escapes package root"));
+    assert!(remote.contains("regular non-symlink file"));
+    assert!(remote.contains("DEB=$(package_from_manifest deb deb)"));
+    assert!(remote.contains("RPM=$(package_from_manifest rpm rpm)"));
+    assert!(!remote.contains("/^deb=/{{print $2; exit}}"));
+    assert!(!remote.contains("/^rpm=/{{print $2; exit}}"));
     assert!(remote.contains("target/packages/.runtime-smoke/$(basename \"$DEB\" .deb)"));
     assert!(remote.contains("RUNTIME_STAMP=\"$RUNTIME_ROOT/.deb-sha256\""));
     assert!(remote.contains("EXPECTED_DEB_SHA=$(sha256sum \"$DEB\" | awk '{print $1}')"));
@@ -906,6 +979,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("Collect remote Linux/x86_64 preflight evidence"));
     assert!(binary.contains("print_remote_linux_host_validation_summary"));
     assert!(binary.contains("slowest-phases:"));
+    assert!(binary.contains("parse_evidence_key_value_file"));
+    assert!(binary.contains("must be a regular non-symlink file"));
+    assert!(binary.contains("parse_required_bool"));
     assert!(binary.contains("source-cache:"));
     assert!(binary.contains("target-cache:"));
     assert!(binary.contains("remote-ebpf:"));

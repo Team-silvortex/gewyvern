@@ -175,15 +175,34 @@ fn extract_log_evidence(log_source: &Path, out_dir: &Path) -> Result<(), Validat
 }
 
 fn resolve_input_files(input_path: &Path) -> Result<Vec<PathBuf>, ValidationError> {
-    if input_path.is_file() {
+    let metadata = fs::symlink_metadata(input_path).map_err(|error| {
+        ValidationError::new(format!(
+            "failed to inspect resilience input {}: {error}",
+            input_path.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink() {
+        return Err(ValidationError::new(format!(
+            "resilience input must not be a symlink: {}",
+            input_path.display()
+        )));
+    }
+    if metadata.is_file() {
         return Ok(vec![input_path.to_path_buf()]);
     }
-    if input_path.is_dir() {
-        let mut files = fs::read_dir(input_path)?
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| path.is_file())
-            .collect::<Vec<_>>();
+    if metadata.is_dir() {
+        let mut files = Vec::new();
+        for entry in fs::read_dir(input_path)? {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
+            if file_type.is_symlink() || !file_type.is_file() {
+                return Err(ValidationError::new(format!(
+                    "resilience input directory contains a non-file entry: {}",
+                    entry.path().display()
+                )));
+            }
+            files.push(entry.path());
+        }
         files.sort();
         return Ok(files);
     }
@@ -191,6 +210,27 @@ fn resolve_input_files(input_path: &Path) -> Result<Vec<PathBuf>, ValidationErro
         "input path does not exist: {}",
         input_path.display()
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resilience_input_directory_rejects_unaccounted_entries() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-resilience-input-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("runtime.log"), b"event=socket_service_recovered").unwrap();
+        assert_eq!(resolve_input_files(&root).unwrap().len(), 1);
+
+        fs::create_dir(root.join("nested")).unwrap();
+        assert!(resolve_input_files(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
 }
 
 fn line_has_resilience_signal(line: &str) -> bool {
