@@ -292,11 +292,44 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("explicit-copy-without-execution"));
     assert!(harness.contains("avalonia-workspace-log-filter"));
     assert!(harness.contains("local-only-workspace-log-filter"));
-    assert!(harness.contains("--verify-workspace-log-filter"));
+    assert!(harness.contains("history-command-identity"));
+    assert!(harness.contains("explicit-bounded-diagnostic-export"));
+    assert!(harness.contains("maximally-escaped-diagnostic-export"));
+    assert!(harness.contains("single-flight-workspace-poll"));
+    assert!(harness.contains("failed-query-stops-live-refresh"));
+    assert!(harness.contains("live_refresh=true"));
+    assert!(harness.contains("bounded-workspace-delta-summary"));
+    assert!(harness.contains("workspace-revision-regression-rejection"));
+    assert!(harness.contains("new-error-assertive-workspace-signal"));
+    assert!(harness.contains("new-warning-workspace-signal"));
+    assert!(harness.contains("initial-snapshot-no-severity-realert"));
+    assert!(harness.contains("independent-snapshot-log-order-fence"));
+    assert!(harness.contains("independent-snapshot-log-level-fence"));
+    assert!(harness.contains("independent-snapshot-window-bound"));
+    assert!(harness.contains("independent-snapshot-history-bound"));
+    assert!(harness.contains("explicit-workspace-severity-acknowledgement"));
+    assert!(harness.contains("pending-error-signal-retention"));
+    assert!(harness.contains("severity-signal-nondowngrade"));
+    assert!(harness.contains("acknowledged-signal-no-realert"));
+    assert!(harness.contains("cursor-bound-live-log-query"));
+    assert!(harness.contains("periodic-full-log-resync"));
+    assert!(harness.contains("revision-change-full-log-resync"));
+    assert!(harness.contains("full-batch-log-resync"));
+    assert!(harness.contains("bounded-incremental-log-merge"));
+    assert!(harness.contains("stale-incremental-cursor-rejection"));
+    assert!(harness.contains("manual-full-workspace-reload"));
+    assert!(harness.contains("delta_summary=true"));
+    assert!(harness.contains("severity_signal=true"));
+    assert!(harness.contains("snapshot_fence=true"));
+    assert!(harness.contains("severity_ack=true"));
+    assert!(harness.contains("incremental_logs=true"));
+    assert!(harness.contains("--verify-workspace-diagnostics"));
     assert!(harness.contains("authenticated-dotnet-health-preflight"));
     assert!(harness.contains("same-revision-workspace-composition"));
     assert!(harness.contains("endpoint-redacted-workspace-output"));
-    assert!(harness.contains("workspace_atomic=true, logs_bounded=true, endpoint_retained=false"));
+    assert!(harness.contains(
+        "workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true"
+    ));
     assert!(!harness.contains("Command::new(\"sh\")"));
     assert!(binary.contains("print_leserpent_parity_recovery_help"));
 }

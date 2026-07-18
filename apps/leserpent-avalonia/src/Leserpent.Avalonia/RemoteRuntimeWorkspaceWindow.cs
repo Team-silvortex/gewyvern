@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Threading;
 
@@ -22,6 +23,17 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Content = "Reload",
         Padding = new Thickness(12, 6),
     };
+    private readonly Button liveRefreshButton = new()
+    {
+        Content = "Live logs",
+        Padding = new Thickness(12, 6),
+    };
+    private readonly Button acknowledgeAlertButton = new()
+    {
+        Content = "Acknowledge",
+        Padding = new Thickness(12, 6),
+        IsVisible = false,
+    };
     private readonly TextBox logSearchBox = new()
     {
         PlaceholderText = "Search sanitized logs",
@@ -40,6 +52,12 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Padding = new Thickness(12, 6),
         IsVisible = false,
     };
+    private readonly Button copyDiagnosticsButton = new()
+    {
+        Content = "Copy diagnostics",
+        Padding = new Thickness(12, 6),
+        IsEnabled = false,
+    };
     private readonly TextBlock logFilterSummary = new()
     {
         FontSize = 12,
@@ -47,10 +65,23 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Text = "Logs load with the runtime snapshot",
         TextWrapping = TextWrapping.Wrap,
     };
+    private readonly TextBlock diagnosticCopyStatus = new()
+    {
+        FontSize = 12,
+        TextWrapping = TextWrapping.Wrap,
+        IsVisible = false,
+    };
     private readonly DispatcherTimer logFilterTimer = new()
     {
         Interval = TimeSpan.FromMilliseconds(120),
     };
+    private readonly DispatcherTimer liveRefreshTimer = new()
+    {
+        Interval = RemoteWorkspaceLiveRefresh.Interval,
+    };
+    private readonly RemoteWorkspaceLiveRefresh liveRefresh = new();
+    private readonly RemoteWorkspaceSeverityAlert severityAlert = new();
+    private readonly RemoteWorkspaceLogRefreshPlan logRefreshPlan = new();
     private bool loadInFlight;
     private ulong loadedRevision;
     private ulong desiredRevision;
@@ -82,7 +113,15 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             reloadButton,
             "Reloads status, history, and logs through one revision-consistent query group. Shortcut: F5.");
         reloadButton.Click += (_, _) => _ = ReloadAsync();
+        ConfigureLiveRefresh();
+        ConfigureSeverityAlert();
         ConfigureLogFilter();
+        var queryControls = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = 8,
+            Children = { acknowledgeAlertButton, liveRefreshButton, reloadButton },
+        };
         var status = new Border
         {
             Background = LeserpentTheme.Panel,
@@ -93,18 +132,30 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             {
                 ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"),
                 ColumnSpacing = 12,
-                Children = { statusText, reloadButton },
+                Children = { statusText, queryControls },
             },
         };
-        Grid.SetColumn(reloadButton, 1);
+        Grid.SetColumn(queryControls, 1);
         var filterControls = new Grid
         {
+            RowDefinitions = RowDefinitions.Parse("Auto,Auto"),
             ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,Auto"),
             ColumnSpacing = 8,
-            Children = { logSearchBox, logLevelBox, clearLogFilterButton },
+            RowSpacing = 6,
+            Children =
+            {
+                logSearchBox,
+                logLevelBox,
+                clearLogFilterButton,
+                copyDiagnosticsButton,
+            },
         };
-        Grid.SetColumn(logLevelBox, 1);
-        Grid.SetColumn(clearLogFilterButton, 2);
+        Grid.SetColumnSpan(logSearchBox, 2);
+        Grid.SetColumn(logLevelBox, 2);
+        Grid.SetRow(clearLogFilterButton, 1);
+        Grid.SetColumn(clearLogFilterButton, 1);
+        Grid.SetRow(copyDiagnosticsButton, 1);
+        Grid.SetColumn(copyDiagnosticsButton, 2);
         var logFilter = new Border
         {
             Background = LeserpentTheme.Panel,
@@ -113,12 +164,18 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             Padding = new Thickness(20, 10),
             Child = new Grid
             {
-                RowDefinitions = RowDefinitions.Parse("Auto,Auto"),
+                RowDefinitions = RowDefinitions.Parse("Auto,Auto,Auto"),
                 RowSpacing = 6,
-                Children = { filterControls, logFilterSummary },
+                Children =
+                {
+                    filterControls,
+                    logFilterSummary,
+                    diagnosticCopyStatus,
+                },
             },
         };
         Grid.SetRow(logFilterSummary, 1);
+        Grid.SetRow(diagnosticCopyStatus, 2);
         Content = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("Auto,Auto,*"),
@@ -127,6 +184,18 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Grid.SetRow(logFilter, 1);
         Grid.SetRow(renderer.Surface, 2);
         Opened += (_, _) => _ = ReloadAsync();
+        Activated += (_, _) =>
+        {
+            liveRefresh.Activate();
+            UpdateLiveRefreshPresentation();
+            ScheduleLiveRefresh();
+        };
+        Deactivated += (_, _) =>
+        {
+            liveRefreshTimer.Stop();
+            liveRefresh.Deactivate();
+            UpdateLiveRefreshPresentation();
+        };
         KeyDown += (_, eventArgs) =>
         {
             var findModifier = eventArgs.KeyModifiers
@@ -152,10 +221,153 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Closed += (_, _) =>
         {
             logFilterTimer.Stop();
+            liveRefreshTimer.Stop();
+            liveRefresh.Pause();
             lifetime.Cancel();
             client.Dispose();
             lifetime.Dispose();
         };
+    }
+
+    private void ConfigureLiveRefresh()
+    {
+        AutomationProperties.SetAutomationId(
+            liveRefreshButton,
+            "runtime-workspace-live-logs");
+        liveRefreshButton.Click += (_, _) => ToggleLiveRefresh();
+        liveRefreshTimer.Tick += (_, _) =>
+        {
+            liveRefreshTimer.Stop();
+            _ = RunLiveRefreshAsync();
+        };
+        UpdateLiveRefreshPresentation();
+    }
+
+    private void ConfigureSeverityAlert()
+    {
+        AutomationProperties.SetAutomationId(
+            acknowledgeAlertButton,
+            "runtime-workspace-alert-acknowledge");
+        AutomationProperties.SetName(
+            acknowledgeAlertButton,
+            "Acknowledge runtime workspace alert");
+        AutomationProperties.SetHelpText(
+            acknowledgeAlertButton,
+            "Clears the retained severity alert without changing logs, filters, or live refresh.");
+        acknowledgeAlertButton.Click += (_, _) => AcknowledgeSeverityAlert();
+        UpdateSeverityAlertPresentation();
+    }
+
+    private void AcknowledgeSeverityAlert()
+    {
+        if (!severityAlert.Acknowledge())
+        {
+            return;
+        }
+        UpdateSeverityAlertPresentation();
+        SetStatus(
+            $"Workspace alert acknowledged at revision {loadedRevision}",
+            LeserpentTheme.Accent);
+    }
+
+    private void UpdateSeverityAlertPresentation()
+    {
+        acknowledgeAlertButton.IsVisible = severityAlert.IsPending;
+        acknowledgeAlertButton.IsEnabled = severityAlert.IsPending;
+        ToolTip.SetTip(
+            acknowledgeAlertButton,
+            severityAlert.IsPending
+                ? severityAlert.Describe()
+                : "No runtime workspace alert is awaiting acknowledgement.");
+    }
+
+    private void ToggleLiveRefresh()
+    {
+        liveRefreshTimer.Stop();
+        if (liveRefresh.IsRequested)
+        {
+            liveRefresh.Pause();
+            UpdateLiveRefreshPresentation();
+            if (latestSnapshot is not null)
+            {
+                SetStatus(
+                    $"Live logs paused at revision {loadedRevision}",
+                    LeserpentTheme.Muted);
+            }
+            return;
+        }
+        liveRefresh.Start(IsActive);
+        UpdateLiveRefreshPresentation();
+        if (liveRefresh.ShouldSchedule)
+        {
+            _ = RunLiveRefreshAsync();
+        }
+    }
+
+    private async Task RunLiveRefreshAsync()
+    {
+        liveRefreshTimer.Stop();
+        if (!liveRefresh.TryBegin())
+        {
+            return;
+        }
+        UpdateLiveRefreshPresentation();
+        try
+        {
+            var outcome = await ReloadAsync(allowIncrementalLogs: true);
+            if (outcome == WorkspaceReloadOutcome.Closed)
+            {
+                liveRefresh.Pause();
+            }
+            else
+            {
+                liveRefresh.Complete(
+                    outcome != WorkspaceReloadOutcome.Failed,
+                    IsActive);
+            }
+        }
+        catch (Exception)
+        {
+            liveRefresh.Complete(succeeded: false, IsActive);
+            if (!lifetime.IsCancellationRequested)
+            {
+                ShowFailure("Live logs stopped after an unexpected query failure");
+            }
+        }
+        UpdateLiveRefreshPresentation();
+        ScheduleLiveRefresh();
+    }
+
+    private void ScheduleLiveRefresh()
+    {
+        liveRefreshTimer.Stop();
+        if (liveRefresh.ShouldSchedule && !lifetime.IsCancellationRequested)
+        {
+            liveRefreshTimer.Start();
+        }
+    }
+
+    private void UpdateLiveRefreshPresentation()
+    {
+        liveRefreshButton.IsEnabled = liveRefresh.IsRequested || !loadInFlight;
+        liveRefreshButton.Content = liveRefresh.IsRequested
+            ? "Pause live"
+            : "Live logs";
+        var description = liveRefresh.State switch
+        {
+            WorkspaceLiveRefreshState.Waiting =>
+                "Live logs enabled; the next revision-consistent query runs within five seconds.",
+            WorkspaceLiveRefreshState.Refreshing =>
+                "Live logs enabled; one authenticated query group is in progress.",
+            WorkspaceLiveRefreshState.Suspended =>
+                "Live logs paused while this window is inactive.",
+            _ => "Starts explicit five-second live log refresh. No overlapping query is allowed.",
+        };
+        AutomationProperties.SetName(
+            liveRefreshButton,
+            liveRefresh.IsRequested ? "Pause live runtime logs" : "Start live runtime logs");
+        AutomationProperties.SetHelpText(liveRefreshButton, description);
+        ToolTip.SetTip(liveRefreshButton, description);
     }
 
     private void ConfigureLogFilter()
@@ -172,6 +384,22 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         AutomationProperties.SetAutomationId(logFilterSummary, "runtime-log-filter-summary");
         AutomationProperties.SetName(logFilterSummary, logFilterSummary.Text);
         AutomationProperties.SetLiveSetting(logFilterSummary, AutomationLiveSetting.Polite);
+        AutomationProperties.SetAutomationId(
+            copyDiagnosticsButton,
+            "runtime-diagnostics-copy");
+        AutomationProperties.SetName(
+            copyDiagnosticsButton,
+            "Copy visible runtime diagnostics");
+        AutomationProperties.SetHelpText(
+            copyDiagnosticsButton,
+            "Copies endpoint-free workspace metadata, command history, and currently visible sanitized logs. Review before sharing.");
+        AutomationProperties.SetAutomationId(
+            diagnosticCopyStatus,
+            "runtime-diagnostics-copy-status");
+        AutomationProperties.SetName(diagnosticCopyStatus, "Diagnostic copy status");
+        AutomationProperties.SetLiveSetting(
+            diagnosticCopyStatus,
+            AutomationLiveSetting.Polite);
         logSearchBox.TextChanged += (_, _) =>
         {
             var raw = logSearchBox.Text ?? string.Empty;
@@ -189,6 +417,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         };
         logLevelBox.SelectionChanged += (_, _) => QueueLogFilter();
         clearLogFilterButton.Click += (_, _) => ClearLogFilter();
+        copyDiagnosticsButton.Click += (_, _) => _ = CopyDiagnosticsAsync();
         logFilterTimer.Tick += (_, _) =>
         {
             logFilterTimer.Stop();
@@ -198,6 +427,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
 
     private void QueueLogFilter()
     {
+        SetDiagnosticCopyStatus(null, failed: false);
         clearLogFilterButton.IsVisible =
             !string.IsNullOrWhiteSpace(logSearchBox.Text)
             || logLevelBox.SelectedIndex > 0;
@@ -235,6 +465,54 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         AutomationProperties.SetName(
             logFilterSummary,
             $"Runtime log filter: {logFilterSummary.Text}");
+        copyDiagnosticsButton.IsEnabled = true;
+    }
+
+    private async Task CopyDiagnosticsAsync()
+    {
+        var snapshot = latestSnapshot;
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (snapshot is null || clipboard is null)
+        {
+            SetDiagnosticCopyStatus("Clipboard unavailable.", failed: true);
+            return;
+        }
+        try
+        {
+            var view = RemoteWorkspaceLogFilter.Apply(
+                snapshot,
+                logSearchBox.Text,
+                logLevelBox.SelectedItem as string);
+            await clipboard.SetTextAsync(RemoteWorkspaceDiagnosticExport.Create(view));
+            if (!lifetime.IsCancellationRequested)
+            {
+                SetDiagnosticCopyStatus(
+                    "Visible diagnostic snapshot copied. Review it before sharing.",
+                    failed: false);
+            }
+        }
+        catch (Exception)
+        {
+            if (!lifetime.IsCancellationRequested)
+            {
+                SetDiagnosticCopyStatus("Diagnostic copy failed safely.", failed: true);
+            }
+        }
+    }
+
+    private void SetDiagnosticCopyStatus(string? value, bool failed)
+    {
+        diagnosticCopyStatus.Text = value ?? string.Empty;
+        diagnosticCopyStatus.IsVisible = value is not null;
+        diagnosticCopyStatus.Foreground = failed
+            ? LeserpentTheme.Destructive
+            : LeserpentTheme.Accent;
+        AutomationProperties.SetName(
+            diagnosticCopyStatus,
+            value is null ? "Diagnostic copy status" : value);
+        AutomationProperties.SetLiveSetting(
+            diagnosticCopyStatus,
+            failed ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite);
     }
 
     public string RuntimeId { get; }
@@ -258,26 +536,72 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         }
     }
 
-    private async Task ReloadAsync()
+    private async Task<WorkspaceReloadOutcome> ReloadAsync(
+        bool allowIncrementalLogs = false)
     {
-        if (loadInFlight || lifetime.IsCancellationRequested)
+        if (lifetime.IsCancellationRequested)
         {
-            return;
+            return WorkspaceReloadOutcome.Closed;
+        }
+        if (loadInFlight)
+        {
+            return WorkspaceReloadOutcome.Skipped;
         }
         loadInFlight = true;
         var loaded = false;
+        var outcome = WorkspaceReloadOutcome.Failed;
         reloadButton.IsEnabled = false;
         SetStatus("Loading authenticated runtime snapshot...", LeserpentTheme.Primary);
         try
         {
-            var snapshot = await client.LoadAsync(RuntimeId, principal, lifetime.Token);
+            var previous = latestSnapshot;
+            var afterLogSequence = logRefreshPlan.SelectCursor(
+                allowIncrementalLogs,
+                previous);
+            var snapshot = await client.LoadAsync(
+                RuntimeId,
+                principal,
+                afterLogSequence,
+                lifetime.Token);
+            var usedIncrementalLogs = afterLogSequence.HasValue;
+            if (usedIncrementalLogs
+                && RemoteWorkspaceLogRefreshPlan.RequiresFullFallback(
+                    previous!,
+                    snapshot))
+            {
+                snapshot = await client.LoadAsync(
+                    RuntimeId,
+                    principal,
+                    cancellationToken: lifetime.Token);
+                usedIncrementalLogs = false;
+            }
+            else if (usedIncrementalLogs)
+            {
+                snapshot = RemoteWorkspaceCodec.MergeIncrementalLogs(previous!, snapshot);
+            }
+            var change = RemoteWorkspaceSnapshotChanges.Compare(latestSnapshot, snapshot);
             latestSnapshot = snapshot;
             ApplyLogFilter();
             loadedRevision = snapshot.Revision;
             loaded = true;
+            outcome = WorkspaceReloadOutcome.Loaded;
+            logRefreshPlan.RecordSuccess(usedIncrementalLogs);
+            _ = severityAlert.Observe(snapshot.Revision, change);
+            UpdateSeverityAlertPresentation();
+            var statusBrush = severityAlert.Level == WorkspaceSeverityAlertLevel.Error
+                ? LeserpentTheme.Destructive
+                : severityAlert.Level == WorkspaceSeverityAlertLevel.Warning
+                    ? LeserpentTheme.Primary
+                    : LeserpentTheme.Accent;
+            var alertSuffix = severityAlert.IsPending
+                ? $" / {severityAlert.Describe()}"
+                : string.Empty;
             SetStatus(
-                $"Live workspace at revision {snapshot.Revision}",
-                LeserpentTheme.Accent);
+                liveRefresh.IsRequested
+                    ? $"Live logs at revision {snapshot.Revision} / {(usedIncrementalLogs ? "incremental" : "full")} snapshot / {change.Describe()}{alertSuffix} / refresh every 5 seconds"
+                    : $"Live workspace at revision {snapshot.Revision} / {change.Describe()}{alertSuffix}",
+                statusBrush,
+                assertive: change.NewErrors > 0);
         }
         catch (RemoteQueryException error)
         {
@@ -298,6 +622,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
             // Window shutdown owns this cancellation.
+            outcome = WorkspaceReloadOutcome.Closed;
         }
         catch (HttpRequestException)
         {
@@ -306,31 +631,40 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         catch (ObjectDisposedException) when (lifetime.IsCancellationRequested)
         {
             // The HTTP client may be disposed while the window is closing.
+            outcome = WorkspaceReloadOutcome.Closed;
         }
         finally
         {
             loadInFlight = false;
             reloadButton.IsEnabled = !lifetime.IsCancellationRequested;
+            UpdateLiveRefreshPresentation();
             if (loaded && desiredRevision > loadedRevision)
             {
                 _ = ReloadAsync();
             }
         }
+        if (outcome == WorkspaceReloadOutcome.Failed && liveRefresh.IsRequested)
+        {
+            liveRefreshTimer.Stop();
+            liveRefresh.Pause();
+            UpdateLiveRefreshPresentation();
+        }
+        return outcome;
     }
 
     private void ShowFailure(string message)
     {
-        SetStatus(message, LeserpentTheme.Destructive);
+        SetStatus(message, LeserpentTheme.Destructive, assertive: true);
     }
 
-    private void SetStatus(string text, IBrush foreground)
+    private void SetStatus(string text, IBrush foreground, bool assertive = false)
     {
         statusText.Text = text;
         statusText.Foreground = foreground;
         AutomationProperties.SetName(statusText, $"Runtime workspace query status: {text}");
         AutomationProperties.SetLiveSetting(
             statusText,
-            ReferenceEquals(foreground, LeserpentTheme.Destructive)
+            assertive
                 ? AutomationLiveSetting.Assertive
                 : AutomationLiveSetting.Polite);
     }

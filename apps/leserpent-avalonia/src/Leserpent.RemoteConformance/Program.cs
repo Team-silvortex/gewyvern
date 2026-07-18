@@ -392,12 +392,13 @@ RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
         new string('x', RemoteWorkspaceClient.MaxLogMessageBytes + 1)),
     "runtime-a"),
     "workspace accepted an oversized log message");
+RemoteWorkspaceCodec.VerifyIncrementalContract();
 
 Console.WriteLine(
     "remote health conformance valid: codec=true, fail_closed=true, queue_consistent=true");
 Console.WriteLine(
     "remote GUI Leselang export conformance valid: refresh=true, capabilities=true, deployment=true, canonical=true, execution=false");
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false");
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true");
 return 0;
 
 static void Require(bool condition, string message)

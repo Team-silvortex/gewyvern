@@ -289,12 +289,51 @@ created. A newer live event revision reloads the matching open workspace.
 Because log append does not advance the control-plane revision, each workspace
 also exposes a persistent Reload button and `F5` shortcut. Malformed, torn, or
 mismatched query state fails closed without retaining a partial document.
+`Live logs` is an explicit opt-in five-second refresh loop over the same atomic
+Inspect/History/Logs query group. It permits only one in-flight group, pauses
+without losing intent while the child window is inactive, resumes on activation,
+and turns itself off after any failed query. `Pause live` never cancels unrelated
+window lifetime state or retries a mutation.
+After a full snapshot, live refresh uses the last retained log sequence as a
+bounded `after_sequence` cursor for up to 11 polls. The twelfth poll is always a
+full resynchronization. A changed workspace revision or a full 256-entry
+incremental batch triggers an immediate full fallback, and stale/non-advancing
+incremental records fail closed. Manual `Reload` always requests a full snapshot.
+Incremental merges retain only the newest 256 sanitized entries; the status line
+states whether the successful refresh used an incremental or full snapshot.
+Every successful manual or live refresh compares the complete retained snapshots
+locally and reports revision advance, added/expired/changed logs, new or updated
+commands, and log-sequence reset. Initial and unchanged snapshots are explicit.
+New entries, or retained entries whose level changes to `error` or `warning`, are
+counted separately in the summary. New errors use the destructive assertive live
+region, while new warnings use the prominent primary status. The initial snapshot
+never re-alerts historical severity, and an unchanged refresh never repeats it.
+Once raised, the highest severity remains visible across later refreshes until the
+operator explicitly selects `Acknowledge`. Errors cannot be downgraded by a later
+warning. Only a newly observed error uses assertive announcement; a retained error
+uses polite updates. Acknowledgement clears only this local alert latch and never
+changes the snapshot, filters, network state, or live-refresh request.
+A runtime identity change or revision regression rejects the new snapshot, keeps
+the previous document mounted, and stops live refresh rather than presenting
+ambiguous chronology.
+The local snapshot comparator independently rechecks the 32-entry history and
+256-entry log bounds, unique command identities, strictly increasing log sequence,
+and the closed log-level set. This fail-closed layer remains valid even when a
+future snapshot producer does not pass through the current HTTP client codec.
 Each workspace also provides a local-only log search and strict level selector.
 The query is control-character sanitized and capped at 128 characters, operates
 only on the retained sanitized display text, and never performs a network request
 or changes the revision-consistent snapshot. `Ctrl+F` or `Cmd+F` focuses search,
 `Escape` clears it, and an accessible live summary reports shown versus total
 entries. Empty filtered results remain distinct from an actually empty log.
+History rows include their bounded command ID so an applied revision remains
+traceable to its originating operation. `Copy diagnostics` explicitly exports a
+deterministic `leserpent.workspace-diagnostic/v1` snapshot containing runtime
+identity, revision, command history, current filter, and only the currently
+visible sanitized logs. The export is capped at 512 KiB, which covers a fully
+populated 256-entry snapshot after worst-case string escaping, contains no structured
+transport endpoint or principal, performs no request or command, and warns the
+operator to review clipboard data before sharing it.
 Runtime and capability refresh are blocked while state is stale, require
 an explicit confirmation dialog, carries the displayed runtime
 revision for optimistic concurrency, and is never retried automatically after
@@ -329,8 +368,13 @@ malformed-cache rejection, per-origin cache binding, atomic workspace query
 composition, runtime/log identity, bounded sanitized logs, and endpoint omission
 without requiring a UI or network service. The semantic workspace projection can be checked separately
 with `--verify-remote-workspace` on the Avalonia project; use
-`--verify-workspace-log-filter` for the local search, level, bound, and empty-state
-contract. Against an authorized
+`--verify-workspace-diagnostics` for local search, level, command identity,
+bounded explicit diagnostic export, live-refresh state, severity signaling, and
+empty-state contracts. The same probe verifies bounded snapshot delta summaries,
+initial-severity re-alert suppression, explicit severity acknowledgement and
+non-downgrade, hybrid cursor/full live-log refresh, independent snapshot
+chronology and bound fences, and revision-regression rejection.
+The earlier `--verify-workspace-log-filter` spelling remains compatible. Against an authorized
 live server, append `--connect HTTPS_ORIGIN CA_PATH CACHE_PATH --inspect
 RUNTIME_ID` to verify the complete authenticated Inspect/History/Logs path, or
 use `--refresh-capabilities RUNTIME_ID` to verify the typed capability mutation.

@@ -125,11 +125,18 @@ internal static class Program
                 "remote workspace projection valid: semantic=true, endpoint_retained=false, history_bounded=true, logs_bounded=true");
             return 0;
         }
-        if (args is ["--verify-workspace-log-filter"])
+        if (args is ["--verify-workspace-diagnostics"]
+            or ["--verify-workspace-log-filter"])
         {
             RemoteWorkspaceLogFilter.VerifyContract();
+            RemoteWorkspaceDiagnosticExport.VerifyContract();
+            RemoteWorkspaceLiveRefresh.VerifyContract();
+            RemoteWorkspaceSnapshotChanges.VerifyContract();
+            RemoteWorkspaceSeverityAlert.VerifyContract();
+            RemoteWorkspaceCodec.VerifyIncrementalContract();
+            RemoteWorkspaceLogRefreshPlan.VerifyContract();
             Console.WriteLine(
-                "workspace log filter valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true");
+                "workspace diagnostics valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true, command_identity=true, explicit_export=true, maximal_escape=true, live_refresh=true, delta_summary=true, severity_signal=true, snapshot_fence=true, severity_ack=true, incremental_logs=true");
             return 0;
         }
         try

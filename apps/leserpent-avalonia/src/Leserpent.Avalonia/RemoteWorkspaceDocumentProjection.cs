@@ -22,7 +22,7 @@ internal static class RemoteWorkspaceDocumentProjection
                 Text = new LocalizedText
                 {
                     Key = "runtime.history.entry",
-                    Fallback = $"Revision {entry.Revision}: {entry.Status}",
+                    Fallback = $"Revision {entry.Revision} / {Safe(entry.CommandId)} / {entry.Status}",
                 },
                 Accessibility = new Accessibility(),
                 Children = [],
@@ -316,6 +316,9 @@ internal static class RemoteWorkspaceDocumentProjection
             || Descendants(document.Root).Single(node =>
                 node.Id == "workspace:runtime-a:logs:1").Text?.Fallback
                 != "[WARNING] bounded warning"
+            || Descendants(document.Root).Single(node =>
+                node.Id == "workspace:runtime-a:history:7:command-a").Text?.Fallback
+                != "Revision 7 / command-a / applied"
             || Descendants(document.Root).All(node =>
                 node.Action?.Kind != ActionKind.RuntimeCapabilitiesRefresh)
             || Descendants(document.Root).All(node =>

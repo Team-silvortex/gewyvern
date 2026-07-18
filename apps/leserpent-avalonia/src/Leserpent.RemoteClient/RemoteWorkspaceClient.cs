@@ -18,13 +18,17 @@ public sealed class RemoteWorkspaceClient : IDisposable
     public async Task<RemoteWorkspaceSnapshot> LoadAsync(
         string runtimeId,
         string principal,
+        ulong? afterLogSequence = null,
         CancellationToken cancellationToken = default)
     {
         RemoteQueryValidation.RequireIdentifier(runtimeId, "runtime ID");
         RemoteQueryValidation.RequireIdentifier(principal, "principal");
-        var inspect = SendAsync("runtime_inspect", runtimeId, principal, cancellationToken);
-        var history = SendAsync("runtime_history", runtimeId, principal, cancellationToken);
-        var logs = SendAsync("runtime_logs", runtimeId, principal, cancellationToken);
+        var inspect = SendAsync(
+            "runtime_inspect", runtimeId, principal, null, cancellationToken);
+        var history = SendAsync(
+            "runtime_history", runtimeId, principal, null, cancellationToken);
+        var logs = SendAsync(
+            "runtime_logs", runtimeId, principal, afterLogSequence, cancellationToken);
         await Task.WhenAll(inspect, history, logs).ConfigureAwait(false);
         return RemoteWorkspaceCodec.Compose(
             inspect.Result,
@@ -39,6 +43,7 @@ public sealed class RemoteWorkspaceClient : IDisposable
         string queryKind,
         string runtimeId,
         string principal,
+        ulong? afterLogSequence,
         CancellationToken cancellationToken)
     {
         var envelope = new WireQueryRequestEnvelope
@@ -54,6 +59,9 @@ public sealed class RemoteWorkspaceClient : IDisposable
                         Kind = queryKind,
                         RuntimeId = runtimeId,
                         Limit = queryKind == "runtime_logs" ? MaxLogEntries : 0,
+                        AfterSequence = queryKind == "runtime_logs"
+                            ? afterLogSequence
+                            : null,
                     },
                 },
             },
@@ -83,6 +91,99 @@ public sealed record RemoteLogProjection(
 
 public static class RemoteWorkspaceCodec
 {
+    public static RemoteWorkspaceSnapshot MergeIncrementalLogs(
+        RemoteWorkspaceSnapshot previous,
+        RemoteWorkspaceSnapshot incremental)
+    {
+        if (!string.Equals(
+                previous.Runtime.Id,
+                incremental.Runtime.Id,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "incremental workspace runtime identity changed");
+        }
+        if (incremental.Revision < previous.Revision)
+        {
+            throw new InvalidDataException(
+                "incremental workspace revision regressed");
+        }
+        if (previous.Logs.Count == 0 || incremental.Logs.Count == 0)
+        {
+            return incremental with
+            {
+                Logs = incremental.Logs.Count == 0 ? previous.Logs : incremental.Logs,
+            };
+        }
+        var cursor = previous.Logs[^1].Sequence;
+        if (incremental.Logs[0].Sequence <= cursor)
+        {
+            throw new InvalidDataException(
+                "incremental workspace logs did not advance their cursor");
+        }
+        var merged = previous.Logs
+            .Concat(incremental.Logs)
+            .TakeLast(RemoteWorkspaceClient.MaxLogEntries)
+            .ToArray();
+        return incremental with { Logs = merged };
+    }
+
+    public static void VerifyIncrementalContract()
+    {
+        var request = new WireQueryRequestEnvelope
+        {
+            Request = new WireQueryRequest
+            {
+                Payload = new RuntimeQueryEnvelope
+                {
+                    Principal = new RemotePrincipal { Id = "operator" },
+                    Capabilities = ["runtime.read"],
+                    Query = new RuntimeQuery
+                    {
+                        Kind = "runtime_logs",
+                        RuntimeId = "runtime-a",
+                        Limit = RemoteWorkspaceClient.MaxLogEntries,
+                        AfterSequence = 42,
+                    },
+                },
+            },
+        };
+        var encoded = JsonSerializer.Serialize(
+            request,
+            RemoteWorkspaceJsonContext.Default.WireQueryRequestEnvelope);
+        if (!encoded.Contains("\"after_sequence\":42", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("incremental workspace cursor encoding drifted");
+        }
+        var prior = Snapshot(7,
+            [new RemoteLogProjection(2, "info", "two")]);
+        var incremental = Snapshot(7,
+            [
+                new RemoteLogProjection(3, "warning", "three"),
+                new RemoteLogProjection(4, "error", "four"),
+            ]);
+        var merged = MergeIncrementalLogs(prior, incremental);
+        if (!merged.Logs.Select(entry => entry.Sequence).SequenceEqual([2UL, 3UL, 4UL]))
+        {
+            throw new InvalidDataException("incremental workspace log merge drifted");
+        }
+        var empty = MergeIncrementalLogs(prior, Snapshot(7, []));
+        if (!ReferenceEquals(empty.Logs, prior.Logs))
+        {
+            throw new InvalidDataException("empty incremental workspace lost retained logs");
+        }
+        try
+        {
+            _ = MergeIncrementalLogs(prior, Snapshot(7,
+                [new RemoteLogProjection(2, "info", "duplicate")]));
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidDataException("incremental workspace accepted a stale cursor");
+    }
+
     public static RemoteWorkspaceSnapshot Compose(
         ReadOnlySpan<byte> inspectPayload,
         ReadOnlySpan<byte> historyPayload,
@@ -317,6 +418,21 @@ public static class RemoteWorkspaceCodec
         return display.ToString();
     }
 
+    private static RemoteWorkspaceSnapshot Snapshot(
+        ulong revision,
+        IReadOnlyList<RemoteLogProjection> logs) => new(
+            revision,
+            new RemoteRuntimeProjection
+            {
+                Id = "runtime-a",
+                Name = "Runtime A",
+                Revision = revision,
+                Tags = new RuntimeTags(),
+                Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+            },
+            [],
+            logs);
+
     private static string RequiredString(JsonElement element, string property) =>
         element.GetProperty(property).GetString()
         ?? throw new InvalidDataException(
@@ -379,6 +495,8 @@ public sealed class RuntimeQuery
     public required string RuntimeId { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int Limit { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ulong? AfterSequence { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
