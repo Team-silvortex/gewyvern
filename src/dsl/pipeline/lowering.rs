@@ -1,4 +1,7 @@
-use super::parsing::{parse_pipeline_literal, parse_pipeline_single_arg, parse_pipeline_use_call};
+use super::parsing::{
+    is_pipeline_identifier, parse_pipeline_literal, parse_pipeline_single_arg,
+    parse_pipeline_use_call,
+};
 use super::{PipelineKeywordArg, PipelineUseCall, looks_like_pipeline_keyword_arg};
 use crate::dsl::{
     DslError, PipelineCall, PipelineFunction, PipelineModule,
@@ -387,9 +390,29 @@ fn substitute_pipeline_arg_once(
     let mut output = String::with_capacity(arg.len());
     let mut index = 0usize;
     let mut changed = false;
+    let mut in_string = false;
+    let mut escaped = false;
 
     while index < chars.len() {
         let (byte_idx, ch) = chars[index];
+        if in_string {
+            output.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+        if ch == '"' {
+            in_string = true;
+            output.push(ch);
+            index += 1;
+            continue;
+        }
         if ch != '$' {
             output.push(ch);
             index += 1;
@@ -491,10 +514,25 @@ fn parse_pipeline_keywords_with_columns(
             ))
             .at_line_column(0, Some(*arg_column))
         })?;
+        let key = key.trim();
+        if !is_pipeline_identifier(key) {
+            return Err(DslError::InvalidValue(format!(
+                "pipeline step '{step}' received invalid keyword field name '{key}'"
+            ))
+            .at_line_column(0, Some(*arg_column)));
+        }
+        if keywords.contains_key(key) {
+            let message = if matches!(step, "program_rule" | "reason_rule") {
+                format!("pipeline rule received duplicate field '{key}'")
+            } else {
+                format!("pipeline step '{step}' received duplicate field '{key}'")
+            };
+            return Err(DslError::InvalidValue(message).at_line_column(0, Some(*arg_column)));
+        }
         let value_trimmed = value.trim();
         let value_offset = value.find(value_trimmed).unwrap_or(0);
         keywords.insert(
-            key.trim().to_string(),
+            key.to_string(),
             PipelineKeywordArg {
                 value: parse_pipeline_literal(value)?,
                 value_column: arg_column + key.len() + 1 + value_offset,
@@ -643,6 +681,15 @@ pub(crate) fn lower_pipeline_window(
         return Ok(());
     }
     let keywords = parse_pipeline_keywords_with_columns(args, arg_columns, "window")?;
+    if let Some((field, value)) = keywords
+        .iter()
+        .find(|(field, _)| !matches!(field.as_str(), "duration_ms" | "lateness_ms"))
+    {
+        return Err(DslError::InvalidValue(format!(
+            "pipeline step 'window' received unknown field '{field}'"
+        ))
+        .at_line_column(0, Some(value.value_column)));
+    }
     let duration_ms = keywords
         .get("duration_ms")
         .ok_or(DslError::MissingField("duration_ms").at_line_column(0, Some(call_column)))?;
@@ -819,5 +866,18 @@ mod tests {
             DslError::InvalidValue(message)
                 if message == "pipeline placeholder expansion exceeded 32 substitutions while test expansion"
         ));
+    }
+
+    #[test]
+    fn placeholder_substitution_treats_strings_as_opaque() {
+        let bindings = BTreeMap::from([("name".to_string(), "resolved".to_string())]);
+        assert_eq!(
+            substitute_pipeline_arg(r#""literal $name costs $5""#, &bindings, "test").unwrap(),
+            r#""literal $name costs $5""#
+        );
+        assert_eq!(
+            substitute_pipeline_arg("$name", &bindings, "test").unwrap(),
+            "resolved"
+        );
     }
 }

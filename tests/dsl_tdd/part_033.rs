@@ -1,6 +1,28 @@
 use super::*;
 
 #[test]
+fn dsl_parenless_calls_preserve_parentheses_inside_quoted_values() {
+    let binding = compile_str(
+        r#"
+template :quoted_parentheses
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> fragment :udp_packet_meta_fragment
+|> fragment :route_meta_fragment
+|> fragment :sock_lineage_fragment
+|> operation :datagram_exchange
+|> program_model :quoted_parentheses_model
+|> program_rule predicate: :process_bound, stage: :process_bound, narrative: "static:request (accepted)", dedupe: true
+"#,
+    )
+    .unwrap();
+
+    let model = binding.template.program_model.as_ref().unwrap();
+    assert_eq!(model.id, "quoted_parentheses_model");
+    assert_eq!(model.rules.len(), 1);
+}
+
+#[test]
 fn dsl_package_entry_can_include_pipeline_module_from_named_source_dependency() {
     let root =
         std::env::temp_dir().join(format!("gewy-package-{}-source-deps", std::process::id()));
@@ -199,6 +221,37 @@ template(:include_cycle)
     let err = compile_file(package_dir.to_str().unwrap()).unwrap_err();
     assert!(
         format!("{err:?}").contains("include cycle detected"),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
+fn dsl_rejects_oversized_pipeline_include_before_parsing() {
+    let package_dir = std::env::temp_dir().join(format!(
+        "gewy-package-{}-oversized-include",
+        std::process::id()
+    ));
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("gewy.pkg"),
+        "name=oversized_include\nversion=0.1.0\nentry=main.gewy\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("main.gewy"),
+        "template :oversized_include\n|> include \"./module.gewy\"\n",
+    )
+    .unwrap();
+    fs::write(
+        package_dir.join("module.gewy"),
+        "x".repeat(gewyvern::dsl::MAX_GEWYLANG_SOURCE_BYTES + 1),
+    )
+    .unwrap();
+
+    let err = compile_file(package_dir.to_str().unwrap()).unwrap_err();
+    let _ = fs::remove_dir_all(&package_dir);
+    assert!(
+        format!("{err:?}").contains("gewylang source exceeds 262144 bytes"),
         "unexpected error: {err:?}"
     );
 }

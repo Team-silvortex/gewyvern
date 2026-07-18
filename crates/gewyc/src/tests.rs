@@ -342,8 +342,8 @@ fn init_templates_include_manifest_and_main_entry() {
     assert!(render_init_module("demo").contains("fn network_module() ="));
     assert!(render_init_module("demo").contains("  let model_name = :demo_model"));
     assert!(render_init_module("demo").contains("|> fragment :udp_packet_meta_fragment"));
-    assert!(render_init_module("demo").contains("|> operation ${op_name}"));
-    assert!(render_init_module("demo").contains("|> program_model ${model_name}"));
+    assert!(render_init_module("demo").contains("|> operation $op_name"));
+    assert!(render_init_module("demo").contains("|> program_model $model_name"));
 }
 
 #[test]

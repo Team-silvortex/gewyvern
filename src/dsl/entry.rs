@@ -4,6 +4,7 @@ use super::{
     DslError, FrontendModuleSummary, PackageContext, TemplateBinding,
     lower_pipeline_module_to_assignments, package, parse_pipeline_function_head,
     parse_pipeline_module, read_file, strip_comments_preserve_layout, validate_compiled_binding,
+    validate_gewylang_source_size,
 };
 
 pub fn parse_file_unvalidated(path: &str) -> Result<TemplateBinding, DslError> {
@@ -54,7 +55,8 @@ fn parse_str_unvalidated_with_base(
     input: &str,
     package: Option<&PackageContext>,
 ) -> Result<TemplateBinding, DslError> {
-    let normalized = strip_comments_preserve_layout(input);
+    validate_gewylang_source_size(input)?;
+    let normalized = strip_comments_preserve_layout(input)?;
     if looks_like_pipeline_dsl(&normalized) {
         let assignments = pipeline_to_canonical_assignments(&normalized, package)?;
         return build_binding_from_canonical_assignments(&assignments);
@@ -73,7 +75,8 @@ fn parse_str_with_frontend_unvalidated_with_base(
     input: &str,
     package: Option<&PackageContext>,
 ) -> Result<(TemplateBinding, FrontendModuleSummary), DslError> {
-    let normalized = strip_comments_preserve_layout(input);
+    validate_gewylang_source_size(input)?;
+    let normalized = strip_comments_preserve_layout(input)?;
     if looks_like_pipeline_dsl(&normalized) {
         let module = parse_pipeline_module(&normalized, package, true)?;
         let assignments = lower_pipeline_module_to_assignments(&module, true)?;
@@ -106,7 +109,12 @@ pub(super) fn looks_like_pipeline_dsl(input: &str) -> bool {
         })
         .next()
         .is_some_and(|line| {
-            is_pipeline_template_head(line) || parse_pipeline_function_head(line).is_some()
+            is_pipeline_template_head(line)
+                || parse_pipeline_function_head(line).is_some()
+                || line == "fn"
+                || line.starts_with("fn ")
+                || line == "template"
+                || line.starts_with("template(")
         })
 }
 

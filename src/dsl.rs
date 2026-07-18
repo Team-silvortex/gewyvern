@@ -35,6 +35,7 @@ use self::pipeline::{lower_pipeline_module_to_assignments, parse_pipeline_single
 pub(crate) use self::predicate::{parse_flow_predicate, parse_reason_key_event};
 
 pub const PACKAGE_MANIFEST_FILE: &str = "gewy.pkg";
+pub const MAX_GEWYLANG_SOURCE_BYTES: usize = 256 * 1024;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum DslError {
@@ -51,15 +52,37 @@ pub enum DslError {
 }
 
 pub fn read_file(path: &str) -> Result<String, DslError> {
-    fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))
+    let metadata = fs::metadata(path).map_err(|err| DslError::Io(err.to_string()))?;
+    if metadata.len() > MAX_GEWYLANG_SOURCE_BYTES as u64 {
+        return Err(gewylang_source_too_large());
+    }
+    let input = fs::read_to_string(path).map_err(|err| DslError::Io(err.to_string()))?;
+    validate_gewylang_source_size(&input)?;
+    Ok(input)
 }
 
-pub(super) fn strip_comments_preserve_layout(input: &str) -> String {
+fn validate_gewylang_source_size(input: &str) -> Result<(), DslError> {
+    if input.len() > MAX_GEWYLANG_SOURCE_BYTES {
+        return Err(gewylang_source_too_large());
+    }
+    Ok(())
+}
+
+fn gewylang_source_too_large() -> DslError {
+    DslError::InvalidValue(format!(
+        "gewylang source exceeds {MAX_GEWYLANG_SOURCE_BYTES} bytes"
+    ))
+}
+
+pub(super) fn strip_comments_preserve_layout(input: &str) -> Result<String, DslError> {
     let mut output = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
     let mut in_string = false;
     let mut escape = false;
     let mut in_block_comment = false;
+    let mut block_comment_start = None;
+    let mut line = 1usize;
+    let mut column = 1usize;
 
     while let Some(ch) = chars.next() {
         if in_block_comment {
@@ -68,10 +91,14 @@ pub(super) fn strip_comments_preserve_layout(input: &str) -> String {
                 output.push(' ');
                 chars.next();
                 in_block_comment = false;
+                column += 2;
             } else if ch == '\n' {
                 output.push('\n');
+                line += 1;
+                column = 1;
             } else {
                 output.push(' ');
+                column += ch.len_utf8();
             }
             continue;
         }
@@ -85,12 +112,19 @@ pub(super) fn strip_comments_preserve_layout(input: &str) -> String {
             } else if ch == '"' {
                 in_string = false;
             }
+            if ch == '\n' {
+                line += 1;
+                column = 1;
+            } else {
+                column += ch.len_utf8();
+            }
             continue;
         }
 
         if ch == '"' {
             in_string = true;
             output.push(ch);
+            column += 1;
             continue;
         }
 
@@ -99,6 +133,8 @@ pub(super) fn strip_comments_preserve_layout(input: &str) -> String {
             output.push(' ');
             chars.next();
             in_block_comment = true;
+            block_comment_start = Some((line, column));
+            column += 2;
             continue;
         }
 
@@ -107,17 +143,33 @@ pub(super) fn strip_comments_preserve_layout(input: &str) -> String {
             while let Some(next) = chars.next() {
                 if next == '\n' {
                     output.push('\n');
+                    line += 1;
+                    column = 1;
                     break;
                 }
                 output.push(' ');
+                column += next.len_utf8();
             }
             continue;
         }
 
         output.push(ch);
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += ch.len_utf8();
+        }
     }
 
-    output
+    if in_block_comment {
+        let (line, column) = block_comment_start.unwrap_or((line, column));
+        return Err(
+            DslError::InvalidValue("unclosed pipeline block comment".into())
+                .at_line_column(line, Some(column)),
+        );
+    }
+    Ok(output)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -297,13 +349,42 @@ fn split_top_level_with_columns(
 #[cfg(test)]
 mod tests {
     #[test]
+    fn gewylang_source_size_is_bounded() {
+        assert!(
+            super::validate_gewylang_source_size(&"x".repeat(super::MAX_GEWYLANG_SOURCE_BYTES))
+                .is_ok()
+        );
+        let err =
+            super::validate_gewylang_source_size(&"x".repeat(super::MAX_GEWYLANG_SOURCE_BYTES + 1))
+                .expect_err("oversized source must fail closed");
+        assert_eq!(
+            err,
+            super::DslError::InvalidValue(format!(
+                "gewylang source exceeds {} bytes",
+                super::MAX_GEWYLANG_SOURCE_BYTES
+            ))
+        );
+    }
+
+    #[test]
     fn strip_comments_keeps_string_hashes_and_newlines() {
         let input = "template(:demo) # tail\n|> include(\"./a#b.gewy\")\n/* block\ncomment */\n";
-        let stripped = super::strip_comments_preserve_layout(input);
+        let stripped = super::strip_comments_preserve_layout(input).unwrap();
         assert!(stripped.contains("template(:demo)"));
         assert!(stripped.contains("\"./a#b.gewy\""));
         assert_eq!(input.lines().count(), stripped.lines().count());
         assert!(!stripped.contains("tail"));
         assert!(!stripped.contains("block"));
+    }
+
+    #[test]
+    fn strip_comments_rejects_unclosed_block_comments_at_the_opening_delimiter() {
+        let input = "template :demo\n  /* never closed\n|> window :default_5s\n";
+        let err = super::strip_comments_preserve_layout(input).unwrap_err();
+        assert_eq!(
+            err,
+            super::DslError::InvalidValue("unclosed pipeline block comment".into())
+                .at_line_column(2, Some(3))
+        );
     }
 }

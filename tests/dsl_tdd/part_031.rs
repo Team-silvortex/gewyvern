@@ -474,9 +474,9 @@ fn udp_core(model_name, op_name) {
   |> fragment(:udp_packet_meta_fragment)
   |> fragment(:route_meta_fragment)
   |> fragment(:sock_lineage_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${model_name}, phase: :bind)
+  |> operation($op_name)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: $model_name, phase: :bind)
 }
 
 template(:pipeline_parameter_fn_udp)

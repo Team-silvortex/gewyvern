@@ -7,7 +7,7 @@ fn explain_report_rejects_stage_inference_mismatches_for_pipeline_arguments() {
 fn stage_module(stage_value = :process_bound) =
   |> program_model(:stage_model)
   |> operation(:datagram_exchange)
-  |> program_rule(predicate: :process_bound, stage: ${stage_value}, narrative: :process_bound, dedupe: true, module: :stage_module, phase: :bind)
+  |> program_rule(predicate: :process_bound, stage: $stage_value, narrative: :process_bound, dedupe: true, module: :stage_module, phase: :bind)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -27,7 +27,7 @@ fn explain_report_rejects_key_event_inference_mismatches_for_pipeline_arguments(
         r#"
 fn reason_module(event_value = :process_identified) =
   |> reason_model(:reason_model)
-  |> reason_rule(predicate: :process_bound, key_event: ${event_value}, narrative: :process_bound, dedupe: true, module: :reason_module, phase: :bind)
+  |> reason_rule(predicate: :process_bound, key_event: $event_value, narrative: :process_bound, dedupe: true, module: :reason_module, phase: :bind)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -47,7 +47,7 @@ fn explain_report_rejects_key_event_alias_inference_mismatches_for_pipeline_argu
         r#"
 fn reason_module(event_value = :process_identified) =
   |> reason_model(:reason_model)
-  |> reason_rule(pred: :process_bound, event: ${event_value}, narr: :process_bound, dedupe: true, mod: :reason_module, phase: :bind)
+  |> reason_rule(pred: :process_bound, event: $event_value, narr: :process_bound, dedupe: true, mod: :reason_module, phase: :bind)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -67,7 +67,7 @@ fn explain_report_rejects_reason_rule_positional_key_event_inference_mismatches(
         r#"
 fn reason_module(event_value = :process_identified) =
   |> reason_model(:reason_model)
-  |> reason_rule :process_bound, ${event_value}, :process_bound, true, mod: :reason_module, phase: :bind
+  |> reason_rule :process_bound, $event_value, :process_bound, true, mod: :reason_module, phase: :bind
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -88,7 +88,7 @@ fn explain_report_rejects_phase_inference_mismatches_for_pipeline_arguments() {
 fn phase_module(phase_value = :send_request) =
   |> program_model(:phase_model)
   |> operation(:datagram_exchange)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :phase_module, phase: ${phase_value})
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :phase_module, phase: $phase_value)
 
 template(:frontend_defaults)
 |> window(:default_5s)

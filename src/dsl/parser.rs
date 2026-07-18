@@ -9,9 +9,9 @@ use super::{
     DslError, FrontendGraphEdge, FrontendGraphEdgeKind, FrontendIncludeSource,
     FrontendIncludeSourceKind, FrontendUseEdge, PackageContext, PipelineCall, PipelineFunction,
     PipelineFunctionBodySyntax, PipelineLetBinding, PipelineModule, PipelineParam, package,
+    read_file,
 };
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 pub(super) fn parse_pipeline_module(
@@ -207,6 +207,13 @@ fn parse_pipeline_module_into(
             continue;
         }
 
+        if line == "fn" || line.starts_with("fn ") {
+            return Err(
+                DslError::InvalidValue(format!("invalid function signature '{line}'"))
+                    .at_line_column(line_no, Some(line.len() + 1)),
+            );
+        }
+
         let call = if module.template.is_some() || !allow_template_head {
             line.strip_prefix("|>")
                 .ok_or_else(|| {
@@ -287,8 +294,8 @@ fn parse_pipeline_module_into(
                     kind: FrontendGraphEdgeKind::Include,
                     line: line_no,
                 });
-                let include_input = fs::read_to_string(&include_path)
-                    .map_err(|err| DslError::Io(err.to_string()).at_line(line_no))?;
+                let include_input = read_file(&include_path.to_string_lossy())
+                    .map_err(|err| err.at_line(line_no))?;
                 let include_root = include_path
                     .parent()
                     .map(Path::to_path_buf)

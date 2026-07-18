@@ -33,13 +33,13 @@ param_decl          = ident, [ ":", optional_hws, kind_name ],
 kind_name           = "atom" | "bool" | "u64" | "predicate" | "narrative"
                     | "stage" | "key_event" | "phase" ;
 
-value               = atom | string | boolean | unsigned_integer | placeholder | raw_token ;
-atom                = ":", ident ;
+value               = atom | string | boolean | unsigned_integer | placeholder ;
+atom                = ":", atom_path ;
+atom_path           = ident, { ".", ident } ;
 boolean             = "true" | "false" ;
 unsigned_integer    = digit, { digit } ;
 placeholder         = "$", ident ;
 string              = '"', { string_character }, '"' ;
-raw_token           = ? non-empty step-specific token accepted by the parser ? ;
 
 documentation       = module_doc | item_doc ;
 module_doc          = "//!", ? rest of line ?, newline ;
@@ -57,16 +57,36 @@ optional_hws        = { " " | "\t" } ;
 newline             = "\n" ;
 letter              = "A" | ... | "Z" | "a" | ... | "z" ;
 digit               = "0" | ... | "9" ;
-string_character    = ? any valid string character, with escapes preserved ? ;
+string_character    = string_plain | string_escape ;
+string_plain        = ? any non-control character except `"` or `\` ? ;
+string_escape       = "\\", ( '"' | "\\" | "n" | "r" | "t" ) ;
 ```
 
 ## Semantic Constraints
 
 - An entry contains exactly one `template :id` head.
+- A malformed or empty `template` declaration is diagnosed as an invalid head, not as unrelated syntax.
+- Each source file or in-memory source input is at most 256 KiB before comment stripping.
 - Each pipeline call occupies one physical line.
+- String escapes are decoded during lowering; every other backslash escape is invalid.
+- Raw control characters are invalid inside strings; use the declared escapes for tab and line breaks.
+- Parentheses inside strings are literal; unquoted nested call parentheses are invalid.
+- Inline windows contain exactly one `duration_ms` and one `lateness_ms` field and no others.
+- Keyword fields are unique after rule aliases are normalized.
+- Argument and parameter lists contain no empty slots or trailing commas.
+- Every `/*` block comment is terminated by `*/` in the same source file.
+- Unquoted `=` appears exactly once in a `let` binding and at most once in a parameter default.
+- Atom paths contain one or more dot-separated identifiers with no whitespace or empty segments.
+- Function parameter and local binding names are bare identifiers, never atom-prefixed names.
+- Keyword field names are bare identifiers; malformed names are distinct from unknown fields.
+- Every keyword argument has a non-empty value after `:`.
 - Function units use `fn name(...) =` and contain no braces.
+- Every line beginning with the `fn` keyword is parsed as a function declaration or rejected as an invalid signature.
 - Function defaults are trailing.
 - Placeholders use `$name`.
+- Braced, empty, numeric-leading, and suffixed placeholders are invalid.
+- Source values outside the five declared lexical families are invalid.
+- Strings are opaque values and never interpolate `$name` placeholders.
 - Positional call arguments precede named arguments.
 - Rules use named compact fields in canonical order.
 - Complex colon-delimited predicates are quoted strings or local bindings.

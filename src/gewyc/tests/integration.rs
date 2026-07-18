@@ -410,10 +410,10 @@ fn stages_report_infers_pipeline_function_parameter_kinds() {
     let report = compile_stages_report_str(
         r#"
 fn udp_core(model_name, op_name = :datagram_exchange, dedupe_flag = true, duration_ms = 5000) =
-  |> window(duration_ms: ${duration_ms}, lateness_ms: 200)
-  |> operation(${op_name})
-  |> program_model(${model_name})
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: ${dedupe_flag}, module: :frontend_summary, phase: :bind)
+  |> window(duration_ms: $duration_ms, lateness_ms: 200)
+  |> operation($op_name)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: $dedupe_flag, module: :frontend_summary, phase: :bind)
 
 template(:frontend_summary)
 |> window(:default_5s)
@@ -523,8 +523,8 @@ fn explain_report_uses_default_pipeline_function_arguments() {
 fn udp_client(model_name = :default_model, op_name = :datagram_exchange) =
   let module_name = :udp_client
   |> fragment(:udp_packet_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation($op_name)
+  |> program_model($model_name)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -546,8 +546,8 @@ fn explain_report_allows_partial_override_of_default_pipeline_function_arguments
 fn udp_client(model_name = :default_model, op_name = :datagram_exchange) =
   let module_name = :udp_client
   |> fragment(:udp_packet_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation($op_name)
+  |> program_model($model_name)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -569,8 +569,8 @@ fn explain_report_supports_named_pipeline_function_arguments() {
 fn udp_client(model_name = :default_model, op_name = :datagram_exchange) =
   let module_name = :udp_client
   |> fragment(:udp_packet_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation($op_name)
+  |> program_model($model_name)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -591,8 +591,8 @@ fn explain_report_supports_positional_then_named_pipeline_function_arguments() {
         r#"
 fn udp_client(model_name, op_name = :datagram_exchange) =
   |> fragment(:udp_packet_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation($op_name)
+  |> program_model($model_name)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -613,8 +613,8 @@ fn explain_report_rejects_atom_inference_mismatches_for_pipeline_arguments() {
         r#"
 fn udp_client(model_name, op_name = :datagram_exchange) =
   |> fragment(:udp_packet_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation($op_name)
+  |> program_model($model_name)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -635,7 +635,7 @@ fn explain_report_rejects_predicate_inference_mismatches_for_pipeline_arguments(
 fn rule_module(predicate_name = :process_bound) =
   |> program_model(:predicate_model)
   |> operation(:datagram_exchange)
-  |> program_rule(predicate: ${predicate_name}, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :predicate_module, phase: :bind)
+  |> program_rule(predicate: $predicate_name, stage: :process_bound, narrative: :process_bound, dedupe: true, module: :predicate_module, phase: :bind)
 
 template(:frontend_defaults)
 |> window(:default_5s)
@@ -656,7 +656,7 @@ fn explain_report_rejects_narrative_inference_mismatches_for_pipeline_arguments(
 fn rule_module(narrative_value = :process_bound) =
   |> program_model(:narrative_model)
   |> operation(:datagram_exchange)
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: ${narrative_value}, dedupe: true, module: :predicate_module, phase: :bind)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: $narrative_value, dedupe: true, module: :predicate_module, phase: :bind)
 
 template(:frontend_defaults)
 |> window(:default_5s)

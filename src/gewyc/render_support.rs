@@ -428,6 +428,12 @@ pub(super) fn dsl_invalid_value_code(value: &str) -> &'static str {
         "GEWYC-PARSE-PARAMETER-KIND-CONFLICT"
     } else if value.starts_with("unknown pipeline placeholder '$") {
         "GEWYC-PARSE-UNKNOWN-PLACEHOLDER"
+    } else if value.starts_with("invalid pipeline placeholder '") {
+        "GEWYC-PARSE-INVALID-PLACEHOLDER"
+    } else if value.starts_with("invalid pipeline source literal '") {
+        "GEWYC-PARSE-INVALID-LITERAL"
+    } else if value.starts_with("pipeline string literal cannot interpolate placeholder '") {
+        "GEWYC-PARSE-STRING-INTERPOLATION"
     } else if value.starts_with("unclosed pipeline placeholder in '") {
         "GEWYC-PARSE-UNCLOSED-PLACEHOLDER"
     } else if value.starts_with("pipeline placeholder expansion exceeded 32 substitutions while ") {
@@ -470,10 +476,26 @@ pub(super) fn dsl_invalid_value_code(value: &str) -> &'static str {
         "GEWYC-PARSE-INVALID-PARAMETER-NAME"
     } else if value == "unclosed pipeline string literal" {
         "GEWYC-PARSE-UNCLOSED-STRING"
+    } else if value.starts_with("invalid pipeline string escape '")
+        || value == "pipeline string literal cannot end with an escape"
+    {
+        "GEWYC-PARSE-INVALID-STRING-ESCAPE"
+    } else if value.starts_with("invalid pipeline string character U+") {
+        "GEWYC-PARSE-INVALID-STRING-CHARACTER"
+    } else if value.starts_with("invalid pipeline atom '") {
+        "GEWYC-PARSE-INVALID-ATOM"
+    } else if value.starts_with("pipeline step '")
+        && value.contains(" received invalid keyword field name '")
+    {
+        "GEWYC-PARSE-INVALID-KEYWORD-NAME"
     } else if value.starts_with("invalid let binding '")
         || value.starts_with("pipeline let binding '")
     {
         "GEWYC-PARSE-INVALID-LET-BINDING"
+    } else if value.starts_with("invalid pipeline call 'template")
+        || value == "pipeline step 'template' expects exactly one argument"
+    {
+        "GEWYC-PARSE-INVALID-TEMPLATE-HEAD"
     } else if value.starts_with("invalid pipeline call '") {
         "GEWYC-PARSE-INVALID-PIPELINE-CALL"
     } else if value.starts_with("pipeline rule received unknown field '") {
@@ -482,6 +504,10 @@ pub(super) fn dsl_invalid_value_code(value: &str) -> &'static str {
         || value.contains("received duplicate rule field")
     {
         "GEWYC-PARSE-DUPLICATE-RULE-FIELD"
+    } else if value.starts_with("pipeline step 'window' received duplicate field '") {
+        "GEWYC-PARSE-DUPLICATE-WINDOW-FIELD"
+    } else if value.starts_with("pipeline step 'window' received unknown field '") {
+        "GEWYC-PARSE-UNKNOWN-WINDOW-FIELD"
     } else if value.starts_with("unknown reason profile '") {
         "GEWYC-PARSE-UNKNOWN-REASON-PROFILE"
     } else if value.starts_with("unknown stage '") {
@@ -509,12 +535,22 @@ pub(super) fn dsl_invalid_value_code(value: &str) -> &'static str {
             || value.contains(" positional shorthand accepts at most "))
     {
         "GEWYC-PARSE-INVALID-STEP-ARITY"
-    } else if value.starts_with("pipeline step '")
+    } else if (value.starts_with("pipeline step '")
         && (value.contains(" expected keyword argument, got '")
             || value.contains(" expected named argument, got '")
-            || value.contains(" named argument '") && value.ends_with(" requires a value"))
+            || value.contains(" named argument '") && value.ends_with(" requires a value")))
+        || (value.starts_with("pipeline keyword argument '")
+            && value.ends_with(" requires a value"))
     {
         "GEWYC-PARSE-MALFORMED-ARGUMENT"
+    } else if value == "pipeline argument list contains an empty argument" {
+        "GEWYC-PARSE-EMPTY-ARGUMENT"
+    } else if value == "unclosed pipeline block comment" {
+        "GEWYC-PARSE-UNCLOSED-BLOCK-COMMENT"
+    } else if value == "pipeline let binding contains multiple assignment separators"
+        || value == "pipeline parameter contains multiple default separators"
+    {
+        "GEWYC-PARSE-MULTIPLE-ASSIGNMENT-SEPARATORS"
     } else if value.starts_with("pipeline rule phase '") && value.ends_with(" requires module") {
         "GEWYC-PARSE-RULE-PHASE-WITHOUT-MODULE"
     } else if value == "pipeline DSL must start with template(...) or template :name" {
@@ -535,6 +571,8 @@ pub(super) fn dsl_invalid_value_code(value: &str) -> &'static str {
         "GEWYC-PARSE-INCLUDE-ESCAPES-PACKAGE"
     } else if value == "gewylang now only supports the pipeline stable subset" {
         "GEWYC-PARSE-UNSUPPORTED-SYNTAX"
+    } else if value.starts_with("gewylang source exceeds ") && value.ends_with(" bytes") {
+        "GEWYC-PARSE-SOURCE-TOO-LARGE"
     } else if value.starts_with("unknown datagram proto '")
         || value.starts_with("unknown packet proto '")
     {

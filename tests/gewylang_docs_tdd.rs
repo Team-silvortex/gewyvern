@@ -69,6 +69,56 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
+fn canonical_docs_define_the_closed_string_escape_set() {
+    let root = repository_root();
+    let guide = fs::read_to_string(root.join("docs/gewylang-llm-guide.md")).unwrap();
+    let grammar = fs::read_to_string(root.join("docs/gewylang.ebnf")).unwrap();
+
+    assert!(guide.contains("Quoted strings decode exactly five escapes"));
+    assert!(guide.contains("GEWYC-PARSE-INVALID-STRING-ESCAPE"));
+    assert!(guide.contains("GEWYC-PARSE-INVALID-STRING-CHARACTER"));
+    assert!(guide.contains("Parentheses inside quoted strings are literal text"));
+    assert!(guide.contains("Inline `window` accepts only `duration_ms` and `lateness_ms`"));
+    assert!(guide.contains("GEWYC-PARSE-DUPLICATE-WINDOW-FIELD"));
+    assert!(guide.contains("GEWYC-PARSE-UNKNOWN-WINDOW-FIELD"));
+    assert!(guide.contains("GEWYC-PARSE-EMPTY-ARGUMENT"));
+    assert!(guide.contains("Every named argument requires a value after `:`"));
+    assert!(guide.contains("GEWYC-PARSE-UNCLOSED-BLOCK-COMMENT"));
+    assert!(guide.contains("GEWYC-PARSE-MULTIPLE-ASSIGNMENT-SEPARATORS"));
+    assert!(guide.contains("GEWYC-PARSE-INVALID-ATOM"));
+    assert!(guide.contains("GEWYC-PARSE-INVALID-KEYWORD-NAME"));
+    assert!(guide.contains("GEWYC-PARSE-INVALID-PLACEHOLDER"));
+    assert!(guide.contains("GEWYC-PARSE-INVALID-LITERAL"));
+    assert!(guide.contains("GEWYC-PARSE-STRING-INTERPOLATION"));
+    assert!(guide.contains("GEWYC-PARSE-INVALID-TEMPLATE-HEAD"));
+    assert!(guide.contains("GEWYC-PARSE-SOURCE-TOO-LARGE"));
+    assert!(grammar.contains("string_escape"));
+    assert!(grammar.contains("String escapes are decoded during lowering"));
+    assert!(grammar.contains("Raw control characters are invalid inside strings"));
+    assert!(grammar.contains("unquoted nested call parentheses are invalid"));
+    assert!(grammar.contains("Keyword fields are unique after rule aliases are normalized"));
+    assert!(grammar.contains("Argument and parameter lists contain no empty slots"));
+    assert!(grammar.contains("Every `/*` block comment is terminated by `*/`"));
+    assert!(grammar.contains("Unquoted `=` appears exactly once in a `let` binding"));
+    assert!(grammar.contains("Atom paths contain one or more dot-separated identifiers"));
+    assert!(grammar.contains("Function parameter and local binding names are bare identifiers"));
+    assert!(grammar.contains("Every line beginning with the `fn` keyword"));
+    assert!(grammar.contains("A malformed or empty `template` declaration"));
+    assert!(grammar.contains("at most 256 KiB before comment stripping"));
+    assert!(grammar.contains("Keyword field names are bare identifiers"));
+    assert!(grammar.contains("Every keyword argument has a non-empty value"));
+    assert!(
+        grammar.contains("Braced, empty, numeric-leading, and suffixed placeholders are invalid")
+    );
+    assert!(
+        grammar.contains("Source values outside the five declared lexical families are invalid")
+    );
+    assert!(grammar.contains("Strings are opaque values and never interpolate `$name`"));
+    assert!(!grammar.contains("raw_token"));
+    assert!(!grammar.contains("escapes preserved"));
+}
+
+#[test]
 fn authoritative_gewylang_docs_have_no_broken_local_links() {
     let root = repository_root();
     let mut checked = 0usize;

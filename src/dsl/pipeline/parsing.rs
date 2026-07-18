@@ -55,10 +55,20 @@ pub(crate) fn parse_pipeline_let_binding(
         return Ok(None);
     };
     validate_pipeline_string_delimiters(line)?;
-    let (name, value) = remainder.split_once('=').ok_or_else(|| {
+    validate_no_braced_pipeline_placeholders(line)?;
+    let separators = pipeline_unquoted_char_positions(remainder, '=');
+    if separators.len() > 1 {
+        return Err(DslError::InvalidValue(
+            "pipeline let binding contains multiple assignment separators".into(),
+        )
+        .at_line_column(0, Some(4 + separators[1] + 1)));
+    }
+    let separator = separators.first().copied().ok_or_else(|| {
         DslError::InvalidValue(format!("invalid let binding '{line}'"))
             .at_line_column(0, Some(line.len() + 1))
     })?;
+    let name = &remainder[..separator];
+    let value = &remainder[separator + 1..];
     let name = parse_pipeline_param_name(name)?;
     let value = value.trim();
     if value.is_empty() {
@@ -67,6 +77,7 @@ pub(crate) fn parse_pipeline_let_binding(
         ))
         .at_line_column(0, Some(line.len() + 1)));
     }
+    validate_pipeline_source_value(value)?;
     Ok(Some(PipelineLetBinding {
         name,
         value: value.to_string(),
@@ -77,25 +88,36 @@ pub(crate) fn parse_pipeline_call(
     line: &str,
 ) -> Result<(String, Vec<String>, Vec<usize>), DslError> {
     validate_pipeline_string_delimiters(line)?;
-    if !line.contains('(') {
+    validate_no_braced_pipeline_placeholders(line)?;
+    let open_positions = pipeline_unquoted_char_positions(line, '(');
+    if open_positions.is_empty() {
         return parse_pipeline_parenless_call(line);
     }
-    let open = line.find('(').ok_or_else(|| {
-        DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
-            .at_line_column(0, Some(line.len() + 1))
-    })?;
-    let name = line[..open].trim();
-    let inner = line[open + 1..].strip_suffix(')').ok_or_else(|| {
-        DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
-            .at_line_column(0, Some(line.len() + 1))
-    })?;
-    if name.is_empty() {
-        return Err(
-            DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
-                .at_line_column(0, Some(1)),
-        );
+    if open_positions.len() != 1 {
+        return Err(invalid_pipeline_call_at(line, open_positions[1] + 1));
     }
-    let args_with_columns = split_pipeline_args_with_columns(inner, open + 2);
+    let open = open_positions[0];
+    let close_positions = pipeline_unquoted_char_positions(line, ')');
+    if close_positions.is_empty() {
+        return Err(invalid_pipeline_call_at(line, line.len() + 1));
+    }
+    if close_positions.len() != 1 {
+        return Err(invalid_pipeline_call_at(line, close_positions[1] + 1));
+    }
+    let close = close_positions[0];
+    if close < open {
+        return Err(invalid_pipeline_call_at(line, close + 1));
+    }
+    if close + 1 != line.len() {
+        return Err(invalid_pipeline_call_at(line, close + 2));
+    }
+    let name = line[..open].trim();
+    if !is_pipeline_identifier(name) {
+        return Err(invalid_pipeline_call_at(line, 1));
+    }
+    let inner = &line[open + 1..close];
+    let args_with_columns = split_pipeline_args_with_columns(inner, open + 2)?;
+    validate_pipeline_source_arguments(&args_with_columns)?;
     Ok((
         name.to_string(),
         args_with_columns
@@ -119,20 +141,21 @@ fn parse_pipeline_parenless_call(
     })?;
     let name = line[..split_at].trim();
     let arg = line[split_at..].trim();
-    if name.is_empty() || arg.is_empty() {
+    if !is_pipeline_identifier(name) || arg.is_empty() {
         return Err(
             DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
                 .at_line_column(0, Some(line.len() + 1)),
         );
     }
     let arg_column = split_at + line[split_at..].find(arg).unwrap_or(0) + 1;
-    let args_with_columns = split_pipeline_args_with_columns(arg, arg_column);
+    let args_with_columns = split_pipeline_args_with_columns(arg, arg_column)?;
     if args_with_columns.is_empty() {
         return Err(
             DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
                 .at_line_column(0, Some(line.len() + 1)),
         );
     }
+    validate_pipeline_source_arguments(&args_with_columns)?;
     Ok((
         name.to_string(),
         args_with_columns
@@ -146,10 +169,38 @@ fn parse_pipeline_parenless_call(
     ))
 }
 
+fn pipeline_unquoted_char_positions(input: &str, needle: char) -> Vec<usize> {
+    let mut positions = Vec::new();
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, ch) in input.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if in_string && ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            in_string = !in_string;
+        } else if !in_string && ch == needle {
+            positions.push(index);
+        }
+    }
+    positions
+}
+
+fn invalid_pipeline_call_at(line: &str, column: usize) -> DslError {
+    DslError::InvalidValue(format!("invalid pipeline call '{line}'"))
+        .at_line_column(0, Some(column))
+}
+
 pub(crate) fn parse_pipeline_function_signature(
     signature: &str,
 ) -> Result<(String, Vec<PipelineParam>), DslError> {
     validate_pipeline_string_delimiters(signature)?;
+    validate_no_braced_pipeline_placeholders(signature)?;
     let open = signature.find('(').ok_or_else(|| {
         DslError::InvalidValue(format!("invalid function signature '{signature}'"))
             .at_line_column(0, Some(signature.len() + 1))
@@ -181,9 +232,11 @@ pub(crate) fn parse_pipeline_function_signature(
     let params = if params_src.trim().is_empty() {
         Vec::new()
     } else {
-        split_pipeline_args(params_src)
+        split_pipeline_args_with_columns(params_src, open + 2)?
             .into_iter()
-            .map(|param| parse_pipeline_param(&param))
+            .map(|(column, param)| {
+                parse_pipeline_param(&param).map_err(|err| err.reanchor_line_column(0, column))
+            })
             .collect::<Result<Vec<_>, _>>()?
     };
     let mut param_names = BTreeSet::new();
@@ -215,8 +268,17 @@ pub(crate) fn parse_pipeline_function_signature(
 
 fn parse_pipeline_param(param: &str) -> Result<PipelineParam, DslError> {
     let trimmed = param.trim();
-    let (name_src, default_value) = match trimmed.split_once('=') {
-        Some((name, default)) => {
+    let separators = pipeline_unquoted_char_positions(trimmed, '=');
+    if separators.len() > 1 {
+        return Err(DslError::InvalidValue(
+            "pipeline parameter contains multiple default separators".into(),
+        )
+        .at_line_column(0, Some(separators[1] + 1)));
+    }
+    let (name_src, default_value) = match separators.first().copied() {
+        Some(separator) => {
+            let name = &trimmed[..separator];
+            let default = &trimmed[separator + 1..];
             let default = default.trim();
             if default.is_empty() {
                 return Err(DslError::InvalidValue(format!(
@@ -225,6 +287,7 @@ fn parse_pipeline_param(param: &str) -> Result<PipelineParam, DslError> {
                 ))
                 .at_line_column(0, Some(trimmed.len() + 1)));
             }
+            validate_pipeline_source_value(default)?;
             (name, Some(default.to_string()))
         }
         None => (trimmed, None),
@@ -256,11 +319,7 @@ fn parse_pipeline_param(param: &str) -> Result<PipelineParam, DslError> {
 
 pub(crate) fn parse_pipeline_param_name(param: &str) -> Result<String, DslError> {
     let trimmed = param.trim();
-    let value = trimmed
-        .strip_prefix(':')
-        .unwrap_or(trimmed)
-        .trim()
-        .to_string();
+    let value = trimmed.to_string();
     if value.is_empty() {
         return Err(
             DslError::InvalidValue("pipeline parameter name cannot be empty".into())
@@ -276,13 +335,169 @@ pub(crate) fn parse_pipeline_param_name(param: &str) -> Result<String, DslError>
     Ok(value)
 }
 
-fn is_pipeline_identifier(value: &str) -> bool {
+pub(super) fn is_pipeline_identifier(value: &str) -> bool {
     let mut chars = value.chars();
     let Some(first) = chars.next() else {
         return false;
     };
     (first.is_ascii_alphabetic() || first == '_')
         && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn is_pipeline_atom_path(value: &str) -> bool {
+    !value.is_empty() && value.split('.').all(is_pipeline_identifier)
+}
+
+fn validate_pipeline_source_arguments(args: &[(usize, String)]) -> Result<(), DslError> {
+    let has_keyword_arguments = args
+        .iter()
+        .any(|(_, arg)| looks_like_pipeline_keyword_arg(arg));
+    for (column, arg) in args {
+        let value = if looks_like_pipeline_keyword_arg(arg) {
+            let (key, value) = arg.split_once(':').unwrap_or(("", arg));
+            let key = key.trim();
+            if !is_pipeline_identifier(key) {
+                // Lowering owns the more specific invalid-keyword-name diagnostic.
+                continue;
+            }
+            if value.trim().is_empty() {
+                return Err(DslError::InvalidValue(format!(
+                    "pipeline keyword argument '{key}' requires a value"
+                ))
+                .at_line_column(0, Some(column + arg.find(':').unwrap_or(0) + 1)));
+            }
+            if matches!(key, "duration_ms" | "lateness_ms" | "dedupe") {
+                continue;
+            }
+            value
+        } else if has_keyword_arguments {
+            // Preserve structural diagnostics for missing or misplaced keyword fields.
+            continue;
+        } else {
+            arg.as_str()
+        };
+        validate_pipeline_source_value(value)
+            .map_err(|err| err.reanchor_line_column(0, *column))?;
+    }
+    Ok(())
+}
+
+fn validate_pipeline_source_value(value: &str) -> Result<(), DslError> {
+    let value = value.trim();
+    if value.starts_with('$') {
+        let name = value.strip_prefix('$').unwrap_or_default();
+        if is_pipeline_identifier(name) {
+            return Ok(());
+        }
+        return Err(DslError::InvalidValue(format!(
+            "invalid pipeline placeholder '{value}'; use $name"
+        ))
+        .at_line_column(0, Some(1)));
+    }
+    if let Some(atom) = value.strip_prefix(':') {
+        if is_pipeline_atom_path(atom) {
+            return Ok(());
+        }
+        return Err(
+            DslError::InvalidValue(format!("invalid pipeline atom '{value}'"))
+                .at_line_column(0, Some(1)),
+        );
+    }
+    if is_single_pipeline_string_literal(value) {
+        if let Some((column, placeholder)) = pipeline_string_placeholder(value) {
+            return Err(DslError::InvalidValue(format!(
+                "pipeline string literal cannot interpolate placeholder '{placeholder}'; use it as a standalone value"
+            ))
+            .at_line_column(0, Some(column)));
+        }
+        return Ok(());
+    }
+    if matches!(value, "true" | "false")
+        || (!value.is_empty() && value.chars().all(|ch| ch.is_ascii_digit()))
+    {
+        return Ok(());
+    }
+    Err(DslError::InvalidValue(format!(
+        "invalid pipeline source literal '{value}'; expected atom, string, boolean, unsigned integer, or placeholder"
+    ))
+    .at_line_column(0, Some(1)))
+}
+
+fn is_single_pipeline_string_literal(value: &str) -> bool {
+    if value.len() < 2 || !value.starts_with('"') || !value.ends_with('"') {
+        return false;
+    }
+    let mut escaped = false;
+    for ch in value[1..value.len() - 1].chars() {
+        if escaped {
+            escaped = false;
+        } else if ch == '\\' {
+            escaped = true;
+        } else if ch == '"' || matches!(ch, '\r' | '\n') {
+            return false;
+        }
+    }
+    !escaped
+}
+
+fn pipeline_string_placeholder(value: &str) -> Option<(usize, String)> {
+    let chars = value.char_indices().collect::<Vec<_>>();
+    let mut index = 1usize;
+    let mut escaped = false;
+    while index + 1 < chars.len() {
+        let (byte_index, ch) = chars[index];
+        if escaped {
+            escaped = false;
+            index += 1;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            index += 1;
+            continue;
+        }
+        if ch != '$' {
+            index += 1;
+            continue;
+        }
+        let Some((_, first)) = chars.get(index + 1).copied() else {
+            break;
+        };
+        if !(first.is_ascii_alphabetic() || first == '_') {
+            index += 1;
+            continue;
+        }
+        let mut end = index + 2;
+        while end < chars.len()
+            && (chars[end].1.is_ascii_alphanumeric() || matches!(chars[end].1, '_' | '-'))
+        {
+            end += 1;
+        }
+        let byte_end = chars
+            .get(end)
+            .map(|(position, _)| *position)
+            .unwrap_or(value.len());
+        return Some((byte_index + 1, value[byte_index..byte_end].to_string()));
+    }
+    None
+}
+
+fn validate_no_braced_pipeline_placeholders(input: &str) -> Result<(), DslError> {
+    let Some(offset) = input.find("${") else {
+        return Ok(());
+    };
+    let candidate = &input[offset..];
+    let Some(close) = candidate.find('}') else {
+        return Err(
+            DslError::InvalidValue(format!("unclosed pipeline placeholder in '{input}'"))
+                .at_line_column(0, Some(offset + 1)),
+        );
+    };
+    let placeholder = &candidate[..=close];
+    Err(DslError::InvalidValue(format!(
+        "invalid pipeline placeholder '{placeholder}'; use $name"
+    ))
+    .at_line_column(0, Some(offset + 1)))
 }
 
 fn validate_pipeline_string_delimiters(input: &str) -> Result<(), DslError> {
@@ -295,7 +510,7 @@ fn validate_pipeline_string_delimiters(input: &str) -> Result<(), DslError> {
                 return Err(DslError::InvalidValue(format!(
                     "invalid pipeline string escape '\\{ch}'"
                 ))
-                .at_line_column(0, Some(index)));
+                .at_line_column(0, Some(index + 1)));
             }
             escaped = false;
             continue;
@@ -303,6 +518,9 @@ fn validate_pipeline_string_delimiters(input: &str) -> Result<(), DslError> {
         if in_string && ch == '\\' {
             escaped = true;
             continue;
+        }
+        if in_string && ch.is_control() {
+            return Err(invalid_pipeline_string_character(ch, index + 1));
         }
         if ch == '"' {
             in_string = !in_string;
@@ -320,16 +538,13 @@ fn validate_pipeline_string_delimiters(input: &str) -> Result<(), DslError> {
     Ok(())
 }
 
-pub(crate) fn split_pipeline_args(input: &str) -> Vec<String> {
-    split_pipeline_args_with_columns(input, 1)
-        .into_iter()
-        .map(|(_, value)| value)
-        .collect()
-}
-
-fn split_pipeline_args_with_columns(input: &str, base_column: usize) -> Vec<(usize, String)> {
+fn split_pipeline_args_with_columns(
+    input: &str,
+    base_column: usize,
+) -> Result<Vec<(usize, String)>, DslError> {
     let mut parts = Vec::new();
     let mut start = 0usize;
+    let mut last_separator = None;
     let mut in_string = false;
     let mut escaped = false;
     for (idx, ch) in input.char_indices() {
@@ -343,22 +558,33 @@ fn split_pipeline_args_with_columns(input: &str, base_column: usize) -> Vec<(usi
             ',' if !in_string => {
                 let raw = &input[start..idx];
                 let trimmed = raw.trim();
-                if !trimmed.is_empty() {
-                    let leading = raw.find(trimmed).unwrap_or(0);
-                    parts.push((base_column + start + leading, trimmed.to_string()));
+                if trimmed.is_empty() {
+                    return Err(empty_pipeline_argument(base_column + idx));
                 }
+                let leading = raw.find(trimmed).unwrap_or(0);
+                parts.push((base_column + start + leading, trimmed.to_string()));
                 start = idx + 1;
+                last_separator = Some(idx);
             }
             _ => {}
         }
     }
     let raw_tail = &input[start..];
     let tail = raw_tail.trim();
-    if !tail.is_empty() {
+    if tail.is_empty() {
+        if let Some(separator) = last_separator {
+            return Err(empty_pipeline_argument(base_column + separator));
+        }
+    } else {
         let leading = raw_tail.find(tail).unwrap_or(0);
         parts.push((base_column + start + leading, tail.to_string()));
     }
-    parts
+    Ok(parts)
+}
+
+fn empty_pipeline_argument(column: usize) -> DslError {
+    DslError::InvalidValue("pipeline argument list contains an empty argument".into())
+        .at_line_column(0, Some(column))
 }
 
 #[cfg(test)]
@@ -371,6 +597,160 @@ mod tests {
             .expect("escaped quotes must not terminate the argument");
         assert_eq!(args, vec![r#""static:said \"hello, world\"""#]);
     }
+
+    #[test]
+    fn parentheses_inside_strings_do_not_select_or_close_parenthesized_calls() {
+        let (_, args, _) = parse_pipeline_call(r#"reason_model "static:(request)""#)
+            .expect("quoted parentheses must remain literal text");
+        assert_eq!(
+            parse_pipeline_literal(&args[0]).unwrap(),
+            "static:(request)"
+        );
+    }
+
+    #[test]
+    fn parenthesized_calls_reject_additional_unquoted_delimiters() {
+        for input in ["reason(:udp_datagram_l1))", "reason((:udp_datagram_l1)"] {
+            let err = parse_pipeline_call(input).expect_err("extra delimiter must fail closed");
+            assert!(matches!(
+                err,
+                DslError::Located { inner, .. }
+                    if matches!(*inner, DslError::InvalidValue(ref value) if value.starts_with("invalid pipeline call '"))
+            ));
+        }
+    }
+
+    #[test]
+    fn calls_and_function_signatures_reject_empty_argument_slots() {
+        for input in [
+            "window(duration_ms: 5000,, lateness_ms: 200)",
+            "reason(:id,)",
+        ] {
+            assert!(parse_pipeline_call(input).is_err(), "input: {input}");
+        }
+        assert!(parse_pipeline_function_signature("demo(first,, second)").is_err());
+    }
+
+    #[test]
+    fn assignment_separators_are_unique_outside_strings() {
+        let binding = parse_pipeline_let_binding(r#"let label = "a=b""#)
+            .unwrap()
+            .expect("let binding");
+        assert_eq!(binding.value, r#""a=b""#);
+        let (_, params) = parse_pipeline_function_signature(r#"demo(label = "a=b")"#).unwrap();
+        assert_eq!(params[0].default_value.as_deref(), Some(r#""a=b""#));
+
+        assert!(parse_pipeline_let_binding("let label = :a = :b").is_err());
+        assert!(parse_pipeline_function_signature("demo(label = :a = :b)").is_err());
+    }
+
+    #[test]
+    fn binding_and_parameter_names_are_bare_identifiers() {
+        assert!(parse_pipeline_function_signature("demo(name)").is_ok());
+        assert!(parse_pipeline_let_binding("let name = :value").is_ok());
+
+        assert!(parse_pipeline_function_signature("demo(:name)").is_err());
+        assert!(parse_pipeline_let_binding("let :name = :value").is_err());
+    }
+
+    #[test]
+    fn pipeline_string_literals_decode_supported_escapes() {
+        let value = parse_pipeline_literal(r#""said \"hello\"\\next\nline\rreturn\ttab""#)
+            .expect("supported escapes must decode");
+        assert_eq!(value, "said \"hello\"\\next\nline\rreturn\ttab");
+    }
+
+    #[test]
+    fn pipeline_string_literals_reject_unknown_escapes() {
+        let err = parse_pipeline_literal(r#""bad\qescape""#)
+            .expect_err("unknown escapes must fail closed");
+        assert_eq!(
+            err,
+            DslError::InvalidValue("invalid pipeline string escape '\\q'".into())
+                .at_line_column(0, Some(5))
+        );
+    }
+
+    #[test]
+    fn pipeline_string_literals_reject_raw_control_characters() {
+        for value in [
+            "\"raw\tcontrol\"",
+            "\"raw\0control\"",
+            "\"raw\u{7f}control\"",
+        ] {
+            let err = parse_pipeline_literal(value)
+                .expect_err("raw string control characters must fail closed");
+            assert!(matches!(
+                err.root(),
+                DslError::InvalidValue(message)
+                    if message.starts_with("invalid pipeline string character U+")
+            ));
+            assert!(
+                parse_pipeline_call(&format!("reason_model {value}")).is_err(),
+                "value: {value:?}"
+            );
+        }
+        assert!(parse_pipeline_literal(r#""escaped\tcontrol""#).is_ok());
+    }
+
+    #[test]
+    fn pipeline_atoms_are_identifiers_or_identifier_paths() {
+        assert_eq!(
+            parse_pipeline_literal(":fragment-name.field_name").unwrap(),
+            "fragment-name.field_name"
+        );
+        for value in [":", ": bad", ":9bad", "::bad", ":bad..field", ":bad=value"] {
+            let err = parse_pipeline_literal(value).expect_err("invalid atom must fail closed");
+            assert!(matches!(
+                err,
+                DslError::Located { inner, .. }
+                    if matches!(*inner, DslError::InvalidValue(ref message) if message.starts_with("invalid pipeline atom '"))
+            ));
+        }
+    }
+
+    #[test]
+    fn pipeline_source_placeholders_use_the_canonical_identifier_form() {
+        for value in ["$", "$9bad", "$name.suffix", "${name}"] {
+            assert!(
+                parse_pipeline_call(&format!("program_model {value}")).is_err(),
+                "value: {value}"
+            );
+        }
+        assert!(parse_pipeline_call("program_model $model_name").is_ok());
+        assert!(parse_pipeline_call(r#"reason_model "static:cost $5""#).is_ok());
+        assert!(parse_pipeline_call(r#"reason_model "static:$model_name""#).is_err());
+    }
+
+    #[test]
+    fn pipeline_source_literals_form_a_closed_lexical_set() {
+        for value in [
+            ":atom.path",
+            r#""string value""#,
+            "true",
+            "false",
+            "5000",
+            "$name",
+        ] {
+            assert!(
+                parse_pipeline_call(&format!("reason_model {value}")).is_ok(),
+                "value: {value}"
+            );
+        }
+        for value in [
+            "bare",
+            "-1",
+            "12ms",
+            "truefalse",
+            r#""left"junk"#,
+            r#""a""b""#,
+        ] {
+            assert!(
+                parse_pipeline_call(&format!("reason_model {value}")).is_err(),
+                "value: {value}"
+            );
+        }
+    }
 }
 
 pub(crate) fn parse_pipeline_literal(value: &str) -> Result<String, DslError> {
@@ -378,7 +758,13 @@ pub(crate) fn parse_pipeline_literal(value: &str) -> Result<String, DslError> {
     if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
         decode_pipeline_string_literal(&value[1..value.len() - 1])
     } else if let Some(atom) = value.strip_prefix(':') {
-        Ok(atom.trim().to_string())
+        if !is_pipeline_atom_path(atom) {
+            return Err(
+                DslError::InvalidValue(format!("invalid pipeline atom '{value}'"))
+                    .at_line_column(0, Some(1)),
+            );
+        }
+        Ok(atom.to_string())
     } else {
         Ok(value.to_string())
     }
@@ -389,6 +775,9 @@ fn decode_pipeline_string_literal(value: &str) -> Result<String, DslError> {
     let mut chars = value.char_indices();
     while let Some((index, ch)) = chars.next() {
         if ch != '\\' {
+            if ch.is_control() {
+                return Err(invalid_pipeline_string_character(ch, index + 2));
+            }
             decoded.push(ch);
             continue;
         }
@@ -413,6 +802,14 @@ fn decode_pipeline_string_literal(value: &str) -> Result<String, DslError> {
         });
     }
     Ok(decoded)
+}
+
+fn invalid_pipeline_string_character(ch: char, column: usize) -> DslError {
+    DslError::InvalidValue(format!(
+        "invalid pipeline string character U+{:04X}; use an escape",
+        ch as u32
+    ))
+    .at_line_column(0, Some(column))
 }
 
 pub(crate) fn parse_pipeline_single_arg(args: &[String], step: &str) -> Result<String, DslError> {

@@ -117,6 +117,33 @@ window(:default_5s)
 }
 
 #[test]
+fn compile_findings_report_str_classifies_invalid_template_heads() {
+    for input in [
+        "template\n",
+        "template()\n",
+        "template(:first, :second)\n",
+        "template(:unclosed\n",
+    ] {
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(
+            finding.code, "GEWYC-PARSE-INVALID-TEMPLATE-HEAD",
+            "input: {input}"
+        );
+        assert_eq!(finding.line, Some(1), "input: {input}");
+    }
+}
+
+#[test]
+fn compile_findings_report_str_rejects_oversized_source() {
+    let input = "x".repeat(crate::dsl::MAX_GEWYLANG_SOURCE_BYTES + 1);
+    let report = compile_findings_report_str(&input);
+    let finding = report.findings.first().expect("parse finding");
+    assert_eq!(finding.code, "GEWYC-PARSE-SOURCE-TOO-LARGE");
+    assert!(finding.message.contains("262144 bytes"));
+}
+
+#[test]
 fn compile_findings_report_str_classifies_function_declaration_shape() {
     let cases = [
         (
@@ -132,6 +159,10 @@ fn compile_findings_report_str_classifies_function_declaration_shape() {
             "GEWYC-PARSE-INVALID-PARAMETER-NAME",
         ),
         (
+            "fn core(:value) =\n  |> fragment(:udp_packet_meta_fragment)\n",
+            "GEWYC-PARSE-INVALID-PARAMETER-NAME",
+        ),
+        (
             "fn bad.name() =\n  |> fragment(:udp_packet_meta_fragment)\n",
             "GEWYC-PARSE-INVALID-FUNCTION-NAME",
         ),
@@ -144,8 +175,20 @@ fn compile_findings_report_str_classifies_function_declaration_shape() {
             "GEWYC-PARSE-INVALID-FUNCTION-SIGNATURE",
         ),
         (
+            "fn core()\n  |> fragment(:udp_packet_meta_fragment)\n",
+            "GEWYC-PARSE-INVALID-FUNCTION-SIGNATURE",
+        ),
+        (
+            "fn core() = trailing\n  |> fragment(:udp_packet_meta_fragment)\n",
+            "GEWYC-PARSE-INVALID-FUNCTION-SIGNATURE",
+        ),
+        (
             "fn core() =\n  let value = :first\n  let value = :second\n  |> fragment(:udp_packet_meta_fragment)\n",
             "GEWYC-PARSE-DUPLICATE-LOCAL-BINDING",
+        ),
+        (
+            "fn core() =\n  let :value = :first\n  |> fragment(:udp_packet_meta_fragment)\n",
+            "GEWYC-PARSE-INVALID-PARAMETER-NAME",
         ),
     ];
     for (input, code) in cases {
@@ -167,6 +210,37 @@ template :unclosed_string
     assert_eq!(finding.code, "GEWYC-PARSE-UNCLOSED-STRING");
     assert_eq!(finding.line, Some(4));
     assert_eq!(finding.column, Some(line.find('"').unwrap() + 1));
+}
+
+#[test]
+fn compile_findings_report_str_rejects_unknown_string_escapes() {
+    let input = r#"
+template :invalid_escape
+|> window :default_5s
+|> reason_model "bad\qescape"
+"#;
+    let report = compile_findings_report_str(input);
+    let finding = report.findings.first().expect("parse finding");
+    let line = input.lines().nth(3).unwrap();
+    assert_eq!(finding.code, "GEWYC-PARSE-INVALID-STRING-ESCAPE");
+    assert_eq!(finding.line, Some(4));
+    assert_eq!(finding.column, Some(line.find('q').unwrap() + 1));
+}
+
+#[test]
+fn compile_findings_report_str_rejects_raw_string_control_characters() {
+    for control in ['\t', '\0', '\u{7f}'] {
+        let input =
+            format!("template :raw_string_control\n|> reason_model \"before{control}after\"\n");
+        let report = compile_findings_report_str(&input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(
+            finding.code, "GEWYC-PARSE-INVALID-STRING-CHARACTER",
+            "control: U+{:04X}",
+            control as u32
+        );
+        assert_eq!(finding.line, Some(2));
+    }
 }
 
 #[test]
@@ -294,6 +368,55 @@ template :unclosed_placeholder
 }
 
 #[test]
+fn compile_findings_report_str_rejects_noncanonical_placeholders() {
+    for placeholder in ["$", "$9bad", "$model.name", "${model}"] {
+        let input = format!(
+            "fn reason_core(model) =\n  |> reason_model {placeholder}\n\
+             template :invalid_placeholder\n|> window :default_5s\n\
+             |> reason :udp_datagram_l1\n|> use :reason_core, :demo_model\n"
+        );
+        let report = compile_findings_report_str(&input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(
+            finding.code, "GEWYC-PARSE-INVALID-PLACEHOLDER",
+            "placeholder: {placeholder}"
+        );
+        assert_eq!(finding.line, Some(2), "placeholder: {placeholder}");
+    }
+}
+
+#[test]
+fn compile_findings_report_str_rejects_values_outside_the_literal_set() {
+    for value in [
+        "bare",
+        "-1",
+        "12ms",
+        "truefalse",
+        r#""left"junk"#,
+        r#""a""b""#,
+    ] {
+        let input = format!("template :invalid_literal\n|> reason_model {value}\n");
+        let report = compile_findings_report_str(&input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(
+            finding.code, "GEWYC-PARSE-INVALID-LITERAL",
+            "value: {value}"
+        );
+        assert_eq!(finding.line, Some(2), "value: {value}");
+    }
+}
+
+#[test]
+fn compile_findings_report_str_rejects_string_placeholder_interpolation() {
+    let input = "template :string_interpolation\n|> reason_model \"static:$model_name\"\n";
+    let report = compile_findings_report_str(input);
+    let finding = report.findings.first().expect("parse finding");
+    assert_eq!(finding.code, "GEWYC-PARSE-STRING-INTERPOLATION");
+    assert_eq!(finding.line, Some(2));
+    assert!(finding.message.contains("standalone value"));
+}
+
+#[test]
 fn compile_findings_report_str_uses_specific_code_for_unknown_named_argument() {
     let report = compile_findings_report_str(
         r#"
@@ -314,6 +437,44 @@ template :unknown_named_argument
             .message
             .contains("unknown named parameter 'mode_name'")
     );
+}
+
+#[test]
+fn compile_findings_report_str_rejects_invalid_keyword_field_names() {
+    for step in [
+        "window duration.ms: 5000, lateness_ms: 200",
+        "program_rule pred.value: :process_bound, stage: :process_bound, narr: :process_bound, dedupe: true",
+    ] {
+        let input = format!("template :invalid_keyword_name\n|> {step}\n");
+        let report = compile_findings_report_str(&input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(
+            finding.code, "GEWYC-PARSE-INVALID-KEYWORD-NAME",
+            "step: {step}"
+        );
+        assert_eq!(finding.line, Some(2), "step: {step}");
+    }
+}
+
+#[test]
+fn compile_findings_report_str_rejects_empty_keyword_values_as_malformed_arguments() {
+    let cases = [
+        "fn core(model_name: atom) =\n  |> program_model $model_name\n\ntemplate :empty_use_value\n|> use :core, model_name:\n",
+        "template :empty_window_value\n|> window duration_ms:, lateness_ms: 200\n",
+        "template :empty_rule_value\n|> program_rule pred:, stage: :process_bound, narr: :process_bound, dedupe: true\n",
+    ];
+    for input in cases {
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(
+            finding.code, "GEWYC-PARSE-MALFORMED-ARGUMENT",
+            "input: {input}"
+        );
+        assert!(
+            finding.message.contains("requires a value"),
+            "input: {input}"
+        );
+    }
 }
 
 #[test]
@@ -714,6 +875,22 @@ template :invalid_call
 }
 
 #[test]
+fn parse_findings_locate_additional_pipeline_call_delimiters() {
+    let cases = [
+        ("|> window(:default_5s))", ')'),
+        ("|> window((:default_5s)", '('),
+    ];
+    for (call, delimiter) in cases {
+        let input = format!("template :invalid_call\n{call}\n");
+        let report = compile_findings_report_str(&input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(finding.code, "GEWYC-PARSE-INVALID-PIPELINE-CALL");
+        assert_eq!(finding.line, Some(2));
+        assert_eq!(finding.column, call.rfind(delimiter).map(|index| index + 1));
+    }
+}
+
+#[test]
 fn parse_findings_reject_unknown_rule_fields_before_missing_fields() {
     let input = r#"
 template :unknown_rule_field
@@ -731,6 +908,146 @@ template :unknown_rule_field
     assert_eq!(finding.line, Some(8));
     assert_eq!(finding.column, Some(line.find("stgae:").unwrap() + 8));
     assert!(finding.message.contains("unknown field 'stgae'"));
+}
+
+#[test]
+fn parse_findings_reject_exact_duplicate_rule_fields() {
+    let input = r#"
+template :duplicate_rule_field
+|> window :default_5s
+|> reason :udp_datagram_l1
+|> fragment :udp_packet_meta_fragment
+|> operation :datagram_exchange
+|> program_model :demo_model
+|> program_rule pred: :process_bound, stage: :process_bound, stage: :packet_observed, narr: :process_bound, dedupe: true
+"#;
+    let report = compile_findings_report_str(input);
+    let finding = report.findings.first().expect("parse finding");
+    let line = input.lines().nth(7).unwrap();
+    assert_eq!(finding.code, "GEWYC-PARSE-DUPLICATE-RULE-FIELD");
+    assert_eq!(finding.line, Some(8));
+    assert_eq!(finding.column, Some(line.rfind("stage:").unwrap() + 1));
+}
+
+#[test]
+fn parse_findings_reject_unknown_and_duplicate_window_fields() {
+    let cases = [
+        (
+            "|> window duration_ms: 5000, lateness_ms: 200, late_ms: 10",
+            "GEWYC-PARSE-UNKNOWN-WINDOW-FIELD",
+            "10",
+        ),
+        (
+            "|> window duration_ms: 5000, duration_ms: 6000, lateness_ms: 200",
+            "GEWYC-PARSE-DUPLICATE-WINDOW-FIELD",
+            "duration_ms: 6000",
+        ),
+    ];
+    for (call, code, marker) in cases {
+        let input = format!("template :invalid_window\n{call}\n");
+        let report = compile_findings_report_str(&input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(finding.code, code);
+        assert_eq!(finding.line, Some(2));
+        assert_eq!(finding.column, call.rfind(marker).map(|index| index + 1));
+    }
+}
+
+#[test]
+fn parse_findings_reject_empty_call_and_function_argument_slots() {
+    let cases = [
+        (
+            "template :empty_call\n|> window duration_ms: 5000,, lateness_ms: 200\n",
+            2,
+            ",,",
+            1,
+        ),
+        (
+            "fn demo(first,, second) =\n  |> fragment :udp_packet_meta_fragment\ntemplate :empty_param\n|> use :demo\n",
+            1,
+            ",,",
+            1,
+        ),
+        (
+            "template :trailing_call\n|> reason :udp_datagram_l1,\n",
+            2,
+            ",",
+            0,
+        ),
+    ];
+    for (input, expected_line, marker, marker_offset) in cases {
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(expected_line - 1).unwrap();
+        assert_eq!(finding.code, "GEWYC-PARSE-EMPTY-ARGUMENT");
+        assert_eq!(finding.line, Some(expected_line));
+        assert_eq!(
+            finding.column,
+            Some(line.find(marker).unwrap() + marker_offset + 1)
+        );
+    }
+}
+
+#[test]
+fn parse_findings_reject_unclosed_block_comments_at_the_opening_delimiter() {
+    let input = "template :comment_demo\n  /* never closed\n|> window :default_5s\n";
+    let report = compile_findings_report_str(input);
+    let finding = report.findings.first().expect("parse finding");
+    assert_eq!(finding.code, "GEWYC-PARSE-UNCLOSED-BLOCK-COMMENT");
+    assert_eq!(finding.line, Some(2));
+    assert_eq!(finding.column, Some(3));
+}
+
+#[test]
+fn parse_findings_reject_multiple_unquoted_assignment_separators() {
+    let cases = [
+        (
+            "fn demo() =\n  let label = :first = :second\n  |> fragment :udp_packet_meta_fragment\ntemplate :bad_let\n|> use :demo\n",
+            2,
+        ),
+        (
+            "fn demo(label = :first = :second) =\n  |> fragment :udp_packet_meta_fragment\ntemplate :bad_default\n|> use :demo\n",
+            1,
+        ),
+    ];
+    for (input, expected_line) in cases {
+        let report = compile_findings_report_str(input);
+        let finding = report.findings.first().expect("parse finding");
+        let line = input.lines().nth(expected_line - 1).unwrap();
+        assert_eq!(finding.code, "GEWYC-PARSE-MULTIPLE-ASSIGNMENT-SEPARATORS");
+        assert_eq!(finding.line, Some(expected_line));
+        let assignment_region = line.split(") =").next().unwrap_or(line);
+        assert_eq!(
+            finding.column,
+            Some(assignment_region.rfind('=').unwrap() + 1)
+        );
+    }
+}
+
+#[test]
+fn parse_findings_reject_malformed_atoms() {
+    for atom in [":", ": bad", ":9bad", "::bad", ":bad..field", ":bad=value"] {
+        let input = format!("template :invalid_atom\n|> reason {atom}\n");
+        let report = compile_findings_report_str(&input);
+        let finding = report.findings.first().expect("parse finding");
+        assert_eq!(finding.code, "GEWYC-PARSE-INVALID-ATOM", "atom: {atom}");
+        assert_eq!(finding.line, Some(2), "atom: {atom}");
+    }
+
+    let report = compile_findings_report_str(
+        "template :valid_atom_path\n\
+         |> window :default_5s\n\
+         |> reason :udp_datagram_l1\n\
+         |> fragment :udp_packet_meta_fragment\n\
+         |> param :udp_packet_meta_fragment.sample_payload_offsets, 1\n\
+         |> operation :datagram_exchange\n\
+         |> program_model :valid_atom_path_model\n",
+    );
+    assert!(
+        report.findings.is_empty(),
+        "identifier paths remain valid param targets: {:?}",
+        report.findings
+    );
 }
 
 #[test]

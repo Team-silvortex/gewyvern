@@ -105,8 +105,8 @@ fn dsl_accepts_parameterized_expression_style_pipeline_function_units() {
 fn udp_core(model_name, op_name) =>
   |> fragment(:udp_packet_meta_fragment)
   |> fragment(:route_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation($op_name)
+  |> program_model($model_name)
 
 template(:pipeline_expr_param_fn_udp)
 |> window(:default_5s)
@@ -136,8 +136,8 @@ fn udp_core() =
   let op_name = :datagram_exchange
   |> fragment(:udp_packet_meta_fragment)
   |> fragment(:route_meta_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
+  |> operation($op_name)
+  |> program_model($model_name)
 
 template(:pipeline_let_fn_udp)
 |> window(:default_5s)
@@ -164,13 +164,13 @@ fn dsl_accepts_parameterized_pipeline_function_local_let_bindings() {
         r#"
 fn udp_core(model_name) {
   let op_name = :datagram_exchange
-  let phase_module = ${model_name}
+  let phase_module = $model_name
   |> fragment(:udp_packet_meta_fragment)
   |> fragment(:route_meta_fragment)
   |> fragment(:sock_lineage_fragment)
-  |> operation(${op_name})
-  |> program_model(${model_name})
-  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: ${phase_module}, phase: :bind)
+  |> operation($op_name)
+  |> program_model($model_name)
+  |> program_rule(predicate: :process_bound, stage: :process_bound, narrative: :process_bound, dedupe: true, module: $phase_module, phase: :bind)
 }
 
 template(:pipeline_param_let_fn_udp)

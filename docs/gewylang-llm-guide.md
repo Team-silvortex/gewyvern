@@ -74,12 +74,24 @@ template :template_id
 
 Accepted source values include:
 
-- atoms: `:identifier`
+- atoms: `:identifier` (or a step-specific identifier path such as `:fragment.field`)
 - strings: `"text"`
 - booleans: `true`, `false`
 - unsigned integers: `5000`
 - placeholders: `$name`
 - named arguments: `name: value`
+
+Quoted strings decode exactly five escapes: `\"`, `\\`, `\n`, `\r`, and `\t`.
+All other backslash escapes are invalid; do not emit JSON-style `\u` escapes.
+Never emit raw control characters inside strings; use `\t`, `\n`, or `\r`.
+Parentheses inside quoted strings are literal text. Outside strings, a
+parenthesized call has exactly one outer `(` ... `)` pair and cannot nest calls.
+Inline `window` accepts only `duration_ms` and `lateness_ms`, exactly once each.
+Never emit duplicate keyword fields; duplicate rule aliases are also invalid.
+Argument lists cannot contain leading, trailing, or repeated commas.
+Every named argument requires a value after `:`.
+`let` bindings use exactly one unquoted `=`; parameter defaults use at most one.
+Keep each source file at or below 256 KiB; split larger programs with packages and includes.
 
 Comments:
 
@@ -201,25 +213,34 @@ For automatic repair, branch on `findings[].code`, not the English message:
 | `GEWYC-PARSE-PARAMETER-KIND-CONFLICT` | Align the annotation with every use-site, or split the parameter. |
 | `GEWYC-PARSE-ARGUMENT-TYPE-MISMATCH` | Supply a value from the parameter's reported value family. |
 | `GEWYC-PARSE-UNKNOWN-PLACEHOLDER` | Replace `$name` with a reported in-scope parameter or local binding. |
-| `GEWYC-PARSE-UNCLOSED-PLACEHOLDER` | Close `${name}` with `}`, or use `$name`. |
+| `GEWYC-PARSE-INVALID-PLACEHOLDER` | Replace braced or malformed syntax with one complete `$name` placeholder. |
+| `GEWYC-PARSE-INVALID-LITERAL` | Use an atom, quoted string, boolean, unsigned decimal integer, or `$name`. |
+| `GEWYC-PARSE-STRING-INTERPOLATION` | Move `$name` outside the quoted string and pass it as a standalone value. |
+| `GEWYC-PARSE-UNCLOSED-PLACEHOLDER` | Remove the incomplete braced form and use `$name`. |
 | `GEWYC-PARSE-PLACEHOLDER-EXPANSION-LIMIT` | Break the reported transitive placeholder chain into concrete values. |
 | `GEWYC-PARSE-UNKNOWN-NAMED-ARGUMENT` | Use a parameter name from the function signature. |
 | `GEWYC-PARSE-DUPLICATE-ARGUMENT` | Supply each function parameter exactly once. |
 | `GEWYC-PARSE-ARGUMENT-ORDER` | Move every positional argument before the first named argument. |
 | `GEWYC-PARSE-FUNCTION-ARITY` | Add or remove arguments to match the reported function signature. |
-| `GEWYC-PARSE-INVALID-FUNCTION-SIGNATURE` | Rebuild the declaration as `fn name(params) =`. |
+| `GEWYC-PARSE-INVALID-FUNCTION-SIGNATURE` | Rebuild every `fn` declaration as `fn name(params) =`; never omit the final `=`. |
 | `GEWYC-PARSE-INVALID-FUNCTION-NAME` | Use an ASCII identifier beginning with a letter or `_`. |
+| `GEWYC-PARSE-INVALID-ATOM` | Use `:identifier` or a dot-separated identifier path with no whitespace or empty segments. |
+| `GEWYC-PARSE-INVALID-KEYWORD-NAME` | Replace the field name with one bare identifier before checking whether that field is supported. |
 | `GEWYC-PARSE-DUPLICATE-FUNCTION` | Rename or remove one function declaration; includes may not redefine functions. |
 | `GEWYC-PARSE-DUPLICATE-PARAMETER` | Keep each parameter name once in the function signature. |
 | `GEWYC-PARSE-DUPLICATE-LOCAL-BINDING` | Rename or remove the repeated local `let` binding. |
 | `GEWYC-PARSE-INVALID-PARAMETER-ORDER` | Move every required parameter before parameters with defaults. |
 | `GEWYC-PARSE-MISSING-PARAMETER-DEFAULT` | Add a value after `=`, or remove `=`. |
-| `GEWYC-PARSE-INVALID-PARAMETER-NAME` | Use an ASCII identifier beginning with a letter or `_`; later characters may include digits, `_`, or `-`. |
+| `GEWYC-PARSE-INVALID-PARAMETER-NAME` | Use a bare ASCII identifier beginning with a letter or `_`; never prefix parameter or `let` names with `:`. |
 | `GEWYC-PARSE-UNCLOSED-STRING` | Close the reported string with `"`; use `\"` for an embedded quote. |
+| `GEWYC-PARSE-INVALID-STRING-ESCAPE` | Replace the escape with one of `\"`, `\\`, `\n`, `\r`, or `\t`. |
+| `GEWYC-PARSE-INVALID-STRING-CHARACTER` | Replace the raw control character with `\t`, `\n`, or `\r`, or remove it. |
 | `GEWYC-PARSE-INVALID-LET-BINDING` | Rebuild the local binding as `let name = value`. |
 | `GEWYC-PARSE-INVALID-PIPELINE-CALL` | Close the call and keep one complete pipeline call on the line. |
 | `GEWYC-PARSE-UNKNOWN-RULE-FIELD` | Replace the field with a documented rule field or alias. |
 | `GEWYC-PARSE-DUPLICATE-RULE-FIELD` | Keep only one canonical field or alias per rule value. |
+| `GEWYC-PARSE-DUPLICATE-WINDOW-FIELD` | Keep exactly one `duration_ms` and one `lateness_ms` field. |
+| `GEWYC-PARSE-UNKNOWN-WINDOW-FIELD` | Remove the field or replace it with `duration_ms` or `lateness_ms`. |
 | `GEWYC-PARSE-UNKNOWN-REASON-PROFILE` | Select a reason profile from the protocol registry. |
 | `GEWYC-PARSE-UNKNOWN-STAGE` | Replace the stage with a registered signal kind, or use `none` where allowed. |
 | `GEWYC-PARSE-UNKNOWN-KEY-EVENT` | Replace the key event with a registered signal kind, or use `none`. |
@@ -231,8 +252,13 @@ For automatic repair, branch on `findings[].code`, not the English message:
 | `GEWYC-PARSE-INVALID-INTEGER` | Replace the value with a non-negative decimal integer in range. |
 | `GEWYC-PARSE-INVALID-STEP-ARITY` | Match the argument count stated by the finding for that pipeline step. |
 | `GEWYC-PARSE-MALFORMED-ARGUMENT` | Rewrite the argument as `name: value` and ensure the value is present. |
+| `GEWYC-PARSE-EMPTY-ARGUMENT` | Remove the extra comma or provide the missing argument. |
+| `GEWYC-PARSE-UNCLOSED-BLOCK-COMMENT` | Add the closing `*/` after the block comment. |
+| `GEWYC-PARSE-MULTIPLE-ASSIGNMENT-SEPARATORS` | Quote the value if `=` is data, or remove the extra assignment separator. |
 | `GEWYC-PARSE-RULE-PHASE-WITHOUT-MODULE` | Add `module: value`, or remove `phase`. |
 | `GEWYC-PARSE-MISSING-TEMPLATE-HEAD` | Add exactly one `template` head to the entry pipeline. |
+| `GEWYC-PARSE-INVALID-TEMPLATE-HEAD` | Rebuild the declaration as `template :identifier` with exactly one value. |
+| `GEWYC-PARSE-SOURCE-TOO-LARGE` | Split the source into smaller package files, each no larger than 256 KiB. |
 | `GEWYC-PARSE-DUPLICATE-TEMPLATE-HEAD` | Keep one entry-level `template` head; included modules must not declare one. |
 | `GEWYC-PARSE-MISSING-PIPELINE-PREFIX` | Prefix each step after the template with `|>`. |
 | `GEWYC-PARSE-INCLUDE-CYCLE` | Remove one include edge from the reported cycle. |
