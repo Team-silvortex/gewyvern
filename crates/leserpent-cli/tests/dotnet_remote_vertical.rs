@@ -3,13 +3,15 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use leselang_hir::{Effect, lower};
+use leselang_syntax::parse;
 use leserpent_adapters::{GewyvernDiscoveryAdapter, GewyvernTarget};
 use leserpent_domain::{RuntimeId, RuntimeLogLevel};
 use leserpent_runtime::ControlRuntime;
@@ -17,6 +19,54 @@ use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
+
+#[test]
+#[ignore = "requires the locked .NET SDK used by the named parity shelf"]
+fn dotnet_workspace_leselang_export_lowers_to_three_read_queries() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let artifacts = TestDotnetArtifacts::new();
+    let output = remote_conformance_command(&root, &artifacts)
+        .args(["--", "--export-workspace-leselang", "runtime-a"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "export stdout:\n{}\nexport stderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let source = String::from_utf8(output.stdout).unwrap();
+    let syntax = parse(&source);
+    assert!(syntax.diagnostics.is_empty(), "{:#?}", syntax.diagnostics);
+    let program = lower(&syntax).unwrap();
+    let Effect::All { branches } = program.function.effect else {
+        panic!("workspace export did not lower to one structured query batch");
+    };
+    assert_eq!(
+        branches
+            .iter()
+            .map(|branch| branch.name.as_str())
+            .collect::<Vec<_>>(),
+        ["inspect", "history", "logs"]
+    );
+    assert!(matches!(
+        &branches[0].effect,
+        Effect::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
+    ));
+    assert!(matches!(
+        &branches[1].effect,
+        Effect::RuntimeHistory { runtime_id } if runtime_id.as_str() == "runtime-a"
+    ));
+    assert!(matches!(
+        &branches[2].effect,
+        Effect::RuntimeLogs { runtime_id } if runtime_id.as_str() == "runtime-a"
+    ));
+}
 
 #[test]
 #[ignore = "requires the locked .NET SDK used by the named parity shelf"]
@@ -107,14 +157,9 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
         .parent()
         .unwrap()
         .to_path_buf();
-    let project = root.join(
-        "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
-    );
-    let refresh_output = Command::new("dotnet")
-        .current_dir(&root)
-        .args(["run", "--project"])
-        .arg(project)
-        .args(["--configuration", "Release", "--", "--connect", &endpoint])
+    let artifacts = TestDotnetArtifacts::new();
+    let refresh_output = remote_conformance_command(&root, &artifacts)
+        .args(["--", "--connect", &endpoint])
         .arg(&certificate)
         .arg(&cache)
         .args(["--refresh", "runtime-a"])
@@ -128,13 +173,8 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
         String::from_utf8_lossy(&refresh_output.stderr),
     );
 
-    let capability_output = Command::new("dotnet")
-        .current_dir(&root)
-        .args(["run", "--project"])
-        .arg(root.join(
-            "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
-        ))
-        .args(["--configuration", "Release", "--", "--connect", &endpoint])
+    let capability_output = remote_conformance_command(&root, &artifacts)
+        .args(["--", "--connect", &endpoint])
         .arg(&certificate)
         .arg(&cache)
         .args(["--refresh-capabilities", "runtime-a"])
@@ -148,13 +188,8 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
         String::from_utf8_lossy(&capability_output.stderr),
     );
 
-    let inspect_output = Command::new("dotnet")
-        .current_dir(&root)
-        .args(["run", "--project"])
-        .arg(root.join(
-            "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
-        ))
-        .args(["--configuration", "Release", "--", "--connect", &endpoint])
+    let inspect_output = remote_conformance_command(&root, &artifacts)
+        .args(["--", "--connect", &endpoint])
         .arg(&certificate)
         .arg(&cache)
         .args(["--inspect", "runtime-a"])
@@ -211,6 +246,39 @@ fn dotnet_remote_client_refreshes_and_inspects_workspace() {
     fs::remove_file(certificate).unwrap();
     fs::remove_file(private_key).unwrap();
     fs::remove_file(cache).unwrap();
+}
+
+struct TestDotnetArtifacts {
+    path: PathBuf,
+}
+
+impl TestDotnetArtifacts {
+    fn new() -> Self {
+        Self {
+            path: temp_path("dotnet-artifacts"),
+        }
+    }
+}
+
+impl Drop for TestDotnetArtifacts {
+    fn drop(&mut self) {
+        if self.path.exists() {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
+fn remote_conformance_command(root: &Path, artifacts: &TestDotnetArtifacts) -> Command {
+    let mut command = Command::new("dotnet");
+    command
+        .current_dir(root)
+        .args(["run", "--project"])
+        .arg(root.join(
+            "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
+        ))
+        .args(["--configuration", "Release", "--artifacts-path"])
+        .arg(&artifacts.path);
+    command
 }
 
 fn temp_path(extension: &str) -> PathBuf {

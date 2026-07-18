@@ -22,10 +22,14 @@ pub fn run_leserpent_aot_validation(
     let target = HostTarget::current()?;
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-aot"));
     let artifact_dir = out_dir.join("artifact");
+    let dotnet_artifacts = out_dir.join("dotnet-artifacts");
     if artifact_dir.exists() {
         fs::remove_dir_all(&artifact_dir)?;
     }
     fs::create_dir_all(&artifact_dir)?;
+    if dotnet_artifacts.exists() {
+        fs::remove_dir_all(&dotnet_artifacts)?;
+    }
 
     let root = repo_root();
     let app = root.join("apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj");
@@ -50,7 +54,9 @@ pub fn run_leserpent_aot_validation(
                 "-p:PublishProfile=NativeAot",
                 "-p:PublishAot=true",
                 "--locked-mode",
-            ]),
+            ])
+            .arg("--artifacts-path")
+            .arg(&dotnet_artifacts),
         &out_dir.join("restore.log"),
         "locked NativeAOT restore failed",
     )?;
@@ -61,6 +67,8 @@ pub fn run_leserpent_aot_validation(
             .arg(&app)
             .args(["-p:PublishProfile=NativeAot", "-r", target.rid])
             .arg("--no-restore")
+            .arg("--artifacts-path")
+            .arg(&dotnet_artifacts)
             .arg("-o")
             .arg(&artifact_dir),
         &out_dir.join("publish.log"),
@@ -142,6 +150,7 @@ pub fn run_leserpent_aot_validation(
             "files": evidence_files,
         }))?,
     )?;
+    fs::remove_dir_all(&dotnet_artifacts)?;
 
     Ok(ValidationReport {
         name: format!("Leserpent NativeAOT validation ({})", target.rid),
@@ -153,6 +162,7 @@ pub fn run_leserpent_aot_validation(
             "bounded_artifact_manifest".to_string(),
             "four_control_fixtures".to_string(),
             "debugger_cancel_lifecycle".to_string(),
+            "isolated_dotnet_artifacts".to_string(),
         ],
     })
 }

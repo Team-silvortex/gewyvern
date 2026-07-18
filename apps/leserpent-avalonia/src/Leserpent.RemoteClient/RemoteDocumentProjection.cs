@@ -1,4 +1,4 @@
-internal static class RemoteDocumentProjection
+public static class RemoteDocumentProjection
 {
     public const int MaxFilterLength = 128;
 
@@ -307,7 +307,7 @@ internal static class RemoteDocumentProjection
     }
 }
 
-internal sealed record RemoteDocumentView(
+public sealed record RemoteDocumentView(
     UiDocument Document,
     int VisibleRuntimeCount,
     int TotalRuntimeCount);

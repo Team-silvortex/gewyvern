@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
 internal sealed class RemoteRuntimeWorkspaceWindow : Window
@@ -58,6 +59,18 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Padding = new Thickness(12, 6),
         IsEnabled = false,
     };
+    private readonly Button saveDiagnosticsButton = new()
+    {
+        Content = "Save diagnostics",
+        Padding = new Thickness(12, 6),
+        IsEnabled = false,
+    };
+    private readonly Button workspaceLeselangButton = new()
+    {
+        Content = "Workspace Leselang",
+        Padding = new Thickness(12, 6),
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+    };
     private readonly TextBlock logFilterSummary = new()
     {
         FontSize = 12,
@@ -83,6 +96,8 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
     private readonly RemoteWorkspaceSeverityAlert severityAlert = new();
     private readonly RemoteWorkspaceLogRefreshPlan logRefreshPlan = new();
     private bool loadInFlight;
+    private bool diagnosticSaveInFlight;
+    private Window? workspaceLeselangWindow;
     private ulong loadedRevision;
     private ulong desiredRevision;
     private RemoteWorkspaceSnapshot? latestSnapshot;
@@ -138,7 +153,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Grid.SetColumn(queryControls, 1);
         var filterControls = new Grid
         {
-            RowDefinitions = RowDefinitions.Parse("Auto,Auto"),
+            RowDefinitions = RowDefinitions.Parse("Auto,Auto,Auto"),
             ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,Auto"),
             ColumnSpacing = 8,
             RowSpacing = 6,
@@ -148,6 +163,8 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                 logLevelBox,
                 clearLogFilterButton,
                 copyDiagnosticsButton,
+                saveDiagnosticsButton,
+                workspaceLeselangButton,
             },
         };
         Grid.SetColumnSpan(logSearchBox, 2);
@@ -156,6 +173,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         Grid.SetColumn(clearLogFilterButton, 1);
         Grid.SetRow(copyDiagnosticsButton, 1);
         Grid.SetColumn(copyDiagnosticsButton, 2);
+        Grid.SetRow(saveDiagnosticsButton, 1);
+        Grid.SetRow(workspaceLeselangButton, 2);
+        Grid.SetColumnSpan(workspaceLeselangButton, 3);
         var logFilter = new Border
         {
             Background = LeserpentTheme.Panel,
@@ -223,6 +243,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             logFilterTimer.Stop();
             liveRefreshTimer.Stop();
             liveRefresh.Pause();
+            workspaceLeselangWindow?.Close();
             lifetime.Cancel();
             client.Dispose();
             lifetime.Dispose();
@@ -319,11 +340,19 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             {
                 liveRefresh.Pause();
             }
+            else if (outcome == WorkspaceReloadOutcome.Skipped)
+            {
+                liveRefresh.Defer(IsActive);
+            }
             else
             {
                 liveRefresh.Complete(
-                    outcome != WorkspaceReloadOutcome.Failed,
+                    outcome == WorkspaceReloadOutcome.Loaded,
                     IsActive);
+                if (outcome == WorkspaceReloadOutcome.Failed)
+                {
+                    ShowLiveRefreshFailure();
+                }
             }
         }
         catch (Exception)
@@ -331,7 +360,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             liveRefresh.Complete(succeeded: false, IsActive);
             if (!lifetime.IsCancellationRequested)
             {
-                ShowFailure("Live logs stopped after an unexpected query failure");
+                ShowLiveRefreshFailure(unexpected: true);
             }
         }
         UpdateLiveRefreshPresentation();
@@ -343,6 +372,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         liveRefreshTimer.Stop();
         if (liveRefresh.ShouldSchedule && !lifetime.IsCancellationRequested)
         {
+            liveRefreshTimer.Interval = liveRefresh.NextInterval;
             liveRefreshTimer.Start();
         }
     }
@@ -356,7 +386,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         var description = liveRefresh.State switch
         {
             WorkspaceLiveRefreshState.Waiting =>
-                "Live logs enabled; the next revision-consistent query runs within five seconds.",
+                liveRefresh.ConsecutiveFailures == 0
+                    ? "Live logs enabled; the next revision-consistent query runs within five seconds."
+                    : $"Live logs recovering after {liveRefresh.ConsecutiveFailures} failed query; the next attempt runs within {liveRefresh.NextInterval.TotalSeconds:0} seconds.",
             WorkspaceLiveRefreshState.Refreshing =>
                 "Live logs enabled; one authenticated query group is in progress.",
             WorkspaceLiveRefreshState.Suspended =>
@@ -394,6 +426,24 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             copyDiagnosticsButton,
             "Copies endpoint-free workspace metadata, command history, and currently visible sanitized logs. Review before sharing.");
         AutomationProperties.SetAutomationId(
+            saveDiagnosticsButton,
+            "runtime-diagnostics-save");
+        AutomationProperties.SetName(
+            saveDiagnosticsButton,
+            "Save visible runtime diagnostics");
+        AutomationProperties.SetHelpText(
+            saveDiagnosticsButton,
+            "Opens the system save panel for an endpoint-free bounded text export. Review the selected destination and file before sharing.");
+        AutomationProperties.SetAutomationId(
+            workspaceLeselangButton,
+            "runtime-workspace-leselang");
+        AutomationProperties.SetName(
+            workspaceLeselangButton,
+            "Preview equivalent workspace Leselang");
+        AutomationProperties.SetHelpText(
+            workspaceLeselangButton,
+            "Opens canonical Leselang for the same inspect, history, and logs query group without executing it.");
+        AutomationProperties.SetAutomationId(
             diagnosticCopyStatus,
             "runtime-diagnostics-copy-status");
         AutomationProperties.SetName(diagnosticCopyStatus, "Diagnostic copy status");
@@ -418,6 +468,8 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         logLevelBox.SelectionChanged += (_, _) => QueueLogFilter();
         clearLogFilterButton.Click += (_, _) => ClearLogFilter();
         copyDiagnosticsButton.Click += (_, _) => _ = CopyDiagnosticsAsync();
+        saveDiagnosticsButton.Click += (_, _) => _ = SaveDiagnosticsAsync();
+        workspaceLeselangButton.Click += (_, _) => ShowWorkspaceLeselang();
         logFilterTimer.Tick += (_, _) =>
         {
             logFilterTimer.Stop();
@@ -466,6 +518,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             logFilterSummary,
             $"Runtime log filter: {logFilterSummary.Text}");
         copyDiagnosticsButton.IsEnabled = true;
+        saveDiagnosticsButton.IsEnabled = !diagnosticSaveInFlight;
     }
 
     private async Task CopyDiagnosticsAsync()
@@ -498,6 +551,120 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                 SetDiagnosticCopyStatus("Diagnostic copy failed safely.", failed: true);
             }
         }
+    }
+
+    private async Task SaveDiagnosticsAsync()
+    {
+        var snapshot = latestSnapshot;
+        var storage = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (snapshot is null || storage is null || !storage.CanSave)
+        {
+            SetDiagnosticCopyStatus("System file saving is unavailable.", failed: true);
+            return;
+        }
+        if (diagnosticSaveInFlight)
+        {
+            return;
+        }
+        diagnosticSaveInFlight = true;
+        saveDiagnosticsButton.IsEnabled = false;
+        try
+        {
+            var view = RemoteWorkspaceLogFilter.Apply(
+                snapshot,
+                logSearchBox.Text,
+                logLevelBox.SelectedItem as string);
+            var content = RemoteWorkspaceDiagnosticExport.Encode(view);
+            var fileType = new FilePickerFileType("Leserpent diagnostic text")
+            {
+                Patterns = ["*.txt"],
+                MimeTypes = ["text/plain"],
+                AppleUniformTypeIdentifiers = ["public.plain-text"],
+            };
+            var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save runtime diagnostics",
+                SuggestedFileName = RemoteWorkspaceDiagnosticExport.SuggestedFileName(snapshot),
+                DefaultExtension = "txt",
+                ShowOverwritePrompt = true,
+                FileTypeChoices = [fileType],
+            });
+            if (file is null || lifetime.IsCancellationRequested)
+            {
+                if (file is null && !lifetime.IsCancellationRequested)
+                {
+                    SetDiagnosticCopyStatus("Diagnostic save canceled.", failed: false);
+                }
+                return;
+            }
+            await using var stream = await file.OpenWriteAsync();
+            if (!stream.CanWrite || !stream.CanSeek)
+            {
+                throw new IOException("selected diagnostic destination is not replaceable");
+            }
+            stream.SetLength(0);
+            stream.Position = 0;
+            await stream.WriteAsync(content, lifetime.Token);
+            await stream.FlushAsync(lifetime.Token);
+            if (!lifetime.IsCancellationRequested)
+            {
+                SetDiagnosticCopyStatus(
+                    "Diagnostic snapshot saved. Review the file before sharing.",
+                    failed: false);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            // Window shutdown owns this cancellation.
+        }
+        catch (Exception)
+        {
+            if (!lifetime.IsCancellationRequested)
+            {
+                SetDiagnosticCopyStatus("Diagnostic save failed safely.", failed: true);
+            }
+        }
+        finally
+        {
+            diagnosticSaveInFlight = false;
+            saveDiagnosticsButton.IsEnabled = latestSnapshot is not null
+                && !lifetime.IsCancellationRequested;
+        }
+    }
+
+    private void ShowWorkspaceLeselang()
+    {
+        if (workspaceLeselangWindow is not null)
+        {
+            workspaceLeselangWindow.Activate();
+            return;
+        }
+        var preview = new Window
+        {
+            Title = $"Workspace Leselang / {Title}",
+            Width = 640,
+            Height = 360,
+            MinWidth = 480,
+            MinHeight = 280,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = LeserpentTheme.Canvas,
+            Content = new Border
+            {
+                Padding = new Thickness(20),
+                Child = new LeselangExportControl(
+                    "runtime-workspace-query",
+                    RemoteLeselangExport.Workspace(RuntimeId)),
+            },
+        };
+        preview.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(workspaceLeselangWindow, preview))
+            {
+                workspaceLeselangWindow = null;
+            }
+        };
+        workspaceLeselangWindow = preview;
+        preview.Show(this);
     }
 
     private void SetDiagnosticCopyStatus(string? value, bool failed)
@@ -547,6 +714,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         {
             return WorkspaceReloadOutcome.Skipped;
         }
+        liveRefreshTimer.Stop();
         loadInFlight = true;
         var loaded = false;
         var outcome = WorkspaceReloadOutcome.Failed;
@@ -586,6 +754,10 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             loaded = true;
             outcome = WorkspaceReloadOutcome.Loaded;
             logRefreshPlan.RecordSuccess(usedIncrementalLogs);
+            if (!allowIncrementalLogs)
+            {
+                _ = liveRefresh.RecoverAfterExternalSuccess();
+            }
             _ = severityAlert.Observe(snapshot.Revision, change);
             UpdateSeverityAlertPresentation();
             var statusBrush = severityAlert.Level == WorkspaceSeverityAlertLevel.Error
@@ -642,14 +814,34 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             {
                 _ = ReloadAsync();
             }
-        }
-        if (outcome == WorkspaceReloadOutcome.Failed && liveRefresh.IsRequested)
-        {
-            liveRefreshTimer.Stop();
-            liveRefresh.Pause();
-            UpdateLiveRefreshPresentation();
+            else if (!allowIncrementalLogs)
+            {
+                ScheduleLiveRefresh();
+            }
         }
         return outcome;
+    }
+
+    private void ShowLiveRefreshFailure(bool unexpected = false)
+    {
+        var reason = unexpected
+            ? "unexpected query failure"
+            : "authenticated query failure";
+        if (liveRefresh.IsRequested)
+        {
+            var recovery = liveRefresh.State == WorkspaceLiveRefreshState.Suspended
+                ? "retry when this window becomes active"
+                : $"retry in {liveRefresh.NextInterval.TotalSeconds:0} seconds";
+            SetStatus(
+                $"Live logs recovering from {reason} ({liveRefresh.ConsecutiveFailures}/{RemoteWorkspaceLiveRefresh.MaxConsecutiveFailures}); {recovery}",
+                LeserpentTheme.Destructive,
+                assertive: true);
+            return;
+        }
+        SetStatus(
+            $"Live logs stopped after {RemoteWorkspaceLiveRefresh.MaxConsecutiveFailures} consecutive failures",
+            LeserpentTheme.Destructive,
+            assertive: true);
     }
 
     private void ShowFailure(string message)

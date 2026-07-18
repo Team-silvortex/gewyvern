@@ -30,6 +30,10 @@ pub fn run_leserpent_accessibility_validation(
     };
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-accessibility"));
     fs::create_dir_all(&out_dir)?;
+    let dotnet_artifacts = out_dir.join("dotnet-artifacts");
+    if dotnet_artifacts.exists() {
+        fs::remove_dir_all(&dotnet_artifacts)?;
+    }
     let root = repo_root();
     let app = root.join("apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj");
 
@@ -38,7 +42,9 @@ pub fn run_leserpent_accessibility_validation(
             .current_dir(&root)
             .arg("restore")
             .arg(&app)
-            .arg("--locked-mode"),
+            .arg("--locked-mode")
+            .arg("--artifacts-path")
+            .arg(&dotnet_artifacts),
         &out_dir.join("restore.log"),
         "locked Avalonia restore failed",
     )?;
@@ -47,14 +53,14 @@ pub fn run_leserpent_accessibility_validation(
             .current_dir(&root)
             .arg("build")
             .arg(&app)
-            .args(["--no-restore", "-c", "Release"]),
+            .args(["--no-restore", "-c", "Release"])
+            .arg("--artifacts-path")
+            .arg(&dotnet_artifacts),
         &out_dir.join("build.log"),
         "Avalonia accessibility build failed",
     )?;
 
-    let assembly = root.join(
-        "apps/leserpent-avalonia/src/Leserpent.Avalonia/bin/Release/net10.0/Leserpent.Avalonia.dll",
-    );
+    let assembly = dotnet_artifacts.join("bin/Leserpent.Avalonia/release/Leserpent.Avalonia.dll");
     if !assembly.is_file() {
         return Err(ValidationError::new(format!(
             "Avalonia accessibility assembly not found: {}",
@@ -128,6 +134,7 @@ pub fn run_leserpent_accessibility_validation(
             "files": files,
         }))?,
     )?;
+    fs::remove_dir_all(&dotnet_artifacts)?;
 
     Ok(ValidationReport {
         name: "Leserpent Avalonia accessibility proof".to_string(),
@@ -139,6 +146,7 @@ pub fn run_leserpent_accessibility_validation(
             "automation_help_text_mapping".to_string(),
             "wcag_aa_text_contrast".to_string(),
             "four_real_control_fixtures".to_string(),
+            "isolated_dotnet_artifacts".to_string(),
         ],
     })
 }

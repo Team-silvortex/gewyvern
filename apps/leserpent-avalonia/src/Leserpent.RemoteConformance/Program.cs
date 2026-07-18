@@ -1,5 +1,18 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+
+if (args is ["--benchmark-workspace-logs"])
+{
+    Console.WriteLine(JsonSerializer.Serialize(RunWorkspaceLogBenchmark()));
+    return 0;
+}
+
+if (args is ["--export-workspace-leselang", var exportRuntimeId])
+{
+    Console.Write(RemoteLeselangExport.Workspace(exportRuntimeId));
+    return 0;
+}
 
 if (args is ["--credential-resolve", var credentialOrigin])
 {
@@ -147,7 +160,7 @@ if (args.Length is 4 or 6 && args[0] == "--connect")
 
 if (args.Length != 0)
 {
-    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --refresh-capabilities RUNTIME_ID | --inspect RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN]");
+    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --refresh-capabilities RUNTIME_ID | --inspect RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN | --export-workspace-leselang RUNTIME_ID]");
     return 2;
 }
 
@@ -397,9 +410,102 @@ RemoteWorkspaceCodec.VerifyIncrementalContract();
 Console.WriteLine(
     "remote health conformance valid: codec=true, fail_closed=true, queue_consistent=true");
 Console.WriteLine(
-    "remote GUI Leselang export conformance valid: refresh=true, capabilities=true, deployment=true, canonical=true, execution=false");
+    "remote GUI Leselang export conformance valid: refresh=true, capabilities=true, deployment=true, workspace_queries=true, canonical=true, execution=false");
 Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true");
 return 0;
+
+static object RunWorkspaceLogBenchmark()
+{
+    const int iterations = 500;
+    const int fullLogCount = RemoteWorkspaceClient.MaxLogEntries;
+    const int incrementalLogCount = 8;
+    var inspect = Fixtures.InspectResponse(7, "runtime-a");
+    var history = Fixtures.HistoryResponse(7, "runtime-a");
+    var fullLogs = Fixtures.LogsResponse(7, "runtime-a", 1, fullLogCount);
+    var incrementalLogs = Fixtures.LogsResponse(
+        7,
+        "runtime-a",
+        (ulong)fullLogCount + 1,
+        incrementalLogCount);
+    var previous = RemoteWorkspaceCodec.Compose(
+        inspect,
+        history,
+        fullLogs,
+        "runtime-a");
+
+    for (var warmup = 0; warmup < 50; warmup++)
+    {
+        _ = RemoteWorkspaceCodec.Compose(inspect, history, fullLogs, "runtime-a");
+        _ = RemoteWorkspaceCodec.MergeIncrementalLogs(
+            previous,
+            RemoteWorkspaceCodec.Compose(
+                inspect,
+                history,
+                incrementalLogs,
+                "runtime-a"));
+    }
+
+    var full = Measure(iterations, () =>
+        RemoteWorkspaceCodec.Compose(inspect, history, fullLogs, "runtime-a"));
+    var incremental = Measure(iterations, () =>
+        RemoteWorkspaceCodec.MergeIncrementalLogs(
+            previous,
+            RemoteWorkspaceCodec.Compose(
+                inspect,
+                history,
+                incrementalLogs,
+                "runtime-a")));
+    if (incremental.LastLogCount != fullLogCount)
+    {
+        throw new InvalidDataException("incremental benchmark lost its bounded log window");
+    }
+    return new
+    {
+        schema_version = 1,
+        workload = new
+        {
+            iterations,
+            full_log_count = fullLogCount,
+            incremental_log_count = incrementalLogCount,
+        },
+        metrics = new
+        {
+            full_snapshot_p50_ms = full.P50Milliseconds,
+            incremental_snapshot_p50_ms = incremental.P50Milliseconds,
+            incremental_to_full_ratio = incremental.P50Milliseconds / full.P50Milliseconds,
+            full_allocated_bytes_per_iteration = full.AllocatedBytesPerIteration,
+            incremental_allocated_bytes_per_iteration = incremental.AllocatedBytesPerIteration,
+            incremental_allocation_ratio =
+                incremental.AllocatedBytesPerIteration / full.AllocatedBytesPerIteration,
+            merged_log_count = incremental.LastLogCount,
+        },
+    };
+}
+
+static BenchmarkMeasurement Measure(
+    int iterations,
+    Func<RemoteWorkspaceSnapshot> operation)
+{
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    var samples = new double[iterations];
+    var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+    var lastLogCount = 0;
+    for (var index = 0; index < iterations; index++)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var snapshot = operation();
+        samples[index] = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        lastLogCount = snapshot.Logs.Count;
+    }
+    var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+    Array.Sort(samples);
+    return new BenchmarkMeasurement(
+        samples[iterations / 2],
+        (double)allocated / iterations,
+        lastLogCount);
+}
 
 static void Require(bool condition, string message)
 {
@@ -422,6 +528,11 @@ static void RequireThrows<TException>(Action action, string message)
     }
     throw new InvalidDataException(message);
 }
+
+readonly record struct BenchmarkMeasurement(
+    double P50Milliseconds,
+    double AllocatedBytesPerIteration,
+    int LastLogCount);
 
 static class Fixtures
 {
@@ -509,6 +620,36 @@ public static byte[] LogsResponse(
 }
 """);
 
+public static byte[] LogsResponse(
+    ulong revision,
+    string runtimeId,
+    ulong firstSequence,
+    int count)
+{
+    var entries = string.Join(",", Enumerable.Range(0, count).Select(index => $$"""
+        {
+          "sequence": {{firstSequence + (ulong)index}},
+          "level": "info",
+          "message": "bounded benchmark log"
+        }
+        """));
+    return Encoding.UTF8.GetBytes($$"""
+    {
+      "schema_version": 1,
+      "response": {
+        "kind": "query",
+        "payload": {
+          "kind": "runtime_logs",
+          "revision": {{revision}},
+          "runtime_id": "{{runtimeId}}",
+          "runtime_name": "Runtime A",
+          "entries": [{{entries}}]
+        }
+      }
+    }
+    """);
+}
+
 private static string RuntimeJson(
     ulong revision,
     string runtimeId,
@@ -560,6 +701,7 @@ private static string RuntimeJson(
     "extensions": {"protocol_catalog": true}
   }{{(extraRuntimeField ? ",\n  \"unexpected\": true" : string.Empty)}}
 }
+
 """;
 
 public const string SnapshotJson = """

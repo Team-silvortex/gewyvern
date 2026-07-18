@@ -28,29 +28,7 @@ internal static class Program
         }
         if (args is ["--verify-authority-health-presentation"])
         {
-            var ready = RemoteMainWindow.AuthorityHealthPresentation.Create(
-                new RemoteHealth("ready", true, 1, null));
-            var nominal = RemoteMainWindow.AuthorityHealthPresentation.Create(
-                new RemoteHealth(
-                    "ready",
-                    true,
-                    1,
-                    new RemoteEffectQueueHealth(2, 1, 4, 0, 3, 4, 16, false)));
-            var saturated = RemoteMainWindow.AuthorityHealthPresentation.Create(
-                new RemoteHealth(
-                    "ready",
-                    true,
-                    1,
-                    new RemoteEffectQueueHealth(16, 0, 4, 0, 16, 4, 16, true)));
-            if (ready.Label != "AUTHORITY / ready"
-                || nominal.Label != "QUEUE / 3/16"
-                || nominal.IsSaturated
-                || saturated.Label != "QUEUE SATURATED / 16/16"
-                || !saturated.IsSaturated)
-            {
-                throw new InvalidDataException(
-                    "authority health presentation contract drifted");
-            }
+            RemoteAuthorityHealthPresentation.VerifyContract();
             Console.WriteLine(
                 "authority health presentation valid: ready=true, queue_pressure=true, saturation_visible=true, endpoint_retained=false");
             return 0;
@@ -59,14 +37,15 @@ internal static class Program
         {
             RemoteLeselangExport.VerifyContract();
             Console.WriteLine(
-                "GUI Leselang export valid: refresh=true, capabilities=true, deployment=true, optional_target=true, canonical_escape=true, execution=false");
+                "GUI Leselang export valid: refresh=true, capabilities=true, deployment=true, workspace_queries=true, optional_target=true, canonical_escape=true, execution=false");
             return 0;
         }
         if (args is ["--verify-remote-mutation-fence"])
         {
-            RemoteMainWindow.VerifyMutationFenceContract();
+            RemoteMutationFences.VerifyContract();
+            RemoteMutationAvailabilityPolicy.VerifyContract();
             Console.WriteLine(
-                "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, pending_projection_blocked=true");
+                "remote mutation fence valid: command_revision=true, capability_observation_revision=true, heartbeat_blocked=true, authoritative_snapshot=true, pending_projection_blocked=true, action_availability=true");
             return 0;
         }
         if (args is ["--verify-deployment-contract"])
@@ -136,7 +115,7 @@ internal static class Program
             RemoteWorkspaceCodec.VerifyIncrementalContract();
             RemoteWorkspaceLogRefreshPlan.VerifyContract();
             Console.WriteLine(
-                "workspace diagnostics valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true, command_identity=true, explicit_export=true, maximal_escape=true, live_refresh=true, delta_summary=true, severity_signal=true, snapshot_fence=true, severity_ack=true, incremental_logs=true");
+                "workspace diagnostics valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true, command_identity=true, explicit_export=true, file_export=true, maximal_escape=true, live_refresh=true, bounded_retry=true, manual_recovery=true, skip_neutral=true, delta_summary=true, severity_signal=true, snapshot_fence=true, severity_ack=true, incremental_logs=true");
             return 0;
         }
         try

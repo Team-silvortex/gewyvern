@@ -1,4 +1,4 @@
-internal sealed class RemoteWorkspaceLogRefreshPlan
+public sealed class RemoteWorkspaceLogRefreshPlan
 {
     public const int IncrementalPollsBeforeFullSnapshot = 11;
 

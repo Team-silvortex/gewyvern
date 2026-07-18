@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 use serde_json::{Value, json};
 
@@ -18,12 +19,19 @@ const UI_PATCH_P50_BUDGET_MS: f64 = 100.0;
 const UI_CODEC_P50_BUDGET_MS: f64 = 50.0;
 const UI_DOCUMENT_MAX_BYTES: u64 = 2 * 1024 * 1024;
 const RELEASE_BINARY_MAX_BYTES: u64 = 32 * 1024 * 1024;
+const REMOTE_INCREMENTAL_P50_BUDGET_MS: f64 = 10.0;
+const REMOTE_INCREMENTAL_RATIO_MAX: f64 = 0.60;
+const REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX: f64 = 0.60;
 
 pub fn run_leserpent_benchmark_validation(
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-benchmark"));
     fs::create_dir_all(&out_dir)?;
+    let dotnet_artifacts = out_dir.join("dotnet-artifacts");
+    if dotnet_artifacts.exists() {
+        fs::remove_dir_all(&dotnet_artifacts)?;
+    }
 
     let runtime = run_cargo_json(
         &[
@@ -54,6 +62,15 @@ pub fn run_leserpent_benchmark_validation(
         &out_dir.join("ui-benchmark.json"),
     )?;
     validate_ui_benchmark(&ui)?;
+
+    let remote_client = run_dotnet_json(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
+        &["--benchmark-workspace-logs"],
+        &out_dir.join("remote-workspace-log-benchmark.json"),
+        &dotnet_artifacts,
+    )?;
+    validate_remote_client_benchmark(&remote_client)?;
+    fs::remove_dir_all(&dotnet_artifacts)?;
 
     run_cargo_status(
         &[
@@ -100,9 +117,14 @@ pub fn run_leserpent_benchmark_validation(
             "ui_codec_p50_ms": UI_CODEC_P50_BUDGET_MS,
             "ui_document_max_bytes": UI_DOCUMENT_MAX_BYTES,
             "release_binary_max_bytes": RELEASE_BINARY_MAX_BYTES,
+            "remote_incremental_p50_ms": REMOTE_INCREMENTAL_P50_BUDGET_MS,
+            "remote_incremental_ratio_max": REMOTE_INCREMENTAL_RATIO_MAX,
+            "remote_incremental_allocation_ratio_max":
+                REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX,
         },
         "runtime": runtime,
         "ui": ui,
+        "remote_client": remote_client,
         "binaries": binaries,
         "status": "passed",
         "comparison_policy": "compare timing only within the same host class",
@@ -117,7 +139,8 @@ pub fn run_leserpent_benchmark_validation(
             "schema_version": 1,
             "command": "leserpent-benchmark",
             "files": [
-                "runtime-benchmark.json", "ui-benchmark.json", "release-build.log",
+                "runtime-benchmark.json", "ui-benchmark.json",
+                "remote-workspace-log-benchmark.json", "release-build.log",
                 "binary-manifest.json", "benchmark-summary.json",
             ],
         }))?,
@@ -133,8 +156,13 @@ pub fn run_leserpent_benchmark_validation(
             "ui_document_p50_budget".into(),
             "ui_patch_apply_p50_budget".into(),
             "ui_codec_p50_budget".into(),
+            "remote_incremental_log_p50_budget".into(),
+            "remote_incremental_log_ratio_budget".into(),
+            "remote_incremental_log_allocation_budget".into(),
+            "remote_incremental_log_window_integrity".into(),
             "release_binary_size_budget".into(),
             "same_host_class_comparison_policy".into(),
+            "isolated_dotnet_artifacts".into(),
         ],
     })
 }
@@ -168,7 +196,7 @@ fn validate_runtime_benchmark(value: &Value) -> Result<(), ValidationError> {
 fn validate_ui_benchmark(value: &Value) -> Result<(), ValidationError> {
     require_exact_u64(value, &["schema_version"], 1)?;
     require_exact_u64(value, &["workload", "runtime_count"], 256)?;
-    require_exact_u64(value, &["workload", "ui_node_count"], 1_027)?;
+    require_exact_u64(value, &["workload", "ui_node_count"], 1_539)?;
     require_max(
         value,
         &["metrics", "document_p50_ms"],
@@ -181,6 +209,69 @@ fn validate_ui_benchmark(value: &Value) -> Result<(), ValidationError> {
         &["metrics", "encoded_document_bytes"],
         UI_DOCUMENT_MAX_BYTES as f64,
     )
+}
+
+fn validate_remote_client_benchmark(value: &Value) -> Result<(), ValidationError> {
+    require_exact_u64(value, &["schema_version"], 1)?;
+    require_exact_u64(value, &["workload", "iterations"], 500)?;
+    require_exact_u64(value, &["workload", "full_log_count"], 256)?;
+    require_exact_u64(value, &["workload", "incremental_log_count"], 8)?;
+    require_exact_u64(value, &["metrics", "merged_log_count"], 256)?;
+    require_max(
+        value,
+        &["metrics", "incremental_snapshot_p50_ms"],
+        REMOTE_INCREMENTAL_P50_BUDGET_MS,
+    )?;
+    require_max(
+        value,
+        &["metrics", "incremental_to_full_ratio"],
+        REMOTE_INCREMENTAL_RATIO_MAX,
+    )?;
+    require_max(
+        value,
+        &["metrics", "incremental_allocation_ratio"],
+        REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX,
+    )
+}
+
+fn run_dotnet_json(
+    project: &str,
+    app_args: &[&str],
+    output_path: &std::path::Path,
+    dotnet_artifacts: &std::path::Path,
+) -> Result<Value, ValidationError> {
+    let output = Command::new("dotnet")
+        .current_dir(repo_root())
+        .args([
+            "run",
+            "--project",
+            project,
+            "--configuration",
+            "Release",
+            "--verbosity",
+            "quiet",
+        ])
+        .arg("--artifacts-path")
+        .arg(dotnet_artifacts)
+        .arg("--")
+        .args(app_args)
+        .output()
+        .map_err(|error| {
+            ValidationError::new(format!("failed to run remote-client benchmark: {error}"))
+        })?;
+    fs::write(output_path, &output.stdout)?;
+    if !output.status.success() {
+        fs::write(output_path.with_extension("stderr.txt"), &output.stderr)?;
+        return Err(ValidationError::new(format!(
+            "remote-client benchmark failed with status {}",
+            output.status
+        )));
+    }
+    serde_json::from_slice(&output.stdout).map_err(|error| {
+        ValidationError::new(format!(
+            "failed to parse remote-client benchmark JSON: {error}"
+        ))
+    })
 }
 
 fn release_binary_manifest() -> Result<Vec<Value>, ValidationError> {
@@ -293,7 +384,7 @@ mod tests {
     fn ui_budget_rejects_large_or_slow_documents() {
         let healthy = json!({
             "schema_version": 1,
-            "workload": {"runtime_count": 256, "ui_node_count": 1_027},
+            "workload": {"runtime_count": 256, "ui_node_count": 1_539},
             "metrics": {
                 "document_p50_ms": 2.0, "patch_p50_ms": 15.0,
                 "codec_p50_ms": 4.0, "encoded_document_bytes": 280_000,
@@ -306,5 +397,31 @@ mod tests {
         let mut slow = healthy;
         slow["metrics"]["patch_p50_ms"] = json!(UI_PATCH_P50_BUDGET_MS + 1.0);
         assert!(validate_ui_benchmark(&slow).is_err());
+    }
+
+    #[test]
+    fn remote_incremental_budget_rejects_changed_or_full_cost_workloads() {
+        let healthy = json!({
+            "schema_version": 1,
+            "workload": {
+                "iterations": 500,
+                "full_log_count": 256,
+                "incremental_log_count": 8,
+            },
+            "metrics": {
+                "incremental_snapshot_p50_ms": 0.4,
+                "incremental_to_full_ratio": 0.2,
+                "incremental_allocation_ratio": 0.15,
+                "merged_log_count": 256,
+            }
+        });
+        assert!(validate_remote_client_benchmark(&healthy).is_ok());
+        let mut changed = healthy.clone();
+        changed["workload"]["incremental_log_count"] = json!(9);
+        assert!(validate_remote_client_benchmark(&changed).is_err());
+        let mut full_cost = healthy;
+        full_cost["metrics"]["incremental_to_full_ratio"] =
+            json!(REMOTE_INCREMENTAL_RATIO_MAX + 0.01);
+        assert!(validate_remote_client_benchmark(&full_cost).is_err());
     }
 }

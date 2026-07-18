@@ -289,11 +289,22 @@ created. A newer live event revision reloads the matching open workspace.
 Because log append does not advance the control-plane revision, each workspace
 also exposes a persistent Reload button and `F5` shortcut. Malformed, torn, or
 mismatched query state fails closed without retaining a partial document.
+`Workspace Leselang` opens one reusable preview window containing the canonical
+structured equivalent of that atomic query group: named `inspect`, `history`, and
+`logs` branches inside `all`. Copying the source executes nothing. The .NET
+formatter output is parsed and lowered by Rust in the cross-language parity shelf,
+so GUI query equivalence is a language contract rather than display-only text.
 `Live logs` is an explicit opt-in five-second refresh loop over the same atomic
 Inspect/History/Logs query group. It permits only one in-flight group, pauses
 without losing intent while the child window is inactive, resumes on activation,
-and turns itself off after any failed query. `Pause live` never cancels unrelated
-window lifetime state or retries a mutation.
+and recovers from transient query failures with bounded 10-second and 20-second
+backoff. A successful query restores the normal five-second interval; three
+consecutive failures turn live refresh off and require explicit operator restart.
+An operator-triggered `Reload` or newer-revision workspace query also clears a
+pending backoff after it succeeds and reschedules the normal five-second poll.
+Every admitted full workspace query first stops the outstanding live timer, and a
+single-flight `Skipped` result is backoff-neutral rather than a false success.
+`Pause live` never cancels unrelated window lifetime state or retries a mutation.
 After a full snapshot, live refresh uses the last retained log sequence as a
 bounded `after_sequence` cursor for up to 11 polls. The twelfth poll is always a
 full resynchronization. A changed workspace revision or a full 256-entry
@@ -301,6 +312,10 @@ incremental batch triggers an immediate full fallback, and stale/non-advancing
 incremental records fail closed. Manual `Reload` always requests a full snapshot.
 Incremental merges retain only the newest 256 sanitized entries; the status line
 states whether the successful refresh used an incremental or full snapshot.
+`gewyvern_validate leserpent-benchmark` measures this path in .NET Release mode
+against the full 256-entry compose, enforces p50 and allocation-ratio budgets,
+and retains the exact same-host measurements with the Rust runtime/UI and binary
+size evidence.
 Every successful manual or live refresh compares the complete retained snapshots
 locally and reports revision advance, added/expired/changed logs, new or updated
 commands, and log-sequence reset. Initial and unchanged snapshots are explicit.
@@ -333,7 +348,11 @@ identity, revision, command history, current filter, and only the currently
 visible sanitized logs. The export is capped at 512 KiB, which covers a fully
 populated 256-entry snapshot after worst-case string escaping, contains no structured
 transport endpoint or principal, performs no request or command, and warns the
-operator to review clipboard data before sharing it.
+operator to review clipboard data before sharing it. `Save diagnostics` reuses
+the same bounded bytes and opens the platform save panel with a sanitized runtime
+filename and explicit overwrite confirmation. Cancellation is non-error; an
+unwritable or non-replaceable destination fails closed without disclosing its path
+in the UI status.
 Runtime and capability refresh are blocked while state is stale, require
 an explicit confirmation dialog, carries the displayed runtime
 revision for optimistic concurrency, and is never retried automatically after
@@ -366,8 +385,30 @@ It checks strict Rust event decoding, monotonic revisions, stale transitions,
 the reconnect bound and cursor-preserving manual resume, resync cursor reset,
 malformed-cache rejection, per-origin cache binding, atomic workspace query
 composition, runtime/log identity, bounded sanitized logs, and endpoint omission
-without requiring a UI or network service. The semantic workspace projection can be checked separately
-with `--verify-remote-workspace` on the Avalonia project; use
+without requiring a UI or network service.
+Workspace filtering, diagnostic encoding, refresh/backoff planning, snapshot
+comparison, and severity retention are public, renderer-independent policies in
+`Leserpent.RemoteClient`; Avalonia owns only their native controls. MobileCore
+references the same library and MobileConformance executes all six policy
+contracts, so mobile presentation does not need to copy desktop behavior.
+Fleet and runtime-workspace `UiDocument` projection now live beside those
+policies in `Leserpent.RemoteClient` and depend only on `RendererCore`.
+Avalonia renders the resulting document but no longer owns its filtering,
+capability, action, form, endpoint-isolation, or empty-state semantics.
+Mutation revision and unknown-outcome observation fences are likewise owned by
+`Leserpent.RemoteClient`. The window only presents their pending reason;
+heartbeats cannot release a fence, and capability mutations require a matching
+later capability observation before another remote change is enabled.
+Action availability is also computed in RemoteClient. Avalonia applies the
+returned mutation and inspection booleans plus their bounded reason strings to
+controls and workspace windows; it does not infer permissions from button or
+connection visuals.
+Both existing and newly opened workspace windows receive availability only
+through this policy; no live/idle shortcut may overwrite an unresolved fence.
+Authority health and queue-saturation presentation also come from RemoteClient,
+leaving Avalonia responsible only for color and live-region behavior.
+The semantic workspace projection can be checked separately with
+`--verify-remote-workspace` on the Avalonia project; use
 `--verify-workspace-diagnostics` for local search, level, command identity,
 bounded explicit diagnostic export, live-refresh state, severity signaling, and
 empty-state contracts. The same probe verifies bounded snapshot delta summaries,
@@ -415,6 +456,12 @@ publish, validates the native executable signature and bounded package, runs
 all four control fixtures, and retains machine-readable evidence under
 `target/validation/leserpent-aot/`. The lower-level commands below remain useful
 for packaging diagnostics.
+
+The NativeAOT and accessibility proof commands assign separate .NET
+`--artifacts-path` roots under their evidence directories. They can therefore
+run concurrently without sharing project `obj`, reference assemblies, or PDBs;
+successful runs remove those intermediate trees while retaining logs and final
+evidence.
 
 The desktop shell has a checked NativeAOT profile. Restore the complete locked
 RID graph first, then publish for the current host RID without another restore.

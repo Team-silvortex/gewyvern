@@ -372,6 +372,33 @@ secret enters the profile, UI IR, or cache.
 Mobile clients, mobile secure-storage lifecycle, and mobile cache lifecycle
 remain separate implementations that must pass the same versioned domain
 contract.
+Workspace filtering, bounded diagnostic export, live-refresh/backoff planning,
+snapshot deltas, and severity retention live in `Leserpent.RemoteClient` rather
+than an Avalonia assembly. These policies contain no renderer or transport
+dependency; desktop controls consume them, while MobileCore runs the identical
+public contract before a native workspace surface is added.
+Remote fleet and runtime-workspace projection follow the same boundary.
+`Leserpent.RemoteClient` maps remote state into the shared `UiDocument` model,
+including filtering, capability-gated actions, parameterized deployment forms,
+endpoint omission, and accessible empty states. Avalonia is only a renderer of
+that document, while mobile hosts can substitute native controls without
+forking projection semantics.
+Remote mutation fencing is also frontend-independent. A successful command
+retains its revision fence until the matching runtime projection arrives; an
+ambiguous timeout or network failure retains an observation fence until a newer
+authoritative snapshot arrives. Capability changes additionally require a
+revision-bound capability observation, and heartbeat-only progress cannot
+release either safety condition.
+The corresponding action-availability projection is shared domain policy.
+In-flight mutation, revision fence, observation fence, and non-live state have
+a deterministic precedence. It independently reports mutation and inspection
+availability with bounded reasons, so native renderers cannot accidentally
+enable an action by interpreting presentation state differently.
+Workspace creation and subsequent state refresh pass through one availability
+application point, preventing a live/idle shortcut from overriding an
+unresolved mutation fence. Authority health projection is shared too: ready,
+queue pressure, saturation, and automation text are derived before renderer
+selection.
 The host-independent `Leserpent.MobileCore` now owns the first mobile lifecycle
 contract: foreground creates one session after loading an endpoint-scoped vault
 token, background invalidates its generation before disconnecting, reentry
@@ -531,14 +558,18 @@ Keychain state without introducing a test-only credential provider.
 
 The named `gewyvern_validate leserpent-benchmark` shelf now makes the
 performance contract executable for runtime cold open, command-query latency,
-effect enqueue throughput, UI document/patch/codec cost, and release binary
-size. Budgets intentionally detect disaster regressions rather than compare
+effect enqueue throughput, UI document/patch/codec cost, .NET workspace-log
+incremental merge cost, and release binary size. Budgets intentionally detect disaster regressions rather than compare
 unrelated CPUs or filesystems; exact measurements are retained per host class.
 
 Accessibility is a cross-boundary proof, not a renderer assumption. Rust rejects
 unlabelled actions in the neutral IR; Avalonia then audits realized Automation
-IDs, names, help text, action control types, and theme contrast. The named
-managed shelf passes on macOS and physical Linux/Xvfb, and macOS NativeAOT
+IDs, names, help text, action control types, and theme contrast. Accessibility and NativeAOT proof
+processes use separate .NET artifacts roots, so concurrent release checks cannot
+race on project intermediates, reference assemblies, or PDBs. Intermediate
+graphs are removed after success while retained logs and release artifacts stay
+within their named evidence shelf. The named managed shelf passes on macOS and
+physical Linux/Xvfb, and macOS NativeAOT
 consumes the same proof metrics. The checked theme floor is 4.723 against a 4.5
 WCAG AA requirement.
 

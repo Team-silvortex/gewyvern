@@ -5,6 +5,24 @@ the Leserpent 2 remote console. It does not depend on Android or iOS workloads,
 so its security and reentry semantics remain testable on every development
 host.
 
+MobileCore also consumes the renderer-neutral fleet and runtime-workspace
+`UiDocument` projections from `Leserpent.RemoteClient`. The deterministic
+conformance runner verifies filtering, endpoint isolation, capability-gated
+deployment forms, and the shared workspace policies without loading Avalonia;
+native shells therefore supply controls and navigation rather than a second
+business projection.
+The shared client also owns the post-mutation revision and observation fences.
+After an unknown network outcome, neither desktop nor mobile may issue another
+mutation until a newer authoritative snapshot satisfies the same runtime and
+capability-observation rules; heartbeats alone never release the fence.
+Mutation and inspection availability are projected by the same shared policy.
+It gives in-flight work precedence over revision and observation fences,
+disables both action classes when state is stale, and returns bounded reasons
+for native controls to present without reimplementing authorization state.
+Authority health and effect-queue pressure use a shared presentation contract as
+well. Ready, nominal queue, and saturated queue states expose the same bounded
+label, automation description, and severity flag on every host.
+
 The lifecycle owns these rules:
 
 - a remote session exists only while the application is foregrounded;

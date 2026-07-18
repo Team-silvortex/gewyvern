@@ -160,6 +160,9 @@ fn leserpent_native_aot_proof_is_native_and_fail_closed() {
         read_repo_file("apps/leserpent-avalonia/src/Leserpent.Avalonia/packages.lock.json");
 
     assert!(harness.contains("--locked-mode"));
+    assert!(harness.contains("--artifacts-path"));
+    assert!(harness.contains("dotnet-artifacts"));
+    assert!(harness.contains("isolated_dotnet_artifacts"));
     assert!(harness.contains("-p:PublishAot=true"));
     assert!(harness.contains("--no-restore"));
     assert!(harness.contains("NativeMagic::Elf"));
@@ -193,6 +196,9 @@ fn leserpent_accessibility_proof_audits_real_controls_and_contrast() {
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
 
     assert!(harness.contains("--locked-mode"));
+    assert!(harness.contains("--artifacts-path"));
+    assert!(harness.contains("dotnet-artifacts"));
+    assert!(harness.contains("isolated_dotnet_artifacts"));
     assert!(!harness.contains("PublishProfile=NativeAot"));
     assert!(!harness.contains("PublishAot=true"));
     assert!(harness.contains("accessibility-summary.json"));
@@ -252,12 +258,22 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     let harness = read_repo_file("src/validation_harness/leserpent_benchmark.rs");
     let runtime = read_repo_file("crates/leserpent-runtime/examples/runtime_benchmark.rs");
     let ui = read_repo_file("crates/leselang-ui/examples/ui_benchmark.rs");
+    let remote =
+        read_repo_file("apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Program.cs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
 
     assert!(harness.contains("COLD_OPEN_P95_BUDGET_MS"));
     assert!(harness.contains("EFFECT_ENQUEUE_MIN_PER_SECOND"));
     assert!(harness.contains("UI_PATCH_P50_BUDGET_MS"));
     assert!(harness.contains("RELEASE_BINARY_MAX_BYTES"));
+    assert!(harness.contains("REMOTE_INCREMENTAL_P50_BUDGET_MS"));
+    assert!(harness.contains("REMOTE_INCREMENTAL_RATIO_MAX"));
+    assert!(harness.contains("REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX"));
+    assert!(harness.contains("remote-workspace-log-benchmark.json"));
+    assert!(harness.contains("run_dotnet_json"));
+    assert!(harness.contains("--artifacts-path"));
+    assert!(harness.contains("dotnet-artifacts"));
+    assert!(harness.contains("isolated_dotnet_artifacts"));
     assert!(harness.contains("benchmark-summary.json"));
     assert!(harness.contains("evidence-index.json"));
     assert!(harness.contains("same_host_class_comparison_policy"));
@@ -265,6 +281,12 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     assert!(runtime.contains("RUNTIME_COUNT: usize = 256"));
     assert!(ui.contains("RUNTIME_COUNT: usize = 256"));
     assert!(ui.contains("apply_patch"));
+    assert!(remote.contains("--benchmark-workspace-logs"));
+    assert!(remote.contains("full_log_count = fullLogCount"));
+    assert!(remote.contains("incremental_log_count = incrementalLogCount"));
+    assert!(remote.contains("incremental_to_full_ratio"));
+    assert!(remote.contains("incremental_allocation_ratio"));
+    assert!(remote.contains("merged_log_count = incremental.LastLogCount"));
     assert!(!harness.contains("Command::new(\"sh\")"));
     assert!(binary.contains("print_leserpent_benchmark_help"));
 }
@@ -273,6 +295,7 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
 fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     let harness = read_repo_file("src/validation_harness/leserpent_parity_recovery.rs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
+    let dotnet_vertical = read_repo_file("crates/leserpent-cli/tests/dotnet_remote_vertical.rs");
 
     assert!(harness.contains("command-origin-lowering"));
     assert!(harness.contains("domain-authorization-idempotency"));
@@ -285,19 +308,39 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("passed_test_count"));
     assert!(harness.contains("proof-summary.json"));
     assert!(harness.contains("evidence-index.json"));
+    assert!(harness.contains("--artifacts-path"));
+    assert!(harness.contains("dotnet-artifacts"));
+    assert!(harness.contains("proof-local-dotnet-suite-artifacts"));
+    assert!(harness.contains("nested-dotnet-artifact-isolation"));
+    assert!(dotnet_vertical.contains("--artifacts-path"));
+    assert!(dotnet_vertical.contains("TestDotnetArtifacts"));
+    assert!(dotnet_vertical.contains("impl Drop for TestDotnetArtifacts"));
     assert!(harness.contains("worker-crash-final-attempt"));
     assert!(harness.contains("strict-health-codec"));
     assert!(harness.contains("authority-health-fail-closed"));
     assert!(harness.contains("gui-leselang-canonical-export"));
+    assert!(harness.contains("gui-workspace-query-leselang-export"));
     assert!(harness.contains("explicit-copy-without-execution"));
     assert!(harness.contains("avalonia-workspace-log-filter"));
     assert!(harness.contains("local-only-workspace-log-filter"));
     assert!(harness.contains("history-command-identity"));
     assert!(harness.contains("explicit-bounded-diagnostic-export"));
+    assert!(harness.contains("explicit-system-picker-diagnostic-file-export"));
+    assert!(harness.contains("bounded-utf8-diagnostic-file"));
+    assert!(harness.contains("safe-diagnostic-filename"));
+    assert!(harness.contains("overwrite-confirmed-replacement-write"));
     assert!(harness.contains("maximally-escaped-diagnostic-export"));
     assert!(harness.contains("single-flight-workspace-poll"));
-    assert!(harness.contains("failed-query-stops-live-refresh"));
+    assert!(harness.contains("bounded-live-refresh-backoff"));
+    assert!(harness.contains("consecutive-failure-live-refresh-stop"));
+    assert!(harness.contains("successful-manual-query-backoff-reset"));
+    assert!(harness.contains("skipped-live-query-backoff-neutrality"));
+    assert!(harness.contains("manual-query-live-timer-ownership"));
     assert!(harness.contains("live_refresh=true"));
+    assert!(harness.contains("file_export=true"));
+    assert!(harness.contains("bounded_retry=true"));
+    assert!(harness.contains("manual_recovery=true"));
+    assert!(harness.contains("skip_neutral=true"));
     assert!(harness.contains("bounded-workspace-delta-summary"));
     assert!(harness.contains("workspace-revision-regression-rejection"));
     assert!(harness.contains("new-error-assertive-workspace-signal"));
@@ -327,6 +370,8 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("authenticated-dotnet-health-preflight"));
     assert!(harness.contains("same-revision-workspace-composition"));
     assert!(harness.contains("endpoint-redacted-workspace-output"));
+    assert!(harness.contains("dotnet-workspace-leselang-rust-parse"));
+    assert!(harness.contains("workspace-structured-read-query-lowering"));
     assert!(harness.contains(
         "workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true"
     ));

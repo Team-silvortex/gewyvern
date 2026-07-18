@@ -1,4 +1,4 @@
-internal sealed record RemoteWorkspaceSnapshotChange(
+public sealed record RemoteWorkspaceSnapshotChange(
     bool IsInitial,
     ulong RevisionAdvance,
     int AddedLogs,
@@ -57,7 +57,7 @@ internal sealed record RemoteWorkspaceSnapshotChange(
     }
 }
 
-internal static class RemoteWorkspaceSnapshotChanges
+public static class RemoteWorkspaceSnapshotChanges
 {
     private const int MaxHistoryEntries = 32;
     private const int MaxLogEntries = 256;

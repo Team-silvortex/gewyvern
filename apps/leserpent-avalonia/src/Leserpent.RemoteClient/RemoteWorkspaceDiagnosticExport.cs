@@ -1,6 +1,6 @@
 using System.Text;
 
-internal static class RemoteWorkspaceDiagnosticExport
+public static class RemoteWorkspaceDiagnosticExport
 {
     public const int MaxUtf8Bytes = 512 * 1024;
 
@@ -38,6 +38,30 @@ internal static class RemoteWorkspaceDiagnosticExport
             throw new InvalidDataException("workspace diagnostic export exceeds its size limit");
         }
         return result;
+    }
+
+    public static byte[] Encode(RemoteWorkspaceLogView view)
+    {
+        var encoded = Encoding.UTF8.GetBytes(Create(view));
+        if (encoded.Length > MaxUtf8Bytes)
+        {
+            throw new InvalidDataException("workspace diagnostic export exceeds its size limit");
+        }
+        return encoded;
+    }
+
+    public static string SuggestedFileName(RemoteWorkspaceSnapshot snapshot)
+    {
+        var runtime = new string(snapshot.Runtime.Id
+            .Where(character => char.IsAsciiLetterOrDigit(character)
+                || character is '-' or '_')
+            .Take(48)
+            .ToArray());
+        if (runtime.Length == 0)
+        {
+            runtime = "runtime";
+        }
+        return $"leserpent-{runtime}-r{snapshot.Revision}.txt";
     }
 
     public static void VerifyContract()
@@ -80,6 +104,25 @@ internal static class RemoteWorkspaceDiagnosticExport
             || Encoding.UTF8.GetByteCount(exported) > MaxUtf8Bytes)
         {
             throw new InvalidDataException("workspace diagnostic export contract drifted");
+        }
+        var encoded = Encode(view);
+        var unsafeNameSnapshot = snapshot with
+        {
+            Runtime = new RemoteRuntimeProjection
+            {
+                Id = "../../\n",
+                Name = snapshot.Runtime.Name,
+                Revision = snapshot.Runtime.Revision,
+                Tags = new RuntimeTags(),
+                Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+            },
+        };
+        if (encoded.Length != Encoding.UTF8.GetByteCount(exported)
+            || encoded.AsSpan().StartsWith(Encoding.UTF8.Preamble)
+            || SuggestedFileName(snapshot) != "leserpent-runtime-a-r9.txt"
+            || SuggestedFileName(unsafeNameSnapshot) != "leserpent-runtime-r9.txt")
+        {
+            throw new InvalidDataException("workspace diagnostic file contract drifted");
         }
 
         var maximalLogs = Enumerable.Range(1, RemoteWorkspaceClient.MaxLogEntries)

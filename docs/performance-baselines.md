@@ -23,21 +23,31 @@ not directly comparable.
 
 The fixed workload contains 16 fresh SQLite opens, 2,000 list queries over 256
 runtimes, 10,000 effects inserted as batches of 100, and 100 iterations over a
-1,027-node UI document. The UI phase measures document generation,
-diff-plus-apply, and JSON encode-plus-decode. It also builds the native
+1,539-node UI document. The UI phase measures document generation,
+diff-plus-apply, and JSON encode-plus-decode. A separate .NET Release probe runs
+500 iterations comparing a 256-log full workspace compose with an 8-log
+incremental compose-and-merge while retaining a 256-entry result. The .NET
+workload uses a proof-local artifacts root, so it can run beside parity,
+accessibility, or AOT without sharing project intermediates. It also builds the native
 `leserpent` and `leserpentd` release binaries and applies a 32 MiB
 per-binary ceiling.
 
-Current `2026-07-16` references:
+Current `2026-07-18` references:
 
 | Host | Cold open p95 | List p50 | 10k enqueue | UI document p50 | UI patch p50 | UI codec p50 | CLI / daemon |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| macOS arm64 | `59.943 ms` | `0.887 ms` | `732.621 ms` / `13.6k/s` | `1.376 ms` | `14.899 ms` | `4.233 ms` | `0.92 / 3.36 MiB` |
+| macOS arm64 | `13.411 ms` | `0.111 ms` | `310.687 ms` / `32.2k/s` | `1.540 ms` | `17.314 ms` | `4.411 ms` | `2.51 / 5.65 MiB` |
 | Linux x86_64 | `14.982 ms` | `1.078 ms` | `376.523 ms` / `26.6k/s` | `0.458 ms` | `4.649 ms` | `1.281 ms` | `1.07 / 3.85 MiB` |
 
 Evidence lives under `target/validation/leserpent-benchmark/` and the
 physical Linux copy under
 `target/validation/leserpent-benchmark-linux-x64/`.
+
+The `2026-07-18` macOS arm64 hybrid-log reference measured the 256-entry full
+compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
+8-entry incremental compose-and-merge measured `0.299 ms` and `30,488` bytes,
+for timing/allocation ratios of `0.142 / 0.095`, while preserving a 256-entry
+result. These ratios are same-host signals, not cross-machine promises.
 
 Measurement notes:
 

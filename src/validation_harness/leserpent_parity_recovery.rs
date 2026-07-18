@@ -175,6 +175,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "strict-health-codec",
             "authority-health-fail-closed",
             "gui-leselang-canonical-export",
+            "gui-workspace-query-leselang-export",
             "explicit-copy-without-execution",
             "strict-aot-event-codec",
             "monotonic-event-revision",
@@ -192,7 +193,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj",
             app_args: &["--verify-workspace-diagnostics"],
-            success_marker: "workspace diagnostics valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true, command_identity=true, explicit_export=true, maximal_escape=true, live_refresh=true, delta_summary=true, severity_signal=true, snapshot_fence=true, severity_ack=true, incremental_logs=true",
+            success_marker: "workspace diagnostics valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true, command_identity=true, explicit_export=true, file_export=true, maximal_escape=true, live_refresh=true, bounded_retry=true, manual_recovery=true, skip_neutral=true, delta_summary=true, severity_signal=true, snapshot_fence=true, severity_ack=true, incremental_logs=true",
         },
         expected_min_tests: 1,
         invariants: &[
@@ -202,11 +203,19 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "filtered-empty-state-distinction",
             "history-command-identity",
             "explicit-bounded-diagnostic-export",
+            "explicit-system-picker-diagnostic-file-export",
+            "bounded-utf8-diagnostic-file",
+            "safe-diagnostic-filename",
+            "overwrite-confirmed-replacement-write",
             "maximally-escaped-diagnostic-export",
             "explicit-opt-in-live-log-refresh",
             "single-flight-workspace-poll",
             "inactive-window-poll-suspension",
-            "failed-query-stops-live-refresh",
+            "bounded-live-refresh-backoff",
+            "consecutive-failure-live-refresh-stop",
+            "successful-manual-query-backoff-reset",
+            "skipped-live-query-backoff-neutrality",
+            "manual-query-live-timer-ownership",
             "bounded-workspace-delta-summary",
             "log-window-rollover-visibility",
             "workspace-revision-regression-rejection",
@@ -237,7 +246,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
             target_args: &["--test", "dotnet_remote_vertical"],
             test_args: &["--ignored"],
         },
-        expected_min_tests: 1,
+        expected_min_tests: 2,
         invariants: &[
             "authenticated-dotnet-health-preflight",
             "cross-language-revision-parity",
@@ -255,6 +264,9 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "bounded-runtime-history",
             "bounded-sanitized-runtime-logs",
             "endpoint-redacted-workspace-output",
+            "dotnet-workspace-leselang-rust-parse",
+            "workspace-structured-read-query-lowering",
+            "nested-dotnet-artifact-isolation",
         ],
     },
     ProofSuite {
@@ -262,7 +274,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-mobile/src/Leserpent.MobileConformance/Leserpent.MobileConformance.csproj",
             app_args: &[],
-            success_marker: "mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true",
+            success_marker: "mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, ui_projection=true, mutation_fence=true, action_availability=true, authority_health=true",
         },
         expected_min_tests: 1,
         invariants: &[
@@ -283,6 +295,22 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "mobile-credential-read-validation",
             "mobile-credential-delete",
             "mobile-credential-cancellation-fence",
+            "renderer-independent-workspace-policy-core",
+            "mobile-reusable-workspace-policy-reference",
+            "zero-avalonia-workspace-policy-dependency",
+            "renderer-neutral-remote-fleet-projection",
+            "renderer-neutral-runtime-workspace-projection",
+            "mobile-reusable-ui-document-projection",
+            "frontend-independent-mutation-revision-fence",
+            "authoritative-snapshot-unknown-outcome-fence",
+            "mobile-reusable-mutation-fence-policy",
+            "shared-action-availability-policy",
+            "mutation-unavailability-reason-precedence",
+            "stale-inspect-and-mutation-disablement",
+            "single-source-workspace-action-availability",
+            "shared-authority-health-presentation",
+            "mobile-queue-saturation-presentation",
+            "proof-local-dotnet-suite-artifacts",
         ],
     },
 ];
@@ -292,6 +320,10 @@ pub fn run_leserpent_parity_recovery_validation(
 ) -> Result<ValidationReport, ValidationError> {
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-parity-recovery"));
     fs::create_dir_all(&out_dir)?;
+    let dotnet_artifacts = out_dir.join("dotnet-artifacts");
+    if dotnet_artifacts.exists() {
+        fs::remove_dir_all(&dotnet_artifacts)?;
+    }
 
     let mut files = vec!["proof-summary.json".to_string()];
     let mut checks = Vec::new();
@@ -300,7 +332,7 @@ pub fn run_leserpent_parity_recovery_validation(
     for suite in PROOF_SUITES {
         let log = format!("{}.log", suite.id);
         let log_path = out_dir.join(&log);
-        let (observed_tests, command) = execute_suite(suite, &log_path)?;
+        let (observed_tests, command) = execute_suite(suite, &log_path, &dotnet_artifacts)?;
         if observed_tests < suite.expected_min_tests {
             return Err(ValidationError::new(format!(
                 "proof suite '{}' ran {observed_tests} tests, expected at least {}",
@@ -355,6 +387,9 @@ pub fn run_leserpent_parity_recovery_validation(
             "files": files,
         }))?,
     )?;
+    if dotnet_artifacts.exists() {
+        fs::remove_dir_all(&dotnet_artifacts)?;
+    }
 
     Ok(ValidationReport {
         name: "Leserpent origin parity and recovery-injection shelf".into(),
@@ -366,6 +401,7 @@ pub fn run_leserpent_parity_recovery_validation(
 fn execute_suite(
     suite: &ProofSuite,
     log_path: &Path,
+    dotnet_artifacts: &Path,
 ) -> Result<(usize, serde_json::Value), ValidationError> {
     match &suite.command {
         ProofCommand::Cargo {
@@ -394,14 +430,19 @@ fn execute_suite(
             app_args,
             success_marker,
         } => {
+            let suite_artifacts = dotnet_artifacts.join(suite.id);
             let mut command = Command::new("dotnet");
-            command.current_dir(repo_root()).args([
-                "run",
-                "--project",
-                project,
-                "--configuration",
-                "Release",
-            ]);
+            command
+                .current_dir(repo_root())
+                .args([
+                    "run",
+                    "--project",
+                    project,
+                    "--configuration",
+                    "Release",
+                    "--artifacts-path",
+                ])
+                .arg(&suite_artifacts);
             if !app_args.is_empty() {
                 command.arg("--").args(*app_args);
             }
@@ -426,6 +467,7 @@ fn execute_suite(
                     suite.id
                 )));
             }
+            fs::remove_dir_all(&suite_artifacts)?;
             Ok((
                 1,
                 json!({
@@ -479,7 +521,7 @@ mod tests {
                 .iter()
                 .map(|suite| suite.expected_min_tests)
                 .sum::<usize>(),
-            133
+            134
         );
         assert!(
             PROOF_SUITES

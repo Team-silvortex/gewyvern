@@ -21,8 +21,8 @@ internal sealed class RemoteMainWindow : Window
     private bool isClosed;
     private bool healthInFlight;
     private bool mutationInFlight;
-    private MutationObservationFence? mutationObservationFence;
-    private MutationRevisionFence? mutationRevisionFence;
+    private RemoteMutationObservationFence? mutationObservationFence;
+    private RemoteMutationRevisionFence? mutationRevisionFence;
     private readonly TextBlock statusText = new()
     {
         FontSize = 13,
@@ -452,11 +452,6 @@ internal sealed class RemoteMainWindow : Window
         var live = state.Phase == RemoteFeedPhase.Live && !state.IsStale;
         foreach (var workspace in workspaceWindows.Values)
         {
-            workspace.SetRefreshAvailability(
-                live && !mutationInFlight,
-                live && !mutationInFlight
-                    ? null
-                    : "Remote refresh requires a live, idle fleet window");
             var runtime = state.Runtimes.FirstOrDefault(candidate =>
                 candidate.Id == workspace.RuntimeId);
             if (live && runtime is not null)
@@ -570,7 +565,7 @@ internal sealed class RemoteMainWindow : Window
             {
                 return;
             }
-            var presentation = AuthorityHealthPresentation.Create(health);
+            var presentation = RemoteAuthorityHealthPresentation.Create(health);
             authorityHealthText.Text = presentation.Label;
             authorityHealthText.Foreground = presentation.IsSaturated
                 ? LeserpentTheme.Destructive
@@ -733,7 +728,7 @@ internal sealed class RemoteMainWindow : Window
                     runtime.Revision,
                     principal,
                     lifetime.Token);
-            mutationRevisionFence = new MutationRevisionFence(
+            mutationRevisionFence = new RemoteMutationRevisionFence(
                 runtime.Id,
                 result.Revision,
                 refreshCapabilities);
@@ -886,7 +881,7 @@ internal sealed class RemoteMainWindow : Window
                 pipelineKind,
                 target,
                 lifetime.Token);
-            mutationRevisionFence = new MutationRevisionFence(
+            mutationRevisionFence = new RemoteMutationRevisionFence(
                 runtime.Id,
                 result.Revision,
                 false);
@@ -954,173 +949,53 @@ internal sealed class RemoteMainWindow : Window
     private void ClearSatisfiedMutationFences(RemoteFeedState state)
     {
         if (mutationRevisionFence is { } revisionFence
-            && state.Runtimes.Any(runtime => SatisfiesMutationFence(
+            && state.Runtimes.Any(runtime => RemoteMutationFences.SatisfiesRevision(
                 runtime,
                 revisionFence)))
         {
             mutationRevisionFence = null;
         }
         if (mutationObservationFence is { } observationFence
-            && SatisfiesObservationFence(state, observationFence))
+            && RemoteMutationFences.SatisfiesObservation(state, observationFence))
         {
             mutationObservationFence = null;
         }
     }
 
-    internal static void VerifyMutationFenceContract()
-    {
-        var runtime = new RemoteRuntimeProjection
-        {
-            Id = "runtime-a",
-            Name = "Runtime A",
-            Revision = 7,
-            RefreshStatus = RefreshStatus.Ready,
-            Tags = new RuntimeTags(),
-            Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
-        };
-        var ordinary = new MutationRevisionFence("runtime-a", 7, false);
-        var capability = new MutationRevisionFence("runtime-a", 7, true);
-        if (!SatisfiesMutationFence(runtime, ordinary)
-            || SatisfiesMutationFence(runtime, capability))
-        {
-            throw new InvalidDataException(
-                "mutation fence did not distinguish command and observation revisions");
-        }
-        runtime.Revision = 8;
-        if (SatisfiesMutationFence(runtime, capability))
-        {
-            throw new InvalidDataException(
-                "mutation fence accepted an unobserved capability revision");
-        }
-        runtime.Capabilities = new RuntimeCapabilitySnapshot
-        {
-            Source = "gewyvern-api",
-        };
-        runtime.CapabilitiesObservedForRevision = 7;
-        if (!SatisfiesMutationFence(runtime, capability))
-        {
-            throw new InvalidDataException(
-                "mutation fence rejected a later observed capability revision");
-        }
-
-        runtime.Revision = 7;
-        runtime.Capabilities = null;
-        var ordinaryUnknown = new MutationObservationFence(
-            "runtime-a",
-            7,
-            4,
-            false);
-        var capabilityUnknown = new MutationObservationFence(
-            "runtime-a",
-            7,
-            4,
-            true);
-        var heartbeat = new RemoteFeedState(
-            RemoteFeedPhase.Live,
-            7,
-            [runtime],
-            0,
-            false,
-            "heartbeat",
-            4);
-        if (SatisfiesObservationFence(heartbeat, ordinaryUnknown))
-        {
-            throw new InvalidDataException(
-                "mutation observation fence was released by a heartbeat");
-        }
-        var snapshot = heartbeat with { SnapshotGeneration = 5 };
-        if (!SatisfiesObservationFence(snapshot, ordinaryUnknown)
-            || !SatisfiesObservationFence(snapshot, capabilityUnknown))
-        {
-            throw new InvalidDataException(
-                "mutation observation fence rejected an unchanged authoritative snapshot");
-        }
-        runtime.Revision = 8;
-        if (SatisfiesObservationFence(snapshot, capabilityUnknown))
-        {
-            throw new InvalidDataException(
-                "mutation observation fence accepted a pending capability projection");
-        }
-        runtime.Capabilities = new RuntimeCapabilitySnapshot
-        {
-            Source = "gewyvern-api",
-        };
-        runtime.CapabilitiesObservedForRevision = 8;
-        runtime.Revision = 9;
-        if (!SatisfiesObservationFence(snapshot, capabilityUnknown))
-        {
-            throw new InvalidDataException(
-                "mutation observation fence rejected a changed capability snapshot");
-        }
-    }
-
-    private static bool SatisfiesMutationFence(
-        RemoteRuntimeProjection runtime,
-        MutationRevisionFence fence) => runtime.Id == fence.RuntimeId
-        && runtime.Revision >= fence.Revision
-        && (!fence.RequiresLaterCapabilityObservation
-            || runtime.Capabilities is { IsUnobserved: false }
-                && runtime.CapabilitiesObservedForRevision is { } observedFor
-                && observedFor >= fence.Revision);
-
-    private static bool SatisfiesObservationFence(
-        RemoteFeedState state,
-        MutationObservationFence fence)
-    {
-        if (state.Phase != RemoteFeedPhase.Live
-            || state.IsStale
-            || state.SnapshotGeneration <= fence.SnapshotGeneration)
-        {
-            return false;
-        }
-        var runtime = state.Runtimes.FirstOrDefault(candidate =>
-            candidate.Id == fence.RuntimeId);
-        if (runtime is null || !fence.RequiresCapabilityChange)
-        {
-            return runtime is not null;
-        }
-        if (runtime.Revision == fence.Revision)
-        {
-            return true;
-        }
-        return runtime.Revision > fence.Revision
-            && runtime.Capabilities is { IsUnobserved: false }
-            && runtime.CapabilitiesObservedForRevision is { } observedFor
-            && observedFor > fence.Revision;
-    }
-
     private void UpdateMutationAvailability()
     {
-        var live = currentState.Phase == RemoteFeedPhase.Live && !currentState.IsStale;
-        var reason = mutationInFlight
-            ? "A remote change is awaiting confirmation or completion"
-            : mutationRevisionFence is { } revisionFence
-                ? revisionFence.RequiresLaterCapabilityObservation
-                    ? $"Waiting for a capability observation after revision {revisionFence.Revision}"
-                    : $"Waiting for event revision {revisionFence.Revision} before another remote change"
-                : mutationObservationFence is not null
-                    ? "Waiting for an authoritative snapshot after an unknown remote outcome"
-                    : live
-                        ? null
-                        : "Remote changes are unavailable while the event stream is not live";
+        var availability = RemoteMutationAvailabilityPolicy.Evaluate(
+            currentState,
+            mutationInFlight,
+            mutationRevisionFence,
+            mutationObservationFence);
         renderer.SetActionAvailability(
             ActionKind.RuntimeRefresh,
-            reason is null,
-            reason);
+            availability.MutationsEnabled,
+            availability.MutationUnavailableReason);
         renderer.SetActionAvailability(
             ActionKind.RuntimeCapabilitiesRefresh,
-            reason is null,
-            reason);
-        renderer.SetActionAvailability(ActionKind.RuntimeDeploy, reason is null, reason);
+            availability.MutationsEnabled,
+            availability.MutationUnavailableReason);
+        renderer.SetActionAvailability(
+            ActionKind.RuntimeDeploy,
+            availability.MutationsEnabled,
+            availability.MutationUnavailableReason);
         renderer.SetActionAvailability(
             ActionKind.RuntimeInspect,
-            live,
-            live ? null : "Runtime inspection requires a live event stream");
+            availability.InspectEnabled,
+            availability.InspectUnavailableReason);
         foreach (var workspace in workspaceWindows.Values)
         {
-            workspace.SetRefreshAvailability(reason is null, reason);
+            SetWorkspaceMutationAvailability(workspace, availability);
         }
     }
+
+    private static void SetWorkspaceMutationAvailability(
+        RemoteRuntimeWorkspaceWindow workspace,
+        RemoteMutationAvailability availability) => workspace.SetRefreshAvailability(
+            availability.MutationsEnabled,
+            availability.MutationUnavailableReason);
 
     private void OpenWorkspace(RemoteRuntimeProjection runtime)
     {
@@ -1150,9 +1025,13 @@ internal sealed class RemoteMainWindow : Window
             OnActionInvoked);
         workspaceWindows.Add(runtime.Id, workspace);
         workspace.Closed += (_, _) => workspaceWindows.Remove(runtime.Id);
-        workspace.SetRefreshAvailability(!mutationInFlight, mutationInFlight
-            ? "A remote refresh is already in progress"
-            : null);
+        SetWorkspaceMutationAvailability(
+            workspace,
+            RemoteMutationAvailabilityPolicy.Evaluate(
+                currentState,
+                mutationInFlight,
+                mutationRevisionFence,
+                mutationObservationFence));
         workspace.Show(this);
     }
 
@@ -1288,47 +1167,6 @@ internal sealed class RemoteMainWindow : Window
         return null;
     }
 
-    private sealed record MutationRevisionFence(
-        string RuntimeId,
-        ulong Revision,
-        bool RequiresLaterCapabilityObservation);
-
-    internal sealed record AuthorityHealthPresentation(
-        string Label,
-        string AutomationName,
-        bool IsSaturated)
-    {
-        public static AuthorityHealthPresentation Create(RemoteHealth health)
-        {
-            if (health.Status != "ready"
-                || !health.AuthorityOwned
-                || health.ProtocolSchemaVersion != 1)
-            {
-                throw new InvalidDataException(
-                    "authority health presentation requires a ready protocol-v1 authority");
-            }
-            if (health.EffectQueue is not { } queue)
-            {
-                return new AuthorityHealthPresentation(
-                    "AUTHORITY / ready",
-                    "Remote authority ready; effect queue metrics unavailable",
-                    false);
-            }
-            var label = queue.Saturated
-                ? $"QUEUE SATURATED / {queue.Active}/{queue.Capacity}"
-                : $"QUEUE / {queue.Active}/{queue.Capacity}";
-            return new AuthorityHealthPresentation(
-                label,
-                $"Remote authority ready; effect queue active {queue.Active} of {queue.Capacity}; saturated {queue.Saturated.ToString().ToLowerInvariant()}",
-                queue.Saturated);
-        }
-    }
-
-    private sealed record MutationObservationFence(
-        string RuntimeId,
-        ulong Revision,
-        ulong SnapshotGeneration,
-        bool RequiresCapabilityChange);
 }
 
 internal sealed class RuntimeRefreshConfirmationWindow : Window

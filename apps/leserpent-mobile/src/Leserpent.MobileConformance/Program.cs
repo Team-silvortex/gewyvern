@@ -181,13 +181,26 @@ try
             cache,
             firstToken).AsTask(),
         "stopped application coordinator accepted reconfiguration");
+
+    RemoteWorkspaceLogFilter.VerifyContract();
+    RemoteWorkspaceDiagnosticExport.VerifyContract();
+    RemoteWorkspaceLiveRefresh.VerifyContract();
+    RemoteWorkspaceLogRefreshPlan.VerifyContract();
+    RemoteWorkspaceSeverityAlert.VerifyContract();
+    RemoteWorkspaceSnapshotChanges.VerifyContract();
+    RemoteDocumentProjection.VerifyFilterContract();
+    RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation();
+    RemoteWorkspaceDocumentProjection.VerifyParameterizedFormContract();
+    RemoteMutationFences.VerifyContract();
+    RemoteMutationAvailabilityPolicy.VerifyContract();
+    RemoteAuthorityHealthPresentation.VerifyContract();
 }
 finally
 {
     Directory.Delete(root, recursive: true);
 }
 
-Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true");
+Console.WriteLine("mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true, workspace_policy=true, ui_projection=true, mutation_fence=true, action_availability=true, authority_health=true");
 return 0;
 
 static RemoteFeedState Live(ulong revision) => new(

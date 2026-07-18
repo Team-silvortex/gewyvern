@@ -1,4 +1,4 @@
-internal static class RemoteWorkspaceDocumentProjection
+public static class RemoteWorkspaceDocumentProjection
 {
     public static UiDocument Project(
         RemoteWorkspaceSnapshot snapshot,

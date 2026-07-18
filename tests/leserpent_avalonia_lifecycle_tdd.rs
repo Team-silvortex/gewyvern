@@ -18,6 +18,89 @@ fn avalonia_source(relative: &str) -> String {
     .unwrap_or_else(|error| panic!("failed to read {relative}: {error}"))
 }
 
+fn repo_source(relative: &str) -> String {
+    fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative))
+        .unwrap_or_else(|error| panic!("failed to read {relative}: {error}"))
+}
+
+#[test]
+fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
+    let remote_project = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/Leserpent.RemoteClient.csproj",
+    );
+    let fleet_projection = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDocumentProjection.cs",
+    );
+    let workspace_projection = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs",
+    );
+    let mutation_fences =
+        repo_source("apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationFences.cs");
+    let mutation_availability = repo_source(
+        "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationAvailability.cs",
+    );
+    let remote_window =
+        repo_source("apps/leserpent-avalonia/src/Leserpent.Avalonia/RemoteMainWindow.cs");
+    let mobile_project =
+        repo_source("apps/leserpent-mobile/src/Leserpent.MobileCore/Leserpent.MobileCore.csproj");
+    let mobile_conformance =
+        repo_source("apps/leserpent-mobile/src/Leserpent.MobileConformance/Program.cs");
+
+    assert!(remote_project.contains("Leserpent.RendererCore.csproj"));
+    assert!(fleet_projection.contains("public static class RemoteDocumentProjection"));
+    assert!(fleet_projection.contains("public sealed record RemoteDocumentView"));
+    assert!(!fleet_projection.contains("Avalonia"));
+    assert!(workspace_projection.contains("public static class RemoteWorkspaceDocumentProjection"));
+    assert!(!workspace_projection.contains("Avalonia"));
+    assert!(mutation_fences.contains("public static class RemoteMutationFences"));
+    assert!(mutation_fences.contains("public sealed record RemoteMutationRevisionFence"));
+    assert!(mutation_fences.contains("public sealed record RemoteMutationObservationFence"));
+    assert!(!mutation_fences.contains("Avalonia"));
+    assert!(mutation_availability.contains("public static class RemoteMutationAvailabilityPolicy"));
+    assert!(mutation_availability.contains("public sealed record RemoteMutationAvailability"));
+    assert!(!mutation_availability.contains("Avalonia"));
+    assert!(remote_window.contains("RemoteMutationFences.SatisfiesRevision"));
+    assert!(remote_window.contains("RemoteMutationFences.SatisfiesObservation"));
+    assert!(remote_window.contains("RemoteMutationAvailabilityPolicy.Evaluate"));
+    assert!(
+        !remote_window
+            .contains("Remote changes are unavailable while the event stream is not live")
+    );
+    assert!(!remote_window.contains("Remote refresh requires a live, idle fleet window"));
+    assert_eq!(
+        remote_window
+            .matches("workspace.SetRefreshAvailability(")
+            .count(),
+        1,
+        "workspace availability must only be written from the shared policy"
+    );
+    assert!(!remote_window.contains("SatisfiesMutationFence"));
+    assert!(!remote_window.contains("SatisfiesObservationFence"));
+    assert!(mobile_project.contains("Leserpent.RemoteClient.csproj"));
+    assert!(mobile_conformance.contains("RemoteWorkspaceLogFilter.VerifyContract()"));
+    assert!(mobile_conformance.contains("RemoteWorkspaceDiagnosticExport.VerifyContract()"));
+    assert!(mobile_conformance.contains("RemoteWorkspaceLiveRefresh.VerifyContract()"));
+    assert!(mobile_conformance.contains("RemoteWorkspaceLogRefreshPlan.VerifyContract()"));
+    assert!(mobile_conformance.contains("RemoteWorkspaceSeverityAlert.VerifyContract()"));
+    assert!(mobile_conformance.contains("RemoteWorkspaceSnapshotChanges.VerifyContract()"));
+    assert!(mobile_conformance.contains("RemoteDocumentProjection.VerifyFilterContract()"));
+    assert!(
+        mobile_conformance.contains("RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation()")
+    );
+    assert!(
+        mobile_conformance
+            .contains("RemoteWorkspaceDocumentProjection.VerifyParameterizedFormContract()")
+    );
+    assert!(mobile_conformance.contains("workspace_policy=true"));
+    assert!(mobile_conformance.contains("ui_projection=true"));
+    assert!(mobile_conformance.contains("RemoteMutationFences.VerifyContract()"));
+    assert!(mobile_conformance.contains("mutation_fence=true"));
+    assert!(mobile_conformance.contains("RemoteMutationAvailabilityPolicy.VerifyContract()"));
+    assert!(mobile_conformance.contains("action_availability=true"));
+    assert!(mobile_conformance.contains("RemoteAuthorityHealthPresentation.VerifyContract()"));
+    assert!(mobile_conformance.contains("authority_health=true"));
+}
+
 #[test]
 fn remote_window_observes_async_ui_operations_and_fences_shutdown_updates() {
     let source = remote_main_window_source();
@@ -37,12 +120,18 @@ fn remote_window_observes_async_ui_operations_and_fences_shutdown_updates() {
 fn connected_authority_health_is_visible_bounded_and_mutation_independent() {
     let source = remote_main_window_source();
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let presentation =
+        avalonia_source("Leserpent.RemoteClient/RemoteAuthorityHealthPresentation.cs");
 
     assert!(source.contains("remote-authority-health"));
     assert!(source.contains("remote-authority-health-refresh"));
-    assert!(source.contains("QUEUE SATURATED"));
     assert!(source.contains("AutomationLiveSetting.Assertive"));
-    assert!(source.contains("AuthorityHealthPresentation.Create"));
+    assert!(source.contains("RemoteAuthorityHealthPresentation.Create"));
+    assert!(!source.contains("QUEUE SATURATED"));
+    assert!(presentation.contains("public sealed record RemoteAuthorityHealthPresentation"));
+    assert!(presentation.contains("QUEUE SATURATED"));
+    assert!(presentation.contains("effect queue metrics unavailable"));
+    assert!(!presentation.contains("Avalonia"));
     assert!(program.contains("--verify-authority-health-presentation"));
     assert!(program.contains("saturation_visible=true"));
 }
@@ -50,14 +139,23 @@ fn connected_authority_health_is_visible_bounded_and_mutation_independent() {
 #[test]
 fn gui_mutations_export_canonical_leselang_without_execution() {
     let window = remote_main_window_source();
+    let workspace = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
     let exporter = avalonia_source("Leserpent.RemoteClient/RemoteLeselangExport.cs");
     let control = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
     assert!(window.contains("RemoteLeselangExport.Refresh"));
     assert!(window.contains("RemoteLeselangExport.Deploy"));
+    assert!(workspace.contains("RemoteLeselangExport.Workspace(RuntimeId)"));
+    assert!(workspace.contains("runtime-workspace-leselang"));
+    assert!(workspace.contains("Preview equivalent workspace Leselang"));
+    assert!(workspace.contains("workspaceLeselangWindow.Activate()"));
+    assert!(workspace.contains("new LeselangExportControl"));
     assert!(window.contains("new LeselangExportControl"));
     assert!(exporter.contains("runtime.refresh_capabilities"));
+    assert!(exporter.contains("inspect: runtime.inspect"));
+    assert!(exporter.contains("history: runtime.history"));
+    assert!(exporter.contains("logs: runtime.logs"));
     assert!(exporter.contains("target: none"));
     assert!(exporter.contains("GUI Leselang export diverged"));
     assert!(!exporter.contains("RemoteWireTransport"));
@@ -66,21 +164,34 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
     assert!(control.contains("No operation was executed."));
     assert!(control.contains("SetTextAsync(source)"));
     assert!(program.contains("--verify-leselang-gui-export"));
+    assert!(program.contains("workspace_queries=true"));
 }
 
 #[test]
 fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
-    let filter = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceLogFilter.cs");
-    let export = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceDiagnosticExport.cs");
-    let projection = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceDocumentProjection.cs");
+    let filter = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceLogFilter.cs");
+    let export = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceDiagnosticExport.cs");
+    let projection = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
     assert!(window.contains("runtime-log-search"));
     assert!(window.contains("runtime-log-level"));
     assert!(window.contains("runtime-log-filter-summary"));
     assert!(window.contains("runtime-diagnostics-copy"));
+    assert!(window.contains("runtime-diagnostics-save"));
+    assert!(window.contains("Save visible runtime diagnostics"));
     assert!(window.contains("Review it before sharing"));
+    assert!(window.contains("SaveDiagnosticsAsync"));
+    assert!(window.contains("storage is null || !storage.CanSave"));
+    assert!(window.contains("SaveFilePickerAsync"));
+    assert!(window.contains("ShowOverwritePrompt = true"));
+    assert!(window.contains("!stream.CanWrite || !stream.CanSeek"));
+    assert!(window.contains("stream.SetLength(0)"));
+    assert!(window.contains("stream.Position = 0"));
+    assert!(window.contains("RemoteWorkspaceDiagnosticExport.Encode(view)"));
+    assert!(window.contains("Diagnostic save canceled."));
+    assert!(window.contains("Diagnostic save failed safely."));
     assert!(window.contains(
         "catch (Exception)\n        {\n            if (!lifetime.IsCancellationRequested)"
     ));
@@ -92,8 +203,13 @@ fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
     assert!(filter.contains("log level filter is invalid"));
     assert!(!filter.contains("RemoteWorkspaceClient"));
     assert!(!filter.contains("RemoteWireTransport"));
+    assert!(filter.contains("public static class RemoteWorkspaceLogFilter"));
+    assert!(!filter.contains("Avalonia"));
     assert!(export.contains("leserpent.workspace-diagnostic/v1"));
     assert!(export.contains("MaxUtf8Bytes = 512 * 1024"));
+    assert!(export.contains("SuggestedFileName"));
+    assert!(export.contains("char.IsAsciiLetterOrDigit"));
+    assert!(export.contains("Encoding.UTF8.Preamble"));
     assert!(export.contains("MaxLogEntries"));
     assert!(export.contains("MaxLogDisplayBytes"));
     assert!(export.contains("command_id = "));
@@ -101,20 +217,25 @@ fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
     assert!(!export.contains("LoadAsync"));
     assert!(!export.contains("RemoteWireTransport"));
     assert!(!export.contains("RemoteMutationClient"));
+    assert!(export.contains("public static class RemoteWorkspaceDiagnosticExport"));
+    assert!(!export.contains("Avalonia"));
     assert!(projection.contains("No matching log entries"));
     assert!(projection.contains("Safe(entry.CommandId)"));
+    assert!(projection.contains("public static class RemoteWorkspaceDocumentProjection"));
+    assert!(!projection.contains("Avalonia"));
     assert!(program.contains("--verify-workspace-diagnostics"));
     assert!(program.contains("--verify-workspace-log-filter"));
     assert!(program.contains("local_only=true"));
     assert!(program.contains("explicit_export=true"));
+    assert!(program.contains("file_export=true"));
     assert!(program.contains("maximal_escape=true"));
 }
 
 #[test]
 fn runtime_workspace_live_refresh_is_explicit_single_flight_and_suspendable() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
-    let policy = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceLiveRefresh.cs");
-    let plan = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceLogRefreshPlan.cs");
+    let policy = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceLiveRefresh.cs");
+    let plan = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceLogRefreshPlan.cs");
     let client = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceClient.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
@@ -122,19 +243,40 @@ fn runtime_workspace_live_refresh_is_explicit_single_flight_and_suspendable() {
     assert!(window.contains("Activated +="));
     assert!(window.contains("Deactivated +="));
     assert!(window.contains("if (!liveRefresh.TryBegin())"));
-    assert!(window.contains("outcome != WorkspaceReloadOutcome.Failed"));
+    assert!(window.contains("outcome == WorkspaceReloadOutcome.Skipped"));
+    assert!(window.contains("liveRefresh.Defer(IsActive)"));
+    assert!(window.contains("outcome == WorkspaceReloadOutcome.Loaded"));
     assert!(window.contains("liveRefresh.Pause();"));
     assert!(window.contains("liveRefreshTimer.Stop();"));
     assert!(
         window.contains("liveRefreshButton.IsEnabled = liveRefresh.IsRequested || !loadInFlight")
     );
     assert!(policy.contains("TimeSpan.FromSeconds(5)"));
+    assert!(policy.contains("MaxConsecutiveFailures = 3"));
+    assert!(policy.contains("TimeSpan.FromSeconds(10)"));
+    assert!(policy.contains("TimeSpan.FromSeconds(20)"));
     assert!(policy.contains("State != WorkspaceLiveRefreshState.Waiting"));
     assert!(policy.contains("State == WorkspaceLiveRefreshState.Suspended"));
-    assert!(policy.contains("live refresh retried after a failed query"));
+    assert!(policy.contains("live refresh lost its first bounded retry"));
+    assert!(policy.contains("live refresh exceeded its bounded retry limit"));
+    assert!(policy.contains("RecoverAfterExternalSuccess"));
+    assert!(policy.contains("external query success did not reset live backoff"));
+    assert!(policy.contains("deferred live query changed its backoff state"));
+    assert!(window.contains("liveRefreshTimer.Interval = liveRefresh.NextInterval"));
+    assert!(window.contains("liveRefreshTimer.Stop();\n        loadInFlight = true;"));
+    assert!(window.contains("_ = liveRefresh.RecoverAfterExternalSuccess()"));
+    assert!(window.contains("else if (!allowIncrementalLogs)"));
+    assert!(window.contains("ShowLiveRefreshFailure"));
     assert!(!policy.contains("RemoteWorkspaceClient"));
     assert!(!policy.contains("RemoteWireTransport"));
+    assert!(policy.contains("public sealed class RemoteWorkspaceLiveRefresh"));
+    assert!(!policy.contains("Avalonia"));
+    assert!(plan.contains("public sealed class RemoteWorkspaceLogRefreshPlan"));
+    assert!(!plan.contains("Avalonia"));
     assert!(program.contains("live_refresh=true"));
+    assert!(program.contains("bounded_retry=true"));
+    assert!(program.contains("manual_recovery=true"));
+    assert!(program.contains("skip_neutral=true"));
     assert!(program.contains("incremental_logs=true"));
     assert!(window.contains("ReloadAsync(allowIncrementalLogs: true)"));
     assert!(window.contains("logRefreshPlan.SelectCursor"));
@@ -153,8 +295,8 @@ fn runtime_workspace_live_refresh_is_explicit_single_flight_and_suspendable() {
 #[test]
 fn runtime_workspace_refresh_reports_bounded_snapshot_changes() {
     let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
-    let changes = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceSnapshotChange.cs");
-    let alert = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceSeverityAlert.cs");
+    let changes = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceSnapshotChange.cs");
+    let alert = avalonia_source("Leserpent.RemoteClient/RemoteWorkspaceSeverityAlert.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
     assert!(window.contains("RemoteWorkspaceSnapshotChanges.Compare"));
@@ -178,6 +320,8 @@ fn runtime_workspace_refresh_reports_bounded_snapshot_changes() {
     assert!(changes.contains("var currentLogs = LogIndex(current.Logs)"));
     assert!(!changes.contains("RemoteWorkspaceClient"));
     assert!(!changes.contains("RemoteWireTransport"));
+    assert!(changes.contains("public static class RemoteWorkspaceSnapshotChanges"));
+    assert!(!changes.contains("Avalonia"));
     assert!(program.contains("delta_summary=true"));
     assert!(program.contains("severity_signal=true"));
     assert!(program.contains("snapshot_fence=true"));
@@ -189,6 +333,8 @@ fn runtime_workspace_refresh_reports_bounded_snapshot_changes() {
     assert!(window.contains("LeserpentTheme.Primary"));
     assert!(window.contains("assertive: true"));
     assert!(alert.contains("WorkspaceSeverityAlertLevel.Error"));
+    assert!(alert.contains("public sealed class RemoteWorkspaceSeverityAlert"));
+    assert!(!alert.contains("Avalonia"));
     assert!(alert.contains("workspace warning downgraded a pending error"));
     assert!(alert.contains("unchanged refresh discarded a pending alert"));
     assert!(alert.contains("alert.Acknowledge()"));

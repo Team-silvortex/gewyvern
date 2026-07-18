@@ -581,6 +581,50 @@ The shared mobile vault adapter contract now provides endpoint-hashed aliases,
 strict credential CRUD validation, cancellation fencing, and deterministic
 corruption tests; platform storage is therefore replaceable without moving
 endpoint or token policy out of shared code.
+The workspace policy layer has also moved into `Leserpent.RemoteClient`:
+filtering, bounded export, incremental/full refresh planning, retry state,
+snapshot comparison, and retained severity alerts are renderer-independent.
+Avalonia now supplies only window/control behavior, and MobileConformance calls
+the same six contracts through MobileCore's project graph to prevent a future
+mobile policy fork.
+The fleet and runtime-workspace `UiDocument` projections are now part of the
+same shared library and reference only RendererCore. Their filtering,
+capability-gated actions, parameterized forms, endpoint omission, and empty
+states are no longer Avalonia-exclusive business logic. MobileConformance
+executes both projections without loading a platform renderer.
+Mutation revision and unknown-outcome observation fences have moved out of the
+Avalonia window as well. RemoteClient now owns the runtime/revision/capability
+rules, rejects heartbeat-only release, and requires a newer authoritative
+snapshot after ambiguous transport failure. Desktop and mobile conformance run
+the identical policy.
+Remote action availability now follows that boundary too. A pure policy gives
+in-flight work precedence over revision and observation fences, disables
+mutation and inspection consistently while stale, and supplies bounded reasons
+to desktop or mobile controls. Avalonia no longer derives remote permissions
+from window state.
+The availability audit found and removed two workspace-level overwrite paths:
+state application and initial window creation previously used reduced live/idle
+checks that could ignore an unresolved fence. Both now pass through one policy
+application helper. Authority health and queue saturation projection have also
+moved into RemoteClient for desktop/mobile parity.
+The desktop workspace live-query policy now tolerates two transient failures with
+10-second and 20-second bounded backoff, resets to its five-second cadence after
+success, and stops after the third consecutive failure. The state machine remains
+transport-independent and preserves single-flight, inactive-window suspension,
+and explicit operator restart semantics. A successful manual or event-driven full
+workspace query clears pending backoff and restores the normal cadence without
+ever retrying a mutation. Query admission owns and stops the outstanding timer;
+a single-flight skip preserves the existing failure count and interval instead
+of impersonating a successful recovery.
+The desktop runtime workspace now saves the same endpoint-free diagnostic snapshot
+through the native platform picker. The UTF-8 payload is prevalidated under 512
+KiB, suggested filenames discard path/control syntax, overwrite requires platform
+confirmation, and failed destinations never expose their path in UI status.
+The workspace query group also exports canonical structured Leselang as one
+`all(inspect, history, logs)` batch. A dedicated .NET machine entry emits only the
+source; the Rust parity test parses it and verifies all three typed read-query HIR
+branches preserve the displayed runtime identity. The UI preview is single-instance
+per workspace and copying never executes the program.
 
 Exit: desktop and one mobile target pass the same semantic conformance suite;
 platform-only presentation differences are documented.
@@ -628,6 +672,10 @@ text, explicit action labels, and a 4.5 WCAG AA text-contrast floor. Managed
 macOS and physical Linux/Xvfb proofs produce matching counts, while the macOS
 NativeAOT job requires the same accessibility marker and metrics. The first run
 raised destructive-button contrast from 3.841 to 4.723.
+Accessibility and NativeAOT now restore and build through proof-local .NET
+artifacts roots. A concurrent regression run proves both shelves can execute
+without contending for shared reference assemblies or PDBs, and successful
+runs remove intermediate graphs while retaining evidence.
 
 The transport shelf now has the native entrypoint
 `gewyvern_validate leserpent-transport`. It retains separate transcripts for
@@ -653,14 +701,21 @@ evidence, not transport-protocol maturity.
 The performance shelf now has the native entrypoint
 `gewyvern_validate leserpent-benchmark`. It measures fixed-size SQLite
 cold start, 256-runtime query latency, 10,000-effect batch throughput, a
-1,027-node UI document's generation/diff/codec costs, and release CLI/daemon
+1,539-node UI document's generation/diff/codec costs, a 256-log full versus
+8-log incremental .NET workspace comparison, and release CLI/daemon
 size. Broad fail-closed budgets guard against order-of-magnitude regressions;
 raw macOS arm64 and physical Linux x86_64 results remain separate host-class
 baselines with machine-readable evidence.
+The .NET benchmark workload and every .NET parity suite now use proof-local
+artifacts roots as well. A concurrent parity/benchmark run passes without
+source-tree `obj` contention and removes both intermediate graphs afterward.
+The Rust-to-.NET vertical's nested `dotnet run` processes also share a
+test-local artifacts root that is removed automatically, closing the inner
+process boundary that the outer parity harness cannot configure directly.
 
 The current command-origin and recovery shelf now has the native entrypoint
-`gewyvern_validate leserpent-parity-recovery`. Eleven non-vacuous suites
-execute at least 132 tests across neutral command lowering, domain
+`gewyvern_validate leserpent-parity-recovery`. Twelve non-vacuous suites
+currently execute 159 tests across neutral command lowering, domain
 authorization/idempotency, debugger confirmation, CLI/Leselang equivalence,
 VM continuation/journal re-entry, runtime SQLite recovery injection, and the
 authenticated remote wire boundary, native remote CLI parity, deterministic
@@ -674,8 +729,9 @@ command surface, shared local/remote CLI dispatch, and GUI event
 delivery/reconnect/cache plus constrained runtime-refresh semantics. Future
 mobile operations still require their own parity fixtures. Cross-host retained
 counts are refreshed after every vertical-contract change rather than inferred
-from earlier evidence. The current macOS arm64 and physical Linux x86_64 runs
-both report eleven suites, 134 tests, and 79 declared invariants.
+from earlier evidence. The current macOS arm64 run reports twelve suites, 159
+tests, and 152 declared invariants; physical Linux x86_64 evidence must be
+refreshed independently before claiming the same count on that host class.
 
 The HTTPS listener is intentionally opt-in:
 

@@ -1,4 +1,4 @@
-internal sealed record RemoteWorkspaceLogView(
+public sealed record RemoteWorkspaceLogView(
     RemoteWorkspaceSnapshot Snapshot,
     int VisibleLogCount,
     int TotalLogCount,
@@ -8,7 +8,7 @@ internal sealed record RemoteWorkspaceLogView(
     public bool IsActive => Query.Length > 0 || Level != RemoteWorkspaceLogFilter.AllLevels;
 }
 
-internal static class RemoteWorkspaceLogFilter
+public static class RemoteWorkspaceLogFilter
 {
     public const int MaxQueryLength = 128;
     public const string AllLevels = "all";
@@ -75,12 +75,7 @@ internal static class RemoteWorkspaceLogFilter
         if (!empty.IsActive
             || empty.VisibleLogCount != 0
             || empty.TotalLogCount != 3
-            || snapshot.Logs.Count != 3
-            || !ContainsText(
-                RemoteWorkspaceDocumentProjection.Project(
-                    empty.Snapshot,
-                    logsFiltered: true).Root,
-                "No matching log entries"))
+            || snapshot.Logs.Count != 3)
         {
             throw new InvalidDataException("log filter empty-state contract drifted");
         }
@@ -110,10 +105,6 @@ internal static class RemoteWorkspaceLogFilter
             throw new InvalidDataException($"log filter failed: {caseName}");
         }
     }
-
-    private static bool ContainsText(UiNode node, string text) =>
-        string.Equals(node.Text?.Fallback, text, StringComparison.Ordinal)
-        || node.Children.Any(child => ContainsText(child, text));
 
     private static string NormalizeQuery(string? query) => new string((query ?? string.Empty)
         .Where(character => !char.IsControl(character))

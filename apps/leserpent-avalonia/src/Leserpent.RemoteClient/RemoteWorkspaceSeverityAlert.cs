@@ -1,11 +1,11 @@
-internal enum WorkspaceSeverityAlertLevel
+public enum WorkspaceSeverityAlertLevel
 {
     None,
     Warning,
     Error,
 }
 
-internal sealed class RemoteWorkspaceSeverityAlert
+public sealed class RemoteWorkspaceSeverityAlert
 {
     public WorkspaceSeverityAlertLevel Level { get; private set; }
     public ulong SignalRevision { get; private set; }

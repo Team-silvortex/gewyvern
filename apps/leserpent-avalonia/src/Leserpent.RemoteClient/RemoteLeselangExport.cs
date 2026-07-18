@@ -12,6 +12,18 @@ public static class RemoteLeselangExport
             $"fn main() = runtime.{operation}(runtime_id: {Quote(runtimeId)})\n");
     }
 
+    public static string Workspace(string runtimeId)
+    {
+        RemoteQueryValidation.RequireIdentifier(runtimeId, "runtime ID");
+        var quoted = Quote(runtimeId);
+        return Bounded(
+            "fn main() = all(\n"
+            + $"  inspect: runtime.inspect(runtime_id: {quoted}),\n"
+            + $"  history: runtime.history(runtime_id: {quoted}),\n"
+            + $"  logs: runtime.logs(runtime_id: {quoted}),\n"
+            + ")\n");
+    }
+
     public static string Deploy(
         string runtimeId,
         string pipelineKind,
@@ -37,6 +49,12 @@ public static class RemoteLeselangExport
                 != "fn main() = runtime.refresh(runtime_id: \"runtime-a\")\n"
             || Refresh("runtime-a", true)
                 != "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")\n"
+            || Workspace("runtime-a")
+                != "fn main() = all(\n"
+                    + "  inspect: runtime.inspect(runtime_id: \"runtime-a\"),\n"
+                    + "  history: runtime.history(runtime_id: \"runtime-a\"),\n"
+                    + "  logs: runtime.logs(runtime_id: \"runtime-a\"),\n"
+                    + ")\n"
             || Deploy("runtime-a", "http/request", "pid:42")
                 != "fn main() = runtime.deploy(\n"
                     + "  runtime_id: \"runtime-a\",\n"
