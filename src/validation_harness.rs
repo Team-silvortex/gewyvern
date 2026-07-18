@@ -10,6 +10,7 @@ mod leserpent_accessibility;
 mod leserpent_aot;
 mod leserpent_benchmark;
 mod leserpent_parity_recovery;
+mod leserpent_schema_freeze;
 mod leserpent_transport;
 mod linux_ebpf;
 mod registry;
@@ -34,7 +35,10 @@ pub use demo_roundtrip::{
     run_external_engine_roundtrip_demo, run_socket_roundtrip_demo,
     run_training_dataset_roundtrip_demo,
 };
-pub use evidence_codec::parse_bounded_unique_key_values;
+pub use evidence_codec::{
+    parse_bounded_unique_key_values, read_bounded_json_file, read_bounded_nonempty_lines,
+    read_bounded_phase_timings, read_bounded_unique_key_value_file,
+};
 pub use field_smoke::run_field_smoke_validation;
 pub use high_frequency::run_high_frequency_validation;
 pub use leselang_fuzz::run_leselang_fuzz_validation;
@@ -42,6 +46,7 @@ pub use leserpent_accessibility::run_leserpent_accessibility_validation;
 pub use leserpent_aot::run_leserpent_aot_validation;
 pub use leserpent_benchmark::run_leserpent_benchmark_validation;
 pub use leserpent_parity_recovery::run_leserpent_parity_recovery_validation;
+pub use leserpent_schema_freeze::run_leserpent_schema_freeze_validation;
 pub use leserpent_transport::run_leserpent_transport_validation;
 pub use linux_ebpf::{run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke};
 pub use registry::run_registry_validation;

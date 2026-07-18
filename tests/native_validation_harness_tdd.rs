@@ -24,6 +24,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("\"leserpent-aot\""));
     assert!(binary.contains("\"leserpent-benchmark\""));
     assert!(binary.contains("\"leserpent-parity-recovery\""));
+    assert!(binary.contains("\"leserpent-schema-freeze\""));
     assert!(binary.contains("\"leserpent-transport\""));
     assert!(binary.contains("\"leserpent-accessibility\""));
     assert!(binary.contains("\"leselang-fuzz\""));
@@ -63,6 +64,8 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("emit_json_payload"));
     assert!(binary.contains("JSON_SCHEMA_VERSION"));
     assert!(binary.contains("release_gate_summary_value"));
+    assert!(binary.contains("--leserpent-proof"));
+    assert!(binary.contains("\"leserpent_parity_recovery\""));
     assert!(binary.contains("remote_linux_host_summary_value"));
     assert!(binary.contains("parse_bounded_json_file"));
     assert!(binary.contains("read_bounded_recent_lines"));
@@ -114,6 +117,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(mod_file.contains("run_leserpent_aot_validation"));
     assert!(mod_file.contains("run_leserpent_benchmark_validation"));
     assert!(mod_file.contains("run_leserpent_parity_recovery_validation"));
+    assert!(mod_file.contains("run_leserpent_schema_freeze_validation"));
     assert!(mod_file.contains("run_leserpent_transport_validation"));
     assert!(mod_file.contains("run_leserpent_accessibility_validation"));
     assert!(mod_file.contains("run_leselang_fuzz_validation"));
@@ -392,6 +396,42 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     ));
     assert!(!harness.contains("Command::new(\"sh\")"));
     assert!(binary.contains("print_leserpent_parity_recovery_help"));
+}
+
+#[test]
+fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only() {
+    let harness = read_repo_file("src/validation_harness/leserpent_schema_freeze.rs");
+    let inventory = read_repo_file("project/release/leserpent-v1-schema-inventory.json");
+    let compatibility = read_repo_file("project/release/leserpent-v1-compatibility-baseline.json");
+    let docs = read_repo_file("docs/script-entrypoints.md");
+
+    assert!(harness.contains("EXPECTED_FAMILIES"));
+    assert!(harness.contains("read_bounded_json_file"));
+    assert!(harness.contains("regular non-symlink file"));
+    assert!(harness.contains("require_nonzero_test_result"));
+    assert!(harness.contains("summaries.len() != 1"));
+    assert!(harness.contains("expected_min_tests"));
+    assert!(harness.contains("runtime-migration-replay"));
+    assert!(harness.contains("legacy-wire-migration"));
+    assert!(harness.contains("journal-v1-to-current-replay"));
+    assert!(harness.contains("legacy-status-refresh-idempotency"));
+    assert!(harness.contains("clear_previous_evidence"));
+    assert!(harness.contains("load_and_validate_compatibility_baseline"));
+    assert!(harness.contains("ring::digest::SHA256"));
+    assert!(harness.contains("differs from its reviewed v1 baseline"));
+    assert!(harness.contains("schema-freeze-summary.json"));
+    assert!(harness.contains("evidence-index.json"));
+    assert!(inventory.contains("\"freeze_state\": \"candidate\""));
+    assert!(inventory.contains("\"family\": \"command\""));
+    assert!(inventory.contains("\"family\": \"query\""));
+    assert!(inventory.contains("\"family\": \"effect\""));
+    assert!(inventory.contains("\"family\": \"ui\""));
+    assert!(inventory.contains("\"family\": \"wire\""));
+    assert!(!inventory.contains("target_args"));
+    assert!(compatibility.contains("\"algorithm\": \"sha256\""));
+    assert!(compatibility.contains("renderer-workspace-conformance-v1"));
+    assert!(compatibility.contains("legacy-runtime-list-response-v1"));
+    assert!(docs.contains("leserpent-schema-freeze"));
 }
 
 #[test]
@@ -804,6 +844,13 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("run_remote_linux_host_validation"));
     assert!(release_gate.contains("run_debugger_cross_validation(None)?"));
     assert!(release_gate.contains("print_remote_release_gate_summary"));
+    assert!(release_gate.contains("read_bounded_unique_key_value_file"));
+    assert!(release_gate.contains("read_bounded_phase_timings"));
+    assert!(release_gate.contains("read_bounded_json_file"));
+    assert!(release_gate.contains("read_bounded_nonempty_lines"));
+    assert!(!release_gate.contains("fn parse_key_value_file"));
+    assert!(!release_gate.contains("fn parse_json_file"));
+    assert!(!release_gate.contains("fn read_trimmed_lines"));
     assert!(release_gate.contains("remote slowest phases"));
     assert!(release_gate.contains("remote eBPF summary"));
     assert!(release_gate.contains("validation-posture:"));
@@ -862,6 +909,10 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("parse_bounded_unique_key_values"));
     assert!(evidence_codec.contains("contains duplicate key"));
     assert!(evidence_codec.contains("contains unexpected key"));
+    assert!(evidence_codec.contains("read_bounded_unique_key_value_file"));
+    assert!(evidence_codec.contains("read_bounded_phase_timings"));
+    assert!(evidence_codec.contains("read_bounded_json_file"));
+    assert!(evidence_codec.contains("read_bounded_nonempty_lines"));
     assert!(binary.contains("remote eBPF status summary"));
     assert!(binary.contains("remote eBPF recent evidence"));
     assert!(remote.contains("collect_remote_artifact_manifest"));
@@ -980,7 +1031,8 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("print_remote_linux_host_validation_summary"));
     assert!(binary.contains("slowest-phases:"));
     assert!(binary.contains("parse_evidence_key_value_file"));
-    assert!(binary.contains("must be a regular non-symlink file"));
+    assert!(binary.contains("read_bounded_unique_key_value_file"));
+    assert!(evidence_codec.contains("must be a regular non-symlink file"));
     assert!(binary.contains("parse_required_bool"));
     assert!(binary.contains("source-cache:"));
     assert!(binary.contains("target-cache:"));

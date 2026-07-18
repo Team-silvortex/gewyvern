@@ -140,6 +140,7 @@ cargo run --quiet --bin gewyvern_validate -- release-gate --skip-build
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-stack
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-debugger-cross
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-pathology
+cargo run --quiet --bin gewyvern_validate -- release-gate --leserpent-proof
 cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
 cargo run --quiet --bin gewyvern_validate -- release-gate --deb
 cargo run --quiet --bin gewyvern_validate -- release-gate --rpm
@@ -151,6 +152,12 @@ The same narrowing paths also work with `--json` placed before the command:
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-build
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation
 ```
+
+`--leserpent-proof` is an explicit combined-release stage. It runs the current
+13-suite parity/recovery shelf and adds
+`extra.stages.leserpent_parity_recovery = true`. It remains default-off so the
+sealed Gewyvern 1.x gate does not silently acquire .NET, GUI, mobile, or
+cross-language build dependencies.
 
 The lower-level packaged release-minded entrypoint is:
 
@@ -257,7 +264,10 @@ After a successful `release-gate` run, also preserve:
 
 Those two companion files are the compact release-facing index of which
 evidence shelves were present at the time, including whether the optional
-`juice-shop-container` shelf existed yet.
+Leserpent parity/recovery and `juice-shop-container` shelves existed yet.
+For stages owned by the current release-gate invocation, `status = "not_run"`
+takes precedence over an older directory still existing on disk; stale shelves
+therefore cannot appear as current-run evidence.
 
 Practical `jq` examples:
 

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "release_line": "2.0",
+  "freeze_state": "candidate",
+  "contracts": [
+    {
+      "id": "leserpent-command-v1",
+      "family": "command",
+      "version": 1,
+      "stability": "candidate",
+      "source": "crates/leserpent-domain/src/lib.rs",
+      "anchors": ["DOMAIN_SCHEMA_VERSION: u32 = 1", "pub enum Command", "pub struct CommandEnvelope"],
+      "proof": "domain-v1"
+    },
+    {
+      "id": "leserpent-query-v1",
+      "family": "query",
+      "version": 1,
+      "stability": "candidate",
+      "source": "crates/leserpent-domain/src/lib.rs",
+      "anchors": ["DOMAIN_SCHEMA_VERSION: u32 = 1", "pub enum Query", "pub struct QueryEnvelope"],
+      "proof": "domain-v1"
+    },
+    {
+      "id": "leserpent-effect-plan-v1",
+      "family": "effect",
+      "version": 1,
+      "stability": "candidate",
+      "source": "crates/leserpent-domain/src/lib.rs",
+      "anchors": ["COMMAND_PLAN_SCHEMA_VERSION: u32 = 1", "pub struct CommandPlan", "pub enum PlannedOperation"],
+      "proof": "domain-v1"
+    },
+    {
+      "id": "leserpent-ui-ir-v1",
+      "family": "ui",
+      "version": 1,
+      "stability": "candidate",
+      "source": "crates/leselang-ui/src/lib.rs",
+      "anchors": ["UI_SCHEMA_VERSION: u32 = 1", "pub struct UiDocument", "pub struct UiPatch"],
+      "proof": "ui-v1"
+    },
+    {
+      "id": "leserpent-wire-v1",
+      "family": "wire",
+      "version": 1,
+      "stability": "candidate",
+      "source": "crates/leserpent-protocol/schema/wire-v1.schema.json",
+      "anchors": ["Leserpent Wire Envelope v1", "\"schema_version\"", "\"const\": 1"],
+      "proof": "wire-v1"
+    }
+  ]
+}

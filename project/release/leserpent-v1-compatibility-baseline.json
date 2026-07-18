@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "release_line": "2.0",
+  "baseline_state": "candidate",
+  "algorithm": "sha256",
+  "fixtures": [
+    {
+      "id": "legacy-runtime-list-response-v1",
+      "family": "legacy-wire",
+      "path": "crates/leserpent-protocol/tests/fixtures/legacy-runtime-list-response-v1.json",
+      "bytes": 2438,
+      "sha256": "865bc9da8a40055a6dae1615827a581dbf4bab98c9d2ae525dc9ef2b48fb37ec"
+    },
+    {
+      "id": "legacy-runtime-not-found-v1",
+      "family": "legacy-wire",
+      "path": "crates/leserpent-protocol/tests/fixtures/legacy-runtime-not-found-v1.json",
+      "bytes": 69,
+      "sha256": "5825b70e50dc05cadec94fb51c41c1fc6c9cd99f03b44987f8bf4fc6850e83a8"
+    },
+    {
+      "id": "legacy-runtime-status-refresh-response-v1",
+      "family": "legacy-wire",
+      "path": "crates/leserpent-protocol/tests/fixtures/legacy-runtime-status-refresh-response-v1.json",
+      "bytes": 880,
+      "sha256": "2fc7578a8327e4144a359073e47a25f995ac46d1ec8569df907846f9033d665f"
+    },
+    {
+      "id": "runtime-list-request-v1",
+      "family": "wire",
+      "path": "crates/leserpent-protocol/tests/fixtures/runtime-list-request-v1.json",
+      "bytes": 396,
+      "sha256": "e870b7240bb19a499a39c9837a2b8c96b3287660eb278df2ee18b8aa09a38be7"
+    },
+    {
+      "id": "runtime-list-response-v1",
+      "family": "wire",
+      "path": "crates/leserpent-protocol/tests/fixtures/runtime-list-response-v1.json",
+      "bytes": 163,
+      "sha256": "fc7c2fc09949b3fa01d78788ac92056b2f9646db5094a84bcd130013535f9856"
+    },
+    {
+      "id": "renderer-conformance-v1",
+      "family": "ui",
+      "path": "apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json",
+      "bytes": 24219,
+      "sha256": "9012d3068f802ece1b67240f51186cb78d931502fe2e491afb14a1c6e24a8d8b"
+    },
+    {
+      "id": "renderer-debugger-conformance-v1",
+      "family": "ui",
+      "path": "apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json",
+      "bytes": 49944,
+      "sha256": "c4d8dc26d5b0df1941af6c56ecbf18fea57d3c43f0919cb55ff9307b9aadf243"
+    },
+    {
+      "id": "renderer-log-conformance-v1",
+      "family": "ui",
+      "path": "apps/leserpent-avalonia/fixtures/renderer-log-conformance-v1.json",
+      "bytes": 53886,
+      "sha256": "98b99fa7cc26fa2fb9117ace60270209f1b30f3dd2341e103c07358844ca5760"
+    },
+    {
+      "id": "renderer-workspace-conformance-v1",
+      "family": "ui",
+      "path": "apps/leserpent-avalonia/fixtures/renderer-workspace-conformance-v1.json",
+      "bytes": 57032,
+      "sha256": "77e90f752bd26ab5bbe96e02d8d62c650136b417a6450a387b07da4f8a3e251e"
+    }
+  ]
+}

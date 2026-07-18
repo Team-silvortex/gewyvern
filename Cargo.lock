@@ -257,6 +257,7 @@ dependencies = [
  "leselang-syntax",
  "leselang-vm",
  "leserpent-domain",
+ "ring",
  "serde",
  "serde_json",
  "x509-parser",

@@ -649,6 +649,23 @@ platform-only presentation differences are documented.
 Exit: every criterion in the architecture's
 [2.0 definition](leserpent-2-architecture.md#20-definition) is evidenced.
 
+The first machine-enforced Gate 7 precursor is now
+`gewyvern_validate leserpent-schema-freeze`. Its bounded candidate inventory
+maps command, query, effect-plan, UI IR, and wire v1 sources to a fixed native
+proof registry. The shelf currently proves 50 tests across domain, UI, wire,
+runtime migration, and legacy-wire migration proof suites while explicitly
+emitting `freeze_ready=false`; promotion to `frozen`
+remains forbidden until the rest of Gate 7 and Apple-backed release evidence
+are reproducible.
+Its companion candidate baseline pins SHA-256 fingerprints for five wire and
+legacy-wire fixtures plus four renderer fixtures. This makes accidental exact
+format drift fail before the semantic proof suites without pretending that the
+candidate contracts have reached their final freeze.
+The migration replay now covers runtime journal v1 to current, v3 snapshot
+generation history, complete v6 semantics, malformed migration history, and
+legacy wire normalization. The remaining migration gap is the 1.x managed
+control-plane state path and its JSON-to-SQLite rollback story.
+
 ## Continuous Proof Shelves
 
 Every gate maintains:

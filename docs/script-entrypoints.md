@@ -307,6 +307,9 @@ regular non-symlink JSON file no larger than 64 KiB, and recent evidence is
 limited to five nonempty 512-byte lines in a regular file no larger than 16 KiB.
 Malformed, missing, ambiguous, or oversized evidence fails the command instead
 of silently producing a partial summary.
+The combined release gate reuses these same bounded readers and validates all
+remote evidence before printing a successful human summary, so its console
+output cannot become a lenient alternative to the machine-readable result.
 
 For machine-readable consumption, use:
 
@@ -523,6 +526,41 @@ clients. Their absence is recorded in the summary rather than reported as a
 cross-platform success. The current macOS arm64 and physical Linux x86_64 runs
 produce matching eight-suite, 28-test, 41-invariant summaries.
 
+### I want to inspect Leserpent v1 schema freeze readiness
+
+Run:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- leserpent-schema-freeze
+```
+
+The bounded inventory at
+`project/release/leserpent-v1-schema-inventory.json` names the command, query,
+effect-plan, UI IR, and wire v1 contract sources. It records source anchors and
+fixed proof IDs, but cannot supply executable Cargo arguments. The native shelf
+rejects path traversal, symlinks, oversized sources, duplicate families or IDs,
+unknown proof IDs, missing anchors, non-v1 contracts, and state mismatches.
+The companion
+`project/release/leserpent-v1-compatibility-baseline.json` pins byte lengths and
+SHA-256 fingerprints for five canonical/legacy wire fixtures and four renderer
+fixtures. An unreviewed fixture change therefore fails before semantic proof
+execution; an intentional compatibility change must update the fixture and its
+reviewed candidate baseline together.
+
+Five fixed Rust suites currently execute 50 non-vacuous tests and retain their
+logs, `schema-freeze-summary.json`, and `evidence-index.json` under
+`target/validation/leserpent-schema-freeze/`. The inventory deliberately stays
+`candidate` and the summary stays `freeze_ready=false` until every Gate 7
+security, performance, migration, packaging, rollback, and platform-release
+criterion has reproducible evidence.
+The same summary records all nine compatibility fingerprints, keeping exact
+machine-format drift separate from the semantic proof suites.
+The migration subset replays runtime journal v1, v3 snapshot, and complete v6
+state into the current v9 journal, rejects inconsistent migration history, and
+proves legacy runtime-list, status-refresh, and error adaptation. Each migration
+suite has a fixed minimum of four observed tests, so an accidental empty Cargo
+filter cannot appear as release evidence.
+
 ### I want to prove command parity and restart recovery
 
 Run:
@@ -599,6 +637,7 @@ cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-build
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-stack
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-debugger-cross
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --skip-pathology
+cargo run --quiet --bin gewyvern_validate -- --json release-gate --leserpent-proof
 cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-validation
 ```
 
@@ -608,10 +647,15 @@ The `extra` object for `release-gate` currently exposes:
 - `stages.release_container_check`
 - `stages.three_module_stack_smoke`
 - `stages.pathological_container_validation`
+- `stages.leserpent_parity_recovery`
 - `stages.remote_linux_host_validation`
 - top-level `ship_signal = "timing_watch"` when the remote host passed but one
   of the soft timing budgets regressed
 - `remote`
+
+`stages.leserpent_parity_recovery` is true only when the caller explicitly
+selects `--leserpent-proof`. This keeps the Gewyvern-only gate independent while
+giving combined releases one machine-readable result and one artifact index.
 
 The practical Linux target-lab command
 `juice-shop-container-validation`
@@ -631,7 +675,11 @@ Every successful `release-gate` run also refreshes:
 
 Use those two companion files as the compact directory-level index of which
 release-facing evidence shelves are currently present under `target/validation/`,
-including the separate optional `juice-shop-container` shelf when it exists.
+including the optional Leserpent parity/recovery and `juice-shop-container`
+shelves when they exist.
+Stage-owned entries report `not_run` when the current invocation skipped that
+stage, even if an older evidence directory is still present. Companion shelves
+without a release-gate stage continue to report their actual path presence.
 
 `remote` is `null` unless the current run actually executed the remote-host
 stage. This is deliberate so CI cannot accidentally read stale evidence from an

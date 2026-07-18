@@ -11,7 +11,8 @@ mod gewyvern_validate_stack;
 
 use gewyvern::validation_harness::{
     ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions, ValidationError,
-    parse_bounded_unique_key_values, run_container_operator_path_validation,
+    read_bounded_json_file, read_bounded_nonempty_lines, read_bounded_phase_timings,
+    read_bounded_unique_key_value_file, run_container_operator_path_validation,
     run_container_protocol_validation, run_container_runtime_validation,
     run_container_validation_summary, run_debugger_cross_validation,
     run_external_engine_roundtrip_demo, run_field_smoke_validation,
@@ -19,10 +20,11 @@ use gewyvern::validation_harness::{
     run_juice_shop_container_validation, run_ldap_bind_denied_container_validation,
     run_leselang_fuzz_validation, run_leserpent_accessibility_validation,
     run_leserpent_aot_validation, run_leserpent_benchmark_validation,
-    run_leserpent_parity_recovery_validation, run_leserpent_transport_validation,
-    run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke, run_package_install_smoke,
-    run_pathological_container_validation, run_registry_validation, run_release_container_check,
-    run_release_gate, run_remote_linux_host_validation, run_resilience_bundle_validation,
+    run_leserpent_parity_recovery_validation, run_leserpent_schema_freeze_validation,
+    run_leserpent_transport_validation, run_linux_attach_smoke, run_linux_kprobe_smoke,
+    run_linux_tc_smoke, run_package_install_smoke, run_pathological_container_validation,
+    run_registry_validation, run_release_container_check, run_release_gate,
+    run_remote_linux_host_validation, run_resilience_bundle_validation,
     run_resilience_drive_bad_json_validation, run_resilience_emit_helper_validation,
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
@@ -46,6 +48,7 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "leserpent-aot",
     "leserpent-benchmark",
     "leserpent-parity-recovery",
+    "leserpent-schema-freeze",
     "leserpent-transport",
     "juice-shop-container-validation",
     "linux-attach-smoke",
@@ -422,6 +425,22 @@ fn run(args: Vec<String>, global_options: GlobalCliOptions) -> Result<(), Valida
             }
             let options = parse_options(rest)?;
             let report = run_leserpent_transport_validation(options.out_dir)?;
+            print_validation_report(
+                &command,
+                &report,
+                global_options.json,
+                global_options.json_out.as_deref(),
+                None,
+            );
+            Ok(())
+        }
+        "leserpent-schema-freeze" => {
+            if wants_subcommand_help(&rest) {
+                print_leserpent_schema_freeze_help();
+                return Ok(());
+            }
+            let options = parse_options(rest)?;
+            let report = run_leserpent_schema_freeze_validation(options.out_dir)?;
             print_validation_report(
                 &command,
                 &report,
@@ -997,6 +1016,7 @@ fn parse_release_gate_options(args: Vec<String>) -> Result<ReleaseGateOptions, V
             "--skip-stack" => options.run_stack = false,
             "--skip-debugger-cross" => options.run_debugger_cross = false,
             "--skip-pathology" => options.run_pathology = false,
+            "--leserpent-proof" => options.run_leserpent_proof = true,
             "--remote-host-validation" => options.run_remote_host = true,
             "--keep-remote-dir" => options.keep_remote_dir = true,
             "--skip-remote-build" => options.remote_build_packages = false,
@@ -1190,6 +1210,7 @@ fn print_help() {
     println!("  leserpent-transport [--out-dir <path>]");
     println!("  leserpent-benchmark [--out-dir <path>]");
     println!("  leserpent-parity-recovery [--out-dir <path>]");
+    println!("  leserpent-schema-freeze [--out-dir <path>]");
     println!("  juice-shop-container-validation [--out-dir <path>]");
     println!("  linux-attach-smoke [--hookpoint <category/event>] [--out-dir <path>]");
     println!("  linux-kprobe-smoke [--symbol <kernel-symbol>] [--out-dir <path>]");
@@ -1209,7 +1230,7 @@ fn print_help() {
     println!("  pathological-container-validation [--out-dir <path>]");
     println!("  release-container-check [--deb|--rpm]");
     println!(
-        "  release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--deb|--rpm]"
+        "  release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-pathology] [--leserpent-proof] [--deb|--rpm]"
     );
     println!("  runtime-lifecycle [--out-dir <path>]");
     println!("  runtime-operator [--out-dir <path>] [--json-out <path>]");
@@ -1806,6 +1827,17 @@ fn print_leserpent_transport_help() {
     );
 }
 
+fn print_leserpent_schema_freeze_help() {
+    println!("Usage: gewyvern_validate leserpent-schema-freeze [--out-dir <path>]");
+    println!();
+    println!(
+        "Validate the bounded v1 command, query, effect, UI, and wire inventory and run its fixed proof registry."
+    );
+    println!(
+        "Candidate evidence does not claim a final freeze until every Gate 7 release criterion is reproducible."
+    );
+}
+
 fn print_leserpent_benchmark_help() {
     println!("Usage: gewyvern_validate leserpent-benchmark [--out-dir <path>]");
     println!();
@@ -2362,6 +2394,7 @@ fn release_gate_summary_value(
             "three_module_stack_smoke": checks.iter().any(|check| check == "three_module_stack_smoke"),
             "debugger_cross_validation": checks.iter().any(|check| check == "debugger_cross_validation"),
             "pathological_container_validation": checks.iter().any(|check| check == "pathological_container_validation"),
+            "leserpent_parity_recovery": checks.iter().any(|check| check == "leserpent_parity_recovery"),
             "remote_linux_host_validation": remote_ran,
         },
         "remote": remote,
@@ -2489,33 +2522,7 @@ fn parse_evidence_key_value_file(
     context: &str,
     allowed_keys: &[&str],
 ) -> Result<BTreeMap<String, String>, ValidationError> {
-    const MAX_BYTES: u64 = 8 * 1024;
-
-    let metadata = fs::symlink_metadata(path).map_err(|err| {
-        ValidationError::new(format!(
-            "failed to inspect {context} '{}': {err}",
-            path.display()
-        ))
-    })?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(ValidationError::new(format!(
-            "{context} must be a regular non-symlink file: {}",
-            path.display()
-        )));
-    }
-    if metadata.len() > MAX_BYTES {
-        return Err(ValidationError::new(format!(
-            "{context} '{}' exceeds {MAX_BYTES} bytes",
-            path.display()
-        )));
-    }
-    let contents = fs::read_to_string(path).map_err(|err| {
-        ValidationError::new(format!(
-            "failed to read {context} '{}': {err}",
-            path.display()
-        ))
-    })?;
-    parse_bounded_unique_key_values(&contents, context, allowed_keys)
+    read_bounded_unique_key_value_file(path, context, allowed_keys)
 }
 
 fn parse_phase_timings(
@@ -2524,28 +2531,7 @@ fn parse_phase_timings(
     allowed_keys: &[&str],
     required_keys: &[&str],
 ) -> Result<Vec<(String, f64)>, ValidationError> {
-    const MAX_SECONDS: f64 = 24.0 * 60.0 * 60.0;
-
-    let values = parse_evidence_key_value_file(path, context, allowed_keys)?;
-    for key in required_keys {
-        if !values.contains_key(*key) {
-            return Err(ValidationError::new(format!("{context} missing {key}")));
-        }
-    }
-    values
-        .into_iter()
-        .map(|(name, value)| {
-            let seconds = value.parse::<f64>().map_err(|_| {
-                ValidationError::new(format!("{context} {name} is not a valid number"))
-            })?;
-            if !seconds.is_finite() || !(0.0..=MAX_SECONDS).contains(&seconds) {
-                return Err(ValidationError::new(format!(
-                    "{context} {name} must be finite and between 0 and {MAX_SECONDS} seconds"
-                )));
-            }
-            Ok((name, seconds))
-        })
-        .collect()
+    read_bounded_phase_timings(path, context, allowed_keys, required_keys)
 }
 
 fn parse_required_bool(
@@ -2567,81 +2553,14 @@ fn parse_bounded_json_file(
     path: &std::path::Path,
     context: &str,
 ) -> Result<serde_json::Value, ValidationError> {
-    const MAX_BYTES: u64 = 64 * 1024;
-
-    let metadata = fs::symlink_metadata(path).map_err(|err| {
-        ValidationError::new(format!(
-            "failed to inspect {context} '{}': {err}",
-            path.display()
-        ))
-    })?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(ValidationError::new(format!(
-            "{context} must be a regular non-symlink file: {}",
-            path.display()
-        )));
-    }
-    if metadata.len() > MAX_BYTES {
-        return Err(ValidationError::new(format!(
-            "{context} '{}' exceeds {MAX_BYTES} bytes",
-            path.display()
-        )));
-    }
-    let body = fs::read_to_string(path).map_err(|err| {
-        ValidationError::new(format!(
-            "failed to read {context} '{}': {err}",
-            path.display()
-        ))
-    })?;
-    serde_json::from_str(&body).map_err(|err| {
-        ValidationError::new(format!(
-            "failed to parse {context} '{}': {err}",
-            path.display()
-        ))
-    })
+    read_bounded_json_file(path, context, 64 * 1024)
 }
 
 fn read_bounded_recent_lines(
     path: &std::path::Path,
     context: &str,
 ) -> Result<Vec<String>, ValidationError> {
-    const MAX_BYTES: u64 = 16 * 1024;
-    const MAX_LINES: usize = 5;
-    const MAX_LINE_BYTES: usize = 512;
-
-    let metadata = fs::symlink_metadata(path).map_err(|err| {
-        ValidationError::new(format!(
-            "failed to inspect {context} '{}': {err}",
-            path.display()
-        ))
-    })?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > MAX_BYTES {
-        return Err(ValidationError::new(format!(
-            "{context} must be a regular file no larger than {MAX_BYTES} bytes: {}",
-            path.display()
-        )));
-    }
-    let body = fs::read_to_string(path).map_err(|err| {
-        ValidationError::new(format!(
-            "failed to read {context} '{}': {err}",
-            path.display()
-        ))
-    })?;
-    let lines = body
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>();
-    if lines.len() > MAX_LINES
-        || lines
-            .iter()
-            .any(|line| line.len() > MAX_LINE_BYTES || line.chars().any(char::is_control))
-    {
-        return Err(ValidationError::new(format!(
-            "{context} exceeds its bounded line contract"
-        )));
-    }
-    Ok(lines.into_iter().map(ToOwned::to_owned).collect())
+    read_bounded_nonempty_lines(path, context, 16 * 1024, 5, 512)
 }
 
 fn summarize_recent_ebpf_trend(history_summary: &serde_json::Value) -> Option<String> {
@@ -2765,7 +2684,7 @@ fn print_container_runtime_validation_help() {
 
 fn print_release_gate_help() {
     println!(
-        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-debugger-cross] [--skip-pathology] [--remote-host-validation] [--remote-host <ssh-host>] [--remote-dir <path>] [--skip-remote-build] [--keep-remote-dir] [--deb|--rpm]"
+        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-debugger-cross] [--skip-pathology] [--leserpent-proof] [--remote-host-validation] [--remote-host <ssh-host>] [--remote-dir <path>] [--skip-remote-build] [--keep-remote-dir] [--deb|--rpm]"
     );
     println!();
     println!("Run the current release gate as one deliberate sequence:");
@@ -2774,7 +2693,8 @@ fn print_release_gate_help() {
     println!("3. run the three-module stack smoke");
     println!("4. run debugger cross validation");
     println!("5. run pathological container/runtime-ingest validation");
-    println!("6. optionally run remote Linux host validation over SSH");
+    println!("6. optionally run the Leserpent parity/recovery proof");
+    println!("7. optionally run remote Linux host validation over SSH");
     println!();
     println!("Flags:");
     println!("  --skip-build          Reuse current package artifacts instead of rebuilding");
@@ -2782,6 +2702,7 @@ fn print_release_gate_help() {
     println!("  --skip-stack          Skip three-module stack smoke");
     println!("  --skip-debugger-cross Skip debugger cross validation");
     println!("  --skip-pathology      Skip pathological runtime-ingest validation");
+    println!("  --leserpent-proof     Run the opt-in 13-suite Leserpent proof shelf");
     println!("  --remote-host-validation  Run remote Linux host validation after local gates");
     println!("  --remote-host         Override the SSH host used for remote validation");
     println!("  --remote-dir          Override the remote workspace path");
@@ -3003,6 +2924,15 @@ mod tests {
         assert_eq!(posture, "partial");
         assert_eq!(signal, "followup_required");
         assert!(next_step.contains("coverage"));
+    }
+
+    #[test]
+    fn release_gate_leserpent_proof_is_explicit_opt_in() {
+        let defaults = parse_release_gate_options(Vec::new()).unwrap();
+        assert!(!defaults.run_leserpent_proof);
+
+        let selected = parse_release_gate_options(vec!["--leserpent-proof".to_string()]).unwrap();
+        assert!(selected.run_leserpent_proof);
     }
 
     #[test]

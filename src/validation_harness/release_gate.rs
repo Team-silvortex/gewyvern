@@ -5,10 +5,13 @@ use serde_json::json;
 
 use super::command::{ValidationError, ValidationReport, repo_root};
 use super::{
-    RemoteLinuxHostOptions, run_container_runtime_validation, run_container_validation_summary,
-    run_debugger_cross_validation, run_package_install_smoke,
-    run_pathological_container_validation, run_remote_linux_host_validation,
-    run_three_module_stack_smoke, validation_command_stdout, validation_log,
+    RemoteLinuxHostOptions, read_bounded_json_file, read_bounded_nonempty_lines,
+    read_bounded_phase_timings, read_bounded_unique_key_value_file,
+    run_container_runtime_validation, run_container_validation_summary,
+    run_debugger_cross_validation, run_leserpent_parity_recovery_validation,
+    run_package_install_smoke, run_pathological_container_validation,
+    run_remote_linux_host_validation, run_three_module_stack_smoke, validation_command_stdout,
+    validation_log,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -36,6 +39,7 @@ pub struct ReleaseGateOptions {
     pub run_stack: bool,
     pub run_debugger_cross: bool,
     pub run_pathology: bool,
+    pub run_leserpent_proof: bool,
     pub run_remote_host: bool,
     pub remote_host: String,
     pub remote_dir: Option<String>,
@@ -52,6 +56,7 @@ impl Default for ReleaseGateOptions {
             run_stack: true,
             run_debugger_cross: true,
             run_pathology: true,
+            run_leserpent_proof: false,
             run_remote_host: false,
             remote_host: std::env::var("GEWY_REMOTE_HOST")
                 .unwrap_or_else(|_| "kyuubiki-lab".to_string()),
@@ -171,6 +176,15 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         validation_log("[release-gate] skipping pathological container validation");
     }
 
+    if options.run_leserpent_proof {
+        validation_log("[release-gate] ----------------------------------------");
+        validation_log("[release-gate] running Leserpent parity/recovery proof");
+        run_leserpent_parity_recovery_validation(None)?;
+        checks.push("leserpent_parity_recovery".to_string());
+    } else {
+        validation_log("[release-gate] skipping optional Leserpent parity/recovery proof");
+    }
+
     if options.run_remote_host {
         validation_log("[release-gate] ----------------------------------------");
         validation_log(format!(
@@ -184,7 +198,7 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
             keep_remote_dir: options.keep_remote_dir,
         })?;
         checks.push("remote_linux_host_validation".to_string());
-        print_remote_release_gate_summary(&remote_report.out_dir);
+        print_remote_release_gate_summary(&remote_report.out_dir)?;
         if remote_report
             .checks
             .iter()
@@ -262,12 +276,64 @@ fn run_repo_script(script_relative_path: &str, args: &[&str]) -> Result<(), Vali
     Ok(())
 }
 
-fn print_remote_release_gate_summary(out_dir: &Path) {
-    let run = parse_key_value_file(&out_dir.join("remote-run.txt"));
-    let ebpf = parse_key_value_file(&out_dir.join("remote-ebpf.txt"));
-    let timings = parse_phase_timings(&out_dir.join("remote-phase-timings.txt"));
-    let recent = read_trimmed_lines(&out_dir.join("remote-ebpf-recent.txt"));
-    let history_summary = parse_json_file(&out_dir.join("remote-ebpf-status-summary.json"));
+fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationError> {
+    let run = read_bounded_unique_key_value_file(
+        &out_dir.join("remote-run.txt"),
+        "release-gate remote run evidence",
+        &[
+            "host",
+            "remote_dir",
+            "build_packages",
+            "keep_remote_dir",
+            "checks",
+        ],
+    )?;
+    let ebpf = read_bounded_unique_key_value_file(
+        &out_dir.join("remote-ebpf.txt"),
+        "release-gate remote eBPF evidence",
+        &["status", "reason", "default_route_device"],
+    )?;
+    let timings = read_bounded_phase_timings(
+        &out_dir.join("remote-phase-timings.txt"),
+        "release-gate remote phase timings",
+        &[
+            "remote_preflight",
+            "remote_workspace_create",
+            "workspace_sync",
+            "remote_workspace_materialize",
+            "remote_linux_target_check",
+            "remote_package_build",
+            "remote_artifact_verify",
+            "remote_package_smoke",
+            "remote_runtime_smoke",
+            "remote_ebpf_validator_build",
+            "remote_ebpf_attach",
+            "remote_ebpf_smoke",
+            "remote_ebpf_evidence_sync",
+            "remote_workspace_cleanup",
+            "total",
+        ],
+        &["total"],
+    )?;
+    let recent = read_bounded_nonempty_lines(
+        &out_dir.join("remote-ebpf-recent.txt"),
+        "release-gate remote eBPF recent evidence",
+        16 * 1024,
+        5,
+        512,
+    )?;
+    let history_summary = read_bounded_json_file(
+        &out_dir.join("remote-ebpf-status-summary.json"),
+        "release-gate remote eBPF history summary",
+        64 * 1024,
+    )?;
+
+    require_evidence_keys(&run, &["remote_dir"], "release-gate remote run evidence")?;
+    require_evidence_keys(
+        &ebpf,
+        &["status", "reason", "default_route_device"],
+        "release-gate remote eBPF evidence",
+    )?;
 
     if let Some(remote_dir) = run.get("remote_dir") {
         validation_log(format!("[release-gate] remote dir: {remote_dir}"));
@@ -279,7 +345,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
         ));
     }
     let (validation_posture, release_gate_signal, next_step) =
-        summarize_remote_release_gate_posture(&ebpf, history_summary.as_ref());
+        summarize_remote_release_gate_posture(&ebpf, Some(&history_summary));
     validation_log(format!(
         "[release-gate] validation-posture: {validation_posture}"
     ));
@@ -307,10 +373,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
     for warning in budget_warnings {
         validation_log(format!("[release-gate] remote budget warning: {warning}"));
     }
-    if let Some(integrity) = history_summary
-        .as_ref()
-        .and_then(|value| value.get("integrity"))
-    {
+    if let Some(integrity) = history_summary.get("integrity") {
         validation_log(format!(
             "[release-gate] remote history integrity: {}",
             integrity
@@ -319,12 +382,26 @@ fn print_remote_release_gate_summary(out_dir: &Path) {
                 .unwrap_or("unknown")
         ));
     }
-    if let Some(trend) = summarize_recent_ebpf_trend(history_summary.as_ref()) {
+    if let Some(trend) = summarize_recent_ebpf_trend(Some(&history_summary)) {
         validation_log(format!("[release-gate] remote recent eBPF trend: {trend}"));
     }
     for line in recent.iter().take(3) {
         validation_log(format!("[release-gate] remote recent eBPF: {line}"));
     }
+    Ok(())
+}
+
+fn require_evidence_keys(
+    values: &BTreeMap<String, String>,
+    required_keys: &[&str],
+    context: &str,
+) -> Result<(), ValidationError> {
+    for key in required_keys {
+        if !values.contains_key(*key) {
+            return Err(ValidationError::new(format!("{context} missing {key}")));
+        }
+    }
+    Ok(())
 }
 
 fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(), ValidationError> {
@@ -409,6 +486,19 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
             ),
             "gewyvern_validate remote-linux-host-validation",
             "nested remote eBPF attach evidence shelf when the remote Linux path runs",
+        ),
+        release_artifact_entry(
+            "leserpent_parity_recovery",
+            "directory",
+            &out_dir.join("leserpent-parity-recovery"),
+            "optional_high_signal",
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "leserpent_parity_recovery"),
+            ),
+            "gewyvern_validate release-gate --leserpent-proof",
+            "opt-in 13-suite Rust, xUnit, GUI, mobile, and cross-language parity/recovery shelf",
         ),
         release_artifact_entry(
             "juice_shop_container_validation",
@@ -512,10 +602,10 @@ fn release_artifact_entry(
 ) -> serde_json::Value {
     let status = if key == "release_gate_artifact_index" || key == "release_gate_artifact_summary" {
         "present"
-    } else if path.exists() {
-        "present"
     } else if stage_ran == Some(false) {
         "not_run"
+    } else if path.exists() {
+        "present"
     } else {
         "absent"
     };
@@ -614,44 +704,6 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
         .collect()
 }
 
-fn parse_key_value_file(path: &Path) -> BTreeMap<String, String> {
-    let Ok(contents) = fs::read_to_string(path) else {
-        return BTreeMap::new();
-    };
-    let mut values = BTreeMap::new();
-    for line in contents.lines() {
-        if let Some((key, value)) = line.split_once('=') {
-            values.insert(key.to_string(), value.to_string());
-        }
-    }
-    values
-}
-
-fn parse_phase_timings(path: &Path) -> Vec<(String, f64)> {
-    parse_key_value_file(path)
-        .into_iter()
-        .filter_map(|(name, value)| value.parse::<f64>().ok().map(|seconds| (name, seconds)))
-        .collect()
-}
-
-fn parse_json_file(path: &Path) -> Option<serde_json::Value> {
-    let body = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&body).ok()
-}
-
-fn read_trimmed_lines(path: &Path) -> Vec<String> {
-    fs::read_to_string(path)
-        .ok()
-        .map(|body| {
-            body.lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty())
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
-}
-
 fn summarize_recent_ebpf_trend(history_summary: Option<&serde_json::Value>) -> Option<String> {
     let history_summary = history_summary?;
     let entries = history_summary
@@ -673,7 +725,10 @@ fn summarize_recent_ebpf_trend(history_summary: Option<&serde_json::Value>) -> O
 
 #[cfg(test)]
 mod tests {
-    use super::summarize_remote_release_gate_posture;
+    use super::{
+        print_remote_release_gate_summary, release_artifact_entry,
+        summarize_remote_release_gate_posture,
+    };
     use std::collections::BTreeMap;
 
     #[test]
@@ -708,5 +763,73 @@ mod tests {
         assert_eq!(posture, "full");
         assert_eq!(signal, "coverage_incomplete");
         assert!(next_step.contains("two physical hosts"));
+    }
+
+    #[test]
+    fn artifact_index_does_not_present_stale_files_as_current_stage_evidence() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-stale-release-artifact-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+
+        let skipped = release_artifact_entry(
+            "stage",
+            "directory",
+            &path,
+            "optional",
+            Some(false),
+            "test",
+            "test",
+        );
+        let current = release_artifact_entry(
+            "stage",
+            "directory",
+            &path,
+            "optional",
+            Some(true),
+            "test",
+            "test",
+        );
+
+        assert_eq!(skipped["status"], "not_run");
+        assert_eq!(current["status"], "present");
+        std::fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn remote_summary_rejects_ambiguous_evidence_before_printing_success() {
+        let out_dir = std::env::temp_dir().join(format!(
+            "gewyvern-release-summary-evidence-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&out_dir);
+        std::fs::create_dir_all(&out_dir).unwrap();
+        std::fs::write(
+            out_dir.join("remote-run.txt"),
+            "host=linux\nremote_dir=/tmp/gewyvern\nbuild_packages=true\nkeep_remote_dir=false\nchecks=ok\n",
+        )
+        .unwrap();
+        std::fs::write(
+            out_dir.join("remote-ebpf.txt"),
+            "status=ok\nreason=all_smokes_passed\ndefault_route_device=eth0\n",
+        )
+        .unwrap();
+        std::fs::write(out_dir.join("remote-phase-timings.txt"), "total=1.0\n").unwrap();
+        std::fs::write(out_dir.join("remote-ebpf-recent.txt"), "recent evidence\n").unwrap();
+        std::fs::write(
+            out_dir.join("remote-ebpf-status-summary.json"),
+            r#"{"entries":1,"status_counts":{"ok":1},"integrity":{"status":"clean"},"matrix":{"ready":true}}"#,
+        )
+        .unwrap();
+
+        assert!(print_remote_release_gate_summary(&out_dir).is_ok());
+        std::fs::write(
+            out_dir.join("remote-ebpf.txt"),
+            "status=ok\nstatus=skipped\nreason=ambiguous\ndefault_route_device=eth0\n",
+        )
+        .unwrap();
+        assert!(print_remote_release_gate_summary(&out_dir).is_err());
+        std::fs::remove_dir_all(out_dir).unwrap();
     }
 }
