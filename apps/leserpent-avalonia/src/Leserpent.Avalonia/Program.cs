@@ -55,6 +55,13 @@ internal static class Program
                 "authority health presentation valid: ready=true, queue_pressure=true, saturation_visible=true, endpoint_retained=false");
             return 0;
         }
+        if (args is ["--verify-leselang-gui-export"])
+        {
+            RemoteLeselangExport.VerifyContract();
+            Console.WriteLine(
+                "GUI Leselang export valid: refresh=true, capabilities=true, deployment=true, optional_target=true, canonical_escape=true, execution=false");
+            return 0;
+        }
         if (args is ["--verify-remote-mutation-fence"])
         {
             RemoteMainWindow.VerifyMutationFenceContract();
@@ -116,6 +123,13 @@ internal static class Program
             RemoteWorkspaceDocumentProjection.VerifyEndpointIsolation();
             Console.WriteLine(
                 "remote workspace projection valid: semantic=true, endpoint_retained=false, history_bounded=true, logs_bounded=true");
+            return 0;
+        }
+        if (args is ["--verify-workspace-log-filter"])
+        {
+            RemoteWorkspaceLogFilter.VerifyContract();
+            Console.WriteLine(
+                "workspace log filter valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true");
             return 0;
         }
         try

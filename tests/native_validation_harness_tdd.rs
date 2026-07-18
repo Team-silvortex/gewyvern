@@ -288,6 +288,11 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("worker-crash-final-attempt"));
     assert!(harness.contains("strict-health-codec"));
     assert!(harness.contains("authority-health-fail-closed"));
+    assert!(harness.contains("gui-leselang-canonical-export"));
+    assert!(harness.contains("explicit-copy-without-execution"));
+    assert!(harness.contains("avalonia-workspace-log-filter"));
+    assert!(harness.contains("local-only-workspace-log-filter"));
+    assert!(harness.contains("--verify-workspace-log-filter"));
     assert!(harness.contains("authenticated-dotnet-health-preflight"));
     assert!(harness.contains("same-revision-workspace-composition"));
     assert!(harness.contains("endpoint-redacted-workspace-output"));

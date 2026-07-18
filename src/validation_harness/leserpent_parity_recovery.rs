@@ -16,6 +16,7 @@ enum ProofCommand {
     },
     Dotnet {
         project: &'static str,
+        app_args: &'static [&'static str],
         success_marker: &'static str,
     },
 }
@@ -166,12 +167,15 @@ const PROOF_SUITES: &[ProofSuite] = &[
         id: "avalonia-remote-state-conformance",
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
+            app_args: &[],
             success_marker: "remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false",
         },
         expected_min_tests: 1,
         invariants: &[
             "strict-health-codec",
             "authority-health-fail-closed",
+            "gui-leselang-canonical-export",
+            "explicit-copy-without-execution",
             "strict-aot-event-codec",
             "monotonic-event-revision",
             "bounded-gui-reconnect",
@@ -181,6 +185,21 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "platform-credential-precedence",
             "environment-credential-fallback",
             "invalid-stored-credential-fail-closed",
+        ],
+    },
+    ProofSuite {
+        id: "avalonia-workspace-log-filter",
+        command: ProofCommand::Dotnet {
+            project: "apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj",
+            app_args: &["--verify-workspace-log-filter"],
+            success_marker: "workspace log filter valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true",
+        },
+        expected_min_tests: 1,
+        invariants: &[
+            "local-only-workspace-log-filter",
+            "bounded-sanitized-log-query",
+            "strict-log-level-selector",
+            "filtered-empty-state-distinction",
         ],
     },
     ProofSuite {
@@ -214,6 +233,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         id: "mobile-lifecycle-conformance",
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-mobile/src/Leserpent.MobileConformance/Leserpent.MobileConformance.csproj",
+            app_args: &[],
             success_marker: "mobile lifecycle conformance valid: foreground=true, background_disconnect=true, credential_reload=true, generation_fence=true, failure_cleanup=true, application_entry=true, duplicate_callbacks=true, reconfigure=true",
         },
         expected_min_tests: 1,
@@ -343,11 +363,21 @@ fn execute_suite(
         }
         ProofCommand::Dotnet {
             project,
+            app_args,
             success_marker,
         } => {
-            let output = Command::new("dotnet")
-                .current_dir(repo_root())
-                .args(["run", "--project", project, "--configuration", "Release"])
+            let mut command = Command::new("dotnet");
+            command.current_dir(repo_root()).args([
+                "run",
+                "--project",
+                project,
+                "--configuration",
+                "Release",
+            ]);
+            if !app_args.is_empty() {
+                command.arg("--").args(*app_args);
+            }
+            let output = command
                 .output()
                 .map_err(|error| ValidationError::new(format!("failed to run dotnet: {error}")))?;
             write_output(log_path, &output)?;
@@ -373,6 +403,7 @@ fn execute_suite(
                 json!({
                     "runner": "dotnet",
                     "project": project,
+                    "app_args": app_args,
                     "success_marker": success_marker,
                 }),
             ))
@@ -414,13 +445,13 @@ mod tests {
 
     #[test]
     fn proof_suite_manifest_has_non_vacuous_coverage() {
-        assert_eq!(PROOF_SUITES.len(), 11);
+        assert_eq!(PROOF_SUITES.len(), 12);
         assert_eq!(
             PROOF_SUITES
                 .iter()
                 .map(|suite| suite.expected_min_tests)
                 .sum::<usize>(),
-            132
+            133
         );
         assert!(
             PROOF_SUITES
@@ -451,6 +482,12 @@ mod tests {
                 .iter()
                 .flat_map(|suite| suite.invariants)
                 .any(|invariant| *invariant == "same-revision-workspace-composition")
+        );
+        assert!(
+            PROOF_SUITES
+                .iter()
+                .flat_map(|suite| suite.invariants)
+                .any(|invariant| *invariant == "local-only-workspace-log-filter")
         );
     }
 

@@ -250,7 +250,7 @@ public sealed class RemoteMutationClient : IDisposable
         }
     }
 
-    private static void RequireDeploymentToken(string value, string label)
+    internal static void RequireDeploymentToken(string value, string label)
     {
         if (value.Length is < 1 or > 128
             || value != value.Trim()
@@ -261,7 +261,7 @@ public sealed class RemoteMutationClient : IDisposable
         }
     }
 
-    private static void RequireDeploymentTarget(string value)
+    internal static void RequireDeploymentTarget(string value)
     {
         if (value.Length is < 1 or > 256
             || value != value.Trim()

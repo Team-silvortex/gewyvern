@@ -118,6 +118,12 @@ can refresh it without changing remote state. Saturation is shown explicitly,
 uses an assertive accessibility announcement, and remains independent from
 runtime mutation fences.
 
+Every mutation confirmation also exposes its canonical Leselang equivalent.
+Refresh and capability discovery show a fixed source preview; the deployment
+preview updates only while all form fields are valid. `Copy Leselang` writes
+that source to the clipboard without sending a request, so GUI intent can be
+reviewed, versioned, or handed to a model before execution.
+
 The remote desktop toolbar filters the local runtime projection by name, ID,
 tag, or status. Input is bounded to 128 characters and debounced; `Ctrl+F` or
 `Cmd+F` focuses it, Escape clears it, and no filter text is sent to the server
@@ -283,6 +289,12 @@ created. A newer live event revision reloads the matching open workspace.
 Because log append does not advance the control-plane revision, each workspace
 also exposes a persistent Reload button and `F5` shortcut. Malformed, torn, or
 mismatched query state fails closed without retaining a partial document.
+Each workspace also provides a local-only log search and strict level selector.
+The query is control-character sanitized and capped at 128 characters, operates
+only on the retained sanitized display text, and never performs a network request
+or changes the revision-consistent snapshot. `Ctrl+F` or `Cmd+F` focuses search,
+`Escape` clears it, and an accessible live summary reports shown versus total
+entries. Empty filtered results remain distinct from an actually empty log.
 Runtime and capability refresh are blocked while state is stale, require
 an explicit confirmation dialog, carries the displayed runtime
 revision for optimistic concurrency, and is never retried automatically after
@@ -316,7 +328,9 @@ the reconnect bound and cursor-preserving manual resume, resync cursor reset,
 malformed-cache rejection, per-origin cache binding, atomic workspace query
 composition, runtime/log identity, bounded sanitized logs, and endpoint omission
 without requiring a UI or network service. The semantic workspace projection can be checked separately
-with `--verify-remote-workspace` on the Avalonia project. Against an authorized
+with `--verify-remote-workspace` on the Avalonia project; use
+`--verify-workspace-log-filter` for the local search, level, bound, and empty-state
+contract. Against an authorized
 live server, append `--connect HTTPS_ORIGIN CA_PATH CACHE_PATH --inspect
 RUNTIME_ID` to verify the complete authenticated Inspect/History/Logs path, or
 use `--refresh-capabilities RUNTIME_ID` to verify the typed capability mutation.

@@ -1,6 +1,8 @@
 internal static class RemoteWorkspaceDocumentProjection
 {
-    public static UiDocument Project(RemoteWorkspaceSnapshot snapshot)
+    public static UiDocument Project(
+        RemoteWorkspaceSnapshot snapshot,
+        bool logsFiltered = false)
     {
         var runtime = snapshot.Runtime;
         var prefix = $"workspace:{runtime.Id}";
@@ -31,8 +33,8 @@ internal static class RemoteWorkspaceDocumentProjection
                 TextNode(
                     $"{prefix}:logs:empty",
                     UiNodeKind.Text,
-                    "runtime.logs.empty",
-                    "No log entries"),
+                    logsFiltered ? "runtime.logs.filtered_empty" : "runtime.logs.empty",
+                    logsFiltered ? "No matching log entries" : "No log entries"),
             ]
             : snapshot.Logs.Select(entry => new UiNode
             {

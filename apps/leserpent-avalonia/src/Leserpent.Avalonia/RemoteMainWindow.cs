@@ -814,7 +814,20 @@ internal sealed class RemoteMainWindow : Window
         var intent = await new ParameterizedActionFormWindow(
                 form,
                 $"{SafeDisplay(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
-                "This submits an authenticated, revision-checked deployment and is not retried automatically.")
+                "This submits an authenticated, revision-checked deployment and is not retried automatically.",
+                values =>
+                {
+                    if (!values.TryGetValue("pipeline_kind", out var pipelineKind))
+                    {
+                        throw new ArgumentException(
+                            "deployment form is missing pipeline_kind");
+                    }
+                    values.TryGetValue("target", out var target);
+                    return RemoteLeselangExport.Deploy(
+                        runtime.Id,
+                        pipelineKind,
+                        target);
+                })
             .ShowDialog<ParameterizedFormIntent?>(this);
         if (intent is null || lifetime.IsCancellationRequested)
         {
@@ -1347,6 +1360,9 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
             FontWeight = FontWeight.SemiBold,
             Padding = new Thickness(18, 9),
         };
+        var leselang = new LeselangExportControl(
+            refreshCapabilities ? "runtime-capabilities-refresh" : "runtime-refresh",
+            RemoteLeselangExport.Refresh(runtime.Id, refreshCapabilities));
         AutomationProperties.SetAutomationId(
             cancel,
             refreshCapabilities
@@ -1410,6 +1426,7 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
                         FontSize = 13,
                         TextWrapping = TextWrapping.Wrap,
                     },
+                    leselang,
                     buttons,
                 },
             },
@@ -1426,7 +1443,11 @@ internal sealed record ParameterizedFormIntent(IReadOnlyDictionary<string, strin
 
 internal sealed class ParameterizedActionFormWindow : Window
 {
-    public ParameterizedActionFormWindow(UiForm form, string context, string warning)
+    public ParameterizedActionFormWindow(
+        UiForm form,
+        string context,
+        string warning,
+        Func<IReadOnlyDictionary<string, string>, string> exportLeselang)
     {
         Title = form.Title.Fallback;
         Width = 520;
@@ -1486,6 +1507,14 @@ internal sealed class ParameterizedActionFormWindow : Window
         AutomationProperties.SetName(cancel, "Cancel form submission");
         AutomationProperties.SetAutomationId(submit, "parameter-form-submit");
         AutomationProperties.SetName(submit, form.SubmitLabel.Fallback);
+        var leselang = new LeselangExportControl("parameter-form");
+
+        IReadOnlyDictionary<string, string> Values() => inputs
+            .Where(entry => !string.IsNullOrEmpty(entry.Value.Input.Text))
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value.Input.Text!,
+                StringComparer.Ordinal);
 
         void Validate()
         {
@@ -1495,18 +1524,16 @@ internal sealed class ParameterizedActionFormWindow : Window
             validation.Text = invalid.Field is null
                 ? string.Empty
                 : $"{invalid.Field.Label.Fallback}: {ValidationMessage(invalid.Field)}";
+            leselang.Update(invalid.Field is null
+                ? exportLeselang(Values())
+                : null);
         }
         foreach (var (_, input) in inputs.Values)
         {
             input.TextChanged += (_, _) => Validate();
         }
         cancel.Click += (_, _) => Close(null);
-        submit.Click += (_, _) => Close(new ParameterizedFormIntent(inputs
-            .Where(entry => !string.IsNullOrEmpty(entry.Value.Input.Text))
-            .ToDictionary(
-                entry => entry.Key,
-                entry => entry.Value.Input.Text!,
-                StringComparer.Ordinal)));
+        submit.Click += (_, _) => Close(new ParameterizedFormIntent(Values()));
         Opened += (_, _) => inputs.Values.First().Input.Focus();
         KeyDown += (_, eventArgs) =>
         {
@@ -1549,6 +1576,7 @@ internal sealed class ParameterizedActionFormWindow : Window
                     },
                     fields,
                     validation,
+                    leselang,
                     new TextBlock
                     {
                         Text = Safe(warning),

@@ -48,6 +48,50 @@ fn connected_authority_health_is_visible_bounded_and_mutation_independent() {
 }
 
 #[test]
+fn gui_mutations_export_canonical_leselang_without_execution() {
+    let window = remote_main_window_source();
+    let exporter = avalonia_source("Leserpent.RemoteClient/RemoteLeselangExport.cs");
+    let control = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    assert!(window.contains("RemoteLeselangExport.Refresh"));
+    assert!(window.contains("RemoteLeselangExport.Deploy"));
+    assert!(window.contains("new LeselangExportControl"));
+    assert!(exporter.contains("runtime.refresh_capabilities"));
+    assert!(exporter.contains("target: none"));
+    assert!(exporter.contains("GUI Leselang export diverged"));
+    assert!(!exporter.contains("RemoteWireTransport"));
+    assert!(!exporter.contains("RemoteMutationClient(options"));
+    assert!(control.contains("Copy Leselang"));
+    assert!(control.contains("No operation was executed."));
+    assert!(control.contains("SetTextAsync(source)"));
+    assert!(program.contains("--verify-leselang-gui-export"));
+}
+
+#[test]
+fn runtime_workspace_log_filter_is_local_bounded_and_accessible() {
+    let window = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
+    let filter = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceLogFilter.cs");
+    let projection = avalonia_source("Leserpent.Avalonia/RemoteWorkspaceDocumentProjection.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    assert!(window.contains("runtime-log-search"));
+    assert!(window.contains("runtime-log-level"));
+    assert!(window.contains("runtime-log-filter-summary"));
+    assert!(window.contains("KeyModifiers.Control | KeyModifiers.Meta"));
+    assert!(window.contains("latestSnapshot = snapshot"));
+    assert!(window.contains("RemoteWorkspaceLogFilter.Apply"));
+    assert!(filter.contains("MaxQueryLength = 128"));
+    assert!(filter.contains("StringComparison.OrdinalIgnoreCase"));
+    assert!(filter.contains("log level filter is invalid"));
+    assert!(!filter.contains("RemoteWorkspaceClient"));
+    assert!(!filter.contains("RemoteWireTransport"));
+    assert!(projection.contains("No matching log entries"));
+    assert!(program.contains("--verify-workspace-log-filter"));
+    assert!(program.contains("local_only=true"));
+}
+
+#[test]
 fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     let window = avalonia_source("Leserpent.Avalonia/DesktopConnectionWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
