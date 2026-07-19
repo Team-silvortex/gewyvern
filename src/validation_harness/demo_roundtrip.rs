@@ -1,7 +1,6 @@
 use std::env;
 use std::fs;
-use std::io::{ErrorKind, Read, Write};
-use std::net::{Shutdown, TcpStream};
+use std::io::ErrorKind;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
@@ -15,6 +14,7 @@ use super::command::{
     ValidationError, ValidationReport, assert_eq_str, default_out_dir, repo_root, run_cargo_status,
     value_at,
 };
+use super::http_probe::bounded_http_get;
 
 pub fn run_socket_roundtrip_demo(
     socket_target: Option<&str>,
@@ -448,7 +448,7 @@ fn wait_for_http_fragment(
 ) -> Result<String, ValidationError> {
     let deadline = Instant::now() + Duration::from_secs(16);
     while Instant::now() < deadline {
-        if let Ok(body) = http_get(addr, path)
+        if let Ok(body) = bounded_http_get(addr, path)
             && body.contains(fragment)
         {
             return Ok(body);
@@ -504,7 +504,7 @@ fn wait_for_json(
 ) -> Result<Value, ValidationError> {
     let deadline = Instant::now() + Duration::from_secs(16);
     while Instant::now() < deadline {
-        if let Ok(body) = http_get(addr, path)
+        if let Ok(body) = bounded_http_get(addr, path)
             && body.contains(fragment)
         {
             let payload = body
@@ -519,23 +519,6 @@ fn wait_for_json(
     Err(ValidationError::new(format!(
         "timed out waiting for {fragment} at http://{addr}{path}"
     )))
-}
-
-fn http_get(addr: &str, path: &str) -> Result<String, ValidationError> {
-    let mut stream = TcpStream::connect(addr)?;
-    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    write!(
-        stream,
-        "GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n"
-    )?;
-    stream.shutdown(Shutdown::Write).ok();
-
-    let mut response = String::new();
-    stream.read_to_string(&mut response)?;
-    if !response.starts_with("HTTP/1.1 200") && !response.starts_with("HTTP/1.0 200") {
-        return Err(ValidationError::new("HTTP endpoint did not return 200"));
-    }
-    Ok(response)
 }
 
 fn write_training_summary(out_dir: &Path, checked: usize) -> Result<(), ValidationError> {

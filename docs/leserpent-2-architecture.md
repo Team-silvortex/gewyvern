@@ -88,7 +88,7 @@ The intended source ownership is:
 | `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch` |
 | `leserpent-domain` | validated IDs, commands, queries, events, revisions, capabilities, and plan authorization |
 | `leserpent-runtime` | transactions, scheduling, policy, replay, projections |
-| `leserpent-protocol` | IPC, HTTP, WebSocket, schema and compatibility |
+| `leserpent-protocol` | IPC, HTTP, WebSocket, schema, compatibility, and shared transport safety |
 | `leserpent-adapters` | typed Gewyvern health, status, deployment, discovery, and native secret-store integrations |
 | `leserpent-cli` | native CLI parsing and rendering |
 | `leserpentd` | local and remote runtime host |
@@ -320,6 +320,20 @@ address, certificate, private key, and environment-only bearer token; there is
 no plaintext fallback. HTTP/1.1 headers are bounded, request bodies retain the
 1 MiB protocol limit, ambiguous framing fails closed, and peer-controlled
 failures are isolated per connection.
+
+Transport-independent safety mechanics have one implementation in
+`leserpent-protocol::transport_safety`: HTTP header token validation, bounded
+regular-file opening with atomic symlink rejection on Unix, read-time growth
+enforcement, and deadline-bounded TCP connection. CLI, adapters, and daemon
+consume those primitives while retaining ownership of TLS configuration,
+authentication, private-key permissions, and user-facing error semantics. This
+keeps policy local without duplicating security-sensitive I/O.
+
+The synchronous connection budget starts before address resolution, so time
+spent resolving consumes the remaining socket-attempt budget. The platform
+resolver itself cannot be interrupted through `std::net`; callers therefore
+treat this as a resolved-address connection deadline rather than claiming a
+hard DNS wall-clock timeout.
 
 The event schema is versioned independently from request/response wire-v1.
 Sessions receive endpoint-redacted runtime snapshots, revision heartbeats, and

@@ -307,6 +307,24 @@ Practical reading rule:
 - use `evidence_dir` as the on-disk root for deeper inspection
 - read `extra` only through the documented per-command keys below
 
+### Validation Transport Safety
+
+Native validation clients and `gewyvern_socket_send` share the root
+`transport_safety` TCP connector. Address-resolution time consumes one
+connection deadline and at most eight resolved candidates are attempted.
+Callers retain their own read/write timeout policy; the validation HTTP layer
+additionally owns request-component validation, the 1 MiB response limit,
+strict success/header parsing, and chunked-body decoding.
+
+`gewyvern_socket_send --raw-line` accepts exactly one non-empty CR/LF-free
+UTF-8 line. Its payload plus the appended newline must fit the socket-ingest
+64 KiB line limit shared from `socket_input`; oversized or multiline input is
+rejected before any connection is attempted.
+
+The sender also requires exactly one of `--socket` or `--tcp-socket` and at
+most one explicit payload mode. `--template` and `--raw-line` are mutually
+exclusive in either order; no payload option means the UDP template default.
+
 ### Release Gate JSON
 
 For `gewyvern_validate -- --json release-gate`, the stable `extra` core is:

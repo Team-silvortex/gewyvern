@@ -2364,6 +2364,7 @@ fn collect_remote_preflight(
 ) -> Result<RemotePreflight, ValidationError> {
     let mut required = vec![
         "bash",
+        "awk",
         "curl",
         "dpkg-deb",
         "rpm",
@@ -2372,9 +2373,11 @@ fn collect_remote_preflight(
         "find",
         "flock",
         "grep",
+        "ip",
         "mktemp",
         "realpath",
         "sha256sum",
+        "sudo",
     ];
     if build_packages {
         required.extend(["cargo", "cargo-clippy", "rustc", "python3", "rpmbuild"]);

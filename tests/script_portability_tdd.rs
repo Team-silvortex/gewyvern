@@ -29,7 +29,7 @@ fn resilience_log_evidence_no_longer_depends_on_shell_grep() {
 
     assert!(harness.contains("line_has_resilience_signal"));
     assert!(harness.contains("backoff_ms="));
-    assert!(harness.contains("TcpStream::connect"));
+    assert!(harness.contains("bounded_tcp_connect"));
     assert!(script.contains("gewyvern_validate"));
     assert!(script.contains("resilience-log-evidence"));
     assert!(fault.contains("resilience-drive-bad-json"));

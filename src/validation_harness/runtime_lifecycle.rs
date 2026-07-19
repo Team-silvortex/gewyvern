@@ -1,6 +1,5 @@
 use std::fs::{self, File};
-use std::io::{Read, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
@@ -9,6 +8,7 @@ use std::time::{Duration, Instant};
 use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_status,
 };
+use super::http_probe::{bounded_http_get, bounded_tcp_connect};
 
 pub fn run_runtime_lifecycle_validation(
     out_dir: Option<PathBuf>,
@@ -244,7 +244,7 @@ fn wait_for_http_body(
 ) -> Result<(), ValidationError> {
     let deadline = Instant::now() + Duration::from_secs(16);
     while Instant::now() < deadline {
-        if let Ok(body) = http_get(addr, path) {
+        if let Ok(body) = bounded_http_get(addr, path) {
             fs::write(output_path, &body)?;
             if body.contains(fragment) {
                 return Ok(());
@@ -257,25 +257,8 @@ fn wait_for_http_body(
     )))
 }
 
-fn http_get(addr: &str, path: &str) -> Result<String, ValidationError> {
-    let mut stream = TcpStream::connect(addr)?;
-    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    write!(
-        stream,
-        "GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n"
-    )?;
-    stream.shutdown(Shutdown::Write).ok();
-
-    let mut response = String::new();
-    stream.read_to_string(&mut response)?;
-    if !response.starts_with("HTTP/1.1 200") && !response.starts_with("HTTP/1.0 200") {
-        return Err(ValidationError::new("HTTP endpoint did not return 200"));
-    }
-    Ok(response)
-}
-
 fn expect_http_unreachable(addr: &str) -> Result<(), ValidationError> {
-    match TcpStream::connect(addr) {
+    match bounded_tcp_connect(addr) {
         Ok(_) => Err(ValidationError::new(format!(
             "expected {addr} to be unreachable after shutdown"
         ))),

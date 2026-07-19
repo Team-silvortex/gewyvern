@@ -1,10 +1,13 @@
-use std::fs;
 use std::io::{BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use leserpent_protocol::transport_safety::{
+    BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
+    open_bounded_regular_file,
+};
 use leserpent_protocol::{
     MAX_PROTOCOL_MESSAGE_BYTES, RequestEnvelope, ResponseEnvelope, decode_response, encode_request,
 };
@@ -14,7 +17,6 @@ use zeroize::Zeroizing;
 
 use crate::CliError;
 
-const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 const MAX_CA_FILE_BYTES: u64 = 1024 * 1024;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -29,25 +31,7 @@ impl HttpsClient {
         validate_remote_token(&token)?;
         let endpoint = HttpsEndpoint::parse(endpoint)?;
         let ca_path = ca_path.as_ref();
-        let metadata = fs::symlink_metadata(ca_path).map_err(|_| {
-            CliError::Configuration(format!(
-                "remote CA file '{}' is unavailable",
-                ca_path.display()
-            ))
-        })?;
-        if metadata.file_type().is_symlink()
-            || !metadata.file_type().is_file()
-            || metadata.len() == 0
-            || metadata.len() > MAX_CA_FILE_BYTES
-        {
-            return Err(CliError::Configuration(
-                "remote CA must be a regular non-symlink file no larger than 1 MiB".into(),
-            ));
-        }
-        let mut reader = BufReader::new(
-            fs::File::open(ca_path)
-                .map_err(|_| CliError::Configuration("remote CA file cannot be opened".into()))?,
-        );
+        let mut reader = BufReader::new(open_ca_file(ca_path)?);
         let certificates = CertificateDer::pem_reader_iter(&mut reader)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| CliError::Configuration("remote CA contains invalid PEM".into()))?;
@@ -84,14 +68,7 @@ impl HttpsClient {
                 "remote request exceeds the protocol limit".into(),
             ));
         }
-        let socket = TcpStream::connect((self.endpoint.host.as_str(), self.endpoint.port))
-            .map_err(|_| CliError::Transport("remote HTTPS endpoint is unavailable".into()))?;
-        socket
-            .set_read_timeout(Some(CONNECTION_TIMEOUT))
-            .map_err(|error| CliError::Transport(error.to_string()))?;
-        socket
-            .set_write_timeout(Some(CONNECTION_TIMEOUT))
-            .map_err(|error| CliError::Transport(error.to_string()))?;
+        let socket = connect_endpoint(&self.endpoint)?;
         let connection =
             ClientConnection::new(Arc::clone(&self.tls), self.endpoint.server_name.clone())
                 .map_err(|error| CliError::Transport(format!("TLS setup failed: {error}")))?;
@@ -109,6 +86,19 @@ impl HttpsClient {
             .map_err(|error| CliError::Transport(error.to_string()))?;
         read_http_response(&mut stream)
     }
+}
+
+fn open_ca_file(ca_path: &Path) -> Result<BoundedFile, CliError> {
+    open_bounded_regular_file(ca_path, MAX_CA_FILE_BYTES).map_err(|_| {
+        CliError::Configuration(
+            "remote CA must be a readable regular non-symlink file no larger than 1 MiB".into(),
+        )
+    })
+}
+
+fn connect_endpoint(endpoint: &HttpsEndpoint) -> Result<TcpStream, CliError> {
+    connect_with_deadline((endpoint.host.as_str(), endpoint.port), CONNECTION_TIMEOUT)
+        .map_err(|_| CliError::Transport("remote HTTPS endpoint is unavailable".into()))
 }
 
 struct HttpsEndpoint {
@@ -217,7 +207,13 @@ fn read_http_response(stream: &mut impl Read) -> Result<ResponseEnvelope, CliErr
         }
         bytes.extend_from_slice(&chunk[..read]);
     };
-    let header = std::str::from_utf8(&bytes[..header_end - 4])
+    let header_bytes = &bytes[..header_end - 4];
+    if !header_bytes.is_ascii() {
+        return Err(CliError::Protocol(
+            "remote response headers are not valid ASCII".into(),
+        ));
+    }
+    let header = std::str::from_utf8(header_bytes)
         .map_err(|_| CliError::Protocol("remote response headers are not valid ASCII".into()))?;
     let mut lines = header.split("\r\n");
     let status_line = lines
@@ -245,6 +241,11 @@ fn read_http_response(stream: &mut impl Read) -> Result<ResponseEnvelope, CliErr
         let (name, value) = line
             .split_once(':')
             .ok_or_else(|| CliError::Protocol("remote response header is malformed".into()))?;
+        if !is_http_header_name(name) {
+            return Err(CliError::Protocol(
+                "remote response header name is invalid".into(),
+            ));
+        }
         let value = value.trim();
         if name.eq_ignore_ascii_case("content-length") {
             if content_length.replace(value).is_some() {
@@ -310,6 +311,11 @@ fn find_header_end(bytes: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use std::net::TcpListener;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+    #[cfg(unix)]
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use leserpent_protocol::{
         HealthResponse, PROTOCOL_SCHEMA_VERSION, ProtocolResponse, ResponseEnvelope,
@@ -338,6 +344,36 @@ mod tests {
         ] {
             assert!(HttpsEndpoint::parse(endpoint).is_err(), "{endpoint}");
         }
+    }
+
+    #[test]
+    fn endpoint_connection_uses_the_parsed_socket_candidates() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = HttpsEndpoint::parse(&format!(
+            "https://127.0.0.1:{}",
+            listener.local_addr().unwrap().port()
+        ))
+        .unwrap();
+
+        assert!(connect_endpoint(&endpoint).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ca_loader_rejects_symlinks_at_open_time() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir();
+        let target = root.join(format!("leserpent-cli-ca-target-{unique}.pem"));
+        let link = root.join(format!("leserpent-cli-ca-link-{unique}.pem"));
+        std::fs::write(&target, b"not-empty").unwrap();
+        symlink(&target, &link).unwrap();
+
+        assert!(open_ca_file(&link).is_err());
+        std::fs::remove_file(link).unwrap();
+        std::fs::remove_file(target).unwrap();
     }
 
     #[test]
@@ -371,6 +407,15 @@ mod tests {
         assert!(read_http_response(&mut Cursor::new(duplicate)).is_err());
         let chunked = response("200 OK", "Transfer-Encoding: chunked\r\n", &body);
         assert!(read_http_response(&mut Cursor::new(chunked)).is_err());
+        let disguised_chunked = response(
+            "200 OK",
+            &format!(
+                "Transfer-Encoding : chunked\r\nContent-Length: {}\r\n",
+                body.len()
+            ),
+            &body,
+        );
+        assert!(read_http_response(&mut Cursor::new(disguised_chunked)).is_err());
         let redirect = response(
             "302 Found",
             &format!("Content-Length: {}\r\n", body.len()),

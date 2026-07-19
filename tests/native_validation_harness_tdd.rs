@@ -806,7 +806,7 @@ fn resilience_validation_bundle_is_native_with_legacy_wrappers() {
     assert!(resilience.contains("run_resilience_bundle_validation"));
     assert!(resilience.contains("run_resilience_emit_helper_validation"));
     assert!(resilience.contains("run_resilience_drive_bad_json_validation"));
-    assert!(resilience.contains("TcpStream::connect"));
+    assert!(resilience.contains("bounded_tcp_connect"));
     assert!(resilience.contains("external_analysis_circuit_open"));
     assert!(resilience.contains("backoff_ms="));
     assert!(resilience.contains("resilience input must not be a symlink"));
@@ -1054,6 +1054,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("uname -m"));
     assert!(remote.contains("\"realpath\""));
     assert!(remote.contains("\"sha256sum\""));
+    assert!(remote.contains("\"awk\""));
+    assert!(remote.contains("\"ip\""));
+    assert!(remote.contains("\"sudo\""));
     assert!(remote.contains("sudo_available"));
     assert!(remote.contains("ebpf_helper_available"));
     assert!(remote.contains("default_route_device"));

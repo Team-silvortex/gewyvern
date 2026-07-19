@@ -3,10 +3,14 @@ use gewyvern::ledger::{
     CpuId, FactEnvelope, FactId, FactKind, PacketDir, PacketMetaFact, RouteDecisionFact, SessionId,
     TcpStateFact,
 };
+use gewyvern::socket_input::MAX_FACT_LINE_BYTES;
+use gewyvern::transport_safety::connect_with_deadline;
 use std::env;
-use std::io::Write;
+use std::io::{self, Write};
 use std::net::TcpStream;
 use std::time::{Duration, SystemTime};
+
+const SOCKET_IO_TIMEOUT: Duration = Duration::from_secs(3);
 
 fn main() {
     let cli = Cli::from_args(env::args().skip(1)).unwrap_or_else(|message| {
@@ -24,6 +28,12 @@ fn main() {
                     eprintln!("failed to connect to {path}: {err}");
                     std::process::exit(1);
                 });
+                stream
+                    .set_write_timeout(Some(SOCKET_IO_TIMEOUT))
+                    .unwrap_or_else(|err| {
+                        eprintln!("failed to configure socket timeout for {path}: {err}");
+                        std::process::exit(1);
+                    });
 
                 write_payload(&mut stream, &cli.payload_mode);
             }
@@ -36,7 +46,7 @@ fn main() {
             }
         }
         SocketTarget::Tcp(addr) => {
-            let mut stream = TcpStream::connect(&addr).unwrap_or_else(|err| {
+            let mut stream = connect_tcp(&addr).unwrap_or_else(|err| {
                 eprintln!("failed to connect to {addr}: {err}");
                 std::process::exit(1);
             });
@@ -44,6 +54,12 @@ fn main() {
             write_payload(&mut stream, &cli.payload_mode);
         }
     }
+}
+
+fn connect_tcp(addr: &str) -> io::Result<TcpStream> {
+    let stream = connect_with_deadline(addr, SOCKET_IO_TIMEOUT)?;
+    stream.set_write_timeout(Some(SOCKET_IO_TIMEOUT))?;
+    Ok(stream)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -88,31 +104,50 @@ impl Cli {
         I: IntoIterator<Item = String>,
     {
         let mut socket_target = None;
-        let mut payload_mode = PayloadMode::Template(TemplateMode::Udp);
+        let mut payload_mode = None;
         let mut args = args.into_iter();
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--socket" | "--unix-socket" => {
-                    socket_target = Some(SocketTarget::Unix(args.next().ok_or_else(|| {
+                    let target = SocketTarget::Unix(args.next().ok_or_else(|| {
                         "missing value for --socket, expected a unix socket path".to_string()
-                    })?));
+                    })?);
+                    select_once(
+                        &mut socket_target,
+                        target,
+                        "socket target may be specified only once",
+                    )?;
                 }
                 "--tcp-socket" => {
-                    socket_target = Some(SocketTarget::Tcp(args.next().ok_or_else(|| {
+                    let target = SocketTarget::Tcp(args.next().ok_or_else(|| {
                         "missing value for --tcp-socket, expected host:port".to_string()
-                    })?));
+                    })?);
+                    select_once(
+                        &mut socket_target,
+                        target,
+                        "socket target may be specified only once",
+                    )?;
                 }
                 "--template" => {
                     let value = args.next().ok_or_else(|| {
                         "missing value for --template, expected tcp or udp".to_string()
                     })?;
-                    payload_mode = PayloadMode::Template(TemplateMode::from_str(&value)?);
+                    select_once(
+                        &mut payload_mode,
+                        PayloadMode::Template(TemplateMode::from_str(&value)?),
+                        "payload mode may be specified only once",
+                    )?;
                 }
                 "--raw-line" => {
-                    payload_mode = PayloadMode::RawLine(args.next().ok_or_else(|| {
+                    let line = args.next().ok_or_else(|| {
                         "missing value for --raw-line, expected one literal line".to_string()
-                    })?);
+                    })?;
+                    select_once(
+                        &mut payload_mode,
+                        PayloadMode::RawLine(validate_raw_line(line)?),
+                        "payload mode may be specified only once",
+                    )?;
                 }
                 "--help" | "-h" => return Err(usage().into()),
                 other => return Err(format!("unknown argument '{other}'\n{}", usage())),
@@ -123,9 +158,33 @@ impl Cli {
             socket_target: socket_target.ok_or_else(|| {
                 "missing required --socket <path> or --tcp-socket <host:port>".to_string()
             })?,
-            payload_mode,
+            payload_mode: payload_mode.unwrap_or(PayloadMode::Template(TemplateMode::Udp)),
         })
     }
+}
+
+fn select_once<T>(slot: &mut Option<T>, value: T, error: &str) -> Result<(), String> {
+    if slot.is_some() {
+        return Err(error.into());
+    }
+    *slot = Some(value);
+    Ok(())
+}
+
+fn validate_raw_line(line: String) -> Result<String, String> {
+    if line.trim().is_empty() {
+        return Err("--raw-line must not be empty or whitespace-only".into());
+    }
+    if line.contains(['\r', '\n']) {
+        return Err("--raw-line must contain exactly one line without CR or LF".into());
+    }
+    if line.len().saturating_add(1) > MAX_FACT_LINE_BYTES {
+        return Err(format!(
+            "--raw-line exceeds the {} byte socket-ingest line limit",
+            MAX_FACT_LINE_BYTES
+        ));
+    }
+    Ok(line)
 }
 
 fn write_payload<W: Write>(stream: &mut W, payload_mode: &PayloadMode) {
@@ -266,7 +325,9 @@ fn usage() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, PayloadMode, SocketTarget, TemplateMode};
+    use std::net::TcpListener;
+
+    use super::{Cli, MAX_FACT_LINE_BYTES, PayloadMode, SocketTarget, TemplateMode, connect_tcp};
 
     #[test]
     fn parse_cli_accepts_raw_line_payload() {
@@ -294,5 +355,96 @@ mod tests {
             Cli::from_args(["--tcp-socket".to_string(), "127.0.0.1:9000".to_string()]).unwrap();
 
         assert_eq!(cli.payload_mode, PayloadMode::Template(TemplateMode::Udp));
+    }
+
+    #[test]
+    fn parse_cli_rejects_duplicate_or_conflicting_selections_in_any_order() {
+        for args in [
+            vec![
+                "--socket",
+                "/tmp/gewyvern.sock",
+                "--tcp-socket",
+                "127.0.0.1:9",
+            ],
+            vec![
+                "--tcp-socket",
+                "127.0.0.1:9",
+                "--socket",
+                "/tmp/gewyvern.sock",
+            ],
+            vec![
+                "--tcp-socket",
+                "127.0.0.1:9",
+                "--template",
+                "udp",
+                "--raw-line",
+                "{}",
+            ],
+            vec![
+                "--tcp-socket",
+                "127.0.0.1:9",
+                "--raw-line",
+                "{}",
+                "--template",
+                "udp",
+            ],
+            vec![
+                "--tcp-socket",
+                "127.0.0.1:9",
+                "--template",
+                "udp",
+                "--template",
+                "tcp",
+            ],
+        ] {
+            assert!(
+                Cli::from_args(args.iter().map(|value| (*value).to_string())).is_err(),
+                "{args:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_cli_rejects_multiline_empty_and_oversized_raw_payloads() {
+        for line in ["", "   ", "{}\n{}", "{}\r{}"] {
+            assert!(
+                Cli::from_args([
+                    "--tcp-socket".to_string(),
+                    "127.0.0.1:9000".to_string(),
+                    "--raw-line".to_string(),
+                    line.to_string(),
+                ])
+                .is_err(),
+                "{line:?}"
+            );
+        }
+
+        let oversized = "x".repeat(MAX_FACT_LINE_BYTES);
+        assert!(
+            Cli::from_args([
+                "--tcp-socket".to_string(),
+                "127.0.0.1:9000".to_string(),
+                "--raw-line".to_string(),
+                oversized,
+            ])
+            .is_err()
+        );
+
+        let largest_valid = "x".repeat(MAX_FACT_LINE_BYTES - 1);
+        assert!(
+            Cli::from_args([
+                "--tcp-socket".to_string(),
+                "127.0.0.1:9000".to_string(),
+                "--raw-line".to_string(),
+                largest_valid,
+            ])
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn tcp_connector_uses_resolved_loopback_candidates() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        assert!(connect_tcp(&listener.local_addr().unwrap().to_string()).is_ok());
     }
 }

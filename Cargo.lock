@@ -388,6 +388,7 @@ name = "leserpent-adapters"
 version = "1.4.6"
 dependencies = [
  "leserpent-domain",
+ "leserpent-protocol",
  "leserpent-runtime",
  "libc",
  "rcgen",
@@ -429,6 +430,7 @@ name = "leserpent-protocol"
 version = "1.4.6"
 dependencies = [
  "leserpent-domain",
+ "libc",
  "serde",
  "serde_json",
 ]
@@ -460,6 +462,7 @@ dependencies = [
  "serde_json",
  "signal-hook",
  "tungstenite",
+ "zeroize",
 ]
 
 [[package]]

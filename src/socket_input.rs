@@ -8,7 +8,7 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-const MAX_FACT_LINE_BYTES: usize = 64 * 1024;
+pub const MAX_FACT_LINE_BYTES: usize = 64 * 1024;
 const MAX_FACT_COUNT: usize = 100_000;
 const SOCKET_ACCEPT_TIMEOUT: Duration = Duration::from_secs(5);
 const SOCKET_ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(25);

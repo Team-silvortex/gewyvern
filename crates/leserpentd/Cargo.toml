@@ -15,6 +15,7 @@ serde_json.workspace = true
 signal-hook.workspace = true
 rustls.workspace = true
 tungstenite.workspace = true
+zeroize = "1"
 
 [dev-dependencies]
 rcgen = "0.14"

@@ -2,6 +2,7 @@ use std::io;
 use std::time::{Duration, Instant};
 
 use leserpent_domain::{Revision, RuntimeProjection};
+use leserpent_protocol::transport_safety::is_http_header_name;
 use leserpent_protocol::{
     EVENT_SCHEMA_VERSION, EventEnvelope, MAX_PROTOCOL_MESSAGE_BYTES, ProtocolEvent,
     RemoteRuntimeProjection, encode_event,
@@ -145,14 +146,26 @@ impl EventSession {
 }
 
 pub(crate) fn is_event_upgrade(prefix: &[u8]) -> bool {
-    std::str::from_utf8(prefix)
-        .ok()
+    http_header_bytes(prefix)
+        .filter(|header| header.is_ascii())
+        .and_then(|header| std::str::from_utf8(header).ok())
         .and_then(|header| header.split("\r\n").next())
         .is_some_and(|line| line.starts_with("GET /v1/events"))
 }
 
+fn http_header_bytes(prefix: &[u8]) -> Option<&[u8]> {
+    prefix
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .map(|position| &prefix[..position])
+}
+
 fn validate_upgrade(prefix: &[u8], expected_token: &[u8]) -> Result<Option<Revision>, String> {
-    let header = std::str::from_utf8(prefix).map_err(|_| "invalid WebSocket headers")?;
+    let header = http_header_bytes(prefix).ok_or("invalid WebSocket headers")?;
+    if !header.is_ascii() {
+        return Err("invalid WebSocket headers".into());
+    }
+    let header = std::str::from_utf8(header).map_err(|_| "invalid WebSocket headers")?;
     let mut lines = header.split("\r\n");
     let request_line = lines.next().ok_or("missing WebSocket request line")?;
     let parts = request_line.split(' ').collect::<Vec<_>>();
@@ -167,6 +180,9 @@ fn validate_upgrade(prefix: &[u8], expected_token: &[u8]) -> Result<Option<Revis
             break;
         }
         let (name, value) = line.split_once(':').ok_or("invalid WebSocket header")?;
+        if !is_http_header_name(name) {
+            return Err("invalid WebSocket header".into());
+        }
         let value = value.trim();
         if name.eq_ignore_ascii_case("authorization") {
             if authorization.replace(value).is_some() {
@@ -311,5 +327,27 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn event_upgrade_parses_only_the_ascii_header_prefix() {
+        let mut request = upgrade_request(
+            "/v1/events",
+            std::str::from_utf8(TOKEN).unwrap(),
+            &[EVENT_SUBPROTOCOL],
+        );
+        request.extend_from_slice(&[0x82, 0xff, 0x00]);
+
+        assert!(is_event_upgrade(&request));
+        assert_eq!(validate_upgrade(&request, TOKEN).unwrap(), None);
+
+        let malformed = String::from_utf8(upgrade_request(
+            "/v1/events",
+            std::str::from_utf8(TOKEN).unwrap(),
+            &[EVENT_SUBPROTOCOL],
+        ))
+        .unwrap()
+        .replace("Upgrade: websocket", "Upgrade : websocket");
+        assert!(validate_upgrade(malformed.as_bytes(), TOKEN).is_err());
     }
 }

@@ -398,7 +398,7 @@
       "id": "boundary-leserpent-protocol",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
-      "summary": "The leserpent-protocol crate owns wire schemas, compatibility, and transports.",
+      "summary": "The leserpent-protocol crate owns wire schemas, compatibility, transports, and shared transport-safety primitives.",
       "source": "docs/leserpent-2-architecture.md",
       "cells": ["leserpent-2/transport-protocol/wire-compatibility"]
     },
@@ -414,7 +414,7 @@
       "id": "boundary-leserpent-cli",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
-      "summary": "The planned leserpent-cli crate owns native operator CLI parsing and rendering.",
+      "summary": "The leserpent-cli crate owns native operator CLI parsing, rendering, and transport-specific error semantics.",
       "source": "docs/leserpent-2-architecture.md",
       "cells": ["leserpent-2/native-cli/cli-parity"]
     },
@@ -422,7 +422,7 @@
       "id": "boundary-leserpentd",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
-      "summary": "The planned leserpentd crate owns isolated local and remote runtime hosting.",
+      "summary": "The leserpentd crate owns isolated local and remote runtime hosting.",
       "source": "docs/leserpent-2-architecture.md",
       "cells": ["leserpent-2/daemon-host/daemon-lifecycle"]
     },
@@ -504,15 +504,19 @@
       "independence": "standalone-tool",
       "contract": {
         "id": "gewyvern-machine-contract",
-        "version": "1.2.1",
+        "version": "1.8.0",
         "stability": "stable",
-        "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing", "bounded-stack-probe-http-response", "segmented-http-header-test-proof"]
+        "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing", "bounded-stack-probe-http-response", "bounded-stack-probe-connect-read-write-timeouts", "bounded-validation-resolved-address-count", "shared-validation-connect-deadline", "shared-core-transport-safety", "socket-send-shared-connect-deadline", "segmented-http-header-test-proof", "stack-probe-request-injection-rejection", "strict-http-success-status", "strict-http-header-terminator", "panic-free-chunk-decoder", "bracketed-ipv6-authority", "shared-bounded-validation-tcp-http", "deduplicated-validation-http-clients", "fragmented-ambiguous-oversized-http-proof", "bounded-resilience-fault-attempts", "bounded-resilience-log-input", "bounded-socket-send-connect-write", "shared-socket-ingest-line-limit", "single-line-raw-payload", "preconnect-raw-payload-validation", "socket-send-mutually-exclusive-target", "socket-send-mutually-exclusive-payload"]
       },
       "depends_on": [],
       "blockers": [],
       "consumers": ["gewyc", "leserpent", "etragon", "operators"],
       "evidence": [
         { "kind": "source", "path": "src/runtime.rs", "state": "present" },
+        { "kind": "source", "path": "src/transport_safety.rs", "state": "present" },
+        { "kind": "source", "path": "src/bin/gewyvern_socket_send.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/http_probe.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/resilience.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/stack_probe.rs", "state": "present" },
         { "kind": "test", "path": "tests/runtime_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/machine-contract.md", "state": "present" }
@@ -531,7 +535,7 @@
       "independence": "internal",
       "contract": {
         "id": "linux-attach-validation",
-        "version": "1.1.0",
+        "version": "1.3.0",
         "stability": "evolving",
         "surfaces": [
           "attach-smoke",
@@ -573,6 +577,7 @@
           "helper-readiness-state-machine",
           "helper-state-consistency-validation",
           "helper-specific-remediation-guidance",
+          "explicit-remote-preflight-command-inventory",
           "packaged-inactive-helper-provisioning",
           "native-root-provisioner",
           "dry-run-provisioning-validation",
@@ -859,16 +864,17 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-wire-contract",
-        "version": "1.0.0",
+        "version": "1.4.0",
         "stability": "stable",
-        "surfaces": ["wire-envelope", "strict-versioned-envelope-fields", "strict-health-payload-fields", "strict-remote-projection-fields", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "runtime-deploy-wire-command", "authenticated-https-wire", "authenticated-https-cli", "remote-capability-refresh-vertical", "remote-discovery-inspect-readback", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "bounded-http-framing", "tls-key-file-safety", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "tracked-rust-compatibility-binary-source", "physical-linux-native-aot-bundle-smoke", "staged-linux-installer-proof", "rustls-pki-types-direct-pem-parsing"]
+        "surfaces": ["wire-envelope", "strict-versioned-envelope-fields", "strict-health-payload-fields", "strict-remote-projection-fields", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "runtime-deploy-wire-command", "authenticated-https-wire", "authenticated-https-cli", "remote-capability-refresh-vertical", "remote-discovery-inspect-readback", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "zeroized-server-bearer-token", "zeroized-consumed-authorization-prefix", "bounded-http-framing", "strict-ascii-token-header-names", "exact-content-length-request-framing", "websocket-binary-prefix-preservation", "tls-key-file-safety", "atomic-unix-tls-identity-open", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "tracked-rust-compatibility-binary-source", "physical-linux-native-aot-bundle-smoke", "staged-linux-installer-proof", "rustls-pki-types-direct-pem-parsing", "shared-transport-safety-substrate", "single-source-http-header-token-grammar", "single-source-atomic-bounded-file-open", "single-source-deadline-tcp-connect", "post-open-file-growth-bounded-read", "zero-duplicate-transport-safety-implementations"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [],
-      "consumers": ["leserpent-runtime", "leserpent-cli", "avalonia-client", "web-adapter", "leserpentd"],
+      "consumers": ["leserpent-adapters", "leserpent-cli", "avalonia-client", "web-adapter", "leserpentd"],
       "evidence": [
         { "kind": "documentation", "path": "crates/leserpent-protocol/COMPATIBILITY.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol/src/transport_safety.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/ipc.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/remote.rs", "state": "present" },
@@ -1131,11 +1137,11 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-adapter-contract",
-        "version": "1.0.0",
+        "version": "1.4.0",
         "stability": "stable",
-        "surfaces": ["typed-adapter-trait", "adapter-registry", "cloneable-kind-handles", "same-kind-mutex", "cooperative-cancellation-context", "unknown-kind-rejection", "gewyvern-loopback-health", "gewyvern-typed-status-refresh", "gewyvern-authenticated-https", "explicit-ca-trust", "rustls-hostname-verification", "strict-http-json-framing", "bounded-http-response", "typed-authenticated-deployment", "shared-domain-deployment-request", "shared-domain-deployment-validation", "shared-domain-identity-validation", "deployment-confirmation", "fixed-deployment-endpoint", "deployment-idempotency-binding", "deployment-status-classification", "deployment-scheduler-vertical", "configured-target-capability-discovery", "fixed-capability-endpoint", "no-ambient-network-scan", "bounded-capability-schema", "canonical-capability-endpoints", "capability-claim-consistency", "discovery-scheduler-vertical", "authenticated-command-discovery-readback", "adapter-origin-omission-proof", "configured-secret-boundary", "typed-secret-store", "validated-secret-alias", "redacted-secret-value", "zeroized-secret-lifetime", "zeroized-authorization-request-buffer", "allowlisted-environment-secret-provider", "native-macos-keychain-provider", "security-framework-ffi", "clean-keychain-miss", "native-linux-secret-service-provider", "runtime-libsecret-loading", "bounded-libsecret-value", "dbus-clean-secret-miss", "physical-ubuntu-secret-service-proof", "explicit-daemon-platform-secret-selection", "no-platform-environment-fallback", "just-in-time-secret-resolution", "pre-network-secret-failure", "revision-bound-status-observation", "scheduler-daemon-adapter-vertical", "deployment", "discovery", "secret-store"]
+        "surfaces": ["typed-adapter-trait", "adapter-registry", "cloneable-kind-handles", "same-kind-mutex", "cooperative-cancellation-context", "unknown-kind-rejection", "gewyvern-loopback-health", "gewyvern-typed-status-refresh", "gewyvern-authenticated-https", "bounded-resolved-address-connect-budget", "content-length-complete-keepalive-response", "atomic-unix-ca-open", "strict-ascii-token-header-names", "explicit-ca-trust", "rustls-hostname-verification", "strict-http-json-framing", "bounded-http-response", "typed-authenticated-deployment", "shared-domain-deployment-request", "shared-domain-deployment-validation", "shared-domain-identity-validation", "deployment-confirmation", "fixed-deployment-endpoint", "deployment-idempotency-binding", "deployment-status-classification", "deployment-scheduler-vertical", "configured-target-capability-discovery", "fixed-capability-endpoint", "no-ambient-network-scan", "bounded-capability-schema", "canonical-capability-endpoints", "capability-claim-consistency", "discovery-scheduler-vertical", "authenticated-command-discovery-readback", "adapter-origin-omission-proof", "configured-secret-boundary", "typed-secret-store", "validated-secret-alias", "redacted-secret-value", "zeroized-secret-lifetime", "zeroized-authorization-request-buffer", "allowlisted-environment-secret-provider", "native-macos-keychain-provider", "security-framework-ffi", "clean-keychain-miss", "native-linux-secret-service-provider", "runtime-libsecret-loading", "bounded-libsecret-value", "dbus-clean-secret-miss", "physical-ubuntu-secret-service-proof", "explicit-daemon-platform-secret-selection", "no-platform-environment-fallback", "just-in-time-secret-resolution", "pre-network-secret-failure", "revision-bound-status-observation", "scheduler-daemon-adapter-vertical", "deployment", "discovery", "secret-store", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping"]
       },
-      "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/control-runtime/durable-authority"],
+      "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/control-runtime/durable-authority", "leserpent-2/transport-protocol/wire-compatibility"],
       "blockers": [],
       "consumers": ["leserpent-runtime", "leserpentd"],
       "evidence": [
@@ -1161,9 +1167,9 @@
       "independence": "standalone-service",
       "contract": {
         "id": "leserpentd-contract",
-        "version": "1.0.0",
+        "version": "1.4.0",
         "stability": "stable",
-        "surfaces": ["standalone-binary", "database-selection", "owner-heartbeat", "typed-adapter-registry", "bounded-worker-step", "bounded-kind-parallel-batch", "claim-order-settlement", "same-kind-lease-exclusion", "cooperative-cancellation", "adapter-panic-isolation", "panic-safe-worker-join", "heartbeat-only-safe-mode", "finite-step-smoke", "authenticated-unix-ipc", "authenticated-https-wire", "default-off-remote-listener", "environment-only-tokens", "private-socket", "private-tls-key", "bounded-frame", "bounded-http-request", "shared-wire-v1-dispatch", "peer-failure-isolation", "authenticated-runtime-log-query", "endpoint-free-log-response", "authority-health", "queue-health", "periodic-maintenance", "bounded-terminal-retention", "retention-statistics", "gewyvern-health-registration", "gewyvern-status-registration", "sigint-shutdown", "sigterm-shutdown", "raii-lease-release", "process-isolation", "lifecycle", "recovery", "physical-linux-stress-proof"]
+        "surfaces": ["standalone-binary", "database-selection", "owner-heartbeat", "typed-adapter-registry", "bounded-worker-step", "bounded-kind-parallel-batch", "claim-order-settlement", "same-kind-lease-exclusion", "cooperative-cancellation", "adapter-panic-isolation", "panic-safe-worker-join", "heartbeat-only-safe-mode", "finite-step-smoke", "authenticated-unix-ipc", "authenticated-https-wire", "default-off-remote-listener", "environment-only-tokens", "zeroized-remote-token", "zeroized-authorization-prefix", "private-socket", "private-tls-key", "atomic-unix-tls-identity-open", "bounded-frame", "bounded-http-request", "exact-content-length-request-framing", "strict-ascii-token-header-names", "websocket-binary-prefix-preservation", "shared-wire-v1-dispatch", "peer-failure-isolation", "authenticated-runtime-log-query", "endpoint-free-log-response", "authority-health", "queue-health", "periodic-maintenance", "bounded-terminal-retention", "retention-statistics", "gewyvern-health-registration", "gewyvern-status-registration", "sigint-shutdown", "sigterm-shutdown", "raii-lease-release", "process-isolation", "lifecycle", "recovery", "physical-linux-stress-proof", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping"]
       },
       "depends_on": ["leserpent-2/control-runtime/durable-authority", "leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/effect-adapters/typed-integrations"],
       "blockers": [],
@@ -1191,9 +1197,9 @@
       "independence": "standalone-tool",
       "contract": {
         "id": "leserpent-cli-contract",
-        "version": "1.0.0",
+        "version": "1.5.0",
         "stability": "stable",
-        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "zeroized-transport-credentials", "zeroized-authenticated-request-buffer", "zeroized-authorization-header", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "runtime-deploy-command", "bounded-deployment-arguments", "runtime-capability-refresh-command", "remote-capability-refresh-command", "remote-discovery-inspect-readback", "bounded-capability-summary", "explicit-unobserved-capabilities", "capability-observation-revision-output", "canonical-capability-endpoint-output", "sorted-capability-extension-output", "capability-secret-omission", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "cli-leselang-deployment-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract"]
+        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "bounded-resolved-address-connect-budget", "atomic-unix-ca-open", "strict-ascii-token-header-names", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "zeroized-transport-credentials", "zeroized-authenticated-request-buffer", "zeroized-authorization-header", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "runtime-deploy-command", "bounded-deployment-arguments", "runtime-capability-refresh-command", "remote-capability-refresh-command", "remote-discovery-inspect-readback", "bounded-capability-summary", "explicit-unobserved-capabilities", "capability-observation-revision-output", "canonical-capability-endpoint-output", "sorted-capability-extension-output", "capability-secret-omission", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "cli-leselang-deployment-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping"]
       },
       "depends_on": [
         "leserpent-2/transport-protocol/wire-compatibility",

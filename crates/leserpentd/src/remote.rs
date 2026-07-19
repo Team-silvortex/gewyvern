@@ -1,21 +1,25 @@
-use std::fs;
 use std::io::{BufReader, Cursor, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use leserpent_protocol::transport_safety::{
+    BoundedFile, MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
+};
 use leserpent_protocol::{
     MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request, encode_response,
 };
 use leserpent_runtime::ControlRuntime;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
 use crate::wire::{constant_time_equals, error_response, execute_request, validate_auth_token};
 
-const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 const MAX_CERTIFICATE_FILE_BYTES: u64 = 1024 * 1024;
 const MAX_PRIVATE_KEY_FILE_BYTES: u64 = 64 * 1024;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
@@ -40,10 +44,17 @@ impl<S: Read> Read for PrefixedStream<S> {
     fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
         let read = self.prefix.read(buffer)?;
         if read == 0 {
+            self.prefix.get_mut().zeroize();
             self.inner.read(buffer)
         } else {
             Ok(read)
         }
+    }
+}
+
+impl<S> Drop for PrefixedStream<S> {
+    fn drop(&mut self) {
+        self.prefix.get_mut().zeroize();
     }
 }
 
@@ -66,7 +77,7 @@ impl PrefixedStream<RemoteTlsStream> {
 pub struct RemoteServer {
     listener: TcpListener,
     tls: Arc<ServerConfig>,
-    token: Vec<u8>,
+    token: Zeroizing<Vec<u8>>,
     event_sessions: Vec<EventSession>,
 }
 
@@ -80,27 +91,21 @@ impl RemoteServer {
         validate_auth_token(token).map_err(|error| format!("remote {error}"))?;
         let certificate_path = certificate_path.as_ref();
         let private_key_path = private_key_path.as_ref();
-        validate_regular_file(
+        let certificate_file = open_regular_file(
             certificate_path,
             MAX_CERTIFICATE_FILE_BYTES,
             "TLS certificate",
         )?;
-        validate_private_key_file(private_key_path)?;
+        let private_key_file = open_private_key_file(private_key_path)?;
 
-        let mut certificate_reader = BufReader::new(
-            fs::File::open(certificate_path)
-                .map_err(|error| format!("cannot open TLS certificate: {error}"))?,
-        );
+        let mut certificate_reader = BufReader::new(certificate_file);
         let certificates = CertificateDer::pem_reader_iter(&mut certificate_reader)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| "TLS certificate file contains invalid PEM".to_string())?;
         if certificates.is_empty() {
             return Err("TLS certificate file contains no certificates".into());
         }
-        let mut key_reader = BufReader::new(
-            fs::File::open(private_key_path)
-                .map_err(|error| format!("cannot open TLS private key: {error}"))?,
-        );
+        let mut key_reader = BufReader::new(private_key_file);
         let private_key = PrivateKeyDer::from_pem_reader(&mut key_reader)
             .map_err(|_| "TLS private key file contains invalid PEM".to_string())?;
         let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -120,7 +125,7 @@ impl RemoteServer {
         Ok(Self {
             listener,
             tls: Arc::new(tls),
-            token: token.as_bytes().to_vec(),
+            token: Zeroizing::new(token.as_bytes().to_vec()),
             event_sessions: Vec::new(),
         })
     }
@@ -261,7 +266,7 @@ impl HttpError {
 }
 
 fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Vec<u8>, HttpError> {
-    let mut bytes = Vec::new();
+    let mut bytes = Zeroizing::new(Vec::new());
     let header_end = loop {
         if let Some(position) = find_header_end(&bytes) {
             if position > MAX_HTTP_HEADER_BYTES {
@@ -290,8 +295,11 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
         bytes.extend_from_slice(&chunk[..read]);
     };
 
-    let header =
-        std::str::from_utf8(&bytes[..header_end - 4]).map_err(|_| HttpError::bad_request())?;
+    let header_bytes = &bytes[..header_end - 4];
+    if !header_bytes.is_ascii() {
+        return Err(HttpError::bad_request());
+    }
+    let header = std::str::from_utf8(header_bytes).map_err(|_| HttpError::bad_request())?;
     let mut lines = header.split("\r\n");
     let request_line = lines.next().ok_or_else(HttpError::bad_request)?;
     let parts = request_line.split(' ').collect::<Vec<_>>();
@@ -304,6 +312,9 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
     let mut content_type = None;
     for line in lines {
         let (name, value) = line.split_once(':').ok_or_else(HttpError::bad_request)?;
+        if !is_http_header_name(name) {
+            return Err(HttpError::bad_request());
+        }
         let value = value.trim();
         if name.eq_ignore_ascii_case("authorization") {
             if authorization.replace(value).is_some() {
@@ -371,6 +382,9 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
     }
 
     let mut body = bytes.split_off(header_end);
+    if body.len() > content_length {
+        return Err(HttpError::bad_request());
+    }
     if body.len() < content_length {
         let missing = content_length - body.len();
         let mut remainder = vec![0_u8; missing];
@@ -379,7 +393,6 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
             .map_err(|_| HttpError::bad_request())?;
         body.extend_from_slice(&remainder);
     }
-    body.truncate(content_length);
     Ok(body)
 }
 
@@ -440,25 +453,17 @@ fn write_http_response(
         .map_err(|error| error.to_string())
 }
 
-fn validate_regular_file(path: &Path, limit: u64, label: &str) -> Result<(), String> {
-    let metadata =
-        fs::symlink_metadata(path).map_err(|error| format!("cannot inspect {label}: {error}"))?;
-    if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
-        return Err(format!("{label} must be a regular file, not a symlink"));
-    }
-    if metadata.len() == 0 || metadata.len() > limit {
-        return Err(format!("{label} has an invalid size"));
-    }
-    Ok(())
+fn open_regular_file(path: &Path, limit: u64, label: &str) -> Result<BoundedFile, String> {
+    open_bounded_regular_file(path, limit)
+        .map_err(|error| format!("cannot open bounded {label}: {error}"))
 }
 
-fn validate_private_key_file(path: &Path) -> Result<(), String> {
-    validate_regular_file(path, MAX_PRIVATE_KEY_FILE_BYTES, "TLS private key")?;
+fn open_private_key_file(path: &Path) -> Result<BoundedFile, String> {
+    let file = open_regular_file(path, MAX_PRIVATE_KEY_FILE_BYTES, "TLS private key")?;
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mode = fs::metadata(path)
+        let mode = file
+            .metadata()
             .map_err(|error| format!("cannot inspect TLS private key permissions: {error}"))?
             .permissions()
             .mode();
@@ -466,11 +471,12 @@ fn validate_private_key_file(path: &Path) -> Result<(), String> {
             return Err("TLS private key permissions must not grant group or other access".into());
         }
     }
-    Ok(())
+    Ok(file)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::io::{Cursor, Read, Write};
     use std::net::TcpStream;
     #[cfg(unix)]
@@ -544,6 +550,19 @@ mod tests {
         stream.read_exact(&mut body).unwrap();
         response.extend_from_slice(&body);
         response
+    }
+
+    #[test]
+    fn consumed_http_prefix_is_zeroized_before_reading_the_socket() {
+        let mut stream = PrefixedStream::new(
+            b"Authorization: Bearer secret\r\n\r\n".to_vec(),
+            Cursor::new(b"body".to_vec()),
+        );
+        let mut output = Vec::new();
+        stream.read_to_end(&mut output).unwrap();
+
+        assert_eq!(output, b"Authorization: Bearer secret\r\n\r\nbody");
+        assert!(stream.prefix.get_ref().iter().all(|byte| *byte == 0));
     }
 
     fn event_client(
@@ -633,6 +652,28 @@ mod tests {
         );
         assert!(matches!(
             read_http_request(&mut Cursor::new(chunked.into_bytes()), TOKEN.as_bytes())
+                .unwrap_err()
+                .status,
+            HttpStatus::BadRequest
+        ));
+
+        let disguised_chunked = format!(
+            "POST /v1/wire HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nTransfer-Encoding : chunked\r\nContent-Length: 0\r\n\r\n"
+        );
+        assert!(matches!(
+            read_http_request(
+                &mut Cursor::new(disguised_chunked.into_bytes()),
+                TOKEN.as_bytes()
+            )
+            .unwrap_err()
+            .status,
+            HttpStatus::BadRequest
+        ));
+
+        let mut trailing = request(TOKEN, &body);
+        trailing.push(b'x');
+        assert!(matches!(
+            read_http_request(&mut Cursor::new(trailing), TOKEN.as_bytes())
                 .unwrap_err()
                 .status,
             HttpStatus::BadRequest
@@ -858,10 +899,10 @@ mod tests {
         let link_path = temp_path("permissions-link", "key");
         fs::write(&key_path, "not-secret-test-key").unwrap();
         fs::set_permissions(&key_path, fs::Permissions::from_mode(0o644)).unwrap();
-        assert!(validate_private_key_file(&key_path).is_err());
+        assert!(open_private_key_file(&key_path).is_err());
         fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
         symlink(&key_path, &link_path).unwrap();
-        assert!(validate_private_key_file(&link_path).is_err());
+        assert!(open_private_key_file(&link_path).is_err());
         fs::remove_file(link_path).unwrap();
         fs::remove_file(key_path).unwrap();
     }

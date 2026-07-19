@@ -6,6 +6,7 @@ mod dotnet_proof;
 mod evidence_codec;
 mod field_smoke;
 mod high_frequency;
+mod http_probe;
 mod leselang_fuzz;
 mod leserpent_accessibility;
 mod leserpent_aot;

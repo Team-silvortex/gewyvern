@@ -14,6 +14,7 @@ use leserpent_runtime::ControlRuntime;
 use leserpentd::IpcServer;
 use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
 use signal_hook::consts::{SIGINT, SIGTERM};
+use zeroize::Zeroizing;
 
 fn main() {
     if let Err(error) = run() {
@@ -234,9 +235,9 @@ fn run() -> Result<(), String> {
     let mut remote = match (remote_listen, remote_certificate, remote_private_key) {
         (None, None, None) => None,
         (Some(address), Some(certificate), Some(private_key)) => {
-            let token = std::env::var("LESERPENT_REMOTE_TOKEN").map_err(|_| {
+            let token = Zeroizing::new(std::env::var("LESERPENT_REMOTE_TOKEN").map_err(|_| {
                 "LESERPENT_REMOTE_TOKEN is required with --remote-listen".to_string()
-            })?;
+            })?);
             Some(RemoteServer::bind(
                 address,
                 certificate,

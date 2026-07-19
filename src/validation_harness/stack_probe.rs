@@ -1,6 +1,8 @@
 use std::fs;
+#[cfg(test)]
 use std::io::{Read, Write};
-use std::net::{Shutdown, TcpStream};
+#[cfg(test)]
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -8,10 +10,12 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 use super::command::{ValidationError, ValidationReport, default_out_dir};
+#[cfg(test)]
+use super::http_probe::MAX_HTTP_RESPONSE_BYTES;
+use super::http_probe::bounded_http_get_body;
 
 const ETRAGON_ADMIN_TOKEN_HEADER: &str = "X-Etragon-Admin-Token";
 const GEWYVERN_ADMIN_TOKEN_HEADER: &str = "X-Gewyvern-Admin-Token";
-const MAX_HTTP_RESPONSE_BYTES: usize = 1024 * 1024;
 
 pub fn run_stack_probe_validation(
     url: &str,
@@ -256,64 +260,24 @@ fn http_get(url: &str, token: Option<&str>, token_header: &str) -> Result<String
         ));
     }
     let (host, port, path) = parse_http_url(url)?;
-    let mut stream = TcpStream::connect((host.as_str(), port))?;
-    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-    write!(
-        stream,
-        "GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nAccept: application/json\r\nUser-Agent: gewyvern-validate-stack-probe\r\nConnection: close\r\n"
-    )?;
+    let host_header = if host.contains(':') {
+        format!("[{host}]")
+    } else {
+        host.clone()
+    };
+    let mut headers = vec![
+        ("Accept", "application/json"),
+        ("User-Agent", "gewyvern-validate-stack-probe"),
+    ];
     if let Some(token) = token {
-        write!(stream, "{token_header}: {token}\r\n")?;
+        headers.push((token_header, token));
     }
-    write!(stream, "\r\n")?;
-    stream.shutdown(Shutdown::Write).ok();
-    let mut response_bytes = Vec::new();
-    Read::by_ref(&mut stream)
-        .take((MAX_HTTP_RESPONSE_BYTES + 1) as u64)
-        .read_to_end(&mut response_bytes)?;
-    if response_bytes.len() > MAX_HTTP_RESPONSE_BYTES {
-        return Err(ValidationError::new(format!(
-            "HTTP response exceeds {MAX_HTTP_RESPONSE_BYTES} bytes"
-        )));
-    }
-    let response = String::from_utf8(response_bytes)
-        .map_err(|_| ValidationError::new("HTTP response is not valid UTF-8"))?;
-    if !response.starts_with("HTTP/1.1 200") && !response.starts_with("HTTP/1.0 200") {
-        let status = response.lines().next().unwrap_or("<missing status line>");
-        return Err(ValidationError::new(format!(
-            "HTTP endpoint did not return 200: {status}"
-        )));
-    }
-    let (headers, body) = response
-        .split_once("\r\n\r\n")
-        .unwrap_or(("", response.as_str()));
-    if headers
-        .to_ascii_lowercase()
-        .contains("transfer-encoding: chunked")
-    {
-        return decode_chunked_body(body);
-    }
-    Ok(body.to_string())
-}
-
-fn decode_chunked_body(body: &str) -> Result<String, ValidationError> {
-    let mut remaining = body;
-    let mut decoded = String::new();
-    loop {
-        let Some((size_hex, after_size)) = remaining.split_once("\r\n") else {
-            return Err(ValidationError::new("invalid chunked HTTP body"));
-        };
-        let size = usize::from_str_radix(size_hex.trim(), 16)
-            .map_err(|err| ValidationError::new(format!("invalid chunk size: {err}")))?;
-        if size == 0 {
-            return Ok(decoded);
-        }
-        if after_size.len() < size + 2 {
-            return Err(ValidationError::new("truncated chunked HTTP body"));
-        }
-        decoded.push_str(&after_size[..size]);
-        remaining = &after_size[size + 2..];
-    }
+    bounded_http_get_body(
+        (host.as_str(), port),
+        &format!("{host_header}:{port}"),
+        &path,
+        &headers,
+    )
 }
 
 fn parse_http_url(url: &str) -> Result<(String, u16, String), ValidationError> {
@@ -321,11 +285,59 @@ fn parse_http_url(url: &str) -> Result<(String, u16, String), ValidationError> {
         .strip_prefix("http://")
         .ok_or_else(|| ValidationError::new("only http:// URLs are supported"))?;
     let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
-    let (host, port) = authority.split_once(':').unwrap_or((authority, "80"));
+    if authority.is_empty()
+        || authority
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+    {
+        return Err(ValidationError::new("HTTP URL authority is invalid"));
+    }
+    let request_path = format!("/{path}");
+    if request_path.bytes().any(|byte| {
+        !byte.is_ascii() || byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'#'
+    }) {
+        return Err(ValidationError::new(
+            "HTTP URL path must be encoded ASCII without controls, spaces, or fragments",
+        ));
+    }
+    let (host, port) = parse_http_authority(authority)?;
     let port = port
         .parse::<u16>()
         .map_err(|err| ValidationError::new(format!("invalid URL port: {err}")))?;
-    Ok((host.to_string(), port, format!("/{path}")))
+    Ok((host, port, request_path))
+}
+
+fn parse_http_authority(authority: &str) -> Result<(String, &str), ValidationError> {
+    if authority.contains('@') {
+        return Err(ValidationError::new("HTTP URL userinfo is not supported"));
+    }
+    if let Some(bracketed) = authority.strip_prefix('[') {
+        let (host, suffix) = bracketed
+            .split_once(']')
+            .ok_or_else(|| ValidationError::new("HTTP URL IPv6 host is missing ']'"))?;
+        if host.is_empty() {
+            return Err(ValidationError::new("HTTP URL host is empty"));
+        }
+        let port = if suffix.is_empty() {
+            "80"
+        } else {
+            suffix
+                .strip_prefix(':')
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| ValidationError::new("HTTP URL IPv6 authority is invalid"))?
+        };
+        return Ok((host.to_string(), port));
+    }
+    if authority.matches(':').count() > 1 {
+        return Err(ValidationError::new(
+            "HTTP URL IPv6 hosts must use brackets",
+        ));
+    }
+    let (host, port) = authority.split_once(':').unwrap_or((authority, "80"));
+    if host.is_empty() || port.is_empty() {
+        return Err(ValidationError::new("HTTP URL authority is incomplete"));
+    }
+    Ok((host.to_string(), port))
 }
 
 fn read_json(path: &Path) -> Result<Value, ValidationError> {
@@ -465,6 +477,52 @@ mod tests {
         .expect_err("control characters should be rejected");
         assert!(err.to_string().contains("control characters"));
         assert!(!err.to_string().contains("Injected"));
+    }
+
+    #[test]
+    fn probe_rejects_url_request_injection_before_connecting() {
+        for url in [
+            "http://local host/health",
+            "http://localhost/health\r\nInjected:value",
+            "http://localhost/a#fragment",
+            "http://localhost/雪",
+            "http://user@localhost/health",
+            "http://::1/health",
+            "http://[::1/health",
+        ] {
+            let error = parse_http_url(url).expect_err("unsafe URL must fail closed");
+            assert!(!error.to_string().is_empty(), "{url:?}");
+        }
+        assert_eq!(
+            parse_http_url("http://[::1]:8080/health").unwrap(),
+            ("::1".to_string(), 8080, "/health".to_string())
+        );
+        assert_eq!(
+            parse_http_url("http://[::1]/health").unwrap(),
+            ("::1".to_string(), 80, "/health".to_string())
+        );
+    }
+
+    #[test]
+    fn probe_rejects_ambiguous_success_status() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let addr = listener.local_addr().expect("listener should have address");
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            read_test_http_headers(&mut stream);
+            stream
+                .write_all(b"HTTP/1.1 200evil NOPE\r\nContent-Length: 2\r\n\r\n{}")
+                .expect("response should write");
+        });
+
+        let error = http_get(
+            &format!("http://127.0.0.1:{}/health", addr.port()),
+            None,
+            GEWYVERN_ADMIN_TOKEN_HEADER,
+        )
+        .expect_err("ambiguous status must fail closed");
+        assert!(error.to_string().contains("did not return 200"));
+        handle.join().expect("server thread should exit cleanly");
     }
 
     #[test]

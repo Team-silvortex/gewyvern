@@ -310,6 +310,11 @@ cargo run -- --tcp-socket 127.0.0.1:9000 --template udp --json
 cargo run --bin gewyvern_socket_send -- --tcp-socket 127.0.0.1:9000 --template udp
 ```
 
+`gewyvern_socket_send` accepts exactly one socket target. `--template` and
+`--raw-line` are mutually exclusive; omitting both keeps the UDP template
+default. Duplicate or conflicting selections are rejected instead of using the
+last argument.
+
 Live `--serve` plus API:
 
 ```bash

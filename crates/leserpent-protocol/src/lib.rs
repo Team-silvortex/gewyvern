@@ -6,6 +6,7 @@ use leserpent_domain::{
 use serde::{Deserialize, Serialize};
 
 pub mod compatibility_v1;
+pub mod transport_safety;
 
 pub const PROTOCOL_SCHEMA_VERSION: u32 = 1;
 pub const EVENT_SCHEMA_VERSION: u32 = 1;

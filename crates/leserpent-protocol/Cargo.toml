@@ -10,3 +10,5 @@ leserpent-domain = { path = "../leserpent-domain" }
 serde.workspace = true
 serde_json.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

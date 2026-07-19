@@ -1,15 +1,16 @@
 // Keep resilience tests adjacent to the probe helpers they specify.
 #![allow(clippy::items_after_test_module)]
 
-use std::fs;
-use std::io::Write;
-use std::net::{Shutdown, TcpStream};
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::net::Shutdown;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 use super::command::{ValidationError, ValidationReport, default_out_dir};
+use super::http_probe::bounded_tcp_connect;
 
 const EVENTS: &[&str] = &[
     "external_analysis_failed",
@@ -19,6 +20,10 @@ const EVENTS: &[&str] = &[
     "socket_session_run_failed",
     "socket_service_recovered",
 ];
+const MAX_BAD_JSON_ATTEMPTS: usize = 10_000;
+const MAX_RESILIENCE_INPUT_FILES: usize = 1024;
+const MAX_RESILIENCE_LOG_FILE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_RESILIENCE_LOG_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 
 pub fn run_resilience_log_evidence_validation(
     log_source: PathBuf,
@@ -104,6 +109,11 @@ pub fn run_resilience_drive_bad_json_validation(
     count: usize,
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
+    if !(1..=MAX_BAD_JSON_ATTEMPTS).contains(&count) {
+        return Err(ValidationError::new(format!(
+            "bad-json attempt count must be between 1 and {MAX_BAD_JSON_ATTEMPTS}"
+        )));
+    }
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("resilience-drive-bad-json"));
     prepare_dir(&out_dir)?;
     let mut connected = 0usize;
@@ -134,7 +144,7 @@ pub fn run_resilience_drive_bad_json_validation(
 }
 
 fn send_bad_json(host: &str, port: u16) -> Result<(), ValidationError> {
-    let mut stream = TcpStream::connect((host, port))?;
+    let mut stream = bounded_tcp_connect((host, port))?;
     stream.write_all(b"{\"bad\":\"json\"\n")?;
     stream.shutdown(Shutdown::Write).ok();
     Ok(())
@@ -158,8 +168,17 @@ fn extract_log_evidence(log_source: &Path, out_dir: &Path) -> Result<(), Validat
     }
 
     let mut events = Vec::new();
+    let mut total_bytes = 0usize;
     for file in files {
-        let body = fs::read_to_string(&file)?;
+        let body = read_bounded_log(&file)?;
+        total_bytes = total_bytes.checked_add(body.len()).ok_or_else(|| {
+            ValidationError::new("resilience log input byte accounting overflowed")
+        })?;
+        if total_bytes > MAX_RESILIENCE_LOG_TOTAL_BYTES {
+            return Err(ValidationError::new(format!(
+                "resilience log inputs exceed {MAX_RESILIENCE_LOG_TOTAL_BYTES} bytes"
+            )));
+        }
         for line in body.lines() {
             if line_has_resilience_signal(line) {
                 events.push(line.to_string());
@@ -205,6 +224,11 @@ fn resolve_input_files(input_path: &Path) -> Result<Vec<PathBuf>, ValidationErro
                 )));
             }
             files.push(entry.path());
+            if files.len() > MAX_RESILIENCE_INPUT_FILES {
+                return Err(ValidationError::new(format!(
+                    "resilience input directory exceeds {MAX_RESILIENCE_INPUT_FILES} files"
+                )));
+            }
         }
         files.sort();
         return Ok(files);
@@ -213,6 +237,33 @@ fn resolve_input_files(input_path: &Path) -> Result<Vec<PathBuf>, ValidationErro
         "input path does not exist: {}",
         input_path.display()
     )))
+}
+
+fn read_bounded_log(path: &Path) -> Result<String, ValidationError> {
+    let mut file = File::open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() || metadata.len() > MAX_RESILIENCE_LOG_FILE_BYTES as u64 {
+        return Err(ValidationError::new(format!(
+            "resilience log must be a regular file no larger than {MAX_RESILIENCE_LOG_FILE_BYTES} bytes: {}",
+            path.display()
+        )));
+    }
+    let mut bytes = Vec::new();
+    Read::by_ref(&mut file)
+        .take((MAX_RESILIENCE_LOG_FILE_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_RESILIENCE_LOG_FILE_BYTES {
+        return Err(ValidationError::new(format!(
+            "resilience log grew beyond {MAX_RESILIENCE_LOG_FILE_BYTES} bytes while reading: {}",
+            path.display()
+        )));
+    }
+    String::from_utf8(bytes).map_err(|_| {
+        ValidationError::new(format!(
+            "resilience log is not valid UTF-8: {}",
+            path.display()
+        ))
+    })
 }
 
 #[cfg(test)]
@@ -233,6 +284,36 @@ mod tests {
         fs::create_dir(root.join("nested")).unwrap();
         assert!(resolve_input_files(&root).is_err());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn bad_json_drive_rejects_vacuous_and_unbounded_attempt_counts() {
+        assert!(run_resilience_drive_bad_json_validation("127.0.0.1", 9, 0, None).is_err());
+        assert!(
+            run_resilience_drive_bad_json_validation(
+                "127.0.0.1",
+                9,
+                MAX_BAD_JSON_ATTEMPTS + 1,
+                None,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn bounded_log_reader_rejects_oversized_sparse_files() {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-resilience-oversized-{}-{}.log",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let file = File::create(&path).unwrap();
+        file.set_len(MAX_RESILIENCE_LOG_FILE_BYTES as u64 + 1)
+            .unwrap();
+        drop(file);
+
+        assert!(read_bounded_log(&path).is_err());
+        fs::remove_file(path).unwrap();
     }
 }
 

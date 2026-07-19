@@ -22,4 +22,5 @@ pub mod runtime;
 pub mod runtime_layout;
 pub mod socket_input;
 pub mod template;
+pub mod transport_safety;
 pub mod validation_harness;
