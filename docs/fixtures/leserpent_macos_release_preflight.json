@@ -1,6 +1,6 @@
 {
   "app": "Leserpent.app",
-  "app_executable_sha256": "bfadc513b089e252d3c9a9cc1cdca60f058ce9f2645fd40fc99f81ca300f81fd",
+  "app_executable_sha256": "01a87c6066ae654f05190ad0dd7616d6510c652c17049b5cdebd1a6e0ee2d3f2",
   "apple_tools": {
     "codesign": true,
     "ditto": true,
@@ -25,5 +25,5 @@
   "release_ready": false,
   "result": "blocked",
   "schema_version": 1,
-  "version": "1.4.6"
+  "version": "1.5.0"
 }

@@ -86,6 +86,10 @@ pub(crate) use self::ui_locale::UiLocale;
 fn main() {
     let locale = UiLocale::detect();
     let args = env::args().skip(1).collect::<Vec<_>>();
+    if matches!(args.as_slice(), [flag] if flag == "--version" || flag == "-V") {
+        println!("gewyvern {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     let cli = bootstrap_cli(args);
     if handle_cli_preflight(&cli, locale) {
         return;

@@ -1,12 +1,12 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`1.4.6` line.
+`1.5.0` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
 
-- can we still ship `1.4.6` with confidence?
+- can we still ship `1.5.0` with confidence?
 - did we exercise the real packaged artifacts?
 - did standalone and multi-project paths both survive?
 
@@ -56,9 +56,9 @@ For those, use:
   for the protocol-breadth and physical-host validation baseline that this line
   inherits
 
-## Current `1.4.6` Gate
+## Current `1.5.0` Gate
 
-Treat `1.4.6` as release-ready only when all of the following stay true:
+Treat `1.5.0` as release-ready only when all of the following stay true:
 
 1. current native artifacts are rebuilt from the current source tree
 2. packaged `deb` and `rpm` install smoke both pass
@@ -104,9 +104,9 @@ Expected outputs:
 - `target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm`
 
 The `<version>` value is read from the root `gewyvern` package metadata in
-`Cargo.toml`. For the current tree, that resolves to `1.4.6`, so the concrete
-artifact names should look like `gewyvern_1.4.6-1_<deb-arch>.deb` and
-`gewyvern-1.4.6-1.<rpm-arch>.rpm`.
+`Cargo.toml`. For the current tree, that resolves to `1.5.0`, so the concrete
+artifact names should look like `gewyvern_1.5.0-1_<deb-arch>.deb` and
+`gewyvern-1.5.0-1.<rpm-arch>.rpm`.
 
 The package smoke must always verify the artifacts that the tree actually
 builds today.
@@ -422,7 +422,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `1.4.6` line, a good practical ship read is:
+For the active `1.5.0` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

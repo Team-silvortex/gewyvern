@@ -114,7 +114,7 @@ artifact. It records:
 
 The default current values are intentionally conservative:
 
-- `release_line = "v1.4.6"`
+- `release_line = "v1.5.0"`
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`

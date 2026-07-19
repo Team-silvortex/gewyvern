@@ -2889,7 +2889,7 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-preflight.txt"),
-            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=dpkg-deb 1.22.6\nrpm_version=RPM version 4.18.2\nrpmbuild_version=RPM version 4.18.2\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\n",
+            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=dpkg-deb 1.22.6\nrpm_version=RPM version 4.18.2\nrpmbuild_version=RPM version 4.18.2\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.5.0\ndefault_route_device=eth0\n",
         )
         .unwrap();
         fs::write(

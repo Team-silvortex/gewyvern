@@ -1,6 +1,12 @@
 # CLI Recipes
 
-This page keeps the practical command shelf for the active `1.4.6` line.
+Confirm the installed product line without loading runtime configuration:
+
+```bash
+gewyvern --version
+```
+
+This page keeps the practical command shelf for the active `1.5.0` line.
 
 Use it when you already understand the project shape and just want known-good
 commands for the runtime CLI, `gewyc`, socket ingest, and local integration
@@ -57,7 +63,7 @@ to slice the tensor. Add `--json` for automation or model context.
 ## Security Checks
 
 Use these when you want the shortest repeatable security shelf for the current
-`1.4.6` line:
+`1.5.0` line:
 
 ```bash
 cargo audit

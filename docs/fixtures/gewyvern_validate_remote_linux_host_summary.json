@@ -52,7 +52,7 @@
     "sudo_available": true,
     "ebpf_helper_available": true,
     "ebpf_helper_state": "ready",
-    "ebpf_helper_version": "1.4.6"
+    "ebpf_helper_version": "1.5.0"
   },
   "recent_ebpf_lines": [
     "2026-07-12T09:00:00Z ok all_smokes_passed_admin_ssh 4.000",

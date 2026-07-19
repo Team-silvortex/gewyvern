@@ -1,4 +1,4 @@
-# gewyvern v1.4.6
+# gewyvern v1.5.0
 
 <p align="center">
   <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="240">
@@ -39,6 +39,9 @@ The long-term direction is:
 If you want the shortest path into the current system:
 
 ```bash
+# Confirm the installed release
+gewyvern --version
+
 # Discover built-in protocol coverage
 cargo run -- --list-protocols
 cargo run -- --list-entries quic
@@ -77,7 +80,7 @@ session data.
 
 ## Status
 
-- project version: `1.4.6`
+- project version: `1.5.0`
 - stage: post-1.0 stable development, preserving the sealed debugger core while
   hardening reliability and advancing the Rust Leserpent/Leselang control plane
 - transport support: TCP + UDP
@@ -108,12 +111,12 @@ session data.
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v1.4.6`, the active post-1.0 stable line
+- current release line: `v1.5.0`, the active post-1.0 stable line
 - current focus: keep the broad protocol catalog behaving like one integrated
   local network debugger with stable startup, stop, logs, recovery,
   persistence, cross-validation, and Linux-host execution paths
 
-The `1.0.0` seal established the trust baseline. The `1.4.6` line preserves
+The `1.0.0` seal established the trust baseline. The `1.5.0` line preserves
 that baseline while extending the surrounding system: stable CLI/runtime and
 DSL/compiler boundaries, reliable HTML/JSON/API reporting, predictable
 operational performance, clean lifecycle behavior, and a contract-driven path

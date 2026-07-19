@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 fn read_repo_file(relative: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
@@ -117,7 +118,7 @@ fn leserpent_uses_the_root_dotnet_version_without_app_specific_version() {
     assert!(!android.contains("<Version>"));
     assert!(!ios.contains("<Version>"));
     assert!(android.contains("<ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>"));
-    assert!(!android.contains("<ApplicationDisplayVersion>1.4.6</ApplicationDisplayVersion>"));
+    assert!(!android.contains("<ApplicationDisplayVersion>1.5.0</ApplicationDisplayVersion>"));
     assert!(!frontend_package.contains("\"version\""));
     assert!(!frontend_lock.contains("\"version\": \"0.1.9\""));
 }
@@ -139,8 +140,8 @@ fn macos_bundle_inherits_the_workspace_version_by_default() {
     assert!(release.contains("CFBundleVersion"));
     assert!(app_readme.contains("inherit the root Rust workspace release automatically"));
     assert!(entrypoints.contains("inherits the root Rust workspace version"));
-    assert!(!app_readme.contains("--version 1.4.6"));
-    assert!(!entrypoints.contains("--version 1.4.6"));
+    assert!(!app_readme.contains("--version 1.5.0"));
+    assert!(!entrypoints.contains("--version 1.5.0"));
 }
 
 #[test]
@@ -151,9 +152,9 @@ fn docs_describe_one_shared_mainline_version() {
     let root_manifest = read_repo_file("Cargo.toml");
     let workspace_version = section_version(&root_manifest, "workspace.package");
 
-    assert_eq!(workspace_version, "1.4.6");
-    assert!(readme.starts_with("# gewyvern v1.4.6\n"));
-    assert!(readme.contains("project version: `1.4.6`"));
+    assert_eq!(workspace_version, "1.5.0");
+    assert!(readme.starts_with("# gewyvern v1.5.0\n"));
+    assert!(readme.contains("project version: `1.5.0`"));
 
     assert!(readme.contains("follows the root `gewyvern` version"));
     assert!(monorepo.contains("one shared mainline version"));
@@ -163,6 +164,25 @@ fn docs_describe_one_shared_mainline_version() {
     assert!(!readme.contains("version `0.1.9`"));
     assert!(!monorepo.contains("`leserpent`: `0.1.9`"));
     assert!(!monorepo.contains("`etragon`: `0.1.0`"));
+}
+
+#[test]
+fn root_cli_reports_the_shared_product_version() {
+    let root_manifest = read_repo_file("Cargo.toml");
+    let workspace_version = section_version(&root_manifest, "workspace.package");
+
+    for flag in ["--version", "-V"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_gewyvern"))
+            .arg(flag)
+            .output()
+            .expect("gewyvern version command should run");
+        assert!(output.status.success());
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            format!("gewyvern {workspace_version}\n")
+        );
+        assert!(output.stderr.is_empty());
+    }
 }
 
 #[test]
