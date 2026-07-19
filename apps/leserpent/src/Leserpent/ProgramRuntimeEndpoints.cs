@@ -24,6 +24,30 @@ public partial class Program
             }
         });
 
+        app.MapGet("/v1/runtimes/cleanup-plan", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
+        {
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
+            return Results.Ok(registry.GetRuntimeCleanupPlan(filter));
+        });
+
+        app.MapPost("/v1/runtimes/registration-plan", async Task<IResult> (
+            RuntimeRegistrationPlanRequest request,
+            RegistryService registry,
+            ControlPlaneSecurityPolicy security,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Endpoint))
+            {
+                return Results.BadRequest(new ApiErrorResponse(
+                    "invalid_runtime_registration_plan",
+                    "name and endpoint are required"));
+            }
+            var validation = await security.ValidateRegistrationPlanAsync(request, cancellationToken);
+            return validation is null
+                ? Results.Ok(registry.GetRuntimeRegistrationPlan(request))
+                : Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration_plan", validation));
+        });
+
         app.MapGet("/v1/runtimes/{id}", (string id, RegistryService registry) =>
         {
             var runtime = registry.GetRuntime(id);
@@ -101,33 +125,43 @@ public partial class Program
                 return Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration", registrationValidation));
             }
 
-            if (request.FetchCapabilities)
+            try
             {
-                var capabilityDiscovery = await discovery.DiscoverAsync(request.Endpoint, request.CapabilityEndpoint, cancellationToken, request.PairingToken);
-                var statusDiscovery = await discovery.DiscoverStatusAsync(request.Endpoint, request.StatusEndpoint, cancellationToken, request.PairingToken);
-                var sidecarDiscovery = string.IsNullOrWhiteSpace(request.SidecarEndpoint)
-                    ? null
-                    : await discovery.DiscoverSidecarStatusAsync(request.SidecarEndpoint!, request.SidecarStatusEndpoint, request.SidecarAdminToken, cancellationToken);
-                var registered = registry.RegisterRuntimeFromDiscovery(request, capabilityDiscovery, statusDiscovery, sidecarDiscovery);
-                registry.RecordRecoveryActivity(
-                    registered.RuntimeId,
-                    "register_runtime",
-                    DetermineRefreshOutcome(
-                        registered.Status.StatusSource,
-                        registered.Status.StatusFetchError,
-                        registered.SidecarStatus?.StatusSource,
-                        registered.SidecarStatus?.StatusFetchError),
-                    "runtime registered through discovery");
-                return Results.Ok(registered);
-            }
+                if (request.FetchCapabilities)
+                {
+                    var capabilityDiscovery = await discovery.DiscoverAsync(request.Endpoint, request.CapabilityEndpoint, cancellationToken, request.PairingToken);
+                    var statusDiscovery = await discovery.DiscoverStatusAsync(request.Endpoint, request.StatusEndpoint, cancellationToken, request.PairingToken);
+                    var sidecarDiscovery = string.IsNullOrWhiteSpace(request.SidecarEndpoint)
+                        ? null
+                        : await discovery.DiscoverSidecarStatusAsync(request.SidecarEndpoint!, request.SidecarStatusEndpoint, request.SidecarAdminToken, cancellationToken);
+                    var registered = registry.RegisterRuntimeFromDiscovery(request, capabilityDiscovery, statusDiscovery, sidecarDiscovery);
+                    registry.RecordRecoveryActivity(
+                        registered.RuntimeId,
+                        "register_runtime",
+                        DetermineRefreshOutcome(
+                            registered.Status.StatusSource,
+                            registered.Status.StatusFetchError,
+                            registered.SidecarStatus?.StatusSource,
+                            registered.SidecarStatus?.StatusFetchError),
+                        "runtime registered through discovery");
+                    return Results.Ok(registered);
+                }
 
-            var manualRegistered = registry.RegisterRuntime(request);
-            registry.RecordRecoveryActivity(
-                manualRegistered.RuntimeId,
-                "register_runtime",
-                "ok",
-                "runtime registered with manual capability intake");
-            return Results.Ok(manualRegistered);
+                var manualRegistered = registry.RegisterRuntime(request);
+                registry.RecordRecoveryActivity(
+                    manualRegistered.RuntimeId,
+                    "register_runtime",
+                    "ok",
+                    "runtime registered with manual capability intake");
+                return Results.Ok(manualRegistered);
+            }
+            catch (RuntimeRegistrationPlanException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_registration_plan_changed",
+                    ex.Message,
+                    RuntimeId: ex.Plan.ExistingRuntimeId));
+            }
         });
 
         app.MapPost("/v1/runtimes/{id}/deployments", async Task<IResult> (
@@ -272,6 +306,15 @@ public partial class Program
                 : Results.Ok(refreshed);
         });
 
+        app.MapPost("/v1/runtimes/{id}/recovery", (
+            string id,
+            RuntimeRecoveryCommandRequest request,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            ICompatibilityBridge compatibilityBridge,
+            CancellationToken cancellationToken) =>
+            ExecuteRuntimeRecoveryAsync(id, request, registry, discovery, compatibilityBridge, cancellationToken));
+
         app.MapPost("/v1/runtimes/{id}/refresh-status", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
         {
             var runtime = registry.GetRuntime(id);
@@ -394,13 +437,17 @@ public partial class Program
                     deleted.RemovedSessionCount));
         });
 
-        app.MapPost("/v1/runtimes/delete-failed", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/delete-failed", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RuntimeCleanupRequest request, RegistryService registry) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
             try
             {
-                deleted = registry.DeleteFailedRuntimes(filter);
+                deleted = registry.DeletePlannedRuntimes(RuntimeCleanupPolicy.FailedKind, filter, request);
+            }
+            catch (RuntimeCleanupPlanMismatchException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse("runtime_cleanup_plan_changed", ex.Message));
             }
             catch (OrchestraRuntimeBusyException ex)
             {
@@ -421,13 +468,17 @@ public partial class Program
                 deleted.RemovedRuntimeNames));
         });
 
-        app.MapPost("/v1/runtimes/delete-unobserved", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/delete-unobserved", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RuntimeCleanupRequest request, RegistryService registry) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
             try
             {
-                deleted = registry.DeleteUnobservedRuntimes(filter);
+                deleted = registry.DeletePlannedRuntimes(RuntimeCleanupPolicy.UnobservedKind, filter, request);
+            }
+            catch (RuntimeCleanupPlanMismatchException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse("runtime_cleanup_plan_changed", ex.Message));
             }
             catch (OrchestraRuntimeBusyException ex)
             {
@@ -448,13 +499,17 @@ public partial class Program
                 deleted.RemovedRuntimeNames));
         });
 
-        app.MapPost("/v1/runtimes/delete-slice", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/delete-slice", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RuntimeCleanupRequest request, RegistryService registry) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
             try
             {
-                deleted = registry.DeleteRuntimes(filter);
+                deleted = registry.DeletePlannedRuntimes(RuntimeCleanupPolicy.SliceKind, filter, request);
+            }
+            catch (RuntimeCleanupPlanMismatchException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse("runtime_cleanup_plan_changed", ex.Message));
             }
             catch (OrchestraRuntimeBusyException ex)
             {
@@ -475,6 +530,150 @@ public partial class Program
                 deleted.RemovedRuntimeNames));
         });
     }
+
+    private static async Task<IResult> ExecuteRuntimeRecoveryAsync(
+        string runtimeId,
+        RuntimeRecoveryCommandRequest request,
+        RegistryService registry,
+        CapabilityDiscoveryService discovery,
+        ICompatibilityBridge compatibilityBridge,
+        CancellationToken cancellationToken)
+    {
+        var kind = request.Kind?.Trim().ToLowerInvariant();
+        if (kind is not ("all" or "status" or "capabilities" or "sidecar"))
+        {
+            return Results.BadRequest(new ApiErrorResponse(
+                "invalid_runtime_recovery_kind",
+                "kind must be all, status, capabilities, or sidecar",
+                RuntimeId: runtimeId));
+        }
+
+        var runtime = registry.GetRuntime(runtimeId);
+        if (runtime is null)
+        {
+            return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: runtimeId));
+        }
+        var controlAccess = registry.GetRuntimeControlAccess(runtimeId);
+        var sidecarAccess = registry.GetRuntimeSidecarAccess(runtimeId);
+        if (kind == "sidecar" && sidecarAccess is null)
+        {
+            return Results.BadRequest(new ApiErrorResponse("runtime_has_no_sidecar_endpoint", RuntimeId: runtimeId));
+        }
+
+        CapabilityDiscoveryResult? capabilityDiscovery = null;
+        RuntimeStatusDiscoveryResult? statusDiscovery = null;
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null;
+        if (kind is "all" or "capabilities")
+        {
+            capabilityDiscovery = await discovery.DiscoverAsync(
+                runtime.Endpoint,
+                null,
+                cancellationToken,
+                controlAccess?.AdminToken);
+        }
+        if (kind is "all" or "status")
+        {
+            statusDiscovery = await discovery.DiscoverStatusAsync(
+                runtime.Endpoint,
+                null,
+                cancellationToken,
+                controlAccess?.AdminToken);
+            try
+            {
+                await compatibilityBridge.ValidateStatusRefreshAsync(
+                    new RuntimeStatusRefreshResponse(
+                        runtime.RuntimeId,
+                        runtime.Name,
+                        runtime.Endpoint,
+                        statusDiscovery.Status),
+                    cancellationToken);
+            }
+            catch (CompatibilityBridgeException ex)
+            {
+                return CompatibilityBridgeFailure(ex);
+            }
+        }
+        if (sidecarAccess is not null && (kind is "all" or "sidecar"))
+        {
+            sidecarDiscovery = await discovery.DiscoverSidecarStatusAsync(
+                sidecarAccess.SidecarEndpoint,
+                null,
+                sidecarAccess.SidecarAdminToken,
+                cancellationToken);
+        }
+
+        var steps = new List<RuntimeRecoveryStepResult>();
+        if (capabilityDiscovery is not null)
+        {
+            var refreshed = registry.RefreshRuntimeCapabilities(runtimeId, capabilityDiscovery);
+            if (refreshed is null)
+            {
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: runtimeId));
+            }
+            steps.Add(BuildRecoveryStep(
+                "capabilities",
+                capabilityDiscovery.CapabilitySource,
+                capabilityDiscovery.CapabilityFetchError,
+                null,
+                null));
+        }
+        if (statusDiscovery is not null)
+        {
+            var refreshed = registry.RefreshRuntimeStatus(runtimeId, statusDiscovery);
+            if (refreshed is null)
+            {
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: runtimeId));
+            }
+            steps.Add(BuildRecoveryStep(
+                "status",
+                refreshed.Status.StatusSource,
+                refreshed.Status.StatusFetchError,
+                null,
+                null));
+        }
+        if (sidecarDiscovery is not null)
+        {
+            var refreshed = registry.RefreshRuntimeSidecar(runtimeId, sidecarDiscovery);
+            if (refreshed is null)
+            {
+                return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: runtimeId));
+            }
+            steps.Add(BuildRecoveryStep(
+                "sidecar",
+                null,
+                null,
+                refreshed.SidecarStatus?.StatusSource,
+                refreshed.SidecarStatus?.StatusFetchError));
+        }
+
+        var outcome = steps
+            .Select(step => step.Outcome)
+            .OrderByDescending(RecoveryOutcomePriority)
+            .FirstOrDefault() ?? "ok";
+        var summary = string.Join(" · ", steps.Select(step => $"{step.Kind}:{step.Outcome}"));
+        registry.RecordRecoveryActivity(runtimeId, $"refresh_{kind}", outcome, summary);
+        return Results.Ok(new RuntimeRecoveryCommandResponse(runtimeId, kind, outcome, steps));
+    }
+
+    private static RuntimeRecoveryStepResult BuildRecoveryStep(
+        string kind,
+        string? runtimeStatusSource,
+        string? runtimeStatusError,
+        string? sidecarStatusSource,
+        string? sidecarStatusError) =>
+        new(
+            kind,
+            DetermineRefreshOutcome(runtimeStatusSource, runtimeStatusError, sidecarStatusSource, sidecarStatusError),
+            BuildRecoverySummary(runtimeStatusSource, runtimeStatusError, sidecarStatusSource, sidecarStatusError));
+
+    private static int RecoveryOutcomePriority(string outcome) => outcome switch
+    {
+        "auth_failed" => 4,
+        "network_failed" => 3,
+        "incomplete_data" => 2,
+        "degraded" => 1,
+        _ => 0,
+    };
 
     private static string? ValidateRuntimeDeployment(RuntimeDeploymentRequest request)
     {

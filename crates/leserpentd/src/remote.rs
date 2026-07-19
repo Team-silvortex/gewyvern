@@ -9,6 +9,7 @@ use leserpent_protocol::{
     MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request, encode_response,
 };
 use leserpent_runtime::ControlRuntime;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
@@ -90,7 +91,7 @@ impl RemoteServer {
             fs::File::open(certificate_path)
                 .map_err(|error| format!("cannot open TLS certificate: {error}"))?,
         );
-        let certificates = rustls_pemfile::certs(&mut certificate_reader)
+        let certificates = CertificateDer::pem_reader_iter(&mut certificate_reader)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| "TLS certificate file contains invalid PEM".to_string())?;
         if certificates.is_empty() {
@@ -100,9 +101,8 @@ impl RemoteServer {
             fs::File::open(private_key_path)
                 .map_err(|error| format!("cannot open TLS private key: {error}"))?,
         );
-        let private_key = rustls_pemfile::private_key(&mut key_reader)
-            .map_err(|_| "TLS private key file contains invalid PEM".to_string())?
-            .ok_or_else(|| "TLS private key file contains no private key".to_string())?;
+        let private_key = PrivateKeyDer::from_pem_reader(&mut key_reader)
+            .map_err(|_| "TLS private key file contains invalid PEM".to_string())?;
         let provider = Arc::new(rustls::crypto::ring::default_provider());
         let mut tls = ServerConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()

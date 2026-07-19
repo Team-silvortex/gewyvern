@@ -170,6 +170,17 @@ cargo run --quiet --bin gewyvern_validate -- remote-linux-host-validation
 
 This syncs the current workspace to a remote Linux host over SSH, builds
 `x86_64` packages there, then runs host-mode package and runtime smoke checks.
+With remote builds enabled, it also publishes the Leserpent control-plane
+NativeAOT bundle for `linux-x64`, verifies the ELF payload inventory, and runs
+the compiled service through health, registration-plan, token-bound
+registration, and unified recovery requests. The proof fails if the pairing
+secret reaches either the runtime state file or SQLite database. `--skip-build`
+skips this NativeAOT phase together with package construction.
+After rsync, the Rust harness strictly revalidates the synchronized evidence:
+the bounded index and exact file inventory, regular non-symlink file types,
+health and token shapes, recovery semantics, attention action, payload hash
+inventory, and secret-free registration response must all agree before the
+phase is reported as covered.
 Before the release build it runs a cached Linux
 `cargo check --workspace --all-targets` over the filtered workspace, catching
 target-specific library, binary, example, benchmark, and inline-test compile
@@ -237,6 +248,7 @@ Evidence written locally:
 - `target/validation/remote-linux-host-validation/remote-runtime-smoke-timings.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf/`
+- `target/validation/remote-linux-host-validation/leserpent-control-plane-aot-linux-x64/`
 - `target/validation/remote-linux-host-validation/remote-phase-timings.txt`
 - `target/validation/remote-linux-host-validation/remote-run.txt`
 - `target/validation/remote-linux-host-validation/remote-ebpf-history.jsonl`
@@ -247,8 +259,8 @@ Evidence written locally:
 
 The phase-timing file records the observed wall-clock time for each major
 remote validation step so we can tell whether regressions come from sync,
-materialization, build, package smoke, runtime smoke, or the privileged eBPF
-attach path.
+materialization, build, the Leserpent control-plane NativeAOT proof, package
+smoke, runtime smoke, or the privileged eBPF attach path.
 Remote build/package/runtime subphase timing files are mandatory after their
 corresponding successful stage. They use the shared bounded unique-key parser,
 accept only known phases and finite non-negative values up to 24 hours, and

@@ -63,6 +63,8 @@ pub struct RejectedFact {
 pub enum RejectedFactReason {
     FragmentNotLoaded,
     FilteredByFragmentParam,
+    BeforeWindowStart,
+    AfterLatenessCutoff,
 }
 
 impl RejectedFactReason {
@@ -70,6 +72,8 @@ impl RejectedFactReason {
         match self {
             Self::FragmentNotLoaded => "fragment_not_loaded",
             Self::FilteredByFragmentParam => "filtered_by_fragment_param",
+            Self::BeforeWindowStart => "before_window_start",
+            Self::AfterLatenessCutoff => "after_lateness_cutoff",
         }
     }
 }
@@ -217,7 +221,14 @@ impl RuntimeSession {
             });
             return;
         }
+        if let Some(window_start) = self.window_start()
+            && fact.ts < window_start
+        {
+            self.reject_fact(fact, RejectedFactReason::BeforeWindowStart);
+            return;
+        }
         if self.frozen_at.is_some_and(|freeze_at| fact.ts > freeze_at) {
+            self.reject_fact(fact, RejectedFactReason::AfterLatenessCutoff);
             return;
         }
         if fact.fragment_id == "sock_lineage_fragment"
@@ -243,6 +254,21 @@ impl RuntimeSession {
         let freeze_at = end + Duration::from_millis(self.window_profile.lateness_ms);
         self.window_end = Some(end);
         self.frozen_at = Some(freeze_at);
+
+        let window_start = self
+            .window_start()
+            .expect("window start exists after freezing");
+        let mut retained = Vec::with_capacity(self.facts.len());
+        for fact in std::mem::take(&mut self.facts) {
+            if fact.ts < window_start {
+                self.reject_fact(fact, RejectedFactReason::BeforeWindowStart);
+            } else if fact.ts > freeze_at {
+                self.reject_fact(fact, RejectedFactReason::AfterLatenessCutoff);
+            } else {
+                retained.push(fact);
+            }
+        }
+        self.facts = retained;
     }
 
     pub fn flow_snapshots(&self) -> Vec<FlowSnapshot> {
@@ -351,6 +377,22 @@ impl RuntimeSession {
                 .collect(),
             (_, None) => self.facts.clone(),
         }
+    }
+
+    fn window_start(&self) -> Option<SystemTime> {
+        self.window_end.map(|window_end| {
+            window_end
+                .checked_sub(Duration::from_millis(self.window_profile.duration_ms))
+                .unwrap_or(SystemTime::UNIX_EPOCH)
+        })
+    }
+
+    fn reject_fact(&mut self, fact: FactEnvelope, reason: RejectedFactReason) {
+        self.rejected_facts.push(RejectedFact {
+            id: fact.id,
+            fragment_id: fact.fragment_id,
+            reason,
+        });
     }
 
     fn capture_comm_enabled(&self, fragment_id: &str) -> bool {

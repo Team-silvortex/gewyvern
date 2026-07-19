@@ -92,6 +92,21 @@ The manifest and registry scan together provide:
 - entry aliases
 - effective DSL path
 
+### Strict Directory Validation
+
+Call `validate_protocol_registry_dir(path)` when a caller supplies an explicit
+registry directory. The strict API returns either the complete resolved target
+set or the original bounded scanner error; it never collapses a malformed
+manifest into an empty catalog. CLI `--scan-set <directory>` uses this path and
+therefore fails closed with the offending manifest diagnostic.
+
+For compatibility, `default_protocol_scan_set_from_dir(path)` retains its
+older `Option` shape. New package tooling should prefer strict validation.
+
+Every manifest entry must be a normalized relative path to a regular file
+inside its package directory. Absolute paths, `..`, symlinks in the entry path,
+and package-root escapes are rejected before a target is exposed.
+
 For surfaces that carry explicit failure or denial posture, the current
 machine-facing protocol surface can also include:
 

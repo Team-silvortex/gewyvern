@@ -8,7 +8,7 @@ use std::time::Duration;
 use leserpent_protocol::{
     MAX_PROTOCOL_MESSAGE_BYTES, RequestEnvelope, ResponseEnvelope, decode_response, encode_request,
 };
-use rustls::pki_types::ServerName;
+use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use zeroize::Zeroizing;
 
@@ -48,7 +48,7 @@ impl HttpsClient {
             fs::File::open(ca_path)
                 .map_err(|_| CliError::Configuration("remote CA file cannot be opened".into()))?,
         );
-        let certificates = rustls_pemfile::certs(&mut reader)
+        let certificates = CertificateDer::pem_reader_iter(&mut reader)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| CliError::Configuration("remote CA contains invalid PEM".into()))?;
         if certificates.is_empty() {

@@ -11,7 +11,7 @@ use leserpent_domain::{
     RuntimeStatusSnapshot,
 };
 use leserpent_runtime::EffectExecution;
-use rustls::pki_types::ServerName;
+use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use serde::Deserialize;
 use zeroize::Zeroize;
@@ -173,7 +173,7 @@ fn load_tls_config(ca_path: &Path) -> Result<ClientConfig, String> {
     let mut reader = BufReader::new(
         fs::File::open(ca_path).map_err(|_| "Gewyvern CA file cannot be opened".to_string())?,
     );
-    let certificates = rustls_pemfile::certs(&mut reader)
+    let certificates = CertificateDer::pem_reader_iter(&mut reader)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| "Gewyvern CA contains invalid PEM".to_string())?;
     if certificates.is_empty() {

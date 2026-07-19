@@ -26,11 +26,14 @@ implicitly planned work.
 
 Schema v2 also carries a `coverage_requirements` manifest. It maps authoritative
 architecture ownership boundaries, roadmap gates, and continuous proof shelves
-onto concrete cells. Once an architecture enters this manifest, validation is
-bidirectional: every requirement must reference an existing same-architecture
-cell, and every cell in that architecture must be covered by at least one
+onto concrete cells. The manifest covers Gewyvern Core, GewyLang, the
+Leserpent 1.x bridge, Leserpent 2, the Etragon sidecar, and status governance
+itself. Validation is exhaustive and bidirectional: every architecture with a
+cell must declare a requirement, every requirement must reference an existing
+same-architecture cell, and every cell must be covered by at least one
 requirement. This distinguishes a structurally valid sparse tensor from a
-complete architecture map.
+complete architecture map and prevents new architectures from bypassing
+progress governance.
 
 The canonical cell ID is:
 
@@ -154,9 +157,12 @@ cargo run --bin gewyvern_status -- validate
 Validation rejects unknown dimension references, duplicate or non-canonical
 cell IDs, missing contracts, missing present evidence, unknown dependencies,
 self-dependencies, dependency cycles, and unsupported schema versions.
-For architectures with a coverage manifest it also rejects duplicate
+It also rejects architectures without a coverage manifest, duplicate
 requirements, missing source documents, unknown or cross-architecture cell
-mappings, empty mappings, and orphan cells.
+mappings, empty mappings, and orphan cells. Coverage sources are deliberately
+architecture-specific: the project blueprint owns Gewyvern Core, the GewyLang
+system page owns the language shelf, the Leserpent roadmap owns both migration
+bridge and 2.0 gates, and the sidecar collaboration contract owns Etragon.
 
 ## Relationship To Roadmaps
 

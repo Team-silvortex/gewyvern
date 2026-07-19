@@ -361,6 +361,8 @@ pub(crate) fn parse_rejected_fact(value: &JsonValue) -> Result<RejectedFact, Exp
     {
         "fragment_not_loaded" => RejectedFactReason::FragmentNotLoaded,
         "filtered_by_fragment_param" => RejectedFactReason::FilteredByFragmentParam,
+        "before_window_start" => RejectedFactReason::BeforeWindowStart,
+        "after_lateness_cutoff" => RejectedFactReason::AfterLatenessCutoff,
         other => {
             return Err(ExportError::InvalidValue(format!(
                 "unknown rejected fact reason: {other}"

@@ -114,7 +114,7 @@ artifact. It records:
 
 The default current values are intentionally conservative:
 
-- `release_line = "v1.4.0"`
+- `release_line = "v1.4.6"`
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`
@@ -122,8 +122,9 @@ The default current values are intentionally conservative:
 Packaged container validation never guesses an artifact from filename order.
 Both local and remote checks read the unique `deb` or `rpm` entry from
 `target/packages/build-manifest.txt`, reject malformed or duplicate keys, and
-require the referenced regular non-symlink file to remain inside the package
-root with the expected extension. Remote artifact collection, package smoke,
+resolve its portable package-root-relative paths only after requiring the
+referenced regular non-symlink file to remain inside the package root with the
+expected extension. Remote artifact collection, package smoke,
 and runtime smoke share this resolver; package-cache reuse applies the same
 unique-key and non-symlink policy instead of trusting the first matching line.
 
@@ -252,6 +253,20 @@ Linux containers:
 ```bash
 cargo run --quiet --bin gewyvern_validate -- package-install-smoke
 ```
+
+Successful runs retain `deb.json`, `rpm.json`, `summary.json`, and
+`evidence-index.json` under `target/validation/package-install-smoke/`. The
+per-family records bind the exact package filename and SHA-256 to the clean
+container image that installed it; stale success records are removed before a
+new run starts.
+
+The runtime, protocol, and operator-path validators use the same four-file
+contract under their own `target/validation/<command>/` directories. Composite
+`container-validation-summary` and `release-container-check` directories each
+retain their own `summary.json` and `evidence-index.json`, with portable
+relative references to every child evidence shelf. A reported evidence path is
+therefore always an actual command-owned directory rather than the shared
+validation root.
 
 That smoke path:
 

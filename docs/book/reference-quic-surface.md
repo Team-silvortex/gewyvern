@@ -108,6 +108,6 @@ If you are validating current QUIC support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the QUIC family in the current `1.4.0` line.
+This page is the lookup hub for the QUIC family in the current `1.4.6` line.
 New QUIC transport-stage branches should prefer landing behind this shelf
 instead of being linked from multiple higher-level pages independently.

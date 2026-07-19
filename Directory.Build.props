@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>1.4.0</Version>
+    <Version>1.4.6</Version>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
     <NuGetAudit>true</NuGetAudit>

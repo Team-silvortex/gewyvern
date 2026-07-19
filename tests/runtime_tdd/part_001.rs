@@ -86,12 +86,28 @@ fn freeze_excludes_facts_beyond_lateness_cutoff() {
             .iter()
             .all(|flow| flow.path.current_oif.is_none())
     );
+    assert_eq!(export.rejected_facts.len(), 1);
+    assert_eq!(export.rejected_facts[0].id.0, 3);
+    assert_eq!(
+        export.rejected_facts[0].reason,
+        RejectedFactReason::AfterLatenessCutoff
+    );
+    assert_eq!(export.rejected_fact_summary.len(), 1);
+    assert_eq!(
+        export.rejected_fact_summary[0].reason,
+        "after_lateness_cutoff"
+    );
+    assert_eq!(export.debug_summary.accepted_facts, 2);
+    assert_eq!(export.debug_summary.rejected_facts, 1);
+    assert!(export.debug_summary.degraded);
 
     let replay = ExportBundle::from_json(&export.to_json())
         .unwrap()
         .replay()
         .unwrap();
     assert_eq!(export.facts, replay.facts);
+    assert_eq!(export.rejected_facts, replay.rejected_facts);
+    assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
     assert_eq!(export.reasons, replay.reasons);
 }
 
@@ -131,12 +147,28 @@ fn freeze_materializes_only_the_active_window_plus_lateness() {
     assert_eq!(export.flows[0].evidence.tcp_state_facts.len(), 0);
     assert_eq!(export.flows[0].evidence.packet_facts.len(), 1);
     assert_eq!(export.flows[0].path.current_oif, Some(4));
+    assert_eq!(
+        export
+            .rejected_facts
+            .iter()
+            .map(|fact| (fact.id.0, fact.reason.clone()))
+            .collect::<Vec<_>>(),
+        vec![
+            (1, RejectedFactReason::BeforeWindowStart),
+            (4, RejectedFactReason::AfterLatenessCutoff),
+        ]
+    );
+    assert_eq!(export.debug_summary.accepted_facts, 2);
+    assert_eq!(export.debug_summary.rejected_facts, 2);
+    assert!(export.debug_summary.degraded);
 
     let replay = ExportBundle::from_json(&export.to_json())
         .unwrap()
         .replay()
         .unwrap();
     assert_eq!(export.facts, replay.facts);
+    assert_eq!(export.rejected_facts, replay.rejected_facts);
+    assert_eq!(export.rejected_fact_summary, replay.rejected_fact_summary);
     assert_eq!(export.reasons, replay.reasons);
 }
 

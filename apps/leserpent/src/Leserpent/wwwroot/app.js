@@ -2404,10 +2404,10 @@ function bootstrapDashboard() {
     nodes.runtimeDetailCopyLink.addEventListener("click", copySelectedRuntimeLink);
     nodes.registerName.addEventListener("input", () => {
         state.registerNameTouched = nodes.registerName.value.trim().length > 0;
-        scheduleRenderRegisterPreview();
+        scheduleRegistrationPlanPreview();
     });
     nodes.registerEndpoint.addEventListener("input", maybePrefillRuntimeNameFromEndpoint);
-    nodes.registerSidecarEndpoint.addEventListener("input", scheduleRenderRegisterPreview);
+    nodes.registerSidecarEndpoint.addEventListener("input", scheduleRegistrationPlanPreview);
     nodes.registerSidecarAdminToken.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerToken.addEventListener("input", scheduleRenderRegisterPreview);
     nodes.registerRuntimeEnvironment.addEventListener("input", scheduleRenderRegisterPreview);
@@ -4377,11 +4377,12 @@ async function postJson(path) {
     }
     return response.json();
 }
-async function postJsonBody(path, body) {
+async function postJsonBody(path, body, signal = null) {
     const response = await fetch(path, {
         method: "POST",
         headers: apiHeaders({ contentType: "application/json", intent: "mutate" }),
         body: JSON.stringify(body),
+        signal: signal || undefined,
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
@@ -4835,15 +4836,6 @@ function refreshLabel(kind) {
                 ? t("runtimeDetail.refreshSidecar")
                 : t("notifications.runtimeRefreshCapabilities");
 }
-function recoveryActionKind(action) {
-    return action === "refresh_all"
-        ? "all"
-        : action === "refresh_status"
-            ? "status"
-            : action === "refresh_sidecar"
-                ? "sidecar"
-                : null;
-}
 function recoveryActionLabel(action) {
     return action === "refresh_all"
         ? t("attention.actions.refreshAll")
@@ -5253,7 +5245,7 @@ function renderRuntimeDetail(runtime, attention) {
     <div class="inline-actions">
       ${(attention.suggestedActions || []).length
         ? attention.suggestedActions.map((action) => {
-            const kind = recoveryActionKind(action.action);
+            const kind = action.commandKind;
             return kind
                 ? `<button type="button" data-recovery-action="${escapeHtml(kind)}" ${action.coolingDown ? "disabled" : ""}>${escapeHtml(recoveryActionLabel(action.action))} · #${escapeHtml(action.priority)}${action.coolingDown ? ` · ${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}` : ""}</button>`
                 : `<span class="tag-pill">${escapeHtml(recoveryActionLabel(action.action))}</span>`;
@@ -5439,27 +5431,11 @@ async function refreshRuntimeById(runtimeId, kind, button = null) {
             control.disabled = true;
         nodes.statusLine.textContent = `${label}...`;
         try {
-            if (kind === "all") {
-                await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-                await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-                const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
-                if (selectedRuntime?.sidecarEndpoint) {
-                    await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
-                    markBadgeRefresh("sidecar");
-                }
+            const recovery = await postJsonBody(`/v1/runtimes/${runtimeId}/recovery`, { kind });
+            if ((recovery.steps || []).some((step) => step.kind === "status"))
                 markBadgeRefresh("runtime");
-            }
-            else if (kind === "status") {
-                await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-                markBadgeRefresh("runtime");
-            }
-            else if (kind === "sidecar") {
-                await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
+            if ((recovery.steps || []).some((step) => step.kind === "sidecar"))
                 markBadgeRefresh("sidecar");
-            }
-            else {
-                await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-            }
             state.activeTab = "runtimes";
             state.selectedRuntimeId = runtimeId;
             await loadDashboard();
@@ -5789,27 +5765,68 @@ function runtimeStatusHint(status) {
     }
     return t("statuses.observed");
 }
-function findDuplicateRuntime(name, endpoint) {
-    const normalizedName = name.trim().toLowerCase();
-    const normalizedEndpoint = endpoint.trim().toLowerCase();
-    return state.latestRuntimes.find((runtime) => runtime.name.toLowerCase() === normalizedName ||
-        runtime.endpoint.toLowerCase() === normalizedEndpoint) || null;
-}
-function duplicateRuntimeMessage(duplicate, name, endpoint) {
-    if (!duplicate)
+function registrationPlanConflictMessage(plan) {
+    if (!plan || plan.allowed)
         return "";
-    const nameConflict = duplicate.name.toLowerCase() === name.toLowerCase();
-    const endpointConflict = duplicate.endpoint.toLowerCase() === endpoint.toLowerCase();
-    const reason = nameConflict && endpointConflict
-        ? t("register.duplicateNameAndEndpoint")
-        : nameConflict
-            ? t("register.duplicateName")
-            : t("register.duplicateEndpoint");
     return t("register.blockedDuplicate", {
-        reason,
-        name: duplicate.name,
-        endpoint: duplicate.endpoint,
+        reason: t("register.duplicateEndpoint"),
+        name: plan.existingRuntimeName,
+        endpoint: plan.existingRuntimeEndpoint,
     });
+}
+function registrationPlanDraft() {
+    return {
+        name: nodes.registerName.value.trim(),
+        endpoint: nodes.registerEndpoint.value.trim(),
+        sidecarEndpoint: nodes.registerSidecarEndpoint.value.trim() || null,
+    };
+}
+function registrationPlanDraftKey(draft = registrationPlanDraft()) {
+    return [draft.name, draft.endpoint, draft.sidecarEndpoint || ""].join("::");
+}
+function currentRegistrationPlan() {
+    const plan = state.registrationPlan;
+    return plan?.draftKey === registrationPlanDraftKey() ? plan : null;
+}
+async function loadRegistrationPlan() {
+    const draft = registrationPlanDraft();
+    const draftKey = registrationPlanDraftKey(draft);
+    if (!draft.name || !isLikelyHttpEndpoint(draft.endpoint) ||
+        (draft.sidecarEndpoint && !isLikelyHttpEndpoint(draft.sidecarEndpoint))) {
+        state.registrationPlan = null;
+        renderRegisterPreview();
+        return;
+    }
+    state.registrationPlanAbortController?.abort();
+    const abortController = new AbortController();
+    state.registrationPlanAbortController = abortController;
+    try {
+        const plan = await postJsonBody("/v1/runtimes/registration-plan", draft, abortController.signal);
+        if (draftKey !== registrationPlanDraftKey())
+            return;
+        state.registrationPlan = { ...plan, draftKey };
+        state.registrationPlanError = "";
+    }
+    catch (error) {
+        if (error?.name === "AbortError")
+            return;
+        if (draftKey !== registrationPlanDraftKey())
+            return;
+        state.registrationPlan = null;
+        state.registrationPlanError = error.message;
+    }
+    finally {
+        if (state.registrationPlanAbortController === abortController) {
+            state.registrationPlanAbortController = null;
+        }
+        renderRegisterPreview();
+    }
+}
+function scheduleRegistrationPlan() {
+    window.clearTimeout(state.registrationPlanTimer);
+    state.registrationPlan = null;
+    state.registrationPlanError = "";
+    state.registrationPlanTimer = window.setTimeout(() => void loadRegistrationPlan(), 250);
 }
 function isLikelyHttpEndpoint(endpoint) {
     if (!(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) {
@@ -5845,22 +5862,22 @@ function suggestedRuntimeName(endpoint) {
 }
 function maybePrefillRuntimeNameFromEndpoint() {
     if (state.registerNameTouched) {
-        scheduleRenderRegisterPreview();
+        scheduleRegistrationPlanPreview();
         return;
     }
     const endpoint = nodes.registerEndpoint.value.trim();
     if (!isLikelyHttpEndpoint(endpoint)) {
-        scheduleRenderRegisterPreview();
+        scheduleRegistrationPlanPreview();
         return;
     }
     const suggestion = suggestedRuntimeName(endpoint);
     if (suggestion) {
         nodes.registerName.value = suggestion;
     }
-    scheduleRenderRegisterPreview();
+    scheduleRegistrationPlanPreview();
 }
 function registerPreviewSignature() {
-    const duplicate = findDuplicateRuntime(nodes.registerName.value.trim(), nodes.registerEndpoint.value.trim());
+    const plan = currentRegistrationPlan();
     return [
         state.language,
         nodes.registerName.value.trim(),
@@ -5872,21 +5889,21 @@ function registerPreviewSignature() {
         nodes.registerRuntimeCluster.value.trim(),
         nodes.registerRuntimeRole.value.trim(),
         nodes.registerFetchCapabilities.checked ? "fetch" : "skip",
-        duplicate?.runtimeId || "unique",
+        plan?.planToken || state.registrationPlanError || "plan-pending",
     ].join("::");
 }
 function syncRegisterSubmitState(endpointValid, sidecarEndpointValid) {
     const name = nodes.registerName.value.trim();
     const endpoint = nodes.registerEndpoint.value.trim();
     const pairingToken = nodes.registerToken.value.trim();
-    const duplicate = name && endpointValid ? findDuplicateRuntime(name, endpoint) : null;
+    const plan = currentRegistrationPlan();
     const busy = state.uiActions.has("register-runtime");
-    const valid = !!name && endpointValid && sidecarEndpointValid && !!pairingToken && !duplicate;
+    const valid = !!name && endpointValid && sidecarEndpointValid && !!pairingToken && plan?.allowed === true;
     nodes.registerEndpoint.setAttribute("aria-invalid", endpoint && !endpointValid ? "true" : "false");
     nodes.registerSidecarEndpoint.setAttribute("aria-invalid", nodes.registerSidecarEndpoint.value.trim() && !sidecarEndpointValid ? "true" : "false");
     nodes.registerSubmit.disabled = busy || !valid;
     nodes.registerForm.dataset.ready = valid ? "true" : "false";
-    return { duplicate, valid };
+    return { plan, valid };
 }
 function scheduleRenderRegisterPreview() {
     if (state.pendingRegisterPreview) {
@@ -5896,6 +5913,10 @@ function scheduleRenderRegisterPreview() {
         state.pendingRegisterPreview = 0;
         renderRegisterPreview();
     });
+}
+function scheduleRegistrationPlanPreview() {
+    scheduleRenderRegisterPreview();
+    scheduleRegistrationPlan();
 }
 function renderRegisterPreview() {
     const endpoint = nodes.registerEndpoint.value.trim();
@@ -5964,7 +5985,8 @@ function renderRegisterPreview() {
         <strong>${escapeHtml(nodes.registerFetchCapabilities.checked ? t("register.capabilityEnabled") : t("register.capabilityDisabled"))}</strong>
       </div>
     </div>
-    ${submission.duplicate ? `<div class="register-preview-warning">${escapeHtml(duplicateRuntimeMessage(submission.duplicate, explicitName, endpoint))}</div>` : ""}
+    ${submission.plan && !submission.plan.allowed ? `<div class="register-preview-warning">${escapeHtml(registrationPlanConflictMessage(submission.plan))}</div>` : ""}
+    ${state.registrationPlanError ? `<div class="register-preview-warning">${escapeHtml(state.registrationPlanError)}</div>` : ""}
   `;
 }
 function runtimeTableSignature(items, attentionMap) {
@@ -6706,27 +6728,20 @@ function currentSliceLabel() {
 function currentSliceRuntimes() {
     return state.cache.runtimes?.runtimes || [];
 }
-function currentSliceRuntimeIds() {
-    return new Set(currentSliceRuntimes().map((runtime) => runtime.runtimeId));
-}
 function currentFailedRuntimeCount() {
-    return currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "fetch_failed").length;
+    return state.cache.cleanupPlan?.failed?.runtimeCount ?? 0;
 }
 function currentSliceCount() {
-    return currentSliceRuntimes().length;
+    return state.cache.cleanupPlan?.slice?.runtimeCount ?? 0;
 }
 function currentUnobservedRuntimeCount() {
-    return currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "unobserved" && !isIdleReadyStatus(runtime.status)).length;
+    return state.cache.cleanupPlan?.unobserved?.runtimeCount ?? 0;
 }
 function currentSliceSessionCount() {
-    const runtimeIds = currentSliceRuntimeIds();
-    return (state.cache.sessions?.sessions || []).filter((session) => runtimeIds.has(session.runtimeId)).length;
+    return state.cache.cleanupPlan?.slice?.sessionCount ?? 0;
 }
 function currentSliceRiskLevel() {
-    const values = [state.filter.environment, state.filter.cluster, state.filter.role]
-        .filter(Boolean)
-        .map((value) => value.toLowerCase());
-    return values.some((value) => value.includes("prod") || value.includes("live"));
+    return state.cache.cleanupPlan?.riskLevel === "protected";
 }
 function currentSliceRiskWarning() {
     return currentSliceRiskLevel() ? `\n\n${t("notifications.runtimeCleanupProtectedWarning")}` : "";
@@ -6782,6 +6797,9 @@ function runtimeNamesPreview(runtimes) {
 }
 function describeCleanupTargets(runtimes) {
     return `\n\n${t("notifications.runtimeCleanupPreviewLabel")}: ${runtimeNamesPreview(runtimes)}`;
+}
+function cleanupAction(kind) {
+    return state.cache.cleanupPlan?.[kind] || null;
 }
 function syncCleanupMenuState() {
     const menu = nodes.runtimeCleanupMenu;
@@ -6896,13 +6914,14 @@ async function loadDashboard() {
     const query = buildQuery();
     nodes.statusLine.textContent = t("notifications.loading");
     try {
-        const [capabilities, fleetSummary, attentionSummary, attentionList, runtimes, sessions] = await Promise.all([
+        const [capabilities, fleetSummary, attentionSummary, attentionList, runtimes, sessions, cleanupPlan] = await Promise.all([
             getJson("/v1/capabilities", abortController.signal),
             getJson(`/v1/fleet/summary${query}`, abortController.signal),
             getJson(`/v1/fleet/attention-summary${query}`, abortController.signal),
             getJson(`/v1/fleet/runtimes-needing-attention${query}`, abortController.signal),
             getJson(`/v1/runtimes${query}`, abortController.signal),
             getJson("/v1/sessions", abortController.signal),
+            getJson(`/v1/runtimes/cleanup-plan${query}`, abortController.signal),
         ]);
         if (requestId !== state.dashboardRequestSeq) {
             return;
@@ -6914,6 +6933,7 @@ async function loadDashboard() {
             attentionList,
             runtimes,
             sessions,
+            cleanupPlan,
         };
         state.runtimeAttentionById = new Map((attentionList.runtimes || []).map((item) => [item.runtimeId, item]));
         state.latestRuntimes = runtimes.runtimes || [];
@@ -7005,8 +7025,9 @@ async function deleteRuntime(runtimeId, runtimeName) {
 }
 async function deleteFailedRuntimes() {
     const slice = currentSliceLabel();
-    const targets = currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "fetch_failed");
-    const count = targets.length;
+    const plan = cleanupAction("failed");
+    const targets = plan?.targets || [];
+    const count = plan?.runtimeCount ?? 0;
     if (!count || state.uiActions.has("runtime-cleanup")) {
         syncCleanupMenuState();
         return;
@@ -7019,7 +7040,9 @@ async function deleteFailedRuntimes() {
         setCleanupControlsBusy(true);
         nodes.statusLine.textContent = `${t("runtimes.actions.deleteFailed")}...`;
         try {
-            const result = await postJson(`/v1/runtimes/delete-failed${buildQuery()}`);
+            const result = await postJsonBody(`/v1/runtimes/delete-failed${buildQuery()}`, {
+                planToken: plan.planToken,
+            });
             nodes.runtimeCleanupMenu?.removeAttribute("open");
             resetRuntimeSelectionAfterBulkDelete();
             await loadDashboard();
@@ -7040,8 +7063,9 @@ async function deleteFailedRuntimes() {
 }
 async function deleteUnobservedRuntimes() {
     const slice = currentSliceLabel();
-    const targets = currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "unobserved" && !isIdleReadyStatus(runtime.status));
-    const count = targets.length;
+    const plan = cleanupAction("unobserved");
+    const targets = plan?.targets || [];
+    const count = plan?.runtimeCount ?? 0;
     if (!count || state.uiActions.has("runtime-cleanup")) {
         syncCleanupMenuState();
         return;
@@ -7054,7 +7078,9 @@ async function deleteUnobservedRuntimes() {
         setCleanupControlsBusy(true);
         nodes.statusLine.textContent = `${t("runtimes.actions.deleteUnobserved")}...`;
         try {
-            const result = await postJson(`/v1/runtimes/delete-unobserved${buildQuery()}`);
+            const result = await postJsonBody(`/v1/runtimes/delete-unobserved${buildQuery()}`, {
+                planToken: plan.planToken,
+            });
             nodes.runtimeCleanupMenu?.removeAttribute("open");
             resetRuntimeSelectionAfterBulkDelete();
             await loadDashboard();
@@ -7075,12 +7101,13 @@ async function deleteUnobservedRuntimes() {
 }
 async function clearRuntimeSlice() {
     const slice = currentSliceLabel();
-    const targets = currentSliceRuntimes();
-    if (!targets.length || state.uiActions.has("runtime-cleanup")) {
+    const plan = cleanupAction("slice");
+    const targets = plan?.targets || [];
+    if (!plan?.runtimeCount || state.uiActions.has("runtime-cleanup")) {
         syncCleanupMenuState();
         return;
     }
-    const challenge = `CLEAR ${targets.length}`;
+    const challenge = plan.challenge;
     const entered = window.prompt(`${t("notifications.runtimeClearSliceConfirm", { slice, count: currentSliceCount() })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}\n\n${t("notifications.runtimeClearSliceChallenge", { challenge })}`, "");
     if (entered === null) {
         return;
@@ -7093,7 +7120,10 @@ async function clearRuntimeSlice() {
         setCleanupControlsBusy(true);
         nodes.statusLine.textContent = `${t("runtimes.actions.clearSlice")}...`;
         try {
-            const result = await postJson(`/v1/runtimes/delete-slice${buildQuery()}`);
+            const result = await postJsonBody(`/v1/runtimes/delete-slice${buildQuery()}`, {
+                planToken: plan.planToken,
+                challenge: entered.trim(),
+            });
             nodes.runtimeCleanupMenu?.removeAttribute("open");
             resetRuntimeSelectionAfterBulkDelete();
             await loadDashboard();
@@ -7239,9 +7269,11 @@ async function submitRegisterForm(event) {
         applyTabShell();
         return;
     }
-    const duplicate = findDuplicateRuntime(name, endpoint);
-    if (duplicate) {
-        nodes.registerResult.textContent = duplicateRuntimeMessage(duplicate, name, endpoint);
+    const registrationPlan = currentRegistrationPlan();
+    if (!registrationPlan?.allowed) {
+        nodes.registerResult.textContent = registrationPlanConflictMessage(registrationPlan)
+            || state.registrationPlanError
+            || t("register.blockedEndpoint");
         state.activeTab = "runtimes";
         state.activeRuntimeMainTab = "register";
         applyTabShell();
@@ -7260,11 +7292,13 @@ async function submitRegisterForm(event) {
             role: nodes.registerRuntimeRole.value.trim() || null,
         },
         fetchCapabilities: nodes.registerFetchCapabilities.checked,
+        registrationPlanToken: registrationPlan.planToken,
     };
     await runUiActionOnce("register-runtime", nodes.registerSubmit, t("register.registeringShort"), async () => {
         nodes.registerResult.textContent = t("register.registering");
         try {
             const result = await postJsonBody("/v1/runtimes/register", body);
+            state.registrationPlan = null;
             state.registerNameTouched = false;
             state.activeTab = "runtimes";
             state.activeRuntimeMainTab = "detail";

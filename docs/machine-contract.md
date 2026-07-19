@@ -41,6 +41,22 @@ It is the recommended machine-facing surface for:
 It is not a promise that every JSON field produced by `gewyvern` is equally
 stable.
 
+## Runtime Evidence Loss Accounting
+
+Runtime facts that do not participate in reconstruction must remain visible in
+`rejected_facts`, `rejected_fact_summary`, and `debug_summary.rejected_facts`.
+The stable rejection reasons are documented in
+[docs/export-format.md](docs/export-format.md). In particular:
+
+- `before_window_start` identifies evidence older than the active window
+- `after_lateness_cutoff` identifies evidence newer than the configured
+  lateness allowance
+
+These facts must not contribute to reconstructed flows, and their presence
+marks `debug_summary.degraded` as true. Reason values may grow additively in a
+minor contract version, but decoders reject unknown values rather than silently
+reclassifying evidence loss.
+
 ## Compiler Surface Wrapper
 
 For compiler-oriented `gewyc ... --json` consumers, the top-level wrapper is

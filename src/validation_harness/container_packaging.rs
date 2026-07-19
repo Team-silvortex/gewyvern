@@ -1,8 +1,12 @@
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use ring::digest::{Context, SHA256};
+use serde_json::json;
 
 use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, validation_command_stdout,
@@ -22,9 +26,6 @@ const DEFAULT_RPM_SMOKE_IMAGE: &str = "fedora:41";
 pub fn run_package_install_smoke(
     mode: ReleaseCheckMode,
 ) -> Result<ValidationReport, ValidationError> {
-    require_cmd("docker")?;
-    ensure_docker_reachable()?;
-
     let cfg = ContainerValidationConfig::new(
         "install-smoke",
         "GEWY_DEB_SMOKE_IMAGE",
@@ -32,33 +33,114 @@ pub fn run_package_install_smoke(
         "GEWY_RPM_SMOKE_IMAGE",
         DEFAULT_RPM_SMOKE_IMAGE,
     );
-    let packages_dir = repo_root().join("target").join("packages");
-    let mut checks = Vec::new();
+    run_packaged_validation(
+        "package-install-smoke",
+        "package install smoke",
+        cfg,
+        mode,
+        package_install_smoke_deb_body(),
+        package_install_smoke_rpm_body(),
+        false,
+        "deb_install_smoke",
+        "rpm_install_smoke",
+    )
+}
 
-    if matches!(mode, ReleaseCheckMode::Deb | ReleaseCheckMode::DebAndRpm) {
-        run_deb_validation(&cfg, &packages_dir, package_install_smoke_deb_body(), false)?;
-        checks.push("deb_install_smoke".to_string());
+fn prepare_container_evidence(out_dir: &Path) -> Result<(), ValidationError> {
+    fs::create_dir_all(out_dir)?;
+    for name in [
+        "deb.json",
+        "rpm.json",
+        "summary.json",
+        "evidence-index.json",
+    ] {
+        let path = out_dir.join(name);
+        if path.exists() || path.is_symlink() {
+            fs::remove_file(path)?;
+        }
     }
+    Ok(())
+}
 
-    if matches!(mode, ReleaseCheckMode::Rpm | ReleaseCheckMode::DebAndRpm) {
-        run_rpm_validation(&cfg, &packages_dir, package_install_smoke_rpm_body(), false)?;
-        checks.push("rpm_install_smoke".to_string());
+fn write_package_stage_evidence(
+    out_dir: &Path,
+    family: &str,
+    image: &str,
+    package: &Path,
+) -> Result<(), ValidationError> {
+    let artifact = package
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| ValidationError::new("invalid package artifact filename"))?;
+    let payload = json!({
+        "schema_version": 1,
+        "family": family,
+        "status": "ok",
+        "image": image,
+        "artifact": artifact,
+        "artifact_bytes": fs::metadata(package)?.len(),
+        "artifact_sha256": sha256_file(package)?,
+    });
+    fs::write(
+        out_dir.join(format!("{family}.json")),
+        format!("{}\n", serde_json::to_string_pretty(&payload)?),
+    )?;
+    Ok(())
+}
+
+fn write_container_summary(
+    out_dir: &Path,
+    command: &str,
+    mode: ReleaseCheckMode,
+    checks: &[String],
+    evidence_files: &mut Vec<String>,
+) -> Result<(), ValidationError> {
+    let summary = json!({
+        "schema_version": 1,
+        "command": command,
+        "status": "ok",
+        "mode": mode.label(),
+        "checks": checks,
+    });
+    fs::write(
+        out_dir.join("summary.json"),
+        format!("{}\n", serde_json::to_string_pretty(&summary)?),
+    )?;
+    evidence_files.push("summary.json".to_string());
+    let index = json!({
+        "schema_version": 1,
+        "command": command,
+        "files": evidence_files,
+    });
+    fs::write(
+        out_dir.join("evidence-index.json"),
+        format!("{}\n", serde_json::to_string_pretty(&index)?),
+    )?;
+    Ok(())
+}
+
+fn sha256_file(path: &Path) -> Result<String, ValidationError> {
+    let mut file = fs::File::open(path)?;
+    let mut context = Context::new(&SHA256);
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        context.update(&buffer[..count]);
     }
-
-    validation_log("package install smoke: ok");
-    Ok(ValidationReport {
-        name: format!("package install smoke ({})", mode.label()),
-        out_dir: default_out_dir("package-install-smoke"),
-        checks,
-    })
+    Ok(context
+        .finish()
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 pub fn run_container_runtime_validation(
     mode: ReleaseCheckMode,
 ) -> Result<ValidationReport, ValidationError> {
-    require_cmd("docker")?;
-    ensure_docker_reachable()?;
-
     let cfg = ContainerValidationConfig::new(
         "runtime",
         "GEWY_DEB_RUNTIME_IMAGE",
@@ -66,33 +148,22 @@ pub fn run_container_runtime_validation(
         "GEWY_RPM_RUNTIME_IMAGE",
         DEFAULT_RPM_RUNTIME_IMAGE,
     );
-    let packages_dir = repo_root().join("target").join("packages");
-    let mut checks = Vec::new();
-
-    if matches!(mode, ReleaseCheckMode::Deb | ReleaseCheckMode::DebAndRpm) {
-        run_deb_validation(&cfg, &packages_dir, runtime_validation_body(), true)?;
-        checks.push("deb_runtime_validation".to_string());
-    }
-
-    if matches!(mode, ReleaseCheckMode::Rpm | ReleaseCheckMode::DebAndRpm) {
-        run_rpm_validation(&cfg, &packages_dir, runtime_validation_body(), true)?;
-        checks.push("rpm_runtime_validation".to_string());
-    }
-
-    validation_log("container runtime validation: ok");
-    Ok(ValidationReport {
-        name: format!("container runtime validation ({})", mode.label()),
-        out_dir: default_out_dir("container-runtime-validation"),
-        checks,
-    })
+    run_packaged_validation(
+        "container-runtime-validation",
+        "container runtime validation",
+        cfg,
+        mode,
+        runtime_validation_body(),
+        runtime_validation_body(),
+        true,
+        "deb_runtime_validation",
+        "rpm_runtime_validation",
+    )
 }
 
 pub fn run_container_protocol_validation(
     mode: ReleaseCheckMode,
 ) -> Result<ValidationReport, ValidationError> {
-    require_cmd("docker")?;
-    ensure_docker_reachable()?;
-
     let cfg = ContainerValidationConfig::new(
         "protocol",
         "GEWY_DEB_PROTOCOL_IMAGE",
@@ -100,33 +171,22 @@ pub fn run_container_protocol_validation(
         "GEWY_RPM_PROTOCOL_IMAGE",
         DEFAULT_RPM_PROTOCOL_IMAGE,
     );
-    let packages_dir = repo_root().join("target").join("packages");
-    let mut checks = Vec::new();
-
-    if matches!(mode, ReleaseCheckMode::Deb | ReleaseCheckMode::DebAndRpm) {
-        run_deb_validation(&cfg, &packages_dir, protocol_validation_body(), false)?;
-        checks.push("deb_protocol_validation".to_string());
-    }
-
-    if matches!(mode, ReleaseCheckMode::Rpm | ReleaseCheckMode::DebAndRpm) {
-        run_rpm_validation(&cfg, &packages_dir, protocol_validation_body(), false)?;
-        checks.push("rpm_protocol_validation".to_string());
-    }
-
-    validation_log("container protocol validation: ok");
-    Ok(ValidationReport {
-        name: format!("container protocol validation ({})", mode.label()),
-        out_dir: default_out_dir("container-protocol-validation"),
-        checks,
-    })
+    run_packaged_validation(
+        "container-protocol-validation",
+        "container protocol validation",
+        cfg,
+        mode,
+        protocol_validation_body(),
+        protocol_validation_body(),
+        false,
+        "deb_protocol_validation",
+        "rpm_protocol_validation",
+    )
 }
 
 pub fn run_container_operator_path_validation(
     mode: ReleaseCheckMode,
 ) -> Result<ValidationReport, ValidationError> {
-    require_cmd("docker")?;
-    ensure_docker_reachable()?;
-
     let cfg = ContainerValidationConfig::new(
         "operator-path",
         "GEWY_DEB_OPERATOR_IMAGE",
@@ -134,25 +194,17 @@ pub fn run_container_operator_path_validation(
         "GEWY_RPM_OPERATOR_IMAGE",
         DEFAULT_RPM_OPERATOR_IMAGE,
     );
-    let packages_dir = repo_root().join("target").join("packages");
-    let mut checks = Vec::new();
-
-    if matches!(mode, ReleaseCheckMode::Deb | ReleaseCheckMode::DebAndRpm) {
-        run_deb_validation(&cfg, &packages_dir, operator_validation_body(), false)?;
-        checks.push("deb_operator_path_validation".to_string());
-    }
-
-    if matches!(mode, ReleaseCheckMode::Rpm | ReleaseCheckMode::DebAndRpm) {
-        run_rpm_validation(&cfg, &packages_dir, operator_validation_body(), false)?;
-        checks.push("rpm_operator_path_validation".to_string());
-    }
-
-    validation_log("container operator path validation: ok");
-    Ok(ValidationReport {
-        name: format!("container operator path validation ({})", mode.label()),
-        out_dir: default_out_dir("container-operator-path-validation"),
-        checks,
-    })
+    run_packaged_validation(
+        "container-operator-path-validation",
+        "container operator path validation",
+        cfg,
+        mode,
+        operator_validation_body(),
+        operator_validation_body(),
+        false,
+        "deb_operator_path_validation",
+        "rpm_operator_path_validation",
+    )
 }
 
 pub fn run_container_validation_summary(
@@ -179,11 +231,68 @@ pub fn run_container_validation_summary(
 
     let mut checks = protocol.checks;
     checks.extend(operator.checks);
+    let out_dir = default_out_dir("container-validation-summary");
+    prepare_container_evidence(&out_dir)?;
+    write_composite_evidence(
+        &out_dir,
+        "container-validation-summary",
+        mode,
+        &checks,
+        &[
+            ("protocol", &protocol.out_dir),
+            ("operator_path", &operator.out_dir),
+        ],
+    )?;
     Ok(ValidationReport {
         name: format!("packaged container validation summary ({})", mode.label()),
-        out_dir: default_out_dir("container-validation-summary"),
+        out_dir,
         checks,
     })
+}
+
+fn write_composite_evidence(
+    out_dir: &Path,
+    command: &str,
+    mode: ReleaseCheckMode,
+    checks: &[String],
+    components: &[(&str, &Path)],
+) -> Result<(), ValidationError> {
+    let components = components
+        .iter()
+        .map(|(name, path)| {
+            let evidence_dir = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .ok_or_else(|| ValidationError::new("invalid component evidence directory"))?;
+            Ok(json!({
+                "name": name,
+                "evidence_dir": format!("../{evidence_dir}"),
+                "status": "ok",
+            }))
+        })
+        .collect::<Result<Vec<_>, ValidationError>>()?;
+    let summary = json!({
+        "schema_version": 1,
+        "command": command,
+        "status": "ok",
+        "mode": mode.label(),
+        "checks": checks,
+        "components": components,
+    });
+    fs::write(
+        out_dir.join("summary.json"),
+        format!("{}\n", serde_json::to_string_pretty(&summary)?),
+    )?;
+    let index = json!({
+        "schema_version": 1,
+        "command": command,
+        "files": ["summary.json"],
+    });
+    fs::write(
+        out_dir.join("evidence-index.json"),
+        format!("{}\n", serde_json::to_string_pretty(&index)?),
+    )?;
+    Ok(())
 }
 
 struct ContainerValidationConfig {
@@ -208,12 +317,56 @@ impl ContainerValidationConfig {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn run_packaged_validation(
+    command: &str,
+    report_name: &str,
+    cfg: ContainerValidationConfig,
+    mode: ReleaseCheckMode,
+    deb_body: &'static str,
+    rpm_body: &'static str,
+    install_curl: bool,
+    deb_check: &str,
+    rpm_check: &str,
+) -> Result<ValidationReport, ValidationError> {
+    require_cmd("docker")?;
+    ensure_docker_reachable()?;
+
+    let packages_dir = repo_root().join("target").join("packages");
+    let out_dir = default_out_dir(command);
+    prepare_container_evidence(&out_dir)?;
+    let mut checks = Vec::new();
+    let mut evidence_files = Vec::new();
+
+    if matches!(mode, ReleaseCheckMode::Deb | ReleaseCheckMode::DebAndRpm) {
+        let package = run_deb_validation(&cfg, &packages_dir, deb_body, install_curl)?;
+        checks.push(deb_check.to_string());
+        write_package_stage_evidence(&out_dir, "deb", &cfg.deb_image, &package)?;
+        evidence_files.push("deb.json".to_string());
+    }
+
+    if matches!(mode, ReleaseCheckMode::Rpm | ReleaseCheckMode::DebAndRpm) {
+        let package = run_rpm_validation(&cfg, &packages_dir, rpm_body, install_curl)?;
+        checks.push(rpm_check.to_string());
+        write_package_stage_evidence(&out_dir, "rpm", &cfg.rpm_image, &package)?;
+        evidence_files.push("rpm.json".to_string());
+    }
+
+    write_container_summary(&out_dir, command, mode, &checks, &mut evidence_files)?;
+    validation_log(format!("{report_name}: ok"));
+    Ok(ValidationReport {
+        name: format!("{report_name} ({})", mode.label()),
+        out_dir,
+        checks,
+    })
+}
+
 fn run_deb_validation(
     cfg: &ContainerValidationConfig,
     packages_dir: &Path,
     body: &'static str,
     install_curl: bool,
-) -> Result<(), ValidationError> {
+) -> Result<PathBuf, ValidationError> {
     let deb_path = package_from_manifest(packages_dir, "deb", "deb")?;
     let package_name = deb_path
         .file_name()
@@ -249,7 +402,7 @@ apt-get update >/dev/null\n\
         cfg.validation_name,
         deb_path.display()
     ));
-    Ok(())
+    Ok(deb_path)
 }
 
 fn run_rpm_validation(
@@ -257,7 +410,7 @@ fn run_rpm_validation(
     packages_dir: &Path,
     body: &'static str,
     install_curl: bool,
-) -> Result<(), ValidationError> {
+) -> Result<PathBuf, ValidationError> {
     let rpm_dir = packages_dir.join("rpm");
     let rpm_path = package_from_manifest(packages_dir, "rpm", "rpm")?;
     let package_name = rpm_path
@@ -297,7 +450,7 @@ GEWY_PACKAGE_FILE=\"/packages/{package_name}\"\n\
         cfg.validation_name,
         rpm_path.display()
     ));
-    Ok(())
+    Ok(rpm_path)
 }
 
 fn run_docker_script(
@@ -425,23 +578,12 @@ fn package_from_manifest(
             "package build manifest contains duplicate {key} artifacts"
         )));
     }
-    let path = PathBuf::from(value);
-    if path
-        .strip_prefix(packages_dir)
-        .ok()
-        .is_none_or(|relative| relative.as_os_str().is_empty())
-    {
-        return Err(ValidationError::new(format!(
-            "package build manifest {key} artifact escapes the package root: {}",
-            path.display()
-        )));
-    }
-    if path.extension().and_then(|ext| ext.to_str()) != Some(extension) {
-        return Err(ValidationError::new(format!(
-            "package build manifest {key} artifact has the wrong extension: {}",
-            path.display()
-        )));
-    }
+    let declared_path = PathBuf::from(value);
+    let path = if declared_path.is_absolute() {
+        declared_path
+    } else {
+        packages_dir.join(declared_path)
+    };
     let file_type = fs::symlink_metadata(&path)
         .map_err(|error| {
             ValidationError::new(format!(
@@ -453,6 +595,24 @@ fn package_from_manifest(
     if file_type.is_symlink() || !file_type.is_file() {
         return Err(ValidationError::new(format!(
             "package candidate is not a regular file: {}",
+            path.display()
+        )));
+    }
+    let package_root = fs::canonicalize(packages_dir)?;
+    let path = fs::canonicalize(&path)?;
+    if path
+        .strip_prefix(&package_root)
+        .ok()
+        .is_none_or(|relative| relative.as_os_str().is_empty())
+    {
+        return Err(ValidationError::new(format!(
+            "package build manifest {key} artifact escapes the package root: {}",
+            path.display()
+        )));
+    }
+    if path.extension().and_then(|ext| ext.to_str()) != Some(extension) {
+        return Err(ValidationError::new(format!(
+            "package build manifest {key} artifact has the wrong extension: {}",
             path.display()
         )));
     }
@@ -483,8 +643,11 @@ mod tests {
         let current = root.join("gewyvern_1.10.0-1_amd64.deb");
         fs::write(&current, b"current-package").unwrap();
         fs::write(root.join("gewyvern_1.9.0-1_amd64.deb"), b"stale-package").unwrap();
-        write_manifest(&root, &[("deb", &current)]);
-        assert_eq!(package_from_manifest(&root, "deb", "deb").unwrap(), current);
+        write_manifest(&root, &[("deb", Path::new("gewyvern_1.10.0-1_amd64.deb"))]);
+        assert_eq!(
+            package_from_manifest(&root, "deb", "deb").unwrap(),
+            fs::canonicalize(&current).unwrap()
+        );
 
         let duplicate = root.join("gewyvern_1.10.0-2_amd64.deb");
         fs::write(&duplicate, b"duplicate-package").unwrap();
@@ -510,7 +673,61 @@ mod tests {
         fs::write(&outside, b"outside-package").unwrap();
         write_manifest(&root, &[("deb", &outside)]);
         assert!(package_from_manifest(&root, "deb", "deb").is_err());
+
+        let traversal = PathBuf::from("..").join(outside.file_name().unwrap());
+        write_manifest(&root, &[("deb", &traversal)]);
+        assert!(package_from_manifest(&root, "deb", "deb").is_err());
         fs::remove_file(outside).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn package_install_smoke_persists_complete_machine_evidence() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-package-evidence-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let out_dir = root.join("evidence");
+        fs::create_dir_all(&root).unwrap();
+        let deb = root.join("gewyvern.deb");
+        let rpm = root.join("gewyvern.rpm");
+        fs::write(&deb, b"deb-package").unwrap();
+        fs::write(&rpm, b"rpm-package").unwrap();
+
+        prepare_container_evidence(&out_dir).unwrap();
+        write_package_stage_evidence(&out_dir, "deb", "ubuntu:test", &deb).unwrap();
+        write_package_stage_evidence(&out_dir, "rpm", "fedora:test", &rpm).unwrap();
+        let checks = vec![
+            "deb_install_smoke".to_string(),
+            "rpm_install_smoke".to_string(),
+        ];
+        let mut files = vec!["deb.json".to_string(), "rpm.json".to_string()];
+        write_container_summary(
+            &out_dir,
+            "package-install-smoke",
+            ReleaseCheckMode::DebAndRpm,
+            &checks,
+            &mut files,
+        )
+        .unwrap();
+
+        let deb_evidence: serde_json::Value =
+            serde_json::from_slice(&fs::read(out_dir.join("deb.json")).unwrap()).unwrap();
+        assert_eq!(deb_evidence["status"], "ok");
+        assert_eq!(deb_evidence["image"], "ubuntu:test");
+        assert_eq!(deb_evidence["artifact_bytes"], 11);
+        assert_eq!(deb_evidence["artifact_sha256"].as_str().unwrap().len(), 64);
+
+        let summary: serde_json::Value =
+            serde_json::from_slice(&fs::read(out_dir.join("summary.json")).unwrap()).unwrap();
+        assert_eq!(summary["mode"], "deb+rpm");
+        assert_eq!(summary["checks"].as_array().unwrap().len(), 2);
+
+        let index: serde_json::Value =
+            serde_json::from_slice(&fs::read(out_dir.join("evidence-index.json")).unwrap())
+                .unwrap();
+        assert_eq!(index["files"].as_array().unwrap().len(), 3);
         fs::remove_dir_all(root).unwrap();
     }
 }
@@ -915,7 +1132,7 @@ echo "container runtime validation: ok"
 
 fn package_install_smoke_deb_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.6}"
 
 dpkg-deb -c "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q './usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt
@@ -935,7 +1152,7 @@ test -f /usr/share/gewyvern/examples/gewyvern.toml.example
 
 fn package_install_smoke_rpm_body() -> &'static str {
     r#"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.6}"
 
 rpm -qpl "${GEWY_PACKAGE_FILE}" >/tmp/gewyvern-package-contents.txt
 grep -q '/usr/share/doc/gewyvern/LICENSE' /tmp/gewyvern-package-contents.txt

@@ -267,6 +267,70 @@
   },
   "coverage_requirements": [
     {
+      "id": "boundary-project-status-governance",
+      "architecture": "project-governance",
+      "kind": "ownership-boundary",
+      "summary": "The project status subsystem owns schema validation, exhaustive architecture coverage, and machine-readable progress views.",
+      "source": "docs/project-status-system.md",
+      "cells": ["project-governance/status-governance/status-tensor"]
+    },
+    {
+      "id": "boundary-gewyvern-runtime-evidence",
+      "architecture": "gewyvern-core",
+      "kind": "ownership-boundary",
+      "summary": "The stable Gewyvern runtime owns evidence reconstruction and machine-facing validation contracts.",
+      "source": "docs/architecture-blueprint.md",
+      "cells": ["gewyvern-core/runtime-evidence/evidence-reconstruction"]
+    },
+    {
+      "id": "boundary-gewyvern-linux-ebpf",
+      "architecture": "gewyvern-core",
+      "kind": "ownership-boundary",
+      "summary": "The Linux-first runtime owns eBPF attachment, collection, and physical-host proof.",
+      "source": "docs/architecture-blueprint.md",
+      "cells": ["gewyvern-core/linux-ebpf/linux-attach"]
+    },
+    {
+      "id": "boundary-gewylang-compiler",
+      "architecture": "gewylang",
+      "kind": "ownership-boundary",
+      "summary": "The GewyLang compiler owns parsing, validation, and lowering into stable runtime IR.",
+      "source": "docs/gewylang-system.md",
+      "cells": ["gewylang/compiler/parser-lowering"]
+    },
+    {
+      "id": "boundary-gewylang-protocol-packages",
+      "architecture": "gewylang",
+      "kind": "ownership-boundary",
+      "summary": "The GewyLang package shelf owns reusable protocol definitions and their validation surface.",
+      "source": "docs/gewylang-system.md",
+      "cells": ["gewylang/protocol-packages/protocol-catalog"]
+    },
+    {
+      "id": "boundary-leserpent-1x-control-plane",
+      "architecture": "leserpent-1x",
+      "kind": "ownership-boundary",
+      "summary": "The Leserpent 1.x bridge owns compatibility orchestration and persistence while Rust authority is adopted incrementally.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-1x/control-plane/orchestration-persistence"]
+    },
+    {
+      "id": "boundary-leserpent-1x-web-console",
+      "architecture": "leserpent-1x",
+      "kind": "ownership-boundary",
+      "summary": "The Leserpent 1.x web console remains a supported compatibility frontend until shared command and query semantics replace browser-owned behavior.",
+      "source": "docs/leserpent-2-roadmap.md",
+      "cells": ["leserpent-1x/web-console/browser-operations"]
+    },
+    {
+      "id": "boundary-etragon-learning-sidecar",
+      "architecture": "etragon",
+      "kind": "ownership-boundary",
+      "summary": "Etragon owns optional advisory learning without replacing Gewyvern diagnosis or Leserpent orchestration authority.",
+      "source": "docs/sidecar-collaboration.md",
+      "cells": ["etragon/learning-sidecar/advisory-learning"]
+    },
+    {
       "id": "boundary-leselang-syntax",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
@@ -435,14 +499,14 @@
       "feature": "evidence-reconstruction",
       "lifecycle": "current",
       "maturity": "mature",
-      "completion": 99,
+      "completion": 100,
       "confidence": "high",
       "independence": "standalone-tool",
       "contract": {
         "id": "gewyvern-machine-contract",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "stability": "stable",
-        "surfaces": ["cli", "json-export", "runtime-api", "validation"]
+        "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing"]
       },
       "depends_on": [],
       "blockers": [],
@@ -452,7 +516,7 @@
         { "kind": "test", "path": "tests/runtime_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/machine-contract.md", "state": "present" }
       ],
-      "next_gate": "Keep the 1.x contract stable while extracting reusable status and protocol surfaces."
+      "next_gate": "Keep the 1.x contract stable and preserve loss accounting across future runtime evidence filters."
     },
     {
       "id": "gewyvern-core/linux-ebpf/linux-attach",
@@ -461,7 +525,7 @@
       "feature": "linux-attach",
       "lifecycle": "current",
       "maturity": "stabilizing",
-      "completion": 100,
+      "completion": 98,
       "confidence": "medium",
       "independence": "internal",
       "contract": {
@@ -625,14 +689,14 @@
       "feature": "protocol-catalog",
       "lifecycle": "current",
       "maturity": "mature",
-      "completion": 97,
+      "completion": 100,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "protocol-package-contract",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "stability": "stable",
-        "surfaces": ["gewy-package", "protocol-registry", "entry-aliases", "family-shelves"]
+        "surfaces": ["gewy-package", "protocol-registry", "entry-aliases", "family-shelves", "strict-catalog-validation", "confined-package-entry"]
       },
       "depends_on": ["gewylang/compiler/parser-lowering"],
       "blockers": [],
@@ -642,7 +706,7 @@
         { "kind": "test", "path": "tests/protocol_registry_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/book/reference-protocol-surface.md", "state": "present" }
       ],
-      "next_gate": "Preserve package compatibility while adding only evidence-backed protocol breadth."
+      "next_gate": "Preserve package compatibility and require future catalog filters to retain strict diagnostics and package-root confinement."
     },
     {
       "id": "leserpent-1x/control-plane/orchestration-persistence",
@@ -656,9 +720,9 @@
       "independence": "standalone-service",
       "contract": {
         "id": "leserpent-control-api",
-        "version": "1.4.0",
+        "version": "1.4.6",
         "stability": "evolving",
-        "surfaces": ["fleet-api", "orchestra-api", "deployment-api", "sqlite-history", "serialized-durable-state-save", "non-vacuous-dotnet-test-discovery", "strict-rust-compatibility-bridge", "pre-effect-deployment-parity", "append-only-deployment-fixture", "source-generated-payload-shape-proof", "atomic-orchestra-run-event-envelope", "append-only-orchestra-persistence-fixture", "cross-record-identity-fence", "async-bridge-transaction-boundary", "rust-authoritative-deployment-normalization", "canonical-bridge-response-payload", "adapter-audit-canonical-intent", "real-cross-process-authority-proof", "typed-deployment-receipt", "command-request-identity-fence", "persisted-daemon-outcome", "configured-csharp-ipc-authority", "owner-private-socket-fence", "idempotent-target-registration", "daemon-bundle-packaging", "rust-orchestra-persistence-primitive", "orchestra-write-capability", "atomic-orchestra-readback", "typed-orchestra-history-pagination", "canonical-orchestra-event-sequence", "typed-orchestra-delete", "request-id-uniqueness", "bounded-runtime-run-retention", "daemon-backed-csharp-store", "no-configured-dual-write", "real-orchestra-authority-proof"]
+        "surfaces": ["fleet-api", "orchestra-api", "deployment-api", "runtime-cleanup-plan", "stale-cleanup-rejection", "runtime-registration-plan", "canonical-endpoint-identity", "stale-registration-rejection", "server-orchestrated-runtime-recovery", "typed-recovery-step-outcomes", "sqlite-history", "serialized-durable-state-save", "non-vacuous-dotnet-test-discovery", "strict-rust-compatibility-bridge", "pre-effect-deployment-parity", "append-only-deployment-fixture", "source-generated-payload-shape-proof", "atomic-orchestra-run-event-envelope", "append-only-orchestra-persistence-fixture", "cross-record-identity-fence", "async-bridge-transaction-boundary", "rust-authoritative-deployment-normalization", "canonical-bridge-response-payload", "adapter-audit-canonical-intent", "real-cross-process-authority-proof", "typed-deployment-receipt", "command-request-identity-fence", "persisted-daemon-outcome", "configured-csharp-ipc-authority", "owner-private-socket-fence", "idempotent-target-registration", "daemon-bundle-packaging", "rust-orchestra-persistence-primitive", "orchestra-write-capability", "atomic-orchestra-readback", "typed-orchestra-history-pagination", "canonical-orchestra-event-sequence", "typed-orchestra-delete", "request-id-uniqueness", "bounded-runtime-run-retention", "daemon-backed-csharp-store", "no-configured-dual-write", "real-orchestra-authority-proof"]
       },
       "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
       "blockers": [],
@@ -681,31 +745,29 @@
       "module": "web-console",
       "feature": "browser-operations",
       "lifecycle": "bridge",
-      "maturity": "stabilizing",
-      "completion": 78,
+      "maturity": "mature",
+      "completion": 100,
       "confidence": "high",
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-web-console",
-        "version": "1.1.0",
-        "stability": "evolving",
-        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails", "leserpent-brand-icon", "windows-web-access-path"]
+        "version": "1.4.0",
+        "stability": "stable",
+        "surfaces": ["dashboard", "runtime-workspace", "language-packs", "operator-guardrails", "server-authoritative-cleanup-plan", "stale-confirmation-fence", "server-authoritative-registration-plan", "secret-free-registration-preview", "server-orchestrated-recovery-command", "server-issued-command-kind", "leserpent-brand-icon", "windows-web-access-path"]
       },
       "depends_on": ["leserpent-1x/control-plane/orchestration-persistence"],
-      "blockers": [
-        {
-          "id": "frontend-business-logic",
-          "summary": "Some operator behavior still lives in TypeScript and must be normalized before renderer replacement."
-        }
-      ],
+      "blockers": [],
       "consumers": ["browser-operators", "windows-operators"],
       "evidence": [
         { "kind": "source", "path": "apps/leserpent/src/Leserpent/frontend", "state": "present" },
         { "kind": "source", "path": "assets/branding/leserpent-icon.png", "state": "present" },
         { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/BrowserSecurityContractTests.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeCleanupPolicyTests.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRegistrationPolicyTests.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeRecoveryContractTests.cs", "state": "present" },
         { "kind": "documentation", "path": "apps/leserpent/docs/frontend-layout-maintenance.md", "state": "present" }
       ],
-      "next_gate": "Keep the Windows Web access path compatible while separating domain commands from presentation-only browser state."
+      "next_gate": "Preserve the renderer-only browser boundary and Windows Web compatibility while new commands enter through typed control-plane contracts."
     },
     {
       "id": "leserpent-2/domain-model/command-query-kernel",
@@ -775,7 +837,7 @@
         "id": "leserpent-wire-contract",
         "version": "1.0.0",
         "stability": "stable",
-        "surfaces": ["wire-envelope", "strict-versioned-envelope-fields", "strict-health-payload-fields", "strict-remote-projection-fields", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "runtime-deploy-wire-command", "authenticated-https-wire", "authenticated-https-cli", "remote-capability-refresh-vertical", "remote-discovery-inspect-readback", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "bounded-http-framing", "tls-key-file-safety", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "tracked-rust-compatibility-binary-source", "physical-linux-native-aot-bundle-smoke", "staged-linux-installer-proof"]
+        "surfaces": ["wire-envelope", "strict-versioned-envelope-fields", "strict-health-payload-fields", "strict-remote-projection-fields", "legacy-v1-compatibility", "compatibility-process-transport", "authenticated-unix-ipc", "bounded-line-framing", "authority-health-request", "optional-effect-queue-health", "legacy-health-response-decode", "typed-runtime-history-query", "typed-runtime-log-query", "bounded-log-cursor", "shared-wire-dispatch", "runtime-deploy-wire-command", "authenticated-https-wire", "authenticated-https-cli", "remote-capability-refresh-vertical", "remote-discovery-inspect-readback", "authenticated-websocket-events", "versioned-event-envelope", "required-event-subprotocol", "revision-snapshot-resume", "future-cursor-resync", "remote-endpoint-redaction", "bounded-event-sessions", "explicit-ca-trust", "tls-hostname-verification", "bearer-token-authentication", "bounded-http-framing", "tls-key-file-safety", "peer-failure-isolation", "remote-cli-exit-contract", "typed-avalonia-runtime-refresh", "revision-fenced-remote-mutation", "rust-dotnet-mutation-vertical", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "named-transport-proof", "retained-transport-evidence", "authenticated-ipc-negative-paths", "authenticated-https-negative-paths", "websocket-security-negative-paths", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "tracked-rust-compatibility-binary-source", "physical-linux-native-aot-bundle-smoke", "staged-linux-installer-proof", "rustls-pki-types-direct-pem-parsing"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-1x/control-plane/orchestration-persistence"],
       "blockers": [],
@@ -1016,7 +1078,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-runtime-contract",
-        "version": "1.4.0",
+        "version": "1.4.6",
         "stability": "stable",
         "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "panic-free-snapshot-recovery", "all-generations-invalid-error", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "owner-heartbeat", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "sqlite-v7-semantic-fence", "sqlite-v8-runtime-logs", "sqlite-v9-capability-observation", "strict-v9-migration-history", "sqlite-v10-orchestra-atomic-persistence", "strict-v10-migration-history", "orchestra-event-idempotency", "orchestra-event-drift-rollback", "typed-orchestra-readback", "typed-orchestra-history-pagination", "canonical-orchestra-event-sequence", "indexed-runtime-log-query", "per-runtime-log-retention", "initial-newest-log-window", "cursor-log-increment", "journal-kind-validation", "effect-schema-validation", "idempotent-effect-enqueue", "atomic-batch-enqueue", "bounded-enqueue-batch", "batch-conflict-rollback", "capacity-atomicity", "full-capacity-idempotent-replay", "transactional-effect-claim", "kind-excluding-batch-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "synchronous-worker-step", "public-effect-settlement", "complete-retry-reject", "durable-event-effect-materialization", "restart-outbox-repair", "typed-status-observation", "typed-capability-observation", "shared-capability-refresh-command", "shared-deployment-command", "confirmed-deployment-materialization", "envelope-derived-deployment-identity", "revision-fenced-discovery-materialization", "revision-bound-capability-projection", "atomic-effect-projection-completion", "status-replay-validation", "capability-replay-validation", "effect-queue-state-counters", "active-capacity-saturation", "bounded-terminal-retention", "active-task-preservation", "transactions", "policy"]
       },
@@ -1303,9 +1365,9 @@
       "independence": "internal",
       "contract": {
         "id": "leserpent-proof-shelves",
-        "version": "0.56.0",
+        "version": "0.59.0",
         "stability": "draft",
-        "surfaces": ["development-and-aot-locked-restore-parity", "managed-and-native-accessibility-lock-graph-separation", "authenticated-dotnet-health-preflight-proof", "strict-health-codec-proof", "authority-health-presentation-proof", "gui-leselang-export-proof", "workspace-log-filter-proof", "workspace-diagnostic-export-proof", "workspace-live-refresh-proof", "workspace-delta-summary-proof", "parser-fuzz", "vm-fuzz", "deterministic-fuzz-seed", "utf8-span-invariants", "bounded-hir-vm-start", "fail-closed-continuation-fuzz", "retained-fuzz-evidence", "origin-parity", "authorization", "crash-replay", "named-origin-parity-recovery-proof", "non-vacuous-test-count", "command-origin-lowering-proof", "authorization-confirmation-proof", "principal-idempotency-proof", "cli-leselang-origin-parity", "vm-reentry-recovery-proof", "runtime-recovery-injection-proof", "remote-wire-parity-proof", "remote-cli-parity-proof", "avalonia-remote-state-proof", "rust-dotnet-remote-vertical-proof", "rust-dotnet-mutation-vertical-proof", "rust-dotnet-workspace-query-vertical-proof", "rust-dotnet-workspace-log-vertical-proof", "explicit-confirmed-remote-mutation-proof", "optimistic-runtime-revision-proof", "websocket-mutation-observation-proof", "strict-external-success-marker", "lease-crash-outbox-repair", "retained-parity-recovery-evidence", "macos-arm64-parity-recovery-proof", "physical-linux-x64-parity-recovery-proof", "named-ui-accessibility-proof", "unique-automation-id-proof", "complete-automation-name-proof", "explicit-action-label-proof", "wcag-aa-contrast-proof", "retained-accessibility-evidence", "transport-compatibility", "named-transport-proof", "wire-v1-contract-proof", "legacy-v1-adaptation-proof", "cli-leselang-transport-parity", "authenticated-unix-ipc-proof", "authenticated-https-wire-proof", "authenticated-https-cli-proof", "ipc-security-negative-paths", "https-security-negative-paths", "real-tls-loopback", "native-cli-https-roundtrip", "retained-transport-evidence", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "macos-app-bundle-proof", "finder-dock-launch-proof", "strict-adhoc-signature-proof", "adhoc-runtime-launch-withheld", "local-ui-adhoc-launch-proof", "developer-id-release-pipeline-contract", "plaintext-notary-secret-rejection", "hardened-runtime-flag-proof", "packaged-keychain-startup-proof", "zero-keychain-residue-proof", "connection-maintenance-contract-proof", "connection-management-control-proof", "desktop-ca-store-contract-proof", "managed-ca-replacement-negative-proof", "managed-ca-prune-proof", "named-benchmark-proof", "sqlite-cold-open-budget", "runtime-query-latency-budget", "effect-throughput-budget", "ui-ir-performance-budget", "release-binary-size-budget", "same-host-class-comparison", "macos-arm64-benchmark-proof", "physical-linux-x64-benchmark-proof", "retained-benchmark-evidence", "workspace-severity-signal-proof", "workspace-snapshot-boundary-proof", "workspace-severity-acknowledgement-proof", "hybrid-incremental-workspace-log-proof", "remote-workspace-log-benchmark-proof", "same-host-incremental-full-comparison", "bounded-live-refresh-backoff-proof", "consecutive-failure-stop-proof", "successful-manual-query-backoff-reset-proof", "skipped-live-query-backoff-neutrality-proof", "manual-query-live-timer-ownership-proof", "diagnostic-file-export-proof", "safe-diagnostic-filename-proof", "replacement-write-proof", "dotnet-rust-workspace-leselang-proof", "workspace-query-hir-lowering-proof", "workspace-policy-assembly-boundary-proof", "mobile-workspace-policy-consumption-proof", "zero-avalonia-policy-dependency-proof", "remote-projection-assembly-boundary-proof", "mobile-ui-document-consumption-proof", "zero-avalonia-projection-dependency-proof", "shared-mutation-fence-boundary-proof", "mobile-mutation-fence-consumption-proof", "shared-action-availability-boundary-proof", "mobile-action-availability-consumption-proof", "workspace-fence-overwrite-regression-proof", "shared-authority-health-boundary-proof", "mobile-queue-saturation-proof", "proof-local-dotnet-artifacts", "parallel-accessibility-aot-proof", "intermediate-artifact-cleanup-proof", "all-dotnet-proof-artifact-isolation", "parallel-parity-benchmark-proof", "benchmark-dotnet-artifact-cleanup", "nested-dotnet-artifact-isolation", "strict-aot-artifact-inventory", "complete-aot-evidence-index", "strict-release-directory-enumeration", "non-vacuous-resilience-and-package-discovery", "manifest-bound-package-validation", "cross-host-manifest-bound-package-validation", "strict-package-cache-manifest", "serialized-package-build-output", "atomic-package-publication", "layout-only-manifest-preservation", "linux-loader-owned-string-compatibility", "physical-linux-package-runtime-ebpf-proof", "remote-linux-all-target-compile-proof", "targeted-transient-remote-sync-exclusions", "full-workspace-linux-target-compile-proof", "linux-integration-test-ownership-compatibility", "bounded-remote-toolchain-provenance", "history-retained-toolchain-provenance", "bounded-unique-remote-evidence-codec", "machine-stdout-human-stderr-separation", "mandatory-strict-remote-phase-timings", "canonical-finite-timing-evidence", "shared-bounded-evidence-codec", "strict-local-summary-evidence-consumption", "single-pass-human-json-summary", "bounded-history-summary-and-recent-evidence", "locked-dotnet-security-test-proof", "strict-dotnet-test-summary-codec", "non-vacuous-xunit-count", "bounded-proof-host-provenance", "stale-proof-success-invalidation", "physical-linux-x64-expanded-parity-proof", "opt-in-combined-release-gate", "machine-readable-leserpent-release-stage", "indexed-leserpent-proof-artifact", "current-run-artifact-status-precedence", "shared-evidence-file-readers", "fail-closed-release-gate-remote-summary", "zero-lenient-evidence-parser-duplication", "macos-release-preflight-proof", "apple-toolchain-readiness-proof", "credential-blocker-evidence"]
+        "surfaces": ["development-and-aot-locked-restore-parity", "managed-and-native-accessibility-lock-graph-separation", "authenticated-dotnet-health-preflight-proof", "strict-health-codec-proof", "authority-health-presentation-proof", "gui-leselang-export-proof", "workspace-log-filter-proof", "workspace-diagnostic-export-proof", "workspace-live-refresh-proof", "workspace-delta-summary-proof", "parser-fuzz", "vm-fuzz", "deterministic-fuzz-seed", "utf8-span-invariants", "bounded-hir-vm-start", "fail-closed-continuation-fuzz", "retained-fuzz-evidence", "origin-parity", "authorization", "crash-replay", "named-origin-parity-recovery-proof", "non-vacuous-test-count", "command-origin-lowering-proof", "authorization-confirmation-proof", "principal-idempotency-proof", "cli-leselang-origin-parity", "vm-reentry-recovery-proof", "runtime-recovery-injection-proof", "remote-wire-parity-proof", "remote-cli-parity-proof", "avalonia-remote-state-proof", "rust-dotnet-remote-vertical-proof", "rust-dotnet-mutation-vertical-proof", "rust-dotnet-workspace-query-vertical-proof", "rust-dotnet-workspace-log-vertical-proof", "explicit-confirmed-remote-mutation-proof", "optimistic-runtime-revision-proof", "websocket-mutation-observation-proof", "strict-external-success-marker", "lease-crash-outbox-repair", "retained-parity-recovery-evidence", "macos-arm64-parity-recovery-proof", "physical-linux-x64-parity-recovery-proof", "named-ui-accessibility-proof", "unique-automation-id-proof", "complete-automation-name-proof", "explicit-action-label-proof", "wcag-aa-contrast-proof", "retained-accessibility-evidence", "transport-compatibility", "named-transport-proof", "wire-v1-contract-proof", "legacy-v1-adaptation-proof", "cli-leselang-transport-parity", "authenticated-unix-ipc-proof", "authenticated-https-wire-proof", "authenticated-https-cli-proof", "ipc-security-negative-paths", "https-security-negative-paths", "real-tls-loopback", "native-cli-https-roundtrip", "retained-transport-evidence", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "physical-linux-control-plane-native-aot-proof", "strict-synchronized-aot-evidence-consumption", "exact-remote-aot-evidence-inventory", "post-rsync-symlink-rejection", "macos-app-bundle-proof", "finder-dock-launch-proof", "strict-adhoc-signature-proof", "adhoc-runtime-launch-withheld", "local-ui-adhoc-launch-proof", "developer-id-release-pipeline-contract", "plaintext-notary-secret-rejection", "hardened-runtime-flag-proof", "packaged-keychain-startup-proof", "zero-keychain-residue-proof", "connection-maintenance-contract-proof", "connection-management-control-proof", "desktop-ca-store-contract-proof", "managed-ca-replacement-negative-proof", "managed-ca-prune-proof", "named-benchmark-proof", "sqlite-cold-open-budget", "runtime-query-latency-budget", "effect-throughput-budget", "ui-ir-performance-budget", "release-binary-size-budget", "same-host-class-comparison", "macos-arm64-benchmark-proof", "physical-linux-x64-benchmark-proof", "retained-benchmark-evidence", "workspace-severity-signal-proof", "workspace-snapshot-boundary-proof", "workspace-severity-acknowledgement-proof", "hybrid-incremental-workspace-log-proof", "remote-workspace-log-benchmark-proof", "same-host-incremental-full-comparison", "bounded-live-refresh-backoff-proof", "consecutive-failure-stop-proof", "successful-manual-query-backoff-reset-proof", "skipped-live-query-backoff-neutrality-proof", "manual-query-live-timer-ownership-proof", "diagnostic-file-export-proof", "safe-diagnostic-filename-proof", "replacement-write-proof", "dotnet-rust-workspace-leselang-proof", "workspace-query-hir-lowering-proof", "workspace-policy-assembly-boundary-proof", "mobile-workspace-policy-consumption-proof", "zero-avalonia-policy-dependency-proof", "remote-projection-assembly-boundary-proof", "mobile-ui-document-consumption-proof", "zero-avalonia-projection-dependency-proof", "shared-mutation-fence-boundary-proof", "mobile-mutation-fence-consumption-proof", "shared-action-availability-boundary-proof", "mobile-action-availability-consumption-proof", "workspace-fence-overwrite-regression-proof", "shared-authority-health-boundary-proof", "mobile-queue-saturation-proof", "proof-local-dotnet-artifacts", "parallel-accessibility-aot-proof", "intermediate-artifact-cleanup-proof", "all-dotnet-proof-artifact-isolation", "parallel-parity-benchmark-proof", "benchmark-dotnet-artifact-cleanup", "nested-dotnet-artifact-isolation", "strict-aot-artifact-inventory", "complete-aot-evidence-index", "strict-release-directory-enumeration", "non-vacuous-resilience-and-package-discovery", "manifest-bound-package-validation", "cross-host-manifest-bound-package-validation", "strict-package-cache-manifest", "serialized-package-build-output", "atomic-package-publication", "layout-only-manifest-preservation", "linux-loader-owned-string-compatibility", "physical-linux-package-runtime-ebpf-proof", "remote-linux-all-target-compile-proof", "targeted-transient-remote-sync-exclusions", "full-workspace-linux-target-compile-proof", "linux-integration-test-ownership-compatibility", "bounded-remote-toolchain-provenance", "history-retained-toolchain-provenance", "bounded-unique-remote-evidence-codec", "machine-stdout-human-stderr-separation", "mandatory-strict-remote-phase-timings", "canonical-finite-timing-evidence", "shared-bounded-evidence-codec", "strict-local-summary-evidence-consumption", "single-pass-human-json-summary", "bounded-history-summary-and-recent-evidence", "locked-dotnet-security-test-proof", "strict-dotnet-test-summary-codec", "non-vacuous-xunit-count", "bounded-proof-host-provenance", "stale-proof-success-invalidation", "physical-linux-x64-expanded-parity-proof", "opt-in-combined-release-gate", "machine-readable-leserpent-release-stage", "indexed-leserpent-proof-artifact", "current-run-artifact-status-precedence", "shared-evidence-file-readers", "fail-closed-release-gate-remote-summary", "zero-lenient-evidence-parser-duplication", "macos-release-preflight-proof", "apple-toolchain-readiness-proof", "credential-blocker-evidence", "portable-container-evidence-graph", "dependency-advisory-zero-warning-proof"]
       },
       "depends_on": [],
       "blockers": [
@@ -1333,8 +1395,12 @@
         { "kind": "benchmark", "path": "crates/leselang-ui/examples/ui_benchmark.rs", "state": "present" },
         { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" },
         { "kind": "test", "path": "tests/native_validation_harness_tdd.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/remote_host.rs", "state": "present" },
+        { "kind": "test", "path": "target/validation/remote-linux-host-validation/leserpent-control-plane-aot-linux-x64", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/leserpent_macos_release_preflight.json", "state": "present" },
         { "kind": "test", "path": "tests/gewyvern_validate_json_snapshot_tdd.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/container_packaging.rs", "state": "present" },
+        { "kind": "release", "path": "target/validation/dependency-security", "state": "present" },
         { "kind": "test", "path": "target/validation/leserpent-parity-recovery-linux-x64", "state": "present" },
         { "kind": "benchmark", "path": "target/validation/leserpent-benchmark", "state": "planned" }
       ],
@@ -1377,15 +1443,15 @@
       "module": "status-governance",
       "feature": "status-tensor",
       "lifecycle": "current",
-      "maturity": "stabilizing",
-      "completion": 93,
+      "maturity": "mature",
+      "completion": 100,
       "confidence": "high",
       "independence": "standalone-tool",
       "contract": {
         "id": "project-status-tensor",
-        "version": "2.0.0",
-        "stability": "evolving",
-        "surfaces": ["json-schema", "catalog", "rust-api", "native-cli", "coverage-requirements", "bidirectional-coverage-validation", "coverage-summary"]
+        "version": "2.2.0",
+        "stability": "stable",
+        "surfaces": ["json-schema", "catalog", "rust-api", "native-cli", "coverage-requirements", "bidirectional-coverage-validation", "coverage-summary", "multi-architecture-coverage-manifest", "exhaustive-architecture-coverage"]
       },
       "depends_on": [],
       "blockers": [],
@@ -1395,7 +1461,7 @@
         { "kind": "test", "path": "tests/project_status_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/project-status-system.md", "state": "present" }
       ],
-      "next_gate": "Extend authoritative coverage manifests beyond Leserpent 2 to Gewyvern Core, GewyLang, bridge, and sidecar architecture documents."
+      "next_gate": "Keep schema v2 stable and require architecture additions to declare authoritative coverage in the same change."
     }
   ]
 }

@@ -6,7 +6,7 @@ use gewyvern::fragment::{AttachFailure, HookPoint};
 use gewyvern::ledger::FactKind;
 use gewyvern::loader::StaticFailureLoader;
 use gewyvern::program::{ProgramModel, ProgramNarrative, ProgramPredicate, ProgramRule};
-use gewyvern::runtime::{RuntimeSession, SessionConfig, build_flow_snapshots};
+use gewyvern::runtime::{RejectedFactReason, RuntimeSession, SessionConfig, build_flow_snapshots};
 use gewyvern::template::{
     FragmentParamValue, handshake_debug_template, udp_debug_template, udp_process_debug_template,
 };

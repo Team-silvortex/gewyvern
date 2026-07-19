@@ -11,7 +11,6 @@ leserpent-runtime = { path = "../leserpent-runtime" }
 serde.workspace = true
 serde_json.workspace = true
 rustls.workspace = true
-rustls-pemfile.workspace = true
 zeroize = "1"
 
 [dev-dependencies]

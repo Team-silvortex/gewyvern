@@ -58,7 +58,7 @@ Measurement notes:
 
 ## Release-Candidate Interpretation
 
-For the active `1.4.0` line, the intended acceptance rule is:
+For the active `1.4.6` line, the intended acceptance rule is:
 
 - compare against the `median`
 - judge regressions on the same developer-class machine, not across unrelated

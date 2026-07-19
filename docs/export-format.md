@@ -314,6 +314,14 @@ Current exported fields:
 Current reason values:
 
 - `fragment_not_loaded`
+- `filtered_by_fragment_param`
+- `before_window_start`
+- `after_lateness_cutoff`
+
+Window-policy drops are loss-accounted rather than silent. Facts earlier than
+the active window are reported as `before_window_start`; facts later than the
+window's configured lateness allowance are reported as
+`after_lateness_cutoff`. Neither class participates in reconstructed flows.
 
 ### `rejected_fact_summary`
 

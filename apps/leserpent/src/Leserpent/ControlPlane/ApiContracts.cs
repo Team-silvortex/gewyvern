@@ -76,6 +76,43 @@ public sealed record RuntimeBulkDeleteResponse(
     int RemovedSessionCount,
     IReadOnlyList<string> RemovedRuntimeNames);
 
+public sealed record RuntimeCleanupRequest(string PlanToken, string? Challenge = null);
+public sealed record RuntimeCleanupTarget(string RuntimeId, string Name);
+public sealed record RuntimeCleanupActionPlan(
+    string Kind,
+    int RuntimeCount,
+    int SessionCount,
+    IReadOnlyList<RuntimeCleanupTarget> Targets,
+    string PlanToken,
+    string? Challenge = null);
+public sealed record RuntimeCleanupPlan(
+    RuntimeListFilter Filter,
+    string RiskLevel,
+    RuntimeCleanupActionPlan Failed,
+    RuntimeCleanupActionPlan Unobserved,
+    RuntimeCleanupActionPlan Slice);
+
+public sealed record RuntimeRegistrationPlanRequest(
+    string Name,
+    string Endpoint,
+    string? SidecarEndpoint = null);
+public sealed record RuntimeRegistrationPlan(
+    bool Allowed,
+    string Action,
+    string? Reason,
+    string? ExistingRuntimeId,
+    string? ExistingRuntimeName,
+    string? ExistingRuntimeEndpoint,
+    string PlanToken);
+
+public sealed record RuntimeRecoveryCommandRequest(string Kind);
+public sealed record RuntimeRecoveryStepResult(string Kind, string Outcome, string Summary);
+public sealed record RuntimeRecoveryCommandResponse(
+    string RuntimeId,
+    string Kind,
+    string Outcome,
+    IReadOnlyList<RuntimeRecoveryStepResult> Steps);
+
 public sealed record OrchestraRevisionStep(string Key, string Kind);
 public sealed record OrchestraRevisionPayload(
     string RuntimeId,

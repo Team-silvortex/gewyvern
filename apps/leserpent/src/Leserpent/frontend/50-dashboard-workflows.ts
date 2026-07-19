@@ -72,33 +72,24 @@ function currentSliceRuntimes() {
   return state.cache.runtimes?.runtimes || [];
 }
 
-function currentSliceRuntimeIds() {
-  return new Set(currentSliceRuntimes().map((runtime) => runtime.runtimeId));
-}
-
 function currentFailedRuntimeCount() {
-  return currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "fetch_failed").length;
+  return state.cache.cleanupPlan?.failed?.runtimeCount ?? 0;
 }
 
 function currentSliceCount() {
-  return currentSliceRuntimes().length;
+  return state.cache.cleanupPlan?.slice?.runtimeCount ?? 0;
 }
 
 function currentUnobservedRuntimeCount() {
-  return currentSliceRuntimes().filter((runtime) =>
-    runtime.status?.statusSource === "unobserved" && !isIdleReadyStatus(runtime.status)).length;
+  return state.cache.cleanupPlan?.unobserved?.runtimeCount ?? 0;
 }
 
 function currentSliceSessionCount() {
-  const runtimeIds = currentSliceRuntimeIds();
-  return (state.cache.sessions?.sessions || []).filter((session) => runtimeIds.has(session.runtimeId)).length;
+  return state.cache.cleanupPlan?.slice?.sessionCount ?? 0;
 }
 
 function currentSliceRiskLevel() {
-  const values = [state.filter.environment, state.filter.cluster, state.filter.role]
-    .filter(Boolean)
-    .map((value) => value.toLowerCase());
-  return values.some((value) => value.includes("prod") || value.includes("live"));
+  return state.cache.cleanupPlan?.riskLevel === "protected";
 }
 
 function currentSliceRiskWarning() {
@@ -157,6 +148,10 @@ function runtimeNamesPreview(runtimes) {
 
 function describeCleanupTargets(runtimes) {
   return `\n\n${t("notifications.runtimeCleanupPreviewLabel")}: ${runtimeNamesPreview(runtimes)}`;
+}
+
+function cleanupAction(kind) {
+  return state.cache.cleanupPlan?.[kind] || null;
 }
 
 function syncCleanupMenuState() {
@@ -279,13 +274,14 @@ async function loadDashboard() {
   nodes.statusLine.textContent = t("notifications.loading");
 
   try {
-    const [capabilities, fleetSummary, attentionSummary, attentionList, runtimes, sessions] = await Promise.all([
+    const [capabilities, fleetSummary, attentionSummary, attentionList, runtimes, sessions, cleanupPlan] = await Promise.all([
       getJson("/v1/capabilities", abortController.signal),
       getJson(`/v1/fleet/summary${query}`, abortController.signal),
       getJson(`/v1/fleet/attention-summary${query}`, abortController.signal),
       getJson(`/v1/fleet/runtimes-needing-attention${query}`, abortController.signal),
       getJson(`/v1/runtimes${query}`, abortController.signal),
       getJson("/v1/sessions", abortController.signal),
+      getJson(`/v1/runtimes/cleanup-plan${query}`, abortController.signal),
     ]);
 
     if (requestId !== state.dashboardRequestSeq) {
@@ -299,6 +295,7 @@ async function loadDashboard() {
       attentionList,
       runtimes,
       sessions,
+      cleanupPlan,
     };
     state.runtimeAttentionById = new Map((attentionList.runtimes || []).map((item) => [item.runtimeId, item]));
     state.latestRuntimes = runtimes.runtimes || [];
@@ -390,8 +387,9 @@ async function deleteRuntime(runtimeId, runtimeName) {
 
 async function deleteFailedRuntimes() {
   const slice = currentSliceLabel();
-  const targets = currentSliceRuntimes().filter((runtime) => runtime.status?.statusSource === "fetch_failed");
-  const count = targets.length;
+  const plan = cleanupAction("failed");
+  const targets = plan?.targets || [];
+  const count = plan?.runtimeCount ?? 0;
   if (!count || state.uiActions.has("runtime-cleanup")) {
     syncCleanupMenuState();
     return;
@@ -406,7 +404,9 @@ async function deleteFailedRuntimes() {
     setCleanupControlsBusy(true);
     nodes.statusLine.textContent = `${t("runtimes.actions.deleteFailed")}...`;
     try {
-      const result = await postJson(`/v1/runtimes/delete-failed${buildQuery()}`);
+      const result = await postJsonBody(`/v1/runtimes/delete-failed${buildQuery()}`, {
+        planToken: plan.planToken,
+      });
       nodes.runtimeCleanupMenu?.removeAttribute("open");
       resetRuntimeSelectionAfterBulkDelete();
       await loadDashboard();
@@ -426,9 +426,9 @@ async function deleteFailedRuntimes() {
 
 async function deleteUnobservedRuntimes() {
   const slice = currentSliceLabel();
-  const targets = currentSliceRuntimes().filter((runtime) =>
-    runtime.status?.statusSource === "unobserved" && !isIdleReadyStatus(runtime.status));
-  const count = targets.length;
+  const plan = cleanupAction("unobserved");
+  const targets = plan?.targets || [];
+  const count = plan?.runtimeCount ?? 0;
   if (!count || state.uiActions.has("runtime-cleanup")) {
     syncCleanupMenuState();
     return;
@@ -443,7 +443,9 @@ async function deleteUnobservedRuntimes() {
     setCleanupControlsBusy(true);
     nodes.statusLine.textContent = `${t("runtimes.actions.deleteUnobserved")}...`;
     try {
-      const result = await postJson(`/v1/runtimes/delete-unobserved${buildQuery()}`);
+      const result = await postJsonBody(`/v1/runtimes/delete-unobserved${buildQuery()}`, {
+        planToken: plan.planToken,
+      });
       nodes.runtimeCleanupMenu?.removeAttribute("open");
       resetRuntimeSelectionAfterBulkDelete();
       await loadDashboard();
@@ -463,12 +465,13 @@ async function deleteUnobservedRuntimes() {
 
 async function clearRuntimeSlice() {
   const slice = currentSliceLabel();
-  const targets = currentSliceRuntimes();
-  if (!targets.length || state.uiActions.has("runtime-cleanup")) {
+  const plan = cleanupAction("slice");
+  const targets = plan?.targets || [];
+  if (!plan?.runtimeCount || state.uiActions.has("runtime-cleanup")) {
     syncCleanupMenuState();
     return;
   }
-  const challenge = `CLEAR ${targets.length}`;
+  const challenge = plan.challenge;
   const entered = window.prompt(
     `${t("notifications.runtimeClearSliceConfirm", { slice, count: currentSliceCount() })}${describeCleanupTargets(targets)}${currentSliceRiskWarning()}\n\n${t("notifications.runtimeClearSliceChallenge", { challenge })}`,
     "",
@@ -485,7 +488,10 @@ async function clearRuntimeSlice() {
     setCleanupControlsBusy(true);
     nodes.statusLine.textContent = `${t("runtimes.actions.clearSlice")}...`;
     try {
-      const result = await postJson(`/v1/runtimes/delete-slice${buildQuery()}`);
+      const result = await postJsonBody(`/v1/runtimes/delete-slice${buildQuery()}`, {
+        planToken: plan.planToken,
+        challenge: entered.trim(),
+      });
       nodes.runtimeCleanupMenu?.removeAttribute("open");
       resetRuntimeSelectionAfterBulkDelete();
       await loadDashboard();
@@ -634,9 +640,11 @@ async function submitRegisterForm(event) {
     return;
   }
 
-  const duplicate = findDuplicateRuntime(name, endpoint);
-  if (duplicate) {
-    nodes.registerResult.textContent = duplicateRuntimeMessage(duplicate, name, endpoint);
+  const registrationPlan = currentRegistrationPlan();
+  if (!registrationPlan?.allowed) {
+    nodes.registerResult.textContent = registrationPlanConflictMessage(registrationPlan)
+      || state.registrationPlanError
+      || t("register.blockedEndpoint");
     state.activeTab = "runtimes";
     state.activeRuntimeMainTab = "register";
     applyTabShell();
@@ -656,12 +664,14 @@ async function submitRegisterForm(event) {
       role: nodes.registerRuntimeRole.value.trim() || null,
     },
     fetchCapabilities: nodes.registerFetchCapabilities.checked,
+    registrationPlanToken: registrationPlan.planToken,
   };
 
   await runUiActionOnce("register-runtime", nodes.registerSubmit, t("register.registeringShort"), async () => {
     nodes.registerResult.textContent = t("register.registering");
     try {
       const result = await postJsonBody("/v1/runtimes/register", body);
+      state.registrationPlan = null;
       state.registerNameTouched = false;
       state.activeTab = "runtimes";
       state.activeRuntimeMainTab = "detail";

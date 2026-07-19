@@ -1,6 +1,6 @@
 # gewyvern Roadmap
 
-This roadmap treats `v1.4.0` as the active post-1.0 stable line.
+This roadmap treats `v1.4.6` as the active post-1.0 stable line.
 
 `gewyvern` is no longer on the road to `1.0.0`; it has crossed that line.
 The current question is how to preserve the sealed Gewyvern core while
@@ -11,7 +11,7 @@ defined for `2.0.0`.
 
 - last fully documented historical validation baseline: `v0.10.0`
 - sealed stable baseline: `v1.0.0`
-- current documented checkpoint: `v1.4.0`
+- current documented checkpoint: `v1.4.6`
 - active line: `v1.4.x` reliability work and Rust control-plane delivery
 - target next major: `v2.0.0`, centered on the Rust Leserpent runtime and
   replaceable Leselang, CLI, and GUI frontends
@@ -27,9 +27,9 @@ For the explicit `0.15.x -> 0.20.x -> 1.0.0` spine, see
 Machine-readable current progress is tracked by the
 [project status tensor](docs/project-status-system.md), not duplicated here.
 
-## What `v1.4.0` Means Right Now
+## What `v1.4.6` Means Right Now
 
-At the current `v1.4.0` checkpoint, the active line should be interpreted as:
+At the current `v1.4.6` checkpoint, the active line should be interpreted as:
 
 - a usable standalone Linux-oriented debugger/runtime with a sealed core
 - a stable `gewylang` and `gewyc` surface for real package authoring

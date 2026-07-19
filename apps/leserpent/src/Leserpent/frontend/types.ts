@@ -92,6 +92,7 @@ interface RuntimeSuggestedAction {
   hint: string;
   coolingDown?: boolean;
   cooldownSecondsRemaining?: number;
+  commandKind?: string | null;
 }
 
 interface RuntimeAttentionItem {

@@ -32,7 +32,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
     assert!(catalog.dimensions.architectures.len() >= 6);
     assert!(catalog.dimensions.modules.len() >= 21);
     assert!(catalog.dimensions.features.len() >= 23);
-    assert!(catalog.coverage_requirements.len() >= 19);
+    assert!(catalog.coverage_requirements.len() >= 28);
     assert!(catalog.cells.len() >= 23);
 
     for cell in &catalog.cells {
@@ -189,6 +189,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "boundary-leserpent-adapters",
         "boundary-leserpent-cli",
         "boundary-leserpentd",
+        "boundary-gewyvern-runtime-evidence",
+        "boundary-gewyvern-linux-ebpf",
+        "boundary-gewylang-compiler",
+        "boundary-gewylang-protocol-packages",
+        "boundary-leserpent-1x-control-plane",
+        "boundary-leserpent-1x-web-console",
+        "boundary-etragon-learning-sidecar",
+        "boundary-project-status-governance",
     ];
     for requirement in required_boundaries {
         assert!(
@@ -208,6 +216,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 .any(|item| item.id.starts_with(&format!("gate-{gate_name}-"))),
             "missing roadmap gate {gate}"
         );
+    }
+
+    for architecture in catalog
+        .dimensions
+        .architectures
+        .iter()
+        .map(|entry| entry.id.as_str())
+    {
+        for cell in catalog
+            .cells
+            .iter()
+            .filter(|cell| cell.architecture == architecture)
+        {
+            assert!(
+                catalog.coverage_requirements.iter().any(|requirement| {
+                    requirement.architecture == architecture && requirement.cells.contains(&cell.id)
+                }),
+                "cell '{}' is missing authoritative coverage",
+                cell.id
+            );
+        }
     }
 }
 
@@ -230,6 +259,36 @@ fn coverage_manifest_rejects_unknown_mappings_and_orphan_cells() {
 }
 
 #[test]
+fn expanded_coverage_manifest_rejects_gewyvern_core_orphans() {
+    let mut catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    catalog
+        .coverage_requirements
+        .retain(|item| item.id != "boundary-gewyvern-linux-ebpf");
+
+    let errors = catalog
+        .validate(repository_root())
+        .expect_err("unmapped Gewyvern Core cells must be rejected")
+        .join("\n");
+    assert!(errors.contains(
+        "cell 'gewyvern-core/linux-ebpf/linux-attach' is missing from the 'gewyvern-core' coverage manifest"
+    ));
+}
+
+#[test]
+fn coverage_manifest_is_required_for_every_architecture_with_cells() {
+    let mut catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    catalog
+        .coverage_requirements
+        .retain(|item| item.architecture != "etragon");
+
+    let errors = catalog
+        .validate(repository_root())
+        .expect_err("architectures without coverage requirements must be rejected")
+        .join("\n");
+    assert!(errors.contains("architecture 'etragon' has cells but no coverage requirements"));
+}
+
+#[test]
 fn native_status_cli_exposes_human_and_machine_views() {
     let binary = env!("CARGO_BIN_EXE_gewyvern_status");
     let validate = Command::new(binary)
@@ -247,7 +306,9 @@ fn native_status_cli_exposes_human_and_machine_views() {
     let payload: serde_json::Value =
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 12);
+    assert_eq!(payload["coverage"]["requirement_count"], 28);
+    assert_eq!(payload["coverage"]["architecture_count"], 6);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 20);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
     assert_eq!(payload["coverage"]["proof_shelf_count"], 1);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);

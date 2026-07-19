@@ -26,7 +26,7 @@ Treat them as three different layers:
 
 ## Current Companion Patterns
 
-The current `1.4.0` line emits companions for these families:
+The current `1.4.6` line emits companions for these families:
 
 - `dot` / `dns tcp` -> `tls client`
 - `doh` / `http request` -> `dns tcp`

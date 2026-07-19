@@ -541,6 +541,9 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains(".gewy-workspace-sync-key"));
     assert!(remote_host.contains("workspace sync cache hit; skipping rsync"));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_build\""));
+    assert!(remote_host.contains(
+        "measure_phase(\n                &mut phase_timings,\n                \"remote_leserpent_control_plane_aot\""
+    ));
     assert!(
         remote_host.contains("measure_phase(&mut phase_timings, \"remote_linux_target_check\"")
     );
@@ -824,7 +827,12 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("timeout_seconds"));
     assert!(packaging.contains("docker"));
     assert!(packaging.contains("run_package_install_smoke"));
-    assert!(packaging.contains("package install smoke: ok"));
+    assert!(packaging.contains("fn run_packaged_validation("));
+    assert!(packaging.contains("prepare_container_evidence"));
+    assert!(packaging.contains("write_package_stage_evidence"));
+    assert!(packaging.contains("write_container_summary"));
+    assert!(packaging.contains("artifact_sha256"));
+    assert!(packaging.contains("evidence-index.json"));
     assert!(packaging.contains("dpkg-deb -c"));
     assert!(packaging.contains("rpm -qpl"));
     assert!(packaging.contains("curl"));
@@ -840,17 +848,19 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(build_packages.contains("package_cache_artifact_valid"));
     assert!(build_packages.contains("count != 1"));
     assert!(build_packages.contains("realpath \"${OUT_DIR}\""));
-    assert!(build_packages.contains("! -L \"${artifact}\""));
+    assert!(build_packages.contains("[[ -f \"${candidate}\" && ! -L \"${candidate}\" ]]"));
     assert!(packaging.contains("package_from_manifest"));
     assert!(packaging.contains("package build manifest contains duplicate"));
     assert!(!packaging.contains("find_latest_package"));
     assert!(packaging.contains("fn has_command(name: &str) -> bool"));
     assert!(packaging.contains("env::split_paths(&path)"));
     assert!(!packaging.contains(".arg(format!(\"command -v {name} >/dev/null 2>&1\"))"));
-    assert!(packaging.contains("container runtime validation: ok"));
+    assert!(packaging.contains("container-runtime-validation"));
     assert!(release_gate.contains("run_package_install_smoke(mode)?"));
     assert!(release_gate.contains("run_container_runtime_validation(mode)?"));
     assert!(release_gate.contains("run_container_validation_summary(mode)?"));
+    assert!(release_gate.contains("write_release_container_evidence"));
+    assert!(release_gate.contains("default_out_dir(\"release-container-check\")"));
     assert!(release_gate.contains("run_remote_linux_host_validation"));
     assert!(release_gate.contains("run_debugger_cross_validation(None)?"));
     assert!(release_gate.contains("print_remote_release_gate_summary"));
@@ -932,6 +942,25 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(!remote.contains("if let Ok(timings) = collect_remote_package_build_timings"));
     assert!(remote.contains("collect_remote_ebpf_evidence"));
     assert!(remote.contains("sync_remote_ebpf_evidence"));
+    assert!(remote.contains("sync_remote_validation_evidence"));
+    assert!(remote.contains("validate_leserpent_control_plane_aot_evidence"));
+    assert!(remote.contains("Leserpent control-plane NativeAOT evidence inventory"));
+    assert!(remote.contains("require_exact_json_keys"));
+    assert!(remote.contains("valid_lower_hex"));
+    assert!(remote.contains("REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT"));
+    assert!(remote.contains("remote_leserpent_control_plane_aot"));
+    assert!(remote.contains("leserpent-control-plane-aot-linux-x64"));
+    assert!(remote.contains("target/packages/leserpent-control-plane-aot-linux-x64"));
+    assert!(remote.contains("-p:PublishProfile=native-aot"));
+    assert!(remote.contains("--locked-mode"));
+    assert!(remote.contains("Leserpent leserpent-compat-bridge leserpentd libe_sqlite3.so"));
+    assert!(remote.contains("/v1/runtimes/registration-plan"));
+    assert!(remote.contains("registrationPlanToken"));
+    assert!(remote.contains("/recovery"));
+    assert!(remote.contains("LESERPENT_STATE_PATH"));
+    assert!(remote.contains("LESERPENT_DATABASE_PATH"));
+    assert!(remote.contains("native-aot-proof-secret"));
+    assert!(remote.contains("grep -a -q"));
     assert!(remote.contains("release/gewyvern_validate"));
     assert!(remote.contains("cargo build --quiet --release --bin gewyvern_validate"));
     assert!(!remote.contains("if [ ! -x {validate_bin}"));
@@ -1040,6 +1069,7 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(binary.contains("Collect remote Linux/x86_64 preflight evidence"));
     assert!(binary.contains("print_remote_linux_host_validation_summary"));
     assert!(binary.contains("slowest-phases:"));
+    assert!(binary.contains("REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS"));
     assert!(binary.contains("parse_evidence_key_value_file"));
     assert!(binary.contains("read_bounded_unique_key_value_file"));
     assert!(evidence_codec.contains("must be a regular non-symlink file"));
@@ -1082,6 +1112,12 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(docs.contains("remote-artifacts.txt"));
     assert!(docs.contains("remote-ebpf.txt"));
     assert!(docs.contains("target/validation/remote-linux-host-validation/remote-ebpf"));
+    assert!(docs.contains("publishes the Leserpent control-plane"));
+    assert!(docs.contains("NativeAOT bundle"));
+    assert!(docs.contains("strictly revalidates the synchronized evidence"));
+    assert!(docs.contains(
+        "target/validation/remote-linux-host-validation/leserpent-control-plane-aot-linux-x64"
+    ));
     assert!(docs.contains("remote source cache"));
     assert!(docs.contains("repoints its requested remote"));
     assert!(docs.contains("slowest observed phases"));

@@ -11,16 +11,6 @@ function refreshLabel(kind) {
         : t("notifications.runtimeRefreshCapabilities");
 }
 
-function recoveryActionKind(action) {
-  return action === "refresh_all"
-    ? "all"
-    : action === "refresh_status"
-      ? "status"
-      : action === "refresh_sidecar"
-        ? "sidecar"
-        : null;
-}
-
 function recoveryActionLabel(action) {
   return action === "refresh_all"
     ? t("attention.actions.refreshAll")
@@ -448,7 +438,7 @@ function renderRuntimeDetail(runtime, attention) {
     <div class="inline-actions">
       ${(attention.suggestedActions || []).length
         ? attention.suggestedActions.map((action) => {
-          const kind = recoveryActionKind(action.action);
+          const kind = action.commandKind;
           return kind
             ? `<button type="button" data-recovery-action="${escapeHtml(kind)}" ${action.coolingDown ? "disabled" : ""}>${escapeHtml(recoveryActionLabel(action.action))} · #${escapeHtml(action.priority)}${action.coolingDown ? ` · ${escapeHtml(t("attention.cooldownRemaining", { seconds: action.cooldownSecondsRemaining }))}` : ""}</button>`
             : `<span class="tag-pill">${escapeHtml(recoveryActionLabel(action.action))}</span>`;
@@ -636,24 +626,9 @@ async function refreshRuntimeById(runtimeId, kind, button = null) {
     nodes.statusLine.textContent = `${label}...`;
 
     try {
-      if (kind === "all") {
-        await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-        await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-        const selectedRuntime = state.latestRuntimes.find((runtime) => runtime.runtimeId === runtimeId) || null;
-        if (selectedRuntime?.sidecarEndpoint) {
-          await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
-          markBadgeRefresh("sidecar");
-        }
-        markBadgeRefresh("runtime");
-      } else if (kind === "status") {
-        await postJson(`/v1/runtimes/${runtimeId}/refresh-status`);
-        markBadgeRefresh("runtime");
-      } else if (kind === "sidecar") {
-        await postJson(`/v1/runtimes/${runtimeId}/refresh-sidecar`);
-        markBadgeRefresh("sidecar");
-      } else {
-        await postJson(`/v1/runtimes/${runtimeId}/refresh-capabilities`);
-      }
+      const recovery = await postJsonBody(`/v1/runtimes/${runtimeId}/recovery`, { kind });
+      if ((recovery.steps || []).some((step) => step.kind === "status")) markBadgeRefresh("runtime");
+      if ((recovery.steps || []).some((step) => step.kind === "sidecar")) markBadgeRefresh("sidecar");
 
       state.activeTab = "runtimes";
       state.selectedRuntimeId = runtimeId;

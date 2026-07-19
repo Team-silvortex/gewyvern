@@ -23,14 +23,22 @@ pub(super) fn scan_protocol_registry() -> Option<Vec<RegistryManifest>> {
 }
 
 pub(super) fn scan_protocol_registry_in(root: &Path) -> Option<Vec<RegistryManifest>> {
+    scan_protocol_registry_in_strict(root).ok()
+}
+
+pub(super) fn scan_protocol_registry_in_strict(
+    root: &Path,
+) -> Result<Vec<RegistryManifest>, String> {
     let mut manifests = Vec::new();
     let mut state = RegistryScanState::default();
-    collect_registry_manifests(root, &mut manifests, &mut state).ok()?;
+    collect_registry_manifests(root, &mut manifests, &mut state)?;
     if manifests.is_empty() {
-        None
-    } else {
-        Some(manifests)
+        return Err(format!(
+            "protocol registry '{}' contains no gewy.pkg manifests",
+            root.display()
+        ));
     }
+    Ok(manifests)
 }
 
 fn protocol_registry_roots() -> Vec<PathBuf> {
@@ -217,9 +225,7 @@ fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
         .ok_or_else(|| format!("manifest '{}' missing register.protocol", path.display()))?;
     let protocol_entry = protocol_entry
         .ok_or_else(|| format!("manifest '{}' missing register.entry", path.display()))?;
-    let entry_path = root.join(&entry);
-    fs::canonicalize(&entry_path)
-        .map_err(|err| format!("failed to resolve '{}': {err}", entry_path.display()))?;
+    validate_package_entry(root, &entry, path)?;
     let dsl_path = fs::canonicalize(root)
         .map_err(|err| format!("failed to resolve package root '{}': {err}", root.display()))?;
 
@@ -231,6 +237,56 @@ fn read_registry_manifest(path: &Path) -> Result<RegistryManifest, String> {
         entry_aliases,
         dsl_path: dsl_path.to_string_lossy().into_owned(),
     })
+}
+
+fn validate_package_entry(root: &Path, entry: &str, manifest: &Path) -> Result<(), String> {
+    let relative = Path::new(entry);
+    if relative.as_os_str().is_empty()
+        || relative.is_absolute()
+        || relative
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(format!(
+            "manifest '{}' entry must be a normalized relative path",
+            manifest.display()
+        ));
+    }
+
+    let canonical_root = fs::canonicalize(root)
+        .map_err(|err| format!("failed to resolve package root '{}': {err}", root.display()))?;
+    let mut candidate = root.to_path_buf();
+    for component in relative.components() {
+        let std::path::Component::Normal(component) = component else {
+            unreachable!("entry components were validated above");
+        };
+        candidate.push(component);
+        let metadata = fs::symlink_metadata(&candidate)
+            .map_err(|err| format!("failed to inspect '{}': {err}", candidate.display()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "manifest '{}' entry must not traverse symlinks",
+                manifest.display()
+            ));
+        }
+    }
+    let metadata = fs::symlink_metadata(&candidate)
+        .map_err(|err| format!("failed to inspect '{}': {err}", candidate.display()))?;
+    if !metadata.is_file() {
+        return Err(format!(
+            "manifest '{}' entry must resolve to a regular file",
+            manifest.display()
+        ));
+    }
+    let canonical_entry = fs::canonicalize(&candidate)
+        .map_err(|err| format!("failed to resolve '{}': {err}", candidate.display()))?;
+    if !canonical_entry.starts_with(&canonical_root) {
+        return Err(format!(
+            "manifest '{}' entry escapes its package root",
+            manifest.display()
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn resolve_registry_alias(
@@ -290,7 +346,50 @@ mod tests {
         fs::write(package_dir.join("gewy.pkg"), oversized).expect("manifest should be writable");
 
         let result = scan_protocol_registry_in(&root);
+        let error = scan_protocol_registry_in_strict(&root).unwrap_err();
         let _ = fs::remove_dir_all(&root);
         assert!(result.is_none());
+        assert!(error.contains("exceeded size budget"));
+    }
+
+    #[test]
+    fn package_entry_cannot_escape_its_manifest_directory() {
+        let root = temp_registry_root();
+        let package_dir = root.join("http").join("request");
+        fs::create_dir_all(&package_dir).expect("package dir should be creatable");
+        fs::write(root.join("outside.gewy"), "fragment packet_meta {}")
+            .expect("outside entry should be writable");
+        fs::write(
+            package_dir.join("gewy.pkg"),
+            "entry=../../outside.gewy\nregister.protocol=http\nregister.entry=request\n",
+        )
+        .expect("manifest should be writable");
+
+        let error = scan_protocol_registry_in_strict(&root).unwrap_err();
+        let _ = fs::remove_dir_all(&root);
+        assert!(error.contains("entry must be a normalized relative path"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn package_entry_cannot_traverse_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_registry_root();
+        let package_dir = root.join("http").join("request");
+        fs::create_dir_all(&package_dir).expect("package dir should be creatable");
+        fs::write(root.join("outside.gewy"), "fragment packet_meta {}")
+            .expect("outside entry should be writable");
+        symlink(root.join("outside.gewy"), package_dir.join("main.gewy"))
+            .expect("entry symlink should be creatable");
+        fs::write(
+            package_dir.join("gewy.pkg"),
+            "entry=main.gewy\nregister.protocol=http\nregister.entry=request\n",
+        )
+        .expect("manifest should be writable");
+
+        let error = scan_protocol_registry_in_strict(&root).unwrap_err();
+        let _ = fs::remove_dir_all(&root);
+        assert!(error.contains("entry must not traverse symlinks"));
     }
 }

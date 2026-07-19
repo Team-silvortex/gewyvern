@@ -7,7 +7,7 @@ use std::{
 
 use serde_json::json;
 
-use super::command::{ValidationError, ValidationReport, repo_root};
+use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 use super::{
     RemoteLinuxHostOptions, read_bounded_json_file, read_bounded_nonempty_lines,
     read_bounded_phase_timings, read_bounded_unique_key_value_file,
@@ -85,17 +85,17 @@ pub fn run_release_container_check(
 
     validation_log("[release-check] ----------------------------------------");
     validation_log("[release-check] running package install smoke");
-    run_package_install_smoke(mode)?;
+    let install = run_package_install_smoke(mode)?;
     checks.push("package_install_smoke".to_string());
 
     validation_log("[release-check] ----------------------------------------");
     validation_log("[release-check] running packaged runtime validation");
-    run_container_runtime_validation(mode)?;
+    let runtime = run_container_runtime_validation(mode)?;
     checks.push("packaged_runtime_validation".to_string());
 
     validation_log("[release-check] ----------------------------------------");
     validation_log("[release-check] running packaged protocol/operator summary");
-    run_container_validation_summary(mode)?;
+    let packaged_summary = run_container_validation_summary(mode)?;
     checks.push("packaged_protocol_operator_summary".to_string());
 
     validation_log("[release-check] ----------------------------------------");
@@ -107,11 +107,73 @@ pub fn run_release_container_check(
         "[release-check] covered packaged checks: package-install-smoke, container-runtime-validation, container-validation-summary",
     );
 
+    let out_dir = default_out_dir("release-container-check");
+    write_release_container_evidence(
+        &out_dir,
+        mode,
+        &checks,
+        &[
+            ("package_install_smoke", &install.out_dir),
+            ("container_runtime_validation", &runtime.out_dir),
+            ("container_validation_summary", &packaged_summary.out_dir),
+        ],
+    )?;
     Ok(ValidationReport {
         name: format!("packaged release validation ({})", mode.label()),
-        out_dir: repo_root().join("target").join("validation"),
+        out_dir,
         checks,
     })
+}
+
+fn write_release_container_evidence(
+    out_dir: &Path,
+    mode: ReleaseCheckMode,
+    checks: &[String],
+    components: &[(&str, &Path)],
+) -> Result<(), ValidationError> {
+    fs::create_dir_all(out_dir)?;
+    for name in ["summary.json", "evidence-index.json"] {
+        let path = out_dir.join(name);
+        if path.exists() || path.is_symlink() {
+            fs::remove_file(path)?;
+        }
+    }
+    let components = components
+        .iter()
+        .map(|(name, path)| {
+            let evidence_dir = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .ok_or_else(|| ValidationError::new("invalid release component evidence path"))?;
+            Ok(json!({
+                "name": name,
+                "evidence_dir": format!("../{evidence_dir}"),
+                "status": "ok",
+            }))
+        })
+        .collect::<Result<Vec<_>, ValidationError>>()?;
+    let summary = json!({
+        "schema_version": 1,
+        "command": "release-container-check",
+        "status": "ok",
+        "mode": mode.label(),
+        "checks": checks,
+        "components": components,
+    });
+    fs::write(
+        out_dir.join("summary.json"),
+        format!("{}\n", serde_json::to_string_pretty(&summary)?),
+    )?;
+    let index = json!({
+        "schema_version": 1,
+        "command": "release-container-check",
+        "files": ["summary.json"],
+    });
+    fs::write(
+        out_dir.join("evidence-index.json"),
+        format!("{}\n", serde_json::to_string_pretty(&index)?),
+    )?;
+    Ok(())
 }
 
 pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport, ValidationError> {
@@ -331,6 +393,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
             "remote_workspace_materialize",
             "remote_linux_target_check",
             "remote_package_build",
+            "remote_leserpent_control_plane_aot",
             "remote_artifact_verify",
             "remote_package_smoke",
             "remote_runtime_smoke",
@@ -901,9 +964,10 @@ fn summarize_remote_release_gate_posture(
 }
 
 fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
-    const REMOTE_TOTAL_BUDGET_SECONDS: f64 = 45.0;
+    const REMOTE_TOTAL_BUDGET_SECONDS: f64 = 180.0;
     const WORKSPACE_SYNC_BUDGET_SECONDS: f64 = 8.0;
     const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
+    const REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS: f64 = 120.0;
     const REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS: f64 = 2.0;
     const REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS: f64 = 3.0;
     const REMOTE_EBPF_SMOKE_BUDGET_SECONDS: f64 = 10.0;
@@ -916,6 +980,9 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
                 "total" => Some(REMOTE_TOTAL_BUDGET_SECONDS),
                 "workspace_sync" => Some(WORKSPACE_SYNC_BUDGET_SECONDS),
                 "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
+                "remote_leserpent_control_plane_aot" => {
+                    Some(REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS)
+                }
                 "remote_package_smoke" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS),
                 "remote_runtime_smoke" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS),
                 "remote_ebpf_smoke" => Some(REMOTE_EBPF_SMOKE_BUDGET_SECONDS),

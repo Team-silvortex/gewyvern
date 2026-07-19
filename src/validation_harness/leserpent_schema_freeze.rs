@@ -16,6 +16,7 @@ const COMPATIBILITY_BASELINE_PATH: &str =
     "project/release/leserpent-v1-compatibility-baseline.json";
 const EXPECTED_FAMILIES: &[&str] = &["command", "effect", "query", "ui", "wire"];
 const EXPECTED_FIXTURE_FAMILIES: &[&str] = &["legacy-wire", "ui", "wire"];
+const EXPECTED_COMPATIBILITY_FIXTURES: usize = 11;
 const MANAGED_MIGRATION_PROJECT: &str =
     "apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj";
 const MANAGED_MIGRATION_FILTER: &str =
@@ -431,10 +432,10 @@ fn load_and_validate_compatibility_baseline(
             "Leserpent compatibility baseline must be candidate schema v1 for release line 2.0 using sha256",
         ));
     }
-    if baseline.fixtures.len() != 11 {
-        return Err(ValidationError::new(
-            "Leserpent compatibility baseline must contain exactly eleven v1 fixtures",
-        ));
+    if baseline.fixtures.len() != EXPECTED_COMPATIBILITY_FIXTURES {
+        return Err(ValidationError::new(format!(
+            "Leserpent compatibility baseline must contain exactly {EXPECTED_COMPATIBILITY_FIXTURES} v1 fixtures"
+        )));
     }
 
     let mut ids = BTreeSet::new();
@@ -608,14 +609,14 @@ mod tests {
     }
 
     #[test]
-    fn production_compatibility_baseline_covers_all_nine_v1_fixtures() {
+    fn production_compatibility_baseline_covers_all_expected_v1_fixtures() {
         let root = repo_root();
         let baseline = load_and_validate_compatibility_baseline(
             &root.join(COMPATIBILITY_BASELINE_PATH),
             &root,
         )
         .unwrap();
-        assert_eq!(baseline.fixtures.len(), 9);
+        assert_eq!(baseline.fixtures.len(), EXPECTED_COMPATIBILITY_FIXTURES);
         assert_eq!(baseline.algorithm, "sha256");
         assert_eq!(baseline.baseline_state, "candidate");
     }

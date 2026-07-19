@@ -90,7 +90,8 @@ public sealed record RuntimeRegistrationRequest(
     string? StatusEndpoint = null,
     string? SidecarEndpoint = null,
     string? SidecarStatusEndpoint = null,
-    string? SidecarAdminToken = null
+    string? SidecarAdminToken = null,
+    string? RegistrationPlanToken = null
 );
 
 public sealed record RuntimeSidecarAccess(
@@ -476,7 +477,8 @@ public sealed record RuntimeSuggestedAction(
     int Priority,
     string Hint,
     bool CoolingDown = false,
-    int CooldownSecondsRemaining = 0
+    int CooldownSecondsRemaining = 0,
+    string? CommandKind = null
 );
 
 public sealed record RuntimeRecoveryActivity(

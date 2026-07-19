@@ -484,11 +484,12 @@ async function postJson(path) {
   return response.json();
 }
 
-async function postJsonBody(path, body) {
+async function postJsonBody(path, body, signal = null) {
   const response = await fetch(path, {
     method: "POST",
     headers: apiHeaders({ contentType: "application/json", intent: "mutate" }),
     body: JSON.stringify(body),
+    signal: signal || undefined,
   });
 
   const payload = await response.json().catch(() => null);

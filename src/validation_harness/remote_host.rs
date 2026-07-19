@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
 
@@ -16,7 +16,9 @@ use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, validation_command_stdout,
     validation_log,
 };
-use super::evidence_codec::parse_bounded_unique_key_values;
+use super::evidence_codec::{
+    parse_bounded_unique_key_values, read_bounded_json_file, read_bounded_nonempty_lines,
+};
 
 static EVIDENCE_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static REMOTE_RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -59,7 +61,7 @@ pub fn run_remote_linux_host_validation(
         .clone()
         .unwrap_or_else(default_remote_dir);
     let remote_path = remote_workspace_path(&remote_dir);
-    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.4.0".to_string());
+    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.4.6".to_string());
 
     validation_log(format!("[remote-host] host: {}", options.host));
     validation_log(format!(
@@ -173,6 +175,35 @@ pub fn run_remote_linux_host_validation(
                 )
             })?;
             checks.push("remote_package_build".to_string());
+
+            validation_log("[remote-host] ----------------------------------------");
+            validation_log("[remote-host] proving Leserpent control-plane NativeAOT bundle");
+            measure_phase(
+                &mut phase_timings,
+                "remote_leserpent_control_plane_aot",
+                || {
+                    run_ssh_script(
+                        admin_auth.as_ref(),
+                        &options.host,
+                        &format!("cd {validation_workspace} && bash -s"),
+                        REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT,
+                        "remote Leserpent control-plane NativeAOT proof failed",
+                    )
+                },
+            )?;
+            sync_remote_validation_evidence(
+                admin_auth.as_ref(),
+                &options.host,
+                &validation_workspace,
+                &preflight.home_dir,
+                &out_dir,
+                "target/packages/leserpent-control-plane-aot-linux-x64",
+                "leserpent-control-plane-aot-linux-x64",
+            )?;
+            validate_leserpent_control_plane_aot_evidence(
+                &out_dir.join("leserpent-control-plane-aot-linux-x64"),
+            )?;
+            checks.push("remote_leserpent_control_plane_aot".to_string());
         } else {
             validation_log("[remote-host] skipping remote package build");
         }
@@ -1666,13 +1697,41 @@ fn sync_remote_ebpf_evidence(
     home_dir: &str,
     out_dir: &std::path::Path,
 ) -> Result<(), ValidationError> {
+    sync_remote_validation_evidence(
+        auth,
+        host,
+        remote_path,
+        home_dir,
+        out_dir,
+        "target/validation/remote-ebpf",
+        "remote-ebpf",
+    )
+}
+
+fn sync_remote_validation_evidence(
+    auth: Option<&RemoteAdminAuth>,
+    host: &str,
+    remote_path: &str,
+    home_dir: &str,
+    out_dir: &std::path::Path,
+    remote_evidence_path: &str,
+    evidence_name: &str,
+) -> Result<(), ValidationError> {
     let remote_workspace = resolve_remote_execution_path(remote_path, home_dir)?;
     let remote_evidence_root = rsync_remote_target(
         auth,
         host,
-        &format!("{remote_workspace}/target/validation/remote-ebpf/"),
+        &format!("{remote_workspace}/{remote_evidence_path}/"),
     );
-    let local_evidence_root = out_dir.join("remote-ebpf");
+    let local_evidence_root = out_dir.join(evidence_name);
+    if let Ok(metadata) = fs::symlink_metadata(&local_evidence_root)
+        && (metadata.file_type().is_symlink() || !metadata.is_dir())
+    {
+        return Err(ValidationError::new(format!(
+            "local validation evidence destination must be a non-symlink directory: {}",
+            local_evidence_root.display()
+        )));
+    }
     fs::create_dir_all(&local_evidence_root)?;
 
     let status = Command::new("rsync")
@@ -1693,16 +1752,257 @@ fn sync_remote_ebpf_evidence(
         .status()
         .map_err(|err| {
             ValidationError::new(format!(
-                "failed to launch rsync for remote eBPF evidence: {err}"
+                "failed to launch rsync for remote validation evidence '{evidence_name}': {err}"
             ))
         })?;
     if status.success() {
         Ok(())
     } else {
         Err(ValidationError::new(format!(
-            "remote eBPF evidence rsync failed with status {status}"
+            "remote validation evidence '{evidence_name}' rsync failed with status {status}"
         )))
     }
+}
+
+fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), ValidationError> {
+    const FILES: [&str; 10] = [
+        "environment.txt",
+        "restore.log",
+        "publish.log",
+        "payload.sha256",
+        "service.log",
+        "health.json",
+        "registration-plan.json",
+        "registration.json",
+        "recovery.json",
+        "attention.json",
+    ];
+    const PROOF_SECRET: &str = "native-aot-proof-secret";
+
+    let root_metadata = fs::symlink_metadata(root).map_err(|error| {
+        ValidationError::new(format!(
+            "failed to inspect Leserpent control-plane NativeAOT evidence '{}': {error}",
+            root.display()
+        ))
+    })?;
+    if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+        return Err(ValidationError::new(format!(
+            "Leserpent control-plane NativeAOT evidence must be a non-symlink directory: {}",
+            root.display()
+        )));
+    }
+
+    let mut observed = BTreeSet::new();
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let name = entry.file_name().into_string().map_err(|_| {
+            ValidationError::new("Leserpent control-plane NativeAOT evidence has a non-UTF-8 name")
+        })?;
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(ValidationError::new(format!(
+                "Leserpent control-plane NativeAOT evidence entry must be a regular non-symlink file: {name}"
+            )));
+        }
+        let max_bytes = if name.ends_with(".log") {
+            2 * 1024 * 1024
+        } else {
+            64 * 1024
+        };
+        if metadata.len() > max_bytes {
+            return Err(ValidationError::new(format!(
+                "Leserpent control-plane NativeAOT evidence entry exceeds {max_bytes} bytes: {name}"
+            )));
+        }
+        observed.insert(name);
+    }
+    let mut expected = FILES
+        .into_iter()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+    expected.insert("evidence-index.json".to_string());
+    if observed != expected {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT evidence inventory is incomplete or contains unexpected files",
+        ));
+    }
+
+    let index = read_bounded_json_file(
+        &root.join("evidence-index.json"),
+        "Leserpent control-plane NativeAOT evidence index",
+        8 * 1024,
+    )?;
+    require_exact_json_keys(
+        &index,
+        &["schema_version", "proof", "result", "files"],
+        "Leserpent control-plane NativeAOT evidence index",
+    )?;
+    if index
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+        || index.get("proof").and_then(serde_json::Value::as_str)
+            != Some("leserpent-control-plane-native-aot-linux-x64")
+        || index.get("result").and_then(serde_json::Value::as_str) != Some("passed")
+        || index
+            .get("files")
+            .and_then(serde_json::Value::as_array)
+            .map(|files| {
+                files
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .collect::<Vec<_>>()
+            })
+            != Some(FILES.to_vec())
+    {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT evidence index violates its fixed contract",
+        ));
+    }
+
+    let health = read_aot_json(root, "health.json")?;
+    if health.get("ok").and_then(serde_json::Value::as_bool) != Some(true)
+        || health
+            .pointer("/runtimePosture/coreReady")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+    {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT health proof is not core-ready",
+        ));
+    }
+    let plan = read_aot_json(root, "registration-plan.json")?;
+    let plan_token = plan.get("planToken").and_then(serde_json::Value::as_str);
+    if plan.get("allowed").and_then(serde_json::Value::as_bool) != Some(true)
+        || plan.get("action").and_then(serde_json::Value::as_str) != Some("create")
+        || !plan_token.is_some_and(|value| valid_lower_hex(value, 64))
+    {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT registration plan proof is invalid",
+        ));
+    }
+    let registration = read_aot_json(root, "registration.json")?;
+    let runtime_id = registration
+        .get("runtimeId")
+        .and_then(serde_json::Value::as_str);
+    if !runtime_id.is_some_and(|value| valid_lower_hex(value, 32))
+        || registration.to_string().contains(PROOF_SECRET)
+    {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT registration proof is invalid or contains a secret",
+        ));
+    }
+    let recovery = read_aot_json(root, "recovery.json")?;
+    let steps = recovery.get("steps").and_then(serde_json::Value::as_array);
+    let step_kinds = steps.map(|values| {
+        values
+            .iter()
+            .filter(|value| {
+                value.get("outcome").and_then(serde_json::Value::as_str) == Some("network_failed")
+            })
+            .filter_map(|value| value.get("kind").and_then(serde_json::Value::as_str))
+            .collect::<BTreeSet<_>>()
+    });
+    if recovery
+        .get("runtimeId")
+        .and_then(serde_json::Value::as_str)
+        != runtime_id
+        || recovery.get("kind").and_then(serde_json::Value::as_str) != Some("all")
+        || recovery.get("outcome").and_then(serde_json::Value::as_str) != Some("network_failed")
+        || steps.map(Vec::len) != Some(2)
+        || step_kinds != Some(BTreeSet::from(["capabilities", "status"]))
+    {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT recovery proof is invalid",
+        ));
+    }
+    let attention = read_aot_json(root, "attention.json")?;
+    let refresh_all = attention
+        .get("suggestedActions")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|actions| {
+            actions.iter().any(|action| {
+                action.get("action").and_then(serde_json::Value::as_str) == Some("refresh_all")
+                    && action
+                        .get("commandKind")
+                        .and_then(serde_json::Value::as_str)
+                        == Some("all")
+            })
+        });
+    if attention
+        .get("runtimeId")
+        .and_then(serde_json::Value::as_str)
+        != runtime_id
+        || !refresh_all
+    {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT attention proof is invalid",
+        ));
+    }
+
+    let hashes = read_bounded_nonempty_lines(
+        &root.join("payload.sha256"),
+        "Leserpent control-plane NativeAOT payload hashes",
+        8 * 1024,
+        4,
+        512,
+    )?;
+    let required_payloads = [
+        "Leserpent",
+        "leserpent-compat-bridge",
+        "leserpentd",
+        "libe_sqlite3.so",
+    ];
+    if hashes.len() != required_payloads.len()
+        || !required_payloads.iter().all(|name| {
+            hashes.iter().any(|line| {
+                line.split_whitespace()
+                    .next()
+                    .is_some_and(|hash| valid_lower_hex(hash, 64))
+                    && line.ends_with(&format!("/publish/{name}"))
+            })
+        })
+    {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT payload hash inventory is invalid",
+        ));
+    }
+    Ok(())
+}
+
+fn read_aot_json(root: &Path, name: &str) -> Result<serde_json::Value, ValidationError> {
+    read_bounded_json_file(
+        &root.join(name),
+        &format!("Leserpent control-plane NativeAOT {name}"),
+        64 * 1024,
+    )
+}
+
+fn require_exact_json_keys(
+    value: &serde_json::Value,
+    expected: &[&str],
+    context: &str,
+) -> Result<(), ValidationError> {
+    let Some(object) = value.as_object() else {
+        return Err(ValidationError::new(format!(
+            "{context} must be a JSON object"
+        )));
+    };
+    let observed = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
+    if observed != expected {
+        return Err(ValidationError::new(format!(
+            "{context} contains missing or unexpected fields"
+        )));
+    }
+    Ok(())
+}
+
+fn valid_lower_hex(value: &str, length: usize) -> bool {
+    value.len() == length
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn start_ssh_command(
@@ -2680,7 +2980,7 @@ fn shell_single_quote(value: &str) -> String {
 const REMOTE_PACKAGE_MANIFEST_HELPER: &str = r#"package_from_manifest() {
   local key="$1"
   local extension="$2"
-  local package_root count value resolved
+  local candidate package_root count value resolved
 
   [ -f "$MANIFEST" ] && [ ! -L "$MANIFEST" ] || {
     echo "package manifest must be a regular non-symlink file: $MANIFEST" >&2
@@ -2696,12 +2996,16 @@ const REMOTE_PACKAGE_MANIFEST_HELPER: &str = r#"package_from_manifest() {
     return 22
   }
   value=$(awk -F= -v wanted="$key" '$1 == wanted { print substr($0, length($1) + 2) }' "$MANIFEST")
-  [ -f "$value" ] && [ ! -L "$value" ] || {
+  case "$value" in
+    /*) candidate="$value" ;;
+    *) candidate="$(dirname "$MANIFEST")/$value" ;;
+  esac
+  [ -f "$candidate" ] && [ ! -L "$candidate" ] || {
     echo "package manifest $key entry must reference a regular non-symlink file: $value" >&2
     return 23
   }
   package_root=$(realpath target/packages)
-  resolved=$(realpath "$value")
+  resolved=$(realpath "$candidate")
   case "$resolved" in
     "$package_root"/*) ;;
     *)
@@ -2718,6 +3022,125 @@ const REMOTE_PACKAGE_MANIFEST_HELPER: &str = r#"package_from_manifest() {
   esac
   printf '%s\n' "$resolved"
 }"#;
+
+const REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT: &str = r#"set -euo pipefail
+EVIDENCE=target/packages/leserpent-control-plane-aot-linux-x64
+PUBLISH="$EVIDENCE/publish"
+DOTNET_ARTIFACTS="$EVIDENCE/dotnet-artifacts"
+STATE="$EVIDENCE/runtime-state.json"
+DATABASE="$EVIDENCE/orchestra.db"
+PID=""
+cleanup() {
+  if [ -n "$PID" ]; then
+    kill "$PID" >/dev/null 2>&1 || true
+    wait "$PID" >/dev/null 2>&1 || true
+  fi
+  find "$PUBLISH" "$DOTNET_ARTIFACTS" -depth -delete 2>/dev/null || true
+  find "$EVIDENCE" -maxdepth 1 -type f \( -name 'runtime-state.json*' -o -name 'orchestra.db*' \) -delete
+}
+trap cleanup EXIT
+mkdir -p "$EVIDENCE"
+find "$EVIDENCE" -mindepth 1 -depth -delete
+mkdir -p "$PUBLISH"
+
+dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj \
+  -p:PublishProfile=native-aot \
+  -p:PublishAot=true \
+  -r linux-x64 \
+  --locked-mode \
+  --artifacts-path "$DOTNET_ARTIFACTS" >"$EVIDENCE/restore.log" 2>&1
+dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
+  -p:PublishProfile=native-aot \
+  -r linux-x64 \
+  --no-restore \
+  --artifacts-path "$DOTNET_ARTIFACTS" \
+  -o "$PUBLISH" >"$EVIDENCE/publish.log" 2>&1
+
+for required in Leserpent leserpent-compat-bridge leserpentd libe_sqlite3.so; do
+  test -f "$PUBLISH/$required" && test ! -L "$PUBLISH/$required"
+done
+test -x "$PUBLISH/Leserpent"
+test -x "$PUBLISH/leserpent-compat-bridge"
+test -x "$PUBLISH/leserpentd"
+file "$PUBLISH/Leserpent" | grep -q 'ELF 64-bit.*x86-64'
+file "$PUBLISH/leserpent-compat-bridge" | grep -q 'ELF 64-bit.*x86-64'
+file "$PUBLISH/leserpentd" | grep -q 'ELF 64-bit.*x86-64'
+sha256sum "$PUBLISH/Leserpent" "$PUBLISH/leserpent-compat-bridge" \
+  "$PUBLISH/leserpentd" "$PUBLISH/libe_sqlite3.so" >"$EVIDENCE/payload.sha256"
+
+PORT=$((40000 + ($$ % 20000)))
+env ASPNETCORE_URLS="http://127.0.0.1:$PORT" \
+  LESERPENT_STATE_PATH="$STATE" \
+  LESERPENT_DATABASE_PATH="$DATABASE" \
+  "$PUBLISH/Leserpent" >"$EVIDENCE/service.log" 2>&1 &
+PID=$!
+for _ in $(seq 1 120); do
+  if curl -fsS "http://127.0.0.1:$PORT/health" >"$EVIDENCE/health.json"; then
+    break
+  fi
+  sleep 0.1
+done
+grep -q '"ok":true' "$EVIDENCE/health.json"
+grep -q '"coreReady":true' "$EVIDENCE/health.json"
+
+curl -fsS -X POST \
+  -H 'Content-Type: application/json' \
+  -H 'X-Leserpent-Intent: mutate' \
+  --data '{"name":"native-offline","endpoint":"http://127.0.0.1:9"}' \
+  "http://127.0.0.1:$PORT/v1/runtimes/registration-plan" >"$EVIDENCE/registration-plan.json"
+grep -q '"allowed":true' "$EVIDENCE/registration-plan.json"
+grep -q '"action":"create"' "$EVIDENCE/registration-plan.json"
+PLAN_TOKEN=$(sed -n 's/.*"planToken":"\([a-f0-9]*\)".*/\1/p' "$EVIDENCE/registration-plan.json")
+test "${#PLAN_TOKEN}" -eq 64
+
+curl -fsS -X POST \
+  -H 'Content-Type: application/json' \
+  -H 'X-Leserpent-Intent: mutate' \
+  --data "{\"name\":\"native-offline\",\"endpoint\":\"http://127.0.0.1:9\",\"pairingToken\":\"native-aot-proof-secret\",\"fetchCapabilities\":false,\"registrationPlanToken\":\"$PLAN_TOKEN\"}" \
+  "http://127.0.0.1:$PORT/v1/runtimes/register" >"$EVIDENCE/registration.json"
+RUNTIME_ID=$(sed -n 's/.*"runtimeId":"\([a-f0-9]*\)".*/\1/p' "$EVIDENCE/registration.json")
+test "${#RUNTIME_ID}" -eq 32
+
+curl -fsS -X POST \
+  -H 'Content-Type: application/json' \
+  -H 'X-Leserpent-Intent: mutate' \
+  --data '{"kind":"all"}' \
+  "http://127.0.0.1:$PORT/v1/runtimes/$RUNTIME_ID/recovery" >"$EVIDENCE/recovery.json"
+grep -q '"kind":"all"' "$EVIDENCE/recovery.json"
+grep -q '"outcome":"network_failed"' "$EVIDENCE/recovery.json"
+test "$(grep -o '"kind":"\(capabilities\|status\)"' "$EVIDENCE/recovery.json" | wc -l)" -eq 2
+curl -fsS "http://127.0.0.1:$PORT/v1/runtimes/$RUNTIME_ID/attention" >"$EVIDENCE/attention.json"
+grep -q '"action":"refresh_all"' "$EVIDENCE/attention.json"
+grep -q '"commandKind":"all"' "$EVIDENCE/attention.json"
+test -f "$STATE" && test ! -L "$STATE"
+test -f "$DATABASE" && test ! -L "$DATABASE"
+if grep -a -q 'native-aot-proof-secret' "$STATE" "$DATABASE"; then
+  echo 'NativeAOT proof secret was persisted' >&2
+  exit 31
+fi
+
+printf 'os=linux\narch=x86_64\nrid=linux-x64\n' >"$EVIDENCE/environment.txt"
+cat >"$EVIDENCE/evidence-index.json" <<'JSON'
+{
+  "schema_version": 1,
+  "proof": "leserpent-control-plane-native-aot-linux-x64",
+  "result": "passed",
+  "files": [
+    "environment.txt",
+    "restore.log",
+    "publish.log",
+    "payload.sha256",
+    "service.log",
+    "health.json",
+    "registration-plan.json",
+    "registration.json",
+    "recovery.json",
+    "attention.json"
+  ]
+}
+JSON
+echo 'remote Leserpent control-plane NativeAOT proof: ok'
+"#;
 
 fn remote_package_smoke_script(release_line: &str) -> String {
     format!(
@@ -3002,15 +3425,18 @@ fn rsync_remote_target(auth: Option<&RemoteAdminAuth>, host: &str, remote_path: 
 #[cfg(test)]
 mod tests {
     use super::{
-        REMOTE_PACKAGE_MANIFEST_HELPER, RemoteAdminAuth, acquire_remote_ebpf_history_lock,
-        acquire_remote_validation_run_lock, atomic_write_evidence, default_remote_dir,
-        is_relevant_workspace_path, parse_remote_artifact_manifest, parse_remote_ebpf_evidence,
-        parse_remote_phase_timings, parse_remote_preflight, read_remote_ebpf_history,
-        remote_package_smoke_script, remote_runtime_smoke_script, resolve_remote_execution_path,
-        resolve_remote_workspace_path, rsync_remote_target, ssh_auth_target,
-        ssh_password_mode_args, summarize_remote_ebpf_history, validate_remote_host,
+        REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT, REMOTE_PACKAGE_MANIFEST_HELPER, RemoteAdminAuth,
+        acquire_remote_ebpf_history_lock, acquire_remote_validation_run_lock,
+        atomic_write_evidence, default_remote_dir, is_relevant_workspace_path,
+        parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_phase_timings,
+        parse_remote_preflight, read_remote_ebpf_history, remote_package_smoke_script,
+        remote_runtime_smoke_script, resolve_remote_execution_path, resolve_remote_workspace_path,
+        rsync_remote_target, ssh_auth_target, ssh_password_mode_args,
+        summarize_remote_ebpf_history, validate_leserpent_control_plane_aot_evidence,
+        validate_remote_host,
     };
     use std::fs;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::sync::mpsc;
     use std::thread;
@@ -3264,7 +3690,7 @@ mod tests {
     #[test]
     fn parse_remote_artifact_manifest_requires_both_package_formats() {
         let manifest = parse_remote_artifact_manifest(
-            "deb=target/packages/gewyvern_1.4.0-1_amd64.deb\nrpm=target/packages/rpm/gewyvern-1.4.0-1.x86_64.rpm\n",
+            "deb=target/packages/gewyvern_1.4.6-1_amd64.deb\nrpm=target/packages/rpm/gewyvern-1.4.6-1.x86_64.rpm\n",
         )
         .unwrap();
 
@@ -3336,8 +3762,9 @@ mod tests {
     #[test]
     fn generated_remote_package_scripts_are_valid_bash() {
         for script in [
-            remote_package_smoke_script("v1.4.0"),
+            remote_package_smoke_script("v1.4.6"),
             remote_runtime_smoke_script(),
+            REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT.to_string(),
         ] {
             let output = Command::new("bash")
                 .arg("-n")
@@ -3347,6 +3774,128 @@ mod tests {
                 .unwrap();
             assert!(output.status.success(), "{:?}", output.stderr);
         }
+    }
+
+    #[test]
+    fn leserpent_control_plane_aot_evidence_is_strict_and_non_vacuous() {
+        let root = remote_test_root("leserpent-control-plane-aot-evidence");
+        write_valid_leserpent_control_plane_aot_evidence(&root);
+        assert!(validate_leserpent_control_plane_aot_evidence(&root).is_ok());
+
+        fs::write(root.join("unexpected.txt"), "stale").unwrap();
+        assert!(validate_leserpent_control_plane_aot_evidence(&root).is_err());
+        fs::remove_file(root.join("unexpected.txt")).unwrap();
+
+        fs::write(
+            root.join("recovery.json"),
+            r#"{"runtimeId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kind":"all","outcome":"ok","steps":[]}"#,
+        )
+        .unwrap();
+        assert!(validate_leserpent_control_plane_aot_evidence(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn leserpent_control_plane_aot_evidence_rejects_symlink_entries() {
+        use std::os::unix::fs::symlink;
+
+        let root = remote_test_root("leserpent-control-plane-aot-symlink");
+        write_valid_leserpent_control_plane_aot_evidence(&root);
+        fs::remove_file(root.join("service.log")).unwrap();
+        symlink(root.join("publish.log"), root.join("service.log")).unwrap();
+        assert!(validate_leserpent_control_plane_aot_evidence(&root).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn remote_test_root(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("gewyvern-{name}-{unique}"))
+    }
+
+    fn write_valid_leserpent_control_plane_aot_evidence(root: &Path) {
+        const FILES: [&str; 10] = [
+            "environment.txt",
+            "restore.log",
+            "publish.log",
+            "payload.sha256",
+            "service.log",
+            "health.json",
+            "registration-plan.json",
+            "registration.json",
+            "recovery.json",
+            "attention.json",
+        ];
+        fs::create_dir_all(root).unwrap();
+        fs::write(
+            root.join("environment.txt"),
+            "os=linux\narch=x86_64\nrid=linux-x64\n",
+        )
+        .unwrap();
+        for log in ["restore.log", "publish.log", "service.log"] {
+            fs::write(root.join(log), "ok\n").unwrap();
+        }
+        let hash = "a".repeat(64);
+        fs::write(
+            root.join("payload.sha256"),
+            [
+                "Leserpent",
+                "leserpent-compat-bridge",
+                "leserpentd",
+                "libe_sqlite3.so",
+            ]
+            .map(|name| format!("{hash}  proof/publish/{name}"))
+            .join("\n")
+                + "\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("health.json"),
+            r#"{"ok":true,"runtimePosture":{"coreReady":true}}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("registration-plan.json"),
+            format!(
+                r#"{{"allowed":true,"action":"create","planToken":"{}"}}"#,
+                "b".repeat(64)
+            ),
+        )
+        .unwrap();
+        let runtime_id = "c".repeat(32);
+        fs::write(
+            root.join("registration.json"),
+            format!(r#"{{"runtimeId":"{runtime_id}"}}"#),
+        )
+        .unwrap();
+        fs::write(
+            root.join("recovery.json"),
+            format!(
+                r#"{{"runtimeId":"{runtime_id}","kind":"all","outcome":"network_failed","steps":[{{"kind":"capabilities","outcome":"network_failed"}},{{"kind":"status","outcome":"network_failed"}}]}}"#
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("attention.json"),
+            format!(
+                r#"{{"runtimeId":"{runtime_id}","suggestedActions":[{{"action":"refresh_all","commandKind":"all"}}]}}"#
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("evidence-index.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "schema_version": 1,
+                "proof": "leserpent-control-plane-native-aot-linux-x64",
+                "result": "passed",
+                "files": FILES,
+            }))
+            .unwrap(),
+        )
+        .unwrap();
     }
 
     #[test]

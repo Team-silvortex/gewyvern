@@ -452,6 +452,13 @@ impl StatusCatalog {
                 }
             }
         }
+        for architecture in &used_architectures {
+            if !coverage_architectures.contains(architecture) {
+                errors.push(format!(
+                    "architecture '{architecture}' has cells but no coverage requirements"
+                ));
+            }
+        }
         for cell in &self.cells {
             if coverage_architectures.contains(cell.architecture.as_str())
                 && !covered_cells.contains(cell.id.as_str())

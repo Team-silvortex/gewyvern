@@ -1,29 +1,68 @@
 // @ts-nocheck
 // Split from app.ts to keep the control-plane shell maintainable.
 
-function findDuplicateRuntime(name, endpoint) {
-  const normalizedName = name.trim().toLowerCase();
-  const normalizedEndpoint = endpoint.trim().toLowerCase();
-  return state.latestRuntimes.find((runtime) =>
-    runtime.name.toLowerCase() === normalizedName ||
-    runtime.endpoint.toLowerCase() === normalizedEndpoint
-  ) || null;
+function registrationPlanConflictMessage(plan) {
+  if (!plan || plan.allowed) return "";
+  return t("register.blockedDuplicate", {
+    reason: t("register.duplicateEndpoint"),
+    name: plan.existingRuntimeName,
+    endpoint: plan.existingRuntimeEndpoint,
+  });
 }
 
-function duplicateRuntimeMessage(duplicate, name, endpoint) {
-  if (!duplicate) return "";
-  const nameConflict = duplicate.name.toLowerCase() === name.toLowerCase();
-  const endpointConflict = duplicate.endpoint.toLowerCase() === endpoint.toLowerCase();
-  const reason = nameConflict && endpointConflict
-    ? t("register.duplicateNameAndEndpoint")
-    : nameConflict
-      ? t("register.duplicateName")
-      : t("register.duplicateEndpoint");
-  return t("register.blockedDuplicate", {
-    reason,
-    name: duplicate.name,
-    endpoint: duplicate.endpoint,
-  });
+function registrationPlanDraft() {
+  return {
+    name: nodes.registerName.value.trim(),
+    endpoint: nodes.registerEndpoint.value.trim(),
+    sidecarEndpoint: nodes.registerSidecarEndpoint.value.trim() || null,
+  };
+}
+
+function registrationPlanDraftKey(draft = registrationPlanDraft()) {
+  return [draft.name, draft.endpoint, draft.sidecarEndpoint || ""].join("::");
+}
+
+function currentRegistrationPlan() {
+  const plan = state.registrationPlan;
+  return plan?.draftKey === registrationPlanDraftKey() ? plan : null;
+}
+
+async function loadRegistrationPlan() {
+  const draft = registrationPlanDraft();
+  const draftKey = registrationPlanDraftKey(draft);
+  if (!draft.name || !isLikelyHttpEndpoint(draft.endpoint) ||
+      (draft.sidecarEndpoint && !isLikelyHttpEndpoint(draft.sidecarEndpoint))) {
+    state.registrationPlan = null;
+    renderRegisterPreview();
+    return;
+  }
+
+  state.registrationPlanAbortController?.abort();
+  const abortController = new AbortController();
+  state.registrationPlanAbortController = abortController;
+  try {
+    const plan = await postJsonBody("/v1/runtimes/registration-plan", draft, abortController.signal);
+    if (draftKey !== registrationPlanDraftKey()) return;
+    state.registrationPlan = { ...plan, draftKey };
+    state.registrationPlanError = "";
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    if (draftKey !== registrationPlanDraftKey()) return;
+    state.registrationPlan = null;
+    state.registrationPlanError = error.message;
+  } finally {
+    if (state.registrationPlanAbortController === abortController) {
+      state.registrationPlanAbortController = null;
+    }
+    renderRegisterPreview();
+  }
+}
+
+function scheduleRegistrationPlan() {
+  window.clearTimeout(state.registrationPlanTimer);
+  state.registrationPlan = null;
+  state.registrationPlanError = "";
+  state.registrationPlanTimer = window.setTimeout(() => void loadRegistrationPlan(), 250);
 }
 
 function isLikelyHttpEndpoint(endpoint) {
@@ -61,13 +100,13 @@ function suggestedRuntimeName(endpoint) {
 
 function maybePrefillRuntimeNameFromEndpoint() {
   if (state.registerNameTouched) {
-    scheduleRenderRegisterPreview();
+    scheduleRegistrationPlanPreview();
     return;
   }
 
   const endpoint = nodes.registerEndpoint.value.trim();
   if (!isLikelyHttpEndpoint(endpoint)) {
-    scheduleRenderRegisterPreview();
+    scheduleRegistrationPlanPreview();
     return;
   }
 
@@ -75,14 +114,11 @@ function maybePrefillRuntimeNameFromEndpoint() {
   if (suggestion) {
     nodes.registerName.value = suggestion;
   }
-  scheduleRenderRegisterPreview();
+  scheduleRegistrationPlanPreview();
 }
 
 function registerPreviewSignature() {
-  const duplicate = findDuplicateRuntime(
-    nodes.registerName.value.trim(),
-    nodes.registerEndpoint.value.trim(),
-  );
+  const plan = currentRegistrationPlan();
   return [
     state.language,
     nodes.registerName.value.trim(),
@@ -94,7 +130,7 @@ function registerPreviewSignature() {
     nodes.registerRuntimeCluster.value.trim(),
     nodes.registerRuntimeRole.value.trim(),
     nodes.registerFetchCapabilities.checked ? "fetch" : "skip",
-    duplicate?.runtimeId || "unique",
+    plan?.planToken || state.registrationPlanError || "plan-pending",
   ].join("::");
 }
 
@@ -102,9 +138,9 @@ function syncRegisterSubmitState(endpointValid, sidecarEndpointValid) {
   const name = nodes.registerName.value.trim();
   const endpoint = nodes.registerEndpoint.value.trim();
   const pairingToken = nodes.registerToken.value.trim();
-  const duplicate = name && endpointValid ? findDuplicateRuntime(name, endpoint) : null;
+  const plan = currentRegistrationPlan();
   const busy = state.uiActions.has("register-runtime");
-  const valid = !!name && endpointValid && sidecarEndpointValid && !!pairingToken && !duplicate;
+  const valid = !!name && endpointValid && sidecarEndpointValid && !!pairingToken && plan?.allowed === true;
 
   nodes.registerEndpoint.setAttribute("aria-invalid", endpoint && !endpointValid ? "true" : "false");
   nodes.registerSidecarEndpoint.setAttribute(
@@ -113,7 +149,7 @@ function syncRegisterSubmitState(endpointValid, sidecarEndpointValid) {
   );
   nodes.registerSubmit.disabled = busy || !valid;
   nodes.registerForm.dataset.ready = valid ? "true" : "false";
-  return { duplicate, valid };
+  return { plan, valid };
 }
 
 function scheduleRenderRegisterPreview() {
@@ -125,6 +161,11 @@ function scheduleRenderRegisterPreview() {
     state.pendingRegisterPreview = 0;
     renderRegisterPreview();
   });
+}
+
+function scheduleRegistrationPlanPreview() {
+  scheduleRenderRegisterPreview();
+  scheduleRegistrationPlan();
 }
 
 function renderRegisterPreview() {
@@ -196,6 +237,7 @@ function renderRegisterPreview() {
         <strong>${escapeHtml(nodes.registerFetchCapabilities.checked ? t("register.capabilityEnabled") : t("register.capabilityDisabled"))}</strong>
       </div>
     </div>
-    ${submission.duplicate ? `<div class="register-preview-warning">${escapeHtml(duplicateRuntimeMessage(submission.duplicate, explicitName, endpoint))}</div>` : ""}
+    ${submission.plan && !submission.plan.allowed ? `<div class="register-preview-warning">${escapeHtml(registrationPlanConflictMessage(submission.plan))}</div>` : ""}
+    ${state.registrationPlanError ? `<div class="register-preview-warning">${escapeHtml(state.registrationPlanError)}</div>` : ""}
   `;
 }

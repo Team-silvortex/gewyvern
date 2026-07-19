@@ -2058,6 +2058,7 @@ fn remote_linux_host_summary_value(
             "remote_workspace_materialize",
             "remote_linux_target_check",
             "remote_package_build",
+            "remote_leserpent_control_plane_aot",
             "remote_artifact_verify",
             "remote_package_smoke",
             "remote_runtime_smoke",
@@ -2346,9 +2347,10 @@ fn remote_linux_host_summary_value(
 }
 
 fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
-    const REMOTE_TOTAL_BUDGET_SECONDS: f64 = 45.0;
+    const REMOTE_TOTAL_BUDGET_SECONDS: f64 = 180.0;
     const WORKSPACE_SYNC_BUDGET_SECONDS: f64 = 8.0;
     const REMOTE_PACKAGE_BUILD_BUDGET_SECONDS: f64 = 20.0;
+    const REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS: f64 = 120.0;
     const REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS: f64 = 2.0;
     const REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS: f64 = 3.0;
     const REMOTE_EBPF_VALIDATOR_BUILD_BUDGET_SECONDS: f64 = 20.0;
@@ -2363,6 +2365,9 @@ fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
                 "total" => Some(REMOTE_TOTAL_BUDGET_SECONDS),
                 "workspace_sync" => Some(WORKSPACE_SYNC_BUDGET_SECONDS),
                 "remote_package_build" => Some(REMOTE_PACKAGE_BUILD_BUDGET_SECONDS),
+                "remote_leserpent_control_plane_aot" => {
+                    Some(REMOTE_LESERPENT_CONTROL_PLANE_AOT_BUDGET_SECONDS)
+                }
                 "remote_package_smoke" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS),
                 "remote_runtime_smoke" => Some(REMOTE_RUNTIME_SMOKE_BUDGET_SECONDS),
                 "remote_ebpf_validator_build" => Some(REMOTE_EBPF_VALIDATOR_BUILD_BUDGET_SECONDS),

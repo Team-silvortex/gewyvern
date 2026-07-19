@@ -1,9 +1,9 @@
-# Reference: Protocol Release Handbook For `1.4.0`
+# Reference: Protocol Release Handbook For `1.4.6`
 
 Use this page when the question is not just “what command do I run?” but “what
 counts as enough protocol confidence to ship the current minor line?”
 
-This page is the protocol-facing release handbook for the active `1.4.0`
+This page is the protocol-facing release handbook for the active `1.4.6`
 line.
 
 Read this alongside:
@@ -20,11 +20,11 @@ Read this alongside:
 
 Use this page when the question is:
 
-- “what protocol evidence should still exist before we call `1.4.0` green?”
+- “what protocol evidence should still exist before we call `1.4.6` green?”
 - “which checks are family-local, grouped, operator-facing, or release-facing?”
 - “how do I walk from one suspicious protocol family to a minor-line ship read?”
 
-## The `1.4.0` Protocol Gate
+## The `1.4.6` Protocol Gate
 
 Treat the current line as protocol-ready only when all of these stay true:
 
@@ -37,7 +37,7 @@ Treat the current line as protocol-ready only when all of these stay true:
 
 ## Minimum High-Frequency Family Checks
 
-These are the shortest family-level checks worth keeping alive in `1.4.0`:
+These are the shortest family-level checks worth keeping alive in `1.4.6`:
 
 ```bash
 cargo run -- --protocol http --entry request --json --summary-only
@@ -114,7 +114,7 @@ Use this layer when the real question is:
 
 - “did packaged protocol behavior survive?”
 - “does protocol evidence still survive `gewyvern + etragon + leserpent`?”
-- “is this good enough for a `1.4.0` ship read?”
+- “is this good enough for a `1.4.6` ship read?”
 
 ## Shortest Practical Release Routes
 

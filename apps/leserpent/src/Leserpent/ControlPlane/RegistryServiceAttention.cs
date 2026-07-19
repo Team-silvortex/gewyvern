@@ -45,23 +45,23 @@ public sealed partial class RegistryService
 
         if (reasons.Contains("status_fetch_failed", StringComparer.OrdinalIgnoreCase))
         {
-            actions.Add(new RuntimeSuggestedAction("refresh_status", 1, "retry runtime status first because the primary snapshot fetch failed"));
-            actions.Add(new RuntimeSuggestedAction("refresh_all", 3, "if status still looks stale, rerun the full runtime refresh path"));
+            actions.Add(new RuntimeSuggestedAction("refresh_status", 1, "retry runtime status first because the primary snapshot fetch failed", CommandKind: "status"));
+            actions.Add(new RuntimeSuggestedAction("refresh_all", 3, "if status still looks stale, rerun the full runtime refresh path", CommandKind: "all"));
         }
 
         if (reasons.Contains("sidecar_status_fetch_failed", StringComparer.OrdinalIgnoreCase))
         {
-            actions.Add(new RuntimeSuggestedAction("refresh_sidecar", 2, "retry the sidecar separately so diagnostics can recover without disturbing runtime intake"));
+            actions.Add(new RuntimeSuggestedAction("refresh_sidecar", 2, "retry the sidecar separately so diagnostics can recover without disturbing runtime intake", CommandKind: "sidecar"));
         }
 
         if (reasons.Contains("no_latest_snapshot", StringComparer.OrdinalIgnoreCase))
         {
-            actions.Add(new RuntimeSuggestedAction("refresh_status", 1, "request a fresh runtime snapshot before trusting downstream analysis"));
+            actions.Add(new RuntimeSuggestedAction("refresh_status", 1, "request a fresh runtime snapshot before trusting downstream analysis", CommandKind: "status"));
         }
 
         if (reasons.Contains("no_analysis_json", StringComparer.OrdinalIgnoreCase))
         {
-            actions.Add(new RuntimeSuggestedAction("refresh_all", 2, "refresh the full runtime surface so summary and analysis artifacts can repopulate together"));
+            actions.Add(new RuntimeSuggestedAction("refresh_all", 2, "refresh the full runtime surface so summary and analysis artifacts can repopulate together", CommandKind: "all"));
         }
 
         return actions

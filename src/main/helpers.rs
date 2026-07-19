@@ -2,8 +2,8 @@ use gewyvern::export::ExportBundle;
 use gewyvern::flow::{FlowId, ProcessView, ProgramFlowId};
 use gewyvern::ledger::{CpuId, FactEnvelope, FactId, FactKind, RouteDecisionFact, SessionId};
 use gewyvern::protocol_profiles::{
-    default_protocol_scan_set, default_protocol_scan_set_from_dir, protocol_summaries,
-    protocol_summary, resolve_protocol_profile,
+    default_protocol_scan_set, protocol_summaries, protocol_summary, resolve_protocol_profile,
+    validate_protocol_registry_dir,
 };
 use gewyvern::runtime::{RuntimeSession, SessionConfig};
 use gewyvern::template::TemplateBinding;
@@ -423,14 +423,8 @@ pub(crate) fn selected_scan_target_for_cli(cli: &Cli) -> Option<ScanTarget> {
 
 pub(crate) fn scan_targets_from_set_file(path: &str) -> Result<Vec<ScanTarget>, String> {
     if Path::new(path).is_dir() {
-        return default_protocol_scan_set_from_dir(path)
-            .map(|targets| targets.into_iter().map(ScanTarget::from_resolved).collect())
-            .ok_or_else(|| {
-                format!(
-                    "protocol registry directory '{}' did not resolve any scan targets",
-                    path
-                )
-            });
+        return validate_protocol_registry_dir(path)
+            .map(|targets| targets.into_iter().map(ScanTarget::from_resolved).collect());
     }
     let contents = fs::read_to_string(path)
         .map_err(|err| format!("failed to read protocol set '{path}': {err}"))?;

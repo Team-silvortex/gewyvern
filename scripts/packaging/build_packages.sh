@@ -17,7 +17,7 @@ PENDING_MANIFEST_FILE=""
 MAINTAINER="${GEWY_PACKAGE_MAINTAINER:-OpenAI Codex <codex@example.invalid>}"
 PACKAGE_NAME="${GEWY_PACKAGE_NAME:-gewyvern}"
 PACKAGE_RELEASE="${GEWY_PACKAGE_RELEASE:-1}"
-RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.0}"
+RELEASE_LINE="${GEWY_RELEASE_LINE:-v1.4.6}"
 LAYOUT_VERSION="${GEWY_LAYOUT_VERSION:-1}"
 CONFIG_SCHEMA_VERSION="${GEWY_CONFIG_SCHEMA_VERSION:-1}"
 RPM_DIST="${GEWY_RPM_DIST:-}"
@@ -81,6 +81,10 @@ write_cache_key() {
   local pending
   pending="$(mktemp "${OUT_DIR}/.build-cache-key.XXXXXX")"
   if ! printf '%s\n' "$value" >"${pending}"; then
+    rm -f "${pending}"
+    return 1
+  fi
+  if ! chmod 0644 "${pending}"; then
     rm -f "${pending}"
     return 1
   fi
@@ -315,11 +319,13 @@ can_reuse_cached_packages() {
 package_cache_artifact_valid() {
   local artifact="$1"
   local extension="$2"
-  local package_root resolved
+  local candidate package_root resolved
 
-  [[ -n "${artifact}" && -f "${artifact}" && ! -L "${artifact}" ]] || return 1
+  [[ -n "${artifact}" && "${artifact}" != /* ]] || return 1
+  candidate="${OUT_DIR}/${artifact}"
+  [[ -f "${candidate}" && ! -L "${candidate}" ]] || return 1
   package_root="$(realpath "${OUT_DIR}")" || return 1
-  resolved="$(realpath "${artifact}")" || return 1
+  resolved="$(realpath "${candidate}")" || return 1
   case "${resolved}" in
     "${package_root}"/*) ;;
     *) return 1 ;;
@@ -393,7 +399,7 @@ build_deb() {
     return 1
   fi
   mv -f "${pending_deb}" "${deb_path}"
-  record_manifest "deb" "${deb_path}"
+  record_manifest "deb" "${deb_path#"${OUT_DIR}/"}"
   echo "built ${deb_path}"
 }
 
@@ -456,7 +462,7 @@ build_rpm() {
     return 1
   fi
   mv -f "${pending_rpm}" "${rpm_path}"
-  record_manifest "rpm" "${rpm_path}"
+  record_manifest "rpm" "${rpm_path#"${OUT_DIR}/"}"
   echo "built rpm packages in ${rpm_out_dir}"
 }
 
@@ -569,6 +575,7 @@ if [[ "${LAYOUT_ONLY}" -eq 0 ]]; then
   MANIFEST_RPM="$(read_manifest_value rpm || true)"
   if can_reuse_cached_packages "${PACKAGE_CACHE_KEY}" "${MANIFEST_DEB}" "${MANIFEST_RPM}"; then
     echo "reusing cached package artifacts..."
+    chmod 0644 "${CACHE_KEY_FILE}" "${MANIFEST_FILE}"
     record_timing "stage_layout" "0.000"
     case "${FORMAT}" in
       deb)
@@ -640,6 +647,7 @@ else
       package_cache_artifact_valid "${PENDING_RPM}" rpm
       ;;
   esac
+  chmod 0644 "${PENDING_MANIFEST_FILE}"
   mv -f "${PENDING_MANIFEST_FILE}" "${OUT_DIR}/build-manifest.txt"
   PENDING_MANIFEST_FILE=""
   MANIFEST_FILE="${OUT_DIR}/build-manifest.txt"

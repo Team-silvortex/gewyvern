@@ -120,6 +120,12 @@ public sealed class ControlPlaneSecurityPolicy
         return sidecarStatusError;
     }
 
+    public async Task<string?> ValidateRegistrationPlanAsync(RuntimeRegistrationPlanRequest request, CancellationToken cancellationToken)
+    {
+        var runtimeError = await ValidateEndpointUrlAsync(request.Endpoint, "runtime endpoint", cancellationToken);
+        return runtimeError ?? await ValidateOptionalEndpointUrlAsync(request.SidecarEndpoint, "sidecar endpoint", cancellationToken);
+    }
+
     public async Task<string?> ValidateImportAsync(PersistedControlPlaneState state, CancellationToken cancellationToken)
     {
         foreach (var runtime in state.Runtimes)

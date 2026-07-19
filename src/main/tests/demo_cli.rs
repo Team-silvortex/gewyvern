@@ -512,6 +512,27 @@ fn protocol_set_directory_scans_registered_gewy_projects() {
 }
 
 #[test]
+fn protocol_set_directory_surfaces_manifest_diagnostics() {
+    let root = std::env::temp_dir().join(format!(
+        "gewyvern-invalid-protocol-registry-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let package_dir = root.join("mysql").join("session");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(package_dir.join("main.gewy"), "fragment packet_meta {}").unwrap();
+    fs::write(package_dir.join("gewy.pkg"), "entry=main.gewy\n").unwrap();
+
+    let error = scan_targets_from_set_file(root.to_str().unwrap()).unwrap_err();
+    fs::remove_dir_all(&root).unwrap();
+
+    assert!(error.contains("missing register.protocol"));
+    assert!(!error.contains("did not resolve any scan targets"));
+}
+
+#[test]
 fn cli_rejects_remote_tcp_socket_without_explicit_flag() {
     let err = Cli::from_args(["--tcp-socket".to_string(), "0.0.0.0:9000".to_string()]).unwrap_err();
     assert!(err.contains("--allow-remote-socket"));

@@ -7,6 +7,10 @@ namespace Leserpent;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(RuntimeRegistrationRequest))]
+[JsonSerializable(typeof(RuntimeRegistrationPlanRequest))]
+[JsonSerializable(typeof(RuntimeRegistrationPlan))]
+[JsonSerializable(typeof(RuntimeRecoveryCommandRequest))]
+[JsonSerializable(typeof(RuntimeRecoveryCommandResponse))]
 [JsonSerializable(typeof(RuntimeDeploymentRequest))]
 [JsonSerializable(typeof(RuntimeDeploymentResponse))]
 [JsonSerializable(typeof(RuntimeDeploymentCompatibilityEnvelope))]
@@ -60,5 +64,7 @@ namespace Leserpent;
 [JsonSerializable(typeof(OrchestraRunAcceptedResponse))]
 [JsonSerializable(typeof(RuntimeDeleteResponse))]
 [JsonSerializable(typeof(RuntimeBulkDeleteResponse))]
+[JsonSerializable(typeof(RuntimeCleanupRequest))]
+[JsonSerializable(typeof(RuntimeCleanupPlan))]
 [JsonSerializable(typeof(OrchestraRevisionPayload))]
 internal sealed partial class LeserpentJsonContext : JsonSerializerContext;

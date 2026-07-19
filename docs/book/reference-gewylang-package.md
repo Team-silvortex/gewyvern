@@ -56,6 +56,11 @@ Practical role:
 - package resolution boundary for `gewyc`
 - stable root for `include(...)` and package-relative loading
 
+The `entry` value must be a normalized relative path to a regular file inside
+the package root. It cannot be absolute, contain `.` or `..` components, or
+traverse symlinks. Explicit protocol catalog scans report these violations
+directly instead of silently treating a malformed package as absent.
+
 ### `main.gewy`
 
 Purpose:

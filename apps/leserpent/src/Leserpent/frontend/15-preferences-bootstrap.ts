@@ -379,10 +379,10 @@ function bootstrapDashboard() {
   nodes.runtimeDetailCopyLink.addEventListener("click", copySelectedRuntimeLink);
   nodes.registerName.addEventListener("input", () => {
     state.registerNameTouched = nodes.registerName.value.trim().length > 0;
-    scheduleRenderRegisterPreview();
+    scheduleRegistrationPlanPreview();
   });
   nodes.registerEndpoint.addEventListener("input", maybePrefillRuntimeNameFromEndpoint);
-  nodes.registerSidecarEndpoint.addEventListener("input", scheduleRenderRegisterPreview);
+  nodes.registerSidecarEndpoint.addEventListener("input", scheduleRegistrationPlanPreview);
   nodes.registerSidecarAdminToken.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerToken.addEventListener("input", scheduleRenderRegisterPreview);
   nodes.registerRuntimeEnvironment.addEventListener("input", scheduleRenderRegisterPreview);

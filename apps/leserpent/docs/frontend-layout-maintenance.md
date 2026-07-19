@@ -34,6 +34,53 @@ The layout system is split across a few clear files:
 When changing layout behavior, update the TypeScript source first, then rebuild
 the static output.
 
+## Operator Policy Boundary
+
+The browser may render confirmations and collect operator input, but it must not
+decide which runtimes a destructive fleet command targets. Runtime cleanup uses
+the control-plane-owned `GET /v1/runtimes/cleanup-plan` response for:
+
+- failed and unobserved target membership
+- protected-slice classification
+- affected runtime and session counts
+- the clear-slice challenge
+- a plan token that rejects stale confirmations
+
+The matching delete request sends the plan token to the control plane. A changed
+target set returns `409 runtime_cleanup_plan_changed`; the dashboard reloads the
+fleet before the operator confirms again. In particular, `idle_ready` runtimes
+are not unobserved-cleanup targets even when they have no latest snapshot.
+
+Keep presentation-only state such as open panes, local windows, focus, and theme
+in TypeScript. Move target selection, authorization, revisions, risk levels, and
+command preconditions behind typed control-plane contracts.
+
+Runtime registration follows the same boundary. The browser debounces a
+secret-free `POST /v1/runtimes/registration-plan` request and submits the returned
+plan token with the real registration. The control plane owns these rules:
+
+- a new name and endpoint produce `create`
+- an existing name produces an idempotent `update` that preserves runtime ID
+- an endpoint already owned by another name produces `reject`
+- canonically equivalent HTTP endpoints cannot bypass uniqueness
+- a create/update transition after preview invalidates the stale plan token
+
+Suggested names and immediate URL-shape hints may remain browser-local because
+they are presentation aids. Pairing tokens and sidecar credentials must never be
+sent to the preview endpoint.
+
+Runtime recovery is also server-orchestrated. The browser submits one typed
+`POST /v1/runtimes/{runtimeId}/recovery` command with `all`, `status`,
+`capabilities`, or `sidecar`. The response reports each executed step and its
+outcome. The browser must not reconstruct `all` from multiple legacy endpoints
+or decide whether a paired sidecar participates.
+
+Suggested attention actions carry `commandKind` directly from the control plane.
+Cooldown, priority, step selection, aggregate outcome, and recovery-history
+recording therefore remain stable when the renderer is replaced. The older
+fine-grained refresh endpoints remain compatibility surfaces, not the dashboard
+workflow authority.
+
 ## Layout Modes
 
 The dashboard no longer relies only on scattered media queries.

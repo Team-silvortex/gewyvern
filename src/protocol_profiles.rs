@@ -15,6 +15,7 @@ use registry::{
     default_protocol_scan_set_from_registry,
     resolve_built_in_dsl_path as resolve_built_in_dsl_path_inner, resolve_registry_alias,
     resolve_registry_entry_alias, scan_protocol_registry, scan_protocol_registry_in,
+    scan_protocol_registry_in_strict,
 };
 use std::fs;
 use std::path::Path;
@@ -276,6 +277,11 @@ pub fn default_protocol_scan_set() -> Vec<ResolvedProtocolProfile> {
 pub fn default_protocol_scan_set_from_dir(dir: &str) -> Option<Vec<ResolvedProtocolProfile>> {
     let registry = scan_protocol_registry_in(std::path::Path::new(dir))?;
     Some(default_protocol_scan_set_from_registry(registry))
+}
+
+pub fn validate_protocol_registry_dir(dir: &str) -> Result<Vec<ResolvedProtocolProfile>, String> {
+    let registry = scan_protocol_registry_in_strict(std::path::Path::new(dir))?;
+    Ok(default_protocol_scan_set_from_registry(registry))
 }
 
 pub fn protocol_target_name_for_template_id(template_id: &str) -> Option<String> {

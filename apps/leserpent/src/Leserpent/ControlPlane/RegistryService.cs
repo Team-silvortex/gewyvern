@@ -16,6 +16,7 @@ public sealed partial class RegistryService
     private readonly ConcurrentDictionary<string, ImmutableQueue<RuntimeRecoveryActivity>> recoveryActivities = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<OrchestraRunSummary>> orchestraRuns = new();
     private readonly object orchestraRunSync = new();
+    private readonly object runtimeRegistrationSync = new();
     private readonly ControlPlaneStateStore stateStore;
     private readonly IOrchestraRunStore orchestraRunStore;
     private readonly DateTimeOffset? restoredFromSavedAt;
@@ -92,6 +93,15 @@ public sealed partial class RegistryService
             .OrderBy(runtime => runtime.Name, StringComparer.OrdinalIgnoreCase)
             .Select(runtime => runtime.ToSummary())
             .ToArray();
+
+    public RuntimeCleanupPlan GetRuntimeCleanupPlan(RuntimeListFilter? filter = null)
+    {
+        var effectiveFilter = filter ?? new RuntimeListFilter(null, null, null);
+        return RuntimeCleanupPolicy.Build(effectiveFilter, ListRuntimes(effectiveFilter), ListSessions());
+    }
+
+    public RuntimeRegistrationPlan GetRuntimeRegistrationPlan(RuntimeRegistrationPlanRequest request) =>
+        RuntimeRegistrationPolicy.Build(request, ListRuntimes());
 
     public RuntimeSummary? GetRuntime(string runtimeId) =>
         runtimes.TryGetValue(runtimeId, out var runtime) ? runtime.ToSummary() : null;
@@ -407,7 +417,33 @@ public sealed partial class RegistryService
         DeleteUnobservedRuntimes(RuntimeListFilter? filter = null) =>
         DeleteRuntimesWhere(runtime =>
             MatchesFilter(runtime, filter) &&
-            string.Equals(runtime.Status.StatusSource, "unobserved", StringComparison.OrdinalIgnoreCase));
+            RuntimeCleanupPolicy.IsDeletableUnobserved(runtime.ToSummary()));
+
+    public (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames)
+        DeletePlannedRuntimes(string kind, RuntimeListFilter filter, RuntimeCleanupRequest request)
+    {
+        var plan = GetRuntimeCleanupPlan(filter);
+        var action = kind switch
+        {
+            RuntimeCleanupPolicy.FailedKind => plan.Failed,
+            RuntimeCleanupPolicy.UnobservedKind => plan.Unobserved,
+            RuntimeCleanupPolicy.SliceKind => plan.Slice,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "unknown runtime cleanup kind"),
+        };
+        if (string.IsNullOrWhiteSpace(request.PlanToken) ||
+            !string.Equals(request.PlanToken, action.PlanToken, StringComparison.Ordinal))
+        {
+            throw new RuntimeCleanupPlanMismatchException("runtime cleanup plan changed; review the current targets before retrying");
+        }
+        if (action.Challenge is not null &&
+            !string.Equals(request.Challenge?.Trim(), action.Challenge, StringComparison.Ordinal))
+        {
+            throw new RuntimeCleanupPlanMismatchException("runtime cleanup challenge does not match the current plan");
+        }
+
+        var targetIds = action.Targets.Select(target => target.RuntimeId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return DeleteRuntimesWhere(runtime => targetIds.Contains(runtime.RuntimeId));
+    }
 
     public void RecordRecoveryActivity(string runtimeId, string action, string outcome, string summary)
     {
@@ -487,10 +523,51 @@ public sealed partial class RegistryService
         RuntimeStatusSnapshot status,
         RuntimeSidecarStatusSnapshot? sidecarStatus)
     {
+        lock (runtimeRegistrationSync)
+        {
+            return RegisterRuntimeLocked(
+                request,
+                capabilities,
+                capabilitySource,
+                capabilityFetchedAt,
+                capabilityFetchError,
+                status,
+                sidecarStatus);
+        }
+    }
+
+    private RuntimeRegistrationResponse RegisterRuntimeLocked(
+        RuntimeRegistrationRequest request,
+        IReadOnlyList<RuntimeCapability> capabilities,
+        string capabilitySource,
+        DateTimeOffset? capabilityFetchedAt,
+        string? capabilityFetchError,
+        RuntimeStatusSnapshot status,
+        RuntimeSidecarStatusSnapshot? sidecarStatus)
+    {
+        var plan = GetRuntimeRegistrationPlan(new RuntimeRegistrationPlanRequest(
+            request.Name,
+            request.Endpoint,
+            request.SidecarEndpoint));
+        if (!plan.Allowed)
+        {
+            throw new RuntimeRegistrationPlanException(
+                "runtime endpoint is already registered to another runtime",
+                plan);
+        }
+        if (!string.IsNullOrWhiteSpace(request.RegistrationPlanToken) &&
+            !string.Equals(request.RegistrationPlanToken, plan.PlanToken, StringComparison.Ordinal))
+        {
+            throw new RuntimeRegistrationPlanException(
+                "runtime registration plan changed; review the current target before retrying",
+                plan);
+        }
+
         var now = DateTimeOffset.UtcNow;
         var tags = NormalizeTags(request.Tags);
-        var existing = runtimes.Values.FirstOrDefault(runtime =>
-            string.Equals(runtime.Name, request.Name, StringComparison.OrdinalIgnoreCase));
+        var existing = plan.ExistingRuntimeId is null
+            ? null
+            : runtimes.GetValueOrDefault(plan.ExistingRuntimeId);
 
         if (existing is not null)
         {
