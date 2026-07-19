@@ -2,6 +2,12 @@
 
 `etragon` is the diagnosis-partner sidecar of the `gewyvern` stack.
 
+> **Current maturity:** temporarily downweighted and incubating. The daemon,
+> protocol, persistence, and dependency-light online-memory baseline are usable,
+> but the production deep-learning runtime, model artifact pipeline, and
+> training/evaluation loop are not integrated. Treat its output as optional
+> advisory context, never as a replacement for Gewyvern's diagnosis spine.
+
 Its default deployment shape is close and local:
 
 - one `etragon` works with one nearby `gewyvern`
@@ -37,7 +43,9 @@ It provides:
 - `MockRecommendationAugmenter`
 - `MockScoreRerankPass`
 
-The mock engine is not a real model. It exists to prove the intended
+The mock engine is not a real model, and the current Python worker is a
+dependency-light behavioral baseline rather than a deep-learning stack. They
+exist to prove the intended
 single-runtime diagnosis-partner shape for later ML or rerank passes:
 
 - ambiguous mixed hypotheses -> `ml_candidate_multi_hypothesis`
@@ -295,6 +303,18 @@ cargo run -p etragon -- serve-python-url http://127.0.0.1:9910/v1/latest/analysi
 
 cargo run -p etragon -- serve-python-targets-url http://127.0.0.1:9910/v1/latest/targets --bind 127.0.0.1:4321 --filter scan: --interval-ms 1000 --python-worker ./apps/etragon/scripts/python_baseline_worker.py --daemon-state /tmp/etragon-daemon-state.json
 ```
+
+When the upstream Gewyvern API is remotely bound and protected, set
+`ETRAGON_SOURCE_ADMIN_TOKEN` to the matching Gewyvern administrator token. The
+token is sent only in the `X-Gewyvern-Admin-Token` request header and is not
+included in daemon state or diagnostic output.
+
+Daemon state persistence is bounded to 1 MiB and uses a private (`0600` on
+Unix), same-directory temporary file followed by an atomic replacement. Both
+the state file and its parent directory are synchronized before success is
+reported. Symlinks, non-regular files, and files replaced during opening are
+rejected rather than followed; malformed state remains a fail-closed startup
+error so learned state is never silently discarded.
 
 The resident daemon exposes:
 

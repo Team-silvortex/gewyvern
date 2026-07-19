@@ -417,7 +417,7 @@ pub(super) fn parse_training_feedback(request_text: &str) -> Result<(String, f64
 pub(super) fn normalize_training_label(input: &str) -> Result<String, String> {
     let normalized = input.trim().to_ascii_lowercase().replace('-', "_");
     training_label_specs()
-        .into_iter()
+        .iter()
         .find(|spec| spec.canonical == normalized || spec.aliases.iter().any(|alias| *alias == normalized))
         .map(|spec| spec.canonical.to_string())
         .ok_or_else(|| {

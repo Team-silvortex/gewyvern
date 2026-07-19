@@ -119,18 +119,15 @@ pub(super) fn parse_watch_options(
     Ok((interval_ms, cycles, filter_prefix, config))
 }
 
-pub(super) fn parse_daemon_options(
-    args: &[String],
-) -> Result<
-    (
-        String,
-        u64,
-        Option<String>,
-        PythonWorkerConfig,
-        Option<PathBuf>,
-    ),
+pub(super) type DaemonOptions = (
     String,
-> {
+    u64,
+    Option<String>,
+    PythonWorkerConfig,
+    Option<PathBuf>,
+);
+
+pub(super) fn parse_daemon_options(args: &[String]) -> Result<DaemonOptions, String> {
     let mut bind_addr = "127.0.0.1:4321".to_string();
     let mut interval_ms = 1000u64;
     let mut filter_prefix = None;

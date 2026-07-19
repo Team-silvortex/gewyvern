@@ -214,7 +214,11 @@ impl DaemonHost {
     fn prepare_tick(&mut self) -> Result<(), RuntimeError> {
         self.runtime.heartbeat()?;
         self.stats.heartbeats += 1;
-        if self.stats.heartbeats % self.config.maintenance_interval_ticks == 0 {
+        if self
+            .stats
+            .heartbeats
+            .is_multiple_of(self.config.maintenance_interval_ticks)
+        {
             let pruned = self.runtime.prune_terminal_effects(
                 self.config.terminal_effect_retention,
                 self.config.retention_batch_limit,

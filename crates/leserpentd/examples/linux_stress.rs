@@ -207,7 +207,7 @@ fn concurrency_stress() -> Result<ConcurrencyEvidence, String> {
     }
     let completed = host.stats().completed;
     let observed = maximum.load(Ordering::Acquire);
-    if completed != EFFECTS || observed < 2 || observed > KINDS {
+    if completed != EFFECTS || !(2..=KINDS).contains(&observed) {
         return Err(format!(
             "concurrency stress diverged: completed={completed} observed={observed}"
         ));
@@ -299,7 +299,7 @@ fn saturation_stress() -> Result<SaturationEvidence, String> {
         max_attempts: 1,
     };
     let idempotent_replay_at_capacity = runtime
-        .enqueue_effect_batch(&[existing.clone()])
+        .enqueue_effect_batch(std::slice::from_ref(&existing))
         .is_ok_and(|inserted| inserted == 0);
     let mixed_overflow_batch_rejected = runtime
         .enqueue_effect_batch(&[

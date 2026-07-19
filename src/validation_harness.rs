@@ -54,7 +54,10 @@ pub use registry::run_registry_validation;
 pub use release_gate::{
     ReleaseCheckMode, ReleaseGateOptions, run_release_container_check, run_release_gate,
 };
-pub use remote_host::{RemoteLinuxHostOptions, run_remote_linux_host_validation};
+pub use remote_host::{
+    RemoteLinuxHostOptions, run_remote_linux_host_validation,
+    validate_leserpent_control_plane_aot_evidence,
+};
 pub use resilience::{
     run_resilience_bundle_validation, run_resilience_drive_bad_json_validation,
     run_resilience_emit_helper_validation, run_resilience_log_evidence_validation,
@@ -63,7 +66,8 @@ pub use resilience::{
 pub use runtime_lifecycle::run_runtime_lifecycle_validation;
 pub use runtime_operator::run_runtime_operator_validation;
 pub use stack_probe::{
-    run_stack_json_file_validation, run_stack_probe_validation, run_stack_register_runtime_json,
+    run_stack_json_file_validation, run_stack_probe_validation,
+    run_stack_probe_validation_with_gewyvern_token, run_stack_register_runtime_json,
     write_stack_resilience_summary,
 };
 pub use stack_suites::{

@@ -127,47 +127,47 @@ fn append_external_merge_hint_augmentations(
             )),
         });
     }
-    if let Some(object) = extract_optional_json_value(input, "diagnostic_opinion") {
-        if object != "null" {
-            if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
-                return Err(format!(
-                    "external output contains more than {} augmentations",
-                    MAX_EXTERNAL_AUGMENTATIONS
-                ));
-            }
-            let summary = extract_required_json_string(&object, "summary")?;
-            let raw_handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
-                .unwrap_or_else(|| "mergeable".to_string());
-            let raw_merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
-                .unwrap_or_else(|| "sidecar_only_opinion".to_string());
-            let adjustment = adjust_sidecar_metadata(
-                capabilities,
-                SidecarContextKind::Opinion,
-                &raw_handoff_readiness,
-                &raw_merge_hint,
-            );
-            capability_note = capability_note.or_else(|| {
-                external_capability_note(
-                    capabilities,
-                    adjustment.capability_status,
-                    adjustment.hint_status,
-                    adjustment.context_status,
-                )
-            });
-            items.push(AnalysisAugmentation {
-                kind: "external-opinion".into(),
-                name: "external_diagnostic_opinion".into(),
-                summary,
-                confidence: external_hint_confidence(&adjustment.handoff_readiness).into(),
-                producer_stage: Some("external".into()),
-                producer_pass: Some("external-engine-merge-prototype".into()),
-                data_json: Some(object_with_merge_metadata(
-                    &object,
-                    capabilities,
-                    &adjustment,
-                )),
-            });
+    if let Some(object) = extract_optional_json_value(input, "diagnostic_opinion")
+        && object != "null"
+    {
+        if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {
+            return Err(format!(
+                "external output contains more than {} augmentations",
+                MAX_EXTERNAL_AUGMENTATIONS
+            ));
         }
+        let summary = extract_required_json_string(&object, "summary")?;
+        let raw_handoff_readiness = extract_optional_json_string(&object, "handoff_readiness")
+            .unwrap_or_else(|| "mergeable".to_string());
+        let raw_merge_hint = extract_optional_json_string(&object, "gewyvern_merge_hint")
+            .unwrap_or_else(|| "sidecar_only_opinion".to_string());
+        let adjustment = adjust_sidecar_metadata(
+            capabilities,
+            SidecarContextKind::Opinion,
+            &raw_handoff_readiness,
+            &raw_merge_hint,
+        );
+        capability_note = capability_note.or_else(|| {
+            external_capability_note(
+                capabilities,
+                adjustment.capability_status,
+                adjustment.hint_status,
+                adjustment.context_status,
+            )
+        });
+        items.push(AnalysisAugmentation {
+            kind: "external-opinion".into(),
+            name: "external_diagnostic_opinion".into(),
+            summary,
+            confidence: external_hint_confidence(&adjustment.handoff_readiness).into(),
+            producer_stage: Some("external".into()),
+            producer_pass: Some("external-engine-merge-prototype".into()),
+            data_json: Some(object_with_merge_metadata(
+                &object,
+                capabilities,
+                &adjustment,
+            )),
+        });
     }
     if let Some(note) = capability_note {
         if items.len() >= MAX_EXTERNAL_AUGMENTATIONS {

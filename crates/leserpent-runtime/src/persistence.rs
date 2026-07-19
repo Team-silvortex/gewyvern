@@ -537,14 +537,15 @@ impl Journal {
     pub fn effect_record(&mut self, effect_id: &str) -> Result<Option<EffectRecord>, String> {
         self.ensure_owner()?;
         validate_scheduler_id("effect_id", effect_id)?;
-        let record: Option<(
+        type EffectRecordRow = (
             String,
             Vec<u8>,
             String,
             i64,
             Option<Vec<u8>>,
             Option<String>,
-        )> = self
+        );
+        let record: Option<EffectRecordRow> = self
             .connection
             .query_row(
                 "SELECT kind, payload, state, attempt, outcome, last_error

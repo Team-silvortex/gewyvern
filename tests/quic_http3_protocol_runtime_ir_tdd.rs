@@ -401,6 +401,8 @@ fn ingest_quic_frame(
     );
 }
 
+// Keep QUIC fact fields explicit in protocol fixtures.
+#[allow(clippy::too_many_arguments)]
 fn ingest_quic_frame_with_ports(
     session: &mut RuntimeSession,
     id: u64,

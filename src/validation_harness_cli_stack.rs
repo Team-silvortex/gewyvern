@@ -34,7 +34,7 @@ pub fn print_stack_help() {
         "  stack-probe --url <http-url> --profile <name> [--admin-token <token>] [--output <path>]"
     );
     println!(
-        "  stack-register-runtime-json --name <name> --endpoint <url> --environment <env> --cluster <cluster> --role <role> [--sidecar-endpoint <url>] [--sidecar-admin-token <token>]"
+        "  stack-register-runtime-json --name <name> --endpoint <url> --environment <env> --cluster <cluster> --role <role> --pairing-token <token> [--sidecar-endpoint <url>] [--sidecar-admin-token <token>]"
     );
     println!(
         "  stack-resilience-summary --healthy-a <json> --healthy-b <json> --degraded-b <json> --output <path>"
@@ -73,6 +73,7 @@ fn run_register_runtime(args: Vec<String>) -> Result<bool, ValidationError> {
             &required(options.environment, "--environment")?,
             &required(options.cluster, "--cluster")?,
             &required(options.role, "--role")?,
+            &required(options.pairing_token, "--pairing-token")?,
             options.sidecar_endpoint.as_deref(),
             options.sidecar_admin_token.as_deref(),
         )?
@@ -131,6 +132,7 @@ struct StackOptions {
     environment: Option<String>,
     cluster: Option<String>,
     role: Option<String>,
+    pairing_token: Option<String>,
     sidecar_endpoint: Option<String>,
     sidecar_admin_token: Option<String>,
     input: Option<PathBuf>,
@@ -158,6 +160,9 @@ impl StackOptions {
                 }
                 "--cluster" => options.cluster = Some(next_value(&mut iter, "--cluster")?),
                 "--role" => options.role = Some(next_value(&mut iter, "--role")?),
+                "--pairing-token" => {
+                    options.pairing_token = Some(next_value(&mut iter, "--pairing-token")?)
+                }
                 "--sidecar-endpoint" => {
                     options.sidecar_endpoint = Some(next_value(&mut iter, "--sidecar-endpoint")?)
                 }
@@ -198,6 +203,7 @@ impl StackOptions {
             environment: None,
             cluster: None,
             role: None,
+            pairing_token: None,
             sidecar_endpoint: None,
             sidecar_admin_token: None,
             input: None,

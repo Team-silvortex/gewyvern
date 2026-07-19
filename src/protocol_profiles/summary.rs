@@ -10,14 +10,9 @@ pub(super) fn protocol_summaries_from_registry(
 ) -> Vec<ProtocolSummary> {
     let mut protocols = BTreeMap::<String, RegistryProtocolSummary>::new();
     for manifest in registry {
-        let protocol = protocols
-            .entry(manifest.protocol.clone())
-            .or_insert_with(RegistryProtocolSummary::default);
+        let protocol = protocols.entry(manifest.protocol.clone()).or_default();
         protocol.aliases.extend(manifest.aliases.clone());
-        let entry = protocol
-            .entries
-            .entry(manifest.entry)
-            .or_insert_with(RegistryEntrySummary::default);
+        let entry = protocol.entries.entry(manifest.entry).or_default();
         entry.default |= manifest.default;
         entry.aliases.extend(manifest.aliases.clone());
         entry.aliases.extend(manifest.entry_aliases);

@@ -29,6 +29,7 @@ use gewyvern::validation_harness::{
     run_resilience_log_evidence_validation, run_resilience_roundtrip_validation,
     run_runtime_lifecycle_validation, run_runtime_operator_validation, run_socket_roundtrip_demo,
     run_three_module_stack_smoke, run_training_dataset_roundtrip_demo, set_validation_json_mode,
+    validate_leserpent_control_plane_aot_evidence,
 };
 
 const TOP_LEVEL_COMMANDS: &[&str] = &[
@@ -988,9 +989,7 @@ fn parse_release_check_mode(
     args: Vec<String>,
 ) -> Result<ReleaseCheckMode, ValidationError> {
     let mut mode = ReleaseCheckMode::DebAndRpm;
-    let mut iter = args.into_iter();
-
-    while let Some(arg) = iter.next() {
+    for arg in args {
         match arg.as_str() {
             "--deb" => mode = ReleaseCheckMode::Deb,
             "--rpm" => mode = ReleaseCheckMode::Rpm,
@@ -1933,6 +1932,12 @@ fn print_remote_linux_host_validation_summary(summary: &serde_json::Value) {
     if let Some(remote_ebpf) = summary.get("remote_ebpf").and_then(|value| value.as_str()) {
         println!("remote-ebpf: {remote_ebpf}");
     }
+    if let Some(remediation) = summary
+        .get("remote_ebpf_remediation")
+        .and_then(|value| value.as_str())
+    {
+        println!("remote-ebpf-remediation: {remediation}");
+    }
     if let Some(validation_posture) = summary
         .get("validation_posture")
         .and_then(|value| value.as_str())
@@ -2040,6 +2045,9 @@ fn remote_linux_host_summary_value(
             "rpm_version",
             "rpmbuild_version",
             "sudo_available",
+            "ebpf_helper_available",
+            "ebpf_helper_state",
+            "ebpf_helper_version",
             "default_route_device",
         ],
     )?;
@@ -2056,6 +2064,7 @@ fn remote_linux_host_summary_value(
             "remote_workspace_create",
             "workspace_sync",
             "remote_workspace_materialize",
+            "remote_rust_quality",
             "remote_linux_target_check",
             "remote_package_build",
             "remote_leserpent_control_plane_aot",
@@ -2072,6 +2081,16 @@ fn remote_linux_host_summary_value(
     )?;
     let build_packages_enabled =
         parse_required_bool(&run, "build_packages", "remote run evidence")?;
+    let aot_evidence_covered = run.get("checks").is_some_and(|checks| {
+        checks
+            .split(',')
+            .any(|check| check == "remote_leserpent_control_plane_aot")
+    });
+    if aot_evidence_covered {
+        validate_leserpent_control_plane_aot_evidence(
+            &out_dir.join("leserpent-control-plane-aot-linux-x64"),
+        )?;
+    }
     let package_build_timings = if build_packages_enabled {
         parse_phase_timings(
             &out_dir.join("remote-package-build-timings.txt"),
@@ -2149,6 +2168,12 @@ fn remote_linux_host_summary_value(
         "build_packages_enabled".to_string(),
         json!(build_packages_enabled),
     );
+    if aot_evidence_covered {
+        summary.insert(
+            "leserpent_control_plane_aot_evidence_validated".to_string(),
+            json!(true),
+        );
+    }
     summary.insert(
         "keep_remote_dir".to_string(),
         json!(parse_required_bool(
@@ -2186,6 +2211,9 @@ fn remote_linux_host_summary_value(
                 "rpm_version": preflight.get("rpm_version"),
                 "rpmbuild_version": preflight.get("rpmbuild_version"),
                 "sudo_available": parse_bool_string(preflight.get("sudo_available")),
+                "ebpf_helper_available": parse_bool_string(preflight.get("ebpf_helper_available")),
+                "ebpf_helper_state": preflight.get("ebpf_helper_state"),
+                "ebpf_helper_version": preflight.get("ebpf_helper_version"),
                 "default_route_device": preflight.get("default_route_device"),
             }),
         );
@@ -2196,6 +2224,9 @@ fn remote_linux_host_summary_value(
             "remote_ebpf".to_string(),
             json!(format!("{status} ({reason})")),
         );
+        if let Some(remediation) = remote_ebpf_remediation(reason) {
+            summary.insert("remote_ebpf_remediation".to_string(), json!(remediation));
+        }
     }
     if !ebpf.is_empty() {
         summary.insert(
@@ -2344,6 +2375,21 @@ fn remote_linux_host_summary_value(
     );
     summary.insert("requires_followup".to_string(), json!(requires_followup));
     Ok(serde_json::Value::Object(summary))
+}
+
+fn remote_ebpf_remediation(reason: &str) -> Option<&'static str> {
+    match reason {
+        "privileged_helper_missing" => Some(
+            "install the packaged helper and provision its root-owned config and command-limited sudoers rule",
+        ),
+        "privileged_helper_unavailable" => Some(
+            "verify helper ownership, /etc/gewyvern/ebpf-helper.conf, and the command-limited sudoers rule",
+        ),
+        "privileged_helper_incompatible" => {
+            Some("replace the installed helper with the current Gewyvern package version")
+        }
+        _ => None,
+    }
 }
 
 fn remote_phase_budget_warnings(timings: &[(String, f64)]) -> Vec<String> {
@@ -2843,7 +2889,7 @@ mod tests {
         .unwrap();
         fs::write(
             temp.path.join("remote-preflight.txt"),
-            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=dpkg-deb 1.22.6\nrpm_version=RPM version 4.18.2\nrpmbuild_version=RPM version 4.18.2\nsudo_available=true\ndefault_route_device=eth0\n",
+            "os=linux\narch=x86_64\nkernel=6.8.0-test\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/demo\ncommands=cargo,docker,sshpass\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=dpkg-deb 1.22.6\nrpm_version=RPM version 4.18.2\nrpmbuild_version=RPM version 4.18.2\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\n",
         )
         .unwrap();
         fs::write(
@@ -2886,6 +2932,26 @@ mod tests {
         let expected =
             read_fixture("docs/fixtures/gewyvern_validate_remote_linux_host_summary.json");
         assert_eq!(summary, expected);
+    }
+
+    #[test]
+    fn remote_ebpf_helper_failures_have_specific_remediation() {
+        assert!(
+            remote_ebpf_remediation("privileged_helper_missing")
+                .unwrap()
+                .contains("install")
+        );
+        assert!(
+            remote_ebpf_remediation("privileged_helper_unavailable")
+                .unwrap()
+                .contains("sudoers")
+        );
+        assert!(
+            remote_ebpf_remediation("privileged_helper_incompatible")
+                .unwrap()
+                .contains("current Gewyvern package version")
+        );
+        assert!(remote_ebpf_remediation("all_smokes_passed_privileged_helper").is_none());
     }
 
     #[test]

@@ -280,6 +280,7 @@ impl AnalysisAugmenter for BuiltInRecommendationAugmenter {
 // Kept as an explicit extension helper so future rule-based or ML passes can
 // append machine-readable annotations without re-shaping the core snapshot.
 #[allow(dead_code)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn push_analysis_augmentation(
     snapshot: &mut AnalysisSnapshot,
     kind: impl Into<String>,

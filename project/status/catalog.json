@@ -27,7 +27,7 @@
       {
         "id": "etragon",
         "label": "Etragon",
-        "summary": "Optional advisory and learning sidecar."
+        "summary": "Optional, temporarily downweighted advisory-learning sidecar; the deep-learning stack is not integrated yet."
       },
       {
         "id": "project-governance",
@@ -504,15 +504,16 @@
       "independence": "standalone-tool",
       "contract": {
         "id": "gewyvern-machine-contract",
-        "version": "1.1.0",
+        "version": "1.2.1",
         "stability": "stable",
-        "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing"]
+        "surfaces": ["cli", "json-export", "runtime-api", "validation", "loss-accounted-windowing", "bounded-stack-probe-http-response", "segmented-http-header-test-proof"]
       },
       "depends_on": [],
       "blockers": [],
       "consumers": ["gewyc", "leserpent", "etragon", "operators"],
       "evidence": [
         { "kind": "source", "path": "src/runtime.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/stack_probe.rs", "state": "present" },
         { "kind": "test", "path": "tests/runtime_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/machine-contract.md", "state": "present" }
       ],
@@ -530,7 +531,7 @@
       "independence": "internal",
       "contract": {
         "id": "linux-attach-validation",
-        "version": "1.0.9",
+        "version": "1.1.0",
         "stability": "evolving",
         "surfaces": [
           "attach-smoke",
@@ -561,6 +562,25 @@
           "collision-resistant-remote-run-directory",
           "matrix-aware-release-signal",
           "aggregate-followup-propagation",
+          "same-run-package-aot-and-privileged-ebpf-proof",
+          "root-owned-fixed-ebpf-helper",
+          "command-limited-sudo-contract",
+          "bounded-helper-run-and-device-identifiers",
+          "root-owned-evidence-staging",
+          "privileged-evidence-symlink-rejection",
+          "helper-protocol-version-binding",
+          "stale-helper-fail-closed",
+          "helper-readiness-state-machine",
+          "helper-state-consistency-validation",
+          "helper-specific-remediation-guidance",
+          "packaged-inactive-helper-provisioning",
+          "native-root-provisioner",
+          "dry-run-provisioning-validation",
+          "getent-account-resolution",
+          "root-account-rejection",
+          "visudo-prevalidated-policy",
+          "atomic-config-and-sudoers-install",
+          "provisioner-excluded-from-sudo-allowlist",
           "remote-linux-validation",
           "remote-docker-execution"
         ]
@@ -575,11 +595,15 @@
       "consumers": ["gewyvern-runtime", "release-gate"],
       "evidence": [
         { "kind": "source", "path": "src/linux_ebpf_smoke.rs", "state": "present" },
+        { "kind": "source", "path": "src/bin/gewyvern_ebpf_helper.rs", "state": "present" },
+        { "kind": "source", "path": "src/bin/gewyvern_ebpf_provision.rs", "state": "present" },
+        { "kind": "source", "path": "packaging/gewyvern-ebpf-validation.sudoers.example", "state": "present" },
         { "kind": "test", "path": "tests/native_validation_harness_tdd.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/headless-linux.md", "state": "present" },
         { "kind": "source", "path": "scripts/remote/run_on_linux_host.sh", "state": "present" },
         { "kind": "test", "path": "tests/script_portability_tdd.rs", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/linux_attach_pinned_source_root.json", "state": "present" },
+        { "kind": "test", "path": "target/validation/remote-linux-host-validation/latest-admin-run.json", "state": "present" },
         { "kind": "documentation", "path": "docs/remote-docker.md", "state": "present" }
       ],
       "next_gate": "Expand repeatable physical-host and kernel-version evidence."
@@ -1365,9 +1389,9 @@
       "independence": "internal",
       "contract": {
         "id": "leserpent-proof-shelves",
-        "version": "0.59.0",
+        "version": "0.63.0",
         "stability": "draft",
-        "surfaces": ["development-and-aot-locked-restore-parity", "managed-and-native-accessibility-lock-graph-separation", "authenticated-dotnet-health-preflight-proof", "strict-health-codec-proof", "authority-health-presentation-proof", "gui-leselang-export-proof", "workspace-log-filter-proof", "workspace-diagnostic-export-proof", "workspace-live-refresh-proof", "workspace-delta-summary-proof", "parser-fuzz", "vm-fuzz", "deterministic-fuzz-seed", "utf8-span-invariants", "bounded-hir-vm-start", "fail-closed-continuation-fuzz", "retained-fuzz-evidence", "origin-parity", "authorization", "crash-replay", "named-origin-parity-recovery-proof", "non-vacuous-test-count", "command-origin-lowering-proof", "authorization-confirmation-proof", "principal-idempotency-proof", "cli-leselang-origin-parity", "vm-reentry-recovery-proof", "runtime-recovery-injection-proof", "remote-wire-parity-proof", "remote-cli-parity-proof", "avalonia-remote-state-proof", "rust-dotnet-remote-vertical-proof", "rust-dotnet-mutation-vertical-proof", "rust-dotnet-workspace-query-vertical-proof", "rust-dotnet-workspace-log-vertical-proof", "explicit-confirmed-remote-mutation-proof", "optimistic-runtime-revision-proof", "websocket-mutation-observation-proof", "strict-external-success-marker", "lease-crash-outbox-repair", "retained-parity-recovery-evidence", "macos-arm64-parity-recovery-proof", "physical-linux-x64-parity-recovery-proof", "named-ui-accessibility-proof", "unique-automation-id-proof", "complete-automation-name-proof", "explicit-action-label-proof", "wcag-aa-contrast-proof", "retained-accessibility-evidence", "transport-compatibility", "named-transport-proof", "wire-v1-contract-proof", "legacy-v1-adaptation-proof", "cli-leselang-transport-parity", "authenticated-unix-ipc-proof", "authenticated-https-wire-proof", "authenticated-https-cli-proof", "ipc-security-negative-paths", "https-security-negative-paths", "real-tls-loopback", "native-cli-https-roundtrip", "retained-transport-evidence", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "physical-linux-control-plane-native-aot-proof", "strict-synchronized-aot-evidence-consumption", "exact-remote-aot-evidence-inventory", "post-rsync-symlink-rejection", "macos-app-bundle-proof", "finder-dock-launch-proof", "strict-adhoc-signature-proof", "adhoc-runtime-launch-withheld", "local-ui-adhoc-launch-proof", "developer-id-release-pipeline-contract", "plaintext-notary-secret-rejection", "hardened-runtime-flag-proof", "packaged-keychain-startup-proof", "zero-keychain-residue-proof", "connection-maintenance-contract-proof", "connection-management-control-proof", "desktop-ca-store-contract-proof", "managed-ca-replacement-negative-proof", "managed-ca-prune-proof", "named-benchmark-proof", "sqlite-cold-open-budget", "runtime-query-latency-budget", "effect-throughput-budget", "ui-ir-performance-budget", "release-binary-size-budget", "same-host-class-comparison", "macos-arm64-benchmark-proof", "physical-linux-x64-benchmark-proof", "retained-benchmark-evidence", "workspace-severity-signal-proof", "workspace-snapshot-boundary-proof", "workspace-severity-acknowledgement-proof", "hybrid-incremental-workspace-log-proof", "remote-workspace-log-benchmark-proof", "same-host-incremental-full-comparison", "bounded-live-refresh-backoff-proof", "consecutive-failure-stop-proof", "successful-manual-query-backoff-reset-proof", "skipped-live-query-backoff-neutrality-proof", "manual-query-live-timer-ownership-proof", "diagnostic-file-export-proof", "safe-diagnostic-filename-proof", "replacement-write-proof", "dotnet-rust-workspace-leselang-proof", "workspace-query-hir-lowering-proof", "workspace-policy-assembly-boundary-proof", "mobile-workspace-policy-consumption-proof", "zero-avalonia-policy-dependency-proof", "remote-projection-assembly-boundary-proof", "mobile-ui-document-consumption-proof", "zero-avalonia-projection-dependency-proof", "shared-mutation-fence-boundary-proof", "mobile-mutation-fence-consumption-proof", "shared-action-availability-boundary-proof", "mobile-action-availability-consumption-proof", "workspace-fence-overwrite-regression-proof", "shared-authority-health-boundary-proof", "mobile-queue-saturation-proof", "proof-local-dotnet-artifacts", "parallel-accessibility-aot-proof", "intermediate-artifact-cleanup-proof", "all-dotnet-proof-artifact-isolation", "parallel-parity-benchmark-proof", "benchmark-dotnet-artifact-cleanup", "nested-dotnet-artifact-isolation", "strict-aot-artifact-inventory", "complete-aot-evidence-index", "strict-release-directory-enumeration", "non-vacuous-resilience-and-package-discovery", "manifest-bound-package-validation", "cross-host-manifest-bound-package-validation", "strict-package-cache-manifest", "serialized-package-build-output", "atomic-package-publication", "layout-only-manifest-preservation", "linux-loader-owned-string-compatibility", "physical-linux-package-runtime-ebpf-proof", "remote-linux-all-target-compile-proof", "targeted-transient-remote-sync-exclusions", "full-workspace-linux-target-compile-proof", "linux-integration-test-ownership-compatibility", "bounded-remote-toolchain-provenance", "history-retained-toolchain-provenance", "bounded-unique-remote-evidence-codec", "machine-stdout-human-stderr-separation", "mandatory-strict-remote-phase-timings", "canonical-finite-timing-evidence", "shared-bounded-evidence-codec", "strict-local-summary-evidence-consumption", "single-pass-human-json-summary", "bounded-history-summary-and-recent-evidence", "locked-dotnet-security-test-proof", "strict-dotnet-test-summary-codec", "non-vacuous-xunit-count", "bounded-proof-host-provenance", "stale-proof-success-invalidation", "physical-linux-x64-expanded-parity-proof", "opt-in-combined-release-gate", "machine-readable-leserpent-release-stage", "indexed-leserpent-proof-artifact", "current-run-artifact-status-precedence", "shared-evidence-file-readers", "fail-closed-release-gate-remote-summary", "zero-lenient-evidence-parser-duplication", "macos-release-preflight-proof", "apple-toolchain-readiness-proof", "credential-blocker-evidence", "portable-container-evidence-graph", "dependency-advisory-zero-warning-proof"]
+        "surfaces": ["development-and-aot-locked-restore-parity", "managed-and-native-accessibility-lock-graph-separation", "authenticated-dotnet-health-preflight-proof", "strict-health-codec-proof", "authority-health-presentation-proof", "gui-leselang-export-proof", "workspace-log-filter-proof", "workspace-diagnostic-export-proof", "workspace-live-refresh-proof", "workspace-delta-summary-proof", "parser-fuzz", "vm-fuzz", "deterministic-fuzz-seed", "utf8-span-invariants", "bounded-hir-vm-start", "fail-closed-continuation-fuzz", "retained-fuzz-evidence", "origin-parity", "authorization", "crash-replay", "named-origin-parity-recovery-proof", "non-vacuous-test-count", "command-origin-lowering-proof", "authorization-confirmation-proof", "principal-idempotency-proof", "cli-leselang-origin-parity", "vm-reentry-recovery-proof", "runtime-recovery-injection-proof", "remote-wire-parity-proof", "remote-cli-parity-proof", "avalonia-remote-state-proof", "rust-dotnet-remote-vertical-proof", "rust-dotnet-mutation-vertical-proof", "rust-dotnet-workspace-query-vertical-proof", "rust-dotnet-workspace-log-vertical-proof", "explicit-confirmed-remote-mutation-proof", "optimistic-runtime-revision-proof", "websocket-mutation-observation-proof", "strict-external-success-marker", "lease-crash-outbox-repair", "retained-parity-recovery-evidence", "macos-arm64-parity-recovery-proof", "physical-linux-x64-parity-recovery-proof", "named-ui-accessibility-proof", "unique-automation-id-proof", "complete-automation-name-proof", "explicit-action-label-proof", "wcag-aa-contrast-proof", "retained-accessibility-evidence", "transport-compatibility", "named-transport-proof", "wire-v1-contract-proof", "legacy-v1-adaptation-proof", "cli-leselang-transport-parity", "authenticated-unix-ipc-proof", "authenticated-https-wire-proof", "authenticated-https-cli-proof", "ipc-security-negative-paths", "https-security-negative-paths", "real-tls-loopback", "native-cli-https-roundtrip", "retained-transport-evidence", "macos-arm64-transport-proof", "physical-linux-x64-transport-proof", "named-native-aot-proof", "locked-multi-rid-restore", "native-executable-signature", "bounded-aot-artifact-manifest", "retained-aot-evidence", "physical-linux-control-plane-native-aot-proof", "strict-synchronized-aot-evidence-consumption", "exact-remote-aot-evidence-inventory", "post-rsync-symlink-rejection", "cross-host-persistence-secret-scan", "bounded-runtime-state-evidence", "checkpointed-sqlite-evidence", "macos-app-bundle-proof", "finder-dock-launch-proof", "strict-adhoc-signature-proof", "adhoc-runtime-launch-withheld", "local-ui-adhoc-launch-proof", "developer-id-release-pipeline-contract", "plaintext-notary-secret-rejection", "hardened-runtime-flag-proof", "packaged-keychain-startup-proof", "zero-keychain-residue-proof", "connection-maintenance-contract-proof", "connection-management-control-proof", "desktop-ca-store-contract-proof", "managed-ca-replacement-negative-proof", "managed-ca-prune-proof", "named-benchmark-proof", "sqlite-cold-open-budget", "runtime-query-latency-budget", "effect-throughput-budget", "ui-ir-performance-budget", "release-binary-size-budget", "same-host-class-comparison", "macos-arm64-benchmark-proof", "physical-linux-x64-benchmark-proof", "retained-benchmark-evidence", "workspace-severity-signal-proof", "workspace-snapshot-boundary-proof", "workspace-severity-acknowledgement-proof", "hybrid-incremental-workspace-log-proof", "remote-workspace-log-benchmark-proof", "same-host-incremental-full-comparison", "bounded-live-refresh-backoff-proof", "consecutive-failure-stop-proof", "successful-manual-query-backoff-reset-proof", "skipped-live-query-backoff-neutrality-proof", "manual-query-live-timer-ownership-proof", "diagnostic-file-export-proof", "safe-diagnostic-filename-proof", "replacement-write-proof", "dotnet-rust-workspace-leselang-proof", "workspace-query-hir-lowering-proof", "workspace-policy-assembly-boundary-proof", "mobile-workspace-policy-consumption-proof", "zero-avalonia-policy-dependency-proof", "remote-projection-assembly-boundary-proof", "mobile-ui-document-consumption-proof", "zero-avalonia-projection-dependency-proof", "shared-mutation-fence-boundary-proof", "mobile-mutation-fence-consumption-proof", "shared-action-availability-boundary-proof", "mobile-action-availability-consumption-proof", "workspace-fence-overwrite-regression-proof", "shared-authority-health-boundary-proof", "mobile-queue-saturation-proof", "proof-local-dotnet-artifacts", "parallel-accessibility-aot-proof", "intermediate-artifact-cleanup-proof", "all-dotnet-proof-artifact-isolation", "parallel-parity-benchmark-proof", "benchmark-dotnet-artifact-cleanup", "nested-dotnet-artifact-isolation", "strict-aot-artifact-inventory", "complete-aot-evidence-index", "strict-release-directory-enumeration", "non-vacuous-resilience-and-package-discovery", "manifest-bound-package-validation", "cross-host-manifest-bound-package-validation", "strict-package-cache-manifest", "serialized-package-build-output", "atomic-package-publication", "layout-only-manifest-preservation", "linux-loader-owned-string-compatibility", "physical-linux-package-runtime-ebpf-proof", "remote-linux-all-target-compile-proof", "targeted-transient-remote-sync-exclusions", "full-workspace-linux-target-compile-proof", "linux-integration-test-ownership-compatibility", "bounded-remote-toolchain-provenance", "history-retained-toolchain-provenance", "bounded-unique-remote-evidence-codec", "machine-stdout-human-stderr-separation", "mandatory-strict-remote-phase-timings", "canonical-finite-timing-evidence", "shared-bounded-evidence-codec", "strict-local-summary-evidence-consumption", "single-pass-human-json-summary", "bounded-history-summary-and-recent-evidence", "locked-dotnet-security-test-proof", "strict-dotnet-test-summary-codec", "non-vacuous-xunit-count", "bounded-proof-host-provenance", "stale-proof-success-invalidation", "physical-linux-x64-expanded-parity-proof", "opt-in-combined-release-gate", "machine-readable-leserpent-release-stage", "indexed-leserpent-proof-artifact", "current-run-artifact-status-precedence", "shared-evidence-file-readers", "fail-closed-release-gate-remote-summary", "zero-lenient-evidence-parser-duplication", "macos-release-preflight-proof", "apple-toolchain-readiness-proof", "credential-blocker-evidence", "portable-container-evidence-graph", "dependency-advisory-zero-warning-proof"]
       },
       "depends_on": [],
       "blockers": [
@@ -1379,6 +1403,7 @@
       "consumers": ["every-leserpent-2-gate", "release-assurance", "ci"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "source", "path": ".cargo/config.toml", "state": "present" },
         { "kind": "test", "path": "crates/leselang-vm/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/compatibility_v1.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_aot.rs", "state": "present" },
@@ -1397,6 +1422,7 @@
         { "kind": "test", "path": "tests/native_validation_harness_tdd.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/remote_host.rs", "state": "present" },
         { "kind": "test", "path": "target/validation/remote-linux-host-validation/leserpent-control-plane-aot-linux-x64", "state": "present" },
+        { "kind": "release", "path": "target/validation/release-gate-artifacts.json", "state": "present" },
         { "kind": "release", "path": "docs/fixtures/leserpent_macos_release_preflight.json", "state": "present" },
         { "kind": "test", "path": "tests/gewyvern_validate_json_snapshot_tdd.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/container_packaging.rs", "state": "present" },
@@ -1412,18 +1438,22 @@
       "module": "learning-sidecar",
       "feature": "advisory-learning",
       "lifecycle": "current",
-      "maturity": "developing",
-      "completion": 68,
-      "confidence": "medium",
+      "maturity": "incubating",
+      "completion": 45,
+      "confidence": "high",
       "independence": "standalone-service",
       "contract": {
         "id": "etragon-advisory-contract",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "stability": "evolving",
-        "surfaces": ["analysis", "recommendations", "online-memory", "daemon-api"]
+        "surfaces": ["analysis", "recommendations", "online-memory", "daemon-api", "bounded-atomic-daemon-state"]
       },
       "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
       "blockers": [
+        {
+          "id": "deep-learning-stack-not-integrated",
+          "summary": "No production deep-learning runtime, model artifact pipeline, training/evaluation loop, or reproducible inference evidence is integrated; current learning behavior is a dependency-light advisory baseline."
+        },
         {
           "id": "non-core-maturity",
           "summary": "The sidecar remains optional and less mature than Gewyvern's built-in diagnosis."
@@ -1433,9 +1463,10 @@
       "evidence": [
         { "kind": "source", "path": "apps/etragon/src", "state": "present" },
         { "kind": "test", "path": "apps/etragon/tests", "state": "present" },
+        { "kind": "test", "path": "apps/etragon/src/tests/daemon/persistence.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/sidecar-collaboration.md", "state": "present" }
       ],
-      "next_gate": "Keep advisory boundaries stable while improving daemon and persistence reliability."
+      "next_gate": "Keep the advisory boundary additive while integrating a reproducible deep-learning runtime, versioned model artifacts, training/evaluation gates, and retained inference evidence."
     },
     {
       "id": "project-governance/status-governance/status-tensor",

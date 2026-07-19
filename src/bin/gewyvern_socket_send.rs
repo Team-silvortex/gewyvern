@@ -26,7 +26,6 @@ fn main() {
                 });
 
                 write_payload(&mut stream, &cli.payload_mode);
-                return;
             }
 
             #[cfg(not(target_family = "unix"))]
@@ -43,7 +42,6 @@ fn main() {
             });
 
             write_payload(&mut stream, &cli.payload_mode);
-            return;
         }
     }
 }

@@ -219,7 +219,7 @@ fn run_remote_access_path(
     send_payload: &[(u16, u8)],
     receive_payload: &[(u16, u8)],
 ) -> gewyvern::export::ExportBundle {
-    let binding = compile_file(&path).unwrap();
+    let binding = compile_file(path).unwrap();
     let config = SessionConfig::for_template(binding.template).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     let cookie = 0x7171;

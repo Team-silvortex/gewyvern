@@ -36,10 +36,10 @@ pub(super) fn protocol_flow_finding_summaries(
     for finding in &export.program_findings {
         let entry = summaries.entry(finding.program_flow).or_default();
         entry.summary.has_findings = true;
-        if let Some(transition) = &finding.phase_transition {
-            if entry.seen_missing_transitions.insert(transition.clone()) {
-                entry.summary.missing_transitions.push(transition.clone());
-            }
+        if let Some(transition) = &finding.phase_transition
+            && entry.seen_missing_transitions.insert(transition.clone())
+        {
+            entry.summary.missing_transitions.push(transition.clone());
         }
         if entry
             .seen_network_module_kinds
@@ -385,15 +385,14 @@ pub(super) fn process_network_profile_summaries_from_flow_summaries(
         profile.competing_hypotheses = competing_hypotheses;
         profile.primary_failure_confidence = confidence.to_string();
         profile.primary_failure_basis = basis.to_string();
-        if let Some(primary_suspect_module) = best_profile_score(suspect_module_scores) {
-            if let Some(index) = profile
+        if let Some(primary_suspect_module) = best_profile_score(suspect_module_scores)
+            && let Some(index) = profile
                 .suspect_modules
                 .iter()
                 .position(|module| module == &primary_suspect_module)
-            {
-                let module = profile.suspect_modules.remove(index);
-                profile.suspect_modules.insert(0, module);
-            }
+        {
+            let module = profile.suspect_modules.remove(index);
+            profile.suspect_modules.insert(0, module);
         }
     }
     profiles.sort_by(|(left, ..), (right, ..)| {

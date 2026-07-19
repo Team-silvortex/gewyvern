@@ -146,7 +146,7 @@ fn copy_missing_tree(source: &Path, target: &Path) -> Result<usize, String> {
         )
     })?;
     if metadata.is_file() {
-        return copy_missing_file(source, target).map(|copied| usize::from(copied));
+        return copy_missing_file(source, target).map(usize::from);
     }
     fs::create_dir_all(target).map_err(|err| {
         format!(

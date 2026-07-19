@@ -1,5 +1,154 @@
 use super::*;
 
+fn persistence_test_snapshot(state_hash: &str) -> DaemonSnapshot {
+    DaemonSnapshot {
+        source: "python-url".to_string(),
+        upstream_url: "http://example.test/v1/latest/analysis.json".to_string(),
+        interval_ms: 1000,
+        cycle: 1,
+        analysis_runs: 1,
+        cache_hits: 0,
+        target_count: 0,
+        updated_unix_ms: 1234,
+        state_hash: state_hash.to_string(),
+        latest_output_json: "{\"augmentations\":[]}".to_string(),
+        latest_input_json: None,
+        latest_recommendation_summary_json: "{\"recommendations\":[]}".to_string(),
+        target_outputs: Vec::new(),
+        last_success_unix_ms: Some(1234),
+        last_error: None,
+        training_history: Vec::new(),
+    }
+}
+
+fn persistence_test_dir(label: &str) -> PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!("etragon-{label}-{}-{unique}", std::process::id()))
+}
+
+#[test]
+fn daemon_state_write_is_durable_private_and_leaves_no_temporary_file() {
+    let dir = persistence_test_dir("durable-state");
+    let path = dir.join("state.json");
+    write_daemon_state(&path, &persistence_test_snapshot("durable"))
+        .expect("daemon state should write");
+    let restored = read_daemon_state(&path)
+        .expect("daemon state should read")
+        .expect("daemon state should exist");
+    assert_eq!(restored.state_hash, "durable");
+    assert_eq!(
+        fs::read_dir(&dir)
+            .expect("state directory should read")
+            .count(),
+        1
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(&path)
+                .expect("state metadata should read")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn concurrent_daemon_state_writes_remain_parseable_and_isolated() {
+    let dir = persistence_test_dir("concurrent-state");
+    let path = Arc::new(dir.join("state.json"));
+    let writers = (0..8)
+        .map(|index| {
+            let path = Arc::clone(&path);
+            thread::spawn(move || {
+                write_daemon_state(
+                    &path,
+                    &persistence_test_snapshot(&format!("writer-{index}")),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    for writer in writers {
+        writer
+            .join()
+            .expect("writer thread should join")
+            .expect("concurrent state write should succeed");
+    }
+    let restored = read_daemon_state(&path)
+        .expect("concurrent state should parse")
+        .expect("concurrent state should exist");
+    assert!(restored.state_hash.starts_with("writer-"));
+    assert_eq!(
+        fs::read_dir(&dir)
+            .expect("state directory should read")
+            .count(),
+        1
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn daemon_state_io_rejects_oversized_and_non_file_inputs() {
+    let dir = persistence_test_dir("bounded-state");
+    fs::create_dir_all(&dir).expect("state directory should create");
+    let oversized = dir.join("oversized.json");
+    fs::write(&oversized, vec![b'x'; DAEMON_STATE_FILE_LIMIT + 1])
+        .expect("oversized fixture should write");
+    assert!(
+        read_daemon_state(&oversized)
+            .expect_err("oversized state should fail")
+            .contains("exceeds")
+    );
+    assert!(
+        read_daemon_state(&dir)
+            .expect_err("directory state should fail")
+            .contains("regular non-symlink")
+    );
+    let mut oversized_snapshot = persistence_test_snapshot("oversized");
+    oversized_snapshot.latest_recommendation_summary_json = format!(
+        "{{\"padding\":\"{}\"}}",
+        "x".repeat(DAEMON_STATE_FILE_LIMIT)
+    );
+    assert!(
+        write_daemon_state(&dir.join("write.json"), &oversized_snapshot)
+            .expect_err("oversized state write should fail")
+            .contains("exceeds")
+    );
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn daemon_state_io_rejects_symlink_targets() {
+    use std::os::unix::fs::symlink;
+
+    let dir = persistence_test_dir("symlink-state");
+    fs::create_dir_all(&dir).expect("state directory should create");
+    let target = dir.join("target.json");
+    fs::write(&target, "{}\n").expect("symlink target should write");
+    let link = dir.join("state.json");
+    symlink(&target, &link).expect("state symlink should create");
+    assert!(
+        read_daemon_state(&link)
+            .expect_err("symlink read should fail")
+            .contains("regular non-symlink")
+    );
+    assert!(
+        write_daemon_state(&link, &persistence_test_snapshot("blocked"))
+            .expect_err("symlink write should fail")
+            .contains("regular non-symlink")
+    );
+    assert_eq!(fs::read_to_string(target).unwrap(), "{}\n");
+    let _ = fs::remove_dir_all(dir);
+}
+
 #[test]
 fn daemon_snapshot_persistence_round_trips_learning_state() {
     let snapshot = DaemonSnapshot {

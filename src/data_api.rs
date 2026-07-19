@@ -252,6 +252,8 @@ pub fn update_api_snapshot_for_single(state: &ApiState, rendered: ApiRenderedTar
     });
 }
 
+// Preserve the stable scan publication boundary used by CLI and validation callers.
+#[allow(clippy::too_many_arguments)]
 pub fn update_api_snapshot_for_scan(
     state: &ApiState,
     targets: Vec<ApiRenderedTarget>,
@@ -365,8 +367,8 @@ fn scan_rollup_bucket(
     scan_rollup_bucket_from_refs(&refs, value)
 }
 
-fn scan_rollup_bucket_from_refs<'a>(
-    targets: &[&'a ApiRenderedTarget],
+fn scan_rollup_bucket_from_refs(
+    targets: &[&ApiRenderedTarget],
     value: impl Fn(&ApiRenderedTarget) -> &str,
 ) -> Option<String> {
     let mut counts = HashMap::<&str, usize>::new();

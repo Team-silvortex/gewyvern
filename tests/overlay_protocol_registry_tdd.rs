@@ -291,7 +291,7 @@ fn run_overlay_path(
     overlay_port: u16,
     payload_byte0: Option<u8>,
 ) -> gewyvern::export::ExportBundle {
-    let binding = compile_file(&dsl_path).unwrap();
+    let binding = compile_file(dsl_path).unwrap();
     let config = SessionConfig::for_binding(binding).unwrap();
     let mut session = RuntimeSession::start(config).unwrap();
     session.ingest(route_fact(1, 7701, 2));

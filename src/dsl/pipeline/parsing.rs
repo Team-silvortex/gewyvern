@@ -1,3 +1,6 @@
+// Keep nearby parser tests beside the helpers they specify.
+#![allow(clippy::items_after_test_module)]
+
 use super::{PipelineProvidedArg, PipelineUseCall, looks_like_pipeline_keyword_arg};
 use crate::dsl::{
     DslError, PipelineCall, PipelineLetBinding, PipelineModule, PipelineParam, frontend,
@@ -26,14 +29,14 @@ pub(crate) fn push_pipeline_function_call(
         .unwrap_or(1);
     let (nested_name, nested_args, nested_arg_columns) = parse_pipeline_call(nested_call)
         .map_err(|err| err.reanchor_line_column(line_no, nested_call_column))?;
-    if nested_name == "use" {
-        if let Ok(target_name) = parse_pipeline_single_arg(&nested_args, "use") {
-            module.use_edges.push(frontend::FrontendUseEdge {
-                from: function_name.trim().to_string(),
-                to: target_name,
-                line: line_no,
-            });
-        }
+    if nested_name == "use"
+        && let Ok(target_name) = parse_pipeline_single_arg(&nested_args, "use")
+    {
+        module.use_edges.push(frontend::FrontendUseEdge {
+            from: function_name.trim().to_string(),
+            to: target_name,
+            line: line_no,
+        });
     }
     output.push(PipelineCall {
         line_no,

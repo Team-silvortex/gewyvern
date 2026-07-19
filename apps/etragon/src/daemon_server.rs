@@ -8,6 +8,7 @@ pub(super) struct DaemonAccessPolicy {
     pub(super) admin_token: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn run_python_daemon_until<F>(
     bind_addr: &str,
     interval_ms: u64,
@@ -370,13 +371,12 @@ pub(super) fn validate_daemon_bind_addr(
     if resolved
         .iter()
         .any(|socket_addr| !daemon_client_is_loopback(socket_addr.ip()))
+        && access_policy.admin_token.is_none()
     {
-        if access_policy.admin_token.is_none() {
-            return Err(format!(
-                "daemon bind address '{}' is not loopback-only; bind etragon daemons to 127.0.0.1 or ::1, or set {} for explicit remote access",
-                bind_addr, ETRAGON_ADMIN_TOKEN_ENV,
-            ));
-        }
+        return Err(format!(
+            "daemon bind address '{}' is not loopback-only; bind etragon daemons to 127.0.0.1 or ::1, or set {} for explicit remote access",
+            bind_addr, ETRAGON_ADMIN_TOKEN_ENV,
+        ));
     }
     Ok(())
 }

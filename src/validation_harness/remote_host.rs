@@ -22,6 +22,8 @@ use super::evidence_codec::{
 
 static EVIDENCE_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static REMOTE_RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const REMOTE_EBPF_HELPER: &str = "/usr/libexec/gewyvern-ebpf-helper";
+const REMOTE_EBPF_EVIDENCE_ROOT: &str = "/var/lib/gewyvern-ebpf-validation";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemoteLinuxHostOptions {
@@ -148,6 +150,20 @@ pub fn run_remote_linux_host_validation(
 
         if options.build_packages {
             let target_dir = shell_single_quote(&remote_cargo_target_dir(&preflight.home_dir));
+            validation_log("[remote-host] ----------------------------------------");
+            validation_log("[remote-host] enforcing locked Rust workspace quality gate");
+            measure_phase(&mut phase_timings, "remote_rust_quality", || {
+                run_ssh_command(
+                    admin_auth.as_ref(),
+                    &options.host,
+                    &format!(
+                        "mkdir -p {target_dir} && cd {validation_workspace} && CARGO_TARGET_DIR={target_dir} cargo clippy --locked --quiet --workspace --all-targets -- -D warnings"
+                    ),
+                    "remote Rust workspace quality gate failed",
+                )
+            })?;
+            checks.push("remote_rust_quality".to_string());
+
             validation_log("[remote-host] ----------------------------------------");
             validation_log("[remote-host] checking all Linux workspace targets");
             measure_phase(&mut phase_timings, "remote_linux_target_check", || {
@@ -476,6 +492,9 @@ fn write_remote_ebpf_history(
             "rpm_version": preflight.rpm_version,
             "rpmbuild_version": preflight.rpmbuild_version,
             "sudo_available": preflight.sudo_available,
+            "ebpf_helper_available": preflight.ebpf_helper_available,
+            "ebpf_helper_state": preflight.ebpf_helper_state,
+            "ebpf_helper_version": preflight.ebpf_helper_version,
             "default_route_device": preflight.default_route_device,
         },
         "ebpf": {
@@ -1041,10 +1060,10 @@ fn ensure_ssh_control_master(
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
-    if let Ok(status) = check_status {
-        if status.success() {
-            return Ok(());
-        }
+    if let Ok(status) = check_status
+        && status.success()
+    {
+        return Ok(());
     }
 
     let status = start_ssh_command(auth, host, None)
@@ -1764,8 +1783,8 @@ fn sync_remote_validation_evidence(
     }
 }
 
-fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), ValidationError> {
-    const FILES: [&str; 10] = [
+pub fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), ValidationError> {
+    const FILES: [&str; 12] = [
         "environment.txt",
         "restore.log",
         "publish.log",
@@ -1776,6 +1795,8 @@ fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), Vali
         "registration.json",
         "recovery.json",
         "attention.json",
+        "runtime-state.json",
+        "orchestra.db",
     ];
     const PROOF_SECRET: &str = "native-aot-proof-secret";
 
@@ -1804,7 +1825,9 @@ fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), Vali
                 "Leserpent control-plane NativeAOT evidence entry must be a regular non-symlink file: {name}"
             )));
         }
-        let max_bytes = if name.ends_with(".log") {
+        let max_bytes = if name == "orchestra.db" {
+            4 * 1024 * 1024
+        } else if name.ends_with(".log") {
             2 * 1024 * 1024
         } else {
             64 * 1024
@@ -1812,6 +1835,15 @@ fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), Vali
         if metadata.len() > max_bytes {
             return Err(ValidationError::new(format!(
                 "Leserpent control-plane NativeAOT evidence entry exceeds {max_bytes} bytes: {name}"
+            )));
+        }
+        let bytes = fs::read(entry.path())?;
+        if bytes
+            .windows(PROOF_SECRET.len())
+            .any(|window| window == PROOF_SECRET.as_bytes())
+        {
+            return Err(ValidationError::new(format!(
+                "Leserpent control-plane NativeAOT evidence contains the proof secret: {name}"
             )));
         }
         observed.insert(name);
@@ -1937,6 +1969,19 @@ fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), Vali
     {
         return Err(ValidationError::new(
             "Leserpent control-plane NativeAOT attention proof is invalid",
+        ));
+    }
+
+    let state = read_aot_json(root, "runtime-state.json")?;
+    if !state.is_object() {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT runtime state must be a JSON object",
+        ));
+    }
+    let database = fs::read(root.join("orchestra.db"))?;
+    if !database.starts_with(b"SQLite format 3\0") {
+        return Err(ValidationError::new(
+            "Leserpent control-plane NativeAOT persistence evidence is not a SQLite 3 database",
         ));
     }
 
@@ -2246,13 +2291,16 @@ struct RemotePreflight {
     rpm_version: Option<String>,
     rpmbuild_version: Option<String>,
     sudo_available: bool,
+    ebpf_helper_available: bool,
+    ebpf_helper_state: String,
+    ebpf_helper_version: Option<String>,
     default_route_device: Option<String>,
 }
 
 impl RemotePreflight {
     fn render(&self) -> String {
         format!(
-            "os={}\narch={}\nkernel={}\nhost_fingerprint={}\nhome_dir={}\ncommands={}\nrustc_version={}\ncargo_version={}\ndpkg_deb_version={}\nrpm_version={}\nrpmbuild_version={}\nsudo_available={}\ndefault_route_device={}\n",
+            "os={}\narch={}\nkernel={}\nhost_fingerprint={}\nhome_dir={}\ncommands={}\nrustc_version={}\ncargo_version={}\ndpkg_deb_version={}\nrpm_version={}\nrpmbuild_version={}\nsudo_available={}\nebpf_helper_available={}\nebpf_helper_state={}\nebpf_helper_version={}\ndefault_route_device={}\n",
             self.os,
             self.arch,
             self.kernel,
@@ -2265,6 +2313,9 @@ impl RemotePreflight {
             self.rpm_version.as_deref().unwrap_or(""),
             self.rpmbuild_version.as_deref().unwrap_or(""),
             self.sudo_available,
+            self.ebpf_helper_available,
+            self.ebpf_helper_state,
+            self.ebpf_helper_version.as_deref().unwrap_or(""),
             self.default_route_device.as_deref().unwrap_or("")
         )
     }
@@ -2326,7 +2377,7 @@ fn collect_remote_preflight(
         "sha256sum",
     ];
     if build_packages {
-        required.extend(["cargo", "rustc", "python3", "rpmbuild"]);
+        required.extend(["cargo", "cargo-clippy", "rustc", "python3", "rpmbuild"]);
     }
 
     let commands = required.join(" ");
@@ -2366,10 +2417,36 @@ if sudo -n true >/dev/null 2>&1; then
 else
   printf 'sudo_available=false\n'
 fi
+HELPER_STATE=missing
+HELPER_VERSION=
+if [ -x {ebpf_helper} ]; then
+  set +e
+  HELPER_PROBE=$(sudo -n {ebpf_helper} probe 2>/dev/null)
+  HELPER_PROBE_STATUS=$?
+  set -e
+  if [ "$HELPER_PROBE_STATUS" -ne 0 ]; then
+    HELPER_STATE=unavailable
+  else
+    HELPER_VERSION=$(printf '%s\n' "$HELPER_PROBE" | awk -F= '$1 == "version" {{print $2}}')
+    if printf '%s\n' "$HELPER_PROBE" | grep -Fxq 'status=ready' \
+      && printf '%s\n' "$HELPER_PROBE" | grep -Fxq 'protocol=1' \
+      && [ "$HELPER_VERSION" = {helper_version} ]; then
+      HELPER_STATE=ready
+    else
+      HELPER_STATE=incompatible
+    fi
+  fi
+fi
+if [ "$HELPER_STATE" = ready ]; then HELPER_AVAILABLE=true; else HELPER_AVAILABLE=false; fi
+printf 'ebpf_helper_available=%s\n' "$HELPER_AVAILABLE"
+printf 'ebpf_helper_state=%s\n' "$HELPER_STATE"
+printf 'ebpf_helper_version=%s\n' "${{HELPER_VERSION:0:64}}"
 DEFAULT_DEV=$(ip route show default 2>/dev/null | awk 'NR==1 {{print $5}}')
 printf 'default_route_device=%s\n' "$DEFAULT_DEV"
 printf 'commands=%s\n' "{commands}"
-"#
+"#,
+        ebpf_helper = shell_single_quote(REMOTE_EBPF_HELPER),
+        helper_version = shell_single_quote(env!("CARGO_PKG_VERSION")),
     );
     let output = run_ssh_script_capture_with_auth(
         auth,
@@ -2431,6 +2508,9 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
             "rpm_version",
             "rpmbuild_version",
             "sudo_available",
+            "ebpf_helper_available",
+            "ebpf_helper_state",
+            "ebpf_helper_version",
             "default_route_device",
         ],
     )?;
@@ -2464,6 +2544,40 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
                 ));
             }
         };
+    let ebpf_helper_available =
+        match required_remote_value(&mut values, "ebpf_helper_available", "remote preflight")?
+            .as_str()
+        {
+            "true" => true,
+            "false" => false,
+            _ => {
+                return Err(ValidationError::new(
+                    "remote preflight ebpf_helper_available must be true or false",
+                ));
+            }
+        };
+    let ebpf_helper_version = parse_preflight_tool_version(
+        "eBPF helper",
+        values
+            .remove("ebpf_helper_version")
+            .as_deref()
+            .unwrap_or(""),
+    )?;
+    let ebpf_helper_state =
+        required_remote_value(&mut values, "ebpf_helper_state", "remote preflight")?;
+    if !matches!(
+        ebpf_helper_state.as_str(),
+        "missing" | "unavailable" | "incompatible" | "ready"
+    ) {
+        return Err(ValidationError::new(
+            "remote preflight ebpf_helper_state is invalid",
+        ));
+    }
+    if ebpf_helper_available != (ebpf_helper_state == "ready") {
+        return Err(ValidationError::new(
+            "remote preflight eBPF helper availability and state disagree",
+        ));
+    }
 
     Ok(RemotePreflight {
         os: required_remote_value(&mut values, "os", "remote preflight")?,
@@ -2493,6 +2607,9 @@ fn parse_remote_preflight(output: &str) -> Result<RemotePreflight, ValidationErr
             values.remove("rpmbuild_version").as_deref().unwrap_or(""),
         )?,
         sudo_available,
+        ebpf_helper_available,
+        ebpf_helper_state,
+        ebpf_helper_version,
         default_route_device: values
             .remove("default_route_device")
             .filter(|value| !value.is_empty()),
@@ -2572,10 +2689,10 @@ fn collect_remote_ebpf_evidence(
     admin_auth: Option<&RemoteAdminAuth>,
     phase_timings: &mut Vec<PhaseTiming>,
 ) -> Result<RemoteEbpfEvidence, ValidationError> {
-    if !preflight.sudo_available && admin_auth.is_none() {
+    if !preflight.ebpf_helper_available && admin_auth.is_none() {
         return Ok(RemoteEbpfEvidence {
             status: "skipped".to_string(),
-            reason: "sudo_not_available".to_string(),
+            reason: format!("privileged_helper_{}", preflight.ebpf_helper_state),
             default_route_device: preflight.default_route_device.clone(),
         });
     }
@@ -2590,16 +2707,17 @@ fn collect_remote_ebpf_evidence(
     let workspace_path = resolve_remote_execution_path(remote_path, &preflight.home_dir)?;
     let target_dir = remote_cargo_target_dir(&preflight.home_dir);
     let validate_bin = format!("{target_dir}/release/gewyvern_validate");
-
-    measure_phase(phase_timings, "remote_ebpf_validator_build", || {
-        build_remote_ebpf_validator(
-            admin_auth,
-            host,
-            &workspace_path,
-            &preflight.home_dir,
-            &target_dir,
-        )
-    })?;
+    if !preflight.ebpf_helper_available {
+        measure_phase(phase_timings, "remote_ebpf_validator_build", || {
+            build_remote_ebpf_validator(
+                admin_auth,
+                host,
+                &workspace_path,
+                &preflight.home_dir,
+                &target_dir,
+            )
+        })?;
+    }
     let output = measure_phase(phase_timings, "remote_ebpf_attach", || {
         run_remote_ebpf_attach(
             admin_auth,
@@ -2607,7 +2725,7 @@ fn collect_remote_ebpf_evidence(
             &workspace_path,
             &validate_bin,
             &default_route_device,
-            preflight.sudo_available,
+            preflight.ebpf_helper_available,
         )
     })?;
     parse_remote_ebpf_evidence(&output)
@@ -2654,44 +2772,39 @@ fn run_remote_ebpf_attach(
     workspace_path: &str,
     validate_bin: &str,
     default_route_device: &str,
-    sudo_available: bool,
+    helper_available: bool,
 ) -> Result<String, ValidationError> {
     let workspace_path = shell_single_quote(workspace_path);
     let validate_bin = shell_single_quote(validate_bin);
     let default_route_device_env = shell_single_quote(default_route_device);
 
-    let script = if sudo_available {
+    let script = if helper_available {
+        let sequence = REMOTE_RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let run_id = format!(
+            "remote-{}-{}-{sequence}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        );
         format!(
             r#"set -euo pipefail
 cd {workspace_path}
 mkdir -p target/validation/remote-ebpf
-CURRENT_PATH="$PATH"
-CALLER_UID="$(id -u)"
-CALLER_GID="$(id -g)"
-sudo -n env \
-  "PATH=$CURRENT_PATH" \
-  "GEWY_EVIDENCE_UID=$CALLER_UID" \
-  "GEWY_EVIDENCE_GID=$CALLER_GID" \
-  GEWY_WORKSPACE={workspace_env} \
-  GEWY_VALIDATE_BIN={validate_bin_env} \
-  GEWY_TC_DEVICE={default_route_device_env} \
-  bash -c '
-    set -euo pipefail
-    cd "$GEWY_WORKSPACE"
-    restore_evidence_owner() {{
-      chown -R "$GEWY_EVIDENCE_UID:$GEWY_EVIDENCE_GID" target/validation/remote-ebpf
-    }}
-    trap restore_evidence_owner EXIT
-    "$GEWY_VALIDATE_BIN" linux-attach-smoke --out-dir target/validation/remote-ebpf/linux-attach-smoke >&2
-    "$GEWY_VALIDATE_BIN" linux-kprobe-smoke --out-dir target/validation/remote-ebpf/linux-kprobe-smoke >&2
-    "$GEWY_VALIDATE_BIN" linux-tc-smoke --dev "$GEWY_TC_DEVICE" --out-dir target/validation/remote-ebpf/linux-tc-smoke >&2
-  '
-printf 'status=ok\n'
-printf 'reason=all_smokes_passed\n'
-printf 'default_route_device=%s\n' "{default_route_device}"
+RUN_ID={run_id}
+SOURCE={evidence_root}/$RUN_ID
+cleanup() {{ sudo -n {helper} cleanup --run-id "$RUN_ID" >/dev/null 2>&1 || true; }}
+trap cleanup EXIT
+sudo -n {helper} run --run-id "$RUN_ID" --device {default_route_device}
+find "$SOURCE" -type l -print -quit | grep -q . && {{ echo 'helper evidence contains symlink' >&2; exit 31; }}
+find "$SOURCE" ! -type d ! -type f -print -quit | grep -q . && {{ echo 'helper evidence contains special file' >&2; exit 32; }}
+cp -R -- "$SOURCE"/. target/validation/remote-ebpf/
 "#,
-            workspace_env = workspace_path,
-            validate_bin_env = validate_bin,
+            run_id = shell_single_quote(&run_id),
+            evidence_root = shell_single_quote(REMOTE_EBPF_EVIDENCE_ROOT),
+            helper = shell_single_quote(REMOTE_EBPF_HELPER),
+            default_route_device = shell_single_quote(default_route_device),
         )
     } else {
         format!(
@@ -3036,7 +3149,7 @@ cleanup() {
     wait "$PID" >/dev/null 2>&1 || true
   fi
   find "$PUBLISH" "$DOTNET_ARTIFACTS" -depth -delete 2>/dev/null || true
-  find "$EVIDENCE" -maxdepth 1 -type f \( -name 'runtime-state.json*' -o -name 'orchestra.db*' \) -delete
+  find "$EVIDENCE" -maxdepth 1 -type f \( -name 'runtime-state.json.*' -o -name 'orchestra.db-*' \) -delete
 }
 trap cleanup EXIT
 mkdir -p "$EVIDENCE"
@@ -3112,6 +3225,11 @@ test "$(grep -o '"kind":"\(capabilities\|status\)"' "$EVIDENCE/recovery.json" | 
 curl -fsS "http://127.0.0.1:$PORT/v1/runtimes/$RUNTIME_ID/attention" >"$EVIDENCE/attention.json"
 grep -q '"action":"refresh_all"' "$EVIDENCE/attention.json"
 grep -q '"commandKind":"all"' "$EVIDENCE/attention.json"
+kill -0 "$PID"
+kill "$PID"
+wait "$PID" || true
+PID=""
+find "$EVIDENCE" -maxdepth 1 -type f \( -name 'runtime-state.json.*' -o -name 'orchestra.db-*' \) -delete
 test -f "$STATE" && test ! -L "$STATE"
 test -f "$DATABASE" && test ! -L "$DATABASE"
 if grep -a -q 'native-aot-proof-secret' "$STATE" "$DATABASE"; then
@@ -3135,7 +3253,9 @@ cat >"$EVIDENCE/evidence-index.json" <<'JSON'
     "registration-plan.json",
     "registration.json",
     "recovery.json",
-    "attention.json"
+    "attention.json",
+    "runtime-state.json",
+    "orchestra.db"
   ]
 }
 JSON
@@ -3192,6 +3312,10 @@ test -f "$DEB_ROOT/usr/share/gewyvern/package-compat.toml"
 grep -q '^schema_version = 1$' "$DEB_ROOT/usr/share/gewyvern/package-compat.toml"
 grep -q '^release_line = "{release_line}"$' "$DEB_ROOT/usr/share/gewyvern/package-compat.toml"
 test -f "$DEB_ROOT/usr/share/gewyvern/examples/gewyvern.toml.example"
+test -x "$DEB_ROOT/usr/libexec/gewyvern-ebpf-helper"
+test -x "$DEB_ROOT/usr/sbin/gewyvern-ebpf-provision"
+test -f "$DEB_ROOT/usr/share/gewyvern/examples/ebpf-helper.conf.example"
+test -f "$DEB_ROOT/usr/share/gewyvern/examples/gewyvern-ebpf-validation.sudoers.example"
 record_timing deb_verify "$(duration_seconds "$DEB_VERIFY_STARTED" "$(now_seconds)")"
 RPM_LIST_STARTED=$(now_seconds)
 rpm -qpl "$RPM" > "$TMP/rpm-contents.txt"
@@ -3219,6 +3343,10 @@ test -f "$RPM_ROOT/usr/share/gewyvern/package-compat.toml"
 grep -q '^schema_version = 1$' "$RPM_ROOT/usr/share/gewyvern/package-compat.toml"
 grep -q '^release_line = "{release_line}"$' "$RPM_ROOT/usr/share/gewyvern/package-compat.toml"
 test -f "$RPM_ROOT/usr/share/gewyvern/examples/gewyvern.toml.example"
+test -x "$RPM_ROOT/usr/libexec/gewyvern-ebpf-helper"
+test -x "$RPM_ROOT/usr/sbin/gewyvern-ebpf-provision"
+test -f "$RPM_ROOT/usr/share/gewyvern/examples/ebpf-helper.conf.example"
+test -f "$RPM_ROOT/usr/share/gewyvern/examples/gewyvern-ebpf-validation.sudoers.example"
 record_timing rpm_verify "$(duration_seconds "$RPM_VERIFY_STARTED" "$(now_seconds)")"
 record_timing total "$(duration_seconds "$DEB_LIST_STARTED" "$(now_seconds)")"
 echo 'remote package smoke: ok'
@@ -3626,7 +3754,7 @@ mod tests {
     #[test]
     fn parse_remote_preflight_accepts_linux_x86_64_manifest() {
         let preflight = parse_remote_preflight(
-            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=Debian dpkg-deb 1.22.6\nrpm_version=RPM version 4.19.1\nrpmbuild_version=RPM version 4.19.1\n",
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=Debian dpkg-deb 1.22.6\nrpm_version=RPM version 4.19.1\nrpmbuild_version=RPM version 4.19.1\n",
         )
         .unwrap();
 
@@ -3639,6 +3767,9 @@ mod tests {
         );
         assert_eq!(preflight.home_dir, "/home/kyuubiki-dev");
         assert!(preflight.sudo_available);
+        assert!(preflight.ebpf_helper_available);
+        assert_eq!(preflight.ebpf_helper_state, "ready");
+        assert_eq!(preflight.ebpf_helper_version.as_deref(), Some("1.4.6"));
         assert_eq!(preflight.default_route_device.as_deref(), Some("eth0"));
         assert!(preflight.required_commands.contains(&"cargo".to_string()));
         assert_eq!(preflight.rustc_version.as_deref(), Some("rustc 1.95.0"));
@@ -3652,7 +3783,7 @@ mod tests {
     #[test]
     fn parse_remote_preflight_rejects_unbounded_tool_versions() {
         let manifest = format!(
-            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash cargo rustc\nrustc_version={}\nsudo_available=false\ndefault_route_device=\n",
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash cargo rustc\nrustc_version={}\nsudo_available=false\nebpf_helper_available=false\nebpf_helper_state=missing\nebpf_helper_version=\ndefault_route_device=\n",
             "x".repeat(257)
         );
         let error = parse_remote_preflight(&manifest).unwrap_err();
@@ -3661,7 +3792,7 @@ mod tests {
 
     #[test]
     fn parse_remote_preflight_rejects_ambiguous_or_unknown_entries() {
-        let base = "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash\nsudo_available=false\ndefault_route_device=\n";
+        let base = "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=\nhome_dir=/home/test\ncommands=bash\nsudo_available=false\nebpf_helper_available=false\nebpf_helper_state=missing\nebpf_helper_version=\ndefault_route_device=\n";
         for suffix in ["os=Linux\n", "unknown=value\n", "malformed\n"] {
             let error = parse_remote_preflight(&format!("{base}{suffix}")).unwrap_err();
             assert!(!error.to_string().is_empty(), "{suffix}");
@@ -3670,6 +3801,20 @@ mod tests {
             parse_remote_preflight(&base.replace("sudo_available=false", "sudo_available=maybe"))
                 .unwrap_err();
         assert!(error.to_string().contains("must be true or false"));
+        let error = parse_remote_preflight(
+            &base.replace("ebpf_helper_state=missing", "ebpf_helper_state=ready"),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("availability and state disagree")
+        );
+        let error = parse_remote_preflight(
+            &base.replace("ebpf_helper_state=missing", "ebpf_helper_state=unknown"),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("state is invalid"));
     }
 
     #[test]
@@ -3679,7 +3824,7 @@ mod tests {
             "sha256:gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
         ] {
             let manifest = format!(
-                "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint={fingerprint}\nhome_dir=/home/test\nsudo_available=true\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n"
+                "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint={fingerprint}\nhome_dir=/home/test\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\n"
             );
 
             let error = parse_remote_preflight(&manifest).unwrap_err();
@@ -3787,6 +3932,14 @@ mod tests {
         fs::remove_file(root.join("unexpected.txt")).unwrap();
 
         fs::write(
+            root.join("orchestra.db"),
+            b"SQLite format 3\0native-aot-proof-secret",
+        )
+        .unwrap();
+        assert!(validate_leserpent_control_plane_aot_evidence(&root).is_err());
+        fs::write(root.join("orchestra.db"), b"SQLite format 3\0proof").unwrap();
+
+        fs::write(
             root.join("recovery.json"),
             r#"{"runtimeId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kind":"all","outcome":"ok","steps":[]}"#,
         )
@@ -3817,7 +3970,7 @@ mod tests {
     }
 
     fn write_valid_leserpent_control_plane_aot_evidence(root: &Path) {
-        const FILES: [&str; 10] = [
+        const FILES: [&str; 12] = [
             "environment.txt",
             "restore.log",
             "publish.log",
@@ -3828,6 +3981,8 @@ mod tests {
             "registration.json",
             "recovery.json",
             "attention.json",
+            "runtime-state.json",
+            "orchestra.db",
         ];
         fs::create_dir_all(root).unwrap();
         fs::write(
@@ -3885,6 +4040,8 @@ mod tests {
             ),
         )
         .unwrap();
+        fs::write(root.join("runtime-state.json"), r#"{"schemaVersion":1}"#).unwrap();
+        fs::write(root.join("orchestra.db"), b"SQLite format 3\0proof").unwrap();
         fs::write(
             root.join("evidence-index.json"),
             serde_json::to_vec(&serde_json::json!({

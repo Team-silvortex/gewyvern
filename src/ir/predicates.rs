@@ -20,6 +20,8 @@ impl FlowPredicate {
         }
     }
 
+    // The explicit fields mirror the stable packet predicate contract.
+    #[allow(clippy::too_many_arguments)]
     pub fn packet_observed(
         l4_proto: u8,
         scope: ObservationScope,
@@ -50,6 +52,8 @@ impl FlowPredicate {
         }
     }
 
+    // The explicit fields mirror the stable datagram predicate contract.
+    #[allow(clippy::too_many_arguments)]
     pub fn datagram_observed(
         l4_proto: u8,
         scope: ObservationScope,

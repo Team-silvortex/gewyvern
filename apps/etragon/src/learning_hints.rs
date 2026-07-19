@@ -274,10 +274,10 @@ pub(super) fn queue_summary_json_from_action_hints(
             bucket.action == action && bucket.queue == queue && bucket.priority == priority
         }) {
             existing.count += 1;
-            if let Some(target) = target {
-                if !existing.targets.iter().any(|item| item == target) {
-                    existing.targets.push((*target).to_string());
-                }
+            if let Some(target) = target
+                && !existing.targets.iter().any(|item| item == target)
+            {
+                existing.targets.push((*target).to_string());
             }
         } else {
             buckets.push(QueueBucket {

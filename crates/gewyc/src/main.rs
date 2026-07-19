@@ -58,10 +58,10 @@ enum UiLocale {
 impl UiLocale {
     fn detect() -> Self {
         for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
-            if let Ok(value) = env::var(key) {
-                if value.to_ascii_lowercase().starts_with("zh") {
-                    return Self::Zh;
-                }
+            if let Ok(value) = env::var(key)
+                && value.to_ascii_lowercase().starts_with("zh")
+            {
+                return Self::Zh;
             }
         }
         Self::En

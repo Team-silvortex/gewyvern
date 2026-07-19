@@ -1,0 +1,3 @@
+# Replace VALIDATION_USER before validating this file with visudo -cf.
+Cmnd_Alias GEWYVERN_EBPF_VALIDATION = /usr/libexec/gewyvern-ebpf-helper probe, /usr/libexec/gewyvern-ebpf-helper run --run-id * --device *, /usr/libexec/gewyvern-ebpf-helper cleanup --run-id *
+VALIDATION_USER ALL=(root) NOPASSWD: GEWYVERN_EBPF_VALIDATION

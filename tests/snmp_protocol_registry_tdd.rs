@@ -36,6 +36,8 @@ fn snmp_session(dsl_file: &str) -> RuntimeSession {
     RuntimeSession::start(SessionConfig::for_binding(binding).unwrap()).unwrap()
 }
 
+// Keep SNMP fixture fields explicit so protocol cases remain auditable.
+#[allow(clippy::too_many_arguments)]
 fn ingest_snmp_pdu(
     session: &mut RuntimeSession,
     id: u64,

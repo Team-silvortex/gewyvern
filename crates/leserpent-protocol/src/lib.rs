@@ -13,6 +13,8 @@ pub const MAX_PROTOCOL_MESSAGE_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+// Preserve the v1 Rust and wire request shape until the v2 schema seal.
+#[allow(clippy::large_enum_variant)]
 pub enum ProtocolRequest {
     Command(CommandEnvelope),
     Query(QueryEnvelope),

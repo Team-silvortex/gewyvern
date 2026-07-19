@@ -227,7 +227,6 @@ fn serve_unix_socket_sessions(cli: &Cli, path: &str, api_service: Option<ApiServ
             );
             std::process::exit(1);
         });
-        return;
     }
 
     #[cfg(not(target_family = "unix"))]

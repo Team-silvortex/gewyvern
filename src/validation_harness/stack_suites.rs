@@ -11,7 +11,8 @@ use serde_json::json;
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 use super::{
     run_linux_attach_smoke, run_linux_kprobe_smoke, run_linux_tc_smoke,
-    run_stack_json_file_validation, run_stack_probe_validation, run_stack_register_runtime_json,
+    run_stack_json_file_validation, run_stack_probe_validation,
+    run_stack_probe_validation_with_gewyvern_token, run_stack_register_runtime_json,
     write_stack_resilience_summary,
 };
 
@@ -59,19 +60,19 @@ pub fn run_three_module_stack_smoke() -> Result<ValidationReport, ValidationErro
     )?;
 
     let gw_a_health = work_dir.join("gw-a-health.json");
-    stack_probe_or_logs(
+    gewyvern_probe_with_logs(
         "http-ready",
         &format!("http://127.0.0.1:{}/health", cfg.gw_a_api_port),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_a_health,
         &cfg.gw_a_name,
         "gw-a did not become healthy",
     )?;
     let gw_b_health = work_dir.join("gw-b-health.json");
-    stack_probe_or_logs(
+    gewyvern_probe_with_logs(
         "http-ready",
         &format!("http://127.0.0.1:{}/health", cfg.gw_b_api_port),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_b_health,
         &cfg.gw_b_name,
         "gw-b did not become healthy",
@@ -81,25 +82,25 @@ pub fn run_three_module_stack_smoke() -> Result<ValidationReport, ValidationErro
     ingest_template(&cfg.gw_b_name, "udp")?;
 
     let gw_a_resilience = work_dir.join("gw-a-resilience.json");
-    probe_with_logs(
+    gewyvern_probe_with_logs(
         "resilience-healthy",
         &format!(
             "http://127.0.0.1:{}/v1/runtime/resilience.json",
             cfg.gw_a_api_port
         ),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_a_resilience,
         &cfg.gw_a_name,
         "gw-a never published a healthy resilience surface",
     )?;
     let gw_b_resilience = work_dir.join("gw-b-resilience.json");
-    probe_with_logs(
+    gewyvern_probe_with_logs(
         "resilience-healthy",
         &format!(
             "http://127.0.0.1:{}/v1/runtime/resilience.json",
             cfg.gw_b_api_port
         ),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_b_resilience,
         &cfg.gw_b_name,
         "gw-b never published a healthy resilience surface",
@@ -108,41 +109,41 @@ pub fn run_three_module_stack_smoke() -> Result<ValidationReport, ValidationErro
     inject_socket_bad_json(&cfg.gw_b_name, 5)?;
 
     let gw_b_health_degraded = work_dir.join("gw-b-health-degraded.json");
-    probe_with_logs(
+    gewyvern_probe_with_logs(
         "health-degraded",
         &format!("http://127.0.0.1:{}/health", cfg.gw_b_api_port),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_b_health_degraded,
         &cfg.gw_b_name,
         "gw-b never exposed resilience_degraded=true after repeated socket failures",
     )?;
     let gw_b_resilience_degraded = work_dir.join("gw-b-resilience-degraded.json");
-    probe_with_logs(
+    gewyvern_probe_with_logs(
         "resilience-degraded",
         &format!(
             "http://127.0.0.1:{}/v1/runtime/resilience.json",
             cfg.gw_b_api_port
         ),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_b_resilience_degraded,
         &cfg.gw_b_name,
         "gw-b never published a degraded resilience surface after repeated socket failures",
     )?;
 
     let gw_a_meta = work_dir.join("gw-a-meta.json");
-    probe_with_logs(
+    gewyvern_probe_with_logs(
         "meta-has-analysis",
         &format!("http://127.0.0.1:{}/v1/latest/meta", cfg.gw_a_api_port),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_a_meta,
         &cfg.gw_a_name,
         "gw-a never published analysis_json",
     )?;
     let gw_b_meta = work_dir.join("gw-b-meta.json");
-    probe_with_logs(
+    gewyvern_probe_with_logs(
         "meta-has-analysis",
         &format!("http://127.0.0.1:{}/v1/latest/meta", cfg.gw_b_api_port),
-        None,
+        Some(cfg.gw_api_admin_token.as_str()),
         &gw_b_meta,
         &cfg.gw_b_name,
         "gw-b never published analysis_json",
@@ -207,6 +208,7 @@ pub fn run_three_module_stack_smoke() -> Result<ValidationReport, ValidationErro
             "stack",
             "local",
             "with-sidecar",
+            &cfg.gw_api_admin_token,
             Some(&format!("http://127.0.0.1:{}", cfg.et_a_api_port)),
             Some(&cfg.et_a_admin_token),
         )?,
@@ -220,6 +222,7 @@ pub fn run_three_module_stack_smoke() -> Result<ValidationReport, ValidationErro
             "stack",
             "local",
             "plain",
+            &cfg.gw_api_admin_token,
             None,
             None,
         )?,
@@ -334,20 +337,20 @@ pub fn run_pathological_container_validation(
     ensure_docker_network(&cfg.network_name)?;
     start_pathology_runtime(&cfg, &target_cache_dir)?;
 
-    stack_probe_to_path(
+    gewyvern_stack_probe_to_path(
         "http-ready",
         &format!("http://127.0.0.1:{}/health", cfg.api_port),
-        None,
+        Some(cfg.api_admin_token.as_str()),
         &cfg.out_dir.join("health-ready.json"),
     )?;
     ingest_template(&cfg.gw_name, "udp")?;
-    stack_probe_to_path(
+    gewyvern_stack_probe_to_path(
         "resilience-healthy",
         &format!(
             "http://127.0.0.1:{}/v1/runtime/resilience.json",
             cfg.api_port
         ),
-        None,
+        Some(cfg.api_admin_token.as_str()),
         &cfg.out_dir.join("resilience-healthy.json"),
     )?;
 
@@ -356,27 +359,27 @@ pub fn run_pathological_container_validation(
     run_pathology_container(&cfg, "slow-drip", "slow-drip", 3)?;
     run_pathology_container(&cfg, "oversize", "oversize-line", 3)?;
 
-    stack_probe_to_path(
+    gewyvern_stack_probe_to_path(
         "health-degraded",
         &format!("http://127.0.0.1:{}/health", cfg.api_port),
-        None,
+        Some(cfg.api_admin_token.as_str()),
         &cfg.out_dir.join("health-degraded.json"),
     )?;
-    stack_probe_to_path(
+    gewyvern_stack_probe_to_path(
         "resilience-degraded",
         &format!(
             "http://127.0.0.1:{}/v1/runtime/resilience.json",
             cfg.api_port
         ),
-        None,
+        Some(cfg.api_admin_token.as_str()),
         &cfg.out_dir.join("resilience-degraded.json"),
     )?;
 
     ingest_template(&cfg.gw_name, "udp")?;
-    stack_probe_to_path(
+    gewyvern_stack_probe_to_path(
         "meta-has-analysis",
         &format!("http://127.0.0.1:{}/v1/latest/meta", cfg.api_port),
-        None,
+        Some(cfg.api_admin_token.as_str()),
         &cfg.out_dir.join("meta-after-pathology.json"),
     )?;
 
@@ -905,6 +908,7 @@ struct ThreeModuleStackConfig {
     gw_b_socket_port: u16,
     gw_b_api_port: u16,
     et_a_api_port: u16,
+    gw_api_admin_token: String,
     et_a_admin_token: String,
     leserpent_dotnet_restore_first: bool,
     leserpent_dotnet_ignore_failed_sources: bool,
@@ -954,7 +958,8 @@ impl ThreeModuleStackConfig {
             gw_b_socket_port: env_u16("GW_B_SOCKET_PORT", 19002)?,
             gw_b_api_port: env_u16("GW_B_API_PORT", 19102)?,
             et_a_api_port: env_u16("ET_A_API_PORT", 19431)?,
-            et_a_admin_token: env_string("ET_A_ADMIN_TOKEN", "stack-smoke-admin-token"),
+            gw_api_admin_token: env_admin_token("GW_API_ADMIN_TOKEN", "stack-smoke")?,
+            et_a_admin_token: env_admin_token("ET_A_ADMIN_TOKEN", "stack-smoke-admin-token")?,
             leserpent_dotnet_restore_first: env_bool("LESERPENT_DOTNET_RESTORE_FIRST", false),
             leserpent_dotnet_ignore_failed_sources: env_bool(
                 "LESERPENT_DOTNET_IGNORE_FAILED_SOURCES",
@@ -998,6 +1003,7 @@ struct PathologyConfig {
     patho_prefix: String,
     socket_port: u16,
     api_port: u16,
+    api_admin_token: String,
     out_dir: PathBuf,
     pathology_fixture_dir: PathBuf,
     cargo_cache_dir: PathBuf,
@@ -1063,6 +1069,10 @@ impl PathologyConfig {
             patho_prefix: env_string("PATHO_PREFIX", &format!("gewyvern-pathology-{unique}")),
             socket_port: env_u16("SOCKET_PORT", 19201)?,
             api_port: env_u16("API_PORT", 19301)?,
+            api_admin_token: env_admin_token(
+                "PATHO_API_ADMIN_TOKEN",
+                "pathology-smoke-admin-token",
+            )?,
             out_dir: out_dir.unwrap_or_else(|| default_out_dir("pathological-container")),
             pathology_fixture_dir: repo.join("tests/pathological-containers"),
             cargo_cache_dir: env_path(
@@ -1337,41 +1347,43 @@ fn start_gewyvern_container(
     api_port: u16,
 ) -> Result<(), ValidationError> {
     let _ = Command::new("docker").args(["rm", "-f", name]).output();
-    run_command(
-        Command::new("docker")
-            .arg("run")
-            .arg("-d")
-            .arg("--name")
-            .arg(name)
-            .arg("--network")
-            .arg(&cfg.network_name)
-            .arg("-p")
-            .arg(format!("127.0.0.1:{socket_port}:9000"))
-            .arg("-p")
-            .arg(format!("127.0.0.1:{api_port}:9100"))
-            .arg("-v")
-            .arg(format!(
-                "{}:/workspace/dev/gewyvern",
-                cfg.repo_root.display()
-            ))
-            .arg("-v")
-            .arg(format!("{}:/stack-target", target_cache_dir.display()))
-            .arg(&cfg.image_tag)
-            .arg("bash")
-            .arg("-lc")
-            .arg(
-                "/stack-target/gewyvern/debug/gewyvern \
-                 --tcp-socket 0.0.0.0:9000 \
-                 --template udp \
-                 --ingest-mode remote-advisory \
-                 --serve \
-                 --allow-remote-api \
-                 --api-socket 0.0.0.0:9100 \
-                 --json \
-                 --summary-only",
-            ),
-        "failed to start gewyvern container",
-    )
+    let mut command = Command::new("docker");
+    command
+        .env("GEWY_API_ADMIN_TOKEN", &cfg.gw_api_admin_token)
+        .arg("run")
+        .arg("-d")
+        .arg("--name")
+        .arg(name)
+        .arg("--network")
+        .arg(&cfg.network_name)
+        .arg("-p")
+        .arg(format!("127.0.0.1:{socket_port}:9000"))
+        .arg("-p")
+        .arg(format!("127.0.0.1:{api_port}:9100"))
+        .arg("-e")
+        .arg("GEWY_API_ADMIN_TOKEN")
+        .arg("-v")
+        .arg(format!(
+            "{}:/workspace/dev/gewyvern",
+            cfg.repo_root.display()
+        ))
+        .arg("-v")
+        .arg(format!("{}:/stack-target", target_cache_dir.display()))
+        .arg(&cfg.image_tag)
+        .arg("bash")
+        .arg("-lc")
+        .arg(
+            "/stack-target/gewyvern/debug/gewyvern \
+             --tcp-socket 0.0.0.0:9000 \
+             --template udp \
+             --ingest-mode remote-advisory \
+             --serve \
+             --allow-remote-api \
+             --api-socket 0.0.0.0:9100 \
+             --json \
+             --summary-only",
+        );
+    run_command(&mut command, "failed to start gewyvern container")
 }
 
 fn start_etragon_container(
@@ -1381,8 +1393,10 @@ fn start_etragon_container(
     let _ = Command::new("docker")
         .args(["rm", "-f", &cfg.et_a_name])
         .output();
-    run_command(
-        Command::new("docker")
+    let mut command = Command::new("docker");
+    command
+            .env("ETRAGON_ADMIN_TOKEN", &cfg.et_a_admin_token)
+            .env("ETRAGON_SOURCE_ADMIN_TOKEN", &cfg.gw_api_admin_token)
             .arg("run")
             .arg("-d")
             .arg("--name")
@@ -1392,7 +1406,9 @@ fn start_etragon_container(
             .arg("-p")
             .arg(format!("127.0.0.1:{}:4321", cfg.et_a_api_port))
             .arg("-e")
-            .arg(format!("ETRAGON_ADMIN_TOKEN={}", cfg.et_a_admin_token))
+            .arg("ETRAGON_ADMIN_TOKEN")
+            .arg("-e")
+            .arg("ETRAGON_SOURCE_ADMIN_TOKEN")
             .arg("-v")
             .arg(format!("{}:/workspace/dev/gewyvern", cfg.repo_root.display()))
             .arg("-v")
@@ -1410,9 +1426,8 @@ fn start_etragon_container(
                  --python-state /tmp/etragon-online-state.json \
                  --daemon-state /tmp/etragon-daemon-state.json",
                 cfg.gw_a_name
-            )),
-        "failed to start etragon container",
-    )
+            ));
+    run_command(&mut command, "failed to start etragon container")
 }
 
 fn start_pathology_runtime(
@@ -1422,30 +1437,33 @@ fn start_pathology_runtime(
     let _ = Command::new("docker")
         .args(["rm", "-f", &cfg.gw_name])
         .output();
-    run_command(
-        Command::new("docker")
-            .arg("run")
-            .arg("-d")
-            .arg("--name")
-            .arg(&cfg.gw_name)
-            .arg("--network")
-            .arg(&cfg.network_name)
-            .arg("-p")
-            .arg(format!("127.0.0.1:{}:9000", cfg.socket_port))
-            .arg("-p")
-            .arg(format!("127.0.0.1:{}:9100", cfg.api_port))
-            .arg("-v")
-            .arg(format!(
-                "{}:/workspace/dev/gewyvern",
-                cfg.repo_root.display()
-            ))
-            .arg("-v")
-            .arg(format!("{}:/stack-target", target_cache_dir.display()))
-            .arg(&cfg.image_tag)
-            .arg("bash")
-            .arg("-lc")
-            .arg(
-                "/stack-target/gewyvern/debug/gewyvern \
+    let mut command = Command::new("docker");
+    command
+        .env("GEWY_API_ADMIN_TOKEN", &cfg.api_admin_token)
+        .arg("run")
+        .arg("-d")
+        .arg("--name")
+        .arg(&cfg.gw_name)
+        .arg("--network")
+        .arg(&cfg.network_name)
+        .arg("-p")
+        .arg(format!("127.0.0.1:{}:9000", cfg.socket_port))
+        .arg("-p")
+        .arg(format!("127.0.0.1:{}:9100", cfg.api_port))
+        .arg("-e")
+        .arg("GEWY_API_ADMIN_TOKEN")
+        .arg("-v")
+        .arg(format!(
+            "{}:/workspace/dev/gewyvern",
+            cfg.repo_root.display()
+        ))
+        .arg("-v")
+        .arg(format!("{}:/stack-target", target_cache_dir.display()))
+        .arg(&cfg.image_tag)
+        .arg("bash")
+        .arg("-lc")
+        .arg(
+            "/stack-target/gewyvern/debug/gewyvern \
                  --tcp-socket 0.0.0.0:9000 \
                  --template udp \
                  --ingest-mode remote-advisory \
@@ -1457,9 +1475,8 @@ fn start_pathology_runtime(
                  --no-log-stderr \
                  --json \
                  --summary-only",
-            ),
-        "failed to start pathological runtime",
-    )
+        );
+    run_command(&mut command, "failed to start pathological runtime")
 }
 
 fn start_leserpent(
@@ -1646,6 +1663,23 @@ fn probe_with_logs(
     }
 }
 
+fn gewyvern_probe_with_logs(
+    profile: &str,
+    url: &str,
+    token: Option<&str>,
+    output: &Path,
+    container_name: &str,
+    context: &str,
+) -> Result<String, ValidationError> {
+    match gewyvern_stack_probe_to_path(profile, url, token, output) {
+        Ok(body) => Ok(body),
+        Err(err) => {
+            let logs = docker_logs(container_name).unwrap_or_default();
+            Err(ValidationError::new(format!("{context}: {err}\n{logs}")))
+        }
+    }
+}
+
 fn stack_probe_to_path(
     profile: &str,
     url: &str,
@@ -1653,6 +1687,21 @@ fn stack_probe_to_path(
     output: &Path,
 ) -> Result<String, ValidationError> {
     run_stack_probe_validation(url, profile, token, Some(output.to_path_buf()))?;
+    fs::read_to_string(output).map_err(ValidationError::from)
+}
+
+fn gewyvern_stack_probe_to_path(
+    profile: &str,
+    url: &str,
+    token: Option<&str>,
+    output: &Path,
+) -> Result<String, ValidationError> {
+    run_stack_probe_validation_with_gewyvern_token(
+        url,
+        profile,
+        token,
+        Some(output.to_path_buf()),
+    )?;
     fs::read_to_string(output).map_err(ValidationError::from)
 }
 
@@ -1711,10 +1760,9 @@ fn wait_for_ldap_bind_ready(
             .arg("-b")
             .arg(search_base)
             .output()
+            && output.status.success()
         {
-            if output.status.success() {
-                return Ok(());
-            }
+            return Ok(());
         }
         thread::sleep(Duration::from_millis(500));
     }
@@ -2115,6 +2163,19 @@ fn find_free_loopback_port() -> Result<u16, ValidationError> {
 
 fn env_string(name: &str, default: &str) -> String {
     env::var(name).unwrap_or_else(|_| default.to_string())
+}
+
+fn env_admin_token(name: &str, default: &str) -> Result<String, ValidationError> {
+    let token = env_string(name, default).trim().to_string();
+    if token.is_empty() {
+        return Err(ValidationError::new(format!("{name} must not be empty")));
+    }
+    if token.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(ValidationError::new(format!(
+            "{name} must not contain control characters"
+        )));
+    }
+    Ok(token)
 }
 
 fn env_bool(name: &str, default: bool) -> bool {

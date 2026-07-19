@@ -343,17 +343,17 @@ fn parse_pipeline_module_into(
                         .map(|column| call_column + column.saturating_sub(1))
                         .collect(),
                 });
-                if other == "use" {
-                    if let Ok(target_name) = parse_pipeline_single_arg(
+                if other == "use"
+                    && let Ok(target_name) = parse_pipeline_single_arg(
                         &target.last().expect("call just inserted").args,
                         "use",
-                    ) {
-                        module.use_edges.push(FrontendUseEdge {
-                            from: function_name.unwrap_or("entry").to_string(),
-                            to: target_name,
-                            line: line_no,
-                        });
-                    }
+                    )
+                {
+                    module.use_edges.push(FrontendUseEdge {
+                        from: function_name.unwrap_or("entry").to_string(),
+                        to: target_name,
+                        line: line_no,
+                    });
                 }
             }
         }
@@ -384,6 +384,8 @@ pub(super) fn parse_pipeline_function_head(
     None
 }
 
+// Parser state is intentionally explicit so diagnostics retain exact source anchors.
+#[allow(clippy::too_many_arguments)]
 fn parse_pipeline_function_body_line(
     module: &mut PipelineModule,
     function_name: &str,

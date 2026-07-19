@@ -27,9 +27,13 @@ cp -a @STAGE_ROOT@/. %{buildroot}/
 /usr/bin/gewyvern
 /usr/bin/gewyvern_socket_send
 /usr/bin/gewyc
+/usr/libexec/gewyvern-ebpf-helper
+/usr/sbin/gewyvern-ebpf-provision
 /usr/share/gewyvern/dsl
 /usr/share/gewyvern/protocols
 /usr/share/gewyvern/examples/gewyvern.toml.example
+/usr/share/gewyvern/examples/ebpf-helper.conf.example
+/usr/share/gewyvern/examples/gewyvern-ebpf-validation.sudoers.example
 /usr/share/gewyvern/package-compat.toml
 /usr/share/doc/gewyvern/README.md
 /usr/share/doc/gewyvern/LICENSE

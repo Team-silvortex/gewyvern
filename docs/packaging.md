@@ -139,6 +139,12 @@ Container install validators can also override package-manager mirrors:
 - `GEWY_DEB_APT_MIRROR`
 - `GEWY_RPM_DNF_MIRROR`
 
+Validators install local artifacts before consulting a repository: DEB uses
+`dpkg -i` with apt only as a missing-dependency fallback, while RPM uses
+`rpm -Uvh` with the equivalent dnf fallback. Runtime HTTP readiness uses the
+base image's Bash TCP support rather than downloading `curl`, so packages with
+no external dependencies can be validated without repository access.
+
 The install smoke checks this manifest for both DEB and RPM packages so the two
 native package paths cannot silently drift.
 
@@ -180,6 +186,25 @@ That command:
 - stages the Linux install tree
 - renders DEB control metadata
 - renders an RPM spec
+
+Linux packages also install the inactive privileged eBPF helper at
+`/usr/libexec/gewyvern-ebpf-helper`, the root-only management entry point at
+`/usr/sbin/gewyvern-ebpf-provision`, and configuration examples under
+`/usr/share/gewyvern/examples`. Packaging never enables the rule or chooses an
+account automatically. Preview and provision a dedicated account with:
+
+```bash
+sudo /usr/sbin/gewyvern-ebpf-provision --user VALIDATION_USER --dry-run
+sudo /usr/sbin/gewyvern-ebpf-provision --user VALIDATION_USER
+```
+
+The provisioner resolves the account through `getent`, rejects UID 0, verifies
+that the installed helper and destination directories are root-owned and not
+writable by group or world, validates generated policy with `visudo -cf`, and
+atomically installs `/etc/gewyvern/ebpf-helper.conf` plus the mode-`0440`
+`sudoers` rule. The provisioner itself is not included in that rule. The
+validation account must not receive unrestricted passwordless `sudo`; the
+helper's strict argument parser remains the privilege boundary.
 
 When `--format all` is used for a real package build, the script now emits the
 `deb` and `rpm` packages in parallel against the same staged layout so Linux

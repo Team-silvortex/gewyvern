@@ -238,14 +238,14 @@ fn reset_snapshot_training_state(
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<Option<DaemonSnapshot>, String> {
     let mut snapshot_to_persist = None;
-    if let Ok(mut guard) = latest.lock() {
-        if let Some(snapshot) = guard.as_mut() {
-            snapshot.training_history.clear();
-            for target in &mut snapshot.target_outputs {
-                target.training_history.clear();
-            }
-            snapshot_to_persist = Some(snapshot.clone());
+    if let Ok(mut guard) = latest.lock()
+        && let Some(snapshot) = guard.as_mut()
+    {
+        snapshot.training_history.clear();
+        for target in &mut snapshot.target_outputs {
+            target.training_history.clear();
         }
+        snapshot_to_persist = Some(snapshot.clone());
     }
     if let (Some(path), Some(snapshot)) = (daemon_state_file, snapshot_to_persist.as_ref()) {
         write_daemon_state(path, snapshot)?;

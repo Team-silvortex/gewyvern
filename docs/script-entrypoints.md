@@ -180,11 +180,23 @@ After rsync, the Rust harness strictly revalidates the synchronized evidence:
 the bounded index and exact file inventory, regular non-symlink file types,
 health and token shapes, recovery semantics, attention action, payload hash
 inventory, and secret-free registration response must all agree before the
-phase is reported as covered.
+phase is reported as covered. The isolated runtime state JSON and checkpointed
+SQLite database are retained in the evidence shelf as bounded files; the local
+Rust validator independently parses their formats and scans every synchronized
+artifact for the proof pairing secret.
+Both the regular CLI summary and the combined release gate repeat this strict
+validation at evidence-consumption time. Current JSON summaries expose
+`leserpent_control_plane_aot_evidence_validated=true`; replacing the shelf
+between the remote run and summary rendering therefore fails closed.
 Before the release build it runs a cached Linux
 `cargo check --workspace --all-targets` over the filtered workspace, catching
 target-specific library, binary, example, benchmark, and inline-test compile
 drift, including the root integration-test targets and Linux-only eBPF tests.
+It first runs the stricter locked `cargo clippy --workspace --all-targets -- -D
+warnings` quality phase against the same target cache. Remote release preflight
+therefore requires the official `cargo-clippy` component and fails explicitly
+when that component is absent instead of silently downgrading to compile-only
+coverage.
 Before any package/run step, it records a remote preflight snapshot so failures
 separate environment drift from runtime regressions.
 The snapshot and bounded history entry include the observed Rust, Cargo,
@@ -193,10 +205,22 @@ without retaining unbounded command output.
 Remote preflight, artifact, and eBPF key/value evidence share one strict parser:
 inputs are capped at 8 KiB and 32 lines, keys must be unique and known, control
 characters are rejected, and required values cannot be empty.
-It also records Linux eBPF smoke evidence: when passwordless `sudo` and a
-default-route device are available, it runs the native attach/kprobe/tc smokes;
-otherwise it records an explicit `skipped` reason instead of turning an
-environment privilege gap into a false runtime regression.
+It also records Linux eBPF smoke evidence. The preferred path invokes the
+root-owned `/usr/libexec/gewyvern-ebpf-helper` through a command-limited
+`sudoers` rule. The helper accepts only `probe`, bounded
+`run --run-id ... --device ...`, and bounded `cleanup --run-id ...`
+operations; it never invokes a shell or caller-provided binary. Evidence is
+created below the root-owned `/var/lib/gewyvern-ebpf-validation` directory and
+copied into the workspace only after attach, kprobe, and tc smokes pass.
+Preflight additionally requires helper protocol `1` and an exact match with
+the current Gewyvern package version. A stale helper is recorded as unavailable
+instead of being trusted to produce current-release evidence; its observed
+version remains visible as `ebpf_helper_version` in preflight summaries.
+Without a ready helper or an explicit admin fallback, validation records a
+specific `privileged_helper_missing`, `privileged_helper_unavailable`, or
+`privileged_helper_incompatible` skip rather than a false runtime regression.
+The paired `ebpf_helper_state` field is restricted to `missing`, `unavailable`,
+`incompatible`, or `ready`; contradictory availability evidence is rejected.
 The remote packaging and remote eBPF validator paths now reuse a shared remote
 Cargo target cache under `~/.cache/gewyvern/remote-target`, so repeated runs do
 not have to cold-rebuild every binary from a brand-new workspace.
@@ -215,7 +239,7 @@ all-target compile proof consumes them; the complete test shelf adds only about
 When that filtered workspace snapshot is unchanged, the command now reuses a
 workspace sync cache marker and skips the rsync phase entirely.
 
-If the SSH user cannot `sudo -n` but you do have a separate admin account,
+If the fixed helper is not installed but you do have a separate admin account,
 export `GEWY_REMOTE_EBPF_ADMIN_USER` and `GEWY_REMOTE_EBPF_ADMIN_PASSWORD`
 before running the command. The validation run then uses that authenticated SSH
 identity consistently for preflight, workspace sync, caches, package/runtime
@@ -226,6 +250,21 @@ enter `sudo`, and an exit trap restores the eBPF evidence directory to the
 authenticated user. Those privileged commands compile smoke sources only from
 the validator's build-time workspace root; changing the remote working
 directory cannot substitute loader or BPF source files.
+This is a compatibility path. New hosts should install the fixed helper and
+must not grant the validation account unrestricted passwordless `sudo`, or
+authorize `env`, a shell, or workspace binaries in `sudoers`.
+Packaged hosts can configure the fixed path with
+`sudo gewyvern-ebpf-provision --user VALIDATION_USER`; add `--dry-run` to
+validate the account and installed helper without writing configuration. This
+root-only management binary is deliberately absent from the generated sudoers
+allowlist.
+An authenticated run can cover package/runtime smoke, the Leserpent
+control-plane NativeAOT persistence proof, and attach/kprobe/tc in one evidence
+transaction. A first run under a new admin identity may report `watch` because
+its isolated source and target caches are cold; rerun with the same identity to
+measure the warm reference. A clean warm run reports `linux_proof_complete=true`.
+It still reports `coverage_incomplete` until successful evidence spans at least
+two physical host fingerprints and two kernel releases.
 
 Defaults:
 
@@ -763,6 +802,12 @@ Every successful `release-gate` run also refreshes:
 
 - `target/validation/release-gate-artifacts.json`
 - `target/validation/release-gate-artifacts.txt`
+
+When the remote Linux stage covers the Leserpent control-plane NativeAOT
+proof, the index includes a dedicated
+`remote_leserpent_control_plane_aot` high-signal artifact. Its `present` status
+is tied to the current release-gate check after strict local revalidation; an
+older directory on disk cannot promote a skipped stage.
 
 Use those two companion files as the compact directory-level index of which
 release-facing evidence shelves are currently present under `target/validation/`,

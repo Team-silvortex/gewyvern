@@ -1,7 +1,7 @@
 use super::*;
 use crate::data_api::persist_api_snapshot;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 struct EnvGuard {
@@ -51,7 +51,7 @@ fn demo_persisted_export() -> ExportBundle {
     )
 }
 
-fn persisted_single_snapshot(state_home: &PathBuf, target_name: &str) -> (ApiSnapshot, PathBuf) {
+fn persisted_single_snapshot(state_home: &Path, target_name: &str) -> (ApiSnapshot, PathBuf) {
     let _guard = test_guard();
     set_external_analysis_config(None);
     let export = demo_persisted_export();

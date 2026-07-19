@@ -233,10 +233,9 @@ impl RuntimeSession {
         }
         if fact.fragment_id == "sock_lineage_fragment"
             && !self.capture_comm_enabled(&fact.fragment_id)
+            && let FactKind::SockLineage(lineage) = &mut fact.kind
         {
-            if let FactKind::SockLineage(lineage) = &mut fact.kind {
-                lineage.comm = [0; 16];
-            }
+            lineage.comm = [0; 16];
         }
         if self.packet_below_min_len(&fact) {
             self.rejected_facts.push(RejectedFact {

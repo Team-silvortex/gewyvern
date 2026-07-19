@@ -239,17 +239,17 @@ fn build_udp_reason(id: ReasonId, flow: &FlowSnapshot, facts: &[FactEnvelope]) -
     for fact in facts {
         if flow.evidence.packet_facts.contains(&fact.id) {
             l0_facts.push(fact.id);
-            if let FactKind::PacketMeta(packet) = &fact.kind {
-                if packet.l4_proto == 17 {
-                    key_events.push(KeyEvent {
-                        at: fact.id,
-                        kind: KeyEventKind::UdpDatagramSeen,
-                    });
-                    narrative.push(NarrLine {
-                        at: fact.id,
-                        text: "udp datagram observed".into(),
-                    });
-                }
+            if let FactKind::PacketMeta(packet) = &fact.kind
+                && packet.l4_proto == 17
+            {
+                key_events.push(KeyEvent {
+                    at: fact.id,
+                    kind: KeyEventKind::UdpDatagramSeen,
+                });
+                narrative.push(NarrLine {
+                    at: fact.id,
+                    text: "udp datagram observed".into(),
+                });
             }
         }
 

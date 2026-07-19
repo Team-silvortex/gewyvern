@@ -14,8 +14,8 @@ use super::{
     run_container_runtime_validation, run_container_validation_summary,
     run_debugger_cross_validation, run_leserpent_parity_recovery_validation,
     run_package_install_smoke, run_pathological_container_validation,
-    run_remote_linux_host_validation, run_three_module_stack_smoke, validation_command_stdout,
-    validation_log,
+    run_remote_linux_host_validation, run_three_module_stack_smoke,
+    validate_leserpent_control_plane_aot_evidence, validation_command_stdout, validation_log,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -292,6 +292,13 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         if remote_report
             .checks
             .iter()
+            .any(|check| check == "remote_leserpent_control_plane_aot")
+        {
+            checks.push("remote_leserpent_control_plane_aot".to_string());
+        }
+        if remote_report
+            .checks
+            .iter()
             .any(|check| check == "remote_ebpf_smoke")
         {
             validation_log("[release-gate] remote Linux eBPF attach evidence: ok");
@@ -391,6 +398,7 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
             "remote_workspace_create",
             "workspace_sync",
             "remote_workspace_materialize",
+            "remote_rust_quality",
             "remote_linux_target_check",
             "remote_package_build",
             "remote_leserpent_control_plane_aot",
@@ -425,6 +433,17 @@ fn print_remote_release_gate_summary(out_dir: &Path) -> Result<(), ValidationErr
         &["status", "reason", "default_route_device"],
         "release-gate remote eBPF evidence",
     )?;
+    let aot_evidence_covered = run.get("checks").is_some_and(|checks| {
+        checks
+            .split(',')
+            .any(|check| check == "remote_leserpent_control_plane_aot")
+    });
+    if aot_evidence_covered {
+        validate_leserpent_control_plane_aot_evidence(
+            &out_dir.join("leserpent-control-plane-aot-linux-x64"),
+        )?;
+        validation_log("[release-gate] Leserpent control-plane NativeAOT evidence: validated");
+    }
 
     if let Some(remote_dir) = run.get("remote_dir") {
         validation_log(format!("[release-gate] remote dir: {remote_dir}"));
@@ -759,6 +778,21 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
             ),
             "gewyvern_validate remote-linux-host-validation",
             "nested remote eBPF attach evidence shelf when the remote Linux path runs",
+        ),
+        release_artifact_entry(
+            "remote_leserpent_control_plane_aot",
+            "directory",
+            &out_dir
+                .join("remote-linux-host-validation")
+                .join("leserpent-control-plane-aot-linux-x64"),
+            "optional_high_signal",
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "remote_leserpent_control_plane_aot"),
+            ),
+            "gewyvern_validate remote-linux-host-validation",
+            "strictly revalidated Linux x64 NativeAOT control-plane, persistence, registration, and recovery evidence shelf",
         ),
         release_artifact_entry(
             "leserpent_parity_recovery",

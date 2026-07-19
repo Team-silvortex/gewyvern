@@ -139,6 +139,8 @@ pub fn run_training_dataset_roundtrip_demo(
     })
 }
 
+// Keep the validation entrypoint source-compatible with the native CLI surface.
+#[allow(clippy::too_many_arguments)]
 pub fn run_external_engine_roundtrip_demo(
     ingest_addr: Option<&str>,
     api_addr: Option<&str>,
@@ -446,10 +448,10 @@ fn wait_for_http_fragment(
 ) -> Result<String, ValidationError> {
     let deadline = Instant::now() + Duration::from_secs(16);
     while Instant::now() < deadline {
-        if let Ok(body) = http_get(addr, path) {
-            if body.contains(fragment) {
-                return Ok(body);
-            }
+        if let Ok(body) = http_get(addr, path)
+            && body.contains(fragment)
+        {
+            return Ok(body);
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -502,15 +504,15 @@ fn wait_for_json(
 ) -> Result<Value, ValidationError> {
     let deadline = Instant::now() + Duration::from_secs(16);
     while Instant::now() < deadline {
-        if let Ok(body) = http_get(addr, path) {
-            if body.contains(fragment) {
-                let payload = body
-                    .split_once("\r\n\r\n")
-                    .map(|(_, payload)| payload)
-                    .unwrap_or(body.as_str());
-                fs::write(output_path, payload)?;
-                return serde_json::from_str(payload).map_err(ValidationError::from);
-            }
+        if let Ok(body) = http_get(addr, path)
+            && body.contains(fragment)
+        {
+            let payload = body
+                .split_once("\r\n\r\n")
+                .map(|(_, payload)| payload)
+                .unwrap_or(body.as_str());
+            fs::write(output_path, payload)?;
+            return serde_json::from_str(payload).map_err(ValidationError::from);
         }
         thread::sleep(Duration::from_millis(100));
     }

@@ -132,7 +132,7 @@ fn api_snapshot_routes_cover_scan_export() {
                 has_external_sidecar_context,
                 has_external_evidence_chain_enrichment,
                 has_external_diagnostic_opinion,
-            ) = crate::diagnosis_runtime::external_sidecar_presence(&analysis);
+            ) = crate::diagnosis_runtime::external_sidecar_presence(analysis);
             ApiRenderedTarget {
                 name: name.clone(),
                 primary_module_family: analysis.primary_module_family.clone(),
@@ -141,7 +141,7 @@ fn api_snapshot_routes_cover_scan_export() {
                 summary_text: summary_line(name, export),
                 summary_json: summary_json(name, export),
                 findings_json: findings_json(name, export),
-                analysis_json: analysis_snapshot_json(&analysis),
+                analysis_json: analysis_snapshot_json(analysis),
                 training_example_json: training_example_json(name, export),
                 has_external_sidecar_context,
                 has_external_evidence_chain_enrichment,
@@ -153,8 +153,8 @@ fn api_snapshot_routes_cover_scan_export() {
                 external_sidecar_trust_level: None,
                 external_sidecar_consumption_mode: None,
                 export_json: export.to_json(),
-                report_json: single_target_report_json_with_analysis(name, export, &analysis),
-                report_html: single_target_report_html_with_analysis(name, export, &analysis),
+                report_json: single_target_report_json_with_analysis(name, export, analysis),
+                report_html: single_target_report_html_with_analysis(name, export, analysis),
             }
         })
         .collect::<Vec<_>>();
@@ -327,8 +327,10 @@ fn api_rejects_invalid_target_path_percent_encoding() {
 
 #[test]
 fn api_rejects_oversized_report_bodies() {
-    let mut snapshot = ApiSnapshot::default();
-    snapshot.report_json = Some("x".repeat((512 * 1024) + 32));
+    let snapshot = ApiSnapshot {
+        report_json: Some("x".repeat((512 * 1024) + 32)),
+        ..ApiSnapshot::default()
+    };
 
     let (status, content_type, body) =
         api_response_for_request("/v1/latest/report.json", &snapshot);

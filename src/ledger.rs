@@ -74,6 +74,8 @@ impl fmt::Display for FactKindTag {
 }
 
 impl FactKindTag {
+    // Retained as an Option-returning compatibility API for existing callers.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
             "tcp_state" => Some(Self::TcpState),
@@ -178,6 +180,8 @@ impl PacketDir {
         }
     }
 
+    // Retained as an Option-returning compatibility API for existing callers.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
             "ingress" | "remote_to_local" => Some(Self::Ingress),
@@ -228,6 +232,8 @@ impl DropVerdict {
         }
     }
 
+    // Retained as an Option-returning compatibility API for existing callers.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
             "applied" => Some(Self::Applied),

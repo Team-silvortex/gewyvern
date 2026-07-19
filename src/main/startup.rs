@@ -36,11 +36,11 @@ pub(crate) fn bootstrap_cli(args: Vec<String>) -> Cli {
 }
 
 fn apply_runtime_api_security_defaults(cli: &Cli) {
-    if let Some(token) = cli.api_admin_token.as_deref() {
-        if std::env::var_os("GEWY_API_ADMIN_TOKEN").is_none() {
-            unsafe {
-                std::env::set_var("GEWY_API_ADMIN_TOKEN", token);
-            }
+    if let Some(token) = cli.api_admin_token.as_deref()
+        && std::env::var_os("GEWY_API_ADMIN_TOKEN").is_none()
+    {
+        unsafe {
+            std::env::set_var("GEWY_API_ADMIN_TOKEN", token);
         }
     }
 }

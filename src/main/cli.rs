@@ -256,7 +256,10 @@ impl Cli {
         let mut serve = defaults.serve.unwrap_or(false);
         let mut api_socket = defaults.api_socket;
         let mut allow_remote_api = defaults.allow_remote_api.unwrap_or(false);
-        let mut api_admin_token = defaults.api_admin_token;
+        let mut api_admin_token = resolve_api_admin_token(
+            defaults.api_admin_token,
+            std::env::var("GEWY_API_ADMIN_TOKEN").ok(),
+        );
         let mut max_sessions = defaults.max_sessions;
         let mut json = false;
         let mut report_format = None;
@@ -536,4 +539,15 @@ impl Cli {
             max_files: self.log_max_files,
         }
     }
+}
+
+pub(crate) fn resolve_api_admin_token(
+    configured: Option<String>,
+    environment: Option<String>,
+) -> Option<String> {
+    configured.or_else(|| {
+        environment
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty())
+    })
 }

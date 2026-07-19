@@ -1,3 +1,6 @@
+// Fact fixtures keep protocol fields explicit at call sites for auditability.
+#![allow(clippy::too_many_arguments)]
+
 use super::*;
 
 pub fn run_handshake_session(facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {

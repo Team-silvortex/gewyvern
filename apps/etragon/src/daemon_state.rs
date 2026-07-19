@@ -1,5 +1,8 @@
 use super::*;
 
+pub(super) const DAEMON_STATE_FILE_LIMIT: usize = 1024 * 1024;
+static DAEMON_STATE_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
 pub(super) fn push_training_event(history: &mut Vec<TrainingEvent>, event: TrainingEvent) {
     history.push(event);
     if history.len() > TRAINING_HISTORY_LIMIT {
@@ -230,10 +233,10 @@ pub(super) fn retained_target_outputs_for_persistence(
 }
 
 pub(super) fn batch_entry_for_target_persistence(target: &TargetDaemonOutput) -> (String, String) {
-    if target.output_json == "null" {
-        if let Some(error) = &target.last_error {
-            return (target.path_segment.clone(), format!("__error__:{}", error));
-        }
+    if target.output_json == "null"
+        && let Some(error) = &target.last_error
+    {
+        return (target.path_segment.clone(), format!("__error__:{}", error));
     }
     (target.path_segment.clone(), target.output_json.clone())
 }
@@ -476,7 +479,18 @@ pub(super) fn parse_daemon_snapshot_from_json(input: &str) -> Result<DaemonSnaps
 }
 
 pub(super) fn write_daemon_state(path: &Path, snapshot: &DaemonSnapshot) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
+    reject_unsafe_daemon_state_path(path)?;
+    let payload = daemon_snapshot_persistence_json(snapshot);
+    if payload.len() > DAEMON_STATE_FILE_LIMIT {
+        return Err(format!(
+            "daemon state exceeds {} byte limit",
+            DAEMON_STATE_FILE_LIMIT
+        ));
+    }
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent).map_err(|err| {
             format!(
                 "failed to create daemon state directory '{}': {err}",
@@ -484,24 +498,149 @@ pub(super) fn write_daemon_state(path: &Path, snapshot: &DaemonSnapshot) -> Resu
             )
         })?;
     }
-    let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, daemon_snapshot_persistence_json(snapshot)).map_err(|err| {
-        format!(
-            "failed to write daemon state '{}': {err}",
-            tmp_path.display()
-        )
-    })?;
-    fs::rename(&tmp_path, path)
-        .map_err(|err| format!("failed to replace daemon state '{}': {err}", path.display()))
+    let tmp_path = daemon_state_temp_path(path)?;
+    let result = write_daemon_state_atomically(path, &tmp_path, payload.as_bytes());
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp_path);
+    }
+    result
 }
 
 pub(super) fn read_daemon_state(path: &Path) -> Result<Option<DaemonSnapshot>, String> {
-    match fs::read_to_string(path) {
-        Ok(body) => parse_daemon_snapshot_from_json(&body).map(Some),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            return Err(format!(
+                "failed to inspect daemon state '{}': {err}",
+                path.display()
+            ));
+        }
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(format!(
+            "daemon state must be a regular non-symlink file: '{}'",
+            path.display()
+        ));
+    }
+    if metadata.len() > DAEMON_STATE_FILE_LIMIT as u64 {
+        return Err(format!(
+            "daemon state exceeds {} byte limit",
+            DAEMON_STATE_FILE_LIMIT
+        ));
+    }
+    let file = fs::File::open(path)
+        .map_err(|err| format!("failed to open daemon state '{}': {err}", path.display()))?;
+    let opened_metadata = file.metadata().map_err(|err| {
+        format!(
+            "failed to inspect opened daemon state '{}': {err}",
+            path.display()
+        )
+    })?;
+    if !opened_metadata.is_file() || opened_metadata.len() > DAEMON_STATE_FILE_LIMIT as u64 {
+        return Err(format!(
+            "daemon state changed to an unsafe file while opening: '{}'",
+            path.display()
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if metadata.dev() != opened_metadata.dev() || metadata.ino() != opened_metadata.ino() {
+            return Err(format!(
+                "daemon state changed while opening: '{}'",
+                path.display()
+            ));
+        }
+    }
+    let mut body = String::new();
+    file.take((DAEMON_STATE_FILE_LIMIT + 1) as u64)
+        .read_to_string(&mut body)
+        .map_err(|err| format!("failed to read daemon state '{}': {err}", path.display()))?;
+    if body.len() > DAEMON_STATE_FILE_LIMIT {
+        return Err(format!(
+            "daemon state exceeds {} byte limit",
+            DAEMON_STATE_FILE_LIMIT
+        ));
+    }
+    parse_daemon_snapshot_from_json(&body).map(Some)
+}
+
+fn reject_unsafe_daemon_state_path(path: &Path) -> Result<(), String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => Err(format!(
+            "daemon state must be a regular non-symlink file: '{}'",
+            path.display()
+        )),
+        Ok(_) => Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(format!(
-            "failed to read daemon state '{}': {err}",
+            "failed to inspect daemon state '{}': {err}",
             path.display()
         )),
     }
+}
+
+fn daemon_state_temp_path(path: &Path) -> Result<PathBuf, String> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "daemon state path must end in a UTF-8 filename".to_string())?;
+    let sequence = DAEMON_STATE_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temp_name = format!(".{file_name}.{}.{}.tmp", std::process::id(), sequence);
+    Ok(path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+        .join(temp_name))
+}
+
+fn write_daemon_state_atomically(
+    path: &Path,
+    tmp_path: &Path,
+    payload: &[u8],
+) -> Result<(), String> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(tmp_path).map_err(|err| {
+        format!(
+            "failed to create daemon state temporary file '{}': {err}",
+            tmp_path.display()
+        )
+    })?;
+    file.write_all(payload).map_err(|err| {
+        format!(
+            "failed to write daemon state temporary file '{}': {err}",
+            tmp_path.display()
+        )
+    })?;
+    file.sync_all().map_err(|err| {
+        format!(
+            "failed to sync daemon state temporary file '{}': {err}",
+            tmp_path.display()
+        )
+    })?;
+    drop(file);
+    fs::rename(tmp_path, path)
+        .map_err(|err| format!("failed to replace daemon state '{}': {err}", path.display()))?;
+    #[cfg(unix)]
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::File::open(parent)
+            .and_then(|directory| directory.sync_all())
+            .map_err(|err| {
+                format!(
+                    "failed to sync daemon state directory '{}': {err}",
+                    parent.display()
+                )
+            })?;
+    }
+    Ok(())
 }

@@ -300,18 +300,13 @@ fn infer_call_placeholder_kinds(
                 )?;
             } else {
                 for arg in &call.args {
-                    if let Some((name, value)) = split_keyword_arg(arg) {
-                        match name {
-                            "duration_ms" | "lateness_ms" => {
-                                note_placeholders(
-                                    function_signature,
-                                    output,
-                                    value,
-                                    PipelineValueKind::U64,
-                                )?;
-                            }
-                            _ => {}
-                        }
+                    if let Some(("duration_ms" | "lateness_ms", value)) = split_keyword_arg(arg) {
+                        note_placeholders(
+                            function_signature,
+                            output,
+                            value,
+                            PipelineValueKind::U64,
+                        )?;
                     }
                 }
             }
@@ -375,9 +370,8 @@ fn infer_call_placeholder_kinds(
                     }
                     continue;
                 }
-                match positional_rule_kind(index, reason_rule) {
-                    Some(kind) => note_placeholders(function_signature, output, arg, kind)?,
-                    None => {}
+                if let Some(kind) = positional_rule_kind(index, reason_rule) {
+                    note_placeholders(function_signature, output, arg, kind)?;
                 }
             }
         }
@@ -386,7 +380,7 @@ fn infer_call_placeholder_kinds(
     Ok(())
 }
 
-fn canonical_pipeline_rule_keyword<'a>(name: &'a str, reason_rule: bool) -> &'a str {
+fn canonical_pipeline_rule_keyword(name: &str, reason_rule: bool) -> &str {
     match name {
         "pred" => "predicate",
         "event" if reason_rule => "key_event",

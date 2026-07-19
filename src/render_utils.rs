@@ -93,10 +93,10 @@ pub(crate) fn extract_json_string_field(input: &str, key: &str) -> Option<String
             unicode_buf.push(ch);
             unicode_remaining -= 1;
             if unicode_remaining == 0 {
-                if let Ok(codepoint) = u32::from_str_radix(&unicode_buf, 16) {
-                    if let Some(decoded) = char::from_u32(codepoint) {
-                        value.push(decoded);
-                    }
+                if let Ok(codepoint) = u32::from_str_radix(&unicode_buf, 16)
+                    && let Some(decoded) = char::from_u32(codepoint)
+                {
+                    value.push(decoded);
                 }
                 unicode_buf.clear();
             }

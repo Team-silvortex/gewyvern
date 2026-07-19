@@ -1,3 +1,6 @@
+// Expanded byte fixtures make protocol offsets explicit in these tests.
+#![allow(clippy::byte_char_slices)]
+
 mod support;
 
 use gewyvern::dsl::compile_file;

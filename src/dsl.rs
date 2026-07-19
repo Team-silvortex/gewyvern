@@ -140,7 +140,7 @@ pub(super) fn strip_comments_preserve_layout(input: &str) -> Result<String, DslE
 
         if ch == '#' {
             output.push(' ');
-            while let Some(next) = chars.next() {
+            for next in chars.by_ref() {
                 if next == '\n' {
                     output.push('\n');
                     line += 1;

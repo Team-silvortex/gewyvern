@@ -22,6 +22,9 @@ runtime crate:
 # Rust workspace
 cargo test --workspace
 
+# Locked, warning-free Rust quality gate across libraries, bins, examples, and tests
+cargo quality
+
 # etragon sidecar
 cargo run -p etragon -- --help
 
@@ -30,6 +33,11 @@ cd apps/leserpent && npm run check:frontend
 dotnet restore apps/leserpent/leserpent.slnx --locked-mode
 dotnet build apps/leserpent/leserpent.slnx --no-restore
 ```
+
+`cargo quality` is the canonical Rust lint gate. It fails on any Clippy warning
+and covers the complete locked workspace with every Cargo target enabled. If a
+fresh rustup toolchain does not include Clippy yet, install the official
+component once with `rustup component add clippy`.
 
 ## Project Status
 

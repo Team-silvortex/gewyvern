@@ -81,25 +81,25 @@ pub(crate) fn load_runtime_config() -> Result<RuntimeConfigFile, String> {
 }
 
 pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
-    if let Some(retention) = config.history_retention {
-        if std::env::var_os("GEWY_HISTORY_RETENTION").is_none() {
-            unsafe {
-                std::env::set_var("GEWY_HISTORY_RETENTION", retention.to_string());
-            }
+    if let Some(retention) = config.history_retention
+        && std::env::var_os("GEWY_HISTORY_RETENTION").is_none()
+    {
+        unsafe {
+            std::env::set_var("GEWY_HISTORY_RETENTION", retention.to_string());
         }
     }
-    if let Some(root) = config.protocol_registry_root.as_deref() {
-        if std::env::var_os("GEWY_PROTOCOL_REGISTRY_ROOT").is_none() {
-            unsafe {
-                std::env::set_var("GEWY_PROTOCOL_REGISTRY_ROOT", root);
-            }
+    if let Some(root) = config.protocol_registry_root.as_deref()
+        && std::env::var_os("GEWY_PROTOCOL_REGISTRY_ROOT").is_none()
+    {
+        unsafe {
+            std::env::set_var("GEWY_PROTOCOL_REGISTRY_ROOT", root);
         }
     }
-    if let Some(root) = config.share_root.as_deref() {
-        if std::env::var_os("GEWY_SHARE_ROOT").is_none() {
-            unsafe {
-                std::env::set_var("GEWY_SHARE_ROOT", root);
-            }
+    if let Some(root) = config.share_root.as_deref()
+        && std::env::var_os("GEWY_SHARE_ROOT").is_none()
+    {
+        unsafe {
+            std::env::set_var("GEWY_SHARE_ROOT", root);
         }
     }
     apply_env_string_override(CERTIFICATE_ROOT_ENV, config.certificate_root.as_deref());
@@ -110,14 +110,14 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
         CERTIFICATE_STATE_ROOT_ENV,
         config.certificate_state_root.as_deref(),
     );
-    if let Some(value) = config.require_explicit_remote_trust {
-        if std::env::var_os(REQUIRE_EXPLICIT_REMOTE_TRUST_ENV).is_none() {
-            unsafe {
-                std::env::set_var(
-                    REQUIRE_EXPLICIT_REMOTE_TRUST_ENV,
-                    if value { "true" } else { "false" },
-                );
-            }
+    if let Some(value) = config.require_explicit_remote_trust
+        && std::env::var_os(REQUIRE_EXPLICIT_REMOTE_TRUST_ENV).is_none()
+    {
+        unsafe {
+            std::env::set_var(
+                REQUIRE_EXPLICIT_REMOTE_TRUST_ENV,
+                if value { "true" } else { "false" },
+            );
         }
     }
     apply_env_usize_override(
@@ -143,21 +143,21 @@ pub(crate) fn apply_runtime_path_overrides(config: &RuntimeConfigFile) {
 }
 
 fn apply_env_string_override(key: &str, value: Option<&str>) {
-    if let Some(value) = value {
-        if std::env::var_os(key).is_none() {
-            unsafe {
-                std::env::set_var(key, value);
-            }
+    if let Some(value) = value
+        && std::env::var_os(key).is_none()
+    {
+        unsafe {
+            std::env::set_var(key, value);
         }
     }
 }
 
 fn apply_env_usize_override(key: &str, value: Option<usize>) {
-    if let Some(value) = value {
-        if std::env::var_os(key).is_none() {
-            unsafe {
-                std::env::set_var(key, value.to_string());
-            }
+    if let Some(value) = value
+        && std::env::var_os(key).is_none()
+    {
+        unsafe {
+            std::env::set_var(key, value.to_string());
         }
     }
 }
@@ -171,9 +171,7 @@ fn select_runtime_config_path() -> Option<PathBuf> {
     if standard.exists() {
         return Some(standard);
     }
-    let Some(legacy_root) = layout.legacy_root else {
-        return None;
-    };
+    let legacy_root = layout.legacy_root?;
     let legacy_primary = legacy_root.join(LEGACY_CONFIG_NAME);
     if legacy_primary.exists() {
         return Some(legacy_primary);

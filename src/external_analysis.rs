@@ -188,7 +188,10 @@ fn note_external_analysis_failure(engine_bin: &str, error: &str) {
             );
         }
     }
-    if consecutive == 1 || consecutive == 3 || consecutive % EXTERNAL_FAILURE_LOG_EVERY == 0 {
+    if consecutive == 1
+        || consecutive == 3
+        || consecutive.is_multiple_of(EXTERNAL_FAILURE_LOG_EVERY)
+    {
         log_warn_event(
             "external_analysis",
             EVENT_EXTERNAL_ANALYSIS_FAILED,
@@ -255,9 +258,8 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
         }
         let capabilities = query_external_capabilities(&config);
         let items = run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
-            .map(|items| {
+            .inspect(|_| {
                 note_external_analysis_success(&config.engine_bin);
-                items
             })
             .unwrap_or_else(|err| {
                 note_external_analysis_failure(&config.engine_bin, &err);
@@ -285,9 +287,8 @@ pub(crate) fn append_external_augmentations(snapshot: &mut AnalysisSnapshot, sna
                     let capabilities = capability_profile_for_config(&config);
                     let items =
                         run_external_analysis(&config, capabilities.as_ref(), snapshot_json)
-                            .map(|items| {
+                            .inspect(|_| {
                                 note_external_analysis_success(&config.engine_bin);
-                                items
                             })
                             .unwrap_or_else(|err| {
                                 note_external_analysis_failure(&config.engine_bin, &err);

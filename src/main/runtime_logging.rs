@@ -188,10 +188,10 @@ impl RuntimeLogger {
         if self.log_to_stderr {
             eprintln!("{record}");
         }
-        if let Some(file) = self.log_file.as_ref() {
-            if let Ok(mut file) = file.lock() {
-                let _ = file.write_record(&record);
-            }
+        if let Some(file) = self.log_file.as_ref()
+            && let Ok(mut file) = file.lock()
+        {
+            let _ = file.write_record(&record);
         }
     }
 }

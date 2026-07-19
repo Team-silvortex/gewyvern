@@ -1648,6 +1648,8 @@ fn debugger_console_rolls_up_targets_with_attention_first_focus() {
     assert!(caps.contains("\"/v1/latest/debugger-console.json\""));
 }
 
+// Debugger fixtures keep all machine-surface fields explicit.
+#[allow(clippy::too_many_arguments)]
 fn debugger_target(
     name: &str,
     family: &str,

@@ -1772,17 +1772,17 @@ fn index_document(document: &UiDocument) -> BTreeMap<NodeId, IndexedNode<'_>> {
     output
 }
 
-fn shallow_node(
-    node: &UiNode,
-) -> (
-    &NodeId,
+type ShallowNode<'a> = (
+    &'a NodeId,
     UiNodeKind,
-    &Option<RuntimeId>,
-    &Option<String>,
-    &Option<LocalizedText>,
-    &Accessibility,
-    &Option<UiAction>,
-) {
+    &'a Option<RuntimeId>,
+    &'a Option<String>,
+    &'a Option<LocalizedText>,
+    &'a Accessibility,
+    &'a Option<UiAction>,
+);
+
+fn shallow_node(node: &UiNode) -> ShallowNode<'_> {
     (
         &node.id,
         node.kind,

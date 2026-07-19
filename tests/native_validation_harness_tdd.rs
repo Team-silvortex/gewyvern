@@ -547,10 +547,18 @@ fn remote_host_validation_records_phase_timings() {
     assert!(
         remote_host.contains("measure_phase(&mut phase_timings, \"remote_linux_target_check\"")
     );
+    assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_rust_quality\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_package_smoke\""));
     assert!(remote_host.contains("measure_phase(&mut phase_timings, \"remote_runtime_smoke\""));
     assert!(remote_host.contains("\"remote_ebpf_validator_build\""));
     assert!(remote_host.contains("measure_phase(phase_timings, \"remote_ebpf_attach\""));
+    assert!(remote_host.contains("REMOTE_EBPF_HELPER"));
+    assert!(remote_host.contains("ebpf_helper_available"));
+    assert!(remote_host.contains("ebpf_helper_version"));
+    assert!(remote_host.contains("ebpf_helper_state"));
+    assert!(remote_host.contains("grep -Fxq 'protocol=1'"));
+    assert!(remote_host.contains("env!(\"CARGO_PKG_VERSION\")"));
+    assert!(!remote_host.contains("sudo -n env"));
     assert!(
         remote_host.contains("measure_phase(&mut phase_timings, \"remote_workspace_materialize\"")
     );
@@ -701,7 +709,16 @@ fn three_module_stack_smoke_uses_native_stack_probe_for_json_readiness() {
     assert!(stack_cli.contains("stack-register-runtime-json"));
     assert!(suites.contains("run_three_module_stack_smoke"));
     assert!(suites.contains("run_stack_probe_validation"));
+    assert!(suites.contains("run_stack_probe_validation_with_gewyvern_token"));
     assert!(suites.contains("write_stack_resilience_summary"));
+    assert!(suites.contains("GW_API_ADMIN_TOKEN"));
+    assert!(suites.contains("PATHO_API_ADMIN_TOKEN"));
+    assert!(suites.contains("ETRAGON_SOURCE_ADMIN_TOKEN"));
+    assert!(suites.contains(".arg(\"GEWY_API_ADMIN_TOKEN\")"));
+    assert!(!suites.contains("format!(\"GEWY_API_ADMIN_TOKEN={}"));
+    assert!(!suites.contains("format!(\"ETRAGON_ADMIN_TOKEN={}"));
+    assert!(stack_probe.contains("X-Gewyvern-Admin-Token"));
+    assert!(stack_cli.contains("--pairing-token"));
     assert!(suites.contains("127.0.0.1:{socket_port}:9000"));
     assert!(suites.contains("127.0.0.1:{api_port}:9100"));
     assert!(suites.contains("127.0.0.1:{}:4321"));
@@ -815,6 +832,11 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("run_container_protocol_validation"));
     assert!(packaging.contains("run_container_operator_path_validation"));
     assert!(packaging.contains("run_container_runtime_validation"));
+    assert!(packaging.contains("/dev/tcp/${host}/${port}"));
+    assert!(!packaging.contains("curl -fsS \"$url\""));
+    assert!(packaging.contains("if ! dpkg -i"));
+    assert!(packaging.contains("apt-get install -y \\\"${{GEWY_PACKAGE_FILE}}\\\""));
+    assert!(!packaging.contains("install_curl"));
     assert!(packaging.contains("run_container_validation_summary"));
     assert!(packaging.contains("GEWY_DEB_PROTOCOL_IMAGE"));
     assert!(packaging.contains("GEWY_RPM_PROTOCOL_IMAGE"));
@@ -835,7 +857,6 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(packaging.contains("evidence-index.json"));
     assert!(packaging.contains("dpkg-deb -c"));
     assert!(packaging.contains("rpm -qpl"));
-    assert!(packaging.contains("curl"));
     assert!(packaging.contains("wait_for_http_body"));
     assert!(packaging.contains("gewyvern_socket_send"));
     assert!(build_packages.contains("--bin gewyvern_validate"));
@@ -864,6 +885,11 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("run_remote_linux_host_validation"));
     assert!(release_gate.contains("run_debugger_cross_validation(None)?"));
     assert!(release_gate.contains("print_remote_release_gate_summary"));
+    assert!(release_gate.contains("validate_leserpent_control_plane_aot_evidence"));
+    assert!(release_gate.contains("control-plane NativeAOT evidence: validated"));
+    assert!(release_gate.contains("remote_leserpent_control_plane_aot"));
+    assert!(release_gate.contains("leserpent-control-plane-aot-linux-x64"));
+    assert!(release_gate.contains("strictly revalidated Linux x64 NativeAOT control-plane"));
     assert!(release_gate.contains("read_bounded_unique_key_value_file"));
     assert!(release_gate.contains("read_bounded_phase_timings"));
     assert!(release_gate.contains("read_bounded_json_file"));
@@ -961,6 +987,10 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("LESERPENT_DATABASE_PATH"));
     assert!(remote.contains("native-aot-proof-secret"));
     assert!(remote.contains("grep -a -q"));
+    assert!(remote.contains("runtime-state.json"));
+    assert!(remote.contains("orchestra.db"));
+    assert!(remote.contains("SQLite format 3\\0"));
+    assert!(remote.contains("windows(PROOF_SECRET.len())"));
     assert!(remote.contains("release/gewyvern_validate"));
     assert!(remote.contains("cargo build --quiet --release --bin gewyvern_validate"));
     assert!(!remote.contains("if [ ! -x {validate_bin}"));
@@ -994,6 +1024,10 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains(
         "CARGO_TARGET_DIR={target_dir} ./scripts/packaging/build_packages.sh --format all"
     ));
+    assert!(remote.contains(
+        "CARGO_TARGET_DIR={target_dir} cargo clippy --locked --quiet --workspace --all-targets -- -D warnings"
+    ));
+    assert!(remote.contains("required.extend([\"cargo\", \"cargo-clippy\""));
     assert!(
         remote.contains(
             "CARGO_TARGET_DIR={target_dir} cargo check --quiet --workspace --all-targets"
@@ -1021,8 +1055,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("\"realpath\""));
     assert!(remote.contains("\"sha256sum\""));
     assert!(remote.contains("sudo_available"));
+    assert!(remote.contains("ebpf_helper_available"));
     assert!(remote.contains("default_route_device"));
-    assert!(remote.contains("sudo_not_available"));
+    assert!(remote.contains("privileged_helper_{}"));
     assert!(remote.contains("all_smokes_passed_admin_ssh"));
     assert!(remote.contains("remote package smoke: ok"));
     assert!(remote.contains("remote_package_smoke_timings"));
@@ -1064,6 +1099,8 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("x86_64/amd64"));
     assert!(remote.contains("kyuubiki-lab"));
     assert!(binary.contains("remote-linux-host-validation"));
+    assert!(binary.contains("validate_leserpent_control_plane_aot_evidence"));
+    assert!(binary.contains("leserpent_control_plane_aot_evidence_validated"));
     assert!(binary.contains("--keep-remote-dir"));
     assert!(binary.contains("--skip-build"));
     assert!(binary.contains("Collect remote Linux/x86_64 preflight evidence"));

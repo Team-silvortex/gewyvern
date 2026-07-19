@@ -101,13 +101,12 @@ pub(super) fn looks_like_pipeline_dsl(input: &str) -> bool {
     input
         .lines()
         .map(str::trim)
-        .filter(|line| {
+        .find(|line| {
             !line.is_empty()
                 && !line.starts_with('#')
                 && !line.starts_with("///")
                 && !line.starts_with("//!")
         })
-        .next()
         .is_some_and(|line| {
             is_pipeline_template_head(line)
                 || parse_pipeline_function_head(line).is_some()

@@ -288,7 +288,7 @@ fn api_response_for_request_uncapped<'a>(
             Cow::Owned(format!(
                 "{{\"service\":\"gewyvern-api\",\"version\":{},\"latest_snapshot\":true,\"serve_required\":true,\"training_example\":true,\"training_dataset_manifest\":true,\"protocol_catalog\":true,\"protocol_cluster_catalog\":true,\"protocol_surface_catalog\":true,\"target_protocol_reading\":true,\"debug_session\":true,\"runtime_capability_digest\":true,\"runtime_cluster_overview\":true,\"runtime_cluster_attention\":true,\"runtime_cluster_attention_reasons\":true,\"runtime_cluster_attention_summary\":true,\"debugger_console\":true,\"runtime_certificates\":true,\"runtime_certificate_policy\":true,\"runtime_certificate_state\":true,\"external_sidecar_context\":true,\"external_capability_profile\":true,\"external_context_status\":true,\"external_sidecar_trust_level\":true,\"external_sidecar_consumption_mode\":true,\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\",\"endpoints\":{}}}",
                 json_string(API_VERSION),
-                format!(
+                format_args!(
                     "[\"/v1/deployments\",{}",
                     API_ENDPOINTS_JSON.strip_prefix('[').unwrap_or(API_ENDPOINTS_JSON),
                 ),
@@ -446,22 +446,22 @@ fn protocol_catalog_response<'a>(rest: &str) -> (u16, &'static str, Cow<'a, str>
         );
     }
     if let Some((protocol_name, suffix)) = rest.split_once('/') {
-        if let Some(entry_rest) = suffix.strip_prefix("entries/") {
-            if let Some((entry, tail)) = entry_rest.split_once('/') {
-                if tail == "surface.json" {
-                    return match api_protocol_surface_by_name_json(protocol_name, entry) {
-                        Some(body) => (200, "application/json; charset=utf-8", Cow::Owned(body)),
-                        None => (
-                            404,
-                            "application/json; charset=utf-8",
-                            Cow::Owned(format!(
-                                "{{\"error\":\"unknown_protocol_entry\",\"protocol\":{},\"entry\":{}}}",
-                                json_string(protocol_name),
-                                json_string(entry),
-                            )),
-                        ),
-                    };
-                }
+        if let Some(entry_rest) = suffix.strip_prefix("entries/")
+            && let Some((entry, tail)) = entry_rest.split_once('/')
+        {
+            if tail == "surface.json" {
+                return match api_protocol_surface_by_name_json(protocol_name, entry) {
+                    Some(body) => (200, "application/json; charset=utf-8", Cow::Owned(body)),
+                    None => (
+                        404,
+                        "application/json; charset=utf-8",
+                        Cow::Owned(format!(
+                            "{{\"error\":\"unknown_protocol_entry\",\"protocol\":{},\"entry\":{}}}",
+                            json_string(protocol_name),
+                            json_string(entry),
+                        )),
+                    ),
+                };
             }
             return (
                 400,
@@ -623,26 +623,26 @@ fn read_http_request(stream: &mut TcpStream) -> Result<String, (u16, &'static st
             return Err((413, "{\"error\":\"request_too_large\"}"));
         }
 
-        if expected_len.is_none() {
-            if let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
-                if header_end > MAX_HEADER_BYTES {
-                    return Err((413, "{\"error\":\"request_headers_too_large\"}"));
-                }
-                let headers = std::str::from_utf8(&request[..header_end])
-                    .map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))?;
-                if request_header_value(headers, "Transfer-Encoding").is_some() {
-                    return Err((400, "{\"error\":\"chunked_requests_not_supported\"}"));
-                }
-                let body_len = request_header_value(headers, "Content-Length")
-                    .map(|value| value.parse::<usize>())
-                    .transpose()
-                    .map_err(|_| (400, "{\"error\":\"invalid_content_length\"}"))?
-                    .unwrap_or(0);
-                if body_len > MAX_BODY_BYTES {
-                    return Err((413, "{\"error\":\"request_body_too_large\"}"));
-                }
-                expected_len = Some(header_end + 4 + body_len);
+        if expected_len.is_none()
+            && let Some(header_end) = request.windows(4).position(|window| window == b"\r\n\r\n")
+        {
+            if header_end > MAX_HEADER_BYTES {
+                return Err((413, "{\"error\":\"request_headers_too_large\"}"));
             }
+            let headers = std::str::from_utf8(&request[..header_end])
+                .map_err(|_| (400, "{\"error\":\"invalid_http_request\"}"))?;
+            if request_header_value(headers, "Transfer-Encoding").is_some() {
+                return Err((400, "{\"error\":\"chunked_requests_not_supported\"}"));
+            }
+            let body_len = request_header_value(headers, "Content-Length")
+                .map(|value| value.parse::<usize>())
+                .transpose()
+                .map_err(|_| (400, "{\"error\":\"invalid_content_length\"}"))?
+                .unwrap_or(0);
+            if body_len > MAX_BODY_BYTES {
+                return Err((413, "{\"error\":\"request_body_too_large\"}"));
+            }
+            expected_len = Some(header_end + 4 + body_len);
         }
         if expected_len.is_some_and(|length| request.len() >= length) {
             request.truncate(expected_len.unwrap());

@@ -201,17 +201,16 @@ pub fn resolve_protocol_profile(
     entry: Option<&str>,
 ) -> Option<ResolvedProtocolProfile> {
     if let Some(registry) = scan_protocol_registry() {
-        if entry.is_none() {
-            if let Some(manifest) = registry
+        if entry.is_none()
+            && let Some(manifest) = registry
                 .iter()
                 .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
-            {
-                return Some(ResolvedProtocolProfile {
-                    protocol: manifest.protocol.clone(),
-                    entry: manifest.entry.clone(),
-                    dsl_path: manifest.dsl_path.clone(),
-                });
-            }
+        {
+            return Some(ResolvedProtocolProfile {
+                protocol: manifest.protocol.clone(),
+                entry: manifest.entry.clone(),
+                dsl_path: manifest.dsl_path.clone(),
+            });
         }
         let canonical =
             resolve_registry_alias(&registry, protocol).unwrap_or_else(|| protocol.to_string());
@@ -334,10 +333,10 @@ fn push_protocol_template_candidates(candidates: &mut Vec<String>, path: &Path) 
     if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
         candidates.push(stem.to_string());
     }
-    if let Some(template_id) = read_template_id_from_dsl(path) {
-        if !candidates.iter().any(|candidate| candidate == &template_id) {
-            candidates.push(template_id);
-        }
+    if let Some(template_id) = read_template_id_from_dsl(path)
+        && !candidates.iter().any(|candidate| candidate == &template_id)
+    {
+        candidates.push(template_id);
     }
 }
 

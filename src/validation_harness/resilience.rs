@@ -1,3 +1,6 @@
+// Keep resilience tests adjacent to the probe helpers they specify.
+#![allow(clippy::items_after_test_module)]
+
 use std::fs;
 use std::io::Write;
 use std::net::{Shutdown, TcpStream};

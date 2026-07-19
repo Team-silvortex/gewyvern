@@ -337,13 +337,13 @@ pub(crate) fn append_external_sidecar_contract_json(
         json.push_str("null");
     }
     json.push_str(",\"external_sidecar_trust_level\":");
-    if let Some(value) = trust_level.as_deref() {
+    if let Some(value) = trust_level {
         append_json_string(json, value);
     } else {
         json.push_str("null");
     }
     json.push_str(",\"external_sidecar_consumption_mode\":");
-    if let Some(value) = contract.consumption_mode.as_deref() {
+    if let Some(value) = contract.consumption_mode {
         append_json_string(json, value);
     } else {
         json.push_str("null");

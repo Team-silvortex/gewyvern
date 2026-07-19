@@ -101,7 +101,7 @@ pub(super) fn training_example_json_with_analysis(
     json.push_str("\"ingest_mode\":");
     append_json_string(&mut json, ingest_mode_for_export(export));
     json.push_str(",\"ingest_mode_note\":");
-    append_json_string(&mut json, &ingest_mode_note_for_export(export));
+    append_json_string(&mut json, ingest_mode_note_for_export(export));
     json.push_str(",\"ingest_trust_mode\":");
     append_json_string(&mut json, &export.ingest_trust_mode);
     json.push_str(",\"pid_attribution_status\":");

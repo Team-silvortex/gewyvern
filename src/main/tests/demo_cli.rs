@@ -655,3 +655,23 @@ fn cli_rejects_remote_api_socket_without_admin_token() {
     .unwrap_err();
     assert!(err.contains("admin token") || err.contains("GEWY_API_ADMIN_TOKEN"));
 }
+
+#[test]
+fn api_admin_token_resolution_accepts_environment_and_prefers_configuration() {
+    assert_eq!(
+        crate::cli::resolve_api_admin_token(None, Some("  environment-token  ".into())).as_deref(),
+        Some("environment-token")
+    );
+    assert_eq!(
+        crate::cli::resolve_api_admin_token(
+            Some("configured-token".into()),
+            Some("environment-token".into()),
+        )
+        .as_deref(),
+        Some("configured-token")
+    );
+    assert_eq!(
+        crate::cli::resolve_api_admin_token(None, Some("   ".into())),
+        None
+    );
+}

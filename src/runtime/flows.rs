@@ -98,8 +98,8 @@ pub fn build_flow_snapshots(facts: &[FactEnvelope]) -> Vec<FlowSnapshot> {
     }
 
     by_cookie
-        .into_iter()
-        .flat_map(|(_, flows)| flows.into_iter())
+        .into_values()
+        .flatten()
         .filter(|acc| acc.emerged_at.is_some())
         .enumerate()
         .map(|(idx, acc)| build_flow_snapshot((idx + 1) as u64, acc))

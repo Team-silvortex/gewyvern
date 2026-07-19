@@ -48,13 +48,12 @@ fn section_version(document: &str, section: &str) -> String {
         if in_section && line.starts_with('[') {
             break;
         }
-        if in_section {
-            if let Some(version) = line
+        if in_section
+            && let Some(version) = line
                 .strip_prefix("version = \"")
                 .and_then(|rest| rest.strip_suffix('"'))
-            {
-                return version.to_string();
-            }
+        {
+            return version.to_string();
         }
     }
     panic!("missing version in [{section}]");

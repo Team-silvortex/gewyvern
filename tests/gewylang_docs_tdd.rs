@@ -287,7 +287,7 @@ fn protocol_package_mirrors_match_their_dsl_sources() {
 
     let mut mirrored = 0usize;
     for main in &mains {
-        let source = fs::read_to_string(&main).expect("protocol main must be readable");
+        let source = fs::read_to_string(main).expect("protocol main must be readable");
         assert!(
             !source.trim_start().starts_with("include"),
             "include-only package entry is forbidden: {}",

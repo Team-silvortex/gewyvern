@@ -122,6 +122,13 @@ Use the thin demos first when the question is “did the path still connect?”.
 Use the fuller stack validation when the question is “does the topology still
 behave as one system?”.
 
+The full stack validation creates isolated administrator tokens by default for
+its remotely bound Gewyvern and Etragon containers. Override them with
+`GW_API_ADMIN_TOKEN`, `ET_A_ADMIN_TOKEN`, or `PATHO_API_ADMIN_TOKEN` when a
+specific fixture identity is required. Tokens are forwarded through named
+container environment variables rather than Docker command arguments, and are
+not written to validation evidence.
+
 ## Migration Rules Going Forward
 
 Now that the stack lives in one repository, keep these rules:

@@ -166,6 +166,8 @@ stage_layout() {
 
   mkdir -p \
     "${stage_root}/usr/bin" \
+    "${stage_root}/usr/libexec" \
+    "${stage_root}/usr/sbin" \
     "${stage_root}/usr/share/gewyvern/examples" \
     "${stage_root}/usr/share/gewyvern" \
     "${stage_root}/usr/share/doc/${PACKAGE_NAME}"
@@ -176,11 +178,19 @@ stage_layout() {
     "${stage_root}/usr/bin/gewyvern_socket_send"
   install -m 0755 "${RELEASE_BIN_DIR}/gewyc" \
     "${stage_root}/usr/bin/gewyc"
+  install -m 0755 "${RELEASE_BIN_DIR}/gewyvern_ebpf_helper" \
+    "${stage_root}/usr/libexec/gewyvern-ebpf-helper"
+  install -m 0755 "${RELEASE_BIN_DIR}/gewyvern_ebpf_provision" \
+    "${stage_root}/usr/sbin/gewyvern-ebpf-provision"
 
   cp -a "${ROOT}/dsl" "${stage_root}/usr/share/gewyvern/dsl"
   cp -a "${ROOT}/protocols" "${stage_root}/usr/share/gewyvern/protocols"
   install -m 0644 "${ROOT}/docs/fixtures/gewyvern.toml.example" \
     "${stage_root}/usr/share/gewyvern/examples/gewyvern.toml.example"
+  install -m 0644 "${ROOT}/packaging/ebpf-helper.conf.example" \
+    "${stage_root}/usr/share/gewyvern/examples/ebpf-helper.conf.example"
+  install -m 0644 "${ROOT}/packaging/gewyvern-ebpf-validation.sudoers.example" \
+    "${stage_root}/usr/share/gewyvern/examples/gewyvern-ebpf-validation.sudoers.example"
   cp -a "${ROOT}/docs" "${stage_root}/usr/share/doc/${PACKAGE_NAME}/docs"
   install -m 0644 "${ROOT}/README.md" \
     "${stage_root}/usr/share/doc/${PACKAGE_NAME}/README.md"
@@ -358,6 +368,8 @@ build_release_binaries() {
     --bin gewyvern \
     --bin gewyvern_socket_send \
     --bin gewyvern_validate \
+    --bin gewyvern_ebpf_helper \
+    --bin gewyvern_ebpf_provision \
     --bin gewyc
 }
 

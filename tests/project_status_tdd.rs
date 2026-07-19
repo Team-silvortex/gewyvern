@@ -45,6 +45,23 @@ fn project_status_catalog_is_protocolized_and_valid() {
 }
 
 #[test]
+fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
+    let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
+    let etragon = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "etragon/learning-sidecar/advisory-learning")
+        .expect("Etragon advisory-learning cell must exist");
+
+    assert_eq!(etragon.maturity, Maturity::Incubating);
+    assert!(etragon.completion <= 45);
+    assert!(etragon.blockers.iter().any(|blocker| {
+        blocker.id == "deep-learning-stack-not-integrated"
+            && blocker.summary.contains("inference evidence")
+    }));
+}
+
+#[test]
 fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     let summary = catalog.summary(20);

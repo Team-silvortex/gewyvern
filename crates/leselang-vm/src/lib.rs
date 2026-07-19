@@ -90,6 +90,8 @@ pub enum EffectOperation {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+// Preserve the established VM result API until the v2 schema seal.
+#[allow(clippy::large_enum_variant)]
 pub enum EffectResult {
     Query(QueryResult),
     Command(Box<CommandResult>),

@@ -1,3 +1,6 @@
+// Fact fixtures keep protocol fields explicit at call sites for auditability.
+#![allow(clippy::too_many_arguments)]
+
 use super::*;
 
 pub fn udp_packet_fact_with_dir_and_ports_and_byte(

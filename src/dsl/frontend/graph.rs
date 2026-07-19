@@ -101,14 +101,14 @@ pub(super) fn pipeline_expansion_previews(
 
 fn append_use_edges(scope: &str, calls: &[PipelineCall], output: &mut Vec<FrontendUseEdge>) {
     for call in calls {
-        if call.name == "use" {
-            if let Ok(target) = parse_pipeline_single_arg(&call.args, "use") {
-                output.push(FrontendUseEdge {
-                    from: scope.to_string(),
-                    to: target,
-                    line: call.line_no,
-                });
-            }
+        if call.name == "use"
+            && let Ok(target) = parse_pipeline_single_arg(&call.args, "use")
+        {
+            output.push(FrontendUseEdge {
+                from: scope.to_string(),
+                to: target,
+                line: call.line_no,
+            });
         }
     }
 }

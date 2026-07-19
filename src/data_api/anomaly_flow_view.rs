@@ -100,7 +100,7 @@ fn protocol_hint_key(target_name: &str, target: &ApiTargetSnapshot) -> Option<St
         .protocol_surface
         .as_ref()
         .map(|surface| surface.protocol.as_str());
-    let raw = target_name.splitn(3, ':').nth(1)?;
+    let raw = target_name.split(':').nth(1)?;
     match (raw, canonical) {
         ("dot", Some("dns")) | ("doh", Some("http")) => Some(raw.to_string()),
         (_, Some(protocol)) => Some(protocol.to_string()),
@@ -367,10 +367,10 @@ fn extract_json_string_field(input: &str, key: &str) -> Option<String> {
             unicode_buf.push(ch);
             unicode_remaining -= 1;
             if unicode_remaining == 0 {
-                if let Ok(codepoint) = u32::from_str_radix(&unicode_buf, 16) {
-                    if let Some(decoded) = char::from_u32(codepoint) {
-                        value.push(decoded);
-                    }
+                if let Ok(codepoint) = u32::from_str_radix(&unicode_buf, 16)
+                    && let Some(decoded) = char::from_u32(codepoint)
+                {
+                    value.push(decoded);
                 }
                 unicode_buf.clear();
             }

@@ -43,7 +43,7 @@ pub(super) fn api_runtime_certificates_json_from_inventory(
     );
     json.push(',');
     append_bool_field(&mut json, "state_root_exists", inventory.state_root_exists);
-    json.push_str("}");
+    json.push('}');
     json.push_str(",\"require_explicit_remote_trust\":");
     json.push_str(if inventory.require_explicit_remote_trust {
         "true"

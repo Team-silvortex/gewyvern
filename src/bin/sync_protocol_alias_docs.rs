@@ -174,7 +174,7 @@ fn render_protocol_surface_overview(summaries: &[ProtocolSummary]) -> String {
         if let Some(hint) = summary.cluster_hint.as_ref() {
             out.push_str(" in cluster `");
             out.push_str(&hint.key);
-            out.push_str("`");
+            out.push('`');
         }
         if let Some(page) = family_pages.get(&summary.protocol) {
             out.push_str(" via ");
@@ -206,26 +206,25 @@ fn render_protocol_groups_directory(summaries: &[ProtocolSummary]) -> String {
                 out.push('\n');
             }
         }
-        if let Some(first_protocol) = group.families.first() {
-            if let Some(summary) = summary_by_protocol.get(first_protocol) {
-                if let Some(hint) = summary.cluster_hint.as_ref() {
-                    out.push_str("\nCluster hint:\n\n");
-                    out.push_str("- key: `");
-                    out.push_str(&hint.key);
-                    out.push_str("`\n- operator hint: ");
-                    out.push_str(&hint.operator_hint);
-                    out.push_str("\n- sibling protocols: ");
-                    out.push_str(
-                        &hint
-                            .sibling_protocols
-                            .iter()
-                            .map(|item| format!("`{item}`"))
-                            .collect::<Vec<_>>()
-                            .join(", "),
-                    );
-                    out.push('\n');
-                }
-            }
+        if let Some(first_protocol) = group.families.first()
+            && let Some(summary) = summary_by_protocol.get(first_protocol)
+            && let Some(hint) = summary.cluster_hint.as_ref()
+        {
+            out.push_str("\nCluster hint:\n\n");
+            out.push_str("- key: `");
+            out.push_str(&hint.key);
+            out.push_str("`\n- operator hint: ");
+            out.push_str(&hint.operator_hint);
+            out.push_str("\n- sibling protocols: ");
+            out.push_str(
+                &hint
+                    .sibling_protocols
+                    .iter()
+                    .map(|item| format!("`{item}`"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+            out.push('\n');
         }
         for (label, page) in group.fallback_links {
             out.push_str("- ");
@@ -308,7 +307,7 @@ fn family_shelf_sections(summaries: &[ProtocolSummary]) -> Vec<FamilyShelfSectio
     }
 
     FAMILY_SHELF_ORDER
-        .into_iter()
+        .iter()
         .filter_map(|protocol| {
             let subpages = sections.remove(*protocol)?;
             Some(FamilyShelfSection {
@@ -356,7 +355,7 @@ fn render_alias_block(aliases: &BTreeSet<String>) -> String {
         out.push_str(alias);
         out.push_str("`\n");
     }
-    out.push_str("\n");
+    out.push('\n');
     out.push_str(ALIAS_BLOCK_END);
     out
 }

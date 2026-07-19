@@ -368,6 +368,8 @@ pub enum DomainSnapshotError {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+// Keep the established wire/domain shape source-compatible until the v2 schema seal.
+#[allow(clippy::large_enum_variant)]
 pub enum QueryResult {
     RuntimeList {
         revision: Revision,

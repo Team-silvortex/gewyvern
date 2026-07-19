@@ -132,7 +132,7 @@ fn gewyc_surface_json(surface: &str, body: String) -> String {
 pub fn binding_report(binding: &TemplateBinding) -> BindingReport {
     BindingReport {
         template_id: binding.template.id.to_string(),
-        fragments: binding.template.fragment_set.iter().cloned().collect(),
+        fragments: binding.template.fragment_set.to_vec(),
         window: binding
             .template
             .window_profile

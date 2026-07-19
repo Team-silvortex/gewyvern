@@ -70,7 +70,7 @@ pub(super) fn api_protocol_cluster_json_from_summaries(
 
 fn api_protocol_cluster_json_from_item(cluster: &ProtocolClusterCatalogItem) -> String {
     let mut json = String::with_capacity(1024);
-    append_protocol_cluster_json(&mut json, &cluster);
+    append_protocol_cluster_json(&mut json, cluster);
     json
 }
 
@@ -81,7 +81,7 @@ pub(super) fn api_protocol_summary_json(protocol_name: &str) -> Option<String> {
 
 pub(super) fn api_protocol_summary_json_from_summary(summary: &ProtocolSummary) -> String {
     let mut json = String::with_capacity(1024);
-    append_protocol_summary_json(&mut json, &summary);
+    append_protocol_summary_json(&mut json, summary);
     json
 }
 

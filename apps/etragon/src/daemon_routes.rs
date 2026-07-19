@@ -170,7 +170,7 @@ fn train_latest_route_response(
         Ok(feedback) => feedback,
         Err(err) => return Ok(bad_request_response(&err)),
     };
-    Ok(complete_training_route(
+    complete_training_route(
         input_json,
         &label,
         weight,
@@ -178,7 +178,7 @@ fn train_latest_route_response(
         |refresh| apply_latest_training_refresh(latest, &label, weight, refresh),
         daemon_state_file,
         invalidation_epoch,
-    )?)
+    )
 }
 
 fn train_target_route_response(
@@ -210,7 +210,7 @@ fn train_target_route_response(
         Ok(feedback) => feedback,
         Err(err) => return Ok(bad_request_response(&err)),
     };
-    Ok(complete_training_route(
+    complete_training_route(
         input_json,
         &label,
         weight,
@@ -218,7 +218,7 @@ fn train_target_route_response(
         |refresh| apply_target_training_refresh(latest, segment, &label, weight, refresh),
         daemon_state_file,
         invalidation_epoch,
-    )?)
+    )
 }
 
 fn complete_training_route<F>(

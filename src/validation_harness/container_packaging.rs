@@ -1,3 +1,6 @@
+// Keep validation tests adjacent to the package helpers they specify.
+#![allow(clippy::items_after_test_module)]
+
 use std::env;
 use std::fs;
 use std::io::Read;
@@ -40,7 +43,6 @@ pub fn run_package_install_smoke(
         mode,
         package_install_smoke_deb_body(),
         package_install_smoke_rpm_body(),
-        false,
         "deb_install_smoke",
         "rpm_install_smoke",
     )
@@ -155,7 +157,6 @@ pub fn run_container_runtime_validation(
         mode,
         runtime_validation_body(),
         runtime_validation_body(),
-        true,
         "deb_runtime_validation",
         "rpm_runtime_validation",
     )
@@ -178,7 +179,6 @@ pub fn run_container_protocol_validation(
         mode,
         protocol_validation_body(),
         protocol_validation_body(),
-        false,
         "deb_protocol_validation",
         "rpm_protocol_validation",
     )
@@ -201,7 +201,6 @@ pub fn run_container_operator_path_validation(
         mode,
         operator_validation_body(),
         operator_validation_body(),
-        false,
         "deb_operator_path_validation",
         "rpm_operator_path_validation",
     )
@@ -325,7 +324,6 @@ fn run_packaged_validation(
     mode: ReleaseCheckMode,
     deb_body: &'static str,
     rpm_body: &'static str,
-    install_curl: bool,
     deb_check: &str,
     rpm_check: &str,
 ) -> Result<ValidationReport, ValidationError> {
@@ -339,14 +337,14 @@ fn run_packaged_validation(
     let mut evidence_files = Vec::new();
 
     if matches!(mode, ReleaseCheckMode::Deb | ReleaseCheckMode::DebAndRpm) {
-        let package = run_deb_validation(&cfg, &packages_dir, deb_body, install_curl)?;
+        let package = run_deb_validation(&cfg, &packages_dir, deb_body)?;
         checks.push(deb_check.to_string());
         write_package_stage_evidence(&out_dir, "deb", &cfg.deb_image, &package)?;
         evidence_files.push("deb.json".to_string());
     }
 
     if matches!(mode, ReleaseCheckMode::Rpm | ReleaseCheckMode::DebAndRpm) {
-        let package = run_rpm_validation(&cfg, &packages_dir, rpm_body, install_curl)?;
+        let package = run_rpm_validation(&cfg, &packages_dir, rpm_body)?;
         checks.push(rpm_check.to_string());
         write_package_stage_evidence(&out_dir, "rpm", &cfg.rpm_image, &package)?;
         evidence_files.push("rpm.json".to_string());
@@ -365,7 +363,6 @@ fn run_deb_validation(
     cfg: &ContainerValidationConfig,
     packages_dir: &Path,
     body: &'static str,
-    install_curl: bool,
 ) -> Result<PathBuf, ValidationError> {
     let deb_path = package_from_manifest(packages_dir, "deb", "deb")?;
     let package_name = deb_path
@@ -373,20 +370,16 @@ fn run_deb_validation(
         .and_then(|name| name.to_str())
         .ok_or_else(|| ValidationError::new("invalid deb package filename"))?;
 
-    let install_line = if install_curl {
-        format!("apt-get install -y curl /packages/{package_name} >/dev/null")
-    } else {
-        format!("apt-get install -y /packages/{package_name} >/dev/null")
-    };
-
     let script = format!(
         "set -euo pipefail\n\
 if [ -n \"${{GEWY_DEB_APT_MIRROR:-}}\" ]; then\n\
   sed -i \"s|http://archive.ubuntu.com/ubuntu|${{GEWY_DEB_APT_MIRROR}}|g; s|http://security.ubuntu.com/ubuntu|${{GEWY_DEB_APT_MIRROR}}|g\" /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true\n\
 fi\n\
 GEWY_PACKAGE_FILE=\"/packages/{package_name}\"\n\
-apt-get update >/dev/null\n\
-{install_line}\n\
+if ! dpkg -i \"${{GEWY_PACKAGE_FILE}}\" >/tmp/gewyvern-dpkg-install.log 2>&1; then\n\
+  apt-get update >/dev/null\n\
+  apt-get install -y \"${{GEWY_PACKAGE_FILE}}\" >/dev/null\n\
+fi\n\
 {body}\n"
     );
 
@@ -409,7 +402,6 @@ fn run_rpm_validation(
     cfg: &ContainerValidationConfig,
     packages_dir: &Path,
     body: &'static str,
-    install_curl: bool,
 ) -> Result<PathBuf, ValidationError> {
     let rpm_dir = packages_dir.join("rpm");
     let rpm_path = package_from_manifest(packages_dir, "rpm", "rpm")?;
@@ -418,15 +410,9 @@ fn run_rpm_validation(
         .and_then(|name| name.to_str())
         .ok_or_else(|| ValidationError::new("invalid rpm package filename"))?;
 
-    let install_line = if install_curl {
-        format!(
-            "if ! command -v curl >/dev/null 2>&1; then\n  dnf install -y curl >/dev/null\nfi\nrpm -Uvh /packages/{package_name} >/dev/null || dnf install -y /packages/{package_name} >/dev/null"
-        )
-    } else {
-        format!(
-            "rpm -Uvh /packages/{package_name} >/dev/null || dnf install -y /packages/{package_name} >/dev/null"
-        )
-    };
+    let install_line = format!(
+        "rpm -Uvh /packages/{package_name} >/dev/null || dnf install -y /packages/{package_name} >/dev/null"
+    );
 
     let script = format!(
         "set -euo pipefail\n\
@@ -1054,9 +1040,31 @@ wait_for_http_body() {
   local url="$1"
   local out="$2"
   local fragment="${3:-}"
+  local address="${url#http://}"
+  local authority="${address%%/*}"
+  local path="/${address#*/}"
+  local host="${authority%:*}"
+  local port="${authority##*:}"
+  local response="${out}.http-response"
+  if [ "${address}" = "${authority}" ]; then
+    path="/"
+  fi
   for _ in $(seq 1 120); do
-    if curl -fsS "$url" >"$out" 2>/dev/null; then
-      if [ -z "${fragment}" ] || grep -q "${fragment}" "$out"; then
+    local http_ok=false
+    if { exec 3<>"/dev/tcp/${host}/${port}"; } 2>/dev/null; then
+      printf 'GET %s HTTP/1.1\r\nHost: %s:%s\r\nAccept: application/json\r\nConnection: close\r\n\r\n' \
+        "${path}" "${host}" "${port}" >&3
+      timeout 2 cat <&3 >"${response}" 2>/dev/null || true
+      exec 3>&-
+      exec 3<&-
+      if grep -q '^HTTP/1\.[01] 200 ' "${response}"; then
+        sed '1,/^\r$/d' "${response}" >"$out"
+        http_ok=true
+      else
+        : >"$out"
+      fi
+      rm -f "${response}"
+      if [ "${http_ok}" = true ] && { [ -z "${fragment}" ] || grep -q "${fragment}" "$out"; }; then
         return 0
       fi
     fi
@@ -1147,6 +1155,10 @@ test -f /usr/share/gewyvern/package-compat.toml
 grep -q '^schema_version = 1$' /usr/share/gewyvern/package-compat.toml
 grep -q "^release_line = \"${RELEASE_LINE}\"$" /usr/share/gewyvern/package-compat.toml
 test -f /usr/share/gewyvern/examples/gewyvern.toml.example
+test -x /usr/libexec/gewyvern-ebpf-helper
+test -x /usr/sbin/gewyvern-ebpf-provision
+test -f /usr/share/gewyvern/examples/ebpf-helper.conf.example
+test -f /usr/share/gewyvern/examples/gewyvern-ebpf-validation.sudoers.example
 "#
 }
 
@@ -1167,5 +1179,9 @@ test -f /usr/share/gewyvern/package-compat.toml
 grep -q '^schema_version = 1$' /usr/share/gewyvern/package-compat.toml
 grep -q "^release_line = \"${RELEASE_LINE}\"$" /usr/share/gewyvern/package-compat.toml
 test -f /usr/share/gewyvern/examples/gewyvern.toml.example
+test -x /usr/libexec/gewyvern-ebpf-helper
+test -x /usr/sbin/gewyvern-ebpf-provision
+test -f /usr/share/gewyvern/examples/ebpf-helper.conf.example
+test -f /usr/share/gewyvern/examples/gewyvern-ebpf-validation.sudoers.example
 "#
 }

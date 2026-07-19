@@ -26,6 +26,10 @@ fn package_layout_writes_compat_manifest() {
     assert!(build_script.contains("config_schema_version = ${CONFIG_SCHEMA_VERSION}"));
     assert!(build_script.contains("${RELEASE_BIN_DIR}/gewyvern"));
     assert!(build_script.contains("/usr/share/gewyvern/examples/gewyvern.toml.example"));
+    assert!(build_script.contains("/usr/libexec/gewyvern-ebpf-helper"));
+    assert!(build_script.contains("/usr/sbin/gewyvern-ebpf-provision"));
+    assert!(build_script.contains("ebpf-helper.conf.example"));
+    assert!(build_script.contains("gewyvern-ebpf-validation.sudoers.example"));
     assert!(build_script.contains("copy-forward-without-overwrite"));
     assert!(build_script.contains("build_all_formats()"));
     assert!(build_script.contains("build_deb \"${version}\" \"${deb_arch}\" \"${stage_root}\" &"));
@@ -64,6 +68,8 @@ fn rpm_template_matches_deb_staged_compat_contract() {
     let spec = read_repo_file("packaging/rpm/gewyvern.spec.in");
 
     assert!(spec.contains("/usr/share/gewyvern/package-compat.toml"));
+    assert!(spec.contains("/usr/libexec/gewyvern-ebpf-helper"));
+    assert!(spec.contains("/usr/sbin/gewyvern-ebpf-provision"));
     assert!(spec.contains("cp -a @STAGE_ROOT@/. %{buildroot}/"));
     assert!(!spec.contains("@SOURCE_ROOT@/dsl"));
     assert!(!spec.contains("@BINARIES_ROOT@/gewyvern"));
@@ -89,6 +95,8 @@ fn install_smoke_validates_packaged_compat_artifacts() {
     assert!(harness.contains("grep -q '^schema_version = 1$'"));
     assert!(harness.contains("release_line = \\\"${RELEASE_LINE}\\\""));
     assert!(harness.contains("test -f /usr/share/gewyvern/examples/gewyvern.toml.example"));
+    assert!(harness.contains("test -x /usr/libexec/gewyvern-ebpf-helper"));
+    assert!(harness.contains("test -x /usr/sbin/gewyvern-ebpf-provision"));
     assert!(harness.contains("/usr/share/doc/gewyvern/LICENSE"));
     assert!(harness.contains("dpkg-deb -c"));
     assert!(harness.contains("rpm -qpl"));

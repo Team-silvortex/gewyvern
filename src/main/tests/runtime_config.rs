@@ -392,7 +392,7 @@ fn cli_arguments_override_runtime_config_defaults() {
     )
     .unwrap();
 
-    assert_eq!(cli.serve, true);
+    assert!(cli.serve);
     assert_eq!(
         cli.socket_target,
         Some(SocketTarget::Tcp("127.0.0.1:9001".into()))

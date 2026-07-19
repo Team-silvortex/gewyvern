@@ -21,7 +21,8 @@ usable as a system:
 
 - `gewyvern`: Linux/eBPF-oriented runtime, compiler front end, protocol
   registry, persistence, config, logging, certificates, and runtime API
-- `etragon`: local learning/diagnosis sidecar that can enrich gewyvern output
+- `etragon`: optional, incubating advisory-learning sidecar; its deep-learning
+  stack is not integrated yet, so it remains deliberately downweighted
 - `leserpent`: cross-platform control-plane shell with Orchestra and independent child UI windows for coordinating multiple gewyvern instances
 
 The long-term direction is:

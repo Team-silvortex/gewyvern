@@ -487,13 +487,13 @@ pub(super) fn append_ingest_context_json(json: &mut String, export: &ExportBundl
     json.push_str("\"ingest_mode\":\"");
     json.push_str(ingest_mode_for_export(export));
     json.push_str("\",\"ingest_mode_note\":\"");
-    json.push_str(&ingest_mode_note_for_export(export));
+    json.push_str(ingest_mode_note_for_export(export));
     json.push_str("\",\"ingest_trust_mode\":\"");
     json.push_str(&export.ingest_trust_mode);
     json.push_str("\",\"pid_attribution_status\":\"");
     json.push_str(pid_attribution_status_for_export(export));
     json.push_str("\",\"pid_attribution_note\":\"");
-    json.push_str(&pid_attribution_note_for_export(export));
+    json.push_str(pid_attribution_note_for_export(export));
     json.push('"');
 }
 

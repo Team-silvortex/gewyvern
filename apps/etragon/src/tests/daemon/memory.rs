@@ -5,10 +5,10 @@ where
     F: Fn(&str) -> bool,
 {
     for _ in 0..12000 {
-        if let Ok(body) = read_url(url) {
-            if predicate(&body) {
-                return Some(body);
-            }
+        if let Ok(body) = read_url(url)
+            && predicate(&body)
+        {
+            return Some(body);
         }
         thread::sleep(Duration::from_millis(25));
     }

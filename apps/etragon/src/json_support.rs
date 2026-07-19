@@ -1,6 +1,8 @@
 use super::*;
 
 const MAX_HTTP_RESPONSE_BYTES: usize = 1_048_576;
+const SOURCE_ADMIN_TOKEN_ENV: &str = "ETRAGON_SOURCE_ADMIN_TOKEN";
+const GEWYVERN_ADMIN_TOKEN_HEADER: &str = "X-Gewyvern-Admin-Token";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct TargetBatchEndpoint {
@@ -52,6 +54,30 @@ pub(super) fn resolve_target_batch_endpoint(
 }
 
 pub(super) fn http_get(host: &str, port: u16, path: &str) -> Result<String, String> {
+    let admin_token = env::var(SOURCE_ADMIN_TOKEN_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    http_get_with_admin_token(host, port, path, admin_token.as_deref())
+}
+
+fn http_get_with_admin_token(
+    host: &str,
+    port: u16,
+    path: &str,
+    admin_token: Option<&str>,
+) -> Result<String, String> {
+    let token_header = match admin_token {
+        Some(token) => {
+            if token.bytes().any(|byte| byte.is_ascii_control()) {
+                return Err(format!(
+                    "{SOURCE_ADMIN_TOKEN_ENV} contains control characters"
+                ));
+            }
+            format!("{GEWYVERN_ADMIN_TOKEN_HEADER}: {token}\r\n")
+        }
+        None => String::new(),
+    };
     let mut stream = TcpStream::connect((host, port))
         .map_err(|err| format!("failed to connect to {}:{}: {err}", host, port))?;
     stream
@@ -61,8 +87,8 @@ pub(super) fn http_get(host: &str, port: u16, path: &str) -> Result<String, Stri
         .set_write_timeout(Some(Duration::from_secs(5)))
         .map_err(|err| format!("failed to configure write timeout: {err}"))?;
     let request = format!(
-        "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nAccept: application/json\r\n\r\n",
-        path, host
+        "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nAccept: application/json\r\n{}\r\n",
+        path, host, token_header
     );
     stream
         .write_all(request.as_bytes())
@@ -426,5 +452,40 @@ mod tests {
         assert!(err.contains("exceeded size limit"));
 
         handle.join().expect("server thread should exit cleanly");
+    }
+
+    #[test]
+    fn http_get_sends_gewyvern_admin_token_without_exposing_it_in_errors() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let addr = listener.local_addr().expect("listener should have address");
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            let mut request = [0u8; 2048];
+            let size = stream.read(&mut request).expect("request should read");
+            let request = String::from_utf8_lossy(&request[..size]);
+            assert!(request.contains("X-Gewyvern-Admin-Token: isolated-token\r\n"));
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+                .expect("response should write");
+        });
+
+        let body = http_get_with_admin_token(
+            "127.0.0.1",
+            addr.port(),
+            "/v1/latest/analysis.json",
+            Some("isolated-token"),
+        )
+        .expect("authenticated request should succeed");
+        assert_eq!(body, "{}");
+        handle.join().expect("server thread should exit cleanly");
+    }
+
+    #[test]
+    fn http_get_rejects_admin_token_header_injection() {
+        let err =
+            http_get_with_admin_token("127.0.0.1", 1, "/health", Some("token\r\nInjected: value"))
+                .expect_err("control characters should be rejected before connecting");
+        assert!(err.contains(SOURCE_ADMIN_TOKEN_ENV));
+        assert!(!err.contains("Injected"));
     }
 }

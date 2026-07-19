@@ -9,15 +9,38 @@ use serde_json::{Value, json};
 
 use super::command::{ValidationError, ValidationReport, default_out_dir};
 
+const ETRAGON_ADMIN_TOKEN_HEADER: &str = "X-Etragon-Admin-Token";
+const GEWYVERN_ADMIN_TOKEN_HEADER: &str = "X-Gewyvern-Admin-Token";
+const MAX_HTTP_RESPONSE_BYTES: usize = 1024 * 1024;
+
 pub fn run_stack_probe_validation(
     url: &str,
     profile: &str,
     token: Option<&str>,
     output: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
+    run_stack_probe_validation_with_header(url, profile, token, ETRAGON_ADMIN_TOKEN_HEADER, output)
+}
+
+pub fn run_stack_probe_validation_with_gewyvern_token(
+    url: &str,
+    profile: &str,
+    token: Option<&str>,
+    output: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
+    run_stack_probe_validation_with_header(url, profile, token, GEWYVERN_ADMIN_TOKEN_HEADER, output)
+}
+
+fn run_stack_probe_validation_with_header(
+    url: &str,
+    profile: &str,
+    token: Option<&str>,
+    token_header: &str,
+    output: Option<PathBuf>,
+) -> Result<ValidationReport, ValidationError> {
     let out_dir = default_out_dir("three-module-stack-probe");
     fs::create_dir_all(&out_dir)?;
-    let body = wait_for_profile(url, profile, token, Duration::from_secs(60))?;
+    let body = wait_for_profile(url, profile, token, token_header, Duration::from_secs(60))?;
     let output = output.unwrap_or_else(|| out_dir.join(format!("{profile}.json")));
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)?;
@@ -30,12 +53,15 @@ pub fn run_stack_probe_validation(
     })
 }
 
+// The flat signature mirrors the stable native CLI registration contract.
+#[allow(clippy::too_many_arguments)]
 pub fn run_stack_register_runtime_json(
     name: &str,
     endpoint: &str,
     environment: &str,
     cluster: &str,
     role: &str,
+    pairing_token: &str,
     sidecar_endpoint: Option<&str>,
     sidecar_admin_token: Option<&str>,
 ) -> Result<String, ValidationError> {
@@ -44,7 +70,7 @@ pub fn run_stack_register_runtime_json(
         "endpoint": endpoint,
         "sidecarEndpoint": none_if_empty(sidecar_endpoint),
         "sidecarAdminToken": none_if_empty(sidecar_admin_token),
-        "pairingToken": "stack-smoke",
+        "pairingToken": pairing_token,
         "capabilities": [],
         "tags": {
             "environment": environment,
@@ -122,12 +148,13 @@ fn wait_for_profile(
     url: &str,
     profile: &str,
     token: Option<&str>,
+    token_header: &str,
     timeout: Duration,
 ) -> Result<String, ValidationError> {
     let deadline = Instant::now() + timeout;
     let mut last_error = String::from("no HTTP response received");
     while Instant::now() < deadline {
-        match http_get(url, token) {
+        match http_get(url, token, token_header) {
             Ok(body) => {
                 if profile == "http-ready" {
                     return Ok(body);
@@ -222,7 +249,12 @@ fn runtime_by_name<'a>(runtimes: &'a [Value], name: &str) -> Result<&'a Value, V
         .ok_or_else(|| ValidationError::new(format!("runtime not found: {name}")))
 }
 
-fn http_get(url: &str, token: Option<&str>) -> Result<String, ValidationError> {
+fn http_get(url: &str, token: Option<&str>, token_header: &str) -> Result<String, ValidationError> {
+    if token.is_some_and(|value| value.bytes().any(|byte| byte.is_ascii_control())) {
+        return Err(ValidationError::new(
+            "stack probe admin token contains control characters",
+        ));
+    }
     let (host, port, path) = parse_http_url(url)?;
     let mut stream = TcpStream::connect((host.as_str(), port))?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -231,12 +263,21 @@ fn http_get(url: &str, token: Option<&str>) -> Result<String, ValidationError> {
         "GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nAccept: application/json\r\nUser-Agent: gewyvern-validate-stack-probe\r\nConnection: close\r\n"
     )?;
     if let Some(token) = token {
-        write!(stream, "X-Etragon-Admin-Token: {token}\r\n")?;
+        write!(stream, "{token_header}: {token}\r\n")?;
     }
     write!(stream, "\r\n")?;
     stream.shutdown(Shutdown::Write).ok();
-    let mut response = String::new();
-    stream.read_to_string(&mut response)?;
+    let mut response_bytes = Vec::new();
+    Read::by_ref(&mut stream)
+        .take((MAX_HTTP_RESPONSE_BYTES + 1) as u64)
+        .read_to_end(&mut response_bytes)?;
+    if response_bytes.len() > MAX_HTTP_RESPONSE_BYTES {
+        return Err(ValidationError::new(format!(
+            "HTTP response exceeds {MAX_HTTP_RESPONSE_BYTES} bytes"
+        )));
+    }
+    let response = String::from_utf8(response_bytes)
+        .map_err(|_| ValidationError::new("HTTP response is not valid UTF-8"))?;
     if !response.starts_with("HTTP/1.1 200") && !response.starts_with("HTTP/1.0 200") {
         let status = response.lines().next().unwrap_or("<missing status line>");
         return Err(ValidationError::new(format!(
@@ -245,7 +286,6 @@ fn http_get(url: &str, token: Option<&str>) -> Result<String, ValidationError> {
     }
     let (headers, body) = response
         .split_once("\r\n\r\n")
-        .map(|(headers, body)| (headers, body))
         .unwrap_or(("", response.as_str()));
     if headers
         .to_ascii_lowercase()
@@ -367,5 +407,87 @@ fn expect_u64(value: &Value, path: &[&str], expected: u64) -> Result<(), Validat
             "expected {}={expected}, got {actual}",
             path.join(".")
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+
+    fn read_test_http_headers(stream: &mut TcpStream) -> Vec<u8> {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .expect("request timeout should configure");
+        let mut request = Vec::new();
+        while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+            let mut chunk = [0u8; 512];
+            let size = stream.read(&mut chunk).expect("request should read");
+            assert!(size > 0, "request ended before HTTP headers completed");
+            request.extend_from_slice(&chunk[..size]);
+            assert!(request.len() <= 8192, "request headers exceed test limit");
+        }
+        request
+    }
+
+    #[test]
+    fn gewyvern_probe_uses_the_gewyvern_admin_header() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let addr = listener.local_addr().expect("listener should have address");
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            let request = read_test_http_headers(&mut stream);
+            let request = String::from_utf8_lossy(&request);
+            assert!(request.contains("X-Gewyvern-Admin-Token: isolated-token\r\n"));
+            assert!(!request.contains("X-Etragon-Admin-Token"));
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+                .expect("response should write");
+        });
+
+        let body = http_get(
+            &format!("http://127.0.0.1:{}/health", addr.port()),
+            Some("isolated-token"),
+            GEWYVERN_ADMIN_TOKEN_HEADER,
+        )
+        .expect("authenticated probe should succeed");
+        assert_eq!(body, "{}");
+        handle.join().expect("server thread should exit cleanly");
+    }
+
+    #[test]
+    fn probe_rejects_admin_token_header_injection_before_connecting() {
+        let err = http_get(
+            "http://127.0.0.1:1/health",
+            Some("token\r\nInjected: value"),
+            GEWYVERN_ADMIN_TOKEN_HEADER,
+        )
+        .expect_err("control characters should be rejected");
+        assert!(err.to_string().contains("control characters"));
+        assert!(!err.to_string().contains("Injected"));
+    }
+
+    #[test]
+    fn probe_rejects_oversized_http_responses() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let addr = listener.local_addr().expect("listener should have address");
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            read_test_http_headers(&mut stream);
+            let mut response = b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n".to_vec();
+            response.resize(MAX_HTTP_RESPONSE_BYTES + 1, b'x');
+            stream
+                .write_all(&response)
+                .expect("oversized response should write");
+        });
+
+        let error = http_get(
+            &format!("http://127.0.0.1:{}/health", addr.port()),
+            None,
+            GEWYVERN_ADMIN_TOKEN_HEADER,
+        )
+        .expect_err("oversized response must fail closed");
+        assert!(error.to_string().contains("exceeds"));
+        handle.join().expect("server thread should exit cleanly");
     }
 }

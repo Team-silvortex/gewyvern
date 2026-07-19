@@ -103,9 +103,7 @@ fn runtime_resilience_severity(
     socket_failures: usize,
     _socket_idle_timeouts: usize,
 ) -> &'static str {
-    if external_circuit_open {
-        "warning"
-    } else if socket_failures > 0 {
+    if external_circuit_open || socket_failures > 0 {
         "warning"
     } else {
         "ok"

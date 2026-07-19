@@ -92,18 +92,17 @@ pub(super) fn parse_memory_strategy_and_python_options(
     Ok((strategy, config, index + consumed))
 }
 
+pub(super) type SlotMetadataOptions = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    PythonWorkerConfig,
+    usize,
+);
+
 pub(super) fn parse_slot_metadata_and_python_options(
     args: &[String],
-) -> Result<
-    (
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        PythonWorkerConfig,
-        usize,
-    ),
-    String,
-> {
+) -> Result<SlotMetadataOptions, String> {
     let mut label = None;
     let mut note = None;
     let mut source = None;

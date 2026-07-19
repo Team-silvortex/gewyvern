@@ -126,7 +126,7 @@ fn redis_write_error_request_fact(id: u64, cookie: u64) -> FactEnvelope {
     redis_set_request_fact(id, cookie)
 }
 fn redis_error_export(path: &str, facts: Vec<FactEnvelope>) -> gewyvern::export::ExportBundle {
-    let binding = compile_file(&path).expect("redis failure DSL should compile");
+    let binding = compile_file(path).expect("redis failure DSL should compile");
     annotate_export_trust(
         export_from_test_facts(binding, facts),
         &Cli::from_args(["--demo".to_string(), "tcp".to_string()]).unwrap(),

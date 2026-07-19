@@ -96,7 +96,7 @@ fn main() {
 
 fn run_cli_main(cli: &Cli, locale: UiLocale) -> String {
     let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_710_000_000);
-    let scan_targets = scan_targets_for_cli(&cli).unwrap_or_else(|err| {
+    let scan_targets = scan_targets_for_cli(cli).unwrap_or_else(|err| {
         log_error_event(
             "runtime",
             EVENT_SCAN_TARGET_RESOLVE_FAILED,

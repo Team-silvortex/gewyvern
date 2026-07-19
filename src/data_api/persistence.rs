@@ -419,7 +419,7 @@ fn history_snapshot_dirs(history_root: &Path) -> Result<Vec<(u128, PathBuf)>, St
                 .map(|updated_unix_ms| (updated_unix_ms, entry.path()))
         })
         .collect::<Vec<_>>();
-    entries.sort_by(|left, right| right.0.cmp(&left.0));
+    entries.sort_by_key(|entry| std::cmp::Reverse(entry.0));
     Ok(entries)
 }
 
