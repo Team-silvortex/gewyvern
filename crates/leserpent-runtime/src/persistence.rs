@@ -13,7 +13,7 @@ use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
 use crate::{EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH};
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 9;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 10;
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
@@ -21,6 +21,7 @@ const MAX_COMPACTION_RECORDS: i64 = 1_000;
 const OWNER_LEASE_DURATION_MS: i64 = 30_000;
 const MAX_EFFECT_TASKS: i64 = EFFECT_QUEUE_CAPACITY as i64;
 const MAX_EFFECT_LEASE_MS: i64 = 5 * 60 * 1_000;
+const MAX_ORCHESTRA_ENVELOPE_BYTES: usize = 1024 * 1024;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: i64 = 4_096;
 static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -85,6 +86,12 @@ pub struct EffectRecord {
     pub attempt: u32,
     pub outcome: Option<Vec<u8>>,
     pub last_error: Option<String>,
+}
+
+pub struct OrchestraPersistenceRecord {
+    pub run: Vec<u8>,
+    pub event: Vec<u8>,
+    pub event_count: u64,
 }
 
 pub struct Journal {
@@ -562,6 +569,135 @@ impl Journal {
             .transpose()
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn persist_orchestra_run_event(
+        &mut self,
+        run_id: &str,
+        runtime_id: &str,
+        event_type: &str,
+        to_outcome: &str,
+        recorded_at: &str,
+        run: &[u8],
+        event: &[u8],
+    ) -> Result<OrchestraPersistenceRecord, String> {
+        self.ensure_owner()?;
+        for (field, value) in [
+            ("run_id", run_id),
+            ("runtime_id", runtime_id),
+            ("event_type", event_type),
+            ("to_outcome", to_outcome),
+        ] {
+            validate_scheduler_id(field, value)?;
+        }
+        if recorded_at.is_empty()
+            || recorded_at.len() > 64
+            || recorded_at.chars().any(char::is_control)
+        {
+            return Err("recorded_at is invalid".into());
+        }
+        validate_orchestra_blob("run envelope", run)?;
+        validate_orchestra_blob("event envelope", event)?;
+        let now = unix_time_ms()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let existing_run: Option<(String, Vec<u8>)> = transaction
+            .query_row(
+                "SELECT runtime_id, envelope FROM orchestra_runs WHERE run_id = ?1",
+                [run_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if existing_run
+            .as_ref()
+            .is_some_and(|(existing_runtime, _)| existing_runtime != runtime_id)
+        {
+            return Err("Orchestra run identity was reused for another runtime".into());
+        }
+        let existing_event: Option<Vec<u8>> = transaction
+            .query_row(
+                "SELECT envelope FROM orchestra_events
+                 WHERE run_id = ?1 AND event_type = ?2 AND to_outcome = ?3 AND recorded_at = ?4",
+                params![run_id, event_type, to_outcome, recorded_at],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        match existing_event {
+            Some(existing) if existing != event => {
+                return Err("Orchestra event identity was reused with different content".into());
+            }
+            Some(_)
+                if existing_run
+                    .as_ref()
+                    .is_some_and(|(_, stored)| stored != run) =>
+            {
+                return Err("Orchestra event replay changed its run content".into());
+            }
+            Some(_) => {}
+            None => {
+                transaction
+                    .execute(
+                        "INSERT INTO orchestra_runs (run_id, runtime_id, envelope, updated_at_unix_ms)
+                         VALUES (?1, ?2, ?3, ?4)
+                         ON CONFLICT(run_id) DO UPDATE SET
+                             envelope = excluded.envelope,
+                             updated_at_unix_ms = excluded.updated_at_unix_ms",
+                        params![run_id, runtime_id, run, now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                transaction
+                    .execute(
+                        "INSERT INTO orchestra_events (
+                             run_id, runtime_id, event_type, to_outcome, recorded_at,
+                             envelope, created_at_unix_ms)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        params![
+                            run_id,
+                            runtime_id,
+                            event_type,
+                            to_outcome,
+                            recorded_at,
+                            event,
+                            now
+                        ],
+                    )
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+        let stored_run: Vec<u8> = transaction
+            .query_row(
+                "SELECT envelope FROM orchestra_runs WHERE run_id = ?1 AND runtime_id = ?2",
+                params![run_id, runtime_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let stored_event: Vec<u8> = transaction
+            .query_row(
+                "SELECT envelope FROM orchestra_events
+                 WHERE run_id = ?1 AND event_type = ?2 AND to_outcome = ?3 AND recorded_at = ?4",
+                params![run_id, event_type, to_outcome, recorded_at],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let event_count: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM orchestra_events WHERE run_id = ?1",
+                [run_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(OrchestraPersistenceRecord {
+            run: stored_run,
+            event: stored_event,
+            event_count: u64::try_from(event_count)
+                .map_err(|_| "invalid Orchestra event count".to_string())?,
+        })
+    }
+
     pub fn enqueue_effect_batch(&mut self, effects: &[EffectEnqueue]) -> Result<u64, String> {
         self.ensure_owner()?;
         if effects.is_empty() || effects.len() > MAX_EFFECT_ENQUEUE_BATCH {
@@ -1032,10 +1168,61 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         6 => migrate_schema_6_to_7(connection),
         7 => migrate_schema_7_to_8(connection),
         8 => migrate_schema_8_to_9(connection),
+        9 => migrate_schema_9_to_10(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_9_to_10(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE orchestra_runs (
+                 run_id TEXT PRIMARY KEY,
+                 runtime_id TEXT NOT NULL,
+                 envelope BLOB NOT NULL CHECK (length(envelope) <= 1048576),
+                 updated_at_unix_ms INTEGER NOT NULL CHECK (updated_at_unix_ms >= 0)
+             ) STRICT;
+             CREATE INDEX orchestra_runs_by_runtime
+                 ON orchestra_runs (runtime_id, updated_at_unix_ms DESC);
+             CREATE TABLE orchestra_events (
+                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 run_id TEXT NOT NULL,
+                 runtime_id TEXT NOT NULL,
+                 event_type TEXT NOT NULL,
+                 to_outcome TEXT NOT NULL,
+                 recorded_at TEXT NOT NULL,
+                 envelope BLOB NOT NULL CHECK (length(envelope) <= 1048576),
+                 created_at_unix_ms INTEGER NOT NULL CHECK (created_at_unix_ms >= 0),
+                 UNIQUE (run_id, event_type, to_outcome, recorded_at),
+                 FOREIGN KEY (run_id) REFERENCES orchestra_runs(run_id) ON DELETE CASCADE
+             ) STRICT;
+             CREATE INDEX orchestra_events_by_run
+                 ON orchestra_events (runtime_id, run_id, event_id);",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (10, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 10 WHERE key = 'schema_version' AND value = 9",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(10)
 }
 
 fn migrate_schema_8_to_9(connection: &mut Connection) -> Result<i64, String> {
@@ -1325,9 +1512,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (9, 1, 9) {
-        return Err("invalid runtime journal schema 9 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (10, 1, 10) {
+        return Err("invalid runtime journal schema 10 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -1337,23 +1524,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 9 timestamp column".into());
+        return Err("invalid runtime journal schema 10 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -1365,9 +1552,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 9 effect columns".into());
+        return Err("invalid runtime journal schema 10 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -1377,9 +1564,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 9 effect claim index".into());
+        return Err("invalid runtime journal schema 10 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
@@ -1391,9 +1578,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 9 journal kind".into());
+        return Err("invalid runtime journal schema 10 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -1402,9 +1589,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 9 log columns".into());
+        return Err("invalid runtime journal schema 10 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -1414,9 +1601,32 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 9: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 9 log index".into());
+        return Err("invalid runtime journal schema 10 log index".into());
+    }
+    let orchestra_tables: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'table' AND name IN ('orchestra_runs', 'orchestra_events')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
+    if orchestra_tables != 2 {
+        return Err("invalid runtime journal schema 10 Orchestra tables".into());
+    }
+    let orchestra_indexes: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index'
+               AND name IN ('orchestra_runs_by_runtime', 'orchestra_events_by_run')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
+    if orchestra_indexes != 2 {
+        return Err("invalid runtime journal schema 10 Orchestra indexes".into());
     }
     Ok(())
 }
@@ -1522,6 +1732,15 @@ fn validate_blob(label: &str, bytes: &[u8]) -> Result<(), String> {
     if bytes.len() > MAX_JOURNAL_PAYLOAD_BYTES {
         return Err(format!(
             "runtime journal {label} exceeds {MAX_JOURNAL_PAYLOAD_BYTES} bytes"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_orchestra_blob(label: &str, bytes: &[u8]) -> Result<(), String> {
+    if bytes.is_empty() || bytes.len() > MAX_ORCHESTRA_ENVELOPE_BYTES {
+        return Err(format!(
+            "Orchestra {label} must contain between 1 and {MAX_ORCHESTRA_ENVELOPE_BYTES} bytes"
         ));
     }
     Ok(())

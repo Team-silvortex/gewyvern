@@ -8,6 +8,7 @@ use leserpent_adapters::{
     GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore,
     SecretKey, SecretStore,
 };
+use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
 #[cfg(unix)]
 use leserpentd::IpcServer;
@@ -128,7 +129,7 @@ fn run() -> Result<(), String> {
     let database = database.ok_or_else(|| {
         "database path is required via --database or LESERPENT_DATABASE".to_string()
     })?;
-    let runtime = ControlRuntime::open(database).map_err(|error| error.to_string())?;
+    let mut runtime = ControlRuntime::open(database).map_err(|error| error.to_string())?;
     let mut registry = AdapterRegistry::default();
     if !gewyvern_targets.is_empty() || !gewyvern_https_targets.is_empty() {
         let (configured_admin_secret, secrets): (Option<SecretKey>, Arc<dyn SecretStore>) =
@@ -163,6 +164,15 @@ fn run() -> Result<(), String> {
                     .into(),
             );
         }
+        let registrations = gewyvern_targets
+            .iter()
+            .map(|(runtime_id, address)| (runtime_id.clone(), format!("http://{address}")))
+            .chain(
+                gewyvern_https_targets
+                    .iter()
+                    .map(|(runtime_id, origin, _)| (runtime_id.clone(), origin.clone())),
+            )
+            .collect::<Vec<_>>();
         let mut targets = gewyvern_targets
             .into_iter()
             .map(|(runtime_id, address)| {
@@ -196,6 +206,13 @@ fn run() -> Result<(), String> {
         registry.register(GewyvernStatusRefreshAdapter::with_secret_store(
             targets, secrets,
         )?)?;
+        for (runtime_id, endpoint) in registrations {
+            let id = RuntimeId::new(runtime_id.clone())
+                .map_err(|_| format!("configured runtime ID '{runtime_id}' is invalid"))?;
+            runtime
+                .ensure_runtime_registered(id, runtime_id, endpoint)
+                .map_err(|error| error.to_string())?;
+        }
     }
     let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default())?;
     let stop = Arc::new(AtomicBool::new(false));

@@ -40,6 +40,7 @@ public partial class Program
         builder.Services.AddSingleton<IOrchestraRunStore, SqliteOrchestraRunStore>();
         builder.Services.AddSingleton<RegistryService>();
         builder.Services.AddSingleton<ICompatibilityBridge, RustCompatibilityBridge>();
+        builder.Services.AddSingleton<IDeploymentAuthority, DaemonDeploymentAuthority>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
         builder.Services.AddSingleton<IOrchestraPlanExecutor, OrchestraPlanExecutor>();
         builder.Services.AddSingleton<OrchestraExecutionCoordinator>();
@@ -115,7 +116,8 @@ public partial class Program
     private static ServiceRuntimePosture BuildRuntimePosture(
         ControlPlaneStateStore stateStore,
         IOrchestraRunStore orchestraRunStore,
-        ICompatibilityBridge compatibilityBridge)
+        ICompatibilityBridge compatibilityBridge,
+        IDeploymentAuthority deploymentAuthority)
     {
         var persistenceReady = string.IsNullOrWhiteSpace(stateStore.LastSaveError)
             && string.IsNullOrWhiteSpace(orchestraRunStore.LastError);
@@ -131,6 +133,12 @@ public partial class Program
                     compatibilityBridge.Enabled
                         ? "The 1.x runtime list and status refresh compatibility checks are routed through Rust."
                         : "Set LESERPENT_RUST_BRIDGE_BIN to an absolute bridge binary path to enable Rust compatibility checks."),
+                new ServiceOptionalAdapter(
+                    "leserpentd_deployment_authority",
+                    deploymentAuthority.Enabled ? "configured" : "optional_unconfigured",
+                    deploymentAuthority.Enabled
+                        ? "Configured deployments are submitted to leserpentd and resolved from its persisted typed receipt."
+                        : "Set LESERPENT_DAEMON_SOCKET and LESERPENT_DAEMON_TOKEN together to route deployment authority through leserpentd."),
                 new ServiceOptionalAdapter(
                     "docker_scenarios",
                     "optional_unconfigured",

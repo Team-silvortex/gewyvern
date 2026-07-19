@@ -18,6 +18,7 @@ pub enum ProtocolRequest {
     Query(QueryEnvelope),
     Health(HealthRequest),
     DeploymentReceipt(DeploymentReceiptRequest),
+    OrchestraPersist(OrchestraPersistenceRequest),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -35,6 +36,14 @@ pub struct DeploymentReceiptRequest {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct OrchestraPersistenceRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub envelope: compatibility_v1::LegacyOrchestraPersistenceEnvelope,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RequestEnvelope {
     pub schema_version: u32,
     pub request: ProtocolRequest,
@@ -47,6 +56,7 @@ pub enum ProtocolResponse {
     Query(QueryResult),
     Health(HealthResponse),
     DeploymentReceipt(DeploymentReceiptResponse),
+    OrchestraPersisted(OrchestraPersistenceResponse),
     Error(ProtocolError),
 }
 
@@ -69,6 +79,13 @@ pub struct DeploymentReceiptResponse {
     pub outcome: Option<RuntimeDeploymentOutcome>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraPersistenceResponse {
+    pub envelope: compatibility_v1::LegacyOrchestraPersistenceEnvelope,
+    pub event_count: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -193,7 +210,9 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
     let domain_version = match &envelope.request {
         ProtocolRequest::Command(command) => command.schema_version,
         ProtocolRequest::Query(query) => query.schema_version,
-        ProtocolRequest::Health(_) | ProtocolRequest::DeploymentReceipt(_) => DOMAIN_SCHEMA_VERSION,
+        ProtocolRequest::Health(_)
+        | ProtocolRequest::DeploymentReceipt(_)
+        | ProtocolRequest::OrchestraPersist(_) => DOMAIN_SCHEMA_VERSION,
     };
     if domain_version != DOMAIN_SCHEMA_VERSION {
         return Err(DecodeError::InvalidDomainSchemaVersion {
@@ -275,8 +294,8 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
 #[cfg(test)]
 mod tests {
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CapabilitySet, CommandId, Principal,
-        Query, QueryEnvelope, RuntimeListFilter,
+        CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+        CapabilitySet, CommandId, Principal, Query, QueryEnvelope, RuntimeListFilter,
     };
 
     use super::*;
@@ -437,6 +456,39 @@ mod tests {
                     replayed: false,
                 }),
                 error: None,
+            }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&response).unwrap()).unwrap(),
+            response
+        );
+    }
+
+    #[test]
+    fn orchestra_persistence_round_trips_the_atomic_legacy_envelope() {
+        let envelope = compatibility_v1::decode_orchestra_persistence(include_bytes!(
+            "../tests/fixtures/legacy-orchestra-persistence-v1.json"
+        ))
+        .unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraPersist(OrchestraPersistenceRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                envelope: envelope.clone(),
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&request).unwrap()).unwrap(),
+            request
+        );
+        let response = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::OrchestraPersisted(OrchestraPersistenceResponse {
+                envelope,
+                event_count: 1,
             }),
         };
         assert_eq!(

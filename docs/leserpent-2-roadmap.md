@@ -553,15 +553,24 @@ IPC protocol. A receipt is bound to both command ID and request ID, can only
 read deployment effects, and projects persisted queue state as pending,
 completed, or failed. Completed receipts carry the adapter-validated Gewyvern
 response, closing the daemon-side submit/execute/observe loop without exposing
-generic effect outcomes. The 1.x host remains on its direct adapter until its
-IPC client can preserve the existing synchronous accepted response and error
-mapping end to end.
+generic effect outcomes. The configured 1.x host now submits that canonical
+intent over an owner-private Unix socket and polls the bound receipt to preserve
+the existing synchronous accepted response and error mapping. Partial daemon
+configuration, unsafe socket permissions, transport failure, timeout, protocol
+drift, and receipt identity mismatch fail closed; an explicitly unconfigured
+development host retains the old direct adapter. Fresh daemon databases
+idempotently journal configured Gewyvern targets, while restart-time endpoint
+drift is rejected rather than silently replacing authority metadata.
 An additional append-only compatibility fixture now freezes Orchestra's atomic
 run/event persistence unit. Rust rejects mismatched run or runtime identities,
 outcome drift, invalid attempts, oversized steps, and unknown fields. The bridge
-can validate this envelope, but the ASP.NET SQLite transaction does not block on
-the asynchronous subprocess; the fixture is the handoff contract for moving
-persistence authority into Rust without post-write false failures.
+can validate this envelope. Runtime journal schema 10 now owns strict Orchestra
+run and event tables, atomically persists the pair, makes exact event replay
+idempotent, rejects event-key payload drift, and returns the bytes read back from
+SQLite through a capability-gated `orchestra_persist` IPC response. The ASP.NET
+route has not switched authority yet; it must call this operation outside its
+managed SQLite transaction so transport failure cannot become a post-write
+false failure.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery
@@ -688,7 +697,7 @@ Exit: every criterion in the architecture's
 The first machine-enforced Gate 7 precursor is now
 `gewyvern_validate leserpent-schema-freeze`. Its bounded candidate inventory
 maps command, query, effect-plan, UI IR, and wire v1 sources to a fixed native
-proof registry. The shelf currently proves 64 tests across domain, UI, wire,
+proof registry. The shelf currently proves 65 tests across domain, UI, wire,
 runtime migration, legacy-wire migration, and managed control-plane migration
 proof suites while explicitly emitting `freeze_ready=false`; promotion to `frozen`
 remains forbidden until the rest of Gate 7 and Apple-backed release evidence

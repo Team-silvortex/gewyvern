@@ -796,6 +796,12 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             }
             Ok(output.trim_end().to_string())
         }
+        ProtocolResponse::DeploymentReceipt(_) => Err(CliError::Protocol(
+            "unexpected deployment receipt response".into(),
+        )),
+        ProtocolResponse::OrchestraPersisted(_) => Err(CliError::Protocol(
+            "unexpected Orchestra persistence response".into(),
+        )),
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
             error.code, error.message

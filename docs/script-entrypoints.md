@@ -604,7 +604,7 @@ execution; an intentional compatibility change must update the fixture and its
 reviewed candidate baseline together.
 
 Five fixed Rust suites plus one locked, filtered xUnit suite currently execute
-64 non-vacuous tests and retain their logs, `schema-freeze-summary.json`, and
+65 non-vacuous tests and retain their logs, `schema-freeze-summary.json`, and
 `evidence-index.json` under
 `target/validation/leserpent-schema-freeze/`. The inventory deliberately stays
 `candidate` and the summary stays `freeze_ready=false` until every Gate 7
@@ -613,7 +613,7 @@ criterion has reproducible evidence.
 The same summary records all 11 compatibility fingerprints, keeping exact
 machine-format drift separate from the semantic proof suites.
 The migration subset replays runtime journal v1, v3 snapshot, and complete v6
-state into the current v9 journal, rejects inconsistent migration history, and
+state into the current v10 journal, rejects inconsistent migration history, and
 proves legacy runtime-list, status-refresh, and error adaptation. Each migration
 suite has a fixed minimum of four observed tests, so an accidental empty Cargo
 filter cannot appear as release evidence.

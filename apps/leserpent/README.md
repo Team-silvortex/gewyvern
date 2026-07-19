@@ -319,8 +319,39 @@ export LESERPENT_RUST_BRIDGE_BIN="$PWD/target/debug/leserpent-compat-bridge"
 registry。`/health` 和 `/v1/capabilities` 的 `rust_compatibility_bridge`
 adapter 状态会显示是否真正启用。
 
-未配置 bridge 时 1.x 行为保持不变。当前 bridge 尚未进入发布包，迁移
-部署前应阅读 [兼容策略](../../crates/leserpent-protocol/COMPATIBILITY.md)。
+未配置 bridge 时 1.x 行为保持不变。Linux Native AOT 发布包包含该 bridge；
+迁移部署前应阅读 [兼容策略](../../crates/leserpent-protocol/COMPATIBILITY.md)。
+
+### leserpentd deployment authority
+
+配置后的 1.x 部署入口可以把 Rust 规范化后的 intent 提交给 `leserpentd`，
+等待其持久化 effect worker 完成，再用 typed receipt 还原现有 HTTP 响应：
+
+```bash
+export LESERPENT_IPC_TOKEN='replace-with-at-least-32-private-bytes'
+export GEWY_API_ADMIN_TOKEN='the-gewyvern-admin-token'
+target/debug/leserpentd \
+  --database /var/lib/leserpent/runtime-authority.db \
+  --socket /run/leserpent/leserpentd.sock \
+  --gewyvern-target runtime-a=127.0.0.1:9411
+
+export LESERPENT_DAEMON_SOCKET=/run/leserpent/leserpentd.sock
+export LESERPENT_DAEMON_TOKEN="$LESERPENT_IPC_TOKEN"
+export LESERPENT_DAEMON_DEPLOY_TIMEOUT_MS=5000
+```
+
+`LESERPENT_DAEMON_SOCKET` 和 `LESERPENT_DAEMON_TOKEN` 必须同时设置。Socket
+必须是绝对路径、不超过 100 UTF-8 bytes、不是符号链接且没有 group/other
+权限；token 与 daemon 的 `LESERPENT_IPC_TOKEN` 相同。配置后 transport、
+timeout、协议或 receipt 身份错误均失败关闭，不会回退到 C# 直连。Daemon
+会把命令 ID 与 request ID 绑定，只允许读取 deployment effect 的终态回执。
+首次配置的 Gewyvern target 会写入 Rust journal；以后启动时 endpoint 漂移会
+拒绝启动，而不是静默覆盖 authority。
+
+未配置 daemon authority 时，1.x 保留原有 C# 直连部署路径。发布包包含
+`leserpentd`，但安装器不会在 target、IPC token 和 Gewyvern secret 不完整时
+自动启用它。`/health` 与 `/v1/capabilities` 中的
+`leserpentd_deployment_authority` adapter 会显示实际启用状态。
 
 当前会恢复和保存：
 
@@ -607,7 +638,7 @@ dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
 
 ARM64 Linux 使用 `-r linux-arm64`。Native AOT 不支持从 macOS 直接交叉编译 Linux 产物，因此 Linux 发布应在对应 Linux 构建机或 CI runner 上执行。
 
-发布目录会自动包含 Leserpent、`leserpent-compat-bridge`、Linux 安装器、
+发布目录会自动包含 Leserpent、`leserpent-compat-bridge`、`leserpentd`、Linux 安装器、
 systemd unit 和环境模板。Cargo bridge 会在 Linux publish 阶段以 `--locked
 --release` 构建；首次安装与后续原子升级使用同一条命令：
 

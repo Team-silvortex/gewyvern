@@ -16,7 +16,7 @@ use std::time::Duration;
 
 mod persistence;
 
-pub use persistence::EffectLease;
+pub use persistence::{EffectLease, OrchestraPersistenceRecord};
 use persistence::{EffectRecord, Journal, JournalEntryKind};
 
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
@@ -426,6 +426,35 @@ impl ControlRuntime {
         deployment_receipt_from_record(record, request_id).map(Some)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn persist_orchestra_run_event(
+        &mut self,
+        run_id: &str,
+        runtime_id: &str,
+        event_type: &str,
+        to_outcome: &str,
+        recorded_at: &str,
+        run: &[u8],
+        event: &[u8],
+    ) -> Result<OrchestraPersistenceRecord, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra persistence requires persistent storage".into(),
+            ));
+        };
+        journal
+            .persist_orchestra_run_event(
+                run_id,
+                runtime_id,
+                event_type,
+                to_outcome,
+                recorded_at,
+                run,
+                event,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
     pub fn prune_terminal_effects(
         &mut self,
         retain: u64,
@@ -689,6 +718,26 @@ impl ControlRuntime {
         Ok(self
             .control
             .register_runtime(id, registration.name, registration.endpoint))
+    }
+
+    pub fn ensure_runtime_registered(
+        &mut self,
+        id: RuntimeId,
+        name: impl Into<String>,
+        endpoint: impl Into<String>,
+    ) -> Result<RuntimeProjection, RuntimeError> {
+        let name = name.into();
+        let endpoint = endpoint.into();
+        if let Some(existing) = self.control.runtime_projection(&id) {
+            if existing.name != name || existing.endpoint != endpoint {
+                return Err(RuntimeError::Storage(format!(
+                    "configured runtime '{}' does not match persisted registration",
+                    id.as_str()
+                )));
+            }
+            return Ok(existing.clone());
+        }
+        self.register_runtime(id, name, endpoint)
     }
 
     pub fn append_runtime_log(
@@ -1500,8 +1549,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 9);
-        assert_eq!(migration_count, 9);
+        assert_eq!(schema, 10);
+        assert_eq!(migration_count, 10);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1509,7 +1558,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v9");
+        let path = temp_journal("incomplete-v10");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -1524,14 +1573,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 9);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 10);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 9")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 10")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1559,6 +1608,16 @@ mod tests {
                 [],
             )
             .unwrap();
+        connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 10",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE orchestra_events", [])
+            .unwrap();
+        connection.execute("DROP TABLE orchestra_runs", []).unwrap();
         connection.execute("DROP TABLE runtime_logs", []).unwrap();
         connection
             .execute(
@@ -1584,7 +1643,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 9);
+        assert_eq!(schema, 10);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1605,7 +1664,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 9 journal kind")
+                if error.contains("invalid runtime journal schema 10 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1618,14 +1677,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (10, 0)",
+                 VALUES (11, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 9 migration history")
+                if error.contains("invalid runtime journal schema 10 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1902,6 +1961,8 @@ mod tests {
                  DROP TABLE runtime_owner;
                  DROP TABLE runtime_effect_tasks;
                  DROP TABLE runtime_logs;
+                 DROP TABLE orchestra_events;
+                 DROP TABLE orchestra_runs;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -1928,7 +1989,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 9);
+        assert_eq!(schema, 10);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1976,6 +2037,137 @@ mod tests {
             .unwrap();
         assert_eq!(count, 1);
         assert_eq!(outcome, b"ok");
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn configured_runtime_registration_is_idempotent_and_rejects_drift() {
+        let path = temp_journal("configured-runtime-registration");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let id = RuntimeId::new("runtime-a").unwrap();
+        let first = runtime
+            .ensure_runtime_registered(id.clone(), "runtime-a", "http://127.0.0.1:9411")
+            .unwrap();
+        let replay = runtime
+            .ensure_runtime_registered(id.clone(), "runtime-a", "http://127.0.0.1:9411")
+            .unwrap();
+        assert_eq!(first, replay);
+        assert!(matches!(
+            runtime.ensure_runtime_registered(id, "runtime-a", "http://127.0.0.1:9511"),
+            Err(RuntimeError::Storage(ref error)) if error.contains("does not match")
+        ));
+        drop(runtime);
+        let connection = Connection::open(&path).unwrap();
+        let registrations: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_journal WHERE kind = 'runtime_registration'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(registrations, 1);
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_run_and_event_persist_atomically_with_idempotent_read_back() {
+        let path = temp_journal("orchestra-atomic-persistence");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let run = br#"{"runId":"orun-1","runtimeId":"runtime-a","outcome":"queued"}"#;
+        let event = br#"{"runId":"orun-1","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:00Z"}"#;
+        let first = runtime
+            .persist_orchestra_run_event(
+                "orun-1",
+                "runtime-a",
+                "run_queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                run,
+                event,
+            )
+            .unwrap();
+        assert_eq!(first.run, run);
+        assert_eq!(first.event, event);
+        assert_eq!(first.event_count, 1);
+        let replay = runtime
+            .persist_orchestra_run_event(
+                "orun-1",
+                "runtime-a",
+                "run_queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                run,
+                event,
+            )
+            .unwrap();
+        assert_eq!(replay.event_count, 1);
+
+        let changed_run = br#"{"runId":"orun-1","runtimeId":"runtime-a","outcome":"running"}"#;
+        let changed_event = br#"{"runId":"orun-1","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:00Z","drift":true}"#;
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-1",
+                    "runtime-a",
+                    "run_queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    changed_run,
+                    event,
+                )
+                .is_err()
+        );
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-1",
+                    "runtime-a",
+                    "run_queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    run,
+                    changed_event,
+                )
+                .is_err()
+        );
+        let after_rollback = runtime
+            .persist_orchestra_run_event(
+                "orun-1",
+                "runtime-a",
+                "run_queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                run,
+                event,
+            )
+            .unwrap();
+        assert_eq!(after_rollback.run, run);
+        assert_eq!(after_rollback.event_count, 1);
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-1",
+                    "runtime-b",
+                    "run_queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    run,
+                    event,
+                )
+                .is_err()
+        );
+        drop(runtime);
+        let connection = Connection::open(&path).unwrap();
+        let schema: i64 = connection
+            .query_row(
+                "SELECT value FROM runtime_metadata WHERE key = 'schema_version'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(schema, 10);
         drop(connection);
         fs::remove_file(path).unwrap();
     }

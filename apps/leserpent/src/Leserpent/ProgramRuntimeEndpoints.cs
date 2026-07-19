@@ -136,6 +136,7 @@ public partial class Program
             RegistryService registry,
             CapabilityDiscoveryService discovery,
             ICompatibilityBridge compatibilityBridge,
+            IDeploymentAuthority deploymentAuthority,
             CancellationToken cancellationToken) =>
         {
             var validationError = ValidateRuntimeDeployment(request);
@@ -185,7 +186,9 @@ public partial class Program
 
             try
             {
-                var deployed = await discovery.DeployAsync(access, normalizedRequest, cancellationToken);
+                var deployed = deploymentAuthority.Enabled
+                    ? await deploymentAuthority.DeployAsync(access, normalizedRequest, cancellationToken)
+                    : await discovery.DeployAsync(access, normalizedRequest, cancellationToken);
                 if (!deployed.Replayed || registry.GetOrchestraRunByRequestId(id, normalizedRequest.RequestId) is null)
                 {
                     registry.RecordOrchestraRun(
@@ -216,6 +219,21 @@ public partial class Program
                     new ApiErrorResponse("orchestra_persistence_unavailable", ex.Message, RuntimeId: id, RequestId: normalizedRequest.RequestId),
                     LeserpentJsonContext.Default.ApiErrorResponse,
                     statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (DaemonDeploymentException ex)
+            {
+                if (string.Equals(ex.Code, "runtime_deployment_request_conflict", StringComparison.Ordinal))
+                {
+                    return Results.Conflict(new ApiErrorResponse(
+                        ex.Code,
+                        "the runtime has already used this requestId for a different deployment",
+                        RuntimeId: id,
+                        RequestId: normalizedRequest.RequestId));
+                }
+                return Results.Json(
+                    new ApiErrorResponse("runtime_deployment_rejected", ex.Message, RuntimeId: id, RequestId: normalizedRequest.RequestId),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status502BadGateway);
             }
             catch (HttpRequestException ex)
             {

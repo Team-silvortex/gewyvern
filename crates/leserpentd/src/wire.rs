@@ -1,11 +1,11 @@
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, Command,
-    CommandPlan, IdempotencyKey, PlannedOperation, Query,
+    CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+    CAPABILITY_RUNTIME_REFRESH, Command, CommandPlan, IdempotencyKey, PlannedOperation, Query,
 };
 use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
-    PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-    ResponseEnvelope,
+    OrchestraPersistenceResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest,
+    ProtocolResponse, RequestEnvelope, ResponseEnvelope,
 };
 use leserpent_runtime::{ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError};
 
@@ -74,6 +74,69 @@ pub(crate) fn execute_request(
                 Err(_) => error_response("runtime_failed", "deployment receipt lookup failed"),
             };
         }
+        ProtocolRequest::OrchestraPersist(request) => {
+            if request.principal.id.trim().is_empty()
+                || !request.capabilities.contains(CAPABILITY_ORCHESTRA_WRITE)
+                || leserpent_protocol::compatibility_v1::validate_orchestra_persistence(
+                    &request.envelope,
+                )
+                .is_err()
+            {
+                return error_response("invalid_request", "Orchestra persistence was rejected");
+            }
+            let run = match serde_json::to_vec(&request.envelope.run) {
+                Ok(run) => run,
+                Err(_) => {
+                    return error_response("invalid_request", "Orchestra run could not be encoded");
+                }
+            };
+            let event = match serde_json::to_vec(&request.envelope.event) {
+                Ok(event) => event,
+                Err(_) => {
+                    return error_response(
+                        "invalid_request",
+                        "Orchestra event could not be encoded",
+                    );
+                }
+            };
+            return match runtime.persist_orchestra_run_event(
+                &request.envelope.run.run_id,
+                &request.envelope.run.runtime_id,
+                &request.envelope.event.event_type,
+                &request.envelope.event.to_outcome,
+                &request.envelope.event.recorded_at,
+                &run,
+                &event,
+            ) {
+                Ok(receipt) => {
+                    let run = serde_json::from_slice(&receipt.run);
+                    let event = serde_json::from_slice(&receipt.event);
+                    match (run, event) {
+                        (Ok(run), Ok(event)) => response(ProtocolResponse::OrchestraPersisted(
+                            OrchestraPersistenceResponse {
+                                envelope:
+                                    leserpent_protocol::compatibility_v1::LegacyOrchestraPersistenceEnvelope {
+                                        run,
+                                        event,
+                                    },
+                                event_count: receipt.event_count,
+                            },
+                        )),
+                        _ => error_response(
+                            "runtime_failed",
+                            "Orchestra persistence read-back was invalid",
+                        ),
+                    }
+                }
+                Err(RuntimeError::Storage(_)) => error_response(
+                    "orchestra_persistence_failed",
+                    "Orchestra persistence transaction failed",
+                ),
+                Err(_) => {
+                    error_response("runtime_failed", "Orchestra persistence authority failed")
+                }
+            };
+        }
         request => request,
     };
     let required_capability = match &request {
@@ -90,12 +153,16 @@ pub(crate) fn execute_request(
             Command::RuntimeDeploy { .. } => leserpent_domain::CAPABILITY_RUNTIME_DEPLOY,
             Command::DebuggerCancel { .. } => leserpent_domain::CAPABILITY_DEBUGGER_CONTROL,
         },
-        ProtocolRequest::Health(_) | ProtocolRequest::DeploymentReceipt(_) => unreachable!(),
+        ProtocolRequest::Health(_)
+        | ProtocolRequest::DeploymentReceipt(_)
+        | ProtocolRequest::OrchestraPersist(_) => unreachable!(),
     };
     let operation = match request {
         ProtocolRequest::Query(query) => PlannedOperation::Query(query),
         ProtocolRequest::Command(command) => PlannedOperation::Command(command),
-        ProtocolRequest::Health(_) | ProtocolRequest::DeploymentReceipt(_) => unreachable!(),
+        ProtocolRequest::Health(_)
+        | ProtocolRequest::DeploymentReceipt(_)
+        | ProtocolRequest::OrchestraPersist(_) => unreachable!(),
     };
     match runtime.execute_plan(CommandPlan {
         schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,

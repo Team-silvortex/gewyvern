@@ -75,12 +75,13 @@ const PROOF_SUITES: &[ProofSuite] = &[
         package: "leserpent-protocol",
         target_args: &["--lib"],
         test_filter: None,
-        expected_min_tests: 10,
+        expected_min_tests: 11,
         invariants: &[
             "wire-envelope-v1",
             "strict-versioned-decode",
             "bounded-message-contract",
             "typed-deployment-receipt-contract",
+            "typed-orchestra-atomic-persistence-contract",
         ],
     },
     ProofSuite {

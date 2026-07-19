@@ -84,6 +84,14 @@ completed, or failed state. A completed receipt carries the adapter-validated
 Gewyvern outcome; another effect kind or mismatched request identity fails
 closed without exposing its payload or outcome.
 
+The daemon also accepts the frozen Orchestra run/event envelope through the
+typed `orchestra_persist` operation. It requires `orchestra.write`, validates
+cross-record identity and outcome invariants, and commits both canonical records
+in one schema-v10 transaction. An exact event replay returns the stored pair and
+the unchanged event count; reusing its identity with different bytes fails
+closed and rolls back the run update. This is the durable handoff primitive,
+not evidence that the existing ASP.NET route has already switched authority.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by
@@ -95,6 +103,17 @@ LESERPENT_TEST_RUST_BRIDGE_BIN="$PWD/target/debug/leserpent-compat-bridge" \
   dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj \
   --no-restore --filter \
   FullyQualifiedName~ConfiguredRustProcessReturnsTheCanonicalDeploymentAuthority
+```
+
+Prove the complete configured deployment path through a real daemon, its
+durable effect worker, and a bounded local Gewyvern endpoint:
+
+```bash
+cargo build --locked -p leserpentd --bin leserpentd
+LESERPENT_TEST_DAEMON_BIN="$PWD/target/debug/leserpentd" \
+  dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj \
+  --no-restore --filter \
+  FullyQualifiedName~ConfiguredRustDaemonExecutesTheDeploymentEndToEnd
 ```
 
 Run `gewyvern_validate leserpent-transport` from the workspace root to prove

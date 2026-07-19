@@ -450,6 +450,15 @@ panic-only fallback. Sensitive pairing material is stored through a platform
 secret adapter and never serialized into UI IR, logs, model context, or ordinary
 exports.
 
+Runtime journal schema 10 adds strict Orchestra run and event storage. One
+owner-fenced transaction writes the canonical run/event pair and reads both
+records back before commit. Replaying the same event identity is idempotent only
+when its canonical bytes are unchanged; payload drift or cross-runtime run-ID
+reuse rolls the whole transaction back. The daemon exposes this primitive only
+through the typed, capability-gated `orchestra_persist` wire operation. Until
+the 1.x adapter consumes that operation before its managed write, ASP.NET
+remains the Orchestra route authority rather than a completed Rust adapter.
+
 ## Security Boundary
 
 Model-generated programs are untrusted input. Before execution they pass:

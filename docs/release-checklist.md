@@ -161,6 +161,14 @@ cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-v
 sealed Gewyvern 1.x gate does not silently acquire .NET, GUI, mobile, or
 cross-language build dependencies.
 
+Linux Leserpent Native AOT bundles must contain executable
+`leserpent-compat-bridge` and `leserpentd` binaries. Deployment authority stays
+disabled unless the owner-private daemon socket and matching IPC token are
+configured together. Before enabling it in a release environment, run the real
+C# to `leserpentd` deployment proof documented in
+`crates/leserpent-protocol/COMPATIBILITY.md`; transport failure must not fall
+back to the managed direct adapter.
+
 `--macos-release-preflight FILE` consumes the bounded JSON emitted by
 `gewyvern_leserpent_release preflight`. It strictly recomputes readiness from
 the eight-tool inventory, Developer ID identity count, notary profile state,

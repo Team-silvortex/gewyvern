@@ -238,6 +238,13 @@ pub fn decode_orchestra_persistence(
     bytes: &[u8],
 ) -> Result<LegacyOrchestraPersistenceEnvelope, CompatibilityError> {
     let envelope: LegacyOrchestraPersistenceEnvelope = decode_capped(bytes)?;
+    validate_orchestra_persistence(&envelope)?;
+    Ok(envelope)
+}
+
+pub fn validate_orchestra_persistence(
+    envelope: &LegacyOrchestraPersistenceEnvelope,
+) -> Result<(), CompatibilityError> {
     let run = &envelope.run;
     let event = &envelope.event;
     for value in [&run.run_id, &run.runtime_id, &run.plan_id] {
@@ -275,7 +282,7 @@ pub fn decode_orchestra_persistence(
     {
         return Err(CompatibilityError::InvalidOrchestra("bounds"));
     }
-    Ok(envelope)
+    Ok(())
 }
 
 pub fn decode_api_error(bytes: &[u8]) -> Result<LegacyApiErrorResponse, CompatibilityError> {

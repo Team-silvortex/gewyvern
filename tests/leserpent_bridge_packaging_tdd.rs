@@ -22,6 +22,8 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     assert!(project.contains(
         "cargo build --locked --release -p leserpent-protocol --bin leserpent-compat-bridge"
     ));
+    assert!(project.contains("cargo build --locked --release -p leserpentd --bin leserpentd"));
+    assert!(project.contains("DestinationFiles=\"$(PublishDir)leserpentd\""));
     assert!(project.contains("RejectCrossPlatformRustCompatibilityBridge"));
     assert!(project.contains("packages.development.lock.json"));
     assert!(project.contains("'$(PublishAot)' == 'true'"));
@@ -35,9 +37,12 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     let installer =
         std::fs::read_to_string(root.join("apps/leserpent/deploy/linux/install.sh")).unwrap();
     assert!(
-        installer.contains("for required in Leserpent leserpent-compat-bridge libe_sqlite3.so")
+        installer.contains(
+            "for required in Leserpent leserpent-compat-bridge leserpentd libe_sqlite3.so"
+        )
     );
     assert!(installer.contains("chmod 0755 \"${release_dir}/leserpent-compat-bridge\""));
+    assert!(installer.contains("chmod 0755 \"${release_dir}/leserpentd\""));
     assert!(installer.contains("--rollback"));
     assert!(installer.contains("release_link_target"));
     assert!(installer.contains("replace_release_link previous"));
@@ -72,6 +77,8 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
             .contains("LESERPENT_RUST_BRIDGE_BIN=/opt/leserpent/current/leserpent-compat-bridge")
     );
     assert!(environment.contains("LESERPENT_RUST_BRIDGE_TIMEOUT_MS=2000"));
+    assert!(environment.contains("# LESERPENT_DAEMON_SOCKET=/run/leserpent/leserpentd.sock"));
+    assert!(environment.contains("# LESERPENT_DAEMON_TOKEN="));
 }
 
 #[test]
@@ -88,6 +95,10 @@ fn deployment_bridge_validation_is_strict_and_pre_effect() {
         root.join("crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs"),
     )
     .unwrap();
+    let daemon_authority = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ControlPlane/DaemonDeploymentAuthority.cs"),
+    )
+    .unwrap();
 
     let local_capability_check = endpoints
         .find("runtime_deployment_not_supported")
@@ -100,6 +111,10 @@ fn deployment_bridge_validation_is_strict_and_pre_effect() {
         .expect("remote deployment effect");
     assert!(local_capability_check < compatibility_check);
     assert!(compatibility_check < remote_effect);
+    assert!(endpoints.contains("deploymentAuthority.DeployAsync"));
+    assert!(daemon_authority.contains("UnixDomainSocketEndPoint"));
+    assert!(daemon_authority.contains("daemon_socket_unsafe"));
+    assert!(daemon_authority.contains("deployment_receipt"));
     assert!(compatibility.contains("deny_unknown_fields"));
     assert!(compatibility.contains("decode_runtime_deployment_request"));
     assert!(bridge.contains("ValidateRuntimeDeploymentRequest"));

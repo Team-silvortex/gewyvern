@@ -9,6 +9,7 @@ pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
 pub const CAPABILITY_RUNTIME_DEPLOY: &str = "runtime.deploy";
+pub const CAPABILITY_ORCHESTRA_WRITE: &str = "orchestra.write";
 pub const CAPABILITY_DEBUGGER_CONTROL: &str = "debugger.control";
 pub const RUNTIME_STATUS_REFRESH_EFFECT_KIND: &str = "gewyvern.status.refresh";
 pub const RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND: &str = "gewyvern.capabilities.discover";

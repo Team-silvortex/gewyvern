@@ -138,14 +138,15 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CapabilitySet, CommandId,
-        DOMAIN_SCHEMA_VERSION, Principal, Query, QueryEnvelope, QueryResult,
-        RUNTIME_DEPLOYMENT_EFFECT_KIND, RuntimeDeploymentOutcome, RuntimeDeploymentRequest,
-        RuntimeId, RuntimeListFilter, RuntimeLogLevel,
+        CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+        CapabilitySet, CommandId, DOMAIN_SCHEMA_VERSION, Principal, Query, QueryEnvelope,
+        QueryResult, RUNTIME_DEPLOYMENT_EFFECT_KIND, RuntimeDeploymentOutcome,
+        RuntimeDeploymentRequest, RuntimeId, RuntimeListFilter, RuntimeLogLevel,
     };
     use leserpent_protocol::{
-        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, PROTOCOL_SCHEMA_VERSION,
-        ProtocolRequest, ProtocolResponse, RequestEnvelope, decode_response,
+        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest,
+        OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse,
+        RequestEnvelope, decode_response,
     };
 
     use super::*;
@@ -350,6 +351,52 @@ mod tests {
         assert!(matches!(
             response.response,
             ProtocolResponse::Error(ref error) if error.code == "invalid_request"
+        ));
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authenticated_orchestra_persistence_is_atomic_and_idempotent() {
+        let database = temp_path("orchestra-persistence", "sqlite");
+        let socket = temp_path("orchestra-persistence", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let envelope =
+            leserpent_protocol::compatibility_v1::decode_orchestra_persistence(include_bytes!(
+                "../../leserpent-protocol/tests/fixtures/legacy-orchestra-persistence-v1.json"
+            ))
+            .unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraPersist(OrchestraPersistenceRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                envelope: envelope.clone(),
+            }),
+        };
+        for _ in 0..2 {
+            let response = send(&server, &mut runtime, &socket, TOKEN, request.clone());
+            assert!(matches!(
+                response.response,
+                ProtocolResponse::OrchestraPersisted(ref persisted)
+                    if persisted.envelope == envelope && persisted.event_count == 1
+            ));
+        }
+
+        let mut drifted = request;
+        let ProtocolRequest::OrchestraPersist(persistence) = &mut drifted.request else {
+            unreachable!();
+        };
+        persistence.envelope.event.summary = "drifted retry".into();
+        let response = send(&server, &mut runtime, &socket, TOKEN, drifted);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_persistence_failed"
         ));
         drop(server);
         drop(runtime);
