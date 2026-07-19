@@ -502,6 +502,25 @@ bundle. The official path omits `--version`, so both bundle version fields
 inherit the root Rust workspace release automatically; downstream packagers may
 still override that value explicitly. `leserpent-icon.icns` is generated from
 the checked Leserpent artwork.
+
+Install, inspect, or explicitly roll back a user-local version without shell
+copy wrappers:
+
+```bash
+cargo run --bin gewyvern_leserpent_install -- install \
+  --app artifacts/leserpent-avalonia/Leserpent.app
+cargo run --bin gewyvern_leserpent_install -- status
+cargo run --bin gewyvern_leserpent_install -- rollback
+```
+
+The stable launcher is `~/Applications/Leserpent.app`; versioned bundles live
+under `~/Library/Application Support/Leserpent/Installer`. The native Rust
+installer preserves application data outside that directory, rejects unmanaged
+or escaping links, and keeps at least two releases so rollback remains
+available. Use absolute `--root` and `--launcher` overrides for an isolated
+packaging proof. Local ad-hoc signing can prove copy integrity and launch, but it
+does not satisfy the Developer ID or notarization gate.
+
 The product uses a native macOS application menu, explicit Quit, and Dock
 reopen behavior; verify its code-only contract with
 `--verify-desktop-lifecycle`. Developer ID signing and Apple notarization are

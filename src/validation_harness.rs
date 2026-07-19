@@ -2,6 +2,7 @@ mod command;
 mod container_packaging;
 mod debugger_cross;
 mod demo_roundtrip;
+mod dotnet_proof;
 mod evidence_codec;
 mod field_smoke;
 mod high_frequency;

@@ -5,9 +5,15 @@
 Native AOT output is platform-specific. Build Linux x64 releases on a compatible Linux x64 builder:
 
 ```bash
+dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj \
+  -p:PublishProfile=native-aot \
+  -p:PublishAot=true \
+  -r linux-x64 \
+  --locked-mode
 dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
   -r linux-x64 \
+  --no-restore \
   -o artifacts/leserpent/linux-x64
 ```
 
@@ -22,9 +28,11 @@ Validate the complete bundle without changing the host installation:
 scripts/validation/leserpent_linux_bundle_smoke.sh artifacts/leserpent/linux-x64
 ```
 
-The smoke uses a temporary `DESTDIR`, executes a real bridge request, starts the
-Native AOT host on loopback, and retains a machine-readable result below
-`target/validation/leserpent-linux-bundle-smoke/`.
+The smoke uses a temporary `DESTDIR`, installs and upgrades two immutable
+releases, explicitly rolls back through the `current`/`previous` links, proves
+configuration and state preservation, executes a real bridge request, starts
+the rolled-back Native AOT host on loopback, and retains a machine-readable
+result below `target/validation/leserpent-linux-bundle-smoke/`.
 
 ## Install or upgrade
 
@@ -51,6 +59,19 @@ sudoedit /etc/leserpent/leserpent.env
 sudo systemctl restart leserpent
 ```
 
+Explicitly switch back to the retained previous release:
+
+```bash
+sudo artifacts/leserpent/linux-x64/deploy/install.sh --rollback
+```
+
+Published releases do not retain their `deploy` directory after installation,
+so run `--rollback` from any available bundle installer instead. The command
+does not read that bundle's payload: it validates and atomically switches the
+installed `current` link, restarts the service, waits for health, and restores
+the original links if the rollback target is unhealthy. A successful rollback
+keeps the displaced release as `previous`, allowing an operator to switch back.
+
 The secure default listens on `127.0.0.1:5210`. Keep that binding when a TLS reverse proxy runs on the same host. If clients reach Leserpent through a proxy, provide the generated admin token through the UI security control or the `X-Leserpent-Admin-Token` API header.
 
 ## Operations
@@ -73,7 +94,9 @@ Stage the filesystem layout for packaging or validation without changing the hos
 DESTDIR=/tmp/leserpent-root artifacts/leserpent/linux-x64/deploy/install.sh
 ```
 
-Use `--keep-releases N` to change release retention. Failed upgrades automatically restore the previous `current` link and restart it.
+Use `--keep-releases N` with an integer of at least two to change release
+retention. Failed upgrades automatically restore the previous `current` link
+and restart it.
 
 ## Remove a host installation
 

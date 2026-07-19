@@ -434,6 +434,34 @@ inherits the root Rust workspace version for both plist version fields; the
 option remains available only for deliberate downstream overrides. Signing and
 notarization consume this bundle in a later release step.
 
+Install the checked app for the current user through the native versioned
+installer:
+
+```bash
+cargo run --bin gewyvern_leserpent_install -- install \
+  --app artifacts/leserpent-avalonia/Leserpent.app
+cargo run --bin gewyvern_leserpent_install -- status
+cargo run --bin gewyvern_leserpent_install -- rollback
+```
+
+The default launcher is `~/Applications/Leserpent.app`; immutable releases and
+the bounded `current`/`previous` metadata live below
+`~/Library/Application Support/Leserpent/Installer`. The Rust implementation
+copies a bounded symlink-free bundle, validates arm64 thin or universal Mach-O
+payloads and exact plist identity, strips group/world write permissions, and
+atomically replaces managed links. It rejects an existing unmanaged launcher
+instead of overwriting it. Profiles, managed CAs, caches, Keychain credentials,
+and Orchestra data remain outside the installer root and survive upgrades and
+rollback. `--root` and `--launcher` accept absolute paths for packaging proof or
+managed deployments.
+
+The retained physical-host fixture is
+`docs/fixtures/leserpent_macos_install_rollback.json`. It proves a signed local
+`1.4.0 -> 1.4.1 -> 1.4.0` cycle and launches a real control fixture through the
+rolled-back stable app link. It explicitly records `signature=adhoc`, no Team
+ID, and `apple_release_evidence=false`; Developer ID signing and notarization
+remain a separate release gate.
+
 ### I want to sign and notarize the Leserpent macOS app
 
 Use the native release entrypoint after bundle creation:
@@ -547,8 +575,9 @@ fixtures. An unreviewed fixture change therefore fails before semantic proof
 execution; an intentional compatibility change must update the fixture and its
 reviewed candidate baseline together.
 
-Five fixed Rust suites currently execute 50 non-vacuous tests and retain their
-logs, `schema-freeze-summary.json`, and `evidence-index.json` under
+Five fixed Rust suites plus one locked, filtered xUnit suite currently execute
+60 non-vacuous tests and retain their logs, `schema-freeze-summary.json`, and
+`evidence-index.json` under
 `target/validation/leserpent-schema-freeze/`. The inventory deliberately stays
 `candidate` and the summary stays `freeze_ready=false` until every Gate 7
 security, performance, migration, packaging, rollback, and platform-release
@@ -560,6 +589,28 @@ state into the current v9 journal, rejects inconsistent migration history, and
 proves legacy runtime-list, status-refresh, and error adaptation. Each migration
 suite has a fixed minimum of four observed tests, so an accidental empty Cargo
 filter cannot appear as release evidence.
+The managed subset runs exactly the security project's
+`SqliteOrchestraRunStoreTests` through the shared locked-restore Dotnet proof
+runner. Its ten observed tests cover SQLite v1 in-place migration, legacy
+JSON-to-SQLite import, request identity, delete cascades, bounded retention,
+serialized durable saves, and failed-save snapshot preservation. Temporary
+Dotnet artifacts are isolated and removed after both success and failure.
+Failure injection also forces a unique-index violation after transactional
+replacement starts, proving the prior SQLite rows survive and a corrected retry
+succeeds. A separate startup failure proves the legacy JSON remains byte-for-byte
+unchanged, then recovers through both SQLite retry and explicit JSON-only operator
+rollback.
+
+The Linux package proof runs
+`scripts/validation/leserpent_linux_bundle_smoke.sh` against a target-built
+NativeAOT bundle. It creates two immutable staged releases, validates atomic
+`current` and retained `previous` links, invokes explicit rollback, proves
+configuration and state remain external to releases, executes the Rust bridge,
+and starts the rolled-back service through its live health endpoint. Its JSON
+evidence is retained under
+`target/validation/leserpent-linux-bundle-smoke/`; the checked shell entrypoint
+remains the package fixture while release orchestration stays in the native
+validation harness.
 
 ### I want to prove command parity and restart recovery
 

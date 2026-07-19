@@ -652,9 +652,9 @@ Exit: every criterion in the architecture's
 The first machine-enforced Gate 7 precursor is now
 `gewyvern_validate leserpent-schema-freeze`. Its bounded candidate inventory
 maps command, query, effect-plan, UI IR, and wire v1 sources to a fixed native
-proof registry. The shelf currently proves 50 tests across domain, UI, wire,
-runtime migration, and legacy-wire migration proof suites while explicitly
-emitting `freeze_ready=false`; promotion to `frozen`
+proof registry. The shelf currently proves 60 tests across domain, UI, wire,
+runtime migration, legacy-wire migration, and managed control-plane migration
+proof suites while explicitly emitting `freeze_ready=false`; promotion to `frozen`
 remains forbidden until the rest of Gate 7 and Apple-backed release evidence
 are reproducible.
 Its companion candidate baseline pins SHA-256 fingerprints for five wire and
@@ -663,8 +663,27 @@ format drift fail before the semantic proof suites without pretending that the
 candidate contracts have reached their final freeze.
 The migration replay now covers runtime journal v1 to current, v3 snapshot
 generation history, complete v6 semantics, malformed migration history, and
-legacy wire normalization. The remaining migration gap is the 1.x managed
-control-plane state path and its JSON-to-SQLite rollback story.
+legacy wire normalization. The managed proof covers SQLite v1 in-place upgrade,
+1.x JSON-to-SQLite Orchestra history import, concurrent durable saves, and
+failed-save snapshot preservation through ten locked xUnit tests. Injected
+replacement failure proves SQLite transaction rollback preserves prior rows;
+injected startup migration failure proves the legacy JSON remains byte-identical
+and supports both a corrected SQLite retry and explicit JSON-only operator
+rollback. The Linux x64 package path now also has install/upgrade/rollback proof
+on a physical Linux 6.17 host.
+Its locked NativeAOT restore includes the RID-specific compiler and SQLite
+assets, and the bundle smoke performs staged install, distinct-release upgrade,
+explicit atomic `current` rollback, configuration/state preservation, a live
+Rust compatibility request, and rolled-back service health. Unsafe or missing
+release links fail closed, while an unhealthy production rollback restores the
+original pair. macOS arm64 now has an equivalent user-local package proof
+through the native Rust installer. It accepts thin arm64 and bounded universal
+Mach-O dependencies, copies symlink-free versioned app bundles, exposes one
+stable launcher, rejects escaping or unmanaged links, preserves external user
+state, and proves `1.4.0 -> 1.4.1 -> 1.4.0` with a live rolled-back control
+fixture. The retained evidence deliberately identifies its signature as ad-hoc
+with no Team ID. Provisioned Developer ID signing, notarization, stapling, and
+Gatekeeper evidence remain the platform-release gap.
 
 ## Continuous Proof Shelves
 

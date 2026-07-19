@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-macos-install-rollback",
+  "platform": "macos-arm64",
+  "os_version": "26.5.2",
+  "kernel": "25.5.0",
+  "installer_sha256": "c747fadae7a754ad68895a15e7c06f35a1c006adca0972cfbb09c647f4af935c",
+  "current": "releases/1.4.0-a784a70b53df",
+  "previous": "releases/1.4.1-8b1af0a9b820",
+  "current_executable_sha256": "a784a70b53df532c62b908d443a465b9c3fbba020f663347a4d4dd0bd13391cc",
+  "previous_executable_sha256": "8b1af0a9b8206749548d2975c2c27f2372d375960cf9dbceb15500ded52acd5f",
+  "current_bundle_files": 7,
+  "current_bundle_bytes": 42820650,
+  "signature": "adhoc",
+  "team_identifier": null,
+  "apple_release_evidence": false,
+  "control_fixture": {
+    "nodes": 18,
+    "operations": 4,
+    "accessibility_controls": 18,
+    "accessibility_names": 18,
+    "minimum_contrast": 4.723,
+    "accessibility_valid": true
+  },
+  "checks": [
+    "native-rust-installer",
+    "bounded-symlink-free-bundle",
+    "universal-arm64-dylib-acceptance",
+    "adhoc-source-signature",
+    "versioned-release-copy",
+    "stable-app-launcher",
+    "atomic-current-link",
+    "current-previous-upgrade",
+    "explicit-rollback-swap",
+    "external-profile-preservation",
+    "installed-signature-valid",
+    "rolled-back-version-1.4.0",
+    "rolled-back-live-control-fixture"
+  ],
+  "result": "passed"
+}

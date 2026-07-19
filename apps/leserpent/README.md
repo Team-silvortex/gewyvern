@@ -593,9 +593,15 @@ dotnet run
 Leserpent 提供独立的 Native AOT 发布 profile。发布时必须指定目标 RID，产物为不依赖目标机器安装 .NET runtime 的 self-contained 原生服务：
 
 ```bash
+dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj \
+  -p:PublishProfile=native-aot \
+  -p:PublishAot=true \
+  -r linux-x64 \
+  --locked-mode
 dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
   -r linux-x64 \
+  --no-restore \
   -o artifacts/leserpent/linux-x64
 ```
 
@@ -618,6 +624,8 @@ sudo artifacts/leserpent/linux-x64/deploy/install.sh
 - systemd：`leserpent.service`
 
 安装器会执行健康检查，失败时自动切回上一版本。完整的部署、升级、staging 和卸载说明见 [docs/deployment.md](docs/deployment.md)。
+已安装主机还可以从任意有效 bundle 执行 `deploy/install.sh --rollback`，
+显式交换保留的 `current`/`previous` 版本；配置和 SQLite 状态不随版本目录切换。
 
 已配对的 gewyvern runtime 还支持结构化的认证直部署入口：Leserpent 使用内存中的 runtime token 提交幂等 deployment intent，并将结果写入 Orchestra 审计。当前状态边界、请求格式与安全约束见 [docs/remote-deployment.md](docs/remote-deployment.md)。
 

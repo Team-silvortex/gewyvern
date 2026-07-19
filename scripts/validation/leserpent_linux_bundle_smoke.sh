@@ -30,8 +30,17 @@ trap cleanup EXIT
 file "${BUNDLE}/Leserpent" | grep -q 'ELF 64-bit.*x86-64'
 file "${BUNDLE}/leserpent-compat-bridge" | grep -q 'ELF 64-bit.*x86-64'
 
+mkdir -p "${work}/unsafe-root/opt/leserpent"
+ln -s ../../outside "${work}/unsafe-root/opt/leserpent/current"
+if DESTDIR="${work}/unsafe-root" "${BUNDLE}/deploy/install.sh" --source "${BUNDLE}" >"${work}/unsafe.log" 2>&1; then
+  echo "installer accepted an unsafe existing current link" >&2
+  exit 1
+fi
+grep -q 'cannot upgrade: current release link is missing or unsafe' "${work}/unsafe.log"
+
 DESTDIR="${work}/root" "${BUNDLE}/deploy/install.sh" --source "${BUNDLE}" >"${work}/install.log"
 current="$(readlink -f "${work}/root/opt/leserpent/current")"
+original_current="${current}"
 case "${current}" in
   "${work}/root/opt/leserpent/releases/"*) ;;
   *) echo "staged current link escapes the release root" >&2; exit 1 ;;
@@ -42,6 +51,25 @@ if find "${current}" -type f -perm /022 -print -quit | grep -q .; then
   echo "staged release contains group/world-writable files" >&2
   exit 1
 fi
+
+printf 'state-preserved\n' >"${work}/root/var/lib/leserpent/rollback-sentinel"
+config_before="$(sha256sum "${work}/root/etc/leserpent/leserpent.env" | cut -d' ' -f1)"
+upgrade_source="${work}/upgrade-source"
+cp -a "${BUNDLE}" "${upgrade_source}"
+printf '\0' >>"${upgrade_source}/Leserpent"
+DESTDIR="${work}/root" "${upgrade_source}/deploy/install.sh" --source "${upgrade_source}" >"${work}/upgrade.log"
+upgraded_current="$(readlink -f "${work}/root/opt/leserpent/current")"
+[[ "${upgraded_current}" != "${original_current}" ]]
+[[ "$(readlink -f "${work}/root/opt/leserpent/previous")" == "${original_current}" ]]
+[[ "$(sha256sum "${work}/root/etc/leserpent/leserpent.env" | cut -d' ' -f1)" == "${config_before}" ]]
+[[ "$(cat "${work}/root/var/lib/leserpent/rollback-sentinel")" == "state-preserved" ]]
+
+DESTDIR="${work}/root" "${BUNDLE}/deploy/install.sh" --source "${BUNDLE}" --rollback >"${work}/rollback.log"
+current="$(readlink -f "${work}/root/opt/leserpent/current")"
+[[ "${current}" == "${original_current}" ]]
+[[ "$(readlink -f "${work}/root/opt/leserpent/previous")" == "${upgraded_current}" ]]
+[[ "$(sha256sum "${work}/root/etc/leserpent/leserpent.env" | cut -d' ' -f1)" == "${config_before}" ]]
+[[ "$(cat "${work}/root/var/lib/leserpent/rollback-sentinel")" == "state-preserved" ]]
 
 payload="$(tr -d '\r\n' <"${ROOT}/crates/leserpent-protocol/tests/fixtures/legacy-runtime-list-response-v1.json")"
 printf '{"request_id":"linux-smoke","operation":"validate_runtime_list","payload":%s}\n' "${payload}" \
@@ -87,7 +115,13 @@ cat >"${temp}" <<EOF
   "checks": [
     "native-aot-elf-x86_64",
     "rust-compat-bridge-elf-x86_64",
+    "unsafe-existing-current-link-rejection",
     "staged-atomic-current-link",
+    "staged-upgrade-current-previous-link",
+    "configuration-preserved-across-upgrade-rollback",
+    "state-preserved-across-upgrade-rollback",
+    "explicit-atomic-rollback",
+    "rolled-back-live-native-aot-health",
     "private-generated-configuration",
     "non-writable-release-files",
     "live-compatibility-request",

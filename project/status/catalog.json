@@ -1249,14 +1249,14 @@
       "feature": "two-zero-seal",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 24,
+      "completion": 52,
       "confidence": "high",
       "independence": "internal",
       "contract": {
         "id": "leserpent-two-zero-release",
-        "version": "0.4.0-draft",
+        "version": "0.8.0-draft",
         "stability": "draft",
-        "surfaces": ["schema-freeze", "security-audit", "performance-comparison", "migration", "packaging", "rollback", "machine-readable-v1-candidate-inventory", "fixed-non-executable-proof-registry", "non-vacuous-schema-readiness-proof", "reviewed-v1-compatibility-baseline", "sha256-fixture-drift-gate", "wire-and-renderer-golden-coverage", "runtime-journal-v1-v3-v6-migration-replay", "invalid-migration-history-rejection", "legacy-wire-migration-replay", "minimum-migration-test-count"]
+        "surfaces": ["schema-freeze", "security-audit", "performance-comparison", "migration", "packaging", "rollback", "machine-readable-v1-candidate-inventory", "fixed-non-executable-proof-registry", "non-vacuous-schema-readiness-proof", "reviewed-v1-compatibility-baseline", "sha256-fixture-drift-gate", "wire-and-renderer-golden-coverage", "runtime-journal-v1-v3-v6-migration-replay", "invalid-migration-history-rejection", "legacy-wire-migration-replay", "minimum-migration-test-count", "shared-locked-dotnet-proof-runner", "filtered-managed-migration-proof", "sqlite-v1-in-place-migration", "legacy-json-to-sqlite-migration", "failed-save-snapshot-preservation", "zero-dotnet-artifact-residue", "transactional-migration-write-rollback", "retained-json-byte-preservation", "managed-migration-retry", "operator-json-rollback", "isolated-web-development-aot-lock-graphs", "pinned-web-native-aot-toolchain", "locked-linux-native-aot-rid-graph", "staged-linux-install-upgrade-rollback", "safe-current-previous-release-links", "unsafe-existing-current-link-rejection", "configuration-state-preservation", "rolled-back-live-native-aot-health", "physical-linux-x64-package-rollback-proof", "native-macos-versioned-installer", "bounded-universal-macho-arm64-validation", "stable-user-app-launcher", "macos-current-previous-upgrade", "macos-explicit-rollback-swap", "macos-external-profile-preservation", "installed-adhoc-signature-integrity", "rolled-back-live-macos-control-fixture", "physical-macos-arm64-package-rollback-proof"]
       },
       "depends_on": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/release-assurance/continuous-proof"],
       "blockers": [
@@ -1271,10 +1271,18 @@
         { "kind": "source", "path": "project/release/leserpent-v1-schema-inventory.json", "state": "present" },
         { "kind": "source", "path": "project/release/leserpent-v1-compatibility-baseline.json", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_schema_freeze.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/dotnet_proof.rs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent/deploy/linux/install.sh", "state": "present" },
+        { "kind": "test", "path": "scripts/validation/leserpent_linux_bundle_smoke.sh", "state": "present" },
+        { "kind": "release", "path": "docs/fixtures/leserpent_linux_bundle_smoke.json", "state": "present" },
+        { "kind": "source", "path": "src/leserpent_macos_install.rs", "state": "present" },
+        { "kind": "source", "path": "src/bin/gewyvern_leserpent_install.rs", "state": "present" },
+        { "kind": "release", "path": "docs/fixtures/leserpent_macos_install_rollback.json", "state": "present" },
         { "kind": "test", "path": "target/validation/leserpent-schema-freeze", "state": "present" },
+        { "kind": "test", "path": "target/validation/leserpent-linux-bundle-smoke/upgrade-rollback-linux-x64.json", "state": "present" },
         { "kind": "release", "path": "target/validation/leserpent-2-release", "state": "planned" }
       ],
-      "next_gate": "Keep both v1 baselines candidate-only while proving 1.x managed control-plane JSON-to-SQLite migration and rollback, packaging, and provisioned Apple release evidence."
+      "next_gate": "Keep both v1 baselines candidate-only while adding provisioned Developer ID signing, notarization, stapling, and Gatekeeper evidence."
     },
     {
       "id": "leserpent-2/release-assurance/continuous-proof",

@@ -303,6 +303,7 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
 #[test]
 fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     let harness = read_repo_file("src/validation_harness/leserpent_parity_recovery.rs");
+    let dotnet_proof = read_repo_file("src/validation_harness/dotnet_proof.rs");
     let binary = read_repo_file("src/bin/gewyvern_validate.rs");
     let dotnet_vertical = read_repo_file("crates/leserpent-cli/tests/dotnet_remote_vertical.rs");
 
@@ -315,9 +316,11 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("dotnet-control-plane-security"));
     assert!(harness.contains("ProofCommand::DotnetTest"));
     assert!(harness.contains("expected_min_tests: 72"));
-    assert!(harness.contains("RestoreLockedMode=true"));
-    assert!(harness.contains("dotnet_passed_test_count"));
-    assert!(harness.contains("summaries.len() != 1"));
+    assert!(dotnet_proof.contains("RestoreLockedMode=true"));
+    assert!(dotnet_proof.contains("dotnet_passed_test_count"));
+    assert!(dotnet_proof.contains("run_locked_dotnet_test"));
+    assert!(dotnet_proof.contains("--filter"));
+    assert!(dotnet_proof.contains("summaries.len() != 1"));
     assert!(harness.contains("clear_previous_proof_evidence"));
     assert!(harness.contains("proof_host_metadata"));
     assert!(harness.contains("captured_unix_seconds"));
@@ -415,6 +418,13 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
     assert!(harness.contains("legacy-wire-migration"));
     assert!(harness.contains("journal-v1-to-current-replay"));
     assert!(harness.contains("legacy-status-refresh-idempotency"));
+    assert!(harness.contains("managed-control-plane-migration"));
+    assert!(harness.contains("SqliteOrchestraRunStoreTests"));
+    assert!(harness.contains("MANAGED_MIGRATION_MIN_TESTS"));
+    assert!(harness.contains("run_locked_dotnet_test"));
+    assert!(harness.contains("transactional-migration-write-rollback"));
+    assert!(harness.contains("retained-json-byte-preservation"));
+    assert!(harness.contains("operator-json-rollback"));
     assert!(harness.contains("clear_previous_evidence"));
     assert!(harness.contains("load_and_validate_compatibility_baseline"));
     assert!(harness.contains("ring::digest::SHA256"));

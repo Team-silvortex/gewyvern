@@ -127,6 +127,70 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void SqliteReplaceAllRollsBackOnMigrationWriteFailureAndAllowsRetry()
+    {
+        var databasePath = TemporaryPath("db");
+        var store = CreateSqliteStore(databasePath);
+        var existing = CreateRun("existing-run", "request-existing", "succeeded");
+        store.Upsert(existing);
+        var first = CreateRun("replacement-a", "request-collision", "succeeded");
+        var second = CreateRun("replacement-b", "request-collision", "succeeded");
+
+        Assert.False(store.ReplaceAll(new[] { first, second }));
+        Assert.NotNull(store.LastError);
+        Assert.Equal("existing-run", Assert.Single(store.LoadAll()).RunId);
+
+        Assert.True(store.ReplaceAll(new[]
+        {
+            first,
+            second with { RequestId = "request-retry-b" },
+        }));
+        Assert.Equal(2, store.LoadAll().Count);
+        Assert.Null(store.LastError);
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void RegistryMigrationFailurePreservesLegacyJsonForRetryAndOperatorRollback()
+    {
+        var statePath = TemporaryPath("json");
+        var databasePath = TemporaryPath("db");
+        var legacyRegistry = new RegistryService(CreateStateStore(statePath));
+        var registered = legacyRegistry.RegisterRuntime(new RuntimeRegistrationRequest(
+            "runtime",
+            "http://127.0.0.1:49152",
+            "pairing-token"));
+        legacyRegistry.RecordOrchestraRun(
+            registered.RuntimeId,
+            "runtime_triage",
+            "succeeded",
+            Array.Empty<OrchestraExecutionStepResult>(),
+            "operator",
+            "rollback migration",
+            "revision-1",
+            "request-rollback-1");
+        var retainedJson = File.ReadAllBytes(statePath);
+        var failingStore = new FailingMigrationStore();
+
+        Assert.Throws<OrchestraPersistenceException>(() =>
+            new RegistryService(CreateStateStore(statePath), failingStore));
+        Assert.Single(failingStore.AttemptedRuns);
+        Assert.Equal(retainedJson, File.ReadAllBytes(statePath));
+
+        var sqlite = CreateSqliteStore(databasePath);
+        var retried = new RegistryService(CreateStateStore(statePath), sqlite);
+        Assert.Equal("request-rollback-1", Assert.Single(
+            retried.ListOrchestraRuns(registered.RuntimeId)).RequestId);
+        Assert.Equal(retainedJson, File.ReadAllBytes(statePath));
+
+        var rolledBack = new RegistryService(CreateStateStore(statePath));
+        Assert.Equal("request-rollback-1", Assert.Single(
+            rolledBack.ListOrchestraRuns(registered.RuntimeId)).RequestId);
+        DeleteState(statePath);
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
     public void RegistrySingleRuntimeDeleteRemovesSqliteRunsAndEvents()
     {
         var statePath = TemporaryPath("json");
@@ -333,5 +397,30 @@ public sealed class SqliteOrchestraRunStoreTests
         public string ApplicationName { get; set; } = "Leserpent.SecurityTests";
         public string ContentRootPath { get; set; } = string.Empty;
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class FailingMigrationStore : IOrchestraRunStore
+    {
+        public string Provider => "failure-injection";
+        public string Location => "memory";
+        public int SchemaVersion => 2;
+        public string? LastError => "injected migration write failure";
+        public IReadOnlyList<OrchestraRunSummary> AttemptedRuns { get; private set; } =
+            Array.Empty<OrchestraRunSummary>();
+
+        public IReadOnlyList<OrchestraRunSummary> LoadAll() => Array.Empty<OrchestraRunSummary>();
+
+        public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) =>
+            Array.Empty<OrchestraRunEvent>();
+
+        public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) => false;
+
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
+        {
+            AttemptedRuns = runs.ToArray();
+            return false;
+        }
+
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => false;
     }
 }

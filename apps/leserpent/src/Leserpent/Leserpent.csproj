@@ -4,6 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath Condition="'$(PublishAot)' != 'true'">$(MSBuildProjectDirectory)/packages.development.lock.json</NuGetLockFilePath>
+    <NuGetLockFilePath Condition="'$(PublishAot)' == 'true'">$(MSBuildProjectDirectory)/packages.lock.json</NuGetLockFilePath>
+    <NativeAotToolchainVersion Condition="'$(NativeAotToolchainVersion)' == ''">10.0.9</NativeAotToolchainVersion>
+    <RuntimeFrameworkVersion Condition="'$(PublishAot)' == 'true'">$(NativeAotToolchainVersion)</RuntimeFrameworkVersion>
+    <TargetLatestRuntimePatch Condition="'$(PublishAot)' == 'true'">false</TargetLatestRuntimePatch>
     <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../..'))</RepositoryRoot>
     <RustCompatibilityBridgePath>$(RepositoryRoot)/target/release/leserpent-compat-bridge</RustCompatibilityBridgePath>
   </PropertyGroup>
@@ -11,6 +17,23 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(PublishAot)' == 'true'">
+    <KnownFrameworkReference Update="Microsoft.NETCore.App"
+                             Condition="'$(TargetFramework)' == 'net10.0'"
+                             LatestRuntimeFrameworkVersion="$(NativeAotToolchainVersion)"
+                             TargetingPackVersion="$(NativeAotToolchainVersion)" />
+    <KnownRuntimePack Update="Microsoft.NETCore.App"
+                      Condition="'$(TargetFramework)' == 'net10.0'"
+                      LatestRuntimeFrameworkVersion="$(NativeAotToolchainVersion)" />
+    <KnownAppHostPack Update="Microsoft.NETCore.App"
+                      Condition="'$(TargetFramework)' == 'net10.0'"
+                      AppHostPackVersion="$(NativeAotToolchainVersion)" />
+    <KnownILCompilerPack Update="Microsoft.DotNet.ILCompiler"
+                         ILCompilerPackVersion="$(NativeAotToolchainVersion)" />
+    <KnownILLinkPack Update="Microsoft.NET.ILLink.Tasks"
+                     ILLinkPackVersion="$(NativeAotToolchainVersion)" />
   </ItemGroup>
 
   <ItemGroup>

@@ -8,6 +8,7 @@ use serde_json::json;
 use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_status,
 };
+use super::dotnet_proof::run_locked_dotnet_test;
 use super::read_bounded_json_file;
 
 const INVENTORY_PATH: &str = "project/release/leserpent-v1-schema-inventory.json";
@@ -15,6 +16,24 @@ const COMPATIBILITY_BASELINE_PATH: &str =
     "project/release/leserpent-v1-compatibility-baseline.json";
 const EXPECTED_FAMILIES: &[&str] = &["command", "effect", "query", "ui", "wire"];
 const EXPECTED_FIXTURE_FAMILIES: &[&str] = &["legacy-wire", "ui", "wire"];
+const MANAGED_MIGRATION_PROJECT: &str =
+    "apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj";
+const MANAGED_MIGRATION_FILTER: &str =
+    "FullyQualifiedName~Leserpent.SecurityTests.SqliteOrchestraRunStoreTests";
+const MANAGED_MIGRATION_MIN_TESTS: usize = 10;
+const MANAGED_MIGRATION_INVARIANTS: &[&str] = &[
+    "sqlite-v1-in-place-migration",
+    "legacy-json-to-sqlite-migration",
+    "request-id-uniqueness-preservation",
+    "runtime-delete-cascade",
+    "bounded-history-retention",
+    "concurrent-json-save-serialization",
+    "failed-save-snapshot-preservation",
+    "transactional-migration-write-rollback",
+    "retained-json-byte-preservation",
+    "managed-migration-retry",
+    "operator-json-rollback",
+];
 
 struct ProofSuite {
     id: &'static str,
@@ -182,6 +201,38 @@ pub fn run_leserpent_schema_freeze_validation(
             "status": "passed",
         }));
     }
+
+    let managed_log = "managed-control-plane-migration.log";
+    let dotnet_artifacts = out_dir.join("managed-control-plane-migration-artifacts");
+    let managed_test_count = run_locked_dotnet_test(
+        MANAGED_MIGRATION_PROJECT,
+        Some(MANAGED_MIGRATION_FILTER),
+        &dotnet_artifacts,
+        &out_dir.join(managed_log),
+    )?;
+    if managed_test_count < MANAGED_MIGRATION_MIN_TESTS {
+        return Err(ValidationError::new(format!(
+            "managed control-plane migration proof ran {managed_test_count} tests, expected at least {MANAGED_MIGRATION_MIN_TESTS}"
+        )));
+    }
+    total_test_count += managed_test_count;
+    files.push(managed_log.to_string());
+    checks.extend(
+        MANAGED_MIGRATION_INVARIANTS
+            .iter()
+            .map(|item| (*item).to_string()),
+    );
+    proof_summaries.push(json!({
+        "id": "managed-control-plane-migration",
+        "runner": "dotnet-test",
+        "project": MANAGED_MIGRATION_PROJECT,
+        "test_filter": MANAGED_MIGRATION_FILTER,
+        "restore_locked": true,
+        "expected_min_tests": MANAGED_MIGRATION_MIN_TESTS,
+        "test_count": managed_test_count,
+        "invariants": MANAGED_MIGRATION_INVARIANTS,
+        "status": "passed",
+    }));
 
     let freeze_ready = inventory.freeze_state == "frozen"
         && inventory
@@ -459,6 +510,10 @@ fn validate_compatibility_fixture(
 }
 
 fn clear_previous_evidence(out_dir: &Path) -> Result<(), ValidationError> {
+    let dotnet_artifacts = out_dir.join("managed-control-plane-migration-artifacts");
+    if dotnet_artifacts.exists() {
+        fs::remove_dir_all(dotnet_artifacts)?;
+    }
     for name in [
         "schema-freeze-summary.json",
         "evidence-index.json",
@@ -467,6 +522,7 @@ fn clear_previous_evidence(out_dir: &Path) -> Result<(), ValidationError> {
         "wire-v1.log",
         "runtime-migration-replay.log",
         "legacy-wire-migration.log",
+        "managed-control-plane-migration.log",
     ] {
         let path = out_dir.join(name);
         if path.exists() {
@@ -540,6 +596,8 @@ mod tests {
         assert_eq!(PROOF_SUITES[3].id, "runtime-migration-replay");
         assert_eq!(PROOF_SUITES[3].test_filter, Some("migrat"));
         assert_eq!(PROOF_SUITES[4].id, "legacy-wire-migration");
+        assert_eq!(MANAGED_MIGRATION_MIN_TESTS, 10);
+        assert!(MANAGED_MIGRATION_FILTER.contains("SqliteOrchestraRunStoreTests"));
     }
 
     #[test]
