@@ -101,6 +101,46 @@ fn minimal_release_gate_json_matches_fixture() {
 }
 
 #[test]
+fn release_gate_retains_valid_blocked_macos_preflight() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("docs/fixtures/leserpent_macos_release_preflight.json");
+    let fixture = fixture.to_str().unwrap();
+    let (ok, stdout, stderr) = run_validate_json(&[
+        "--json",
+        "release-gate",
+        "--skip-build",
+        "--skip-release-check",
+        "--skip-stack",
+        "--skip-debugger-cross",
+        "--skip-pathology",
+        "--macos-release-preflight",
+        fixture,
+    ]);
+
+    assert!(ok, "blocked preflight is valid evidence, stderr: {stderr}");
+    assert!(stderr.trim().is_empty(), "unexpected stderr: {stderr}");
+    let report = parse_single_json(&stdout);
+    assert_eq!(
+        report["checks"],
+        serde_json::json!(["macos_release_preflight_blocked"])
+    );
+    assert_eq!(report["extra"]["stages"]["macos_release_preflight"], true);
+    assert_eq!(
+        report["extra"]["stages"]["macos_release_preflight_blocked"],
+        true
+    );
+    assert_eq!(
+        report["extra"]["stages"]["macos_release_preflight_ready"],
+        false
+    );
+    assert!(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target/validation/leserpent-macos-release-preflight/release-gate-preflight.json")
+            .is_file()
+    );
+}
+
+#[test]
 fn minimal_release_gate_writes_release_artifact_index_files() {
     let expected_shape =
         read_fixture("docs/fixtures/gewyvern_validate_release_gate_artifact_shape.json");

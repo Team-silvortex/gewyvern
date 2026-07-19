@@ -75,11 +75,12 @@ const PROOF_SUITES: &[ProofSuite] = &[
         package: "leserpent-protocol",
         target_args: &["--lib"],
         test_filter: None,
-        expected_min_tests: 9,
+        expected_min_tests: 10,
         invariants: &[
             "wire-envelope-v1",
             "strict-versioned-decode",
             "bounded-message-contract",
+            "typed-deployment-receipt-contract",
         ],
     },
     ProofSuite {
@@ -100,12 +101,15 @@ const PROOF_SUITES: &[ProofSuite] = &[
         package: "leserpent-protocol",
         target_args: &["--test", "compatibility_v1"],
         test_filter: None,
-        expected_min_tests: 4,
+        expected_min_tests: 7,
         invariants: &[
             "legacy-runtime-list-normalization",
             "legacy-status-refresh-idempotency",
             "legacy-error-preservation",
             "legacy-wire-size-bound",
+            "legacy-deployment-pre-effect-contract",
+            "legacy-orchestra-atomic-persistence-contract",
+            "rust-authoritative-deployment-normalization",
         ],
     },
 ];
@@ -424,9 +428,9 @@ fn load_and_validate_compatibility_baseline(
             "Leserpent compatibility baseline must be candidate schema v1 for release line 2.0 using sha256",
         ));
     }
-    if baseline.fixtures.len() != 9 {
+    if baseline.fixtures.len() != 11 {
         return Err(ValidationError::new(
-            "Leserpent compatibility baseline must contain exactly nine v1 fixtures",
+            "Leserpent compatibility baseline must contain exactly eleven v1 fixtures",
         ));
     }
 

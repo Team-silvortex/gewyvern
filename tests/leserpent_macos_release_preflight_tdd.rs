@@ -1,0 +1,50 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use serde_json::Value;
+
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn read(path: impl AsRef<Path>) -> String {
+    fs::read_to_string(root().join(path)).unwrap()
+}
+
+#[test]
+fn macos_release_preflight_is_machine_readable_and_fail_closed() {
+    let release = read("src/bin/gewyvern_leserpent_release.rs");
+    let fixture = read("docs/fixtures/leserpent_macos_release_preflight.json");
+    let report: Value = serde_json::from_str(&fixture).unwrap();
+
+    assert!(release.contains("Some(\"preflight\") => Action::Preflight"));
+    assert!(release.contains("developer_id_identity_count"));
+    assert!(release.contains("notary_profile_is_valid"));
+    assert!(release.contains("apple_release_tool_missing"));
+    assert!(release.contains("developer_id_application_identity_missing"));
+    assert!(release.contains("notary_keychain_profile_not_requested"));
+    assert!(release.contains("notary_keychain_profile_unavailable"));
+    assert_eq!(report["schema_version"], 1);
+    assert_eq!(report["release_ready"], false);
+    assert_eq!(report["result"], "blocked");
+    assert_eq!(report["developer_id_application_identities"], 0);
+    assert_eq!(report["notary_profile_requested"], false);
+    assert_eq!(report["notary_profile_valid"], false);
+    assert_eq!(report["apple_tools"].as_object().unwrap().len(), 8);
+    assert!(
+        report["apple_tools"]
+            .as_object()
+            .unwrap()
+            .values()
+            .all(|value| value.as_bool() == Some(true))
+    );
+    assert_eq!(
+        report["blockers"],
+        serde_json::json!([
+            "developer_id_application_identity_missing",
+            "notary_keychain_profile_not_requested"
+        ])
+    );
+    assert!(report.get("password").is_none());
+    assert!(report.get("token").is_none());
+}

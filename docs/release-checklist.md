@@ -141,6 +141,8 @@ cargo run --quiet --bin gewyvern_validate -- release-gate --skip-stack
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-debugger-cross
 cargo run --quiet --bin gewyvern_validate -- release-gate --skip-pathology
 cargo run --quiet --bin gewyvern_validate -- release-gate --leserpent-proof
+cargo run --quiet --bin gewyvern_validate -- release-gate \
+  --macos-release-preflight docs/fixtures/leserpent_macos_release_preflight.json
 cargo run --quiet --bin gewyvern_validate -- release-gate --remote-host-validation
 cargo run --quiet --bin gewyvern_validate -- release-gate --deb
 cargo run --quiet --bin gewyvern_validate -- release-gate --rpm
@@ -158,6 +160,14 @@ cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-v
 `extra.stages.leserpent_parity_recovery = true`. It remains default-off so the
 sealed Gewyvern 1.x gate does not silently acquire .NET, GUI, mobile, or
 cross-language build dependencies.
+
+`--macos-release-preflight FILE` consumes the bounded JSON emitted by
+`gewyvern_leserpent_release preflight`. It strictly recomputes readiness from
+the eight-tool inventory, Developer ID identity count, notary profile state,
+and blocker list. A valid blocked report remains a successful evidence-ingest
+stage but cannot produce a ready ship signal; malformed or contradictory input
+fails closed. The normalized report is indexed at
+`target/validation/leserpent-macos-release-preflight/release-gate-preflight.json`.
 
 The lower-level packaged release-minded entrypoint is:
 

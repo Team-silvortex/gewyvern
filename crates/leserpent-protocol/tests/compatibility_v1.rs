@@ -4,8 +4,9 @@ use leserpent_domain::{
 };
 use leserpent_protocol::MAX_PROTOCOL_MESSAGE_BYTES;
 use leserpent_protocol::compatibility_v1::{
-    CompatibilityError, apply_status_refresh, decode_api_error, decode_runtime_collection,
-    decode_status_refresh, domain_error_to_legacy, runtime_list_query,
+    CompatibilityError, apply_status_refresh, decode_api_error, decode_orchestra_persistence,
+    decode_runtime_collection, decode_runtime_deployment_request, decode_status_refresh,
+    domain_error_to_legacy, normalize_runtime_deployment_request, runtime_list_query,
     runtime_status_refresh_command, seed_runtime_collection,
 };
 
@@ -117,5 +118,61 @@ fn compatibility_decoder_enforces_the_wire_size_limit() {
     assert!(matches!(
         decode_runtime_collection(&oversized),
         Err(CompatibilityError::Oversized { .. })
+    ));
+}
+
+#[test]
+fn legacy_deployment_request_freezes_the_confirmed_idempotent_write_contract() {
+    let fixture = include_bytes!("fixtures/legacy-runtime-deployment-request-v1.json");
+    let deployment = decode_runtime_deployment_request(fixture).unwrap();
+    assert_eq!(deployment.runtime_id, "runtime-alpha");
+    assert_eq!(deployment.request.request_id, "deploy-001");
+    assert_eq!(deployment.request.pipeline_kind, "capture/http");
+    assert_eq!(deployment.request.requested_by, "operator-a");
+    assert_eq!(deployment.request.target.as_deref(), Some("service-a"));
+
+    let mut unconfirmed: serde_json::Value = serde_json::from_slice(fixture).unwrap();
+    unconfirmed["request"]["confirmed"] = serde_json::json!(false);
+    assert!(matches!(
+        decode_runtime_deployment_request(&serde_json::to_vec(&unconfirmed).unwrap()),
+        Err(CompatibilityError::InvalidDeployment(_))
+    ));
+
+    let mut drifted: serde_json::Value = serde_json::from_slice(fixture).unwrap();
+    drifted["request"]["unexpected"] = serde_json::json!(true);
+    assert!(matches!(
+        decode_runtime_deployment_request(&serde_json::to_vec(&drifted).unwrap()),
+        Err(CompatibilityError::InvalidJson(_))
+    ));
+}
+
+#[test]
+fn rust_normalizes_the_authoritative_legacy_deployment_intent() {
+    let source = br#"{"runtimeId":"runtime-alpha","request":{"pipelineKind":" capture/http ","requestedBy":" operator-a ","confirmed":true,"requestId":" deploy-001 ","target":"  "}}"#;
+    let normalized = normalize_runtime_deployment_request(source).unwrap();
+    assert_eq!(normalized.request.pipeline_kind, "capture/http");
+    assert_eq!(normalized.request.requested_by, "operator-a");
+    assert_eq!(normalized.request.request_id, "deploy-001");
+    assert_eq!(normalized.request.target, None);
+}
+
+#[test]
+fn legacy_orchestra_fixture_freezes_atomic_run_event_persistence() {
+    let fixture = include_bytes!("fixtures/legacy-orchestra-persistence-v1.json");
+    let persistence = decode_orchestra_persistence(fixture).unwrap();
+    assert_eq!(persistence.run.run_id, persistence.event.run_id);
+    assert_eq!(persistence.run.runtime_id, persistence.event.runtime_id);
+    assert_eq!(persistence.run.outcome, persistence.event.to_outcome);
+    assert_eq!(persistence.run.request_id.as_deref(), Some("deploy-001"));
+    assert_eq!(
+        persistence.event.event_id, 0,
+        "SQLite owns event ID allocation"
+    );
+
+    let mut mismatched: serde_json::Value = serde_json::from_slice(fixture).unwrap();
+    mismatched["event"]["runId"] = serde_json::json!("orun_other");
+    assert!(matches!(
+        decode_orchestra_persistence(&serde_json::to_vec(&mismatched).unwrap()),
+        Err(CompatibilityError::InvalidOrchestra("consistency"))
     ));
 }

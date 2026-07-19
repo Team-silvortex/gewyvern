@@ -1,6 +1,7 @@
 using Leserpent.ControlPlane;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 using Xunit;
 
 namespace Leserpent.SecurityTests;
@@ -18,6 +19,17 @@ public sealed class RustCompatibilityBridgeTests
                 new RuntimeListFilter(null, null, null),
                 Array.Empty<RuntimeSummary>()),
             CancellationToken.None);
+        var normalized = await bridge.NormalizeRuntimeDeploymentRequestAsync(
+            new RuntimeDeploymentCompatibilityEnvelope(
+                "runtime-a",
+                new RuntimeDeploymentRequest(
+                    "capture/http",
+                    "operator-a",
+                    true,
+                    "deploy-001",
+                    "service-a")),
+            CancellationToken.None);
+        Assert.Equal("deploy-001", normalized.Request.RequestId);
     }
 
     [Fact]
@@ -27,6 +39,61 @@ public sealed class RustCompatibilityBridgeTests
         Assert.Throws<FileNotFoundException>(() => CreateBridge((
             "LESERPENT_RUST_BRIDGE_BIN",
             Path.Combine(Path.GetTempPath(), $"missing-leserpent-bridge-{Guid.NewGuid():N}"))));
+    }
+
+    [Fact]
+    public void DeploymentEnvelopeMatchesTheStrictRustFixtureShape()
+    {
+        var payload = new RuntimeDeploymentCompatibilityEnvelope(
+            "runtime-alpha",
+            new RuntimeDeploymentRequest(
+                "capture/http",
+                "operator-a",
+                true,
+                "deploy-001",
+                "service-a"));
+        var json = JsonSerializer.SerializeToElement(
+            payload,
+            global::Leserpent.LeserpentJsonContext.Default.RuntimeDeploymentCompatibilityEnvelope);
+
+        Assert.Equal(
+            new[] { "request", "runtimeId" }.OrderBy(name => name, StringComparer.Ordinal),
+            json.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal));
+        var request = json.GetProperty("request");
+        Assert.Equal(
+            new[] { "confirmed", "pipelineKind", "requestId", "requestedBy", "target" }
+                .OrderBy(name => name, StringComparer.Ordinal),
+            request.EnumerateObject().Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal("runtime-alpha", json.GetProperty("runtimeId").GetString());
+        Assert.Equal("deploy-001", request.GetProperty("requestId").GetString());
+        Assert.True(request.GetProperty("confirmed").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ConfiguredRustProcessReturnsTheCanonicalDeploymentAuthority()
+    {
+        var executable = Environment.GetEnvironmentVariable("LESERPENT_TEST_RUST_BRIDGE_BIN");
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            return;
+        }
+        using var bridge = CreateBridge(("LESERPENT_RUST_BRIDGE_BIN", executable));
+        var normalized = await bridge.NormalizeRuntimeDeploymentRequestAsync(
+            new RuntimeDeploymentCompatibilityEnvelope(
+                "runtime-alpha",
+                new RuntimeDeploymentRequest(
+                    " capture/http ",
+                    " operator-a ",
+                    true,
+                    " deploy-001 ",
+                    "  ")),
+            CancellationToken.None);
+
+        Assert.Equal("capture/http", normalized.Request.PipelineKind);
+        Assert.Equal("operator-a", normalized.Request.RequestedBy);
+        Assert.Equal("deploy-001", normalized.Request.RequestId);
+        Assert.Null(normalized.Request.Target);
     }
 
     [Fact]

@@ -1,0 +1,10 @@
+{
+  "runtimeId": "runtime-alpha",
+  "request": {
+    "pipelineKind": "capture/http",
+    "requestedBy": "operator-a",
+    "confirmed": true,
+    "requestId": "deploy-001",
+    "target": "service-a"
+  }
+}

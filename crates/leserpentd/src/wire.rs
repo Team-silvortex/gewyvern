@@ -1,12 +1,13 @@
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, Command, CommandPlan, PlannedOperation,
-    Query,
+    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, Command,
+    CommandPlan, IdempotencyKey, PlannedOperation, Query,
 };
 use leserpent_protocol::{
-    EffectQueueHealth, HealthResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest,
-    ProtocolResponse, RequestEnvelope, ResponseEnvelope,
+    DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
+    PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope,
+    ResponseEnvelope,
 };
-use leserpent_runtime::{ControlRuntime, PlanResult, RuntimeError};
+use leserpent_runtime::{ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError};
 
 pub(crate) const MAX_AUTH_TOKEN_BYTES: usize = 256;
 
@@ -38,6 +39,41 @@ pub(crate) fn execute_request(
                 Err(_) => error_response("runtime_unavailable", "runtime authority is unavailable"),
             };
         }
+        ProtocolRequest::DeploymentReceipt(receipt) => {
+            if receipt.principal.id.trim().is_empty()
+                || !receipt.capabilities.contains(CAPABILITY_RUNTIME_DEPLOY)
+                || IdempotencyKey::new(receipt.request_id.clone()).is_err()
+            {
+                return error_response("unauthorized", "deployment receipt access was rejected");
+            }
+            return match runtime
+                .deployment_effect_receipt(receipt.command_id.as_str(), &receipt.request_id)
+            {
+                Ok(Some(result)) => response(ProtocolResponse::DeploymentReceipt(
+                    DeploymentReceiptResponse {
+                        command_id: receipt.command_id,
+                        request_id: receipt.request_id,
+                        status: match result.state {
+                            DeploymentEffectState::Pending => DeploymentReceiptStatus::Pending,
+                            DeploymentEffectState::Completed => DeploymentReceiptStatus::Completed,
+                            DeploymentEffectState::Failed => DeploymentReceiptStatus::Failed,
+                        },
+                        attempt: result.attempt,
+                        outcome: result.outcome,
+                        error: result.error,
+                    },
+                )),
+                Ok(None) => error_response(
+                    "deployment_receipt_not_found",
+                    "deployment receipt was not found",
+                ),
+                Err(RuntimeError::InvalidEffectOutcome(_)) => error_response(
+                    "invalid_request",
+                    "deployment receipt identity was rejected",
+                ),
+                Err(_) => error_response("runtime_failed", "deployment receipt lookup failed"),
+            };
+        }
         request => request,
     };
     let required_capability = match &request {
@@ -54,12 +90,12 @@ pub(crate) fn execute_request(
             Command::RuntimeDeploy { .. } => leserpent_domain::CAPABILITY_RUNTIME_DEPLOY,
             Command::DebuggerCancel { .. } => leserpent_domain::CAPABILITY_DEBUGGER_CONTROL,
         },
-        ProtocolRequest::Health(_) => unreachable!(),
+        ProtocolRequest::Health(_) | ProtocolRequest::DeploymentReceipt(_) => unreachable!(),
     };
     let operation = match request {
         ProtocolRequest::Query(query) => PlannedOperation::Query(query),
         ProtocolRequest::Command(command) => PlannedOperation::Command(command),
-        ProtocolRequest::Health(_) => unreachable!(),
+        ProtocolRequest::Health(_) | ProtocolRequest::DeploymentReceipt(_) => unreachable!(),
     };
     match runtime.execute_plan(CommandPlan {
         schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,

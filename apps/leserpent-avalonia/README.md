@@ -531,10 +531,20 @@ The native release gate signs nested dylibs before the application, requires a
 timestamp, and rejects symlinks or another bundle identity:
 
 ```bash
+cargo run --bin gewyvern_leserpent_release -- preflight \
+  --app artifacts/leserpent-avalonia/Leserpent.app
+
 cargo run --bin gewyvern_leserpent_release -- sign \
   --app artifacts/leserpent-avalonia/Leserpent.app \
   --identity 'Developer ID Application: ORGANIZATION (TEAMID)'
 ```
+
+`preflight` emits machine-readable readiness JSON and never reads plaintext
+credentials. After storing the notary profile, pass `--keychain-profile
+leserpent-notary` so it can validate the profile through `notarytool history`.
+The retained macOS host evidence has every required Apple tool but no Developer
+ID Application identity and no requested notary profile, so it correctly
+reports `release_ready=false` rather than claiming an Apple-backed release.
 
 Store notarization credentials through the interactive Keychain prompt; never
 put an Apple ID password in a command, environment variable, or repository:

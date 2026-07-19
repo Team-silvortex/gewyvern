@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output};
 
 use gewyvern::native_binary::file_is_mach_o_arm64;
+use ring::digest::{SHA256, digest};
+use serde_json::json;
 
 const BUNDLE_ID: &str = "org.gewyvern.leserpent";
 const EXECUTABLE: &str = "Leserpent.Avalonia";
@@ -22,6 +24,7 @@ fn main() {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Action {
+    Preflight,
     Sign,
     Notarize,
     Verify,
@@ -42,6 +45,7 @@ impl Options {
     fn parse(args: impl Iterator<Item = String>) -> Result<Self, String> {
         let mut args = args.peekable();
         let action = match args.next().as_deref() {
+            Some("preflight") => Action::Preflight,
             Some("sign") => Action::Sign,
             Some("notarize") => Action::Notarize,
             Some("verify") => Action::Verify,
@@ -91,6 +95,11 @@ impl Options {
 
     fn validate(&self) -> Result<(), String> {
         match self.action {
+            Action::Preflight => {
+                if self.identity.is_some() || self.allow_adhoc {
+                    return Err("preflight received an option for another action".to_string());
+                }
+            }
             Action::Sign => {
                 let identity = self
                     .identity
@@ -136,6 +145,7 @@ fn run(options: Options) -> Result<String, String> {
     }
     validate_app(&options.app)?;
     match options.action {
+        Action::Preflight => preflight(&options),
         Action::Sign => sign(&options),
         Action::Notarize => notarize(&options),
         Action::Verify => {
@@ -153,6 +163,127 @@ fn run(options: Options) -> Result<String, String> {
             ))
         }
     }
+}
+
+fn preflight(options: &Options) -> Result<String, String> {
+    validate_regular_file(&options.entitlements, "entitlements")?;
+    run_checked(
+        Command::new("plutil")
+            .arg("-lint")
+            .arg(&options.entitlements),
+        "entitlements plist validation",
+    )?;
+    let apple_tools = apple_release_tools();
+    let identities = developer_id_identity_count()?;
+    let profile_requested = options.keychain_profile.is_some();
+    let profile_valid = match options.keychain_profile.as_deref() {
+        Some(profile) => notary_profile_is_valid(profile),
+        None => false,
+    };
+    let blockers = preflight_blockers(
+        apple_tools.iter().all(|(_, ready)| *ready),
+        identities,
+        profile_requested,
+        profile_valid,
+    );
+    let release_ready = blockers.is_empty();
+    let executable = options.app.join("Contents/MacOS").join(EXECUTABLE);
+    let report = json!({
+        "schema_version": 1,
+        "proof": "leserpent-macos-release-preflight",
+        "platform": "macos",
+        "host_arch": env::consts::ARCH,
+        "app": options.app.file_name().and_then(|value| value.to_str()).unwrap_or("Leserpent.app"),
+        "version": PRODUCT_VERSION,
+        "app_executable_sha256": file_sha256(&executable)?,
+        "entitlements_sha256": file_sha256(&options.entitlements)?,
+        "apple_tools": apple_tools.into_iter().collect::<std::collections::BTreeMap<_, _>>(),
+        "developer_id_application_identities": identities,
+        "notary_profile_requested": profile_requested,
+        "notary_profile_valid": profile_valid,
+        "release_ready": release_ready,
+        "blockers": blockers,
+        "result": if release_ready { "ready" } else { "blocked" },
+    });
+    serde_json::to_string(&report).map_err(|error| error.to_string())
+}
+
+fn apple_release_tools() -> Vec<(&'static str, bool)> {
+    let mut tools = vec![
+        ("codesign", Path::new("/usr/bin/codesign").is_file()),
+        ("ditto", Path::new("/usr/bin/ditto").is_file()),
+        ("plutil", Path::new("/usr/bin/plutil").is_file()),
+        ("security", Path::new("/usr/bin/security").is_file()),
+        ("spctl", Path::new("/usr/sbin/spctl").is_file()),
+        ("xcrun", Path::new("/usr/bin/xcrun").is_file()),
+    ];
+    tools.push(("notarytool", xcrun_finds("notarytool")));
+    tools.push(("stapler", xcrun_finds("stapler")));
+    tools
+}
+
+fn xcrun_finds(tool: &str) -> bool {
+    Command::new("xcrun")
+        .args(["--find", tool])
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+fn developer_id_identity_count() -> Result<usize, String> {
+    let output = run_checked(
+        Command::new("security").args(["find-identity", "-v", "-p", "codesigning"]),
+        "Developer ID identity inventory",
+    )?;
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| line.contains("Developer ID Application:"))
+        .count())
+}
+
+fn notary_profile_is_valid(profile: &str) -> bool {
+    validate_opaque(profile, "keychain profile").is_ok()
+        && Command::new("xcrun")
+            .args([
+                "notarytool",
+                "history",
+                "--keychain-profile",
+                profile,
+                "--output-format",
+                "json",
+            ])
+            .output()
+            .is_ok_and(|output| output.status.success())
+}
+
+fn preflight_blockers(
+    tools_ready: bool,
+    identities: usize,
+    profile_requested: bool,
+    profile_valid: bool,
+) -> Vec<&'static str> {
+    let mut blockers = Vec::new();
+    if !tools_ready {
+        blockers.push("apple_release_tool_missing");
+    }
+    if identities == 0 {
+        blockers.push("developer_id_application_identity_missing");
+    }
+    if !profile_requested {
+        blockers.push("notary_keychain_profile_not_requested");
+    } else if !profile_valid {
+        blockers.push("notary_keychain_profile_unavailable");
+    }
+    blockers
+}
+
+fn file_sha256(path: &Path) -> Result<String, String> {
+    let bytes =
+        fs::read(path).map_err(|error| format!("failed to hash {}: {error}", path.display()))?;
+    Ok(digest(&SHA256, &bytes)
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 fn formal_release_claims(allow_adhoc: bool) -> bool {
@@ -487,7 +618,7 @@ fn run_checked(command: &mut Command, context: &str) -> Result<Output, String> {
 }
 
 fn usage() -> &'static str {
-    "usage:\n  gewyvern_leserpent_release sign --app Leserpent.app --identity 'Developer ID Application: ...' [--entitlements FILE]\n  gewyvern_leserpent_release notarize --app Leserpent.app --keychain-profile PROFILE\n  gewyvern_leserpent_release verify --app Leserpent.app [--allow-adhoc]"
+    "usage:\n  gewyvern_leserpent_release preflight --app Leserpent.app [--keychain-profile PROFILE] [--entitlements FILE]\n  gewyvern_leserpent_release sign --app Leserpent.app --identity 'Developer ID Application: ...' [--entitlements FILE]\n  gewyvern_leserpent_release notarize --app Leserpent.app --keychain-profile PROFILE\n  gewyvern_leserpent_release verify --app Leserpent.app [--allow-adhoc]"
 }
 
 #[cfg(test)]
@@ -510,6 +641,17 @@ mod tests {
 
     #[test]
     fn accepts_only_action_scoped_release_options() {
+        assert!(parse(&["preflight", "--app", "Leserpent.app"]).is_ok());
+        assert!(
+            parse(&[
+                "preflight",
+                "--app",
+                "Leserpent.app",
+                "--keychain-profile",
+                "leserpent-notary"
+            ])
+            .is_ok()
+        );
         assert!(
             parse(&[
                 "sign",
@@ -587,6 +729,22 @@ mod tests {
     fn withholds_release_and_runtime_claims_from_adhoc_verification() {
         assert!(!formal_release_claims(true));
         assert!(formal_release_claims(false));
+    }
+
+    #[test]
+    fn preflight_readiness_is_explicit_and_non_vacuous() {
+        assert_eq!(
+            preflight_blockers(true, 0, false, false),
+            [
+                "developer_id_application_identity_missing",
+                "notary_keychain_profile_not_requested"
+            ]
+        );
+        assert_eq!(
+            preflight_blockers(true, 1, true, false),
+            ["notary_keychain_profile_unavailable"]
+        );
+        assert!(preflight_blockers(true, 1, true, true).is_empty());
     }
 
     #[test]

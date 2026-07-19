@@ -1,7 +1,7 @@
 use leserpent_domain::{
-    CommandEnvelope, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError, QueryEnvelope, QueryResult,
-    RefreshStatus, Revision, RuntimeCapabilitySnapshot, RuntimeId, RuntimeProjection,
-    RuntimeStatusSnapshot, RuntimeTags,
+    CapabilitySet, CommandEnvelope, CommandId, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError,
+    Principal, QueryEnvelope, QueryResult, RefreshStatus, Revision, RuntimeCapabilitySnapshot,
+    RuntimeDeploymentOutcome, RuntimeId, RuntimeProjection, RuntimeStatusSnapshot, RuntimeTags,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,11 +17,21 @@ pub enum ProtocolRequest {
     Command(CommandEnvelope),
     Query(QueryEnvelope),
     Health(HealthRequest),
+    DeploymentReceipt(DeploymentReceiptRequest),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HealthRequest {}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeploymentReceiptRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub command_id: CommandId,
+    pub request_id: String,
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -36,7 +46,29 @@ pub enum ProtocolResponse {
     Command(Box<CommandResult>),
     Query(QueryResult),
     Health(HealthResponse),
+    DeploymentReceipt(DeploymentReceiptResponse),
     Error(ProtocolError),
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeploymentReceiptStatus {
+    Pending,
+    Completed,
+    Failed,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeploymentReceiptResponse {
+    pub command_id: CommandId,
+    pub request_id: String,
+    pub status: DeploymentReceiptStatus,
+    pub attempt: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<RuntimeDeploymentOutcome>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -161,7 +193,7 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
     let domain_version = match &envelope.request {
         ProtocolRequest::Command(command) => command.schema_version,
         ProtocolRequest::Query(query) => query.schema_version,
-        ProtocolRequest::Health(_) => DOMAIN_SCHEMA_VERSION,
+        ProtocolRequest::Health(_) | ProtocolRequest::DeploymentReceipt(_) => DOMAIN_SCHEMA_VERSION,
     };
     if domain_version != DOMAIN_SCHEMA_VERSION {
         return Err(DecodeError::InvalidDomainSchemaVersion {
@@ -243,7 +275,8 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
 #[cfg(test)]
 mod tests {
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_READ, CapabilitySet, Principal, Query, QueryEnvelope, RuntimeListFilter,
+        CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CapabilitySet, CommandId, Principal,
+        Query, QueryEnvelope, RuntimeListFilter,
     };
 
     use super::*;
@@ -365,6 +398,50 @@ mod tests {
         assert_eq!(
             decode_request(&encode_request(&request).unwrap()).unwrap(),
             request
+        );
+    }
+
+    #[test]
+    fn deployment_receipt_round_trips_as_a_typed_terminal_response() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DeploymentReceipt(DeploymentReceiptRequest {
+                principal: Principal {
+                    id: "operator.example".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+                command_id: CommandId::new("deploy-command").unwrap(),
+                request_id: "deploy-1".into(),
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&request).unwrap()).unwrap(),
+            request
+        );
+
+        let response = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::DeploymentReceipt(DeploymentReceiptResponse {
+                command_id: CommandId::new("deploy-command").unwrap(),
+                request_id: "deploy-1".into(),
+                status: DeploymentReceiptStatus::Completed,
+                attempt: 1,
+                outcome: Some(RuntimeDeploymentOutcome {
+                    deployment_id: "gdep-1".into(),
+                    request_id: "deploy-1".into(),
+                    pipeline_kind: "http/request".into(),
+                    requested_by: "operator.example".into(),
+                    status: "accepted".into(),
+                    accepted_unix_ms: 1_700_000_000_000,
+                    target: None,
+                    replayed: false,
+                }),
+                error: None,
+            }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&response).unwrap()).unwrap(),
+            response
         );
     }
 

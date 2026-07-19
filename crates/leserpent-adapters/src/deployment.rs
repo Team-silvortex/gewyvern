@@ -5,26 +5,14 @@ use std::time::Duration;
 use leserpent_domain::validate_deployment_intent;
 pub use leserpent_domain::{
     RUNTIME_DEPLOYMENT_EFFECT_KIND as GEWYVERN_DEPLOYMENT_EFFECT_KIND,
+    RuntimeDeploymentOutcome as GewyvernDeploymentResponse,
     RuntimeDeploymentRequest as GewyvernDeploymentRequest,
 };
 use leserpent_runtime::EffectExecution;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::gewyvern::{GewyvernTarget, HttpJsonResponse, normalize_targets, post_json};
 use crate::{EffectAdapter, EmptySecretStore, SecretStore, validate_id};
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct GewyvernDeploymentResponse {
-    pub deployment_id: String,
-    pub request_id: String,
-    pub pipeline_kind: String,
-    pub requested_by: String,
-    pub status: String,
-    pub accepted_unix_ms: u128,
-    pub target: Option<String>,
-    pub replayed: bool,
-}
 
 pub struct GewyvernDeploymentAdapter {
     targets: BTreeMap<String, GewyvernTarget>,

@@ -9,6 +9,7 @@ namespace Leserpent;
 [JsonSerializable(typeof(RuntimeRegistrationRequest))]
 [JsonSerializable(typeof(RuntimeDeploymentRequest))]
 [JsonSerializable(typeof(RuntimeDeploymentResponse))]
+[JsonSerializable(typeof(RuntimeDeploymentCompatibilityEnvelope))]
 [JsonSerializable(typeof(SessionCreateRequest))]
 [JsonSerializable(typeof(SessionStopRequest))]
 [JsonSerializable(typeof(OrchestraExecuteRequest))]

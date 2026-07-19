@@ -4,9 +4,9 @@ use leserpent_domain::{
     MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES, PlannedOperation, Query,
     QueryEnvelope, QueryResult, RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
     RUNTIME_DEPLOYMENT_EFFECT_KIND, RUNTIME_STATUS_REFRESH_EFFECT_KIND, Revision,
-    RuntimeCapabilityObservation, RuntimeCapabilityRefreshRequest, RuntimeDeploymentRequest,
-    RuntimeId, RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection, RuntimeStatusObservation,
-    RuntimeStatusRefreshRequest,
+    RuntimeCapabilityObservation, RuntimeCapabilityRefreshRequest, RuntimeDeploymentOutcome,
+    RuntimeDeploymentRequest, RuntimeId, RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection,
+    RuntimeStatusObservation, RuntimeStatusRefreshRequest,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
@@ -17,7 +17,7 @@ use std::time::Duration;
 mod persistence;
 
 pub use persistence::EffectLease;
-use persistence::{Journal, JournalEntryKind};
+use persistence::{EffectRecord, Journal, JournalEntryKind};
 
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
 pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
@@ -38,6 +38,21 @@ pub struct EffectQueueStats {
     pub completed: u64,
     pub failed: u64,
     pub capacity: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeploymentEffectState {
+    Pending,
+    Completed,
+    Failed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeploymentEffectReceipt {
+    pub state: DeploymentEffectState,
+    pub attempt: u32,
+    pub outcome: Option<RuntimeDeploymentOutcome>,
+    pub error: Option<String>,
 }
 
 impl EffectQueueStats {
@@ -390,6 +405,25 @@ impl ControlRuntime {
             });
         };
         journal.effect_queue_stats().map_err(RuntimeError::Storage)
+    }
+
+    pub fn deployment_effect_receipt(
+        &mut self,
+        command_id: &str,
+        request_id: &str,
+    ) -> Result<Option<DeploymentEffectReceipt>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "deployment receipt requires persistent storage".into(),
+            ));
+        };
+        let Some(record) = journal
+            .effect_record(command_id)
+            .map_err(RuntimeError::Storage)?
+        else {
+            return Ok(None);
+        };
+        deployment_receipt_from_record(record, request_id).map(Some)
     }
 
     pub fn prune_terminal_effects(
@@ -882,6 +916,64 @@ impl ControlRuntime {
         }
         Ok(())
     }
+}
+
+fn deployment_receipt_from_record(
+    record: EffectRecord,
+    request_id: &str,
+) -> Result<DeploymentEffectReceipt, RuntimeError> {
+    if record.kind != RUNTIME_DEPLOYMENT_EFFECT_KIND {
+        return Err(RuntimeError::InvalidEffectOutcome(
+            "deployment receipt effect kind mismatch",
+        ));
+    }
+    let request: RuntimeDeploymentRequest = serde_json::from_slice(&record.payload)
+        .map_err(|_| RuntimeError::InvalidEffectOutcome("invalid deployment effect request"))?;
+    if request.request_id != request_id {
+        return Err(RuntimeError::InvalidEffectOutcome(
+            "deployment receipt request identity mismatch",
+        ));
+    }
+    let (state, outcome, error) = match record.state.as_str() {
+        "ready" | "leased" if record.outcome.is_none() => {
+            (DeploymentEffectState::Pending, None, None)
+        }
+        "completed" => {
+            let bytes = record.outcome.ok_or(RuntimeError::InvalidEffectOutcome(
+                "completed deployment effect omitted its outcome",
+            ))?;
+            let outcome: RuntimeDeploymentOutcome =
+                serde_json::from_slice(&bytes).map_err(|_| {
+                    RuntimeError::InvalidEffectOutcome("invalid deployment effect outcome")
+                })?;
+            if outcome.request_id != request_id {
+                return Err(RuntimeError::InvalidEffectOutcome(
+                    "deployment outcome request identity mismatch",
+                ));
+            }
+            (DeploymentEffectState::Completed, Some(outcome), None)
+        }
+        "failed" if record.outcome.is_none() => (
+            DeploymentEffectState::Failed,
+            None,
+            Some(
+                record
+                    .last_error
+                    .unwrap_or_else(|| "deployment effect failed".into()),
+            ),
+        ),
+        _ => {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "deployment effect terminal state is inconsistent",
+            ));
+        }
+    };
+    Ok(DeploymentEffectReceipt {
+        state,
+        attempt: record.attempt,
+        outcome,
+        error,
+    })
 }
 
 #[cfg(test)]
@@ -1885,6 +1977,79 @@ mod tests {
         assert_eq!(count, 1);
         assert_eq!(outcome, b"ok");
         drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn deployment_receipt_tracks_persisted_terminal_outcome_and_fences_identity() {
+        let path = temp_journal("deployment-receipt");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let request = RuntimeDeploymentRequest {
+            runtime_id: "runtime-a".into(),
+            request_id: "deploy-1".into(),
+            pipeline_kind: "http/request".into(),
+            requested_by: "operator.example".into(),
+            confirmed: true,
+            target: Some("pid:42".into()),
+        };
+        runtime
+            .enqueue_effect(
+                "deploy-command",
+                RUNTIME_DEPLOYMENT_EFFECT_KIND,
+                &serde_json::to_vec(&request).unwrap(),
+                3,
+            )
+            .unwrap();
+        assert_eq!(
+            runtime
+                .deployment_effect_receipt("deploy-command", "deploy-1")
+                .unwrap()
+                .unwrap()
+                .state,
+            DeploymentEffectState::Pending
+        );
+        assert!(matches!(
+            runtime.deployment_effect_receipt("deploy-command", "other"),
+            Err(RuntimeError::InvalidEffectOutcome(
+                "deployment receipt request identity mismatch"
+            ))
+        ));
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        let outcome = RuntimeDeploymentOutcome {
+            deployment_id: "gdep-1".into(),
+            request_id: "deploy-1".into(),
+            pipeline_kind: "http/request".into(),
+            requested_by: "operator.example".into(),
+            status: "accepted".into(),
+            accepted_unix_ms: 1_700_000_000_000,
+            target: Some("pid:42".into()),
+            replayed: false,
+        };
+        runtime
+            .complete_effect(&lease, &serde_json::to_vec(&outcome).unwrap())
+            .unwrap();
+        let receipt = runtime
+            .deployment_effect_receipt("deploy-command", "deploy-1")
+            .unwrap()
+            .unwrap();
+        assert_eq!(receipt.state, DeploymentEffectState::Completed);
+        assert_eq!(receipt.attempt, 1);
+        assert_eq!(receipt.outcome, Some(outcome));
+        assert_eq!(receipt.error, None);
+
+        runtime
+            .enqueue_effect("not-deployment", "other.effect", b"{}", 1)
+            .unwrap();
+        assert!(matches!(
+            runtime.deployment_effect_receipt("not-deployment", "deploy-1"),
+            Err(RuntimeError::InvalidEffectOutcome(
+                "deployment receipt effect kind mismatch"
+            ))
+        ));
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 

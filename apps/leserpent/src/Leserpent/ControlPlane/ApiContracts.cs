@@ -65,6 +65,9 @@ public sealed record SessionCollectionResponse(IReadOnlyList<SessionSummary> Ses
 public sealed record OrchestraRunCollectionResponse(string RuntimeId, IReadOnlyList<OrchestraRunSummary> Runs);
 public sealed record OrchestraRunEventsResponse(string RuntimeId, string RunId, IReadOnlyList<OrchestraRunEvent> Events);
 public sealed record OrchestraRunAcceptedResponse(OrchestraRunSummary Run, bool? Replayed = null);
+public sealed record RuntimeDeploymentCompatibilityEnvelope(
+    string RuntimeId,
+    RuntimeDeploymentRequest Request);
 public sealed record RuntimeDeleteResponse(bool Deleted, string RuntimeId, string Name, string Endpoint, int RemovedSessionCount);
 public sealed record RuntimeBulkDeleteResponse(
     bool Deleted,

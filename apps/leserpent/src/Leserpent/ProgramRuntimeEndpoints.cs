@@ -135,6 +135,7 @@ public partial class Program
             RuntimeDeploymentRequest request,
             RegistryService registry,
             CapabilityDiscoveryService discovery,
+            ICompatibilityBridge compatibilityBridge,
             CancellationToken cancellationToken) =>
         {
             var validationError = ValidateRuntimeDeployment(request);
@@ -142,7 +143,6 @@ public partial class Program
             {
                 return Results.BadRequest(new ApiErrorResponse("invalid_runtime_deployment", validationError, RuntimeId: id, RequestId: request.RequestId));
             }
-
             var runtime = registry.GetRuntime(id);
             var access = registry.GetRuntimeControlAccess(id);
             if (runtime is null || access is null)
@@ -165,11 +165,28 @@ public partial class Program
                     "refresh capabilities against a gewyvern runtime that advertises authenticated deployment control",
                     RuntimeId: id));
             }
+            RuntimeDeploymentRequest normalizedRequest;
+            try
+            {
+                var normalized = await compatibilityBridge.NormalizeRuntimeDeploymentRequestAsync(
+                    new RuntimeDeploymentCompatibilityEnvelope(runtime.RuntimeId, request),
+                    cancellationToken);
+                if (!string.Equals(normalized.RuntimeId, runtime.RuntimeId, StringComparison.Ordinal))
+                {
+                    throw new CompatibilityBridgeException(
+                        "Rust compatibility bridge returned a mismatched runtime identity");
+                }
+                normalizedRequest = normalized.Request;
+            }
+            catch (CompatibilityBridgeException ex)
+            {
+                return CompatibilityBridgeFailure(ex);
+            }
 
             try
             {
-                var deployed = await discovery.DeployAsync(access, request, cancellationToken);
-                if (!deployed.Replayed || registry.GetOrchestraRunByRequestId(id, request.RequestId.Trim()) is null)
+                var deployed = await discovery.DeployAsync(access, normalizedRequest, cancellationToken);
+                if (!deployed.Replayed || registry.GetOrchestraRunByRequestId(id, normalizedRequest.RequestId) is null)
                 {
                     registry.RecordOrchestraRun(
                         id,
@@ -182,9 +199,9 @@ public partial class Program
                                 "ok",
                                 $"runtime accepted deployment {deployed.DeploymentId} for {deployed.PipelineKind}"),
                         },
-                        request.RequestedBy.Trim(),
+                        normalizedRequest.RequestedBy,
                         "authenticated direct deployment",
-                        requestId: request.RequestId.Trim());
+                        requestId: normalizedRequest.RequestId);
                 }
                 registry.RecordRecoveryActivity(
                     id,
@@ -196,7 +213,7 @@ public partial class Program
             catch (OrchestraPersistenceException ex)
             {
                 return Results.Json(
-                    new ApiErrorResponse("orchestra_persistence_unavailable", ex.Message, RuntimeId: id, RequestId: request.RequestId),
+                    new ApiErrorResponse("orchestra_persistence_unavailable", ex.Message, RuntimeId: id, RequestId: normalizedRequest.RequestId),
                     LeserpentJsonContext.Default.ApiErrorResponse,
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
@@ -208,16 +225,16 @@ public partial class Program
                         "runtime_deployment_request_conflict",
                         "the runtime has already used this requestId for a different deployment",
                         RuntimeId: id,
-                        RequestId: request.RequestId));
+                        RequestId: normalizedRequest.RequestId));
                 }
                 return Results.Json(
-                    new ApiErrorResponse("runtime_deployment_rejected", ex.Message, RuntimeId: id, RequestId: request.RequestId),
+                    new ApiErrorResponse("runtime_deployment_rejected", ex.Message, RuntimeId: id, RequestId: normalizedRequest.RequestId),
                     LeserpentJsonContext.Default.ApiErrorResponse,
                     statusCode: StatusCodes.Status502BadGateway);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                return Results.BadRequest(new ApiErrorResponse("runtime_deployment_failed", ex.Message, RuntimeId: id, RequestId: request.RequestId));
+                return Results.BadRequest(new ApiErrorResponse("runtime_deployment_failed", ex.Message, RuntimeId: id, RequestId: normalizedRequest.RequestId));
             }
         });
 

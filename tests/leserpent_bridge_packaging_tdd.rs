@@ -73,3 +73,40 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     );
     assert!(environment.contains("LESERPENT_RUST_BRIDGE_TIMEOUT_MS=2000"));
 }
+
+#[test]
+fn deployment_bridge_validation_is_strict_and_pre_effect() {
+    let root = repository_root();
+    let endpoints = std::fs::read_to_string(
+        root.join("apps/leserpent/src/Leserpent/ProgramRuntimeEndpoints.cs"),
+    )
+    .unwrap();
+    let compatibility =
+        std::fs::read_to_string(root.join("crates/leserpent-protocol/src/compatibility_v1.rs"))
+            .unwrap();
+    let bridge = std::fs::read_to_string(
+        root.join("crates/leserpent-protocol/src/bin/leserpent-compat-bridge.rs"),
+    )
+    .unwrap();
+
+    let local_capability_check = endpoints
+        .find("runtime_deployment_not_supported")
+        .expect("deployment capability check");
+    let compatibility_check = endpoints
+        .find("NormalizeRuntimeDeploymentRequestAsync")
+        .expect("deployment compatibility check");
+    let remote_effect = endpoints
+        .find("discovery.DeployAsync")
+        .expect("remote deployment effect");
+    assert!(local_capability_check < compatibility_check);
+    assert!(compatibility_check < remote_effect);
+    assert!(compatibility.contains("deny_unknown_fields"));
+    assert!(compatibility.contains("decode_runtime_deployment_request"));
+    assert!(bridge.contains("ValidateRuntimeDeploymentRequest"));
+    assert!(
+        root.join(
+            "crates/leserpent-protocol/tests/fixtures/legacy-runtime-deployment-request-v1.json"
+        )
+        .is_file()
+    );
+}

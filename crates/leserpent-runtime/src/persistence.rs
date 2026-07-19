@@ -78,6 +78,15 @@ pub struct EffectLease {
     pub expires_at_unix_ms: i64,
 }
 
+pub struct EffectRecord {
+    pub kind: String,
+    pub payload: Vec<u8>,
+    pub state: String,
+    pub attempt: u32,
+    pub outcome: Option<Vec<u8>>,
+    pub last_error: Option<String>,
+}
+
 pub struct Journal {
     connection: Connection,
     owner_token: String,
@@ -504,6 +513,53 @@ impl Journal {
             max_attempts,
         }])?;
         Ok(())
+    }
+
+    pub fn effect_record(&mut self, effect_id: &str) -> Result<Option<EffectRecord>, String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("effect_id", effect_id)?;
+        let record: Option<(
+            String,
+            Vec<u8>,
+            String,
+            i64,
+            Option<Vec<u8>>,
+            Option<String>,
+        )> = self
+            .connection
+            .query_row(
+                "SELECT kind, payload, state, attempt, outcome, last_error
+                 FROM runtime_effect_tasks WHERE effect_id = ?1",
+                [effect_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        record
+            .map(|(kind, payload, state, attempt, outcome, last_error)| {
+                if !matches!(state.as_str(), "ready" | "leased" | "completed" | "failed") {
+                    return Err("effect record has an invalid state".to_string());
+                }
+                Ok(EffectRecord {
+                    kind,
+                    payload,
+                    state,
+                    attempt: u32::try_from(attempt)
+                        .map_err(|_| "effect record has an invalid attempt".to_string())?,
+                    outcome,
+                    last_error,
+                })
+            })
+            .transpose()
     }
 
     pub fn enqueue_effect_batch(&mut self, effects: &[EffectEnqueue]) -> Result<u64, String> {

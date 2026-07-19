@@ -1,7 +1,10 @@
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 
 use leserpent_protocol::MAX_PROTOCOL_MESSAGE_BYTES;
-use leserpent_protocol::compatibility_v1::{decode_runtime_collection, decode_status_refresh};
+use leserpent_protocol::compatibility_v1::{
+    decode_orchestra_persistence, decode_runtime_collection, decode_runtime_deployment_request,
+    decode_status_refresh, normalize_runtime_deployment_request,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -15,7 +18,10 @@ struct BridgeRequest {
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum BridgeOperation {
+    NormalizeRuntimeDeploymentRequest,
+    ValidateOrchestraPersistence,
     ValidateRuntimeList,
+    ValidateRuntimeDeploymentRequest,
     ValidateStatusRefresh,
 }
 
@@ -23,6 +29,8 @@ enum BridgeOperation {
 struct BridgeResponse {
     request_id: Option<String>,
     ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    payload: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<BridgeError>,
 }
@@ -55,6 +63,7 @@ fn serve(reader: &mut impl BufRead, writer: &mut impl Write) -> io::Result<()> {
             Frame::Oversized => BridgeResponse {
                 request_id: None,
                 ok: false,
+                payload: None,
                 error: Some(BridgeError {
                     code: "oversized_request",
                     message: format!(
@@ -78,6 +87,7 @@ fn process_frame(frame: &[u8]) -> BridgeResponse {
             return BridgeResponse {
                 request_id: None,
                 ok: false,
+                payload: None,
                 error: Some(BridgeError {
                     code: "invalid_request",
                     message: error.to_string(),
@@ -91,14 +101,30 @@ fn process_frame(frame: &[u8]) -> BridgeResponse {
             return failure(request.request_id, "invalid_payload", error.to_string());
         }
     };
-    let result = match request.operation {
-        BridgeOperation::ValidateRuntimeList => decode_runtime_collection(&payload).map(|_| ()),
-        BridgeOperation::ValidateStatusRefresh => decode_status_refresh(&payload).map(|_| ()),
+    let result: Result<Option<Value>, _> = match request.operation {
+        BridgeOperation::NormalizeRuntimeDeploymentRequest => {
+            normalize_runtime_deployment_request(&payload).and_then(|normalized| {
+                serde_json::to_value(normalized).map(Some).map_err(|error| {
+                    leserpent_protocol::compatibility_v1::CompatibilityError::InvalidJson(
+                        error.to_string(),
+                    )
+                })
+            })
+        }
+        BridgeOperation::ValidateOrchestraPersistence => {
+            decode_orchestra_persistence(&payload).map(|_| None)
+        }
+        BridgeOperation::ValidateRuntimeList => decode_runtime_collection(&payload).map(|_| None),
+        BridgeOperation::ValidateRuntimeDeploymentRequest => {
+            decode_runtime_deployment_request(&payload).map(|_| None)
+        }
+        BridgeOperation::ValidateStatusRefresh => decode_status_refresh(&payload).map(|_| None),
     };
     match result {
-        Ok(()) => BridgeResponse {
+        Ok(payload) => BridgeResponse {
             request_id: Some(request.request_id),
             ok: true,
+            payload,
             error: None,
         },
         Err(error) => failure(
@@ -113,6 +139,7 @@ fn failure(request_id: String, code: &'static str, message: String) -> BridgeRes
     BridgeResponse {
         request_id: Some(request_id),
         ok: false,
+        payload: None,
         error: Some(BridgeError { code, message }),
     }
 }
@@ -161,11 +188,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bridge_accepts_both_canonical_legacy_operations() {
+    fn bridge_accepts_all_canonical_legacy_operations() {
         for (operation, payload) in [
+            (
+                "validate_orchestra_persistence",
+                include_str!("../../tests/fixtures/legacy-orchestra-persistence-v1.json"),
+            ),
             (
                 "validate_runtime_list",
                 include_str!("../../tests/fixtures/legacy-runtime-list-response-v1.json"),
+            ),
+            (
+                "validate_runtime_deployment_request",
+                include_str!("../../tests/fixtures/legacy-runtime-deployment-request-v1.json"),
             ),
             (
                 "validate_status_refresh",
@@ -179,6 +214,18 @@ mod tests {
             assert!(response.ok, "{operation} should pass");
             assert_eq!(response.request_id.as_deref(), Some("request-1"));
         }
+    }
+
+    #[test]
+    fn bridge_returns_the_rust_normalized_deployment_envelope() {
+        let frame = br#"{"request_id":"request-1","operation":"normalize_runtime_deployment_request","payload":{"runtimeId":"runtime-alpha","request":{"pipelineKind":" capture/http ","requestedBy":" operator-a ","confirmed":true,"requestId":" deploy-001 ","target":" "}}}"#;
+        let response = process_frame(frame);
+        assert!(response.ok);
+        let payload = response.payload.unwrap();
+        assert_eq!(payload["request"]["pipelineKind"], "capture/http");
+        assert_eq!(payload["request"]["requestedBy"], "operator-a");
+        assert_eq!(payload["request"]["requestId"], "deploy-001");
+        assert!(payload["request"]["target"].is_null());
     }
 
     #[test]

@@ -138,12 +138,14 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use leserpent_domain::{
-        CAPABILITY_RUNTIME_READ, CapabilitySet, DOMAIN_SCHEMA_VERSION, Principal, Query,
-        QueryEnvelope, QueryResult, RuntimeId, RuntimeListFilter, RuntimeLogLevel,
+        CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CapabilitySet, CommandId,
+        DOMAIN_SCHEMA_VERSION, Principal, Query, QueryEnvelope, QueryResult,
+        RUNTIME_DEPLOYMENT_EFFECT_KIND, RuntimeDeploymentOutcome, RuntimeDeploymentRequest,
+        RuntimeId, RuntimeListFilter, RuntimeLogLevel,
     };
     use leserpent_protocol::{
-        HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-        decode_response,
+        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, PROTOCOL_SCHEMA_VERSION,
+        ProtocolRequest, ProtocolResponse, RequestEnvelope, decode_response,
     };
 
     use super::*;
@@ -275,6 +277,79 @@ mod tests {
         assert!(matches!(
             response.response,
             ProtocolResponse::Error(ref error) if error.code == "unauthorized"
+        ));
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authenticated_deployment_receipt_returns_only_the_bound_outcome() {
+        let database = temp_path("deployment-receipt", "sqlite");
+        let socket = temp_path("deployment-receipt", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let deployment = RuntimeDeploymentRequest {
+            runtime_id: "runtime-a".into(),
+            request_id: "deploy-1".into(),
+            pipeline_kind: "http/request".into(),
+            requested_by: "operator.example".into(),
+            confirmed: true,
+            target: None,
+        };
+        runtime
+            .enqueue_effect(
+                "deploy-command",
+                RUNTIME_DEPLOYMENT_EFFECT_KIND,
+                &serde_json::to_vec(&deployment).unwrap(),
+                1,
+            )
+            .unwrap();
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        let outcome = RuntimeDeploymentOutcome {
+            deployment_id: "gdep-1".into(),
+            request_id: "deploy-1".into(),
+            pipeline_kind: "http/request".into(),
+            requested_by: "operator.example".into(),
+            status: "accepted".into(),
+            accepted_unix_ms: 1_700_000_000_000,
+            target: None,
+            replayed: false,
+        };
+        runtime
+            .complete_effect(&lease, &serde_json::to_vec(&outcome).unwrap())
+            .unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::DeploymentReceipt(DeploymentReceiptRequest {
+                principal: Principal {
+                    id: "operator.example".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+                command_id: CommandId::new("deploy-command").unwrap(),
+                request_id: "deploy-1".into(),
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, request.clone());
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::DeploymentReceipt(ref receipt)
+                if receipt.status == DeploymentReceiptStatus::Completed
+                    && receipt.outcome.as_ref() == Some(&outcome)
+        ));
+
+        let mut mismatched = request;
+        let ProtocolRequest::DeploymentReceipt(receipt) = &mut mismatched.request else {
+            unreachable!();
+        };
+        receipt.request_id = "deploy-other".into();
+        let response = send(&server, &mut runtime, &socket, TOKEN, mismatched);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error) if error.code == "invalid_request"
         ));
         drop(server);
         drop(runtime);

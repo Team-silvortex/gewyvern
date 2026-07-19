@@ -5,6 +5,20 @@
   "algorithm": "sha256",
   "fixtures": [
     {
+      "id": "legacy-orchestra-persistence-v1",
+      "family": "legacy-wire",
+      "path": "crates/leserpent-protocol/tests/fixtures/legacy-orchestra-persistence-v1.json",
+      "bytes": 882,
+      "sha256": "e1cba72eed1214442eb46654a08cd035fbe820d409f0fbc737cad2e28b605340"
+    },
+    {
+      "id": "legacy-runtime-deployment-request-v1",
+      "family": "legacy-wire",
+      "path": "crates/leserpent-protocol/tests/fixtures/legacy-runtime-deployment-request-v1.json",
+      "bytes": 204,
+      "sha256": "47ad9c61245e07a8cb129c2b08f1dad46accb6e10359505307c34225d32f23b8"
+    },
+    {
       "id": "legacy-runtime-list-response-v1",
       "family": "legacy-wire",
       "path": "crates/leserpent-protocol/tests/fixtures/legacy-runtime-list-response-v1.json",

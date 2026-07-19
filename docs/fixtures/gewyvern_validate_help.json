@@ -16,6 +16,7 @@
     "leserpent-aot",
     "leserpent-benchmark",
     "leserpent-parity-recovery",
+    "leserpent-schema-freeze",
     "leserpent-transport",
     "linux-attach-smoke",
     "linux-kprobe-smoke",

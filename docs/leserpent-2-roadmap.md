@@ -485,8 +485,18 @@ at AOT proof, bundle creation, and release validation boundaries. The
 native release entrypoint now enforces inside-out
 Developer ID signing, Hardened Runtime, secure timestamps, Keychain-only
 notary credentials, explicit acceptance, ticket stapling, and Gatekeeper
-assessment. The current host has no Developer ID identity, so executing and
-retaining the formal Apple-backed proof remains the only macOS release gate.
+assessment. A native machine-readable preflight now validates the final app and
+entitlements hashes, inventories all eight Apple release tools, counts valid
+Developer ID Application identities, and optionally verifies a named notary
+Keychain profile without exposing credentials. The current retained preflight
+records all tools ready but zero identities and no requested profile, so
+`release_ready=false`; executing and retaining the formal Apple-backed proof
+remains the only macOS release gate.
+The unified native release gate can now ingest that report through
+`--macos-release-preflight`, enforce a bounded and internally consistent schema,
+index a normalized copy, and distinguish an external credential block from a
+malformed proof or a ready Apple stage. This keeps CI green for valid evidence
+collection without ever turning a blocked preflight into a ship signal.
 The latest arm64 NativeAOT bundle also passes the shared product-startup probe
 against a real temporary Keychain item and saved profile; the item is deleted
 in-process and independently confirmed absent afterward.
@@ -526,6 +536,32 @@ invalid values. Source-generated JSON probes verify the fixed capability,
 explicit confirmation, typed arguments, refresh-field omission, and
 cross-renderer event shape. Mobile shells can therefore reuse the form contract
 without duplicating deployment semantics.
+The 1.x compatibility bridge now also validates the exact confirmed deployment
+request after local runtime/capability checks but before remote network I/O. Its append-only fixture
+binds route runtime identity, pipeline intent, requested-by principal,
+idempotency key, confirmation, and target while rejecting unknown fields. This
+freezes the side-effect boundary needed for later Rust control-plane extraction
+without changing the authoritative 1.x deployment response path.
+When the bridge is configured, Rust now owns the final normalization decision
+and returns the canonical deployment envelope. The C# adapter and Orchestra
+audit consume that exact pipeline, principal, request ID, and target; a runtime
+identity fence rejects mismatched bridge output before any remote effect. The
+unconfigured development path preserves the original request, while a real
+cross-process test proves the packaged authority handoff.
+The Rust authority now also exposes a typed deployment receipt over its private
+IPC protocol. A receipt is bound to both command ID and request ID, can only
+read deployment effects, and projects persisted queue state as pending,
+completed, or failed. Completed receipts carry the adapter-validated Gewyvern
+response, closing the daemon-side submit/execute/observe loop without exposing
+generic effect outcomes. The 1.x host remains on its direct adapter until its
+IPC client can preserve the existing synchronous accepted response and error
+mapping end to end.
+An additional append-only compatibility fixture now freezes Orchestra's atomic
+run/event persistence unit. Rust rejects mismatched run or runtime identities,
+outcome drift, invalid attempts, oversized steps, and unknown fields. The bridge
+can validate this envelope, but the ASP.NET SQLite transaction does not block on
+the asynchronous subprocess; the fixture is the handoff contract for moving
+persistence authority into Rust without post-write false failures.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery
@@ -652,7 +688,7 @@ Exit: every criterion in the architecture's
 The first machine-enforced Gate 7 precursor is now
 `gewyvern_validate leserpent-schema-freeze`. Its bounded candidate inventory
 maps command, query, effect-plan, UI IR, and wire v1 sources to a fixed native
-proof registry. The shelf currently proves 60 tests across domain, UI, wire,
+proof registry. The shelf currently proves 64 tests across domain, UI, wire,
 runtime migration, legacy-wire migration, and managed control-plane migration
 proof suites while explicitly emitting `freeze_ready=false`; promotion to `frozen`
 remains forbidden until the rest of Gate 7 and Apple-backed release evidence

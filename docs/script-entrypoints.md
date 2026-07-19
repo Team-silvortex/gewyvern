@@ -111,6 +111,20 @@ bash scripts/packaging/release_gate.sh
 This is the highest-signal single entrypoint. It rebuilds native artifacts,
 runs packaged release validation, and then runs the three-module stack smoke.
 
+To fold a Leserpent Apple readiness report into the same machine gate without
+running signing commands again:
+
+```bash
+cargo run --quiet --bin gewyvern_validate -- --json release-gate \
+  --macos-release-preflight docs/fixtures/leserpent_macos_release_preflight.json
+```
+
+The input is bounded and strictly cross-checked. A consistent blocked report is
+retained as evidence and marks `extra.stages.macos_release_preflight_blocked`,
+while malformed or contradictory evidence fails the command. When all product
+and Linux stages pass but Apple credentials remain absent, the aggregate signal
+is `apple_credentials_blocked`, never `ready`.
+
 If you only want the packaged part, run:
 
 ```bash
@@ -467,6 +481,9 @@ remain a separate release gate.
 Use the native release entrypoint after bundle creation:
 
 ```bash
+cargo run --bin gewyvern_leserpent_release -- preflight \
+  --app artifacts/leserpent-avalonia/Leserpent.app
+
 cargo run --bin gewyvern_leserpent_release -- sign \
   --app artifacts/leserpent-avalonia/Leserpent.app \
   --identity 'Developer ID Application: ORGANIZATION (TEAMID)'
@@ -477,6 +494,17 @@ cargo run --bin gewyvern_leserpent_release -- notarize \
   --app artifacts/leserpent-avalonia/Leserpent.app \
   --keychain-profile leserpent-notary
 ```
+
+`preflight` always emits one JSON object. It validates the final app and checked
+entitlements, inventories `codesign`, `ditto`, `plutil`, `security`, `spctl`,
+`xcrun`, `notarytool`, and `stapler`, and counts valid Developer ID Application
+identities. Add `--keychain-profile leserpent-notary` after storing credentials
+to verify that profile through `notarytool history` without exposing its secret.
+Only a complete toolchain, at least one valid identity, and a validated profile
+produce `release_ready=true`. The current retained fixture at
+`docs/fixtures/leserpent_macos_release_preflight.json` is explicitly blocked by
+the absent identity and unrequested profile; it is readiness evidence, not an
+Apple release claim.
 
 The credentials command is intentionally interactive. The release CLI has no
 Apple ID, password, API private-key, or Team ID input surface. It requires a
@@ -576,13 +604,13 @@ execution; an intentional compatibility change must update the fixture and its
 reviewed candidate baseline together.
 
 Five fixed Rust suites plus one locked, filtered xUnit suite currently execute
-60 non-vacuous tests and retain their logs, `schema-freeze-summary.json`, and
+64 non-vacuous tests and retain their logs, `schema-freeze-summary.json`, and
 `evidence-index.json` under
 `target/validation/leserpent-schema-freeze/`. The inventory deliberately stays
 `candidate` and the summary stays `freeze_ready=false` until every Gate 7
 security, performance, migration, packaging, rollback, and platform-release
 criterion has reproducible evidence.
-The same summary records all nine compatibility fingerprints, keeping exact
+The same summary records all 11 compatibility fingerprints, keeping exact
 machine-format drift separate from the semantic proof suites.
 The migration subset replays runtime journal v1, v3 snapshot, and complete v6
 state into the current v9 journal, rejects inconsistent migration history, and

@@ -212,6 +212,19 @@ pub struct RuntimeDeploymentRequest {
     pub target: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeDeploymentOutcome {
+    pub deployment_id: String,
+    pub request_id: String,
+    pub pipeline_kind: String,
+    pub requested_by: String,
+    pub status: String,
+    pub accepted_unix_ms: u128,
+    pub target: Option<String>,
+    pub replayed: bool,
+}
+
 impl RuntimeCapabilitySnapshot {
     pub fn is_unobserved(&self) -> bool {
         self == &Self::default()

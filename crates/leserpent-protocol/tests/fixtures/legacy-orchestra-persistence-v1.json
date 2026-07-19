@@ -1,0 +1,33 @@
+{
+  "run": {
+    "runId": "orun_fixture_001",
+    "runtimeId": "runtime-alpha",
+    "planId": "direct_deployment",
+    "outcome": "ok",
+    "executedAt": "2026-01-01T00:00:00+00:00",
+    "steps": [
+      {
+        "step": "authenticated_deploy",
+        "outcome": "ok",
+        "summary": "runtime accepted deployment deploy-001"
+      }
+    ],
+    "completedAt": "2026-01-01T00:00:00+00:00",
+    "attempt": 1,
+    "retriedFromRunId": null,
+    "approvedBy": "operator-a",
+    "approvalNote": "confirmed deployment",
+    "planRevision": "revision-001",
+    "requestId": "deploy-001"
+  },
+  "event": {
+    "eventId": 0,
+    "runId": "orun_fixture_001",
+    "runtimeId": "runtime-alpha",
+    "eventType": "guided_completion",
+    "fromOutcome": null,
+    "toOutcome": "ok",
+    "summary": "runtime accepted deployment deploy-001",
+    "recordedAt": "2026-01-01T00:00:00+00:00"
+  }
+}

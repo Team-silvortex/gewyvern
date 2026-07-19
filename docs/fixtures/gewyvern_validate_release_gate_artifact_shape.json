@@ -44,6 +44,20 @@
     },
     {
       "expectation": "optional_high_signal",
+      "key": "leserpent_parity_recovery",
+      "kind": "directory",
+      "note": "opt-in 13-suite Rust, xUnit, GUI, mobile, and cross-language parity/recovery shelf",
+      "producer": "gewyvern_validate release-gate --leserpent-proof"
+    },
+    {
+      "expectation": "optional_blocking",
+      "key": "leserpent_macos_release_preflight",
+      "kind": "file",
+      "note": "strict Apple release readiness evidence; a valid blocked report remains non-shippable",
+      "producer": "gewyvern_validate release-gate --macos-release-preflight FILE"
+    },
+    {
+      "expectation": "optional_high_signal",
       "key": "juice_shop_container_validation",
       "kind": "directory",
       "note": "practical Linux target-lab shelf that preserves suspicious target-side HTTP evidence plus same-host attach proof",

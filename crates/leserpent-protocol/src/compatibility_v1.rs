@@ -85,6 +85,69 @@ pub struct LegacyRuntimeStatusRefreshResponse {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LegacyRuntimeDeploymentRequest {
+    pub pipeline_kind: String,
+    pub requested_by: String,
+    pub confirmed: bool,
+    pub request_id: String,
+    pub target: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LegacyRuntimeDeploymentEnvelope {
+    pub runtime_id: String,
+    pub request: LegacyRuntimeDeploymentRequest,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LegacyOrchestraStep {
+    pub step: String,
+    pub outcome: String,
+    pub summary: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LegacyOrchestraRun {
+    pub run_id: String,
+    pub runtime_id: String,
+    pub plan_id: String,
+    pub outcome: String,
+    pub executed_at: String,
+    pub steps: Vec<LegacyOrchestraStep>,
+    pub completed_at: Option<String>,
+    pub attempt: u32,
+    pub retried_from_run_id: Option<String>,
+    pub approved_by: Option<String>,
+    pub approval_note: Option<String>,
+    pub plan_revision: Option<String>,
+    pub request_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LegacyOrchestraEvent {
+    pub event_id: u64,
+    pub run_id: String,
+    pub runtime_id: String,
+    pub event_type: String,
+    pub from_outcome: Option<String>,
+    pub to_outcome: String,
+    pub summary: String,
+    pub recorded_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LegacyOrchestraPersistenceEnvelope {
+    pub run: LegacyOrchestraRun,
+    pub event: LegacyOrchestraEvent,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyApiErrorResponse {
     pub error: String,
@@ -100,6 +163,8 @@ pub enum CompatibilityError {
     InvalidJson(String),
     Domain(DomainError),
     RuntimeIdentityMismatch { expected: String, actual: String },
+    InvalidDeployment(&'static str),
+    InvalidOrchestra(&'static str),
 }
 
 pub fn decode_runtime_collection(
@@ -112,6 +177,105 @@ pub fn decode_status_refresh(
     bytes: &[u8],
 ) -> Result<LegacyRuntimeStatusRefreshResponse, CompatibilityError> {
     decode_capped(bytes)
+}
+
+pub fn decode_runtime_deployment_request(
+    bytes: &[u8],
+) -> Result<LegacyRuntimeDeploymentEnvelope, CompatibilityError> {
+    let envelope: LegacyRuntimeDeploymentEnvelope = decode_capped(bytes)?;
+    RuntimeId::new(&envelope.runtime_id)?;
+    let request = &envelope.request;
+    if !request.confirmed {
+        return Err(CompatibilityError::InvalidDeployment(
+            "confirmed=true is required",
+        ));
+    }
+    for (value, field) in [
+        (&request.pipeline_kind, "pipelineKind"),
+        (&request.requested_by, "requestedBy"),
+    ] {
+        let trimmed = value.trim();
+        if trimmed.is_empty() || trimmed.encode_utf16().count() > 128 {
+            return Err(CompatibilityError::InvalidDeployment(field));
+        }
+    }
+    let request_id = request.request_id.trim();
+    if request_id.is_empty()
+        || request_id.len() > 128
+        || !request_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    {
+        return Err(CompatibilityError::InvalidDeployment("requestId"));
+    }
+    if request
+        .target
+        .as_deref()
+        .is_some_and(|target| target.trim().encode_utf16().count() > 256)
+    {
+        return Err(CompatibilityError::InvalidDeployment("target"));
+    }
+    Ok(envelope)
+}
+
+pub fn normalize_runtime_deployment_request(
+    bytes: &[u8],
+) -> Result<LegacyRuntimeDeploymentEnvelope, CompatibilityError> {
+    let mut envelope = decode_runtime_deployment_request(bytes)?;
+    envelope.runtime_id = envelope.runtime_id.trim().to_string();
+    envelope.request.pipeline_kind = envelope.request.pipeline_kind.trim().to_string();
+    envelope.request.requested_by = envelope.request.requested_by.trim().to_string();
+    envelope.request.request_id = envelope.request.request_id.trim().to_string();
+    envelope.request.target = envelope
+        .request
+        .target
+        .map(|target| target.trim().to_string())
+        .filter(|target| !target.is_empty());
+    Ok(envelope)
+}
+
+pub fn decode_orchestra_persistence(
+    bytes: &[u8],
+) -> Result<LegacyOrchestraPersistenceEnvelope, CompatibilityError> {
+    let envelope: LegacyOrchestraPersistenceEnvelope = decode_capped(bytes)?;
+    let run = &envelope.run;
+    let event = &envelope.event;
+    for value in [&run.run_id, &run.runtime_id, &run.plan_id] {
+        if value.is_empty() || value.len() > 128 || value.chars().any(char::is_control) {
+            return Err(CompatibilityError::InvalidOrchestra("identity"));
+        }
+    }
+    let outcomes = [
+        "queued",
+        "running",
+        "succeeded",
+        "degraded",
+        "failed",
+        "cancelled",
+        "ok",
+    ];
+    if !outcomes.contains(&run.outcome.as_str())
+        || event.to_outcome != run.outcome
+        || event.run_id != run.run_id
+        || event.runtime_id != run.runtime_id
+        || !(1..=32).contains(&run.attempt)
+        || run.steps.len() > 128
+    {
+        return Err(CompatibilityError::InvalidOrchestra("consistency"));
+    }
+    if run.steps.iter().any(|step| {
+        step.step.is_empty()
+            || step.step.len() > 128
+            || step.outcome.is_empty()
+            || step.outcome.len() > 64
+            || step.summary.len() > 1024
+    }) || event.event_type.is_empty()
+        || event.event_type.len() > 128
+        || event.summary.len() > 1024
+    {
+        return Err(CompatibilityError::InvalidOrchestra("bounds"));
+    }
+    Ok(envelope)
 }
 
 pub fn decode_api_error(bytes: &[u8]) -> Result<LegacyApiErrorResponse, CompatibilityError> {
@@ -281,6 +445,15 @@ impl fmt::Display for CompatibilityError {
                 formatter,
                 "legacy runtime identity mismatch: expected '{expected}', actual '{actual}'"
             ),
+            Self::InvalidDeployment(field) => {
+                write!(
+                    formatter,
+                    "invalid legacy runtime deployment field: {field}"
+                )
+            }
+            Self::InvalidOrchestra(reason) => {
+                write!(formatter, "invalid legacy Orchestra persistence: {reason}")
+            }
         }
     }
 }

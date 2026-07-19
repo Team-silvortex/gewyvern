@@ -1017,6 +1017,12 @@ fn parse_release_gate_options(args: Vec<String>) -> Result<ReleaseGateOptions, V
             "--skip-debugger-cross" => options.run_debugger_cross = false,
             "--skip-pathology" => options.run_pathology = false,
             "--leserpent-proof" => options.run_leserpent_proof = true,
+            "--macos-release-preflight" => {
+                options.macos_release_preflight =
+                    Some(PathBuf::from(iter.next().ok_or_else(|| {
+                        ValidationError::new("--macos-release-preflight requires a value")
+                    })?));
+            }
             "--remote-host-validation" => options.run_remote_host = true,
             "--keep-remote-dir" => options.keep_remote_dir = true,
             "--skip-remote-build" => options.remote_build_packages = false,
@@ -2395,6 +2401,9 @@ fn release_gate_summary_value(
             "debugger_cross_validation": checks.iter().any(|check| check == "debugger_cross_validation"),
             "pathological_container_validation": checks.iter().any(|check| check == "pathological_container_validation"),
             "leserpent_parity_recovery": checks.iter().any(|check| check == "leserpent_parity_recovery"),
+            "macos_release_preflight": checks.iter().any(|check| check == "macos_release_preflight_ready" || check == "macos_release_preflight_blocked"),
+            "macos_release_preflight_ready": checks.iter().any(|check| check == "macos_release_preflight_ready"),
+            "macos_release_preflight_blocked": checks.iter().any(|check| check == "macos_release_preflight_blocked"),
             "remote_linux_host_validation": remote_ran,
         },
         "remote": remote,
@@ -2441,8 +2450,24 @@ fn summarize_release_gate_posture(
             .and_then(|remote| remote.get("requires_followup"))
             .and_then(|value| value.as_bool())
             .unwrap_or(false);
+    let macos_preflight_blocked = checks
+        .iter()
+        .any(|check| check == "macos_release_preflight_blocked");
 
     if packaged_ready
+        && stack_ready
+        && debugger_ready
+        && pathology_ready
+        && remote_full
+        && remote_signal == "ready"
+        && macos_preflight_blocked
+    {
+        (
+            "blocked_external",
+            "apple_credentials_blocked",
+            "the product and Linux gates passed, but the macOS preflight reports missing or invalid Apple release credentials; provision Developer ID and the notary Keychain profile before ship",
+        )
+    } else if packaged_ready
         && stack_ready
         && debugger_ready
         && pathology_ready
@@ -2684,7 +2709,7 @@ fn print_container_runtime_validation_help() {
 
 fn print_release_gate_help() {
     println!(
-        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-debugger-cross] [--skip-pathology] [--leserpent-proof] [--remote-host-validation] [--remote-host <ssh-host>] [--remote-dir <path>] [--skip-remote-build] [--keep-remote-dir] [--deb|--rpm]"
+        "Usage: gewyvern_validate release-gate [--skip-build] [--skip-release-check] [--skip-stack] [--skip-debugger-cross] [--skip-pathology] [--leserpent-proof] [--macos-release-preflight <file>] [--remote-host-validation] [--remote-host <ssh-host>] [--remote-dir <path>] [--skip-remote-build] [--keep-remote-dir] [--deb|--rpm]"
     );
     println!();
     println!("Run the current release gate as one deliberate sequence:");
@@ -2694,7 +2719,8 @@ fn print_release_gate_help() {
     println!("4. run debugger cross validation");
     println!("5. run pathological container/runtime-ingest validation");
     println!("6. optionally run the Leserpent parity/recovery proof");
-    println!("7. optionally run remote Linux host validation over SSH");
+    println!("7. optionally consume strict macOS Apple release preflight evidence");
+    println!("8. optionally run remote Linux host validation over SSH");
     println!();
     println!("Flags:");
     println!("  --skip-build          Reuse current package artifacts instead of rebuilding");
@@ -2703,6 +2729,9 @@ fn print_release_gate_help() {
     println!("  --skip-debugger-cross Skip debugger cross validation");
     println!("  --skip-pathology      Skip pathological runtime-ingest validation");
     println!("  --leserpent-proof     Run the opt-in 13-suite Leserpent proof shelf");
+    println!(
+        "  --macos-release-preflight  Validate and index a machine-readable Apple release preflight report"
+    );
     println!("  --remote-host-validation  Run remote Linux host validation after local gates");
     println!("  --remote-host         Override the SSH host used for remote validation");
     println!("  --remote-dir          Override the remote workspace path");
@@ -2930,9 +2959,47 @@ mod tests {
     fn release_gate_leserpent_proof_is_explicit_opt_in() {
         let defaults = parse_release_gate_options(Vec::new()).unwrap();
         assert!(!defaults.run_leserpent_proof);
+        assert!(defaults.macos_release_preflight.is_none());
 
         let selected = parse_release_gate_options(vec!["--leserpent-proof".to_string()]).unwrap();
         assert!(selected.run_leserpent_proof);
+
+        let selected = parse_release_gate_options(vec![
+            "--macos-release-preflight".to_string(),
+            "preflight.json".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(
+            selected.macos_release_preflight,
+            Some(PathBuf::from("preflight.json"))
+        );
+        assert!(parse_release_gate_options(vec!["--macos-release-preflight".to_string()]).is_err());
+    }
+
+    #[test]
+    fn release_gate_surfaces_valid_apple_credential_blockers() {
+        let checks = [
+            "release_container_check",
+            "three_module_stack_smoke",
+            "debugger_cross_validation",
+            "pathological_container_validation",
+            "remote_linux_host_validation",
+            "remote_ebpf_smoke",
+            "macos_release_preflight_blocked",
+        ]
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+        let remote = serde_json::json!({
+            "release_gate_signal": "ready",
+            "requires_followup": false,
+        });
+
+        let (posture, signal, next_step) =
+            summarize_release_gate_posture(&checks, remote.as_object());
+        assert_eq!(posture, "blocked_external");
+        assert_eq!(signal, "apple_credentials_blocked");
+        assert!(next_step.contains("Developer ID"));
     }
 
     #[test]

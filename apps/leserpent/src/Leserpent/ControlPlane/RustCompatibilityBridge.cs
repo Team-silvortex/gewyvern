@@ -12,6 +12,10 @@ public interface ICompatibilityBridge
 
     Task ValidateRuntimeListAsync(RuntimeCollectionResponse response, CancellationToken cancellationToken);
 
+    Task<RuntimeDeploymentCompatibilityEnvelope> NormalizeRuntimeDeploymentRequestAsync(
+        RuntimeDeploymentCompatibilityEnvelope request,
+        CancellationToken cancellationToken);
+
     Task ValidateStatusRefreshAsync(RuntimeStatusRefreshResponse response, CancellationToken cancellationToken);
 }
 
@@ -67,6 +71,15 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
             global::Leserpent.LeserpentJsonContext.Default.RuntimeStatusRefreshResponse,
             cancellationToken);
 
+    public Task<RuntimeDeploymentCompatibilityEnvelope> NormalizeRuntimeDeploymentRequestAsync(
+        RuntimeDeploymentCompatibilityEnvelope request,
+        CancellationToken cancellationToken) =>
+        NormalizeAsync(
+            "normalize_runtime_deployment_request",
+            request,
+            global::Leserpent.LeserpentJsonContext.Default.RuntimeDeploymentCompatibilityEnvelope,
+            cancellationToken);
+
     public void Dispose()
     {
         ResetProcess();
@@ -79,9 +92,37 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
         JsonTypeInfo<T> payloadType,
         CancellationToken cancellationToken)
     {
+        _ = await ExchangeAsync(operation, payload, payloadType, cancellationToken);
+    }
+
+    private async Task<T> NormalizeAsync<T>(
+        string operation,
+        T payload,
+        JsonTypeInfo<T> payloadType,
+        CancellationToken cancellationToken)
+    {
         if (!Enabled)
         {
-            return;
+            return payload;
+        }
+        var normalized = await ExchangeAsync(operation, payload, payloadType, cancellationToken);
+        if (normalized is null)
+        {
+            throw new CompatibilityBridgeException("Rust compatibility bridge omitted normalized payload");
+        }
+        return normalized.Value.Deserialize(payloadType)
+            ?? throw new CompatibilityBridgeException("Rust compatibility bridge returned an empty normalized payload");
+    }
+
+    private async Task<JsonElement?> ExchangeAsync<T>(
+        string operation,
+        T payload,
+        JsonTypeInfo<T> payloadType,
+        CancellationToken cancellationToken)
+    {
+        if (!Enabled)
+        {
+            return null;
         }
 
         var requestId = Guid.NewGuid().ToString("N");
@@ -104,8 +145,7 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
                     await activeProcess.StandardInput.WriteLineAsync(request.AsMemory(), deadline.Token);
                     await activeProcess.StandardInput.FlushAsync(deadline.Token);
                     var line = await activeProcess.StandardOutput.ReadLineAsync(deadline.Token);
-                    ValidateResponse(requestId, line);
-                    return;
+                    return ValidateResponse(requestId, line);
                 }
                 catch (Exception error) when (
                     !cancellationToken.IsCancellationRequested
@@ -197,7 +237,7 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
         return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, checked((int)buffer.Length));
     }
 
-    private static void ValidateResponse(string requestId, string? line)
+    private static JsonElement? ValidateResponse(string requestId, string? line)
     {
         if (line is null)
         {
@@ -222,6 +262,7 @@ public sealed class RustCompatibilityBridge : ICompatibilityBridge, IDisposable
                 : "Rust compatibility bridge rejected the payload";
             throw new CompatibilityBridgeException(message ?? "Rust compatibility bridge rejected the payload");
         }
+        return root.TryGetProperty("payload", out var payload) ? payload.Clone() : null;
     }
 }
 

@@ -1,5 +1,9 @@
 use std::process::{Command, Stdio};
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::{Path, PathBuf},
+};
 
 use serde_json::json;
 
@@ -40,6 +44,7 @@ pub struct ReleaseGateOptions {
     pub run_debugger_cross: bool,
     pub run_pathology: bool,
     pub run_leserpent_proof: bool,
+    pub macos_release_preflight: Option<PathBuf>,
     pub run_remote_host: bool,
     pub remote_host: String,
     pub remote_dir: Option<String>,
@@ -57,6 +62,7 @@ impl Default for ReleaseGateOptions {
             run_debugger_cross: true,
             run_pathology: true,
             run_leserpent_proof: false,
+            macos_release_preflight: None,
             run_remote_host: false,
             remote_host: std::env::var("GEWY_REMOTE_HOST")
                 .unwrap_or_else(|_| "kyuubiki-lab".to_string()),
@@ -183,6 +189,28 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         checks.push("leserpent_parity_recovery".to_string());
     } else {
         validation_log("[release-gate] skipping optional Leserpent parity/recovery proof");
+    }
+
+    if let Some(path) = options.macos_release_preflight.as_deref() {
+        validation_log("[release-gate] ----------------------------------------");
+        validation_log(format!(
+            "[release-gate] validating macOS release preflight ({})",
+            path.display()
+        ));
+        let (status, report) = validate_macos_release_preflight(path)?;
+        let evidence_dir = repo_root().join("target/validation/leserpent-macos-release-preflight");
+        fs::create_dir_all(&evidence_dir)?;
+        fs::write(
+            evidence_dir.join("release-gate-preflight.json"),
+            serde_json::to_string_pretty(&report)?,
+        )?;
+        checks.push(status.check_name().to_string());
+        validation_log(format!(
+            "[release-gate] macOS release preflight: {}",
+            status.label()
+        ));
+    } else {
+        validation_log("[release-gate] skipping optional macOS release preflight");
     }
 
     if options.run_remote_host {
@@ -404,6 +432,188 @@ fn require_evidence_keys(
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MacosReleasePreflightStatus {
+    Ready,
+    Blocked,
+}
+
+impl MacosReleasePreflightStatus {
+    fn check_name(self) -> &'static str {
+        match self {
+            Self::Ready => "macos_release_preflight_ready",
+            Self::Blocked => "macos_release_preflight_blocked",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Blocked => "blocked",
+        }
+    }
+}
+
+fn validate_macos_release_preflight(
+    path: &Path,
+) -> Result<(MacosReleasePreflightStatus, serde_json::Value), ValidationError> {
+    const MAX_PREFLIGHT_BYTES: u64 = 16 * 1024;
+    const EXPECTED_TOOLS: [&str; 8] = [
+        "codesign",
+        "ditto",
+        "notarytool",
+        "plutil",
+        "security",
+        "spctl",
+        "stapler",
+        "xcrun",
+    ];
+    const EXPECTED_FIELDS: [&str; 15] = [
+        "app",
+        "app_executable_sha256",
+        "apple_tools",
+        "blockers",
+        "developer_id_application_identities",
+        "entitlements_sha256",
+        "host_arch",
+        "notary_profile_requested",
+        "notary_profile_valid",
+        "platform",
+        "proof",
+        "release_ready",
+        "result",
+        "schema_version",
+        "version",
+    ];
+
+    let report = read_bounded_json_file(path, "macOS release preflight", MAX_PREFLIGHT_BYTES)?;
+    let object = report
+        .as_object()
+        .ok_or_else(|| ValidationError::new("macOS release preflight must be a JSON object"))?;
+    let field_names = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    if field_names != EXPECTED_FIELDS.into_iter().collect() {
+        return Err(ValidationError::new(
+            "macOS release preflight contains missing or unknown fields",
+        ));
+    }
+    let require_string = |key: &str| {
+        object
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| ValidationError::new(format!("macOS release preflight missing {key}")))
+    };
+    let require_bool = |key: &str| {
+        object
+            .get(key)
+            .and_then(serde_json::Value::as_bool)
+            .ok_or_else(|| ValidationError::new(format!("macOS release preflight missing {key}")))
+    };
+
+    if object
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(1)
+        || require_string("proof")? != "leserpent-macos-release-preflight"
+        || require_string("platform")? != "macos"
+        || require_string("version")? != env!("CARGO_PKG_VERSION")
+    {
+        return Err(ValidationError::new(
+            "macOS release preflight identity or version does not match this release",
+        ));
+    }
+    for key in ["app", "host_arch"] {
+        let value = require_string(key)?;
+        if value.is_empty()
+            || value.len() > 128
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() || byte == b' ')
+        {
+            return Err(ValidationError::new(format!(
+                "macOS release preflight {key} is unsafe or unbounded"
+            )));
+        }
+    }
+    for key in ["app_executable_sha256", "entitlements_sha256"] {
+        let hash = require_string(key)?;
+        if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(ValidationError::new(format!(
+                "macOS release preflight {key} is not a SHA-256 digest"
+            )));
+        }
+    }
+
+    let tools = object
+        .get("apple_tools")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| ValidationError::new("macOS release preflight missing apple_tools"))?;
+    let tool_names = tools.keys().map(String::as_str).collect::<BTreeSet<_>>();
+    if tool_names != EXPECTED_TOOLS.into_iter().collect()
+        || tools.values().any(|value| value.as_bool().is_none())
+    {
+        return Err(ValidationError::new(
+            "macOS release preflight Apple tool inventory is incomplete or invalid",
+        ));
+    }
+    let tools_ready = tools.values().all(|value| value.as_bool() == Some(true));
+    let identities = object
+        .get("developer_id_application_identities")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| {
+            ValidationError::new(
+                "macOS release preflight missing developer_id_application_identities",
+            )
+        })?;
+    let profile_requested = require_bool("notary_profile_requested")?;
+    let profile_valid = require_bool("notary_profile_valid")?;
+    let release_ready = require_bool("release_ready")?;
+    let result = require_string("result")?;
+    let blockers = object
+        .get("blockers")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| ValidationError::new("macOS release preflight missing blockers"))?
+        .iter()
+        .map(|value| {
+            value.as_str().ok_or_else(|| {
+                ValidationError::new("macOS release preflight blocker must be a string")
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut expected_blockers = Vec::new();
+    if !tools_ready {
+        expected_blockers.push("apple_release_tool_missing");
+    }
+    if identities == 0 {
+        expected_blockers.push("developer_id_application_identity_missing");
+    }
+    if !profile_requested {
+        expected_blockers.push("notary_keychain_profile_not_requested");
+    } else if !profile_valid {
+        expected_blockers.push("notary_keychain_profile_unavailable");
+    }
+    if blockers != expected_blockers {
+        return Err(ValidationError::new(
+            "macOS release preflight blockers do not match its readiness fields",
+        ));
+    }
+    let expected_ready = expected_blockers.is_empty();
+    if release_ready != expected_ready || result != if expected_ready { "ready" } else { "blocked" }
+    {
+        return Err(ValidationError::new(
+            "macOS release preflight result contradicts its readiness fields",
+        ));
+    }
+
+    Ok((
+        if expected_ready {
+            MacosReleasePreflightStatus::Ready
+        } else {
+            MacosReleasePreflightStatus::Blocked
+        },
+        report,
+    ))
+}
+
 fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(), ValidationError> {
     fs::create_dir_all(out_dir)?;
 
@@ -499,6 +709,20 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
             ),
             "gewyvern_validate release-gate --leserpent-proof",
             "opt-in 13-suite Rust, xUnit, GUI, mobile, and cross-language parity/recovery shelf",
+        ),
+        release_artifact_entry(
+            "leserpent_macos_release_preflight",
+            "file",
+            &out_dir
+                .join("leserpent-macos-release-preflight")
+                .join("release-gate-preflight.json"),
+            "optional_blocking",
+            Some(checks.iter().any(|check| {
+                check == "macos_release_preflight_ready"
+                    || check == "macos_release_preflight_blocked"
+            })),
+            "gewyvern_validate release-gate --macos-release-preflight FILE",
+            "strict Apple release readiness evidence; a valid blocked report remains non-shippable",
         ),
         release_artifact_entry(
             "juice_shop_container_validation",
@@ -726,10 +950,74 @@ fn summarize_recent_ebpf_trend(history_summary: Option<&serde_json::Value>) -> O
 #[cfg(test)]
 mod tests {
     use super::{
-        print_remote_release_gate_summary, release_artifact_entry,
-        summarize_remote_release_gate_posture,
+        MacosReleasePreflightStatus, print_remote_release_gate_summary, release_artifact_entry,
+        summarize_remote_release_gate_posture, validate_macos_release_preflight,
     };
     use std::collections::BTreeMap;
+
+    fn write_preflight_fixture(name: &str, value: &serde_json::Value) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "gewyvern-macos-preflight-{name}-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(&path, serde_json::to_vec(value).unwrap()).unwrap();
+        path
+    }
+
+    fn blocked_preflight_fixture() -> serde_json::Value {
+        serde_json::from_str(include_str!(
+            "../../docs/fixtures/leserpent_macos_release_preflight.json"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn macos_preflight_accepts_consistent_ready_and_blocked_reports() {
+        let blocked = blocked_preflight_fixture();
+        let blocked_path = write_preflight_fixture("blocked", &blocked);
+        assert_eq!(
+            validate_macos_release_preflight(&blocked_path).unwrap().0,
+            MacosReleasePreflightStatus::Blocked
+        );
+
+        let mut ready = blocked;
+        ready["developer_id_application_identities"] = serde_json::json!(1);
+        ready["notary_profile_requested"] = serde_json::json!(true);
+        ready["notary_profile_valid"] = serde_json::json!(true);
+        ready["release_ready"] = serde_json::json!(true);
+        ready["blockers"] = serde_json::json!([]);
+        ready["result"] = serde_json::json!("ready");
+        let ready_path = write_preflight_fixture("ready", &ready);
+        assert_eq!(
+            validate_macos_release_preflight(&ready_path).unwrap().0,
+            MacosReleasePreflightStatus::Ready
+        );
+
+        std::fs::remove_file(blocked_path).unwrap();
+        std::fs::remove_file(ready_path).unwrap();
+    }
+
+    #[test]
+    fn macos_preflight_rejects_contradictions_and_tool_inventory_drift() {
+        let mut contradictory = blocked_preflight_fixture();
+        contradictory["release_ready"] = serde_json::json!(true);
+        let contradictory_path = write_preflight_fixture("contradictory", &contradictory);
+        assert!(validate_macos_release_preflight(&contradictory_path).is_err());
+
+        let mut drifted = blocked_preflight_fixture();
+        drifted["apple_tools"]["unexpected"] = serde_json::json!(true);
+        let drifted_path = write_preflight_fixture("drifted", &drifted);
+        assert!(validate_macos_release_preflight(&drifted_path).is_err());
+
+        let mut secret_bearing = blocked_preflight_fixture();
+        secret_bearing["password"] = serde_json::json!("must-not-be-copied");
+        let secret_path = write_preflight_fixture("secret", &secret_bearing);
+        assert!(validate_macos_release_preflight(&secret_path).is_err());
+
+        std::fs::remove_file(contradictory_path).unwrap();
+        std::fs::remove_file(drifted_path).unwrap();
+        std::fs::remove_file(secret_path).unwrap();
+    }
 
     #[test]
     fn clean_remote_history_keeps_successful_release_signal_ready() {
