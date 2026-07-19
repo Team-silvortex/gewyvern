@@ -4,8 +4,9 @@ use leserpent_domain::{
 };
 use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
-    OrchestraPersistenceResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest,
-    ProtocolResponse, RequestEnvelope, ResponseEnvelope,
+    OrchestraDeleteResponse, OrchestraHistoryResponse, OrchestraPersistenceResponse,
+    PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope,
+    ResponseEnvelope,
 };
 use leserpent_runtime::{ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError};
 
@@ -102,6 +103,7 @@ pub(crate) fn execute_request(
             return match runtime.persist_orchestra_run_event(
                 &request.envelope.run.run_id,
                 &request.envelope.run.runtime_id,
+                request.envelope.run.request_id.as_deref(),
                 &request.envelope.event.event_type,
                 &request.envelope.event.to_outcome,
                 &request.envelope.event.recorded_at,
@@ -137,6 +139,73 @@ pub(crate) fn execute_request(
                 }
             };
         }
+        ProtocolRequest::OrchestraHistory(request) => {
+            if request.principal.id.trim().is_empty() {
+                return error_response("invalid_principal", "principal must not be blank");
+            }
+            if !request.capabilities.contains(CAPABILITY_ORCHESTRA_WRITE) {
+                return error_response("capability_denied", "missing capability 'orchestra.write'");
+            }
+            let history = match runtime.load_orchestra_history(
+                request.runtime_id.as_deref(),
+                request.run_id.as_deref(),
+                request.offset,
+                request.limit,
+            ) {
+                Ok(history) => history,
+                Err(_) => {
+                    return error_response(
+                        "orchestra_history_failed",
+                        "Orchestra history query failed",
+                    );
+                }
+            };
+            let runs = history
+                .runs
+                .iter()
+                .map(|bytes| serde_json::from_slice(bytes))
+                .collect::<Result<Vec<_>, _>>();
+            let events = history
+                .events
+                .iter()
+                .map(|(event_id, bytes)| {
+                    let mut event: leserpent_protocol::compatibility_v1::LegacyOrchestraEvent =
+                        serde_json::from_slice(bytes)?;
+                    event.event_id = *event_id;
+                    Ok::<_, serde_json::Error>(event)
+                })
+                .collect::<Result<Vec<_>, _>>();
+            return match (runs, events) {
+                (Ok(runs), Ok(events)) => response(ProtocolResponse::OrchestraHistory(
+                    OrchestraHistoryResponse {
+                        runs,
+                        events,
+                        next_offset: history.next_offset,
+                    },
+                )),
+                _ => error_response("runtime_failed", "Orchestra history read-back was invalid"),
+            };
+        }
+        ProtocolRequest::OrchestraDelete(request) => {
+            if request.principal.id.trim().is_empty() {
+                return error_response("invalid_principal", "principal must not be blank");
+            }
+            if !request.capabilities.contains(CAPABILITY_ORCHESTRA_WRITE) {
+                return error_response("capability_denied", "missing capability 'orchestra.write'");
+            }
+            return match runtime.delete_orchestra_runtimes(&request.runtime_ids) {
+                Ok(deleted) => response(ProtocolResponse::OrchestraDeleted(
+                    OrchestraDeleteResponse {
+                        deleted_runtime_count: deleted.deleted_runtime_count,
+                        deleted_run_count: deleted.deleted_run_count,
+                        deleted_event_count: deleted.deleted_event_count,
+                    },
+                )),
+                Err(_) => {
+                    error_response("orchestra_delete_failed", "Orchestra history delete failed")
+                }
+            };
+        }
         request => request,
     };
     let required_capability = match &request {
@@ -155,14 +224,18 @@ pub(crate) fn execute_request(
         },
         ProtocolRequest::Health(_)
         | ProtocolRequest::DeploymentReceipt(_)
-        | ProtocolRequest::OrchestraPersist(_) => unreachable!(),
+        | ProtocolRequest::OrchestraPersist(_)
+        | ProtocolRequest::OrchestraHistory(_)
+        | ProtocolRequest::OrchestraDelete(_) => unreachable!(),
     };
     let operation = match request {
         ProtocolRequest::Query(query) => PlannedOperation::Query(query),
         ProtocolRequest::Command(command) => PlannedOperation::Command(command),
         ProtocolRequest::Health(_)
         | ProtocolRequest::DeploymentReceipt(_)
-        | ProtocolRequest::OrchestraPersist(_) => unreachable!(),
+        | ProtocolRequest::OrchestraPersist(_)
+        | ProtocolRequest::OrchestraHistory(_)
+        | ProtocolRequest::OrchestraDelete(_) => unreachable!(),
     };
     match runtime.execute_plan(CommandPlan {
         schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,

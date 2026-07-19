@@ -40,6 +40,7 @@ namespace Leserpent;
 [JsonSerializable(typeof(OrchestraRunSummary))]
 [JsonSerializable(typeof(OrchestraRunSummary[]))]
 [JsonSerializable(typeof(OrchestraRunEvent[]))]
+[JsonSerializable(typeof(OrchestraRunEvent))]
 [JsonSerializable(typeof(OrchestraSessionHandoffResponse))]
 [JsonSerializable(typeof(OrchestraFleetBoardResponse))]
 [JsonSerializable(typeof(OrchestraExecutionStepResult[]))]

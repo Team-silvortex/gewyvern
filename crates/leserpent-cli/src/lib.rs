@@ -802,6 +802,12 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         ProtocolResponse::OrchestraPersisted(_) => Err(CliError::Protocol(
             "unexpected Orchestra persistence response".into(),
         )),
+        ProtocolResponse::OrchestraHistory(_) => Err(CliError::Protocol(
+            "unexpected Orchestra history response".into(),
+        )),
+        ProtocolResponse::OrchestraDeleted(_) => Err(CliError::Protocol(
+            "unexpected Orchestra delete response".into(),
+        )),
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
             error.code, error.message

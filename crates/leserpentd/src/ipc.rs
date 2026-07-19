@@ -144,9 +144,9 @@ mod tests {
         RuntimeDeploymentRequest, RuntimeId, RuntimeListFilter, RuntimeLogLevel,
     };
     use leserpent_protocol::{
-        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest,
-        OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse,
-        RequestEnvelope, decode_response,
+        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, OrchestraDeleteRequest,
+        OrchestraHistoryRequest, OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION,
+        ProtocolRequest, ProtocolResponse, RequestEnvelope, decode_response,
     };
 
     use super::*;
@@ -387,6 +387,30 @@ mod tests {
             ));
         }
 
+        let history = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraHistory(OrchestraHistoryRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_id: Some(envelope.run.runtime_id.clone()),
+                run_id: Some(envelope.run.run_id.clone()),
+                offset: 0,
+                limit: 64,
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, history);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::OrchestraHistory(ref history)
+                if history.runs.is_empty()
+                    && history.events.len() == 1
+                    && history.events[0].event_id == 1
+                    && history.events[0].run_id == envelope.event.run_id
+                    && history.next_offset.is_none()
+        ));
+
         let mut drifted = request;
         let ProtocolRequest::OrchestraPersist(persistence) = &mut drifted.request else {
             unreachable!();
@@ -397,6 +421,43 @@ mod tests {
             response.response,
             ProtocolResponse::Error(ref error)
                 if error.code == "orchestra_persistence_failed"
+        ));
+        let delete = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraDelete(OrchestraDeleteRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_ids: vec![envelope.run.runtime_id.clone()],
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, delete);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::OrchestraDeleted(ref deleted)
+                if deleted.deleted_runtime_count == 1
+                    && deleted.deleted_run_count == 1
+                    && deleted.deleted_event_count == 1
+        ));
+        let history = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraHistory(OrchestraHistoryRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_id: Some(envelope.run.runtime_id.clone()),
+                run_id: None,
+                offset: 0,
+                limit: 64,
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, history);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::OrchestraHistory(ref history)
+                if history.runs.is_empty() && history.events.is_empty()
         ));
         drop(server);
         drop(runtime);

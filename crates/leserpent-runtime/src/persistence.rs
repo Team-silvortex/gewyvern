@@ -94,6 +94,18 @@ pub struct OrchestraPersistenceRecord {
     pub event_count: u64,
 }
 
+pub struct OrchestraHistoryRecord {
+    pub runs: Vec<Vec<u8>>,
+    pub events: Vec<(u64, Vec<u8>)>,
+    pub next_offset: Option<u32>,
+}
+
+pub struct OrchestraDeleteRecord {
+    pub deleted_runtime_count: u32,
+    pub deleted_run_count: u64,
+    pub deleted_event_count: u64,
+}
+
 pub struct Journal {
     connection: Connection,
     owner_token: String,
@@ -574,6 +586,7 @@ impl Journal {
         &mut self,
         run_id: &str,
         runtime_id: &str,
+        request_id: Option<&str>,
         event_type: &str,
         to_outcome: &str,
         recorded_at: &str,
@@ -588,6 +601,9 @@ impl Journal {
             ("to_outcome", to_outcome),
         ] {
             validate_scheduler_id(field, value)?;
+        }
+        if let Some(request_id) = request_id {
+            validate_scheduler_id("request_id", request_id)?;
         }
         if recorded_at.is_empty()
             || recorded_at.len() > 64
@@ -640,12 +656,25 @@ impl Journal {
             None => {
                 transaction
                     .execute(
-                        "INSERT INTO orchestra_runs (run_id, runtime_id, envelope, updated_at_unix_ms)
-                         VALUES (?1, ?2, ?3, ?4)
+                        "INSERT INTO orchestra_runs (
+                             run_id, runtime_id, request_id, envelope, updated_at_unix_ms)
+                         VALUES (?1, ?2, ?3, ?4, ?5)
                          ON CONFLICT(run_id) DO UPDATE SET
+                             request_id = excluded.request_id,
                              envelope = excluded.envelope,
                              updated_at_unix_ms = excluded.updated_at_unix_ms",
-                        params![run_id, runtime_id, run, now],
+                        params![run_id, runtime_id, request_id, run, now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                transaction
+                    .execute(
+                        "DELETE FROM orchestra_runs
+                         WHERE runtime_id = ?1 AND run_id NOT IN (
+                             SELECT run_id FROM orchestra_runs
+                             WHERE runtime_id = ?1
+                             ORDER BY updated_at_unix_ms DESC, run_id ASC LIMIT 32
+                         )",
+                        [runtime_id],
                     )
                     .map_err(|error| error.to_string())?;
                 transaction
@@ -695,6 +724,158 @@ impl Journal {
             event: stored_event,
             event_count: u64::try_from(event_count)
                 .map_err(|_| "invalid Orchestra event count".to_string())?,
+        })
+    }
+
+    pub fn load_orchestra_history(
+        &mut self,
+        runtime_id: Option<&str>,
+        run_id: Option<&str>,
+        offset: u32,
+        limit: u16,
+    ) -> Result<OrchestraHistoryRecord, String> {
+        self.ensure_owner()?;
+        if limit == 0 || limit > 64 || offset > 10_000 {
+            return Err("Orchestra history page is out of bounds".into());
+        }
+        if let Some(runtime_id) = runtime_id {
+            validate_scheduler_id("runtime_id", runtime_id)?;
+        }
+        if let Some(run_id) = run_id {
+            validate_scheduler_id("run_id", run_id)?;
+            if runtime_id.is_none() {
+                return Err("Orchestra event history requires runtime_id".into());
+            }
+        }
+        let fetch = i64::from(limit) + 1;
+        let offset = i64::from(offset);
+        if let Some(run_id) = run_id {
+            let mut statement = self
+                .connection
+                .prepare(
+                    "SELECT event_id, envelope FROM orchestra_events
+                     WHERE runtime_id = ?1 AND run_id = ?2
+                     ORDER BY event_id ASC LIMIT ?3 OFFSET ?4",
+                )
+                .map_err(|error| error.to_string())?;
+            let raw_rows = statement
+                .query_map(
+                    params![runtime_id.unwrap_or_default(), run_id, fetch, offset],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)),
+                )
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<(i64, Vec<u8>)>, _>>()
+                .map_err(|error| error.to_string())?;
+            let mut rows = raw_rows
+                .into_iter()
+                .map(|(event_id, envelope)| {
+                    u64::try_from(event_id)
+                        .map(|event_id| (event_id, envelope))
+                        .map_err(|_| "Orchestra event ID is invalid".to_string())
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let has_more = rows.len() > usize::from(limit);
+            rows.truncate(usize::from(limit));
+            return Ok(OrchestraHistoryRecord {
+                runs: Vec::new(),
+                events: rows,
+                next_offset: history_next_offset(has_more, offset, limit),
+            });
+        }
+        let mut rows = if let Some(runtime_id) = runtime_id {
+            let mut statement = self
+                .connection
+                .prepare(
+                    "SELECT envelope FROM orchestra_runs WHERE runtime_id = ?1
+                     ORDER BY updated_at_unix_ms DESC, run_id ASC LIMIT ?2 OFFSET ?3",
+                )
+                .map_err(|error| error.to_string())?;
+            statement
+                .query_map(params![runtime_id, fetch, offset], |row| row.get(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<Vec<u8>>, _>>()
+                .map_err(|error| error.to_string())?
+        } else {
+            let mut statement = self
+                .connection
+                .prepare(
+                    "SELECT envelope FROM orchestra_runs
+                     ORDER BY updated_at_unix_ms DESC, run_id ASC LIMIT ?1 OFFSET ?2",
+                )
+                .map_err(|error| error.to_string())?;
+            statement
+                .query_map(params![fetch, offset], |row| row.get(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<Vec<u8>>, _>>()
+                .map_err(|error| error.to_string())?
+        };
+        let has_more = rows.len() > usize::from(limit);
+        rows.truncate(usize::from(limit));
+        Ok(OrchestraHistoryRecord {
+            runs: rows,
+            events: Vec::new(),
+            next_offset: history_next_offset(has_more, offset, limit),
+        })
+    }
+
+    pub fn delete_orchestra_runtimes(
+        &mut self,
+        runtime_ids: &[String],
+    ) -> Result<OrchestraDeleteRecord, String> {
+        self.ensure_owner()?;
+        if runtime_ids.is_empty() || runtime_ids.len() > 128 {
+            return Err("Orchestra delete must contain between 1 and 128 runtime IDs".into());
+        }
+        let mut unique = BTreeSet::new();
+        for runtime_id in runtime_ids {
+            validate_scheduler_id("runtime_id", runtime_id)?;
+            if !unique.insert(runtime_id.as_str()) {
+                return Err("Orchestra delete contains a duplicate runtime ID".into());
+            }
+        }
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let mut deleted_runtime_count = 0_u32;
+        let mut deleted_run_count = 0_u64;
+        let mut deleted_event_count = 0_u64;
+        for runtime_id in runtime_ids {
+            let run_count: i64 = transaction
+                .query_row(
+                    "SELECT COUNT(*) FROM orchestra_runs WHERE runtime_id = ?1",
+                    [runtime_id],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
+            let event_count: i64 = transaction
+                .query_row(
+                    "SELECT COUNT(*) FROM orchestra_events WHERE runtime_id = ?1",
+                    [runtime_id],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
+            if run_count > 0 {
+                deleted_runtime_count = deleted_runtime_count.saturating_add(1);
+            }
+            deleted_run_count = deleted_run_count
+                .checked_add(u64::try_from(run_count).map_err(|_| "invalid run count")?)
+                .ok_or_else(|| "Orchestra run count overflow".to_string())?;
+            deleted_event_count = deleted_event_count
+                .checked_add(u64::try_from(event_count).map_err(|_| "invalid event count")?)
+                .ok_or_else(|| "Orchestra event count overflow".to_string())?;
+            transaction
+                .execute(
+                    "DELETE FROM orchestra_runs WHERE runtime_id = ?1",
+                    [runtime_id],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(OrchestraDeleteRecord {
+            deleted_runtime_count,
+            deleted_run_count,
+            deleted_event_count,
         })
     }
 
@@ -1185,11 +1366,14 @@ fn migrate_schema_9_to_10(connection: &mut Connection) -> Result<i64, String> {
             "CREATE TABLE orchestra_runs (
                  run_id TEXT PRIMARY KEY,
                  runtime_id TEXT NOT NULL,
+                 request_id TEXT,
                  envelope BLOB NOT NULL CHECK (length(envelope) <= 1048576),
                  updated_at_unix_ms INTEGER NOT NULL CHECK (updated_at_unix_ms >= 0)
              ) STRICT;
              CREATE INDEX orchestra_runs_by_runtime
                  ON orchestra_runs (runtime_id, updated_at_unix_ms DESC);
+             CREATE UNIQUE INDEX orchestra_runs_by_runtime_request
+                 ON orchestra_runs (runtime_id, request_id) WHERE request_id IS NOT NULL;
              CREATE TABLE orchestra_events (
                  event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                  run_id TEXT NOT NULL,
@@ -1620,12 +1804,14 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         .query_row(
             "SELECT COUNT(*) FROM sqlite_master
              WHERE type = 'index'
-               AND name IN ('orchestra_runs_by_runtime', 'orchestra_events_by_run')",
+               AND name IN (
+                   'orchestra_runs_by_runtime', 'orchestra_runs_by_runtime_request',
+                   'orchestra_events_by_run')",
             [],
             |row| row.get(0),
         )
         .map_err(|error| format!("invalid runtime journal schema 10: {error}"))?;
-    if orchestra_indexes != 2 {
+    if orchestra_indexes != 3 {
         return Err("invalid runtime journal schema 10 Orchestra indexes".into());
     }
     Ok(())
@@ -1744,6 +1930,14 @@ fn validate_orchestra_blob(label: &str, bytes: &[u8]) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+fn history_next_offset(has_more: bool, offset: i64, limit: u16) -> Option<u32> {
+    has_more.then(|| {
+        u32::try_from(offset)
+            .unwrap_or_default()
+            .saturating_add(u32::from(limit))
+    })
 }
 
 fn validate_snapshot_blob(bytes: &[u8]) -> Result<(), String> {

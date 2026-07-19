@@ -37,7 +37,13 @@ public partial class Program
             options.Level = CompressionLevel.Fastest);
         builder.Services.AddSingleton<ControlPlaneSecurityPolicy>();
         builder.Services.AddSingleton<ControlPlaneStateStore>();
-        builder.Services.AddSingleton<IOrchestraRunStore, SqliteOrchestraRunStore>();
+        builder.Services.AddSingleton<SqliteOrchestraRunStore>();
+        builder.Services.AddSingleton<DaemonOrchestraRunStore>();
+        builder.Services.AddSingleton<IOrchestraRunStore>(services =>
+        {
+            var daemon = services.GetRequiredService<DaemonOrchestraRunStore>();
+            return daemon.Enabled ? daemon : services.GetRequiredService<SqliteOrchestraRunStore>();
+        });
         builder.Services.AddSingleton<RegistryService>();
         builder.Services.AddSingleton<ICompatibilityBridge, RustCompatibilityBridge>();
         builder.Services.AddSingleton<IDeploymentAuthority, DaemonDeploymentAuthority>();

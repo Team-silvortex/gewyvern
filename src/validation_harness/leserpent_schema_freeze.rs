@@ -82,6 +82,8 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "bounded-message-contract",
             "typed-deployment-receipt-contract",
             "typed-orchestra-atomic-persistence-contract",
+            "typed-orchestra-history-pagination-contract",
+            "typed-orchestra-transactional-delete-contract",
         ],
     },
     ProofSuite {

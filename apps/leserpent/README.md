@@ -270,14 +270,15 @@ runtime：
 - runtime registry / session state 现在会持久化到本地 state file
 - 还没有真实 gRPC runtime client
 - 还没有 pairing / signing
-- 还没有 RBAC；Orchestra audit persistence 已使用 SQLite 落地
+- 还没有 RBAC；Orchestra audit persistence 可由 managed SQLite 或配置后的 Rust daemon 提供
 
 ### 当前持久化行为
 
 当前 `leserpent` 使用双层持久化：
 
 - JSON 保存 runtime/session 控制状态，并继续作为导入、导出和灾难恢复格式
-- SQLite 保存 Orchestra run、审批、状态迁移结果和幂等 request ID
+- 未配置 daemon 时，managed SQLite 保存 Orchestra run、审批、状态迁移结果和幂等 request ID
+- 配置 daemon socket/token 后，Rust schema v10 成为 Orchestra 唯一权威，managed SQLite store 不会实例化或双写
 
 JSON state 默认路径：
 
@@ -293,6 +294,7 @@ JSON state 默认路径：
   - `LESERPENT_DATABASE_PATH=target/leserpent/control-plane.db`
 - SQLite 使用 WAL、`synchronous=NORMAL` 和 5 秒 busy timeout
 - SQLite schema v2 同时保存最新 run 快照和 append-only 状态事件；v1 数据库会在启动时原地升级
+- Rust schema v10 原子保存 run/event、限制每 runtime 32 个 runs、约束 request ID 唯一性，并提供有界 history/delete IPC
 - `GET /v1/orchestra/runtimes/{id}/runs/{runId}/events` 按顺序返回单次运行的审计时间线；旧数据在首次新状态转换前可能没有事件
 - Orchestra 状态转换只有在 SQLite 快照与事件同时提交后才会发布到内存；数据库拒写时不会启动自动执行
 - state import 的 Orchestra 批量替换失败会返回 `503 persistence_import_unavailable` 并恢复导入前的内存 registry
@@ -338,6 +340,7 @@ target/debug/leserpentd \
 export LESERPENT_DAEMON_SOCKET=/run/leserpent/leserpentd.sock
 export LESERPENT_DAEMON_TOKEN="$LESERPENT_IPC_TOKEN"
 export LESERPENT_DAEMON_DEPLOY_TIMEOUT_MS=5000
+export LESERPENT_DAEMON_ORCHESTRA_TIMEOUT_MS=5000
 ```
 
 `LESERPENT_DAEMON_SOCKET` 和 `LESERPENT_DAEMON_TOKEN` 必须同时设置。Socket
@@ -347,6 +350,11 @@ timeout、协议或 receipt 身份错误均失败关闭，不会回退到 C# 直
 会把命令 ID 与 request ID 绑定，只允许读取 deployment effect 的终态回执。
 首次配置的 Gewyvern target 会写入 Rust journal；以后启动时 endpoint 漂移会
 拒绝启动，而不是静默覆盖 authority。
+
+同一配置也会把 Orchestra store 切换到 Rust：保存、启动恢复、事件查询和
+runtime history 删除均通过 owner-private IPC 完成；history 单页最多 64 条，
+批量删除最多 128 个 runtime。任何 daemon、权限、超时、协议或 canonical
+回读错误都失败关闭，不会在 managed SQLite 中留下隐藏的第二份权威状态。
 
 未配置 daemon authority 时，1.x 保留原有 C# 直连部署路径。发布包包含
 `leserpentd`，但安装器不会在 target、IPC token 和 Gewyvern secret 不完整时
@@ -359,11 +367,11 @@ timeout、协议或 receipt 身份错误均失败关闭，不会回退到 C# 直
 - discovered capabilities
 - latest runtime status snapshots
 - created sessions
-- Orchestra runs、审批归属、状态和 request ID（SQLite 为运行历史来源，JSON 保留灾备副本）
+- Orchestra runs、审批归属、状态和 request ID（所选 SQLite/Rust provider 为运行历史来源，JSON 保留灾备副本）
 
 也就是说，重启 `leserpent` 后，runtime registry 和 session 列表不会重新变成空白。
 
-如果 SQLite 数据库为空、但旧 JSON 中存在 `orchestraRuns`，启动时会自动执行一次 JSON → SQLite 迁移。数据库已有数据时不会用 JSON 覆盖。
+如果所选 provider 为空、但旧 JSON 中存在 `orchestraRuns`，启动时会执行一次幂等导入。provider 已有数据时不会用 JSON 覆盖。
 
 SQLite 不存储原始抓包、大型 eBPF 事件流或分析产物；这些内容仍应放在文件/对象存储中，数据库只保存编排审计和后续 artifact 索引。
 

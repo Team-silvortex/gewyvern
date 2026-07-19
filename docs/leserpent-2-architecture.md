@@ -455,9 +455,18 @@ owner-fenced transaction writes the canonical run/event pair and reads both
 records back before commit. Replaying the same event identity is idempotent only
 when its canonical bytes are unchanged; payload drift or cross-runtime run-ID
 reuse rolls the whole transaction back. The daemon exposes this primitive only
-through the typed, capability-gated `orchestra_persist` wire operation. Until
-the 1.x adapter consumes that operation before its managed write, ASP.NET
-remains the Orchestra route authority rather than a completed Rust adapter.
+through the typed, capability-gated `orchestra_persist` wire operation. When a
+daemon socket is configured, the 1.x host composes a daemon-backed store and
+does not instantiate or dual-write its managed SQLite Orchestra provider.
+Canonical history reads use the independently typed `orchestra_history`
+operation. Runs and events are paged with a fixed 64-record ceiling; event
+queries bind both runtime and run identity, and returned event IDs are projected
+from the SQLite sequence. Frontends must exhaust these pages rather than access
+the journal file or request an unbounded snapshot.
+`orchestra_delete` is the matching bounded mutation: it accepts at most 128
+unique runtime IDs, deletes runs and cascading events in one owner-fenced
+transaction, and returns actual affected counts. The same schema enforces one
+request ID per runtime and retains at most 32 current runs per runtime.
 
 ## Security Boundary
 

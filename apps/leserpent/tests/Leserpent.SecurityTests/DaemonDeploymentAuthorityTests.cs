@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Leserpent.ControlPlane;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Leserpent.SecurityTests;
@@ -24,6 +25,16 @@ public sealed class DaemonDeploymentAuthorityTests
             CreateAuthority(
                 ("LESERPENT_DAEMON_SOCKET", "relative.sock"),
                 ("LESERPENT_DAEMON_TOKEN", Token)));
+    }
+
+    [Fact]
+    public void OrchestraStoreConfigurationIsExplicitAndFailClosed()
+    {
+        Assert.False(CreateOrchestraStore().Enabled);
+        Assert.Throws<InvalidOperationException>(() =>
+            CreateOrchestraStore(("LESERPENT_DAEMON_SOCKET", "/tmp/leserpent.sock")));
+        Assert.Throws<InvalidOperationException>(() =>
+            CreateOrchestraStore(("LESERPENT_DAEMON_TOKEN", Token)));
     }
 
     [Fact]
@@ -139,6 +150,73 @@ public sealed class DaemonDeploymentAuthorityTests
             Assert.Equal("gdep-real", result.DeploymentId);
             Assert.Equal("deploy-1", result.RequestId);
             await gewyvernTask;
+        }
+        finally
+        {
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(2000);
+            }
+            TryDelete(socketPath);
+            TryDelete(databasePath);
+            TryDelete(databasePath + "-journal");
+            TryDelete(databasePath + "-wal");
+            TryDelete(databasePath + "-shm");
+        }
+    }
+
+    [Fact]
+    public async Task ConfiguredRustDaemonOwnsOrchestraPersistenceEndToEnd()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        using var unusedTarget = new TcpListener(System.Net.IPAddress.Loopback, 0);
+        unusedTarget.Start();
+        using var daemon = StartDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath,
+            ((System.Net.IPEndPoint)unusedTarget.LocalEndpoint).Port);
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            var store = CreateOrchestraStore(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_ORCHESTRA_TIMEOUT_MS", "10000"));
+            var executedAt = DateTimeOffset.Parse("2026-07-19T00:00:00Z");
+            var run = new OrchestraRunSummary(
+                "orun-real",
+                "runtime-a",
+                "plan-a",
+                "queued",
+                executedAt,
+                Array.Empty<OrchestraExecutionStepResult>(),
+                RequestId: "request-a");
+            var eventRecord = new OrchestraRunEvent(
+                0,
+                run.RunId,
+                run.RuntimeId,
+                "run_queued",
+                null,
+                run.Outcome,
+                "Orchestra run queued",
+                executedAt);
+
+            Assert.True(store.Upsert(run, eventRecord));
+            Assert.Equal(run.RunId, Assert.Single(store.LoadAll()).RunId);
+            var restoredEvent = Assert.Single(store.LoadEvents(run.RuntimeId, run.RunId));
+            Assert.Equal(1, restoredEvent.EventId);
+            Assert.Equal(eventRecord.Summary, restoredEvent.Summary);
+            Assert.True(store.DeleteRuntimes([run.RuntimeId]));
+            Assert.Empty(store.LoadAll());
+            Assert.Null(store.LastError);
         }
         finally
         {
@@ -287,6 +365,17 @@ public sealed class DaemonDeploymentAuthorityTests
             .AddInMemoryCollection(values.ToDictionary(item => item.Key, item => (string?)item.Value))
             .Build();
         return new DaemonDeploymentAuthority(configuration);
+    }
+
+    private static DaemonOrchestraRunStore CreateOrchestraStore(
+        params (string Key, string Value)[] values)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values.ToDictionary(item => item.Key, item => (string?)item.Value))
+            .Build();
+        return new DaemonOrchestraRunStore(
+            configuration,
+            NullLogger<DaemonOrchestraRunStore>.Instance);
     }
 
     private static string TempSocket() =>

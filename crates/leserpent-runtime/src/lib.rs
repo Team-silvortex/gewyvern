@@ -16,7 +16,9 @@ use std::time::Duration;
 
 mod persistence;
 
-pub use persistence::{EffectLease, OrchestraPersistenceRecord};
+pub use persistence::{
+    EffectLease, OrchestraDeleteRecord, OrchestraHistoryRecord, OrchestraPersistenceRecord,
+};
 use persistence::{EffectRecord, Journal, JournalEntryKind};
 
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
@@ -431,6 +433,7 @@ impl ControlRuntime {
         &mut self,
         run_id: &str,
         runtime_id: &str,
+        request_id: Option<&str>,
         event_type: &str,
         to_outcome: &str,
         recorded_at: &str,
@@ -446,12 +449,44 @@ impl ControlRuntime {
             .persist_orchestra_run_event(
                 run_id,
                 runtime_id,
+                request_id,
                 event_type,
                 to_outcome,
                 recorded_at,
                 run,
                 event,
             )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn load_orchestra_history(
+        &mut self,
+        runtime_id: Option<&str>,
+        run_id: Option<&str>,
+        offset: u32,
+        limit: u16,
+    ) -> Result<OrchestraHistoryRecord, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra history requires persistent storage".into(),
+            ));
+        };
+        journal
+            .load_orchestra_history(runtime_id, run_id, offset, limit)
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn delete_orchestra_runtimes(
+        &mut self,
+        runtime_ids: &[String],
+    ) -> Result<OrchestraDeleteRecord, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra delete requires persistent storage".into(),
+            ));
+        };
+        journal
+            .delete_orchestra_runtimes(runtime_ids)
             .map_err(RuntimeError::Storage)
     }
 
@@ -2081,6 +2116,7 @@ mod tests {
             .persist_orchestra_run_event(
                 "orun-1",
                 "runtime-a",
+                Some("request-1"),
                 "run_queued",
                 "queued",
                 "2026-01-01T00:00:00Z",
@@ -2095,6 +2131,7 @@ mod tests {
             .persist_orchestra_run_event(
                 "orun-1",
                 "runtime-a",
+                Some("request-1"),
                 "run_queued",
                 "queued",
                 "2026-01-01T00:00:00Z",
@@ -2111,6 +2148,7 @@ mod tests {
                 .persist_orchestra_run_event(
                     "orun-1",
                     "runtime-a",
+                    Some("request-1"),
                     "run_queued",
                     "queued",
                     "2026-01-01T00:00:00Z",
@@ -2124,6 +2162,7 @@ mod tests {
                 .persist_orchestra_run_event(
                     "orun-1",
                     "runtime-a",
+                    Some("request-1"),
                     "run_queued",
                     "queued",
                     "2026-01-01T00:00:00Z",
@@ -2136,6 +2175,7 @@ mod tests {
             .persist_orchestra_run_event(
                 "orun-1",
                 "runtime-a",
+                Some("request-1"),
                 "run_queued",
                 "queued",
                 "2026-01-01T00:00:00Z",
@@ -2145,11 +2185,47 @@ mod tests {
             .unwrap();
         assert_eq!(after_rollback.run, run);
         assert_eq!(after_rollback.event_count, 1);
+        let run_history = runtime
+            .load_orchestra_history(Some("runtime-a"), None, 0, 1)
+            .unwrap();
+        assert_eq!(run_history.runs, [run]);
+        assert!(run_history.events.is_empty());
+        assert_eq!(run_history.next_offset, None);
+        let event_history = runtime
+            .load_orchestra_history(Some("runtime-a"), Some("orun-1"), 0, 1)
+            .unwrap();
+        assert_eq!(event_history.events, [(1, event.to_vec())]);
+        assert!(event_history.runs.is_empty());
+        assert_eq!(event_history.next_offset, None);
+        assert!(
+            runtime
+                .load_orchestra_history(None, Some("orun-1"), 0, 1)
+                .is_err()
+        );
+        assert!(runtime.load_orchestra_history(None, None, 0, 65).is_err());
+        let duplicate_request_run =
+            br#"{"runId":"orun-2","runtimeId":"runtime-a","outcome":"queued"}"#;
+        let duplicate_request_event = br#"{"runId":"orun-2","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:01Z"}"#;
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-2",
+                    "runtime-a",
+                    Some("request-1"),
+                    "run_queued",
+                    "queued",
+                    "2026-01-01T00:00:01Z",
+                    duplicate_request_run,
+                    duplicate_request_event,
+                )
+                .is_err()
+        );
         assert!(
             runtime
                 .persist_orchestra_run_event(
                     "orun-1",
                     "runtime-b",
+                    Some("request-1"),
                     "run_queued",
                     "queued",
                     "2026-01-01T00:00:00Z",
@@ -2158,6 +2234,55 @@ mod tests {
                 )
                 .is_err()
         );
+        let deleted = runtime
+            .delete_orchestra_runtimes(&["runtime-a".into()])
+            .unwrap();
+        assert_eq!(deleted.deleted_runtime_count, 1);
+        assert_eq!(deleted.deleted_run_count, 1);
+        assert_eq!(deleted.deleted_event_count, 1);
+        assert!(
+            runtime
+                .load_orchestra_history(Some("runtime-a"), None, 0, 1)
+                .unwrap()
+                .runs
+                .is_empty()
+        );
+        assert!(
+            runtime
+                .delete_orchestra_runtimes(&["runtime-a".into(), "runtime-a".into()])
+                .is_err()
+        );
+        for index in 0..33 {
+            let run_id = format!("bounded-{index:02}");
+            let request_id = format!("bounded-request-{index:02}");
+            let recorded_at = format!("2026-01-01T00:01:{index:02}Z");
+            let bounded_run = format!(
+                "{{\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"outcome\":\"queued\"}}"
+            );
+            let bounded_event = format!(
+                "{{\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"eventType\":\"run_queued\",\"toOutcome\":\"queued\",\"recordedAt\":\"{recorded_at}\"}}"
+            );
+            runtime
+                .persist_orchestra_run_event(
+                    &run_id,
+                    "runtime-a",
+                    Some(&request_id),
+                    "run_queued",
+                    "queued",
+                    &recorded_at,
+                    bounded_run.as_bytes(),
+                    bounded_event.as_bytes(),
+                )
+                .unwrap();
+        }
+        let bounded = runtime
+            .load_orchestra_history(Some("runtime-a"), None, 0, 64)
+            .unwrap();
+        assert_eq!(bounded.runs.len(), 32);
+        assert!(bounded.runs.iter().all(|run| {
+            !run.windows(b"bounded-00".len())
+                .any(|value| value == b"bounded-00")
+        }));
         drop(runtime);
         let connection = Connection::open(&path).unwrap();
         let schema: i64 = connection

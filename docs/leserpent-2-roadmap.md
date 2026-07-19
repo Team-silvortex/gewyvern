@@ -567,10 +567,20 @@ outcome drift, invalid attempts, oversized steps, and unknown fields. The bridge
 can validate this envelope. Runtime journal schema 10 now owns strict Orchestra
 run and event tables, atomically persists the pair, makes exact event replay
 idempotent, rejects event-key payload drift, and returns the bytes read back from
-SQLite through a capability-gated `orchestra_persist` IPC response. The ASP.NET
-route has not switched authority yet; it must call this operation outside its
-managed SQLite transaction so transport failure cannot become a post-write
-false failure.
+SQLite through a capability-gated `orchestra_persist` IPC response. A configured
+ASP.NET host now selects `DaemonOrchestraRunStore` at composition time and does
+not instantiate or dual-write the managed SQLite store; the unconfigured
+development path retains the legacy provider.
+The same daemon boundary now exposes bounded `orchestra_history` pagination:
+run pages may be fleet-wide or runtime-scoped, event pages require both runtime
+and run identity, pages contain at most 64 records, and event IDs come from the
+authoritative SQLite sequence rather than the legacy envelope placeholder.
+This closes startup/UI read-back without introducing an unbounded history dump.
+The typed `orchestra_delete` operation removes up to 128 runtime histories in
+one owner-fenced transaction and reports actual run/event counts. Schema 10 also
+preserves 1.x request-ID uniqueness and the 32-run per-runtime retention bound.
+A real C#-to-daemon test proves persist, canonical read-back, authoritative event
+sequence, delete, and empty read-back against one Rust SQLite database.
 
 - SQLite journal, projections, snapshots, and migrations
 - effect workers with backpressure and recovery

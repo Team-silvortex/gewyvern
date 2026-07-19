@@ -19,6 +19,8 @@ pub enum ProtocolRequest {
     Health(HealthRequest),
     DeploymentReceipt(DeploymentReceiptRequest),
     OrchestraPersist(OrchestraPersistenceRequest),
+    OrchestraHistory(OrchestraHistoryRequest),
+    OrchestraDelete(OrchestraDeleteRequest),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -44,6 +46,25 @@ pub struct OrchestraPersistenceRequest {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct OrchestraHistoryRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub runtime_id: Option<String>,
+    pub run_id: Option<String>,
+    pub offset: u32,
+    pub limit: u16,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraDeleteRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub runtime_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RequestEnvelope {
     pub schema_version: u32,
     pub request: ProtocolRequest,
@@ -57,6 +78,8 @@ pub enum ProtocolResponse {
     Health(HealthResponse),
     DeploymentReceipt(DeploymentReceiptResponse),
     OrchestraPersisted(OrchestraPersistenceResponse),
+    OrchestraHistory(OrchestraHistoryResponse),
+    OrchestraDeleted(OrchestraDeleteResponse),
     Error(ProtocolError),
 }
 
@@ -86,6 +109,22 @@ pub struct DeploymentReceiptResponse {
 pub struct OrchestraPersistenceResponse {
     pub envelope: compatibility_v1::LegacyOrchestraPersistenceEnvelope,
     pub event_count: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraHistoryResponse {
+    pub runs: Vec<compatibility_v1::LegacyOrchestraRun>,
+    pub events: Vec<compatibility_v1::LegacyOrchestraEvent>,
+    pub next_offset: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraDeleteResponse {
+    pub deleted_runtime_count: u32,
+    pub deleted_run_count: u64,
+    pub deleted_event_count: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -212,7 +251,9 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         ProtocolRequest::Query(query) => query.schema_version,
         ProtocolRequest::Health(_)
         | ProtocolRequest::DeploymentReceipt(_)
-        | ProtocolRequest::OrchestraPersist(_) => DOMAIN_SCHEMA_VERSION,
+        | ProtocolRequest::OrchestraPersist(_)
+        | ProtocolRequest::OrchestraHistory(_)
+        | ProtocolRequest::OrchestraDelete(_) => DOMAIN_SCHEMA_VERSION,
     };
     if domain_version != DOMAIN_SCHEMA_VERSION {
         return Err(DecodeError::InvalidDomainSchemaVersion {
@@ -461,6 +502,38 @@ mod tests {
         assert_eq!(
             decode_response(&encode_response(&response).unwrap()).unwrap(),
             response
+        );
+
+        let history = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraHistory(OrchestraHistoryRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_id: Some("runtime-a".into()),
+                run_id: Some("orun-1".into()),
+                offset: 0,
+                limit: 64,
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&history).unwrap()).unwrap(),
+            history
+        );
+        let delete = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraDelete(OrchestraDeleteRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_ids: vec!["runtime-a".into()],
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&delete).unwrap()).unwrap(),
+            delete
         );
     }
 

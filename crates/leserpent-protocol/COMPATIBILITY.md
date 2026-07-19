@@ -59,8 +59,9 @@ The Orchestra persistence fixture deliberately validates outside the current
 synchronous SQLite transaction. Blocking on the asynchronous bridge while a
 database transaction is open is forbidden; authority moves only when Rust owns
 the persistence call rather than acting as a post-write observer.
-The ASP.NET route remains authoritative until a live bridge route passes these
-fixtures and the existing Leserpent security tests.
+The configured ASP.NET route now delegates Orchestra storage to the daemon only
+after the live IPC path passes these fixtures and the existing Leserpent
+security tests. An unconfigured development host remains on managed SQLite.
 
 ## Live Bridge
 
@@ -89,8 +90,16 @@ typed `orchestra_persist` operation. It requires `orchestra.write`, validates
 cross-record identity and outcome invariants, and commits both canonical records
 in one schema-v10 transaction. An exact event replay returns the stored pair and
 the unchanged event count; reusing its identity with different bytes fails
-closed and rolls back the run update. This is the durable handoff primitive,
-not evidence that the existing ASP.NET route has already switched authority.
+closed and rolls back the run update. The configured ASP.NET store consumes this
+operation directly and never opens a managed Orchestra transaction.
+The companion `orchestra_history` operation uses the same capability and
+returns either canonical run pages or runtime/run-bound event pages. Limits are
+restricted to 1 through 64 records, offsets are bounded, and event IDs are the
+authoritative database sequence. It never returns both record families in one
+page.
+The matching `orchestra_delete` mutation accepts 1 through 128 unique runtime
+IDs and atomically deletes their runs and cascading events. Its response reports
+actual affected runtime, run, and event counts without exposing stored payloads.
 
 ## Reproducible Proof
 
