@@ -20,7 +20,8 @@
       "install": "Installera",
       "installedLabel": "Installera",
       "download": "Hämta",
-      "remove": "Ta bort"
+      "remove": "Ta bort",
+      "coverageCore": "kärnagränssnitt"
     },
     "theme": {
       "label": "Tema"

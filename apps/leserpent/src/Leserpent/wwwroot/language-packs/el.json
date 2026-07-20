@@ -20,7 +20,8 @@
       "install": "Εγκατάσταση",
       "installedLabel": "Εγκατάσταση",
       "download": "Λήψη",
-      "remove": "Κατάργηση"
+      "remove": "Κατάργηση",
+      "coverageCore": "κεντρικό UI"
     },
     "theme": {
       "label": "Θέμα"

@@ -20,7 +20,8 @@
       "install": "इंस्टॉल",
       "installedLabel": "इंस्टॉल",
       "download": "डाउनलोड",
-      "remove": "हटाएँ"
+      "remove": "हटाएँ",
+      "coverageCore": "कोर यूआई"
     },
     "theme": {
       "label": "थीम"

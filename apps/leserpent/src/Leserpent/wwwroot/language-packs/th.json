@@ -20,7 +20,8 @@
       "install": "ติดตั้ง",
       "installedLabel": "ติดตั้ง",
       "download": "ดาวน์โหลด",
-      "remove": "นำออก"
+      "remove": "นำออก",
+      "coverageCore": "โหมดหลัก"
     },
     "theme": {
       "label": "ธีม"

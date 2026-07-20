@@ -20,7 +20,8 @@
       "install": "Yükle",
       "installedLabel": "Yükle",
       "download": "İndir",
-      "remove": "Kaldır"
+      "remove": "Kaldır",
+      "coverageCore": "çekirdek arayüz"
     },
     "theme": {
       "label": "Tema"

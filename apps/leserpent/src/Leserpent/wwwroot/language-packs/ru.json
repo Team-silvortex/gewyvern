@@ -20,7 +20,8 @@
       "install": "Установить",
       "installedLabel": "Установить",
       "download": "Скачать",
-      "remove": "Удалить"
+      "remove": "Удалить",
+      "coverageCore": "ядро интерфейса"
     },
     "theme": {
       "label": "Тема"

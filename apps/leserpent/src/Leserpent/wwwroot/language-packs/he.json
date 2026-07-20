@@ -20,7 +20,8 @@
       "install": "התקנה",
       "installedLabel": "התקנה",
       "download": "הורדה",
-      "remove": "הסרה"
+      "remove": "הסרה",
+      "coverageCore": "UI ליבה"
     },
     "theme": {
       "label": "ערכת נושא"

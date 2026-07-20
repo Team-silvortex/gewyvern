@@ -20,7 +20,8 @@
       "install": "Installer",
       "installedLabel": "Installer",
       "download": "Last ned",
-      "remove": "Fjern"
+      "remove": "Fjern",
+      "coverageCore": "kjerne-UI"
     },
     "theme": {
       "label": "Tema"

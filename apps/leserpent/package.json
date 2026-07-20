@@ -5,6 +5,7 @@
   "scripts": {
     "build:frontend": "npm run build:language-packs && tsc -p tsconfig.json",
     "build:language-packs": "node scripts/build-language-packs.mjs",
+    "verify:language-packs": "node scripts/check-language-pack-coverage.mjs",
     "check:frontend": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

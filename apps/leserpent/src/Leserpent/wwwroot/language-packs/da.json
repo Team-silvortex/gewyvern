@@ -20,7 +20,8 @@
       "install": "Installer",
       "installedLabel": "Installer",
       "download": "Download",
-      "remove": "Fjern"
+      "remove": "Fjern",
+      "coverageCore": "kerne-UI"
     },
     "theme": {
       "label": "Tema"

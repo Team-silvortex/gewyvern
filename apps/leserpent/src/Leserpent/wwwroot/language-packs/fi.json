@@ -20,7 +20,8 @@
       "install": "Asenna",
       "installedLabel": "Asenna",
       "download": "Lataa",
-      "remove": "Poista"
+      "remove": "Poista",
+      "coverageCore": "ydin-käyttöliittymä"
     },
     "theme": {
       "label": "Teema"

@@ -20,7 +20,8 @@
       "install": "ইনস্টল",
       "installedLabel": "ইনস্টল",
       "download": "ডাউনলোড",
-      "remove": "সরান"
+      "remove": "সরান",
+      "coverageCore": "কোর UI"
     },
     "theme": {
       "label": "থিম"

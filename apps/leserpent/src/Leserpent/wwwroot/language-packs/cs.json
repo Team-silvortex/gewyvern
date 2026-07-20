@@ -20,7 +20,8 @@
       "install": "Nainstalovat",
       "installedLabel": "Nainstalovat",
       "download": "Stáhnout",
-      "remove": "Odebrat"
+      "remove": "Odebrat",
+      "coverageCore": "jádro UI"
     },
     "theme": {
       "label": "Motiv"

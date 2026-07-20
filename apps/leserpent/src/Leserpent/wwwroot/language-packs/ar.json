@@ -20,7 +20,8 @@
       "install": "تثبيت",
       "installedLabel": "تثبيت",
       "download": "تنزيل",
-      "remove": "إزالة"
+      "remove": "إزالة",
+      "coverageCore": "واجهة أساسية"
     },
     "theme": {
       "label": "السمة"

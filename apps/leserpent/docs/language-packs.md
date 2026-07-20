@@ -129,6 +129,8 @@ catalog 使用：
 - `scripts/build-language-packs.mjs`
   - 30-locale roster 中 22 个下载包的翻译源、pack 生成与 digest catalog
 
+建议在每次打包前先执行 `npm run verify:language-packs`，用于快速核对内置 locale 对齐和 22 个官方下载包的核心覆盖率。
+
 ## Validation Checklist
 
 - catalog digest 与服务器实际返回文件一致。

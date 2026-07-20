@@ -20,7 +20,8 @@
       "install": "Installeren",
       "installedLabel": "Installeren",
       "download": "Downloaden",
-      "remove": "Verwijderen"
+      "remove": "Verwijderen",
+      "coverageCore": "kern-UI"
     },
     "theme": {
       "label": "Thema"

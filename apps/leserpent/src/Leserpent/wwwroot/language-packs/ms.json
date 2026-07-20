@@ -20,7 +20,8 @@
       "install": "Pasang",
       "installedLabel": "Pasang",
       "download": "Muat turun",
-      "remove": "Buang"
+      "remove": "Buang",
+      "coverageCore": "UI teras"
     },
     "theme": {
       "label": "Tema"

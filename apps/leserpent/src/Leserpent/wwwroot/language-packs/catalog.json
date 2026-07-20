@@ -13,7 +13,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/pt-BR.json",
-      "sha256": "3bcdad4a2a782b1b35c3068b8ecdf62c65858e671c10fe5884a952d4719151f0"
+      "sha256": "eed6c81714c09f2fc2c7a0b67504947be598ef93bc791b93a9e9378fe69873a2"
     },
     {
       "locale": "it",
@@ -23,7 +23,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/it.json",
-      "sha256": "a040d0ca094462841d9f92059a034ca4c1c7988370eb023e49d880aa5bf9e43e"
+      "sha256": "5faa9b1393e3a00dda28897c69710f92ac21f6b0fd1e7e11fb739f87ee7051d5"
     },
     {
       "locale": "ru",
@@ -33,7 +33,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/ru.json",
-      "sha256": "6268cfaf50d4f6c937f485fe0aa4f26cfa47039b517f882d0ea8f4233896978a"
+      "sha256": "a8f8bd4928be21f4417845f38b6306c114e03619e6e3163ac30480ffde9a7c27"
     },
     {
       "locale": "ar",
@@ -43,7 +43,7 @@
       "direction": "rtl",
       "coverage": "core-ui",
       "url": "/language-packs/ar.json",
-      "sha256": "ec69e3e58728dcf2152bc8cb13d1c533259bf3b930db8f80efd5003e7b014846"
+      "sha256": "7b01f664f9dcdf1241b1de211f18652a400c9c18db7876c6b96adbee70b5ba57"
     },
     {
       "locale": "hi",
@@ -53,7 +53,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/hi.json",
-      "sha256": "01471f6bd5ecae939627b042045f7d09760fb3561f77aaf9e4c53f2b2d15cb75"
+      "sha256": "17d2aad9b7368ba9fca7b0578f914ada1b244c8fd564447b15d847d770642d7a"
     },
     {
       "locale": "bn",
@@ -63,7 +63,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/bn.json",
-      "sha256": "2cdb3e5e64258a25214fce5574405111536054a6c11f0d88d81244fbb7785e99"
+      "sha256": "08ae822eade840da9b6d56cce2222ccc5204faae793cd1a9f5e1f7e9ff25f879"
     },
     {
       "locale": "id",
@@ -73,7 +73,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/id.json",
-      "sha256": "9c2e75da72a9b8485a7eb825d95dc3a32f009b2b759fc513abd75c876ae4ec5a"
+      "sha256": "8cd2f5242a13b14d32eae4044f591bafede5f5777314ad73c66715e9f20e55f5"
     },
     {
       "locale": "ms",
@@ -83,7 +83,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/ms.json",
-      "sha256": "d1337abe884920d229f62029c7576f9575aa5f42911066641e81b787ff05251d"
+      "sha256": "d361fef1d50622fd9cf1b0e8c97a3902c5e65a13a6b9d1bf1d906308ff82e136"
     },
     {
       "locale": "th",
@@ -93,7 +93,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/th.json",
-      "sha256": "b09ba2ef159da132286781b690112a9cf57b72fdcd95bd30c1052c59a3a03594"
+      "sha256": "9e48e52fa0aba1c393f25529d5efd03514d06a81c28eadddcaad053648617355"
     },
     {
       "locale": "vi",
@@ -103,7 +103,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/vi.json",
-      "sha256": "3220ea4fdef03ea1b268ff4f0a6b4f76e2f2484e02ab335e7eb09f90106f3c65"
+      "sha256": "3ec1c13826028fb88e2bf637b3d2e02aaf27e58444358842a2b39705db530899"
     },
     {
       "locale": "tr",
@@ -113,7 +113,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/tr.json",
-      "sha256": "f554eabfb3225b3e486870351d159feabeec6a3ead3a634bfd508052689121e3"
+      "sha256": "2373b5e0c164b768949cb2775a936212ffd02671f28c6f04de1d0446d037a8c3"
     },
     {
       "locale": "pl",
@@ -123,7 +123,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/pl.json",
-      "sha256": "712f510dc5b4d1f92111756ca51cfd2201011ec9ce649efb6eb28be8a987c2d4"
+      "sha256": "fa9ab56278de265d5d923da8d12bc08524437eb5a41fcdf2940ba6125d43b92e"
     },
     {
       "locale": "nl",
@@ -133,7 +133,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/nl.json",
-      "sha256": "7aed70e79bcda38dacc9e008732e3d2ddb1e82bbce19a0de7a5487037a54e8da"
+      "sha256": "7437e144bf3c087b92d71e4d398b93a06babe31e7bfc35a39161cbee2cbd9267"
     },
     {
       "locale": "uk",
@@ -143,7 +143,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/uk.json",
-      "sha256": "3488df12992bfc56c28ddea273da2efed65b82923187218d2cd63a64b0c15b04"
+      "sha256": "679b253cb4f4577159b1856fad063d36c9990ebd3b65b3283c1dbd9aa316b797"
     },
     {
       "locale": "cs",
@@ -153,7 +153,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/cs.json",
-      "sha256": "4091e2cc811520571aa0916001a5c288ca5ba5c066302de05298c9e0bdacae0d"
+      "sha256": "7165b809f0233fbdd29f52a16aa34bc6184c89ae6589afb3923bbb0e918bd08c"
     },
     {
       "locale": "sv",
@@ -163,7 +163,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/sv.json",
-      "sha256": "1b76c7a43ef84d40cde24c13283801510a08b3c34aa2f0071463d17be2a78f91"
+      "sha256": "e420aa7eb7e88cd7c334723f308d9f0bdd3c1deec8ac60fe80b6756489ea7bfd"
     },
     {
       "locale": "da",
@@ -173,7 +173,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/da.json",
-      "sha256": "abd9a488e7317ee9b73c1b186381f619344093f4d174becbdeff44609f24a94c"
+      "sha256": "f4845d8fab5086823694dae2a5cf831c52907f7be25bbec953a2f6f8e5cc0245"
     },
     {
       "locale": "no",
@@ -183,7 +183,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/no.json",
-      "sha256": "ed2cd10a527e3aed5660dd89d25803df50290f322d8375d810723ffeacb66255"
+      "sha256": "0a40f6fff787c32828cc605d1c522a603c5b52dd9f51def60df7dcd442cc80b2"
     },
     {
       "locale": "fi",
@@ -193,7 +193,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/fi.json",
-      "sha256": "6ff1f3c9bace35dbb06a99f305de05bc966cf29bb938313a39b08c0c1684a1a2"
+      "sha256": "16ce7d9e6b89813f3da643e0032ec044b75bbaadef9668b6888209eae94734ea"
     },
     {
       "locale": "el",
@@ -203,7 +203,7 @@
       "direction": "ltr",
       "coverage": "core-ui",
       "url": "/language-packs/el.json",
-      "sha256": "e5888a8a02d9def26a6d4738650f7ae3f7ca0b3e2255a48d0ca42ebccd1bce3c"
+      "sha256": "0ea3868c4b80219926df54bc8bb944e4a75e51c1dce2c50ef7409ac398c8d2f7"
     },
     {
       "locale": "he",
@@ -213,7 +213,7 @@
       "direction": "rtl",
       "coverage": "core-ui",
       "url": "/language-packs/he.json",
-      "sha256": "a990abf9de114da0c823063dfb075e5fe28e8d7399cd10e6c0778799c006c3b3"
+      "sha256": "d08179aaf2fae6dd5a26980ba968365eda9d5cf404f557cb0916d3247a87f37e"
     },
     {
       "locale": "fa",
@@ -223,7 +223,7 @@
       "direction": "rtl",
       "coverage": "core-ui",
       "url": "/language-packs/fa.json",
-      "sha256": "1f28525510dc9863e8359dd45b00197356d0bb94ac483aebf9cbdc0149144418"
+      "sha256": "5f6c384676b2c558453169d0afb3938559f6bdeff0fd87e7bf7555f5c3b04e4c"
     }
   ]
 }

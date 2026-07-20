@@ -20,7 +20,8 @@
       "install": "Pasang",
       "installedLabel": "Pasang",
       "download": "Unduh",
-      "remove": "Hapus"
+      "remove": "Hapus",
+      "coverageCore": "UI inti"
     },
     "theme": {
       "label": "Tema"

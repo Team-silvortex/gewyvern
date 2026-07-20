@@ -20,7 +20,8 @@
       "install": "Cài đặt",
       "installedLabel": "Cài đặt",
       "download": "Tải xuống",
-      "remove": "Gỡ bỏ"
+      "remove": "Gỡ bỏ",
+      "coverageCore": "Giao diện cốt lõi"
     },
     "theme": {
       "label": "Chủ đề"

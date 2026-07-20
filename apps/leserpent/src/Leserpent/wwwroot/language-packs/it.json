@@ -20,7 +20,8 @@
       "install": "Installa",
       "installedLabel": "Installa",
       "download": "Scarica",
-      "remove": "Rimuovi"
+      "remove": "Rimuovi",
+      "coverageCore": "core UI"
     },
     "theme": {
       "label": "Tema"

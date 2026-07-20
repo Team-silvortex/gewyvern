@@ -20,7 +20,8 @@
       "install": "نصب",
       "installedLabel": "نصب",
       "download": "دانلود",
-      "remove": "حذف"
+      "remove": "حذف",
+      "coverageCore": "هسته رابط کاربری"
     },
     "theme": {
       "label": "پوسته"

@@ -20,7 +20,8 @@
       "install": "Zainstaluj",
       "installedLabel": "Zainstaluj",
       "download": "Pobierz",
-      "remove": "Usuń"
+      "remove": "Usuń",
+      "coverageCore": "interfejs rdzenia"
     },
     "theme": {
       "label": "Motyw"
