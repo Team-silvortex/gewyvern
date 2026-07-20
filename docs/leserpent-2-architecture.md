@@ -279,15 +279,33 @@ decode -> validate -> authorize -> plan -> preview/confirm -> commit
 Queries read immutable projections. They never trigger hidden refreshes or
 mutations. Explicit refresh is a command.
 
-Runtime registration now has a first typed authority slice. The
-`RuntimeRegister` command requires `runtime.register`, explicit confirmation
-for an applied command, a secret-free bounded name/endpoint/tag payload, and a
-principal-scoped idempotency key. Its current contract is deliberately
-create-only and does not schedule a network effect. The durable runtime journals
-the command, restores it after restart, and exposes it through authenticated
-IPC and HTTPS wire dispatch. Pairing tokens, admin tokens, discovery, endpoint
-canonicalization, and revision-fenced update semantics remain adapter work and
-must be complete before the 1.x Web registration route delegates authority.
+Runtime registration now has typed create and update authority slices.
+`RuntimeRegister` requires `runtime.register`, explicit confirmation for an
+applied command, a secret-free bounded name/endpoint/tag payload, no expected
+runtime revision, and a principal-scoped idempotency key.
+`RuntimeRegistrationUpdate` uses the same capability and payload bounds but
+requires the exact current runtime revision. It changes registration metadata,
+preserves operational status, advances the projection revision, and emits a
+distinct update event. Neither command schedules a network effect. The durable
+runtime journals both commands, restores them after restart, and exposes them
+through authenticated IPC and HTTPS wire dispatch. The domain also enforces a
+canonical endpoint identity compatible with 1.x: scheme and host case plus
+default HTTP(S) ports are normalized, path and query remain significant, and a
+conflict reports only the owning runtime ID.
+
+`RuntimeDiscoveryIntake` is a separate revision-fenced command rather than an
+additive field on either stable registration variant. It accepts validated
+successful capability and/or status observations, rejects an empty intake,
+updates both projections atomically, records the capability observation's input
+revision, and emits a typed event without scheduling network effects. The 1.x
+adapter retains arbitrary boolean capability extensions from the original
+Gewyvern document, derives its legacy display capabilities separately, inspects
+the daemon revision before update, reconciles a managed-only runtime through
+create, and commits managed compatibility state only after the daemon accepts
+registration plus discovery. Pairing tokens, admin tokens, discovery errors,
+and raw adapter payloads do not cross the authority boundary. The managed path
+remains only when daemon configuration is absent; daemon-backed read projection
+migration is the next compatibility step.
 
 ## Leselang Semantics
 

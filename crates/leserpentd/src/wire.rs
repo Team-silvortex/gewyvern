@@ -216,7 +216,11 @@ pub(crate) fn execute_request(
             | Query::RuntimeLogs { .. } => CAPABILITY_RUNTIME_READ,
         },
         ProtocolRequest::Command(command) => match command.command {
-            Command::RuntimeRegister { .. } => leserpent_domain::CAPABILITY_RUNTIME_REGISTER,
+            Command::RuntimeRegister { .. }
+            | Command::RuntimeRegistrationUpdate { .. }
+            | Command::RuntimeDiscoveryIntake { .. } => {
+                leserpent_domain::CAPABILITY_RUNTIME_REGISTER
+            }
             Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => {
                 CAPABILITY_RUNTIME_REFRESH
             }

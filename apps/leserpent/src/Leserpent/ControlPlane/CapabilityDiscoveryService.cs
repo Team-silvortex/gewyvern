@@ -23,16 +23,16 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
 
         try
         {
-            var payload = await GetFromJsonAsync(
+            var discoveryPayload = await GetCapabilityPayloadAsync(
                 capabilityPlan,
-                DiscoveryJsonContext.Default.GewyvernCapabilityPayload,
                 cancellationToken,
                 runtimeAdminToken,
                 GewyvernAdminTokenHeader);
-            if (payload is null)
+            if (discoveryPayload is null)
             {
                 return CapabilityDiscoveryResult.Failed(capabilityUrl, "failed to decode gewyvern capability payload");
             }
+            var payload = discoveryPayload.Payload;
 
             var capabilities = new List<RuntimeCapability>
             {
@@ -56,7 +56,19 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
 
             return CapabilityDiscoveryResult.Succeeded(
                 capabilityUrl,
-                capabilities.OrderBy(capability => capability.Key, StringComparer.OrdinalIgnoreCase).ToArray());
+                capabilities.OrderBy(capability => capability.Key, StringComparer.OrdinalIgnoreCase).ToArray(),
+                new RuntimeCapabilityAuthoritySnapshot(
+                    "gewyvern-api",
+                    payload.Service,
+                    payload.Version,
+                    payload.LatestSnapshot,
+                    payload.AuthenticatedDeployment,
+                    payload.ServeRequired,
+                    payload.ExternalSidecarContext,
+                    payload.TargetPathSegmentEncoding,
+                    payload.TargetDirectPathChars,
+                    endpointSet.Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray(),
+                    discoveryPayload.Extensions));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -505,6 +517,89 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         catch (Exception ex)
         {
             return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), ex.Message);
+        }
+    }
+
+    private async Task<CapabilityPayloadResult?> GetCapabilityPayloadAsync(
+        EndpointAccessPlan plan,
+        CancellationToken cancellationToken,
+        string? adminToken,
+        string adminTokenHeader)
+    {
+        using var pinnedClient = plan.PinnedAddress is null ? null : CreatePinnedHttpClient(plan);
+        var client = pinnedClient ?? httpClient;
+        using var response = await SendAsync(
+            client,
+            plan.RequestUri,
+            cancellationToken,
+            adminToken,
+            adminTokenHeader);
+        response.EnsureSuccessStatusCode();
+        var body = await ReadBoundedBodyAsync(response.Content, 1024 * 1024, cancellationToken);
+        if (body is null)
+        {
+            return null;
+        }
+        using var document = JsonDocument.Parse(body);
+        var payload = JsonSerializer.Deserialize(
+            document.RootElement.GetRawText(),
+            DiscoveryJsonContext.Default.GewyvernCapabilityPayload);
+        if (payload is null)
+        {
+            return null;
+        }
+        var knownFields = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "service",
+            "version",
+            "latest_snapshot",
+            "authenticated_deployment",
+            "serve_required",
+            "external_sidecar_context",
+            "target_path_segment_encoding",
+            "target_direct_path_chars",
+            "endpoints",
+        };
+        var extensions = new Dictionary<string, bool>(StringComparer.Ordinal);
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            if (knownFields.Contains(property.Name))
+            {
+                continue;
+            }
+            if (property.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                return null;
+            }
+            extensions[property.Name] = property.Value.GetBoolean();
+        }
+        return new CapabilityPayloadResult(payload, extensions);
+    }
+
+    private static async Task<byte[]?> ReadBoundedBodyAsync(
+        HttpContent content,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        if (content.Headers.ContentLength > maximumBytes)
+        {
+            return null;
+        }
+        await using var input = await content.ReadAsStreamAsync(cancellationToken);
+        using var output = new MemoryStream(Math.Min(maximumBytes, 16 * 1024));
+        var buffer = new byte[8192];
+        while (true)
+        {
+            var read = await input.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                return output.ToArray();
+            }
+            if (output.Length + read > maximumBytes)
+            {
+                return null;
+            }
+            output.Write(buffer, 0, read);
         }
     }
 

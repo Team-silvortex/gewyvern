@@ -421,6 +421,7 @@ dependencies = [
 name = "leserpent-domain"
 version = "1.5.0"
 dependencies = [
+ "http",
  "serde",
  "serde_json",
 ]

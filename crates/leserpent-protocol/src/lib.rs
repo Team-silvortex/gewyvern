@@ -322,6 +322,7 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
         DomainError::Unauthorized { .. } => "unauthorized",
         DomainError::RuntimeNotFound { .. } => "runtime_not_found",
         DomainError::RuntimeAlreadyExists { .. } => "runtime_already_exists",
+        DomainError::RuntimeEndpointConflict { .. } => "runtime_endpoint_conflict",
         DomainError::RevisionConflict { .. } => "revision_conflict",
         DomainError::IdempotencyConflict { .. } => "idempotency_conflict",
         DomainError::ConfirmationRequired => "confirmation_required",
@@ -338,6 +339,8 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use leserpent_domain::{
         CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
         CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
@@ -403,6 +406,89 @@ mod tests {
     }
 
     #[test]
+    fn runtime_registration_update_round_trips_with_an_explicit_revision_fence() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("registration-update-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("registration-update-request").unwrap(),
+                expected_revision: Some(Revision(7)),
+                principal: Principal {
+                    id: "web-bridge".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeRegistrationUpdate {
+                    runtime_id: RuntimeId::new("runtime-existing").unwrap(),
+                    name: "Runtime Updated".into(),
+                    endpoint: "https://127.0.0.1:9553".into(),
+                    tags: RuntimeTags::default(),
+                },
+            }),
+        };
+        let bytes = encode_request(&request).unwrap();
+        assert_eq!(decode_request(&bytes).unwrap(), request);
+
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["request"]["payload"]["command"]["admin_token"] =
+            serde_json::Value::String("must-not-cross-the-domain-boundary".into());
+        assert!(matches!(
+            decode_request(&serde_json::to_vec(&value).unwrap()),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+    }
+
+    #[test]
+    fn runtime_discovery_intake_round_trips_without_secret_or_raw_payload_fields() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("discovery-intake-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("discovery-intake-request").unwrap(),
+                expected_revision: Some(Revision(2)),
+                principal: Principal {
+                    id: "web-bridge".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeDiscoveryIntake {
+                    runtime_id: RuntimeId::new("runtime-existing").unwrap(),
+                    capabilities: Some(Box::new(RuntimeCapabilitySnapshot {
+                        source: "gewyvern-api".into(),
+                        service: "gewyvern-api".into(),
+                        version: "1.2.0".into(),
+                        latest_snapshot: true,
+                        authenticated_deployment: true,
+                        serve_required: true,
+                        external_sidecar_context: true,
+                        target_path_segment_encoding: "percent-encoding".into(),
+                        target_direct_path_chars: "A-Z a-z 0-9 . _ ~ :".into(),
+                        endpoints: vec!["/v1/capabilities".into(), "/v1/deployments".into()],
+                        extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
+                    })),
+                    status: None,
+                },
+            }),
+        };
+        let bytes = encode_request(&request).unwrap();
+        assert_eq!(decode_request(&bytes).unwrap(), request);
+
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["request"]["payload"]["command"]["pairing_token"] =
+            serde_json::Value::String("must-not-cross-the-domain-boundary".into());
+        assert!(matches!(
+            decode_request(&serde_json::to_vec(&value).unwrap()),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+    }
+
+    #[test]
     fn runtime_logs_request_round_trips_with_bounded_cursor() {
         let request = RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -450,6 +536,20 @@ mod tests {
         assert!(matches!(
             decode_request(source),
             Err(DecodeError::InvalidSchemaVersion { .. })
+        ));
+    }
+
+    #[test]
+    fn endpoint_conflict_uses_a_typed_non_disclosing_wire_error() {
+        let response = domain_error_response(&DomainError::RuntimeEndpointConflict {
+            runtime_id: "runtime-owner".into(),
+        });
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ProtocolError { code, message })
+                if code == "runtime_endpoint_conflict"
+                    && message.contains("runtime-owner")
+                    && !message.contains("https://")
         ));
     }
 

@@ -153,9 +153,9 @@ public partial class Program
                     RuntimeId: plan.ExistingRuntimeId));
             }
 
-            var shouldUseAuthority = registrationAuthority.Enabled && plan.Action == RuntimeRegistrationPolicy.CreateAction;
+            var shouldUseAuthority = registrationAuthority.Enabled;
             var runtimeId = shouldUseAuthority
-                ? BuildRuntimeIdFromRegistration(request.Name, request.Endpoint)
+                ? plan.ExistingRuntimeId ?? BuildRuntimeIdFromRegistration(request.Name, request.Endpoint)
                 : null;
 
             try
@@ -169,7 +169,13 @@ public partial class Program
                         : await discovery.DiscoverSidecarStatusAsync(request.SidecarEndpoint!, request.SidecarStatusEndpoint, request.SidecarAdminToken, cancellationToken);
                     if (runtimeId is not null)
                     {
-                        _ = await registrationAuthority.RegisterAsync(request, runtimeId, cancellationToken);
+                        _ = await registrationAuthority.RegisterAsync(
+                            request,
+                            runtimeId,
+                            cancellationToken,
+                            update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
+                            capabilityDiscovery: capabilityDiscovery,
+                            statusDiscovery: statusDiscovery);
                     }
                     var registered = registry.RegisterRuntimeFromDiscovery(request, capabilityDiscovery, statusDiscovery, sidecarDiscovery, runtimeId);
                     registry.RecordRecoveryActivity(
@@ -186,7 +192,11 @@ public partial class Program
 
                 if (runtimeId is not null)
                 {
-                    _ = await registrationAuthority.RegisterAsync(request, runtimeId, cancellationToken);
+                    _ = await registrationAuthority.RegisterAsync(
+                        request,
+                        runtimeId,
+                        cancellationToken,
+                        update: plan.Action == RuntimeRegistrationPolicy.UpdateAction);
                 }
 
                 var manualRegistered = registry.RegisterRuntime(request, runtimeId);

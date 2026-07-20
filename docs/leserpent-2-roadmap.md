@@ -351,13 +351,28 @@ opened without following links. The journal now transactionally migrates v1 to
 v2, records migration history, validates the claimed schema shape, and preserves
 legacy replay order.
 
-The cutover now includes a typed create-only `RuntimeRegister` command over the
-shared wire path. It is capability- and confirmation-gated, idempotent,
+The cutover now includes typed `RuntimeRegister`,
+`RuntimeRegistrationUpdate`, and `RuntimeDiscoveryIntake` commands over the
+shared wire path. All are capability- and confirmation-gated, idempotent,
 secret-free, strict about unknown command fields, durable across daemon restart,
-and intentionally produces no external effect. Revision-fenced updates,
-canonical endpoint conflict handling, discovery, and the C# Web proxy remain
-the next registration slice; the legacy route has not been relabeled as Rust
-authority prematurely.
+and intentionally produce no external effect. Create rejects a runtime
+revision; update and discovery intake require the exact current runtime
+revision. Discovery intake accepts only validated successful capability and/or
+status observations, applies them atomically, and records the revision to which
+capabilities were bound. Canonical endpoint conflict handling matches the 1.x
+identity rule: scheme and host case plus default HTTP(S) ports cannot bypass
+uniqueness, while path and query remain part of the target identity. Conflict
+responses identify only the owning runtime and do not echo its endpoint.
+
+The configured 1.x Web route now preserves the original Gewyvern capability
+document as a typed, bounded authority snapshot while continuing to derive its
+legacy presentation list. It queries the daemon revision before update, creates
+missing legacy runtimes as an explicit reconcile step, submits registration and
+successful discovery observations through private authenticated IPC, and only
+then commits the managed compatibility projection. Pairing/admin tokens and raw
+error payloads never enter the Rust command. An unconfigured development host
+retains the managed fallback. Moving Web read projections out of managed state
+is the next cutover slice.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

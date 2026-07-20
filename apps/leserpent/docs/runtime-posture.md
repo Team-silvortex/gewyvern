@@ -122,6 +122,14 @@ The default posture should continue to be file-backed and local-first:
 This keeps the control plane easy to run locally, easy to recover, and easy to
 move between hosts.
 
+When `LESERPENT_DAEMON_SOCKET` and `LESERPENT_DAEMON_TOKEN` are configured,
+runtime registration metadata and successful discovery observations are first
+persisted by `leserpentd` through revision-fenced typed commands. The managed
+state remains a compatibility projection and is updated only after daemon
+acceptance. Existing managed-only runtimes are reconciled into the daemon on
+their next registration update. An unconfigured development host continues to
+use the managed registration path.
+
 ## Security Model
 
 The default security posture should remain conservative and local-first:

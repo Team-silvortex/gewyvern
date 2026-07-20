@@ -78,15 +78,31 @@ closed with `502 compatibility_bridge_failed`; the host retries one transport
 failure after restarting the child process. Packaging the bridge beside the
 1.x host remains required before it can be enabled by default.
 
-Wire-v1 also accepts the typed, create-only `runtime_register` command. It
-requires `runtime.register`, explicit confirmation, no expected runtime
-revision, and bounded secret-free name, endpoint, and tag fields. Unknown
-command fields fail closed, so pairing or admin tokens cannot accidentally
-cross this domain boundary. The daemon journals successful registration,
-returns an idempotent command result, schedules no external effect, and restores
-the projection after restart. This is a protocol/runtime foundation rather than
-a claim that the 1.x Web registration route has already cut over; update and
-canonical endpoint-conflict semantics remain the next compatibility gate.
+Wire-v1 also accepts typed `runtime_register`,
+`runtime_registration_update`, and `runtime_discovery_intake` commands. All
+require `runtime.register`,
+explicit confirmation, and bounded secret-free name, endpoint, and tag fields.
+Create rejects an expected runtime revision; update requires the exact current
+revision and emits a distinct update event. Unknown command fields fail closed,
+so pairing or admin tokens cannot accidentally cross this domain boundary. The
+daemon journals successful create and update commands, returns idempotent
+results, schedules no external effect, and restores the updated projection
+after restart. Canonical endpoint identity normalizes scheme/host case and
+default HTTP(S) ports while retaining path/query identity. A conflict returns
+`runtime_endpoint_conflict` with only the owning runtime ID. Discovery intake is
+a distinct strict variant, requires the current revision, rejects an empty or
+failed/raw observation, atomically applies validated capability and status
+snapshots, and schedules no external effect.
+
+When daemon IPC is configured, the 1.x Web registration route now inspects the
+daemon revision, reconciles managed-only legacy registrations through create,
+submits create/update and typed successful discovery intake, and commits its
+managed compatibility projection only after those authoritative operations
+succeed. The adapter preserves boolean Gewyvern extensions from the source
+document rather than attempting to reconstruct them from the lossy legacy
+capability list. Pairing/admin tokens and discovery error strings are never
+written into these commands. Without daemon configuration, the existing managed
+registration path remains the explicit development fallback.
 
 The daemon's typed deployment receipt is intentionally narrower than a generic
 effect-result query. It requires deployment capability, binds command ID and
@@ -133,6 +149,17 @@ LESERPENT_TEST_DAEMON_BIN="$PWD/target/debug/leserpentd" \
   dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj \
   --no-restore --filter \
   FullyQualifiedName~ConfiguredRustDaemonExecutesTheDeploymentEndToEnd
+```
+
+Prove the configured C# registration adapter and real daemon agree on create,
+typed discovery intake, revision-inspected update, and final projection:
+
+```bash
+cargo build --locked -p leserpentd --bin leserpentd
+LESERPENT_TEST_DAEMON_BIN="$PWD/target/debug/leserpentd" \
+  dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj \
+  --no-restore --filter \
+  FullyQualifiedName~ConfiguredRustDaemonOwnsRegistrationDiscoveryAndUpdateEndToEnd
 ```
 
 Run `gewyvern_validate leserpent-transport` from the workspace root to prove

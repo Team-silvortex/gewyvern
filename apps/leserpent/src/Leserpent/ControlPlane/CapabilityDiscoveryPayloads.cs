@@ -26,8 +26,13 @@ public sealed partial class CapabilityDiscoveryService
         [property: JsonPropertyName("serve_required")] bool ServeRequired,
         [property: JsonPropertyName("external_sidecar_context")] bool ExternalSidecarContext,
         [property: JsonPropertyName("target_path_segment_encoding")] string TargetPathSegmentEncoding,
+        [property: JsonPropertyName("target_direct_path_chars")] string TargetDirectPathChars,
         [property: JsonPropertyName("endpoints")] string[] Endpoints
     );
+
+    private sealed record CapabilityPayloadResult(
+        GewyvernCapabilityPayload Payload,
+        IReadOnlyDictionary<string, bool> Extensions);
 
     private sealed record GewyvernLatestMetaPayload(
         [property: JsonPropertyName("updated_unix_ms")] long UpdatedUnixMs,

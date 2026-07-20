@@ -133,6 +133,7 @@ impl Drop for IpcServer {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::io::{Read, Write};
     use std::os::unix::fs::PermissionsExt;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -141,9 +142,9 @@ mod tests {
         CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
         CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
         CommandOrigin, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
-        Principal, Query, QueryEnvelope, QueryResult, RUNTIME_DEPLOYMENT_EFFECT_KIND,
-        RuntimeDeploymentOutcome, RuntimeDeploymentRequest, RuntimeId, RuntimeListFilter,
-        RuntimeLogLevel, RuntimeTags,
+        Principal, Query, QueryEnvelope, QueryResult, RUNTIME_DEPLOYMENT_EFFECT_KIND, Revision,
+        RuntimeCapabilitySnapshot, RuntimeDeploymentOutcome, RuntimeDeploymentRequest, RuntimeId,
+        RuntimeListFilter, RuntimeLogLevel, RuntimeTags,
     };
     use leserpent_protocol::{
         DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, OrchestraDeleteRequest,
@@ -260,6 +261,89 @@ mod tests {
                     && result.runtime.id.as_str() == "runtime-new"
                     && result.runtime.revision.0 == 1
         ));
+
+        let update = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("registration-update-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("registration-update-request").unwrap(),
+                expected_revision: Some(Revision(1)),
+                principal: Principal {
+                    id: "web-bridge".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeRegistrationUpdate {
+                    runtime_id: RuntimeId::new("runtime-new").unwrap(),
+                    name: "Runtime Updated".into(),
+                    endpoint: "https://127.0.0.1:9553".into(),
+                    tags: RuntimeTags {
+                        environment: Some("staging".into()),
+                        cluster: Some("west".into()),
+                        role: Some("control".into()),
+                    },
+                },
+            }),
+        };
+        let updated = send(&server, &mut runtime, &socket, TOKEN, update.clone());
+        assert_eq!(send(&server, &mut runtime, &socket, TOKEN, update), updated);
+        assert!(matches!(
+            &updated.response,
+            ProtocolResponse::Command(result)
+                if result.status == CommandStatus::Applied
+                    && result.runtime.name == "Runtime Updated"
+                    && result.runtime.endpoint == "https://127.0.0.1:9553"
+                    && result.runtime.revision == Revision(2)
+        ));
+
+        let intake = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("discovery-intake-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("discovery-intake-request").unwrap(),
+                expected_revision: Some(Revision(2)),
+                principal: Principal {
+                    id: "web-bridge".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeDiscoveryIntake {
+                    runtime_id: RuntimeId::new("runtime-new").unwrap(),
+                    capabilities: Some(Box::new(RuntimeCapabilitySnapshot {
+                        source: "gewyvern-api".into(),
+                        service: "gewyvern-api".into(),
+                        version: "1.2.0".into(),
+                        latest_snapshot: true,
+                        authenticated_deployment: true,
+                        serve_required: true,
+                        external_sidecar_context: true,
+                        target_path_segment_encoding: "percent-encoding".into(),
+                        target_direct_path_chars: "A-Z a-z 0-9 . _ ~ :".into(),
+                        endpoints: vec!["/v1/capabilities".into(), "/v1/deployments".into()],
+                        extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
+                    })),
+                    status: None,
+                },
+            }),
+        };
+        let discovered = send(&server, &mut runtime, &socket, TOKEN, intake.clone());
+        assert_eq!(
+            send(&server, &mut runtime, &socket, TOKEN, intake),
+            discovered
+        );
+        assert!(matches!(
+            &discovered.response,
+            ProtocolResponse::Command(result)
+                if result.runtime.revision == Revision(3)
+                    && result.runtime.capabilities.version == "1.2.0"
+                    && result.runtime.capabilities_observed_for_revision == Some(Revision(2))
+        ));
         drop(server);
         drop(runtime);
 
@@ -283,7 +367,13 @@ mod tests {
         assert!(matches!(
             result,
             leserpent_runtime::PlanResult::Query(QueryResult::RuntimeList { runtimes, .. })
-                if runtimes.len() == 1 && runtimes[0].id.as_str() == "runtime-new"
+                if runtimes.len() == 1
+                    && runtimes[0].id.as_str() == "runtime-new"
+                    && runtimes[0].name == "Runtime Updated"
+                    && runtimes[0].endpoint == "https://127.0.0.1:9553"
+                    && runtimes[0].revision == Revision(3)
+                    && runtimes[0].capabilities.version == "1.2.0"
+                    && runtimes[0].capabilities_observed_for_revision == Some(Revision(2))
         ));
         drop(restored);
         fs::remove_file(database).unwrap();

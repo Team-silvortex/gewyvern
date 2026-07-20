@@ -5,14 +5,31 @@ public sealed record CapabilityDiscoveryResult(
     IReadOnlyList<RuntimeCapability> Capabilities,
     string CapabilitySource,
     DateTimeOffset? CapabilityFetchedAt,
-    string? CapabilityFetchError)
+    string? CapabilityFetchError,
+    RuntimeCapabilityAuthoritySnapshot? AuthoritySnapshot)
 {
-    public static CapabilityDiscoveryResult Succeeded(string capabilityEndpoint, IReadOnlyList<RuntimeCapability> capabilities) =>
-        new(capabilityEndpoint, capabilities, "gewyvern-api", DateTimeOffset.UtcNow, null);
+    public static CapabilityDiscoveryResult Succeeded(
+        string capabilityEndpoint,
+        IReadOnlyList<RuntimeCapability> capabilities,
+        RuntimeCapabilityAuthoritySnapshot? authoritySnapshot = null) =>
+        new(capabilityEndpoint, capabilities, "gewyvern-api", DateTimeOffset.UtcNow, null, authoritySnapshot);
 
     public static CapabilityDiscoveryResult Failed(string capabilityEndpoint, string error) =>
-        new(capabilityEndpoint, Array.Empty<RuntimeCapability>(), "fetch_failed", null, error);
+        new(capabilityEndpoint, Array.Empty<RuntimeCapability>(), "fetch_failed", null, error, null);
 }
+
+public sealed record RuntimeCapabilityAuthoritySnapshot(
+    string Source,
+    string Service,
+    string Version,
+    bool LatestSnapshot,
+    bool AuthenticatedDeployment,
+    bool ServeRequired,
+    bool ExternalSidecarContext,
+    string TargetPathSegmentEncoding,
+    string TargetDirectPathChars,
+    IReadOnlyList<string> Endpoints,
+    IReadOnlyDictionary<string, bool> Extensions);
 
 public sealed record RuntimeStatusDiscoveryResult(
     string StatusEndpoint,
