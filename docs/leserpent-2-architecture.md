@@ -129,6 +129,16 @@ decode -> validate -> authorize -> plan -> preview/confirm -> commit
 Queries read immutable projections. They never trigger hidden refreshes or
 mutations. Explicit refresh is a command.
 
+Runtime registration now has a first typed authority slice. The
+`RuntimeRegister` command requires `runtime.register`, explicit confirmation
+for an applied command, a secret-free bounded name/endpoint/tag payload, and a
+principal-scoped idempotency key. Its current contract is deliberately
+create-only and does not schedule a network effect. The durable runtime journals
+the command, restores it after restart, and exposes it through authenticated
+IPC and HTTPS wire dispatch. Pairing tokens, admin tokens, discovery, endpoint
+canonicalization, and revision-fenced update semantics remain adapter work and
+must be complete before the 1.x Web registration route delegates authority.
+
 ## Leselang Semantics
 
 Leselang is a small functional language with synchronous source semantics:

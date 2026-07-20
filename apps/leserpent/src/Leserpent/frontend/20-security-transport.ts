@@ -57,6 +57,37 @@ function setStoredAdminTokenTest(stateValue, atValue) {
   }
 }
 
+function syncAdminTokenFromInput(rawValue) {
+  const normalized = (rawValue || "").trim();
+  const previousToken = state.adminToken || "";
+  state.adminToken = normalized;
+  setStoredAdminToken(state.adminToken);
+  if (normalized !== previousToken) {
+    state.adminTokenTestState = "never";
+    state.adminTokenTestAt = null;
+    setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
+    if (!normalized && nodes.adminTokenInput) {
+      nodes.adminTokenInput.value = "";
+    }
+  }
+  renderSecurityState();
+}
+
+function clearAdminToken() {
+  if (nodes.adminTokenInput) {
+    nodes.adminTokenInput.value = "";
+  }
+  state.adminToken = "";
+  setStoredAdminToken("");
+  state.adminTokenTestState = "never";
+  state.adminTokenTestAt = null;
+  setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
+  state.adminTokenVisible = false;
+  updateAdminTokenVisibilityButton();
+  renderSecurityState();
+  nodes.adminTokenState.textContent = t("security.tokenCleared");
+}
+
 function updateAdminTokenVisibilityButton() {
   if (!nodes.adminTokenToggleVisibility || !nodes.adminTokenInput) {
     return;
@@ -435,6 +466,7 @@ async function testAdminToken() {
     state.adminTokenTestAt = new Date().toLocaleString();
     setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
     nodes.statusLine.textContent = t("security.tokenTestOk");
+    await loadDashboard();
     renderSecurityState(capabilities);
   } catch (error) {
     console.error(error);

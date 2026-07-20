@@ -287,7 +287,17 @@ pending commands, seals terminal command failures, and rejects divergent stored
 outcomes. Journal records and payloads are bounded; the database is private and
 opened without following links. The journal now transactionally migrates v1 to
 v2, records migration history, validates the claimed schema shape, and preserves
-legacy replay order. Schema v3 added validated domain snapshots that preserve
+legacy replay order.
+
+The cutover now includes a typed create-only `RuntimeRegister` command over the
+shared wire path. It is capability- and confirmation-gated, idempotent,
+secret-free, strict about unknown command fields, durable across daemon restart,
+and intentionally produces no external effect. Revision-fenced updates,
+canonical endpoint conflict handling, discovery, and the C# Web proxy remain
+the next registration slice; the legacy route has not been relabeled as Rust
+authority prematurely.
+
+Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and
 replays only its incremental journal suffix. Snapshot metadata and payload share
 one integrity check. Schema v4 retains two generations, falls back from a

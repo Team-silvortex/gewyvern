@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Leserpent.ControlPlane;
 using Microsoft.AspNetCore.Mvc;
 
@@ -110,7 +112,7 @@ public partial class Program
             }
         });
 
-        app.MapPost("/v1/runtimes/register", async (RuntimeRegistrationRequest request, RegistryService registry, CapabilityDiscoveryService discovery, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/register", async (RuntimeRegistrationRequest request, RegistryService registry, CapabilityDiscoveryService discovery, IRuntimeRegistrationAuthority registrationAuthority, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Endpoint))
             {
@@ -119,11 +121,42 @@ public partial class Program
                     "name and endpoint are required"));
             }
 
+            request = request with
+            {
+                Name = request.Name.Trim(),
+                Endpoint = request.Endpoint.Trim(),
+            };
+
             var registrationValidation = await security.ValidateRegistrationAsync(request, cancellationToken);
             if (registrationValidation is not null)
             {
                 return Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration", registrationValidation));
             }
+
+            var plan = registry.GetRuntimeRegistrationPlan(new RuntimeRegistrationPlanRequest(
+                request.Name,
+                request.Endpoint,
+                request.SidecarEndpoint));
+            if (!plan.Allowed)
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_registration_plan_changed",
+                    "runtime endpoint is already registered to another runtime",
+                    RuntimeId: plan.ExistingRuntimeId));
+            }
+            if (!string.IsNullOrWhiteSpace(request.RegistrationPlanToken)
+                && !string.Equals(request.RegistrationPlanToken, plan.PlanToken, StringComparison.Ordinal))
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_registration_plan_changed",
+                    "runtime registration plan changed; review the current target before retrying",
+                    RuntimeId: plan.ExistingRuntimeId));
+            }
+
+            var shouldUseAuthority = registrationAuthority.Enabled && plan.Action == RuntimeRegistrationPolicy.CreateAction;
+            var runtimeId = shouldUseAuthority
+                ? BuildRuntimeIdFromRegistration(request.Name, request.Endpoint)
+                : null;
 
             try
             {
@@ -134,7 +167,11 @@ public partial class Program
                     var sidecarDiscovery = string.IsNullOrWhiteSpace(request.SidecarEndpoint)
                         ? null
                         : await discovery.DiscoverSidecarStatusAsync(request.SidecarEndpoint!, request.SidecarStatusEndpoint, request.SidecarAdminToken, cancellationToken);
-                    var registered = registry.RegisterRuntimeFromDiscovery(request, capabilityDiscovery, statusDiscovery, sidecarDiscovery);
+                    if (runtimeId is not null)
+                    {
+                        _ = await registrationAuthority.RegisterAsync(request, runtimeId, cancellationToken);
+                    }
+                    var registered = registry.RegisterRuntimeFromDiscovery(request, capabilityDiscovery, statusDiscovery, sidecarDiscovery, runtimeId);
                     registry.RecordRecoveryActivity(
                         registered.RuntimeId,
                         "register_runtime",
@@ -147,7 +184,12 @@ public partial class Program
                     return Results.Ok(registered);
                 }
 
-                var manualRegistered = registry.RegisterRuntime(request);
+                if (runtimeId is not null)
+                {
+                    _ = await registrationAuthority.RegisterAsync(request, runtimeId, cancellationToken);
+                }
+
+                var manualRegistered = registry.RegisterRuntime(request, runtimeId);
                 registry.RecordRecoveryActivity(
                     manualRegistered.RuntimeId,
                     "register_runtime",
@@ -161,6 +203,10 @@ public partial class Program
                     "runtime_registration_plan_changed",
                     ex.Message,
                     RuntimeId: ex.Plan.ExistingRuntimeId));
+            }
+            catch (DaemonRuntimeRegistrationException ex)
+            {
+                return RuntimeRegistrationAuthorityFailure(ex, plan.ExistingRuntimeId);
             }
         });
 
@@ -707,4 +753,34 @@ public partial class Program
             new ApiErrorResponse("compatibility_bridge_failed", error.Message),
             LeserpentJsonContext.Default.ApiErrorResponse,
             statusCode: StatusCodes.Status502BadGateway);
+
+    private static string BuildRuntimeIdFromRegistration(string name, string endpoint)
+    {
+        var normalizedName = name.Trim();
+        var normalizedEndpoint = endpoint.Trim();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{normalizedName}\u0000{normalizedEndpoint}"));
+        return Convert.ToHexString(bytes).ToLowerInvariant()[..32];
+    }
+
+    private static IResult RuntimeRegistrationAuthorityFailure(
+        DaemonRuntimeRegistrationException error,
+        string? existingRuntimeId)
+    {
+        return error.Code switch
+        {
+            "runtime_already_exists" or "idempotency_conflict" or "revision_conflict" => Results.Conflict(
+                new ApiErrorResponse(
+                    "runtime_registration_conflict",
+                    error.Message,
+                    RuntimeId: existingRuntimeId)),
+            "runtime_not_found" => Results.NotFound(new ApiErrorResponse(
+                "runtime_not_found",
+                error.Message,
+                RuntimeId: existingRuntimeId)),
+            _ => Results.Json(
+                new ApiErrorResponse("runtime_registration_rejected", error.Message),
+                LeserpentJsonContext.Default.ApiErrorResponse,
+                statusCode: StatusCodes.Status502BadGateway),
+        };
+    }
 }

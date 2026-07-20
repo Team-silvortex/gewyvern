@@ -264,19 +264,51 @@ internal sealed class LeserpentApp : Application
                     profile,
                     store,
                     certificateStore);
-                var plan = DesktopProductStartup.Resolve(profile);
-                desktop.MainWindow = CreateProductRemoteWindow(desktop, plan);
-                return;
             }
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
+            profile = null;
             initialError = StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
         }
 
-        ShowConnectionWindow(desktop, store, profile, initialError, true);
+        var hub = new HubWindow(
+            profile,
+            initialError,
+            () => OpenRemoteFromProfile(desktop, store, certificateStore),
+            () => ShowConnectionManager(desktop));
+        desktop.MainWindow = hub;
+    }
+
+    private static string? OpenRemoteFromProfile(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopConnectionProfileStore store,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        try
+        {
+            var profile = store.Load();
+            if (profile is null)
+            {
+                return "No saved connection profile. Open Connection... to configure one first.";
+            }
+
+            profile = DesktopProductStartup.PrepareSavedProfile(
+                profile,
+                store,
+                certificateStore);
+            var plan = DesktopProductStartup.Resolve(profile);
+            OpenProductRemoteWindow(desktop, plan);
+            return null;
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            return StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+        }
     }
 
     private static void ShowConnectionManager(
@@ -345,9 +377,7 @@ internal sealed class LeserpentApp : Application
                     }
                     certificateStore.PruneExcept(
                         request.Remember ? requestedProfile.CertificateAuthorityPath : null);
-                    var remote = CreateProductRemoteWindow(desktop, plan);
-                    desktop.MainWindow = remote;
-                    remote.Show();
+                    OpenProductRemoteWindow(desktop, plan);
                     setup!.Close();
                     if (previousMainWindow is not null
                         && !ReferenceEquals(previousMainWindow, setup))
@@ -386,6 +416,20 @@ internal sealed class LeserpentApp : Application
         IClassicDesktopStyleApplicationLifetime desktop,
         DesktopProductStartupPlan plan) =>
         new(plan.Options, plan.TokenSource, () => ShowConnectionManager(desktop));
+
+    private static void OpenProductRemoteWindow(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopProductStartupPlan plan)
+    {
+        var previousWindow = desktop.MainWindow;
+        var remote = CreateProductRemoteWindow(desktop, plan);
+        desktop.MainWindow = remote;
+        remote.Show();
+        if (previousWindow is not null)
+        {
+            previousWindow.Close();
+        }
+    }
 
     private static async Task<string?> TestConnectionAsync(
         DesktopConnectionRequest request,

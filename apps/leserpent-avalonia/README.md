@@ -67,17 +67,21 @@ Automation properties. Buttons only emit their action node ID; command lowering
 remains in the shared Rust boundary.
 
 Launching `Leserpent.Avalonia` without arguments is the normal desktop product
-entry. It loads a bounded non-secret connection profile from local application
-data and opens the remote console when the matching Keychain/Secret Service
-token exists. First launch or profile failure opens an accessible setup window
-for the HTTPS authority, CA file, and an optional protected token. A submitted
-token is validated and stored under the canonical HTTPS origin in macOS
-Keychain or Linux Secret Service; leaving it blank reuses an existing platform
-credential. The input is cleared immediately after submission. The profile is
-atomically written with private permissions and never contains a token, and no
-token enters cache or UI IR; fixture paths remain test-only entrypoints. Verify
-the persistence contract with `--verify-desktop-profile` and the real setup
-controls with `--verify-desktop-connect-controls`.
+entry. It now opens the Hub first, then lets operators choose between existing
+runtime modules. The Hub loads a bounded non-secret connection profile from
+local application data and offers a single-click path into the remote console
+when the saved profile and Keychain/Secret Service credential are both usable.
+If a profile is missing or incomplete, it stays as a secondary action via
+`Connection...`.
+
+A submitted connection token is validated and stored under the canonical HTTPS
+origin in macOS Keychain or Linux Secret Service; leaving it blank reuses an
+existing platform credential. The input is cleared immediately after
+submission. The profile is atomically written with private permissions and never
+contains a token, and no token enters cache or UI IR; fixture paths remain
+test-only entrypoints. Verify the persistence contract with
+`--verify-desktop-profile` and the real setup controls with
+`--verify-desktop-connect-controls`.
 
 Remembered CA files are not referenced in place. Leserpent accepts exactly one
 UTF-8 PEM certificate with CA basic constraints and, when present, certificate-

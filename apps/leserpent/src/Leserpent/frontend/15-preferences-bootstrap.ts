@@ -391,6 +391,25 @@ function bootstrapDashboard() {
   nodes.registerFetchCapabilities.addEventListener("change", scheduleRenderRegisterPreview);
   nodes.registerForm.addEventListener("submit", submitRegisterForm);
   nodes.registerFormClear.addEventListener("click", clearRegisterForm);
+  if (nodes.adminTokenInput) {
+    nodes.adminTokenInput.value = state.adminToken;
+    nodes.adminTokenInput.addEventListener("input", (event) => syncAdminTokenFromInput(event.currentTarget.value));
+    nodes.adminTokenInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+      event.preventDefault();
+      void testAdminToken();
+    });
+  }
+  nodes.adminTokenToggleVisibility?.addEventListener("click", () => {
+    state.adminTokenVisible = !state.adminTokenVisible;
+    updateAdminTokenVisibilityButton();
+  });
+  nodes.adminTokenTest?.addEventListener("click", () => {
+    void testAdminToken();
+  });
+  nodes.adminTokenClear?.addEventListener("click", clearAdminToken);
 
   document.addEventListener("click", (event) => {
     if (nodes.runtimeCleanupMenu?.open) {
@@ -462,6 +481,7 @@ function bootstrapDashboard() {
   applyTheme();
   applyLayoutMode();
   applyTranslations();
+  renderSecurityState();
   applyTabShell();
   clearRegisterForm();
   loadDashboard();

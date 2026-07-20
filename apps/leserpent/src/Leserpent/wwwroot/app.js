@@ -2416,6 +2416,25 @@ function bootstrapDashboard() {
     nodes.registerFetchCapabilities.addEventListener("change", scheduleRenderRegisterPreview);
     nodes.registerForm.addEventListener("submit", submitRegisterForm);
     nodes.registerFormClear.addEventListener("click", clearRegisterForm);
+    if (nodes.adminTokenInput) {
+        nodes.adminTokenInput.value = state.adminToken;
+        nodes.adminTokenInput.addEventListener("input", (event) => syncAdminTokenFromInput(event.currentTarget.value));
+        nodes.adminTokenInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") {
+                return;
+            }
+            event.preventDefault();
+            void testAdminToken();
+        });
+    }
+    nodes.adminTokenToggleVisibility?.addEventListener("click", () => {
+        state.adminTokenVisible = !state.adminTokenVisible;
+        updateAdminTokenVisibilityButton();
+    });
+    nodes.adminTokenTest?.addEventListener("click", () => {
+        void testAdminToken();
+    });
+    nodes.adminTokenClear?.addEventListener("click", clearAdminToken);
     document.addEventListener("click", (event) => {
         if (nodes.runtimeCleanupMenu?.open) {
             if (!(event.target instanceof Node) || !nodes.runtimeCleanupMenu.contains(event.target)) {
@@ -2481,6 +2500,7 @@ function bootstrapDashboard() {
     applyTheme();
     applyLayoutMode();
     applyTranslations();
+    renderSecurityState();
     applyTabShell();
     clearRegisterForm();
     loadDashboard();
@@ -3963,6 +3983,35 @@ function setStoredAdminTokenTest(stateValue, atValue) {
     catch {
     }
 }
+function syncAdminTokenFromInput(rawValue) {
+    const normalized = (rawValue || "").trim();
+    const previousToken = state.adminToken || "";
+    state.adminToken = normalized;
+    setStoredAdminToken(state.adminToken);
+    if (normalized !== previousToken) {
+        state.adminTokenTestState = "never";
+        state.adminTokenTestAt = null;
+        setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
+        if (!normalized && nodes.adminTokenInput) {
+            nodes.adminTokenInput.value = "";
+        }
+    }
+    renderSecurityState();
+}
+function clearAdminToken() {
+    if (nodes.adminTokenInput) {
+        nodes.adminTokenInput.value = "";
+    }
+    state.adminToken = "";
+    setStoredAdminToken("");
+    state.adminTokenTestState = "never";
+    state.adminTokenTestAt = null;
+    setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
+    state.adminTokenVisible = false;
+    updateAdminTokenVisibilityButton();
+    renderSecurityState();
+    nodes.adminTokenState.textContent = t("security.tokenCleared");
+}
 function updateAdminTokenVisibilityButton() {
     if (!nodes.adminTokenToggleVisibility || !nodes.adminTokenInput) {
         return;
@@ -4331,6 +4380,7 @@ async function testAdminToken() {
         state.adminTokenTestAt = new Date().toLocaleString();
         setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
         nodes.statusLine.textContent = t("security.tokenTestOk");
+        await loadDashboard();
         renderSecurityState(capabilities);
     }
     catch (error) {
@@ -6959,12 +7009,22 @@ async function loadDashboard() {
             return;
         }
         console.error(error);
-        nodes.statusLine.textContent = t("notifications.dashboardLoadFailed", { message: error.message });
         if (looksLikeTokenDenied(error.message)) {
-            renderSecurityState(null);
-            nodes.adminTokenState.textContent = t("security.tokenRequired");
-            nodes.securityDetails?.setAttribute("open", "open");
+            state.adminTokenTestState = "failed";
+            state.adminTokenTestAt = new Date().toLocaleString();
+            setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
+            renderSecurityState();
+            if (state.adminToken?.trim()) {
+                nodes.securityDetails?.setAttribute("open", "open");
+                nodes.statusLine.textContent = t("security.tokenTestFailed", { message: t("security.tokenRequired") });
+            }
+            else {
+                nodes.securityDetails?.removeAttribute("open");
+                nodes.statusLine.textContent = t("security.tokenMissing");
+            }
+            return;
         }
+        nodes.statusLine.textContent = t("notifications.dashboardLoadFailed", { message: error.message });
     }
     finally {
         if (state.dashboardAbortController === abortController) {

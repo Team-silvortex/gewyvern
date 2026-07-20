@@ -7,6 +7,7 @@ pub const DOMAIN_SCHEMA_VERSION: u32 = 1;
 pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
 pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
+pub const CAPABILITY_RUNTIME_REGISTER: &str = "runtime.register";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
 pub const CAPABILITY_RUNTIME_DEPLOY: &str = "runtime.deploy";
 pub const CAPABILITY_ORCHESTRA_WRITE: &str = "orchestra.write";
@@ -61,8 +62,14 @@ pub enum Confirmation {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
 pub enum Command {
+    RuntimeRegister {
+        runtime_id: RuntimeId,
+        name: String,
+        endpoint: String,
+        tags: RuntimeTags,
+    },
     RuntimeRefresh {
         runtime_id: RuntimeId,
     },
@@ -276,6 +283,8 @@ pub enum CommandPlanError {
     MissingCapability { capability: &'static str },
     InvalidPrincipal,
     InvalidDebuggerSessionId,
+    InvalidRegistrationIntent,
+    RegistrationConfirmationRequired,
     InvalidDeploymentIntent,
     DeploymentConfirmationRequired,
 }
@@ -308,6 +317,11 @@ pub enum RefreshStatus {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DomainEvent {
+    RuntimeRegistered {
+        runtime_id: RuntimeId,
+        revision: Revision,
+        command_id: CommandId,
+    },
     RuntimeRefreshRequested {
         runtime_id: RuntimeId,
         revision: Revision,
@@ -404,6 +418,9 @@ pub enum DomainError {
         capability: &'static str,
     },
     RuntimeNotFound {
+        runtime_id: String,
+    },
+    RuntimeAlreadyExists {
         runtime_id: String,
     },
     RevisionConflict {
@@ -517,6 +534,26 @@ impl CommandPlan {
                 ),
             },
             PlannedOperation::Command(envelope) => match &envelope.command {
+                Command::RuntimeRegister {
+                    name,
+                    endpoint,
+                    tags,
+                    ..
+                } => {
+                    validate_registration_intent(name, endpoint, tags)
+                        .map_err(|_| CommandPlanError::InvalidRegistrationIntent)?;
+                    if envelope.expected_revision.is_some() {
+                        return Err(CommandPlanError::InvalidRegistrationIntent);
+                    }
+                    if !envelope.dry_run && envelope.confirmation != Confirmation::Confirmed {
+                        return Err(CommandPlanError::RegistrationConfirmationRequired);
+                    }
+                    (
+                        CAPABILITY_RUNTIME_REGISTER,
+                        envelope.schema_version,
+                        &envelope.capabilities,
+                    )
+                }
                 Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => (
                     CAPABILITY_RUNTIME_REFRESH,
                     envelope.schema_version,
@@ -590,6 +627,15 @@ impl fmt::Display for CommandPlanError {
             Self::InvalidPrincipal => write!(formatter, "plan has an invalid principal"),
             Self::InvalidDebuggerSessionId => {
                 write!(formatter, "debugger plan has an invalid session ID")
+            }
+            Self::InvalidRegistrationIntent => {
+                write!(formatter, "registration plan has an invalid intent")
+            }
+            Self::RegistrationConfirmationRequired => {
+                write!(
+                    formatter,
+                    "registration plan requires explicit confirmation"
+                )
             }
             Self::InvalidDeploymentIntent => {
                 write!(formatter, "deployment plan has an invalid intent")
@@ -779,7 +825,11 @@ impl InMemoryControlPlane {
                     .applied
                     .values()
                     .filter_map(|applied| match &applied.command {
-                        Command::RuntimeRefresh {
+                        Command::RuntimeRegister {
+                            runtime_id: command_runtime_id,
+                            ..
+                        }
+                        | Command::RuntimeRefresh {
                             runtime_id: command_runtime_id,
                         }
                         | Command::RuntimeCapabilitiesRefresh {
@@ -815,6 +865,23 @@ impl InMemoryControlPlane {
         validate_schema(envelope.schema_version)?;
         validate_principal(&envelope.principal)?;
         match &envelope.command {
+            Command::RuntimeRegister {
+                name,
+                endpoint,
+                tags,
+                ..
+            } => {
+                require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_REGISTER)?;
+                validate_registration_intent(name, endpoint, tags)?;
+                if envelope.expected_revision.is_some() {
+                    return Err(DomainError::InvalidQuery {
+                        reason: "runtime registration does not accept a runtime revision",
+                    });
+                }
+                if !envelope.dry_run && envelope.confirmation != Confirmation::Confirmed {
+                    return Err(DomainError::ConfirmationRequired);
+                }
+            }
             Command::RuntimeRefresh { .. } | Command::RuntimeCapabilitiesRefresh { .. } => {
                 require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_REFRESH)?;
             }
@@ -852,6 +919,58 @@ impl InMemoryControlPlane {
         }
 
         match envelope.command.clone() {
+            Command::RuntimeRegister {
+                runtime_id,
+                name,
+                endpoint,
+                tags,
+            } => {
+                if self.runtimes.contains_key(&runtime_id) {
+                    return Err(DomainError::RuntimeAlreadyExists {
+                        runtime_id: runtime_id.as_str().to_string(),
+                    });
+                }
+                let next_revision = Revision(self.revision + 1);
+                let runtime = RuntimeProjection {
+                    id: runtime_id.clone(),
+                    name,
+                    endpoint,
+                    revision: next_revision,
+                    refresh_count: 0,
+                    refresh_status: RefreshStatus::NeverRequested,
+                    tags,
+                    status: RuntimeStatusSnapshot::default(),
+                    capabilities: RuntimeCapabilitySnapshot::default(),
+                    capabilities_observed_for_revision: None,
+                };
+                let result = CommandResult {
+                    command_id: envelope.command_id.clone(),
+                    status: if envelope.dry_run {
+                        CommandStatus::Planned
+                    } else {
+                        CommandStatus::Applied
+                    },
+                    runtime: runtime.clone(),
+                    events: vec![DomainEvent::RuntimeRegistered {
+                        runtime_id: runtime_id.clone(),
+                        revision: next_revision,
+                        command_id: envelope.command_id,
+                    }],
+                };
+
+                if !envelope.dry_run {
+                    self.revision += 1;
+                    self.runtimes.insert(runtime_id, runtime);
+                    self.applied.insert(
+                        idempotency_scope,
+                        AppliedCommand {
+                            command: envelope.command,
+                            result: result.clone(),
+                        },
+                    );
+                }
+                Ok(result)
+            }
             Command::RuntimeRefresh { runtime_id } => {
                 let current = self.runtimes.get(&runtime_id).cloned().ok_or_else(|| {
                     DomainError::RuntimeNotFound {
@@ -1124,7 +1243,8 @@ impl DomainSnapshot {
                 });
             }
             let runtime_id = match &applied.command {
-                Command::RuntimeRefresh { runtime_id }
+                Command::RuntimeRegister { runtime_id, .. }
+                | Command::RuntimeRefresh { runtime_id }
                 | Command::RuntimeCapabilitiesRefresh { runtime_id }
                 | Command::RuntimeDeploy { runtime_id, .. } => runtime_id,
                 Command::DebuggerCancel { .. } => {
@@ -1175,6 +1295,9 @@ impl fmt::Display for DomainError {
             }
             Self::RuntimeNotFound { runtime_id } => {
                 write!(formatter, "runtime '{runtime_id}' was not found")
+            }
+            Self::RuntimeAlreadyExists { runtime_id } => {
+                write!(formatter, "runtime '{runtime_id}' already exists")
             }
             Self::RevisionConflict { expected, actual } => write!(
                 formatter,
@@ -1227,6 +1350,45 @@ pub fn validate_deployment_intent(
     }
     if !target_valid {
         return Err(DomainError::InvalidIdentifier { field: "target" });
+    }
+    Ok(())
+}
+
+/// Validates the canonical, secret-free registration fields shared by all frontends.
+pub fn validate_registration_intent(
+    name: &str,
+    endpoint: &str,
+    tags: &RuntimeTags,
+) -> Result<(), DomainError> {
+    let name_valid = !name.is_empty()
+        && name.len() <= 128
+        && name == name.trim()
+        && !name.chars().any(char::is_control);
+    let endpoint_valid = !endpoint.is_empty()
+        && endpoint.len() <= 2048
+        && endpoint == endpoint.trim()
+        && !endpoint.chars().any(char::is_control);
+    let tags_valid = [
+        tags.environment.as_deref(),
+        tags.cluster.as_deref(),
+        tags.role.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .all(|value| {
+        !value.is_empty()
+            && value.len() <= 128
+            && value == value.trim()
+            && !value.chars().any(char::is_control)
+    });
+    if !name_valid {
+        return Err(DomainError::InvalidIdentifier { field: "name" });
+    }
+    if !endpoint_valid {
+        return Err(DomainError::InvalidIdentifier { field: "endpoint" });
+    }
+    if !tags_valid {
+        return Err(DomainError::InvalidIdentifier { field: "tags" });
     }
     Ok(())
 }
@@ -1363,6 +1525,32 @@ mod tests {
         }
     }
 
+    fn registration_envelope(command_id: &str, key: &str) -> CommandEnvelope {
+        CommandEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            command_id: CommandId::new(command_id).unwrap(),
+            idempotency_key: IdempotencyKey::new(key).unwrap(),
+            expected_revision: None,
+            principal: Principal {
+                id: "operator".to_string(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+            origin: CommandOrigin::Cli,
+            confirmation: Confirmation::Confirmed,
+            dry_run: false,
+            command: Command::RuntimeRegister {
+                runtime_id: RuntimeId::new("runtime-new").unwrap(),
+                name: "New Runtime".to_string(),
+                endpoint: "https://127.0.0.1:9443".to_string(),
+                tags: RuntimeTags {
+                    environment: Some("production".to_string()),
+                    cluster: Some("east".to_string()),
+                    role: Some("edge".to_string()),
+                },
+            },
+        }
+    }
+
     #[test]
     fn identifier_deserialization_enforces_the_constructor_contract() {
         assert_eq!(
@@ -1391,6 +1579,89 @@ mod tests {
             operation: PlannedOperation::Command(envelope),
         };
         assert_eq!(plan.validate(), Err(CommandPlanError::InvalidPrincipal));
+    }
+
+    #[test]
+    fn runtime_registration_is_confirmed_capability_gated_and_idempotent() {
+        let mut control = InMemoryControlPlane::default();
+        let envelope = registration_envelope("register-command", "register-key");
+
+        let mut unauthorized = envelope.clone();
+        unauthorized.capabilities = CapabilitySet::default();
+        assert_eq!(
+            control.execute(unauthorized),
+            Err(DomainError::Unauthorized {
+                capability: CAPABILITY_RUNTIME_REGISTER
+            })
+        );
+
+        let mut unconfirmed = envelope.clone();
+        unconfirmed.confirmation = Confirmation::NotRequired;
+        assert_eq!(
+            control.execute(unconfirmed),
+            Err(DomainError::ConfirmationRequired)
+        );
+
+        let first = control.execute(envelope.clone()).unwrap();
+        assert_eq!(first.status, CommandStatus::Applied);
+        assert_eq!(first.runtime.revision, Revision(1));
+        assert_eq!(control.execute(envelope.clone()).unwrap(), first);
+
+        let snapshot = control.snapshot();
+        snapshot.validate().unwrap();
+        let mut restored = InMemoryControlPlane::from_snapshot(snapshot).unwrap();
+        assert_eq!(restored.execute(envelope).unwrap(), first);
+    }
+
+    #[test]
+    fn runtime_registration_rejects_invalid_duplicate_and_conflicting_intents() {
+        let mut control = InMemoryControlPlane::default();
+        let envelope = registration_envelope("register-command", "register-key");
+
+        let mut invalid = envelope.clone();
+        let Command::RuntimeRegister { name, .. } = &mut invalid.command else {
+            unreachable!();
+        };
+        *name = " padded ".to_string();
+        assert_eq!(
+            control.execute(invalid),
+            Err(DomainError::InvalidIdentifier { field: "name" })
+        );
+
+        control.execute(envelope.clone()).unwrap();
+        let mut duplicate = registration_envelope("register-duplicate", "duplicate-key");
+        assert!(matches!(
+            control.execute(duplicate.clone()),
+            Err(DomainError::RuntimeAlreadyExists { .. })
+        ));
+
+        let Command::RuntimeRegister { runtime_id, .. } = &mut duplicate.command else {
+            unreachable!();
+        };
+        *runtime_id = RuntimeId::new("runtime-other").unwrap();
+        duplicate.idempotency_key = IdempotencyKey::new("register-key").unwrap();
+        assert!(matches!(
+            control.execute(duplicate),
+            Err(DomainError::IdempotencyConflict { .. })
+        ));
+    }
+
+    #[test]
+    fn runtime_registration_dry_run_does_not_create_or_consume_the_key() {
+        let mut control = InMemoryControlPlane::default();
+        let mut envelope = registration_envelope("register-command", "register-key");
+        envelope.dry_run = true;
+        envelope.confirmation = Confirmation::NotRequired;
+
+        let preview = control.execute(envelope.clone()).unwrap();
+        assert_eq!(preview.status, CommandStatus::Planned);
+        assert!(control.runtime_projection(&preview.runtime.id).is_none());
+
+        envelope.dry_run = false;
+        envelope.confirmation = Confirmation::Confirmed;
+        let applied = control.execute(envelope).unwrap();
+        assert_eq!(applied.status, CommandStatus::Applied);
+        assert_eq!(applied.runtime.revision, Revision(1));
     }
 
     #[test]

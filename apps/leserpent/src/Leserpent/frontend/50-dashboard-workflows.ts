@@ -321,12 +321,21 @@ async function loadDashboard() {
       return;
     }
     console.error(error);
-    nodes.statusLine.textContent = t("notifications.dashboardLoadFailed", { message: error.message });
     if (looksLikeTokenDenied(error.message)) {
-      renderSecurityState(null);
-      nodes.adminTokenState.textContent = t("security.tokenRequired");
-      nodes.securityDetails?.setAttribute("open", "open");
+      state.adminTokenTestState = "failed";
+      state.adminTokenTestAt = new Date().toLocaleString();
+      setStoredAdminTokenTest(state.adminTokenTestState, state.adminTokenTestAt);
+      renderSecurityState();
+      if (state.adminToken?.trim()) {
+        nodes.securityDetails?.setAttribute("open", "open");
+        nodes.statusLine.textContent = t("security.tokenTestFailed", { message: t("security.tokenRequired") });
+      } else {
+        nodes.securityDetails?.removeAttribute("open");
+        nodes.statusLine.textContent = t("security.tokenMissing");
+      }
+      return;
     }
+    nodes.statusLine.textContent = t("notifications.dashboardLoadFailed", { message: error.message });
   } finally {
     if (state.dashboardAbortController === abortController) {
       state.dashboardAbortController = null;

@@ -321,6 +321,7 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
         DomainError::InvalidSchemaVersion { .. } => "invalid_domain_schema_version",
         DomainError::Unauthorized { .. } => "unauthorized",
         DomainError::RuntimeNotFound { .. } => "runtime_not_found",
+        DomainError::RuntimeAlreadyExists { .. } => "runtime_already_exists",
         DomainError::RevisionConflict { .. } => "revision_conflict",
         DomainError::IdempotencyConflict { .. } => "idempotency_conflict",
         DomainError::ConfirmationRequired => "confirmation_required",
@@ -339,7 +340,9 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
 mod tests {
     use leserpent_domain::{
         CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-        CapabilitySet, CommandId, Principal, Query, QueryEnvelope, RuntimeListFilter,
+        CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
+        CommandOrigin, Confirmation, IdempotencyKey, Principal, Query, QueryEnvelope, RuntimeId,
+        RuntimeListFilter, RuntimeTags,
     };
 
     use super::*;
@@ -361,6 +364,42 @@ mod tests {
         };
         let bytes = encode_request(&request).unwrap();
         assert_eq!(decode_request(&bytes).unwrap(), request);
+    }
+
+    #[test]
+    fn runtime_registration_request_round_trips_as_a_strict_typed_command() {
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("register-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("register-request").unwrap(),
+                expected_revision: None,
+                principal: Principal {
+                    id: "web-bridge".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeRegister {
+                    runtime_id: RuntimeId::new("runtime-new").unwrap(),
+                    name: "Runtime New".into(),
+                    endpoint: "https://127.0.0.1:9443".into(),
+                    tags: RuntimeTags::default(),
+                },
+            }),
+        };
+        let bytes = encode_request(&request).unwrap();
+        assert_eq!(decode_request(&bytes).unwrap(), request);
+
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["request"]["payload"]["command"]["pairing_token"] =
+            serde_json::Value::String("must-not-cross-the-domain-boundary".into());
+        assert!(matches!(
+            decode_request(&serde_json::to_vec(&value).unwrap()),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
     }
 
     #[test]

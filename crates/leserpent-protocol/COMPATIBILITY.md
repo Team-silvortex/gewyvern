@@ -78,6 +78,16 @@ closed with `502 compatibility_bridge_failed`; the host retries one transport
 failure after restarting the child process. Packaging the bridge beside the
 1.x host remains required before it can be enabled by default.
 
+Wire-v1 also accepts the typed, create-only `runtime_register` command. It
+requires `runtime.register`, explicit confirmation, no expected runtime
+revision, and bounded secret-free name, endpoint, and tag fields. Unknown
+command fields fail closed, so pairing or admin tokens cannot accidentally
+cross this domain boundary. The daemon journals successful registration,
+returns an idempotent command result, schedules no external effect, and restores
+the projection after restart. This is a protocol/runtime foundation rather than
+a claim that the 1.x Web registration route has already cut over; update and
+canonical endpoint-conflict semantics remain the next compatibility gate.
+
 The daemon's typed deployment receipt is intentionally narrower than a generic
 effect-result query. It requires deployment capability, binds command ID and
 request ID to the persisted deployment payload, and returns only pending,

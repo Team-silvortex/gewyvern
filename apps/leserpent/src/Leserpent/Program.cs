@@ -47,6 +47,7 @@ public partial class Program
         builder.Services.AddSingleton<RegistryService>();
         builder.Services.AddSingleton<ICompatibilityBridge, RustCompatibilityBridge>();
         builder.Services.AddSingleton<IDeploymentAuthority, DaemonDeploymentAuthority>();
+        builder.Services.AddSingleton<IRuntimeRegistrationAuthority, DaemonRuntimeRegistrationAuthority>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
         builder.Services.AddSingleton<IOrchestraPlanExecutor, OrchestraPlanExecutor>();
         builder.Services.AddSingleton<OrchestraExecutionCoordinator>();

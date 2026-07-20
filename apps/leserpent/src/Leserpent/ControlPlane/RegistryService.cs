@@ -40,7 +40,9 @@ public sealed partial class RegistryService
         RestoreOrMigrateOrchestraRuns();
     }
 
-    public RuntimeRegistrationResponse RegisterRuntime(RuntimeRegistrationRequest request)
+    public RuntimeRegistrationResponse RegisterRuntime(
+        RuntimeRegistrationRequest request,
+        string? runtimeId = null)
     {
         var capabilities = NormalizeCapabilities(request.Capabilities);
         var capabilitySource = request.FetchCapabilities ? "gewyvern-api" : "manual";
@@ -62,14 +64,23 @@ public sealed partial class RegistryService
             false,
             false,
             false);
-        return RegisterRuntimeInternal(request, capabilities, capabilitySource, capabilityFetchedAt, null, status, null);
+        return RegisterRuntimeInternal(
+            request,
+            capabilities,
+            capabilitySource,
+            capabilityFetchedAt,
+            null,
+            status,
+            null,
+            runtimeId);
     }
 
     public RuntimeRegistrationResponse RegisterRuntimeFromDiscovery(
         RuntimeRegistrationRequest request,
         CapabilityDiscoveryResult capabilityDiscovery,
         RuntimeStatusDiscoveryResult statusDiscovery,
-        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null,
+        string? runtimeId = null)
     {
         var capabilities = capabilityDiscovery.Capabilities.Count > 0
             ? NormalizeCapabilities(capabilityDiscovery.Capabilities)
@@ -84,7 +95,8 @@ public sealed partial class RegistryService
             capabilityDiscovery.CapabilityFetchedAt,
             capabilityDiscovery.CapabilityFetchError,
             statusDiscovery.Status,
-            sidecarDiscovery?.SidecarStatus);
+            sidecarDiscovery?.SidecarStatus,
+            runtimeId);
     }
 
     public IReadOnlyList<RuntimeSummary> ListRuntimes(RuntimeListFilter? filter = null) =>
@@ -521,7 +533,8 @@ public sealed partial class RegistryService
         DateTimeOffset? capabilityFetchedAt,
         string? capabilityFetchError,
         RuntimeStatusSnapshot status,
-        RuntimeSidecarStatusSnapshot? sidecarStatus)
+        RuntimeSidecarStatusSnapshot? sidecarStatus,
+        string? runtimeId = null)
     {
         lock (runtimeRegistrationSync)
         {
@@ -532,7 +545,8 @@ public sealed partial class RegistryService
                 capabilityFetchedAt,
                 capabilityFetchError,
                 status,
-                sidecarStatus);
+                sidecarStatus,
+                runtimeId);
         }
     }
 
@@ -543,7 +557,8 @@ public sealed partial class RegistryService
         DateTimeOffset? capabilityFetchedAt,
         string? capabilityFetchError,
         RuntimeStatusSnapshot status,
-        RuntimeSidecarStatusSnapshot? sidecarStatus)
+        RuntimeSidecarStatusSnapshot? sidecarStatus,
+        string? runtimeId)
     {
         var plan = GetRuntimeRegistrationPlan(new RuntimeRegistrationPlanRequest(
             request.Name,
@@ -592,7 +607,7 @@ public sealed partial class RegistryService
         }
 
         var created = new RuntimeRecord(
-            Guid.NewGuid().ToString("n"),
+            runtimeId ?? Guid.NewGuid().ToString("n"),
             request.Name.Trim(),
             request.Endpoint.Trim(),
             NormalizeOptionalSecret(request.PairingToken),

@@ -950,6 +950,7 @@ impl ControlRuntime {
         }
         for event in &result.events {
             let (command_id, kind, payload) = match event {
+                DomainEvent::RuntimeRegistered { .. } => continue,
                 DomainEvent::RuntimeRefreshRequested {
                     runtime_id,
                     revision,

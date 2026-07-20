@@ -139,9 +139,11 @@ mod tests {
 
     use leserpent_domain::{
         CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-        CapabilitySet, CommandId, DOMAIN_SCHEMA_VERSION, Principal, Query, QueryEnvelope,
-        QueryResult, RUNTIME_DEPLOYMENT_EFFECT_KIND, RuntimeDeploymentOutcome,
-        RuntimeDeploymentRequest, RuntimeId, RuntimeListFilter, RuntimeLogLevel,
+        CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
+        CommandOrigin, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
+        Principal, Query, QueryEnvelope, QueryResult, RUNTIME_DEPLOYMENT_EFFECT_KIND,
+        RuntimeDeploymentOutcome, RuntimeDeploymentRequest, RuntimeId, RuntimeListFilter,
+        RuntimeLogLevel, RuntimeTags,
     };
     use leserpent_protocol::{
         DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, OrchestraDeleteRequest,
@@ -213,6 +215,77 @@ mod tests {
         drop(server);
         assert!(!socket.exists());
         drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authenticated_registration_is_durable_and_idempotent_over_ipc() {
+        let database = temp_path("registration", "sqlite");
+        let socket = temp_path("registration", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("register-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("register-request").unwrap(),
+                expected_revision: None,
+                principal: Principal {
+                    id: "web-bridge".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeRegister {
+                    runtime_id: RuntimeId::new("runtime-new").unwrap(),
+                    name: "Runtime New".into(),
+                    endpoint: "https://127.0.0.1:9443".into(),
+                    tags: RuntimeTags {
+                        environment: Some("production".into()),
+                        cluster: Some("east".into()),
+                        role: Some("edge".into()),
+                    },
+                },
+            }),
+        };
+        let first = send(&server, &mut runtime, &socket, TOKEN, request.clone());
+        let replay = send(&server, &mut runtime, &socket, TOKEN, request);
+        assert_eq!(first, replay);
+        assert!(matches!(
+            &first.response,
+            ProtocolResponse::Command(result)
+                if result.status == CommandStatus::Applied
+                    && result.runtime.id.as_str() == "runtime-new"
+                    && result.runtime.revision.0 == 1
+        ));
+        drop(server);
+        drop(runtime);
+
+        let mut restored = ControlRuntime::open(&database).unwrap();
+        let result = restored
+            .execute_plan(leserpent_domain::CommandPlan {
+                schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
+                required_capability: CAPABILITY_RUNTIME_READ.into(),
+                operation: leserpent_domain::PlannedOperation::Query(QueryEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal: Principal {
+                        id: "web-bridge".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                    query: Query::RuntimeList {
+                        filter: RuntimeListFilter::default(),
+                    },
+                }),
+            })
+            .unwrap();
+        assert!(matches!(
+            result,
+            leserpent_runtime::PlanResult::Query(QueryResult::RuntimeList { runtimes, .. })
+                if runtimes.len() == 1 && runtimes[0].id.as_str() == "runtime-new"
+        ));
+        drop(restored);
         fs::remove_file(database).unwrap();
     }
 
