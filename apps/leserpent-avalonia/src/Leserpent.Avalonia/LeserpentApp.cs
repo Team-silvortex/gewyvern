@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
@@ -8,6 +9,8 @@ using Avalonia.Threading;
 internal sealed class LeserpentApp : Application
 {
     private const int MaxPayloadBytes = 2 * 1024 * 1024;
+    private static LocalOrchestraServiceSupervisor? localOrchestraService;
+    private static bool shutdownHookInstalled;
 
     public override void Initialize()
     {
@@ -137,6 +140,7 @@ internal sealed class LeserpentApp : Application
             throw new InvalidDataException("startup error token redaction failed");
         }
         var window = new StartupErrorWindow(description);
+        RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
             window.VerifyAccessibility();
@@ -163,6 +167,7 @@ internal sealed class LeserpentApp : Application
             testCount++;
             return Task.FromResult<string?>(null);
         });
+        RegisterMainWindowLifecycle(desktop, window);
         window.Opened += async (_, _) =>
         {
             window.VerifyAccessibility();
@@ -202,6 +207,7 @@ internal sealed class LeserpentApp : Application
             (_, _) => Task.FromResult<string?>(null),
             null,
             () => "verification only");
+        RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
             window.VerifyAccessibility();
@@ -232,7 +238,9 @@ internal sealed class LeserpentApp : Application
                 Path.GetFullPath(remote.Certificate),
                 token.Value,
                 remote.Cache is null ? null : Path.GetFullPath(remote.Cache));
-            desktop.MainWindow = new RemoteMainWindow(options, token.Source);
+            var window = new RemoteMainWindow(options, token.Source);
+            RegisterMainWindowLifecycle(desktop, window);
+            desktop.MainWindow = window;
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
@@ -242,6 +250,7 @@ internal sealed class LeserpentApp : Application
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
             Console.Error.WriteLine($"Leserpent remote startup failed: {description}");
             var window = new StartupErrorWindow(description);
+            RegisterMainWindowLifecycle(desktop, window);
             window.Closed += (_, _) => desktop.Shutdown(StartupFailure.ExitCode);
             desktop.MainWindow = window;
         }
@@ -274,11 +283,34 @@ internal sealed class LeserpentApp : Application
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
         }
 
+        if (localOrchestraService is null && !IsMobilePlatform())
+        {
+            localOrchestraService = new LocalOrchestraServiceSupervisor();
+            localOrchestraService.TryEnsureReady(
+                certificateStore,
+                out _,
+                out var localStartupError);
+            if (!shutdownHookInstalled)
+            {
+                AppDomain.CurrentDomain.ProcessExit += (_, _) => localOrchestraService?.Dispose();
+                shutdownHookInstalled = true;
+            }
+            if (initialError is null && localStartupError is not null)
+            {
+                initialError = localStartupError;
+            }
+            else if (initialError is not null && localStartupError is not null)
+            {
+                initialError = $"{localStartupError}{Environment.NewLine}{initialError}";
+            }
+        }
+
         var hub = new HubWindow(
             profile,
             initialError,
-            () => OpenRemoteFromProfile(desktop, store, certificateStore),
+            () => OpenRemoteFromSelfHostOrProfile(desktop, store, certificateStore),
             () => ShowConnectionManager(desktop));
+        RegisterMainWindowLifecycle(desktop, hub);
         desktop.MainWindow = hub;
     }
 
@@ -310,6 +342,56 @@ internal sealed class LeserpentApp : Application
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
         }
     }
+
+    private static string? OpenRemoteFromSelfHostOrProfile(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopConnectionProfileStore store,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        var localError = string.Empty;
+        if (!IsMobilePlatform())
+        {
+            if (localOrchestraService is null)
+            {
+                localOrchestraService = new LocalOrchestraServiceSupervisor();
+            }
+            try
+            {
+                if (localOrchestraService.TryEnsureReady(
+                        certificateStore,
+                        out var localPlan,
+                        out var startupError)
+                    && localPlan is not null)
+                {
+                    OpenProductRemoteWindow(desktop, localPlan);
+                    return null;
+                }
+                localError = startupError ?? string.Empty;
+            }
+            catch (Exception error) when (StartupFailure.IsExpected(error))
+            {
+                localError = StartupFailure.Describe(
+                    error,
+                    Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+            }
+        }
+        else
+        {
+            localError = "Self-host is not supported on this platform.";
+        }
+
+        var profileError = OpenRemoteFromProfile(desktop, store, certificateStore);
+        if (!string.IsNullOrWhiteSpace(localError))
+        {
+            return string.IsNullOrWhiteSpace(profileError)
+                ? localError
+                : $"{localError}{Environment.NewLine}{profileError}";
+        }
+        return profileError;
+    }
+
+    private static bool IsMobilePlatform() => OperatingSystem.IsIOS()
+        || OperatingSystem.IsAndroid();
 
     private static void ShowConnectionManager(
         IClassicDesktopStyleApplicationLifetime desktop)
@@ -399,6 +481,7 @@ internal sealed class LeserpentApp : Application
             profile is null ? null : () => ForgetSavedConnection(profile, store));
         if (isInitialSetup)
         {
+            RegisterMainWindowLifecycle(desktop, setup);
             desktop.MainWindow = setup;
             return;
         }
@@ -423,6 +506,7 @@ internal sealed class LeserpentApp : Application
     {
         var previousWindow = desktop.MainWindow;
         var remote = CreateProductRemoteWindow(desktop, plan);
+        RegisterMainWindowLifecycle(desktop, remote);
         desktop.MainWindow = remote;
         remote.Show();
         if (previousWindow is not null)
@@ -476,6 +560,19 @@ internal sealed class LeserpentApp : Application
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
         }
+    }
+
+    private static void RegisterMainWindowLifecycle(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        Window window)
+    {
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(desktop.MainWindow, window))
+            {
+                desktop.MainWindow = null;
+            }
+        };
     }
 
     private static RemoteArguments? ParseRemoteArguments(string[]? args) => args switch

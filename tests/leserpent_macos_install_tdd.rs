@@ -20,6 +20,10 @@ fn macos_installer_is_native_bounded_and_rollback_capable() {
     assert!(installer.contains("MAX_BUNDLE_FILES"));
     assert!(installer.contains("MAX_BUNDLE_BYTES"));
     assert!(installer.contains("application bundle contains a symbolic link"));
+    assert!(installer.contains("DAEMON_EXECUTABLE: &str = \"leserpentd\""));
+    assert!(installer.contains("validate_native_payloads(app)?"));
+    assert!(installer.contains("(DAEMON_EXECUTABLE, \"local orchestra daemon\")"));
+    assert!(installer.contains("native_payload_hash"));
     assert!(installer.contains("replace_link(&options.root, \"current\""));
     assert!(installer.contains("replace_link(&options.root, \"previous\""));
     assert!(installer.contains("restore_link"));

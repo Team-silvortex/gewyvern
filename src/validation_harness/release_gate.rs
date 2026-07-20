@@ -550,12 +550,13 @@ fn validate_macos_release_preflight(
         "stapler",
         "xcrun",
     ];
-    const EXPECTED_FIELDS: [&str; 15] = [
+    const EXPECTED_FIELDS: [&str; 16] = [
         "app",
         "app_executable_sha256",
         "apple_tools",
         "blockers",
         "developer_id_application_identities",
+        "daemon_executable_sha256",
         "entitlements_sha256",
         "host_arch",
         "notary_profile_requested",
@@ -594,7 +595,7 @@ fn validate_macos_release_preflight(
     if object
         .get("schema_version")
         .and_then(serde_json::Value::as_u64)
-        != Some(1)
+        != Some(2)
         || require_string("proof")? != "leserpent-macos-release-preflight"
         || require_string("platform")? != "macos"
         || require_string("version")? != env!("CARGO_PKG_VERSION")
@@ -616,7 +617,11 @@ fn validate_macos_release_preflight(
             )));
         }
     }
-    for key in ["app_executable_sha256", "entitlements_sha256"] {
+    for key in [
+        "app_executable_sha256",
+        "daemon_executable_sha256",
+        "entitlements_sha256",
+    ] {
         let hash = require_string(key)?;
         if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err(ValidationError::new(format!(

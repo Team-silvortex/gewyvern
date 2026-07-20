@@ -59,7 +59,7 @@ internal sealed class HubWindow : Window
             ? LeserpentTheme.Muted
             : LeserpentTheme.Destructive;
         statusText.Text = string.IsNullOrWhiteSpace(initialError)
-            ? "Ready for manual deployment or runtime inspection."
+            ? "Ready for local self-host or saved profile connection."
             : Safe(initialError);
         statusText.IsVisible = true;
 
@@ -108,7 +108,7 @@ internal sealed class HubWindow : Window
                     },
                     new TextBlock
                     {
-                        Text = "Select an entry point: open the remote orchestration console if credentials are ready, or configure a saved connection profile first.",
+                        Text = "Select an entry point: use local orchestration when available, or use a saved remote connection profile.",
                         Foreground = LeserpentTheme.Muted,
                         FontSize = 13,
                         TextWrapping = TextWrapping.Wrap,

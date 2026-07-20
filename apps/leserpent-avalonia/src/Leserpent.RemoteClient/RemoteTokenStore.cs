@@ -15,6 +15,7 @@ public enum RemoteTokenSource
 {
     PlatformStore,
     Environment,
+    LocalProcess,
 }
 
 public sealed record ResolvedRemoteToken(string Value, RemoteTokenSource Source);

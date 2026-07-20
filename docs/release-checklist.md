@@ -79,6 +79,13 @@ Treat `1.5.0` as release-ready only when all of the following stay true:
     `leserpent` and `etragon`
 14. the project status tensor validates, and every changed architecture,
     module, feature, dependency, blocker, and contract is reflected there
+15. control-plane production access on Windows and other supported platforms is
+    represented by the shared Rust+C#/TypeScript path, with no extra runtime
+    language implementation owning authority (especially Node.js, Python, or
+    shell-based controllers).
+16. reverse-bootstrap handoff proof exists for any claimed remote-control path:
+    target bootstrap, session-bound connection, and gated mutation through
+    the same command-envelope policy
 
 This section is intentionally binary and operational. It should stay shorter
 and stricter than the broader validation note.
@@ -160,6 +167,10 @@ cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-v
 `extra.stages.leserpent_parity_recovery = true`. It remains default-off so the
 sealed Gewyvern 1.x gate does not silently acquire .NET, GUI, mobile, or
 cross-language build dependencies.
+
+The reverse-bootstrap handoff proof remains roadmap-owned in the Leserpent 2.0
+line and will be attached to the next `release-gate` stage as soon as the
+bootstrap fixture runner is in tree.
 
 Linux Leserpent Native AOT bundles must contain executable
 `leserpent-compat-bridge` and `leserpentd` binaries. Deployment authority stays

@@ -6,6 +6,15 @@ internal sealed record RemoteCredentialPresentation(
 {
     public static RemoteCredentialPresentation Create(RemoteTokenSource source)
     {
+        if (source == RemoteTokenSource.LocalProcess)
+        {
+            return new RemoteCredentialPresentation(
+                "TOKEN / LOCAL PROCESS",
+                "Remote credential source: local process",
+                "The credential is ephemeral and scoped to the local Leserpent service process.",
+                false);
+        }
+
         var platformName = OperatingSystem.IsMacOS()
             ? "KEYCHAIN"
             : OperatingSystem.IsLinux()
@@ -28,6 +37,7 @@ internal sealed record RemoteCredentialPresentation(
     {
         var platform = Create(RemoteTokenSource.PlatformStore);
         var fallback = Create(RemoteTokenSource.Environment);
+        var local = Create(RemoteTokenSource.LocalProcess);
         if (platform.IsEnvironmentFallback
             || platform.Label.Contains("FALLBACK", StringComparison.Ordinal)
             || fallback is not
@@ -37,7 +47,13 @@ internal sealed record RemoteCredentialPresentation(
             }
             || !fallback.Description.Contains(
                 RemoteTokenResolver.EnvironmentVariable,
-                StringComparison.Ordinal))
+                StringComparison.Ordinal)
+            || local is not
+            {
+                Label: "TOKEN / LOCAL PROCESS",
+                IsEnvironmentFallback: false,
+            }
+            || !local.Description.Contains("ephemeral", StringComparison.Ordinal))
         {
             throw new InvalidDataException("remote credential presentation is invalid");
         }

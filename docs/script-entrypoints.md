@@ -486,18 +486,21 @@ a locked dependency graph and native-host execution evidence.
 After publishing the locked `osx-arm64` NativeAOT directory, run:
 
 ```bash
+cargo build --release -p leserpentd
 cargo run --bin gewyvern_leserpent_bundle -- \
   --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
+  --daemon target/release/leserpentd \
   --output artifacts/leserpent-avalonia/Leserpent.app
 ```
 
 This native entrypoint validates a flat, symlink-free publish directory,
-excludes external debug symbols, copies only the Mach-O executable and dylibs,
-and writes stable bundle metadata plus the checked `.icns`. Existing output is
-never replaced implicitly. With `--version` omitted, the official bundle
-inherits the root Rust workspace version for both plist version fields; the
-option remains available only for deliberate downstream overrides. Signing and
-notarization consume this bundle in a later release step.
+excludes external debug symbols, requires an arm64 Mach-O `leserpentd`, copies
+the Avalonia executable, Rust daemon, and dylibs, and writes stable bundle
+metadata plus the checked `.icns`. Existing output is never replaced
+implicitly. With `--version` omitted, the official bundle inherits the root Rust workspace version
+for both plist version fields; the option remains
+available only for deliberate downstream overrides. Signing and notarization
+consume this bundle in a later release step.
 
 Install the checked app for the current user through the native versioned
 installer:
@@ -513,8 +516,10 @@ The default launcher is `~/Applications/Leserpent.app`; immutable releases and
 the bounded `current`/`previous` metadata live below
 `~/Library/Application Support/Leserpent/Installer`. The Rust implementation
 copies a bounded symlink-free bundle, validates arm64 thin or universal Mach-O
-payloads and exact plist identity, strips group/world write permissions, and
-atomically replaces managed links. It rejects an existing unmanaged launcher
+payloads and exact plist identity, requires executable main and `leserpentd`
+payloads, and binds every native payload into the immutable release ID. It
+strips group/world write permissions and atomically replaces managed links. It
+rejects an existing unmanaged launcher
 instead of overwriting it. Profiles, managed CAs, caches, Keychain credentials,
 and Orchestra data remain outside the installer root and survive upgrades and
 rollback. `--root` and `--launcher` accept absolute paths for packaging proof or
@@ -546,8 +551,9 @@ cargo run --bin gewyvern_leserpent_release -- notarize \
   --keychain-profile leserpent-notary
 ```
 
-`preflight` always emits one JSON object. It validates the final app and checked
-entitlements, inventories `codesign`, `ditto`, `plutil`, `security`, `spctl`,
+`preflight` always emits one JSON object. Its v2 schema binds separate SHA-256
+digests for the main executable and bundled `leserpentd`, validates the checked
+entitlements, and inventories `codesign`, `ditto`, `plutil`, `security`, `spctl`,
 `xcrun`, `notarytool`, and `stapler`, and counts valid Developer ID Application
 identities. Add `--keychain-profile leserpent-notary` after storing credentials
 to verify that profile through `notarytool history` without exposing its secret.
@@ -564,8 +570,9 @@ notary `Accepted` result, staples and validates the ticket, and runs Gatekeeper.
 Use `verify --allow-adhoc` only to test local signature structure. Its output
 sets `runtime_launch=false`: ad-hoc signatures have no Team ID and therefore
 cannot establish the same-team library-validation relationship required by a
-Hardened Runtime app with separately signed dylibs. Ordinary ad-hoc bundles are
-used for local UI smoke; release launch proof requires Developer ID.
+Hardened Runtime app with separately signed `leserpentd` and dylibs. Ordinary
+ad-hoc bundles are used for local UI smoke; release launch proof requires
+Developer ID.
 
 For a packaged saved-profile/Keychain proof, create a bounded profile and CA
 under the current user's `$TMPDIR` with an unused high loopback port, then run:

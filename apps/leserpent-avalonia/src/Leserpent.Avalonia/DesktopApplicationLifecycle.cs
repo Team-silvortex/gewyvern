@@ -80,7 +80,17 @@ internal static class DesktopApplicationLifecycle
         IClassicDesktopStyleApplicationLifetime desktop,
         Action reopenMainWindow)
     {
-        var existing = desktop.Windows.FirstOrDefault(window => window is not DesktopAboutWindow);
+        Window? existing = null;
+        if (desktop.MainWindow is Window mainWindow && mainWindow is not DesktopAboutWindow && mainWindow.IsVisible)
+        {
+            existing = mainWindow;
+        }
+        else
+        {
+            existing = desktop.Windows.FirstOrDefault(
+                window => window is not DesktopAboutWindow && window.IsVisible);
+        }
+
         if (existing is not null)
         {
             existing.Show();

@@ -7,6 +7,14 @@ defines the invariant destination; this page defines ordered delivery gates.
 The roadmap is capability-gated, not date-gated. A later gate may be prototyped
 early, but it cannot become authoritative before its prerequisites are green.
 
+Implementation stack rule:
+
+- control-plane authority is Rust-first.
+- all native shells and renderers are C# where applicable.
+- the browser/operator web client remains TypeScript-only.
+- no additional UI/runtime language is allowed to own canonical control-plane
+  semantics (Node.js, Python, shell scripts, etc. are explicitly excluded).
+
 ## Baseline: 1.x Bridge
 
 The current ASP.NET, TypeScript, SQLite, Orchestra, deployment, security, and
@@ -256,7 +264,7 @@ cancel-control lifecycle under Xvfb. macOS/Linux regressions remain the desktop
 priority. Android entry groundwork is parked until the macOS application,
 connection profile, menu/lifecycle, and release-bundle paradigm is stable.
 Windows native desktop is deferred and Windows operators use the authenticated
-Web console in this cycle.
+TypeScript web console in this cycle.
 
 The Avalonia renderer now maps bounded log entries to lazy monospace controls.
 The 48-entry cross-language sliding fixture applies in three operations and
@@ -273,8 +281,62 @@ operation and refuses to return unless that document converges exactly on the
 target. This fixes invalid move indexes previously exposed by a sliding bounded
 history window and reduces that transition from 34 operations to 3.
 
+The no-argument desktop hub now has a local Rust-authority path. It supervises
+an app-bundled `leserpentd`, creates private loopback TLS material and an
+ephemeral local-process token, and reaches the normal remote window only after
+the shared health client proves a ready owned authority. The process boundary
+uses SIGTERM-first cleanup so journal ownership is released before immediate
+restart; a real .NET-to-Rust verification command covers startup, TLS health,
+shutdown, and restart. The macOS bundler fails closed when the arm64 daemon
+payload is absent.
+The supervisor also rejects symlinked state/daemon boundaries, performs no
+ambient `PATH` daemon discovery, clears the inherited child environment, writes
+all TLS material with atomic owner-only creation, and zeroes exported private
+key buffers after the daemon identity is persisted.
+
 Exit: the vertical slice contains no direct adapter or persistence access and
 passes GUI/CLI/Leselang equivalence tests.
+
+## Reverse Deployment Bootstrap (Cross-cutting Before Gate 5)
+
+The control path for remote hosts is now first-class: operator credentials are
+used to bootstrap a target-host `leserpentd`, then all subsequent mutation uses
+the target-issued `leserpentd` session credential.
+
+The slice includes these required behaviors:
+
+- bootstrap input is a non-session bootstrap token and optional bootstrap endpoint;
+  the input is bounded, logged (redacted), and cannot imply any immediate runtime
+  mutation authority;
+- bootstrap result is a managed `leserpentd` service identity, endpoint, and
+  session credential handle that can be promoted to a saved connection profile;
+- client entrypoint prefers saved profiles, opens a logical daemon session, and only
+  then exposes runtime fleet projections for that daemon;
+- `runtime.register` and `runtime.deploy` in that daemon use the same envelope,
+  confirmation and revision semantics as local execution, with the active session
+  identity treated as the authoritative `daemon_id` binding.
+
+The model explicitly forbids crossing from bootstrap to mutation without an
+explicit confirm/fence handoff. A control attempt that still uses bootstrap-only
+proof must be rejected before adapter dispatch. After the first accepted session,
+bootstrap inputs become non-authoritative metadata.
+
+Failure behavior is part of the slice:
+
+- bootstrap transport failure writes bounded bootstrap fault evidence without
+  creating remote runtime authority;
+- partial bootstrap artifacts are treated as disposable and do not auto-mark the
+  host as trusted;
+- if bootstrap succeeds but session establishment fails, status remains
+  `Bootstrapped` but no mutating intent is accepted until a valid session
+  binds in;
+- if session establishment succeeds but `runtime.deploy` is denied, the daemon
+  session remains readonly for inspected operations and returns signed rejection.
+
+Exit: one positive and one negative proof case exists for each branch:
+bootstrap failure, bootstrap success + session connect success, and deploy path
+without confirmed transition. Proof evidence must be versioned, reproducible, and
+bound to the `leserpent-2-architecture` intent.
 
 ## Gate 5: Durable Runtime Cutover
 
@@ -489,14 +551,16 @@ the canonical template exactly. The native release entrypoint independently
 requires unique identity, executable, package-type, display-version, and
 build-version fields; both version fields must match the release tool's
 workspace version before any signing or notarization command can run. A shared
-bounded native-header reader additionally requires every main executable and
-`.dylib` to be a thin 64-bit ARM Mach-O payload, including the ARM64 CPU type,
-at AOT proof, bundle creation, and release validation boundaries. The
-native release entrypoint now enforces inside-out
+bounded native-header reader additionally requires the main executable,
+app-bundled `leserpentd`, and every `.dylib` to be a thin 64-bit ARM Mach-O
+payload, including the ARM64 CPU type, at AOT proof, bundle creation, release,
+and installation boundaries. The native release entrypoint signs the daemon
+and dylibs before the outer app and now enforces inside-out
 Developer ID signing, Hardened Runtime, secure timestamps, Keychain-only
 notary credentials, explicit acceptance, ticket stapling, and Gatekeeper
-assessment. A native machine-readable preflight now validates the final app and
-entitlements hashes, inventories all eight Apple release tools, counts valid
+assessment. A native machine-readable preflight now binds separate main-app and
+`leserpentd` executable hashes plus the entitlements hash, inventories all eight
+Apple release tools, counts valid
 Developer ID Application identities, and optionally verifies a named notary
 Keychain profile without exposing credentials. The current retained preflight
 records all tools ready but zero identities and no requested profile, so
@@ -612,6 +676,8 @@ Extend the same contracts rather than forking product behavior.
 - reconnect, offline read cache, and explicit stale-state presentation
 - push/deep-link integration through platform adapters
 - optional embedded Rust feasibility study for offline execution
+- production TypeScript web client parity for Windows and remaining non-native
+  hosts, using the same native policy contracts and transport semantics
 
 The Android executable entry client now composes the validating credential
 vault, app-private CA/profile storage, `MobileApplicationCoordinator`, and
@@ -903,7 +969,8 @@ a bounded artifact manifest, executes all four control fixtures, and retains a
 versioned evidence index. macOS arm64 self-host execution is automated; Linux
 x64 uses the same command with Xvfb. Windows stays unclaimed until its lock and
 physical-host proof exist, but that evidence is outside the current
-macOS/Linux-to-Android critical path; Windows uses the Web console meanwhile.
+macOS/Linux-to-Android critical path; Windows uses the TypeScript web console
+meanwhile.
 
 ## Explicit Deferrals
 
@@ -911,7 +978,7 @@ The roadmap does not require:
 
 - replacing Gewyvern's Linux-first runtime
 - moving Etragon into the Leserpent core
-- making Avalonia WASM the only web renderer
+- allowing only TypeScript as the web render path for browser access
 - arbitrary user-native plugins
 - model access to shell, raw HTTP, or host-language reflection
 - a distributed scheduler before the local journal/runtime is proven

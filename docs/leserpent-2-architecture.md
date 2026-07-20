@@ -13,6 +13,15 @@ frontends:
 - Leselang programs, including model-generated programs
 - the native `leserpent` CLI
 - graphical clients, beginning with Avalonia
+- browser clients written in TypeScript
+
+The platform stack constraint is explicit:
+
+- Rust owns all control-plane, policy, and semantic decisions.
+- C# and TypeScript frontends consume protocol projections and emit typed user
+  actions but do not own control-plane decisions.
+- No Node.js, Python, shell, or other additional runtime language is allowed to
+  carry new control-plane authority.
 
 The current ASP.NET and TypeScript application remains the 1.x implementation
 and migration bridge. It is not the semantic center of the 2.0 system.
@@ -34,6 +43,9 @@ and migration bridge. It is not the semantic center of the 2.0 system.
    capabilities, confirmation policy, or effect limits.
 8. UI-local state such as geometry, focus, and animation may remain
    frontend-specific. Domain state and operator actions may not.
+9. No control-plane decision path may be introduced in a frontend language.
+   Rust owns policy, authorization, idempotency, revision, and effect
+   semantics.
 
 These rules define atomic replaceability. Replacing GUI interaction with CLI or
 Leselang may change presentation and transport, but not control semantics.
@@ -73,6 +85,144 @@ flowchart TD
 
 The Rust runtime is authoritative. Frontends are replaceable projections and
 intent producers.
+
+## Instance Topology
+
+Leserpent 2.0 controls instances with a strict three-level topology:
+
+- each Linux kernel/container instance maps to exactly one `gewyvern` service
+- each `gewyvern` instance is registered under one `leserpentd` instance
+- each `leserpentd` instance is exposed as one authenticated web service
+
+```mermaid
+flowchart LR
+    subgraph K["Kernel/Container Instance"]
+      K1["Instance A"]
+      K2["Instance B"]
+      K3["Instance C"]
+    end
+
+    subgraph G["Each instance owns one gewyvern runtime service"]
+      G1["gewyvern A"]:::runtime
+      G2["gewyvern B"]:::runtime
+      G3["gewyvern C"]:::runtime
+    end
+
+    K1 --> G1
+    K2 --> G2
+    K3 --> G3
+
+    subgraph D["leserpentd host"]
+      D1["Leserpentd instance"]
+      WD["/v1/wire"]
+      WS["/v1/events"]
+      D1 --- WD
+      D1 --- WS
+    end
+
+    G1 --> D1
+    G2 --> D1
+    G3 --> D1
+
+    A["Avalonia / CLI / Leselang"]
+    A --> WD
+    A --> WS
+
+    classDef runtime fill:#1f2937,color:#fff,stroke:#9ca3af;
+```
+
+The model implies identity is two-dimensional at minimum:
+
+- `daemon_id`: owner of execution, storage lease, and security posture
+- `runtime_id`: immutable target identity inside that daemon
+
+The effective control key is the ordered pair `(daemon_id, runtime_id)`. In the
+current 2.0 protocol, `daemon_id` is implicit in the authenticated transport
+session (service endpoint), while `runtime_id` remains explicit in the command/query
+payload.
+A command touching a runtime is always bound to one pair and one expected
+revision; commands with a malformed `runtime_id` or mismatched session identity are
+rejected before policy checks.
+
+This is not multi-tenancy by namespace alone. It is explicit composition:
+one daemon can safely host many runtimes, but commands can never fan out to
+unknown runtimes because no wildcard path exists in the domain contract.
+
+## Client As Hub / Per-Daemon Multi-Window Model
+
+The native client entry is a daemon hub, not a single direct remote target form:
+
+- startup presents saved `leserpentd` connection profiles;
+- each profile opens a logical **daemon session**;
+- each daemon session exposes fleet cards from its own `runtime` projection;
+- each runtime card can open a child workspace in the same process;
+- child workspaces route through that daemon session only.
+
+A single Avalonia window can thus operate several daemon sessions in parallel,
+without collapsing trust, event stream, or revision history across sessions.
+
+In this model:
+
+- `desktop setup` and `setup window` are process-wide shell tasks;
+- `runtime list`, `runtime refresh`, `runtime inspect`, deployment, and log
+  queries are session-scoped;
+- session closure cancels only that session's subscriptions and leaves other
+  daemon sessions running.
+
+## Topology Error Boundaries
+
+Topology transition rules are simple and explicit:
+
+1. `Unmanaged` -> `Registered`: durable `RuntimeRegister` with bounded identity and origin
+2. `Registered` -> `Connected`: successful `runtime health`/adapter refresh
+3. `Connected` -> `BoundedError`: adapter faults, credential error, or probe timeout
+4. `BoundedError` -> `Ready`: successful refresh after explicit user/plan confirmation
+5. `Connected` -> `Removed`: explicit removal command with idempotent identity and dry-run
+
+Every transition writes an event. Every transition failure keeps the old projection
+and returns a typed ambiguous outcome when recovery depends on freshness.
+No transition writes hidden side effects before command persistence.
+
+## Reverse Deployment Model
+
+The intended deployment control loop is reverse-first:
+
+1. `operator credential` reaches a target host with bootstrap rights.
+2. Leserpent uses that credential to deploy/refresh `leserpentd` on the target.
+3. Leserpent connects to the target's `leserpentd` service endpoint (`/v1/wire`, `/v1/events`) using the target-issued session token or certificate chain.
+4. The `leserpentd` session exposes a fleet panel and accepted runtime identities.
+5. Deployment control continues through `runtime` intents, especially `runtime.deploy`, to install/update `gewyvern` inside that same host partition.
+
+This makes `leserpent` responsible for control-plane bootstrap and orchestration,
+while `leserpentd` remains the per-host control gate for later state and actions.
+
+```text
+Leserpent (operator)
+  --bootstrap token--> host bootstrap endpoint
+  --leserpentd-token/ca--> leserpentd@host (panel + wire session)
+  --runtime.deploy--> target gewyvern endpoints
+```
+
+Two credential layers are therefore required:
+
+- **bootstrap credential**: creates/reconciles a managed `leserpentd` on the target
+- **session credential**: binds the `leserpentd` session and all mutation/effect calls
+
+The bootstrap credential must never become implicit session authority. A `leserpentd`
+session token is checked for every mutation and workspace command, and a failed
+session check must block both control and deployment operations before adapter dispatch.
+
+The contract requires the operator to confirm deployment actions that cross from
+host bootstrap into runtime mutation. The command graph is still single-source:
+all panel actions and `runtime.deploy` intents share the same `CommandEnvelope` and
+revision identity rules.
+
+This topology contract is the intended semantic source for the statement you just
+described:
+
+- one kernel/container per `gewyvern`;
+- one `leserpentd` managing many of them;
+- one `leserpentd` service endpoint per host.
 
 ## Rust Workspace
 
@@ -516,9 +666,11 @@ and capability-gated adapter.
 The native operator path is intentionally ordered by available proof quality:
 the macOS product shell and shared Linux desktop semantics first, Android only
 after the desktop application/profile/menu/release paradigm is stable, and iOS
-after Android parity. Windows operators use the authenticated Web console during
-this cycle. Windows Avalonia, NativeAOT, named-pipe, and installer work remain
-valid future extensions, but they do not block desktop stabilization.
+after Android parity. Windows operators use the authenticated TypeScript web
+console during this cycle, and other platforms must consume either Rust-backed
+native shells or the shared web client. Windows Avalonia, NativeAOT,
+native named-pipe, and installer work remain valid future extensions, but they
+do not block desktop stabilization.
 
 No-argument desktop launch is the product entry rather than a fixture shortcut.
 It reads a bounded, atomically persisted profile containing only the HTTPS
@@ -565,19 +717,27 @@ UI patch cost, and binary/package size before tightening budgets.
 The first desktop proof uses source-generated JSON metadata and an explicit
 NativeAOT publish profile. Its runtime, compiler, linker, targeting, and
 app-host packs share one pinned patch version, so SDK patch drift cannot silently
-change the native dependency graph. macOS arm64 now packages that output through
-the native `gewyvern_leserpent_bundle` boundary. The boundary rejects symlinks,
-unknown payloads, and implicit replacement; excludes `.pdb` and `.dSYM`; and
-emits stable plist identity, a checked `.icns`, a native application menu, and
-Dock-reopen/explicit-Quit lifecycle behavior. The current stripped `.app` is
-approximately 40 MiB before release signing. A physical Ubuntu x86_64 host
+change the native dependency graph. macOS arm64 now packages that output and
+the Rust `leserpentd` through the native `gewyvern_leserpent_bundle` boundary.
+The boundary rejects symlinks, unknown or non-arm64 payloads, a missing daemon,
+and implicit replacement; excludes `.pdb` and `.dSYM`; and emits stable plist
+identity, a checked `.icns`, a native application menu, and
+Dock-reopen/explicit-Quit lifecycle behavior. The desktop supervisor creates
+app-private loopback TLS material, labels its random credential as local-process
+state, proves authority health before use, and performs SIGTERM-first daemon
+cleanup with immediate restart proof. Daemon resolution is package-local and
+fail-closed; its child environment contains only the ephemeral token, while TLS
+files use atomic `0600` creation under a checked non-symlink `0700` directory
+and private-key export buffers are zeroed. A physical Ubuntu x86_64 host
 produces a five-file, approximately 76 MiB package with a stripped PIE ELF.
 Both native executables pass the real control-tree fixtures. Windows native
-desktop remains deliberately unclaimed until a suitable host exists; the Web
-console is the current Windows access path.
+desktop remains deliberately unclaimed until a suitable host exists; the
+TypeScript web console is the current Windows access path.
 
-The macOS release boundary is another native Rust entrypoint. It signs nested
-dylibs inside-out, refuses non-Developer-ID identities, requires Hardened
+The macOS release boundary is another native Rust entrypoint. It requires the
+bundled `leserpentd`, validates its ARM64 Mach-O identity and executable mode,
+and signs it together with nested dylibs before the outer app. It refuses
+non-Developer-ID identities, requires Hardened
 Runtime and secure timestamps, and applies the checked empty entitlement set:
 NativeAOT needs no JIT exception and this direct-distribution build is not App
 Sandboxed. Notarization accepts only a pre-stored Keychain profile, packages
@@ -588,7 +748,8 @@ cannot satisfy the formal release gate. Hardened ad-hoc code has no Team ID, so
 individually signed native libraries cannot pass runtime library validation;
 the verifier explicitly withholds a runtime-launch claim. Local UI smoke uses
 an ordinary ad-hoc bundle, while formal Hardened Runtime launch requires one
-Developer ID identity across the executable and all nested dylibs.
+Developer ID identity across the main executable, `leserpentd`, and all nested
+dylibs.
 
 Packaged desktop startup is not a second composition path. Both normal
 no-argument launch and its release probe call `DesktopProductStartup`, which
@@ -639,7 +800,7 @@ Leserpent 2.0 is ready only when:
 
 - Rust owns command, query, policy, journal, effect, and replay semantics
 - Leselang, CLI, and Avalonia pass one parity matrix
-- no C# or TypeScript frontend contains control-plane business logic
+- no C# or TypeScript frontend introduces control-plane business logic
 - model-generated programs execute only through the normal capability boundary
 - suspended programs survive restart and resume exactly once
 - GUI actions round-trip through canonical Leselang

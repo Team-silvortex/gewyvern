@@ -3,13 +3,14 @@ use std::env;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use ring::digest::{SHA256, digest};
+use ring::digest::{Context, SHA256};
 use serde::Serialize;
 
 use crate::native_binary::file_is_mach_o_arm64;
 
 const APP_NAME: &str = "Leserpent.app";
 const EXECUTABLE: &str = "Leserpent.Avalonia";
+const DAEMON_EXECUTABLE: &str = "leserpentd";
 const MAX_BUNDLE_FILES: usize = 256;
 const MAX_BUNDLE_BYTES: u64 = 1024 * 1024 * 1024;
 
@@ -140,7 +141,7 @@ fn install(options: &InstallOptions) -> Result<(), String> {
     if old_current.is_none() && old_previous.is_some() {
         return Err("installer state has previous without current".to_string());
     }
-    let release_id = format!("{}-{}", identity.version, identity.executable_hash);
+    let release_id = format!("{}-{}", identity.version, identity.native_payload_hash);
     let release_target = PathBuf::from("releases").join(&release_id);
     let release_dir = options.root.join(&release_target);
     let installed_app = release_dir.join(APP_NAME);
@@ -224,7 +225,7 @@ fn report(options: &InstallOptions) -> Result<InstallReport, String> {
 #[derive(Debug, PartialEq, Eq)]
 struct BundleIdentity {
     version: String,
-    executable_hash: String,
+    native_payload_hash: String,
 }
 
 fn validate_bundle(app: &Path) -> Result<BundleIdentity, String> {
@@ -233,13 +234,7 @@ fn validate_bundle(app: &Path) -> Result<BundleIdentity, String> {
     if files == 0 || files > MAX_BUNDLE_FILES || bytes > MAX_BUNDLE_BYTES {
         return Err("application bundle exceeds its file or byte limit".to_string());
     }
-    let executable = app.join("Contents/MacOS").join(EXECUTABLE);
-    require_file(&executable, "application executable")?;
-    if !file_is_mach_o_arm64(&executable)
-        .map_err(|error| format!("failed to inspect application executable: {error}"))?
-    {
-        return Err("application executable is not an arm64 Mach-O".to_string());
-    }
+    let native_payloads = validate_native_payloads(app)?;
     require_file(
         &app.join("Contents/Resources/leserpent.icns"),
         "application icon",
@@ -256,9 +251,20 @@ fn validate_bundle(app: &Path) -> Result<BundleIdentity, String> {
     if plist_string(&plist, "CFBundleVersion")? != version || !safe_version(&version) {
         return Err("Info.plist versions are invalid or inconsistent".to_string());
     }
-    let executable_bytes = fs::read(&executable).map_err(|error| error.to_string())?;
-    let hash = digest(&SHA256, &executable_bytes);
-    let executable_hash = hash
+    let mut digest = Context::new(&SHA256);
+    for path in native_payloads {
+        let name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| "native payload name is invalid".to_string())?;
+        let payload = fs::read(&path).map_err(|error| error.to_string())?;
+        digest.update(&(name.len() as u64).to_le_bytes());
+        digest.update(name.as_bytes());
+        digest.update(&(payload.len() as u64).to_le_bytes());
+        digest.update(&payload);
+    }
+    let hash = digest.finish();
+    let native_payload_hash = hash
         .as_ref()
         .iter()
         .take(6)
@@ -266,8 +272,58 @@ fn validate_bundle(app: &Path) -> Result<BundleIdentity, String> {
         .collect();
     Ok(BundleIdentity {
         version,
-        executable_hash,
+        native_payload_hash,
     })
+}
+
+fn validate_native_payloads(app: &Path) -> Result<Vec<PathBuf>, String> {
+    let directory = app.join("Contents/MacOS");
+    require_directory(&directory, "native payload directory")?;
+    let mut payloads = Vec::new();
+    for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        let name = entry.file_name();
+        let is_main = name == EXECUTABLE;
+        let is_daemon = name == DAEMON_EXECUTABLE;
+        let is_library = path.extension().is_some_and(|value| value == "dylib");
+        if !is_main && !is_daemon && !is_library {
+            return Err(format!(
+                "application bundle contains an unsupported native payload: {}",
+                path.display()
+            ));
+        }
+        let label = if is_main {
+            "application executable"
+        } else if is_daemon {
+            "local orchestra daemon"
+        } else {
+            "native library"
+        };
+        require_file(&path, label)?;
+        if !file_is_mach_o_arm64(&path)
+            .map_err(|error| format!("failed to inspect {label}: {error}"))?
+        {
+            return Err(format!("{label} is not an arm64 Mach-O"));
+        }
+        if is_main || is_daemon {
+            require_executable(&path, label)?;
+        }
+        payloads.push(path);
+    }
+    for (name, label) in [
+        (EXECUTABLE, "application executable"),
+        (DAEMON_EXECUTABLE, "local orchestra daemon"),
+    ] {
+        if !payloads
+            .iter()
+            .any(|path| path.file_name().is_some_and(|value| value == name))
+        {
+            return Err(format!("{label} is unavailable"));
+        }
+    }
+    payloads.sort();
+    Ok(payloads)
 }
 
 fn inspect_tree(root: &Path) -> Result<(usize, u64), String> {
@@ -354,7 +410,7 @@ fn release_link(root: &Path, name: &str) -> Result<Option<PathBuf>, String> {
         return Err(format!("{name} release link is missing or unsafe"));
     }
     let identity = validate_bundle(&root.join(&target).join(APP_NAME))?;
-    let expected_id = format!("{}-{}", identity.version, identity.executable_hash);
+    let expected_id = format!("{}-{}", identity.version, identity.native_payload_hash);
     if target.file_name().and_then(|value| value.to_str()) != Some(expected_id.as_str()) {
         return Err(format!(
             "{name} release identity does not match its directory"
@@ -534,6 +590,27 @@ fn require_file(path: &Path, label: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(unix)]
+fn require_executable(path: &Path, label: &str) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    if fs::metadata(path)
+        .map_err(|error| format!("failed to inspect {label} permissions: {error}"))?
+        .permissions()
+        .mode()
+        & 0o111
+        == 0
+    {
+        return Err(format!("{label} is not executable"));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn require_executable(_path: &Path, _label: &str) -> Result<(), String> {
+    Ok(())
+}
+
 fn usage() -> &'static str {
     "usage:\n  gewyvern_leserpent_install install --app Leserpent.app [--root DIR] [--launcher PATH] [--keep-releases N]\n  gewyvern_leserpent_install rollback [--root DIR] [--launcher PATH]\n  gewyvern_leserpent_install status [--root DIR] [--launcher PATH]"
 }
@@ -559,6 +636,11 @@ mod tests {
         let executable_path = executable_dir.join(EXECUTABLE);
         fs::write(&executable_path, executable).unwrap();
         fs::set_permissions(&executable_path, fs::Permissions::from_mode(0o755)).unwrap();
+        let mut daemon = b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01daemon".to_vec();
+        daemon.push(marker);
+        let daemon_path = executable_dir.join(DAEMON_EXECUTABLE);
+        fs::write(&daemon_path, daemon).unwrap();
+        fs::set_permissions(&daemon_path, fs::Permissions::from_mode(0o755)).unwrap();
         fs::write(path.join("Contents/Resources/leserpent.icns"), b"icon").unwrap();
         fs::write(
             path.join("Contents/Info.plist"),
@@ -682,5 +764,30 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn bundle_identity_requires_and_binds_executable_daemon() {
+        let root = fixture_root("daemon-identity");
+        let app = root.join("source.app");
+        fixture_app(&app, "1.4.0", 1);
+        let first = validate_bundle(&app).unwrap();
+
+        fs::write(
+            app.join("Contents/MacOS").join(DAEMON_EXECUTABLE),
+            b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01changed-daemon",
+        )
+        .unwrap();
+        fs::set_permissions(
+            app.join("Contents/MacOS").join(DAEMON_EXECUTABLE),
+            fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+        let second = validate_bundle(&app).unwrap();
+        assert_ne!(first.native_payload_hash, second.native_payload_hash);
+
+        fs::remove_file(app.join("Contents/MacOS").join(DAEMON_EXECUTABLE)).unwrap();
+        assert!(validate_bundle(&app).unwrap_err().contains("daemon"));
+        fs::remove_dir_all(root).unwrap();
     }
 }

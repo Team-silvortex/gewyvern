@@ -370,3 +370,36 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(!test_body.contains(".Save("));
     assert!(!test_body.contains(".Import("));
 }
+
+#[test]
+fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let supervisor = avalonia_source("Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let token_store = avalonia_source("Leserpent.RemoteClient/RemoteTokenStore.cs");
+    let presentation = avalonia_source("Leserpent.Avalonia/RemoteCredentialPresentation.cs");
+
+    assert!(app.contains("OpenRemoteFromSelfHostOrProfile"));
+    assert!(app.contains("new LocalOrchestraServiceSupervisor()"));
+    assert!(supervisor.contains("DaemonExecutable = \"leserpentd\""));
+    assert!(supervisor.contains("LESERPENT_REMOTE_TOKEN"));
+    assert!(supervisor.contains("info.Environment.Clear()"));
+    assert!(!supervisor.contains("GetEnvironmentVariable(\"PATH\")"));
+    assert!(supervisor.contains("FileAttributes.ReparsePoint"));
+    assert!(supervisor.contains("options.UnixCreateMode"));
+    assert!(supervisor.contains("CryptographicOperations.ZeroMemory"));
+    assert!(supervisor.contains("RemoteTokenSource.LocalProcess"));
+    assert!(supervisor.contains("health.Status == \"ready\" && health.AuthorityOwned"));
+    assert!(supervisor.contains("Kill(entireProcessTree: true)"));
+    assert!(supervisor.contains("ObjectDisposedException.ThrowIf(disposed, this)"));
+    assert!(token_store.contains("LocalProcess"));
+    assert!(presentation.contains("TOKEN / LOCAL PROCESS"));
+    assert!(program.contains("--verify-local-orchestra"));
+    assert!(program.contains("owned_authority=true"));
+    assert!(program.contains("private_files=true"));
+    assert!(program.contains("minimal_child_environment=true"));
+    assert!(program.contains("package_local_daemon=true"));
+    assert!(program.contains("symlink_rejection=true"));
+    assert!(supervisor.contains("Directory.CreateSymbolicLink"));
+    assert!(supervisor.contains("File.CreateSymbolicLink"));
+}

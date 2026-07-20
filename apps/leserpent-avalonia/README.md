@@ -493,19 +493,22 @@ On macOS, turn that flat NativeAOT output into a Finder/Dock application with
 the native Rust bundler:
 
 ```bash
+cargo build --release -p leserpentd
 cargo run --bin gewyvern_leserpent_bundle -- \
   --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
+  --daemon target/release/leserpentd \
   --output artifacts/leserpent-avalonia/Leserpent.app
 ```
 
 The bundler emits a deterministic `Contents/MacOS`, `Contents/Resources`, and
-`Info.plist` layout with bundle identifier `org.gewyvern.leserpent`. It copies
-only the main executable and native `.dylib` dependencies, omits `.pdb` and
-`.dSYM`, rejects symlinks and unknown files, and refuses to replace an existing
+`Info.plist` layout with bundle identifier `org.gewyvern.leserpent`. It requires
+and embeds the native Rust `leserpentd` beside the Avalonia executable, copies
+native `.dylib` dependencies, omits `.pdb` and `.dSYM`, rejects symlinks,
+unknown files, and non-arm64 payloads, and refuses to replace an existing
 bundle. The official path omits `--version`, so both bundle version fields
-inherit the root Rust workspace release automatically; downstream packagers may
-still override that value explicitly. `leserpent-icon.icns` is generated from
-the checked Leserpent artwork.
+inherit the root Rust workspace release automatically; downstream packagers
+may still override that value explicitly. `leserpent-icon.icns` is generated
+from the checked Leserpent artwork.
 
 Install, inspect, or explicitly roll back a user-local version without shell
 copy wrappers:
@@ -529,6 +532,26 @@ The product uses a native macOS application menu, explicit Quit, and Dock
 reopen behavior; verify its code-only contract with
 `--verify-desktop-lifecycle`. Developer ID signing and Apple notarization are
 separate release steps and are not implied by local ad-hoc signing.
+
+No-argument desktop startup creates an app-private loopback TLS identity and an
+ephemeral local-process credential, starts the bundled Rust `leserpentd`, and
+opens that authority through the same remote client used for saved profiles.
+The supervisor sends SIGTERM first so Rust releases its journal lease, then uses
+a bounded forced-shutdown fallback. Verify the complete start, health,
+shutdown, and immediate-restart path with:
+
+```bash
+cargo build -p leserpentd
+dotnet run --project \
+  apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
+  -- --verify-local-orchestra target/debug/leserpentd
+```
+
+Daemon resolution fails closed to the executable beside the app; development
+overrides must name an explicit regular executable and never fall back to
+`PATH`. The child receives a cleared environment containing only its ephemeral
+bearer token. TLS files are atomically created as `0600` inside a non-symlink
+`0700` state directory, and exported private-key buffers are zeroed after use.
 
 The native release gate signs nested dylibs before the application, requires a
 `Developer ID Application:` identity, enables Hardened Runtime and a secure
@@ -603,10 +626,10 @@ artifacts/leserpent-avalonia/osx-arm64/Leserpent.Avalonia \
   apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json
 ```
 
-The macOS arm64 proof produces a native arm64 Mach-O executable. Its `.app`
-contains the executable, three native libraries, a valid plist, and the native
-icon; the current stripped bundle is approximately 40 MiB before release
-signing. The Ubuntu x86_64 physical-host
+The macOS arm64 proof produces native arm64 Mach-O Avalonia and `leserpentd`
+executables. Its `.app` contains both executables, the native libraries, a valid
+plist, and the native icon; the daemon payload is mandatory rather than an
+optional discovery result. The Ubuntu x86_64 physical-host
 proof produces a five-file, approximately 76 MiB directory and a stripped PIE
 ELF; all four control fixtures pass under Xvfb. The debugger fixture records one
 realized cancel button before re-entry and zero afterward on both hosts. Other

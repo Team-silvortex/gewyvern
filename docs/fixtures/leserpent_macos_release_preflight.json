@@ -1,6 +1,6 @@
 {
   "app": "Leserpent.app",
-  "app_executable_sha256": "01a87c6066ae654f05190ad0dd7616d6510c652c17049b5cdebd1a6e0ee2d3f2",
+  "app_executable_sha256": "c72e8a7fc5f5a969028747eb6b138aa3988a8ebe61e7b571c81e3849462e2f92",
   "apple_tools": {
     "codesign": true,
     "ditto": true,
@@ -16,6 +16,7 @@
     "notary_keychain_profile_not_requested"
   ],
   "developer_id_application_identities": 0,
+  "daemon_executable_sha256": "949dc0556c01019a02b34390070a9d6a7a82c2afe98acb96908474665f5afed4",
   "entitlements_sha256": "97704a8960b4facceef54397a08fb5d0a456247c3627359215aa2a27df22656c",
   "host_arch": "aarch64",
   "notary_profile_requested": false,
@@ -24,6 +25,6 @@
   "proof": "leserpent-macos-release-preflight",
   "release_ready": false,
   "result": "blocked",
-  "schema_version": 1,
+  "schema_version": 2,
   "version": "1.5.0"
 }

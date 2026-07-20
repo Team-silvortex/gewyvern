@@ -83,6 +83,13 @@ internal static class Program
                 "desktop lifecycle valid: app_menu=true, connection_settings=true, about=true, dock_reopen=true, explicit_quit=true");
             return 0;
         }
+        if (args is ["--verify-local-orchestra", var daemonPath])
+        {
+            LocalOrchestraServiceSupervisor.VerifyContract(daemonPath);
+            Console.WriteLine(
+                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, private_files=true, minimal_child_environment=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
+            return 0;
+        }
         if (args is ["--verify-connection-maintenance"])
         {
             DesktopConnectionMaintenance.VerifyContract();

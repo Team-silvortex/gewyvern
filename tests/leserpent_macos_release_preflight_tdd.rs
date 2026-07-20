@@ -24,7 +24,15 @@ fn macos_release_preflight_is_machine_readable_and_fail_closed() {
     assert!(release.contains("developer_id_application_identity_missing"));
     assert!(release.contains("notary_keychain_profile_not_requested"));
     assert!(release.contains("notary_keychain_profile_unavailable"));
-    assert_eq!(report["schema_version"], 1);
+    assert!(release.contains("DAEMON_EXECUTABLE: &str = \"leserpentd\""));
+    assert!(release.contains("for payload in nested_native_payloads(&options.app)?"));
+    assert!(release.contains("native signing snapshot is missing the local orchestra daemon"));
+    assert!(release.contains("nested signature Team ID does not match the app bundle"));
+    assert_eq!(report["schema_version"], 2);
+    assert_eq!(
+        report["daemon_executable_sha256"].as_str().unwrap().len(),
+        64
+    );
     assert_eq!(report["release_ready"], false);
     assert_eq!(report["result"], "blocked");
     assert_eq!(report["developer_id_application_identities"], 0);

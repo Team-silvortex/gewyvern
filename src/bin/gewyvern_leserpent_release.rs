@@ -9,6 +9,7 @@ use serde_json::json;
 
 const BUNDLE_ID: &str = "org.gewyvern.leserpent";
 const EXECUTABLE: &str = "Leserpent.Avalonia";
+const DAEMON_EXECUTABLE: &str = "leserpentd";
 const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_ENTITLEMENTS: &str = "assets/packaging/leserpent-macos.entitlements";
 
@@ -188,14 +189,16 @@ fn preflight(options: &Options) -> Result<String, String> {
     );
     let release_ready = blockers.is_empty();
     let executable = options.app.join("Contents/MacOS").join(EXECUTABLE);
+    let daemon = options.app.join("Contents/MacOS").join(DAEMON_EXECUTABLE);
     let report = json!({
-        "schema_version": 1,
+        "schema_version": 2,
         "proof": "leserpent-macos-release-preflight",
         "platform": "macos",
         "host_arch": env::consts::ARCH,
         "app": options.app.file_name().and_then(|value| value.to_str()).unwrap_or("Leserpent.app"),
         "version": PRODUCT_VERSION,
         "app_executable_sha256": file_sha256(&executable)?,
+        "daemon_executable_sha256": file_sha256(&daemon)?,
         "entitlements_sha256": file_sha256(&options.entitlements)?,
         "apple_tools": apple_tools.into_iter().collect::<std::collections::BTreeMap<_, _>>(),
         "developer_id_application_identities": identities,
@@ -300,8 +303,8 @@ fn sign(options: &Options) -> Result<String, String> {
         "entitlements plist validation",
     )?;
 
-    for library in native_libraries(&options.app)? {
-        run_codesign(identity, &library, None)?;
+    for payload in nested_native_payloads(&options.app)? {
+        run_codesign(identity, &payload, None)?;
     }
     run_codesign(identity, &options.app, Some(&options.entitlements))?;
     verify_signature(&options.app, false)?;
@@ -393,25 +396,77 @@ fn verify_signature(app: &Path, allow_adhoc: bool) -> Result<(), String> {
             .arg(app),
         "strict code-signature verification",
     )?;
-    let details = run_checked(
+    let app_details = signature_details(app)?;
+    validate_signature_policy(&app_details, "app bundle", allow_adhoc)?;
+    let app_team = if allow_adhoc {
+        None
+    } else {
+        Some(team_identifier(&app_details)?)
+    };
+    for payload in nested_native_payloads(app)? {
+        run_checked(
+            Command::new("codesign")
+                .args(["--verify", "--strict", "--verbose=2"])
+                .arg(&payload),
+            &format!(
+                "nested code-signature verification for {}",
+                payload.display()
+            ),
+        )?;
+        let details = signature_details(&payload)?;
+        validate_signature_policy(&details, &payload.display().to_string(), allow_adhoc)?;
+        if !allow_adhoc && Some(team_identifier(&details)?) != app_team {
+            return Err(format!(
+                "nested signature Team ID does not match the app bundle: {}",
+                payload.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn signature_details(path: &Path) -> Result<String, String> {
+    let output = run_checked(
         Command::new("codesign")
             .args(["--display", "--verbose=4"])
-            .arg(app),
-        "code-signature inspection",
+            .arg(path),
+        &format!("code-signature inspection for {}", path.display()),
     )?;
-    let details = String::from_utf8_lossy(&details.stderr);
-    if !has_hardened_runtime(&details) {
-        return Err("signature does not enable Hardened Runtime".to_string());
+    Ok(String::from_utf8_lossy(&output.stderr).into_owned())
+}
+
+fn validate_signature_policy(details: &str, label: &str, allow_adhoc: bool) -> Result<(), String> {
+    if !has_hardened_runtime(details) {
+        return Err(format!(
+            "{label} signature does not enable Hardened Runtime"
+        ));
     }
     if !allow_adhoc
         && (!details.contains("Authority=Developer ID Application:")
-            || !details.contains("Timestamp="))
+            || !has_secure_timestamp(details))
     {
-        return Err(
-            "signature is not a timestamped Developer ID Application signature".to_string(),
-        );
+        return Err(format!(
+            "{label} signature is not a timestamped Developer ID Application signature"
+        ));
     }
     Ok(())
+}
+
+fn has_secure_timestamp(details: &str) -> bool {
+    details.lines().any(|line| {
+        line.strip_prefix("Timestamp=")
+            .is_some_and(|value| !value.is_empty() && value != "none")
+    })
+}
+
+fn team_identifier(details: &str) -> Result<&str, String> {
+    match details
+        .lines()
+        .find_map(|line| line.strip_prefix("TeamIdentifier="))
+    {
+        Some(value) if !value.is_empty() && value != "not set" => Ok(value),
+        _ => Err("Developer ID signature has no Team ID".to_string()),
+    }
 }
 
 fn has_hardened_runtime(details: &str) -> bool {
@@ -445,6 +500,18 @@ fn validate_app(app: &Path) -> Result<(), String> {
     validate_regular_file(
         &app.join("Contents/MacOS").join(EXECUTABLE),
         "main executable",
+    )?;
+    validate_regular_file(
+        &app.join("Contents/MacOS").join(DAEMON_EXECUTABLE),
+        "local orchestra daemon",
+    )?;
+    validate_executable_permission(
+        &app.join("Contents/MacOS").join(EXECUTABLE),
+        "main executable",
+    )?;
+    validate_executable_permission(
+        &app.join("Contents/MacOS").join(DAEMON_EXECUTABLE),
+        "local orchestra daemon",
     )?;
     validate_macos_payload(app)?;
     reject_symlinks(app)?;
@@ -500,7 +567,11 @@ fn validate_macos_payload(app: &Path) -> Result<(), String> {
             .path()
             .extension()
             .is_some_and(|value| value == "dylib");
-        if !file_type.is_file() || (entry.file_name() != EXECUTABLE && !is_library) {
+        if !file_type.is_file()
+            || (entry.file_name() != EXECUTABLE
+                && entry.file_name() != DAEMON_EXECUTABLE
+                && !is_library)
+        {
             return Err(format!(
                 "app bundle contains an unsupported MacOS payload: {}",
                 entry.path().display()
@@ -538,9 +609,9 @@ fn reject_symlinks(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn native_libraries(app: &Path) -> Result<Vec<PathBuf>, String> {
+fn nested_native_payloads(app: &Path) -> Result<Vec<PathBuf>, String> {
     let directory = app.join("Contents/MacOS");
-    let mut libraries = Vec::new();
+    let mut payloads = Vec::new();
     for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| {
             format!(
@@ -553,25 +624,40 @@ fn native_libraries(app: &Path) -> Result<Vec<PathBuf>, String> {
             continue;
         }
         let path = entry.path();
-        if path.extension().is_none_or(|value| value != "dylib") {
+        let is_daemon = entry.file_name() == DAEMON_EXECUTABLE;
+        if !is_daemon && path.extension().is_none_or(|value| value != "dylib") {
             return Err(format!(
                 "native signing snapshot contains an unsupported payload: {}",
                 path.display()
             ));
         }
-        validate_regular_file(&path, "native library")?;
+        let label = if is_daemon {
+            "local orchestra daemon"
+        } else {
+            "native library"
+        };
+        validate_regular_file(&path, label)?;
+        if is_daemon {
+            validate_executable_permission(&path, label)?;
+        }
         if !file_is_mach_o_arm64(&path)
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?
         {
             return Err(format!(
-                "native signing snapshot contains a non-ARM64 Mach-O library: {}",
+                "native signing snapshot contains a non-ARM64 Mach-O payload: {}",
                 path.display()
             ));
         }
-        libraries.push(path);
+        payloads.push(path);
     }
-    libraries.sort();
-    Ok(libraries)
+    if !payloads.iter().any(|path| {
+        path.file_name()
+            .is_some_and(|name| name == DAEMON_EXECUTABLE)
+    }) {
+        return Err("native signing snapshot is missing the local orchestra daemon".to_string());
+    }
+    payloads.sort();
+    Ok(payloads)
 }
 
 fn validate_regular_file(path: &Path, label: &str) -> Result<(), String> {
@@ -580,6 +666,25 @@ fn validate_regular_file(path: &Path, label: &str) -> Result<(), String> {
     if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err(format!("{label} must be a regular non-symlink file"));
     }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn validate_executable_permission(path: &Path, label: &str) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mode = fs::metadata(path)
+        .map_err(|error| format!("failed to inspect {label} permissions: {error}"))?
+        .permissions()
+        .mode();
+    if mode & 0o111 == 0 {
+        return Err(format!("{label} is not executable"));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn validate_executable_permission(_path: &Path, _label: &str) -> Result<(), String> {
     Ok(())
 }
 
@@ -624,6 +729,7 @@ fn usage() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
 
     fn parse(arguments: &[&str]) -> Result<Options, String> {
         Options::parse(arguments.iter().map(|value| value.to_string()))
@@ -726,6 +832,22 @@ mod tests {
     }
 
     #[test]
+    fn signature_policy_requires_runtime_and_formal_identity_fields() {
+        let formal = "CodeDirectory flags=runtime\nAuthority=Developer ID Application: Example\nTimestamp=Jul 20, 2026\nTeamIdentifier=TEAM123";
+        assert!(validate_signature_policy(formal, "payload", false).is_ok());
+        assert_eq!(team_identifier(formal).unwrap(), "TEAM123");
+        assert!(validate_signature_policy(formal, "payload", true).is_ok());
+        assert!(validate_signature_policy("CodeDirectory flags=adhoc", "payload", true).is_err());
+        assert!(team_identifier("TeamIdentifier=not set").is_err());
+        assert!(validate_signature_policy(
+            "CodeDirectory flags=runtime\nAuthority=Developer ID Application: Example\nTimestamp=none",
+            "payload",
+            false
+        )
+        .is_err());
+    }
+
+    #[test]
     fn withholds_release_and_runtime_claims_from_adhoc_verification() {
         assert!(!formal_release_claims(true));
         assert!(formal_release_claims(false));
@@ -786,6 +908,10 @@ mod tests {
         fs::write(contents.join("Info.plist"), valid_plist()).unwrap();
         let executable = macos.join(EXECUTABLE);
         fs::write(&executable, b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+        let daemon = macos.join(DAEMON_EXECUTABLE);
+        fs::write(&daemon, b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01daemon").unwrap();
+        fs::set_permissions(&daemon, fs::Permissions::from_mode(0o755)).unwrap();
         assert!(validate_app(&app).unwrap_err().contains("non-ARM64 Mach-O"));
 
         fs::write(&executable, b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01payload").unwrap();
@@ -805,11 +931,46 @@ mod tests {
         fs::create_dir_all(&macos).unwrap();
         let payload = b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01payload";
         fs::write(macos.join(EXECUTABLE), payload).unwrap();
+        fs::write(macos.join(DAEMON_EXECUTABLE), payload).unwrap();
+        fs::set_permissions(
+            macos.join(DAEMON_EXECUTABLE),
+            fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
         fs::write(macos.join("native.dylib"), payload).unwrap();
-        assert_eq!(native_libraries(&app).unwrap().len(), 1);
+        assert_eq!(nested_native_payloads(&app).unwrap().len(), 2);
 
         fs::write(macos.join("late-addition.txt"), b"unexpected").unwrap();
-        assert!(native_libraries(&app).is_err());
+        assert!(nested_native_payloads(&app).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn signing_snapshot_requires_an_executable_arm64_daemon() {
+        let root = env::temp_dir().join(format!(
+            "gewyvern-leserpent-release-daemon-snapshot-{}",
+            process::id()
+        ));
+        let app = root.join("Leserpent.app");
+        let macos = app.join("Contents/MacOS");
+        fs::create_dir_all(&macos).unwrap();
+        let payload = b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01payload";
+        fs::write(macos.join(EXECUTABLE), payload).unwrap();
+        assert!(
+            nested_native_payloads(&app)
+                .unwrap_err()
+                .contains("missing")
+        );
+
+        let daemon = macos.join(DAEMON_EXECUTABLE);
+        fs::write(&daemon, payload).unwrap();
+        assert!(
+            nested_native_payloads(&app)
+                .unwrap_err()
+                .contains("not executable")
+        );
+        fs::set_permissions(&daemon, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(nested_native_payloads(&app).unwrap(), vec![daemon]);
         fs::remove_dir_all(root).unwrap();
     }
 }
