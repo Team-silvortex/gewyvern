@@ -14,4 +14,4 @@ if [ "${GEWY_FIELD_VALIDATE_SCAN_ALL:-0}" = "1" ]; then
 fi
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- "${ARGS[@]}"
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- "${ARGS[@]}"

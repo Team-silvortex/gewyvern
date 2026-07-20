@@ -315,9 +315,10 @@ copies. Managed timestamps, sidecar metadata, and token-presence booleans remain
 an explicit overlay because the Rust projection does not yet own those fields.
 Managed-only legacy entries remain readable; daemon-only entries fail closed
 rather than receiving fabricated compatibility metadata. Attention, cleanup,
-protocol-reading, and recovery paths still depend on managed services and must
-join the shared read projection before managed registration projection storage
-can be retired.
+protocol-reading, and recovery reads now use the shared read projection for
+authoritative identity, endpoint, tags, status, and capabilities. Managed token
+and sidecar metadata remains an explicit overlay until those facts move to an
+authoritative durable source. Cleanup remains managed.
 
 ## Leselang Semantics
 

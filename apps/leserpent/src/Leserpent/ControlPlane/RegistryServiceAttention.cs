@@ -4,6 +4,24 @@ namespace Leserpent.ControlPlane;
 
 public sealed partial class RegistryService
 {
+    private RuntimeAttentionView BuildRuntimeAttention(RuntimeRecord runtime, RuntimeSummary authoritativeRuntime)
+    {
+        var reasons = GetAttentionReasons(authoritativeRuntime.Status, runtime.SidecarStatus);
+        var recentActivities = GetRecentRecoveryActivities(runtime.RuntimeId);
+        var suggestedActions = GetSuggestedActions(reasons, recentActivities);
+        return new RuntimeAttentionView(
+            runtime.RuntimeId,
+            authoritativeRuntime.Name,
+            authoritativeRuntime.Endpoint,
+            authoritativeRuntime.Tags,
+            authoritativeRuntime.Status,
+            reasons.Count > 0,
+            reasons.Count > 0 ? GetAttentionSeverity(reasons) : "none",
+            reasons,
+            suggestedActions,
+            recentActivities);
+    }
+
     private static IReadOnlyList<string> GetAttentionReasons(
         RuntimeStatusSnapshot status,
         RuntimeSidecarStatusSnapshot? sidecarStatus)

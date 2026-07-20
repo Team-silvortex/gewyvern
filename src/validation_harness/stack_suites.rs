@@ -383,9 +383,10 @@ pub fn run_pathological_container_validation(
         &cfg.out_dir.join("meta-after-pathology.json"),
     )?;
 
+    let pathology_runtime_log_path = pathology_runtime_log_path();
     fs::write(
         cfg.out_dir.join("runtime.log"),
-        read_container_file(&cfg.gw_name, "/tmp/pathology-runtime.log")
+        read_container_file(&cfg.gw_name, pathology_runtime_log_path.as_str())
             .unwrap_or_else(|_| docker_logs(&cfg.gw_name).unwrap_or_default()),
     )?;
     let runtime_log = fs::read_to_string(cfg.out_dir.join("runtime.log"))?;
@@ -1423,17 +1424,41 @@ fn start_etragon_container(
                  --bind 0.0.0.0:4321 \
                  --interval-ms 500 \
                  --python-worker /workspace/dev/gewyvern/apps/etragon/scripts/python_baseline_worker.py \
-                 --python-state /tmp/etragon-online-state.json \
-                 --daemon-state /tmp/etragon-daemon-state.json",
-                cfg.gw_a_name
+                 --python-state {} \
+                 --daemon-state {}",
+                cfg.gw_a_name,
+                etragon_online_state_path(),
+                etragon_daemon_state_path()
             ));
     run_command(&mut command, "failed to start etragon container")
+}
+
+fn pathology_runtime_log_path() -> String {
+    env::var("GEWY_PATHOLOGY_RUNTIME_LOG")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "/tmp/pathology-runtime.log".to_string())
+}
+
+fn etragon_online_state_path() -> String {
+    env::var("GEWY_ETRAGON_ONLINE_STATE_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "/tmp/etragon-online-state.json".to_string())
+}
+
+fn etragon_daemon_state_path() -> String {
+    env::var("GEWY_ETRAGON_DAEMON_STATE_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "/tmp/etragon-daemon-state.json".to_string())
 }
 
 fn start_pathology_runtime(
     cfg: &PathologyConfig,
     target_cache_dir: &Path,
 ) -> Result<(), ValidationError> {
+    let pathology_runtime_log_path = pathology_runtime_log_path();
     let _ = Command::new("docker")
         .args(["rm", "-f", &cfg.gw_name])
         .output();
@@ -1462,7 +1487,7 @@ fn start_pathology_runtime(
         .arg(&cfg.image_tag)
         .arg("bash")
         .arg("-lc")
-        .arg(
+        .arg(format!(
             "/stack-target/gewyvern/debug/gewyvern \
                  --tcp-socket 0.0.0.0:9000 \
                  --template udp \
@@ -1471,11 +1496,12 @@ fn start_pathology_runtime(
                  --allow-remote-api \
                  --api-socket 0.0.0.0:9100 \
                  --log-level debug \
-                 --log-file /tmp/pathology-runtime.log \
+                 --log-file {} \
                  --no-log-stderr \
                  --json \
                  --summary-only",
-        );
+            pathology_runtime_log_path,
+        ));
     run_command(&mut command, "failed to start pathological runtime")
 }
 

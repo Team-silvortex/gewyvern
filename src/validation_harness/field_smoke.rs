@@ -1,8 +1,8 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{env, fs};
 
 use serde_json::Value;
 
@@ -96,7 +96,7 @@ fn check_gewyc_explain(out_dir: &Path) -> Result<(), ValidationError> {
 
 fn check_socket_roundtrip(out_dir: &Path) -> Result<(), ValidationError> {
     build_socket_binaries(out_dir)?;
-    let socket_path = format!("/tmp/gewyvern-field-validation-{}.sock", std::process::id());
+    let socket_path = default_field_socket_path();
     let output_path = out_dir.join("socket.json");
     let stdout = fs::File::create(out_dir.join("socket-server.stdout.log"))?;
     let stderr = fs::File::create(out_dir.join("socket-server.stderr.log"))?;
@@ -132,6 +132,21 @@ fn check_socket_roundtrip(out_dir: &Path) -> Result<(), ValidationError> {
     }
     let _ = fs::remove_file(&socket_path);
     result
+}
+
+fn default_field_socket_path() -> String {
+    env::var("GEWY_FIELD_SOCKET_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| {
+            env::temp_dir()
+                .join(format!(
+                    "gewyvern-field-validation-{}.sock",
+                    std::process::id()
+                ))
+                .to_string_lossy()
+                .into_owned()
+        })
 }
 
 fn run_socket_client(socket_path: &str) -> Result<(), ValidationError> {

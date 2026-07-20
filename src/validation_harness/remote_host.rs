@@ -1001,7 +1001,15 @@ fn remote_source_cache_dir(home_dir: &str) -> String {
 }
 
 fn ssh_control_path_template() -> String {
-    format!("/tmp/gwy-ssh-{}-%C", std::process::id())
+    env::var("GEWY_SSH_CONTROL_PATH_TEMPLATE")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| {
+            std::env::temp_dir()
+                .join(format!("gwy-ssh-{}-%C", std::process::id()))
+                .to_string_lossy()
+                .into_owned()
+        })
 }
 
 fn ssh_batch_mode_args() -> Vec<OsString> {

@@ -381,9 +381,9 @@ token-presence flags remain a compatibility overlay. Managed-only runtimes stay
 visible until their next registration reconcile, while a daemon-only runtime
 fails closed because the adapter cannot safely invent the missing 1.x metadata.
 Unknown projection fields, including secret-shaped fields, are rejected. The
-next slice must move attention/recovery reads onto this shared projection and
-give durable timestamps/sidecar metadata an authority home before the overlay
-can be removed.
+current slice now moves attention, protocol-reading, and recovery reads onto this
+shared projection. The next slice will give durable timestamps and sidecar metadata
+an authority home before the overlay can be removed.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

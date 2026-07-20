@@ -58,6 +58,57 @@ public sealed class RuntimeReadProjectionTests
     }
 
     [Fact]
+    public async Task AttentionUsesDaemonProjectionForIdentityAndStatusWhileRetainingManagedRecoveryHistory()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed Name",
+                    "https://managed.invalid",
+                    "runtime-secret",
+                    Tags: new RuntimeTags("managed", "west", "edge"),
+                    SidecarEndpoint: "https://sidecar.invalid",
+                    SidecarAdminToken: "sidecar-secret"),
+                "runtime-attention");
+
+            var reads = new RuntimeReadProjectionService(
+                registry,
+                new FakeDaemonReader(true, new[]
+                {
+                    Projection("runtime-attention") with
+                    {
+                        Name = "Daemon Name",
+                        Endpoint = "https://daemon.invalid",
+                        Tags = new RuntimeTags("daemon", "east", "edge"),
+                        Status = Projection("runtime-attention").Status with
+                        {
+                            StatusSource = "fetch_failed"
+                        }
+                    }
+                }));
+
+            var runtime = Assert.IsType<RuntimeSummary>(
+                await reads.InspectAsync("runtime-attention", CancellationToken.None));
+
+            var attention = registry.GetRuntimeAttention("runtime-attention", runtime);
+            Assert.NotNull(attention);
+            Assert.Equal("Daemon Name", attention!.Name);
+            Assert.Equal("https://daemon.invalid", attention.Endpoint);
+            Assert.Equal("daemon", attention.Tags.Environment);
+            Assert.Equal("fetch_failed", attention.Status.StatusSource);
+            Assert.True(attention.NeedsAttention);
+            Assert.Equal("critical", attention.Severity);
+            Assert.Contains("status_fetch_failed", attention.Reasons);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public async Task UnconfiguredOrManagedOnlyRuntimeRetainsManagedFallback()
     {
         var (registry, statePath) = CreateRegistry();

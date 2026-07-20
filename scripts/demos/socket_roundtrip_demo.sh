@@ -2,17 +2,26 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SOCKET_TARGET="${1:-/tmp/gewyvern-demo.sock}"
-TEMPLATE="${2:-udp}"
-OUT_PATH="${3:-/tmp/gewyvern-demo-output.json}"
+SOCKET_PATH="${1:-${GEWY_DEMO_SOCKET_PATH:-}}"
+SOCKET_TEMPLATE="${2:-udp}"
+SOCKET_OUTPUT="${3:-${GEWY_DEMO_OUTPUT:-}}"
 SOCKET_KIND="${4:-unix}"
 
-cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- \
-  socket-roundtrip \
-  --socket-target "${SOCKET_TARGET}" \
-  --template "${TEMPLATE}" \
-  --output "${OUT_PATH}" \
-  --socket-kind "${SOCKET_KIND}"
+if [[ -z "${SOCKET_PATH}" ]]; then
+  SOCKET_PATH="$(mktemp -u "${TMPDIR:-/tmp}/gewyvern-demo-XXXXXX.sock")"
+fi
+if [[ -z "${SOCKET_OUTPUT}" ]]; then
+  SOCKET_OUTPUT="${TMPDIR:-/tmp}/gewyvern-demo-output.json"
+fi
 
-cat "${OUT_PATH}"
+ARGS=(
+  socket-roundtrip
+  "${SOCKET_PATH}"
+  "${SOCKET_TEMPLATE}"
+  "${SOCKET_OUTPUT}"
+  "${SOCKET_KIND}"
+)
+
+cd "${ROOT}"
+
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_native_call "${ARGS[@]}"

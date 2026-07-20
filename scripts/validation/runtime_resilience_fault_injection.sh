@@ -21,7 +21,7 @@ case "${cmd}" in
       exit 1
     fi
     cd "${ROOT}"
-    cargo run --quiet --bin gewyvern_validate -- \
+    exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- \
       resilience-emit-helper \
       --mode "${mode}" \
       --output "${output_path}"
@@ -35,7 +35,7 @@ case "${cmd}" in
       exit 1
     fi
     cd "${ROOT}"
-    cargo run --quiet --bin gewyvern_validate -- \
+    exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- \
       resilience-drive-bad-json \
       --host "${host}" \
       --port "${port}" \

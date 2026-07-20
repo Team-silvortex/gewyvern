@@ -2,4 +2,6 @@
 
 set -euo pipefail
 
-exec cargo run --quiet --bin gewyvern_validate -- package-install-smoke "$@"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- package-install-smoke "$@"

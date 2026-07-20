@@ -118,6 +118,30 @@ public sealed partial class RegistryService
     public RuntimeSummary? GetRuntime(string runtimeId) =>
         runtimes.TryGetValue(runtimeId, out var runtime) ? runtime.ToSummary() : null;
 
+    public RuntimeAttentionView? GetRuntimeAttention(string runtimeId)
+    {
+        if (!runtimes.TryGetValue(runtimeId, out var runtime))
+        {
+            return null;
+        }
+        return BuildRuntimeAttention(runtime, runtime.ToSummary());
+    }
+
+    public RuntimeAttentionView? GetRuntimeAttention(
+        string runtimeId,
+        RuntimeSummary authoritativeRuntime)
+    {
+        if (!string.Equals(runtimeId, authoritativeRuntime.RuntimeId, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        if (!runtimes.TryGetValue(runtimeId, out var runtime))
+        {
+            return null;
+        }
+        return BuildRuntimeAttention(runtime, authoritativeRuntime);
+    }
+
     public RuntimeControlAccess? GetRuntimeControlAccess(string runtimeId) =>
         runtimes.TryGetValue(runtimeId, out var runtime)
             ? new RuntimeControlAccess(
@@ -127,29 +151,6 @@ public sealed partial class RegistryService
                 runtime.RuntimeAdminToken,
                 runtime.Tags)
             : null;
-
-    public RuntimeAttentionView? GetRuntimeAttention(string runtimeId)
-    {
-        if (!runtimes.TryGetValue(runtimeId, out var runtime))
-        {
-            return null;
-        }
-
-        var reasons = GetAttentionReasons(runtime.Status, runtime.SidecarStatus);
-        var recentActivities = GetRecentRecoveryActivities(runtime.RuntimeId);
-        var suggestedActions = GetSuggestedActions(reasons, recentActivities);
-        return new RuntimeAttentionView(
-            runtime.RuntimeId,
-            runtime.Name,
-            runtime.Endpoint,
-            runtime.Tags,
-            runtime.Status,
-            reasons.Count > 0,
-            reasons.Count > 0 ? GetAttentionSeverity(reasons) : "none",
-            reasons,
-            suggestedActions,
-            recentActivities);
-    }
 
     public FleetSummary GetFleetSummary(RuntimeListFilter? filter = null)
     {

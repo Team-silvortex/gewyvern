@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 API_ADDR="${1:-127.0.0.1:9910}"
-OUT_DIR="${2:-${TMPDIR:-/tmp}/gewyvern-resilience-roundtrip}"
+OUT_DIR="${2:-${GEWY_RESILIENCE_ROUNDTRIP_OUT_DIR:-${TMPDIR:-/tmp}/gewyvern-resilience-roundtrip}}"
 
 usage() {
   cat <<EOF
@@ -18,7 +18,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 fi
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- \
+"${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- \
   resilience-roundtrip \
   --api-addr "${API_ADDR}" \
   --out-dir "${OUT_DIR}"

@@ -24,4 +24,4 @@ while [ $# -gt 0 ]; do
 done
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- "${ARGS[@]}"
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- "${ARGS[@]}"

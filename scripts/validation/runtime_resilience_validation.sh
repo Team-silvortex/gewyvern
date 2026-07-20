@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 API_ADDR="${1:-127.0.0.1:9910}"
 LOG_SOURCE="${2:-}"
-OUT_DIR="${3:-${TMPDIR:-/tmp}/gewyvern-resilience-validation}"
+OUT_DIR="${3:-${GEWY_RESILIENCE_VALIDATION_OUT_DIR:-${TMPDIR:-/tmp}/gewyvern-resilience-validation}}"
 
 usage() {
   cat <<EOF
@@ -23,7 +23,7 @@ if [[ -z "${LOG_SOURCE}" ]]; then
 fi
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- \
+"${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- \
   resilience-bundle \
   --api-addr "${API_ADDR}" \
   --log-source "${LOG_SOURCE}" \

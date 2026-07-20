@@ -40,3 +40,8 @@ apps/etragon/scripts/__pycache__/
 apps/leserpent/src/Leserpent/data/control-plane-state.json
 apps/leserpent/src/Leserpent/data/control-plane-state.json.bak
 apps/leserpent/src/Leserpent/.leserpent-state/
+
+# Ignore generated Leserpent/Avalonia release artifacts
+artifacts/
+apps/leserpent-avalonia/osx-arm64/
+apps/leserpent-avalonia/Leserpent.app/

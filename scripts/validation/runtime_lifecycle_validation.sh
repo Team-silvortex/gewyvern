@@ -9,4 +9,4 @@ if [ "${1:-}" = "--out-dir" ]; then
 fi
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- runtime-lifecycle --out-dir "${OUT_DIR}"
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- runtime-lifecycle --out-dir "${OUT_DIR}"

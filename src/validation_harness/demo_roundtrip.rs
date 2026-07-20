@@ -28,7 +28,7 @@ pub fn run_socket_roundtrip_demo(
     prepare_dir(&out_dir)?;
     build_socket_binaries(&out_dir)?;
 
-    let default_socket = format!("/tmp/gewyvern-demo-{}.sock", std::process::id());
+    let default_socket = default_demo_socket_path();
     let socket_target = socket_target.unwrap_or(&default_socket);
     let output_path = output_path.unwrap_or_else(|| out_dir.join("socket-output.json"));
     if let Some(parent) = output_path.parent() {
@@ -68,6 +68,18 @@ pub fn run_socket_roundtrip_demo(
             "socket_output_contains_template_and_facts".to_string(),
         ],
     })
+}
+
+fn default_demo_socket_path() -> String {
+    std::env::var("GEWY_DEMO_SOCKET_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| {
+            std::env::temp_dir()
+                .join(format!("gewyvern-demo-{}.sock", std::process::id()))
+                .to_string_lossy()
+                .into_owned()
+        })
 }
 
 pub fn run_training_dataset_roundtrip_demo(

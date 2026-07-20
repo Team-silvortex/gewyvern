@@ -7,4 +7,4 @@ source "${ROOT}/scripts/remote/container_execution.sh"
 gewy_container_maybe_run_remote "$@"
 
 cd "${ROOT}"
-exec cargo run --quiet --bin gewyvern_validate -- release-container-check "$@"
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- release-container-check "$@"

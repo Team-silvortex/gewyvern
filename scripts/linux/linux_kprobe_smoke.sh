@@ -5,4 +5,4 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SYMBOL_NAME="${1:-ip_route_output_flow}"
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- linux-kprobe-smoke --symbol "${SYMBOL_NAME}"
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_native_call linux-kprobe-smoke "${SYMBOL_NAME}"

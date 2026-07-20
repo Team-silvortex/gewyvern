@@ -5,4 +5,4 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEV_NAME="${1:-eth0}"
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- linux-tc-smoke --dev "${DEV_NAME}"
+exec "${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_native_call linux-tc-smoke "${DEV_NAME}"

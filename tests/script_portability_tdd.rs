@@ -16,7 +16,8 @@ fn field_validation_socket_roundtrip_uses_short_cross_platform_socket_path() {
     let harness = read_repo_file("src/validation_harness/field_smoke.rs");
     let script = read_repo_file("scripts/validation/field_validation_smoke.sh");
 
-    assert!(harness.contains("/tmp/gewyvern-field-validation-{}.sock"));
+    assert!(harness.contains("env::temp_dir()"));
+    assert!(harness.contains("gewyvern-field-validation-{}.sock"));
     assert!(!script.contains("/private/tmp/gewyvern-field-validation.sock"));
     assert!(!script.contains("ROUNDTRIP_SOCKET=\"${TMP_DIR}/gewyvern-field-validation.sock\""));
 }

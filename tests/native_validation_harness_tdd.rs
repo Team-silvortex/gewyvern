@@ -495,9 +495,18 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
     assert!(binary.contains("linux-attach-smoke"));
     assert!(binary.contains("linux-kprobe-smoke"));
     assert!(binary.contains("linux-tc-smoke"));
-    assert!(attach_script.contains("gewyvern_validate -- linux-attach-smoke"));
-    assert!(kprobe_script.contains("gewyvern_validate -- linux-kprobe-smoke"));
-    assert!(tc_script.contains("gewyvern_validate -- linux-tc-smoke"));
+    assert!(
+        attach_script.contains("run_native_validation_bin.sh")
+            && attach_script.contains("linux-attach-smoke")
+    );
+    assert!(
+        kprobe_script.contains("run_native_validation_bin.sh")
+            && kprobe_script.contains("linux-kprobe-smoke")
+    );
+    assert!(
+        tc_script.contains("run_native_validation_bin.sh")
+            && tc_script.contains("linux-tc-smoke")
+    );
     assert!(
         entrypoints
             .contains("sudo cargo run --quiet --bin gewyvern_validate -- linux-attach-smoke")

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 FORMAT="text"
 TITLE="IR Baseline Snapshots"
 declare -a ITEMS=()
@@ -59,8 +59,7 @@ for item in "${ITEMS[@]}"; do
   fi
 
   rendered="$(
-    cd "$ROOT_DIR"
-    cargo run --quiet --bin gewyc_ir_snapshot -- "$path" "--${FORMAT}"
+    cd "${ROOT_DIR}" && "${ROOT_DIR}/scripts/run_native_validation_bin.sh" gewyc_ir_snapshot "$path" "--${FORMAT}"
   )"
 
   echo "### ${label}"

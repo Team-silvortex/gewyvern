@@ -11,7 +11,7 @@ EOF
 }
 
 INPUT_PATH="${1:-}"
-OUT_DIR="${2:-${TMPDIR:-/tmp}/gewyvern-resilience-log-evidence}"
+OUT_DIR="${2:-${GEWY_RESILIENCE_LOG_EVIDENCE_OUT_DIR:-${TMPDIR:-/tmp}/gewyvern-resilience-log-evidence}}"
 
 if [[ -z "${INPUT_PATH}" ]]; then
   usage
@@ -23,7 +23,7 @@ if [[ "${INPUT_PATH}" == "--help" || "${INPUT_PATH}" == "-h" ]]; then
 fi
 
 cd "${ROOT}"
-cargo run --quiet --bin gewyvern_validate -- \
+"${ROOT}/scripts/run_native_validation_bin.sh" gewyvern_validate -- \
   resilience-log-evidence \
   --log-source "${INPUT_PATH}" \
   --out-dir "${OUT_DIR}"

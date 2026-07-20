@@ -74,9 +74,20 @@ public partial class Program
             return runtime is null ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id)) : Results.Ok(runtime);
         });
 
-        app.MapGet("/v1/runtimes/{id}/attention", (string id, RegistryService registry) =>
+        app.MapGet("/v1/runtimes/{id}/attention", async Task<IResult> (string id, RuntimeReadProjectionService runtimeReads, RegistryService registry, CancellationToken cancellationToken) =>
         {
-            var attention = registry.GetRuntimeAttention(id);
+            RuntimeSummary? runtime;
+            try
+            {
+                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
+            var attention = runtime is null
+                ? null
+                : registry.GetRuntimeAttention(id, runtime);
             return attention is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(attention);
@@ -112,9 +123,17 @@ public partial class Program
                     runtime.SidecarStatus));
         });
 
-        app.MapGet("/v1/runtimes/{id}/protocol-reading", async Task<IResult> (string id, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapGet("/v1/runtimes/{id}/protocol-reading", async Task<IResult> (string id, RuntimeReadProjectionService runtimeReads, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
+            RuntimeSummary? runtime;
+            try
+            {
+                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
             if (runtime is null)
             {
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
@@ -393,9 +412,10 @@ public partial class Program
             RuntimeRecoveryCommandRequest request,
             RegistryService registry,
             CapabilityDiscoveryService discovery,
+            RuntimeReadProjectionService runtimeReads,
             ICompatibilityBridge compatibilityBridge,
             CancellationToken cancellationToken) =>
-            ExecuteRuntimeRecoveryAsync(id, request, registry, discovery, compatibilityBridge, cancellationToken));
+            ExecuteRuntimeRecoveryAsync(id, request, runtimeReads, registry, discovery, compatibilityBridge, cancellationToken));
 
         app.MapPost("/v1/runtimes/{id}/refresh-status", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
         {
@@ -616,6 +636,7 @@ public partial class Program
     private static async Task<IResult> ExecuteRuntimeRecoveryAsync(
         string runtimeId,
         RuntimeRecoveryCommandRequest request,
+        RuntimeReadProjectionService runtimeReads,
         RegistryService registry,
         CapabilityDiscoveryService discovery,
         ICompatibilityBridge compatibilityBridge,
@@ -630,7 +651,15 @@ public partial class Program
                 RuntimeId: runtimeId));
         }
 
-        var runtime = registry.GetRuntime(runtimeId);
+        RuntimeSummary? runtime;
+        try
+        {
+            runtime = await runtimeReads.InspectAsync(runtimeId, cancellationToken);
+        }
+        catch (DaemonRuntimeProjectionException ex)
+        {
+            return RuntimeProjectionFailure(ex, runtimeId);
+        }
         if (runtime is null)
         {
             return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: runtimeId));
