@@ -371,8 +371,19 @@ missing legacy runtimes as an explicit reconcile step, submits registration and
 successful discovery observations through private authenticated IPC, and only
 then commits the managed compatibility projection. Pairing/admin tokens and raw
 error payloads never enter the Rust command. An unconfigured development host
-retains the managed fallback. Moving Web read projections out of managed state
-is the next cutover slice.
+retains the managed fallback.
+
+The first Web read cutover now routes runtime list, runtime detail, and runtime
+status through strict typed daemon `runtime_list` / `runtime_inspect` queries
+when IPC is configured. Daemon name, endpoint, tags, status, and observed
+capabilities override managed copies; legacy timestamps, sidecar metadata, and
+token-presence flags remain a compatibility overlay. Managed-only runtimes stay
+visible until their next registration reconcile, while a daemon-only runtime
+fails closed because the adapter cannot safely invent the missing 1.x metadata.
+Unknown projection fields, including secret-shaped fields, are rejected. The
+next slice must move attention/recovery reads onto this shared projection and
+give durable timestamps/sidecar metadata an authority home before the overlay
+can be removed.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

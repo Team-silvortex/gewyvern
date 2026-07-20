@@ -307,6 +307,18 @@ and raw adapter payloads do not cross the authority boundary. The managed path
 remains only when daemon configuration is absent; daemon-backed read projection
 migration is the next compatibility step.
 
+That migration now covers the public runtime list, detail, and status reads.
+The compatibility adapter strictly decodes daemon projections and rejects
+unknown or incomplete nested fields. For reconciled runtimes, daemon identity,
+endpoint, tags, status, and observed capability facts replace their managed
+copies. Managed timestamps, sidecar metadata, and token-presence booleans remain
+an explicit overlay because the Rust projection does not yet own those fields.
+Managed-only legacy entries remain readable; daemon-only entries fail closed
+rather than receiving fabricated compatibility metadata. Attention, cleanup,
+protocol-reading, and recovery paths still depend on managed services and must
+join the shared read projection before managed registration projection storage
+can be retired.
+
 ## Leselang Semantics
 
 Leselang is a small functional language with synchronous source semantics:

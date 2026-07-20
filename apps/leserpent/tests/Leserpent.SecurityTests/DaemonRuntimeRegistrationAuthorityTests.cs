@@ -178,6 +178,14 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             Assert.Equal(4, runtime.GetProperty("revision").GetInt64());
             Assert.Equal("1.2.0", runtime.GetProperty("capabilities").GetProperty("version").GetString());
             Assert.Equal(3, runtime.GetProperty("capabilities_observed_for_revision").GetInt64());
+
+            var typedList = await authority.ListAsync(
+                new RuntimeListFilter(null, null, null),
+                CancellationToken.None);
+            var typedInspect = await authority.InspectAsync(runtimeId, CancellationToken.None);
+            Assert.Equal("Runtime Updated", Assert.Single(typedList).Name);
+            Assert.Equal((ulong)4, typedInspect?.Revision);
+            Assert.Equal("1.2.0", typedInspect?.Capabilities?.Version);
         }
         finally
         {
@@ -192,6 +200,83 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             TryDelete(databasePath + "-wal");
             TryDelete(databasePath + "-shm");
         }
+    }
+
+    [Fact]
+    public async Task ConfiguredAuthorityReadsStrictTypedRuntimeProjections()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        var server = ServeSequenceAsync(
+            listener,
+            requests,
+            (_, index) => index == 0 ? RuntimeListResponse() : RuntimeInspectResponse(),
+            2);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var listed = await authority.ListAsync(
+            new RuntimeListFilter(" prod ", null, "edge"),
+            CancellationToken.None);
+        var inspected = await authority.InspectAsync("runtime-a", CancellationToken.None);
+        await server;
+
+        var runtime = Assert.Single(listed);
+        Assert.Equal("runtime-a", runtime.RuntimeId);
+        Assert.Equal("Daemon Runtime", runtime.Name);
+        Assert.Equal("1.2.0", runtime.Capabilities?.Version);
+        Assert.Equal("gewyvern-api", runtime.Status.StatusSource);
+        Assert.Equal(runtime.RuntimeId, inspected?.RuntimeId);
+        Assert.Equal(runtime.Revision, inspected?.Revision);
+        Assert.Equal(runtime.Status, inspected?.Status);
+        Assert.Equal(runtime.Capabilities?.Version, inspected?.Capabilities?.Version);
+        var filter = requests[0]
+            .GetProperty("request")
+            .GetProperty("request")
+            .GetProperty("payload")
+            .GetProperty("query")
+            .GetProperty("filter");
+        Assert.Equal("prod", filter.GetProperty("environment").GetString());
+        Assert.Equal("edge", filter.GetProperty("role").GetString());
+        Assert.DoesNotContain("token", requests[0]
+            .GetProperty("request")
+            .GetProperty("request")
+            .GetRawText(), StringComparison.OrdinalIgnoreCase);
+
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task ConfiguredAuthorityRejectsUnknownProjectionFields()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        var response = RuntimeInspectResponse().Replace(
+            "\"refresh_count\":0",
+            "\"refresh_count\":0,\"pairing_token\":\"secret\"",
+            StringComparison.Ordinal);
+        var server = ServeSequenceAsync(listener, requests, (_, _) => response, 1);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var error = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+            authority.InspectAsync("runtime-a", CancellationToken.None));
+        await server;
+        Assert.Equal("daemon_projection_invalid", error.Code);
+
+        TryDelete(socketPath);
     }
 
     [Fact]
@@ -389,6 +474,38 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         "\"response\":{\"kind\":\"query\"," +
         "\"payload\":{\"kind\":\"runtime_inspect\",\"revision\":" + revision + "," +
         "\"runtime\":{\"id\":\"" + runtimeId + "\",\"revision\":" + revision + "}}}}";
+
+    private static string RuntimeListResponse() =>
+        "{" +
+        "\"schema_version\":1," +
+        "\"response\":{\"kind\":\"query\"," +
+        "\"payload\":{\"kind\":\"runtime_list\",\"revision\":2,\"runtimes\":[" +
+        RuntimeProjectionJson() + "]}}}";
+
+    private static string RuntimeInspectResponse() =>
+        "{" +
+        "\"schema_version\":1," +
+        "\"response\":{\"kind\":\"query\"," +
+        "\"payload\":{\"kind\":\"runtime_inspect\",\"revision\":2,\"runtime\":" +
+        RuntimeProjectionJson() + "}}}";
+
+    private static string RuntimeProjectionJson() =>
+        "{" +
+        "\"id\":\"runtime-a\",\"name\":\"Daemon Runtime\",\"endpoint\":\"https://daemon.invalid\"," +
+        "\"revision\":2,\"refresh_count\":0,\"refresh_status\":\"ready\"," +
+        "\"tags\":{\"environment\":\"prod\",\"cluster\":null,\"role\":\"edge\"}," +
+        "\"status\":{\"status_source\":\"gewyvern-api\",\"status_fetched_at\":\"2026-07-20T12:00:00Z\",\"status_fetch_error\":null," +
+        "\"has_latest_snapshot\":true,\"snapshot_kind\":\"capture\",\"target_count\":3," +
+        "\"has_summary_json\":true,\"has_analysis_json\":true,\"has_training_example_json\":false," +
+        "\"has_training_dataset_manifest\":false,\"has_export_json\":false,\"has_report_json\":false,\"has_report_html\":false," +
+        "\"has_external_sidecar_context\":true,\"has_external_evidence_chain_enrichment\":false,\"has_external_diagnostic_opinion\":false," +
+        "\"resilience_degraded\":false,\"resilience_status\":null,\"resilience_summary\":null,\"socket_service_status\":null," +
+        "\"socket_consecutive_idle_timeouts\":null,\"socket_total_idle_timeouts\":null}," +
+        "\"capabilities\":{\"source\":\"gewyvern-api\",\"service\":\"gewyvern-api\",\"version\":\"1.2.0\"," +
+        "\"latest_snapshot\":true,\"authenticated_deployment\":true,\"serve_required\":true,\"external_sidecar_context\":true," +
+        "\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"," +
+        "\"endpoints\":[\"/v1/capabilities\",\"/v1/deployments\"],\"extensions\":{}}," +
+        "\"capabilities_observed_for_revision\":1}";
 
     private static string BuildCommandId(string runtimeId, string name, string endpoint)
     {

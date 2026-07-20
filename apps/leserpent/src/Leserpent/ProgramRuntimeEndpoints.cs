@@ -10,11 +10,21 @@ public partial class Program
 {
     private static void MapRuntimeEndpoints(WebApplication app)
     {
-        app.MapGet("/v1/runtimes", async Task<IResult> ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
+        app.MapGet("/v1/runtimes", async Task<IResult> ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RuntimeReadProjectionService runtimeReads, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
         {
+            var filter = new RuntimeListFilter(environmentTag, cluster, role);
+            IReadOnlyList<RuntimeSummary> runtimes;
+            try
+            {
+                runtimes = await runtimeReads.ListAsync(filter, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex);
+            }
             var response = new RuntimeCollectionResponse(
-                new RuntimeListFilter(environmentTag, cluster, role),
-                registry.ListRuntimes(new RuntimeListFilter(environmentTag, cluster, role)));
+                filter,
+                runtimes);
             try
             {
                 await compatibilityBridge.ValidateRuntimeListAsync(response, cancellationToken);
@@ -50,9 +60,17 @@ public partial class Program
                 : Results.BadRequest(new ApiErrorResponse("invalid_runtime_registration_plan", validation));
         });
 
-        app.MapGet("/v1/runtimes/{id}", (string id, RegistryService registry) =>
+        app.MapGet("/v1/runtimes/{id}", async Task<IResult> (string id, RuntimeReadProjectionService runtimeReads, CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
+            RuntimeSummary? runtime;
+            try
+            {
+                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
             return runtime is null ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id)) : Results.Ok(runtime);
         });
 
@@ -64,9 +82,17 @@ public partial class Program
                 : Results.Ok(attention);
         });
 
-        app.MapGet("/v1/runtimes/{id}/status", (string id, RegistryService registry) =>
+        app.MapGet("/v1/runtimes/{id}/status", async Task<IResult> (string id, RuntimeReadProjectionService runtimeReads, CancellationToken cancellationToken) =>
         {
-            var runtime = registry.GetRuntime(id);
+            RuntimeSummary? runtime;
+            try
+            {
+                runtime = await runtimeReads.InspectAsync(id, cancellationToken);
+            }
+            catch (DaemonRuntimeProjectionException ex)
+            {
+                return RuntimeProjectionFailure(ex, id);
+            }
             return runtime is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(new RuntimeStatusRefreshResponse(runtime.RuntimeId, runtime.Name, runtime.Endpoint, runtime.Status));
@@ -793,4 +819,11 @@ public partial class Program
                 statusCode: StatusCodes.Status502BadGateway),
         };
     }
+
+    private static IResult RuntimeProjectionFailure(
+        DaemonRuntimeProjectionException exception,
+        string? runtimeId = null) =>
+        Results.Json(
+            new ApiErrorResponse(exception.Code, exception.Message, RuntimeId: runtimeId),
+            statusCode: StatusCodes.Status502BadGateway);
 }

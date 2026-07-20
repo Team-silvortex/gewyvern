@@ -130,6 +130,15 @@ acceptance. Existing managed-only runtimes are reconciled into the daemon on
 their next registration update. An unconfigured development host continues to
 use the managed registration path.
 
+With daemon IPC configured, `/v1/runtimes`, `/v1/runtimes/{id}`, and
+`/v1/runtimes/{id}/status` read identity, endpoint, tags, status, and observed
+capability facts from the daemon. The managed store supplies only legacy
+timestamps, sidecar metadata, and token-presence booleans. Managed-only entries
+remain readable during migration; daemon-only entries fail with a typed gateway
+error until compatibility metadata is explicitly reconciled. Attention,
+cleanup, protocol-reading, and recovery still use managed lookups in this
+transition and are not yet evidence that the overlay can be deleted.
+
 ## Security Model
 
 The default security posture should remain conservative and local-first:

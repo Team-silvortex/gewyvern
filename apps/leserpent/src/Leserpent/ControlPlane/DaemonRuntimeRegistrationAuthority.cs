@@ -18,7 +18,9 @@ public interface IRuntimeRegistrationAuthority
         RuntimeStatusDiscoveryResult? statusDiscovery = null);
 }
 
-public sealed class DaemonRuntimeRegistrationAuthority : IRuntimeRegistrationAuthority
+public sealed partial class DaemonRuntimeRegistrationAuthority :
+    IRuntimeRegistrationAuthority,
+    IDaemonRuntimeProjectionReader
 {
     private const int MaxFrameBytes = 1024 * 1024 + 1024;
     private readonly string? socketPath;

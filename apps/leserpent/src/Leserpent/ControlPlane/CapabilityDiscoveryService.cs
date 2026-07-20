@@ -34,41 +34,24 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             }
             var payload = discoveryPayload.Payload;
 
-            var capabilities = new List<RuntimeCapability>
-            {
-                new("api.latest_snapshot", payload.LatestSnapshot ? "fully_supported" : "not_supported", "runtime publishes latest snapshot metadata and JSON surfaces"),
-                new("control.authenticated_deployment", payload.AuthenticatedDeployment ? "fully_supported" : "not_supported", "runtime accepts typed, token-authenticated deployment requests"),
-                new("api.target_routing", "fully_supported", $"target routing uses {payload.TargetPathSegmentEncoding} path encoding"),
-                new("api.external_sidecar_context", payload.ExternalSidecarContext ? "fully_supported" : "not_supported", "runtime can expose additive nearby sidecar collaboration context"),
-                new("runtime.serve_required", payload.ServeRequired ? "fully_supported" : "not_supported", "runtime requires standalone serve mode for latest-snapshot API access")
-            };
-
             var endpointSet = payload.Endpoints ?? Array.Empty<string>();
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/meta", "api.latest.meta", "latest snapshot metadata surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/targets", "api.latest.targets", "latest target index surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/summary.json", "api.summary_json", "machine-facing summary JSON surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/analysis.json", "api.analysis_json", "machine-facing analysis JSON surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/training-example.json", "api.training_example_json", "machine-facing training example JSON surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/training-dataset.json", "api.training_dataset_manifest", "training dataset manifest surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/export.json", "api.export_json", "machine-facing export JSON surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/report.json", "api.report_json", "machine-facing report JSON surface");
-            AddEndpointCapability(capabilities, endpointSet, "/v1/latest/report.html", "api.report_html", "human-facing HTML report surface");
+            var authoritySnapshot = new RuntimeCapabilityAuthoritySnapshot(
+                "gewyvern-api",
+                payload.Service,
+                payload.Version,
+                payload.LatestSnapshot,
+                payload.AuthenticatedDeployment,
+                payload.ServeRequired,
+                payload.ExternalSidecarContext,
+                payload.TargetPathSegmentEncoding,
+                payload.TargetDirectPathChars,
+                endpointSet.Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray(),
+                discoveryPayload.Extensions);
 
             return CapabilityDiscoveryResult.Succeeded(
                 capabilityUrl,
-                capabilities.OrderBy(capability => capability.Key, StringComparer.OrdinalIgnoreCase).ToArray(),
-                new RuntimeCapabilityAuthoritySnapshot(
-                    "gewyvern-api",
-                    payload.Service,
-                    payload.Version,
-                    payload.LatestSnapshot,
-                    payload.AuthenticatedDeployment,
-                    payload.ServeRequired,
-                    payload.ExternalSidecarContext,
-                    payload.TargetPathSegmentEncoding,
-                    payload.TargetDirectPathChars,
-                    endpointSet.Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal).ToArray(),
-                    discoveryPayload.Extensions));
+                RuntimeCapabilityProjection.ToLegacy(authoritySnapshot),
+                authoritySnapshot);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -356,14 +339,6 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             surfacePayload.SelectedIsDefault,
             string.IsNullOrWhiteSpace(surfacePayload.SelectedOverlay) ? null : surfacePayload.SelectedOverlay.Trim(),
             companions);
-    }
-
-    private static void AddEndpointCapability(List<RuntimeCapability> capabilities, IReadOnlyList<string> endpoints, string path, string key, string description)
-    {
-        capabilities.Add(new RuntimeCapability(
-            key,
-            endpoints.Contains(path, StringComparer.OrdinalIgnoreCase) ? "fully_supported" : "not_supported",
-            description));
     }
 
     private static string BuildCapabilityUrl(string endpoint, string? capabilityEndpoint)

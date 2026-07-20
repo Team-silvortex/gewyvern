@@ -104,6 +104,16 @@ capability list. Pairing/admin tokens and discovery error strings are never
 written into these commands. Without daemon configuration, the existing managed
 registration path remains the explicit development fallback.
 
+Configured runtime list, detail, and status reads now consume the existing
+typed `runtime_list` and `runtime_inspect` query results over the same private
+IPC boundary. The C# decoder rejects unknown and incomplete fields recursively.
+Daemon name, endpoint, tags, status, and observed capabilities are authoritative;
+managed timestamps, sidecar metadata, and token-presence flags are overlaid only
+for the legacy response contract. Managed-only runtimes remain visible during
+reconciliation. A daemon-only runtime returns a typed 502 instead of receiving
+invented compatibility metadata. Other Web operations continue to use managed
+lookups until their attention/recovery contracts are migrated deliberately.
+
 The daemon's typed deployment receipt is intentionally narrower than a generic
 effect-result query. It requires deployment capability, binds command ID and
 request ID to the persisted deployment payload, and returns only pending,
@@ -152,7 +162,8 @@ LESERPENT_TEST_DAEMON_BIN="$PWD/target/debug/leserpentd" \
 ```
 
 Prove the configured C# registration adapter and real daemon agree on create,
-typed discovery intake, revision-inspected update, and final projection:
+typed discovery intake, revision-inspected update, typed list/inspect readback,
+and final projection:
 
 ```bash
 cargo build --locked -p leserpentd --bin leserpentd
