@@ -345,9 +345,14 @@ session verification. The independent submission boundary is now live at HTTPS
 accepted by ordinary `/v1/wire` and remains disabled without a registered
 bootstrap adapter. Submission commits the effect and revision-1 `Planned`
 checkpoint atomically, then worker settlement advances it to revision 2 before
-session binding can advance it again. The Rust CLI owns the full
-deploy/inspect/bind sequence. Avalonia Hub controls must still consume these
-operations before the complete reverse-deploy workflow is user-facing.
+session binding can advance it again. Both the Rust CLI and Avalonia Hub own the
+full deploy/inspect/bind sequence. The Hub selects an existing authenticated
+daemon authority, submits only a `vault:ssh:*` handle, polls the public handoff,
+and keeps session binding disabled until the server publishes `Bootstrapped`.
+Each operation re-resolves the authority from the connection catalog so a
+replaced profile cannot inherit an open window's trust. Connection promotion
+still requires a locally verifiable trust record; the client must not invent
+local CA state for a receipt produced by an inaccessible remote trust root.
 
 The checked shape is
 `docs/fixtures/leserpent-bootstrap-origin-v1.example.json`. Operators must copy

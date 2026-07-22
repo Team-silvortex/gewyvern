@@ -40,11 +40,12 @@ internal sealed class HubWindow : Window
         Func<CancellationToken, Task<RemoteTopologySnapshot>> loadLocalTopology,
         Func<DesktopDaemonConnection, CancellationToken, Task<RemoteTopologySnapshot>>
             loadRemoteTopology,
+        Action deployDaemon,
         Action addConnection,
         Action<DesktopDaemonConnection> manageConnection)
     {
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 2 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 3 + connections.Count * 3 + (localSupported ? 2 : 0);
         Title = "Leserpent / Hub";
         Width = 900;
         Height = 680;
@@ -69,6 +70,25 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetName(addButton, "Add a leserpent daemon connection");
         auditedControls.Add(addButton);
         addButton.Click += (_, _) => addConnection();
+
+        var deployButton = new Button
+        {
+            Content = "Deploy daemon",
+            Padding = new Thickness(17, 9),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AutomationProperties.SetAutomationId(deployButton, "hub-deploy-daemon");
+        AutomationProperties.SetName(deployButton, "Deploy a leserpent daemon to a target host");
+        auditedControls.Add(deployButton);
+        deployButton.Click += (_, _) => deployDaemon();
+
+        var headingActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 9,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { deployButton, addButton },
+        };
 
         var heading = new Grid
         {
@@ -104,8 +124,8 @@ internal sealed class HubWindow : Window
                 },
             },
         });
-        Grid.SetColumn(addButton, 1);
-        heading.Children.Add(addButton);
+        Grid.SetColumn(headingActions, 1);
+        heading.Children.Add(headingActions);
 
         var topology = new StackPanel { Spacing = 10 };
         topology.Children.Add(CreateClientRoot(connections.Count, localSupported));
@@ -718,21 +738,21 @@ internal sealed class HubWindow : Window
         IBrush background,
         IBrush foreground,
         double size = 40) => new()
-    {
-        Width = size,
-        Height = size,
-        Background = background,
-        CornerRadius = new CornerRadius(size / 2),
-        Child = new TextBlock
         {
-            Text = text,
-            Foreground = foreground,
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        },
-    };
+            Width = size,
+            Height = size,
+            Background = background,
+            CornerRadius = new CornerRadius(size / 2),
+            Child = new TextBlock
+            {
+                Text = text,
+                Foreground = foreground,
+                FontSize = 14,
+                FontWeight = FontWeight.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
 
     private static StackPanel NodeText(string title, string subtitle, string? detail = null)
     {

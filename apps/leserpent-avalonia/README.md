@@ -90,6 +90,17 @@ Verify the
 strict wire projection with `--verify-remote-topology` and the real Hub control
 tree with `--verify-hub-topology`.
 
+`Deploy daemon` opens the native reverse-deployment workspace. It selects one
+saved authenticated daemon as the deployment authority, accepts only a target,
+SSH port, stable bootstrap ID, and opaque `vault:ssh:*` handle, and requires an
+explicit confirmation before calling `POST /v1/bootstrap`. The workspace polls
+the public handoff over ordinary wire-v1 and enables `Verify & bind session`
+only after the authority publishes `Bootstrapped`. Every operation revalidates
+the selected catalog entry and reloads its platform credential; raw passwords,
+private keys, session tokens, and CA material never enter the form or bootstrap
+IR. Verify the strict client codec with `--verify-bootstrap-client` and the real
+control sequence with `--verify-bootstrap-controls`.
+
 Runtime children are direct workspace actions. Selecting one creates or reuses
 its owning daemon session, but the workspace is not opened from the Hub's query
 projection. The request remains bounded and pending until that daemon session

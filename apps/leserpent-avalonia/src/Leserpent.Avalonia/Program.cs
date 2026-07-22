@@ -62,6 +62,13 @@ internal static class Program
                 "deployment mutation contract valid: typed=true, confirmed=true, bounded=true, null_omission=true");
             return 0;
         }
+        if (args is ["--verify-bootstrap-client"])
+        {
+            RemoteBootstrapClient.VerifyContract();
+            Console.WriteLine(
+                "bootstrap client valid: submit_route=true, inspect_wire=true, bind_wire=true, strict_state=true, bounded=true, opaque_handles=true, raw_secrets=false");
+            return 0;
+        }
         if (args is ["--verify-parameterized-form"])
         {
             RemoteWorkspaceDocumentProjection.VerifyParameterizedFormContract();

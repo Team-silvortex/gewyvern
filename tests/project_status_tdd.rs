@@ -203,6 +203,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "independent-authenticated-bootstrap-submission")
     );
+    assert!(
+        bootstrap
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "avalonia-phase-gated-session-binding")
+    );
     assert!(bootstrap.blockers.iter().any(|blocker| {
         blocker.id == "cross-platform-bootstrap-installation-incomplete"
             && blocker
@@ -216,8 +223,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|blocker| blocker.id == "bootstrap-production-entry-missing")
     );
     assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "bootstrap-client-flow-missing"
-            && blocker.summary.contains("Avalonia Hub")
+        blocker.id == "bootstrap-client-promotion-missing"
+            && blocker.summary.contains("connection promotion")
     }));
 
     let ui = catalog

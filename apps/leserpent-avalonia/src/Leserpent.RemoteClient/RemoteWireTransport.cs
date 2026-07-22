@@ -37,14 +37,38 @@ internal sealed class RemoteWireTransport : IDisposable
         ReadOnlyMemory<byte> payload,
         string operation,
         CancellationToken cancellationToken)
+        => await PostAsync(
+            payload,
+            operation,
+            "v1/wire",
+            RemoteEventCodec.MaxMessageBytes,
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<byte[]> PostBootstrapAsync(
+        ReadOnlyMemory<byte> payload,
+        string operation,
+        CancellationToken cancellationToken)
+        => await PostAsync(
+            payload,
+            operation,
+            "v1/bootstrap",
+            RemoteBootstrapClient.MaxMessageBytes,
+            cancellationToken).ConfigureAwait(false);
+
+    private async Task<byte[]> PostAsync(
+        ReadOnlyMemory<byte> payload,
+        string operation,
+        string route,
+        int maxMessageBytes,
+        CancellationToken cancellationToken)
     {
-        if (payload.Length > RemoteEventCodec.MaxMessageBytes)
+        if (payload.Length > maxMessageBytes)
         {
             throw new InvalidDataException($"remote {operation} exceeds the protocol limit");
         }
         using var content = new ByteArrayContent(payload.ToArray());
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-        using var response = await client.PostAsync("v1/wire", content, cancellationToken)
+        using var response = await client.PostAsync(route, content, cancellationToken)
             .ConfigureAwait(false);
         if (!string.Equals(
             response.Content.Headers.ContentType?.MediaType,
@@ -54,12 +78,12 @@ internal sealed class RemoteWireTransport : IDisposable
             throw new InvalidDataException(
                 $"remote {operation} response is not application/json");
         }
-        if (response.Content.Headers.ContentLength is > RemoteEventCodec.MaxMessageBytes)
+        if (response.Content.Headers.ContentLength is long length && length > maxMessageBytes)
         {
             throw new InvalidDataException(
                 $"remote {operation} response exceeds the protocol limit");
         }
-        return await ReadBoundedAsync(response, operation, cancellationToken)
+        return await ReadBoundedAsync(response, operation, maxMessageBytes, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -72,6 +96,7 @@ internal sealed class RemoteWireTransport : IDisposable
     private static async Task<byte[]> ReadBoundedAsync(
         HttpResponseMessage response,
         string operation,
+        int maxMessageBytes,
         CancellationToken cancellationToken)
     {
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken)
@@ -85,7 +110,7 @@ internal sealed class RemoteWireTransport : IDisposable
             {
                 return payload.ToArray();
             }
-            if (payload.Length + read > RemoteEventCodec.MaxMessageBytes)
+            if (payload.Length + read > maxMessageBytes)
             {
                 throw new InvalidDataException(
                     $"remote {operation} response exceeds the protocol limit");

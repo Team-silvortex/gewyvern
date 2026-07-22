@@ -48,6 +48,12 @@ internal sealed class LeserpentApp : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            if (desktop.Args is ["--verify-bootstrap-controls"])
+            {
+                ConfigureBootstrapControlVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (desktop.Args is ["--remote", ..])
             {
                 ConfigureRemoteWindow(desktop);
@@ -319,6 +325,7 @@ internal sealed class LeserpentApp : Application
             _ => Task.FromResult(topology),
             (_, _) => Task.FromResult(topology),
             () => { },
+            () => { },
             _ => { });
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
@@ -383,6 +390,87 @@ internal sealed class LeserpentApp : Application
             window.Closed += (_, _) => desktop.Shutdown(StartupFailure.ExitCode);
             desktop.MainWindow = window;
         }
+    }
+
+    private static void ConfigureBootstrapControlVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var submitCount = 0;
+        var inspectCount = 0;
+        var bindCount = 0;
+        var target = new RemoteBootstrapSnapshot(
+            "bootstrap-verification",
+            "planned",
+            "ssh",
+            "target.example",
+            22,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false);
+        var window = new BootstrapDeploymentWindow(
+            [new BootstrapAuthorityOption(
+                "daemon-verification",
+                "Verification authority",
+                "https://controller.example:9443/")],
+            new BootstrapHubOperations(
+                (_, intent, _) =>
+                {
+                    submitCount++;
+                    target = target with { BootstrapId = intent.BootstrapId };
+                    return Task.FromResult(target);
+                },
+                (_, bootstrapId, _, _) =>
+                {
+                    inspectCount++;
+                    target = target with
+                    {
+                        BootstrapId = bootstrapId,
+                        Phase = "bootstrapped",
+                        DaemonId = "daemon-target",
+                        Endpoint = "https://target.example:9443/",
+                        SessionCredentialHandle = "vault:leserpentd:target",
+                        TrustCredentialHandle = "vault:leserpent-ca:target",
+                    };
+                    return Task.FromResult(target);
+                },
+                (_, bootstrapId, _, _) =>
+                {
+                    bindCount++;
+                    target = target with
+                    {
+                        BootstrapId = bootstrapId,
+                        Phase = "session_bound",
+                        BootstrapCredentialPresent = false,
+                        MutationAuthorized = true,
+                    };
+                    return Task.FromResult(target);
+                }));
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += async (_, _) =>
+        {
+            window.VerifyAccessibility();
+            await window.ProbeConfirmationFenceAsync();
+            if (submitCount != 0)
+            {
+                throw new InvalidDataException(
+                    "bootstrap controls submitted without explicit confirmation");
+            }
+            await window.ProbeWorkflowAsync();
+            if (submitCount != 1 || inspectCount != 1 || bindCount != 1)
+            {
+                throw new InvalidDataException(
+                    "bootstrap controls did not preserve the submit-inspect-bind sequence");
+            }
+            Console.WriteLine(
+                "bootstrap controls valid: controls=11, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, submit=true, inspect=true, bind=true, phase_gated=true, polling=true, mutation_authorized=true, automation=true");
+            DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
     }
 
     private static void ConfigureInteractiveDesktop(
@@ -477,6 +565,7 @@ internal sealed class LeserpentApp : Application
                 certificateStore,
                 connection,
                 cancellationToken),
+            () => ShowBootstrapDeployment(desktop, catalogStore, certificateStore),
             () => ShowConnectionManager(desktop, null),
             connection => ShowConnectionManager(desktop, connection));
         RegisterMainWindowLifecycle(desktop, hub);
@@ -706,6 +795,80 @@ internal sealed class LeserpentApp : Application
 
     private static bool IsMobilePlatform() => OperatingSystem.IsIOS()
         || OperatingSystem.IsAndroid();
+
+    private static void ShowBootstrapDeployment(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        try
+        {
+            var catalog = DesktopProductStartup.PrepareSavedCatalog(
+                catalogStore.Load(),
+                catalogStore,
+                certificateStore);
+            var authorities = catalog.Connections
+                .Select(connection => new BootstrapAuthorityOption(
+                    connection.DaemonId,
+                    connection.DisplayName,
+                    connection.Profile.Endpoint))
+                .ToArray();
+            var operations = new BootstrapHubOperations(
+                (authorityId, intent, cancellationToken) => ExecuteBootstrapAsync(
+                    catalogStore,
+                    certificateStore,
+                    authorityId,
+                    (client, token) => client.SubmitAsync(intent, token),
+                    cancellationToken),
+                (authorityId, bootstrapId, principal, cancellationToken) => ExecuteBootstrapAsync(
+                    catalogStore,
+                    certificateStore,
+                    authorityId,
+                    (client, token) => client.InspectAsync(bootstrapId, principal, token),
+                    cancellationToken),
+                (authorityId, bootstrapId, principal, cancellationToken) => ExecuteBootstrapAsync(
+                    catalogStore,
+                    certificateStore,
+                    authorityId,
+                    (client, token) => client.BindAsync(bootstrapId, principal, token),
+                    cancellationToken));
+            var window = new BootstrapDeploymentWindow(authorities, operations);
+            if (desktop.MainWindow is { } owner)
+            {
+                window.Show(owner);
+            }
+            else
+            {
+                window.Show();
+            }
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            var description = StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+            new StartupErrorWindow(description).Show();
+        }
+    }
+
+    private static async Task<RemoteBootstrapSnapshot> ExecuteBootstrapAsync(
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore,
+        string authorityId,
+        Func<RemoteBootstrapClient, CancellationToken, Task<RemoteBootstrapSnapshot>> operation,
+        CancellationToken cancellationToken)
+    {
+        var connection = catalogStore.Load().Connections.SingleOrDefault(
+            item => item.DaemonId == authorityId)
+            ?? throw new InvalidDataException(
+                "the deployment authority changed; reopen the Hub before continuing");
+        var plan = ResolveRemoteConnectionPlan(
+            catalogStore,
+            certificateStore,
+            connection);
+        using var client = new RemoteBootstrapClient(plan.Options);
+        return await operation(client, cancellationToken);
+    }
 
     private static void ShowConnectionManager(
         IClassicDesktopStyleApplicationLifetime desktop,

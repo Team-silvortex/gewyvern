@@ -492,8 +492,12 @@ with idempotent replay and divergent-identity rejection. Worker completion
 advances to revision 2 in the same transaction as effect settlement. The native
 CLI now exposes `bootstrap deploy ... --yes` with only a target and
 `vault:ssh:*` credential handle, plus the existing inspect and bind commands.
-The next product slice is Avalonia Hub submission and handoff controls.
-Post-session Gewyvern deployment stays behind that UI gate.
+Avalonia Hub now exposes the same authority-scoped sequence through native
+controls: explicit deployment confirmation, independent `/v1/bootstrap`
+submission, bounded handoff polling, and phase-gated server-verified binding.
+The next product slice promotes a bound receipt into the saved connection
+catalog only when its trust record is locally verifiable, then exposes
+post-session Gewyvern deployment through that newly authenticated daemon.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path
