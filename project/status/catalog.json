@@ -1419,12 +1419,12 @@
       "feature": "gewyvern-provisioning",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 80,
+      "completion": 90,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-gewyvern-provisioning-contract",
-        "version": "0.6.0",
+        "version": "0.7.0",
         "stability": "draft",
         "surfaces": [
           "runtime-provision-capability",
@@ -1464,6 +1464,8 @@
           "installer-installed-not-authoritative",
           "canonical-gewyvern-installer-v1-fixtures",
           "native-gewyvern-install-v1-entrypoint",
+          "native-gewyvern-activate-v1-entrypoint",
+          "native-gewyvern-service-v1-entrypoint",
           "artifact-digest-before-install",
           "private-immutable-runtime-generation",
           "atomic-runtime-current-pointer",
@@ -1480,6 +1482,10 @@
           "namespaced-gewyvern-ca-trust",
           "ready-before-trust-before-receipt",
           "installed-withholds-service-receipt",
+          "platform-service-descriptor-publication",
+          "authenticated-gewyvern-https-listener",
+          "tls-token-health-before-ready",
+          "activation-rollback-preserves-prior-service",
           "production-provisioning-adapter-registration"
         ]
       },
@@ -1490,8 +1496,8 @@
       ],
       "blockers": [
         {
-          "id": "gewyvern-service-activation-proof-missing",
-          "summary": "The target installer, host-key-pinned native SSH transport, strict daemon origin configuration, platform API-token resolution, and namespaced controller CA persistence are present, but service-manager activation, authenticated TLS/token health proof, and adapter-target registration proof are not yet implemented."
+          "id": "gewyvern-registration-handoff-missing",
+          "summary": "Native launchd/systemd activation and rollback, authenticated endpoint-name TLS plus API-token health, and Ready-before-trust receipt issuance are implemented. The daemon must still atomically convert that receipt into its authority-owned RuntimeRegistrationProof and RuntimeRegistered checkpoint."
         },
         {
           "id": "gewyvern-provisioning-client-controls-missing",
@@ -1518,13 +1524,14 @@
         { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/gewyvern-installer-request-v1.json", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/gewyvern-installer-ready-response-v1.json", "state": "present" },
         { "kind": "source", "path": "src/gewyvern_install.rs", "state": "present" },
+        { "kind": "source", "path": "src/data_api/service.rs", "state": "present" },
         { "kind": "source", "path": "src/main.rs", "state": "present" },
         { "kind": "test", "path": "tests/gewyvern_installer_vertical.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters/src/native_ssh.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/gewyvern_origin.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/gewyvern_origin.rs", "state": "present" }
       ],
-      "next_gate": "Activate the retained Gewyvern service plan without a shell or secret arguments, require endpoint-name TLS plus API-token health through the persisted CA, then derive the authority-owned runtime registration proof."
+      "next_gate": "Atomically derive and persist the authority-owned runtime registration proof from the health-proven Ready receipt, advance the checkpoint to RuntimeRegistered, and compensate without losing the previous service on any registration failure."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

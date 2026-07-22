@@ -1,22 +1,32 @@
 use std::env;
+use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Command, Stdio};
+use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use leserpent_protocol::gewyvern_installer::{
     GEWYVERN_INSTALLER_SCHEMA_VERSION, GewyvernInstallerRequest, GewyvernInstallerResponse,
     GewyvernInstallerServiceState, MAX_GEWYVERN_INSTALLER_BYTES, decode_gewyvern_installer_request,
     encode_gewyvern_installer_response,
 };
+use leserpent_protocol::transport_safety::{
+    MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
+};
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 use ring::digest::{SHA256, digest};
+use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
+use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 const MAX_INSTALL_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;
-const INSTALL_MANIFEST_SCHEMA_VERSION: u32 = 1;
+const INSTALL_MANIFEST_SCHEMA_VERSION: u32 = 2;
 const EXECUTABLE_NAME: &str = "gewyvern";
 const TOKEN_NAME: &str = "api.token";
 const TLS_CERTIFICATE_NAME: &str = "server.crt";
@@ -24,6 +34,15 @@ const TLS_PRIVATE_KEY_NAME: &str = "server.key";
 const MANIFEST_NAME: &str = "install.json";
 const SERVICE_PLAN_NAME: &str = "service-plan.json";
 const CURRENT_NAME: &str = "current";
+#[cfg(target_os = "macos")]
+const SERVICE_DESCRIPTOR_NAME: &str = "service.plist";
+#[cfg(target_os = "linux")]
+const SERVICE_DESCRIPTOR_NAME: &str = "service.service";
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+const SERVICE_DESCRIPTOR_NAME: &str = "service.conf";
+const HEALTH_DEADLINE: Duration = Duration::from_secs(8);
+const HEALTH_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(750);
+const HEALTH_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GewyvernInstallError {
@@ -33,6 +52,8 @@ pub enum GewyvernInstallError {
     ArtifactDigestMismatch,
     GenerationConflict,
     TlsIdentity,
+    ServiceActivation,
+    HealthProof,
     Storage,
 }
 
@@ -49,6 +70,8 @@ impl fmt::Display for GewyvernInstallError {
                 formatter.write_str("Gewyvern installation generation conflict")
             }
             Self::TlsIdentity => formatter.write_str("cannot generate Gewyvern TLS identity"),
+            Self::ServiceActivation => formatter.write_str("Gewyvern service activation failed"),
+            Self::HealthProof => formatter.write_str("Gewyvern authenticated health proof failed"),
             Self::Storage => formatter.write_str("Gewyvern installation storage failed"),
         }
     }
@@ -59,12 +82,19 @@ impl std::error::Error for GewyvernInstallError {}
 #[derive(Clone, Debug)]
 pub struct GewyvernInstallLayout {
     root: PathBuf,
+    service_directory: PathBuf,
+    profile: String,
 }
 
 impl GewyvernInstallLayout {
     #[cfg(test)]
     fn test(root: PathBuf) -> Self {
-        Self { root }
+        let service_directory = root.join("services");
+        Self {
+            root,
+            service_directory,
+            profile: "test".into(),
+        }
     }
 
     fn runtime_root(&self, request: &GewyvernInstallerRequest) -> PathBuf {
@@ -92,6 +122,7 @@ struct ServicePlan {
     schema_version: u32,
     runtime_id: String,
     endpoint: String,
+    listen: String,
     executable: String,
     api_token_file: String,
     tls_certificate_file: String,
@@ -103,11 +134,46 @@ pub fn run_gewyvern_install_stdio() -> Result<(), GewyvernInstallError> {
     let layout = platform_layout(&request.install_profile)?;
     let source = env::current_exe().map_err(|_| GewyvernInstallError::InvalidArtifact)?;
     let response = install_gewyvern_artifact(&source, &request, &layout)?;
-    let encoded = encode_gewyvern_installer_response(&response)
+    write_stdio_response(&response)
+}
+
+pub fn run_gewyvern_activate_stdio() -> Result<(), GewyvernInstallError> {
+    let request = read_stdio_request(std::io::stdin().lock())?;
+    let layout = platform_layout(&request.install_profile)?;
+    let source = env::current_exe().map_err(|_| GewyvernInstallError::InvalidArtifact)?;
+    let response = activate_gewyvern_artifact(&source, &request, &layout)?;
+    write_stdio_response(&response)
+}
+
+pub fn run_gewyvern_service() -> Result<(), GewyvernInstallError> {
+    let executable = env::current_exe().map_err(|_| GewyvernInstallError::InvalidArtifact)?;
+    let generation = executable
+        .parent()
+        .ok_or(GewyvernInstallError::InvalidLayout)?;
+    let plan = read_service_plan(generation)?;
+    if Path::new(&plan.executable) != executable {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    let token = Zeroizing::new(read_private_text(Path::new(&plan.api_token_file), 256)?);
+    let _service = crate::data_api::start_tls_api_service(
+        &plan.listen,
+        &plan.tls_certificate_file,
+        &plan.tls_private_key_file,
+        &token,
+    )
+    .map_err(|_| GewyvernInstallError::ServiceActivation)?;
+    loop {
+        thread::park_timeout(Duration::from_secs(60));
+    }
+}
+
+fn write_stdio_response(response: &GewyvernInstallerResponse) -> Result<(), GewyvernInstallError> {
+    let encoded = encode_gewyvern_installer_response(response)
         .map_err(|_| GewyvernInstallError::InvalidRequest)?;
     let mut stdout = std::io::stdout().lock();
     stdout
         .write_all(&encoded)
+        .and_then(|()| stdout.write_all(b"\n"))
         .and_then(|()| stdout.flush())
         .map_err(|_| GewyvernInstallError::Storage)
 }
@@ -128,6 +194,10 @@ pub fn install_gewyvern_artifact(
     }
 
     let runtime_root = layout.runtime_root(request);
+    create_private_dir(&layout.root)?;
+    create_private_dir(&layout.root.join("runtimes"))?;
+    create_private_dir(&runtime_root)?;
+    create_private_dir(&runtime_root.join("logs"))?;
     let generations = runtime_root.join("generations");
     create_private_dir(&generations)?;
     let destination = generations.join(&artifact_sha256);
@@ -165,6 +235,634 @@ pub fn install_gewyvern_artifact(
     })
 }
 
+pub fn activate_gewyvern_artifact(
+    source: &Path,
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<GewyvernInstallerResponse, GewyvernInstallError> {
+    activate_gewyvern_artifact_with(
+        source,
+        request,
+        layout,
+        || activate_published_service(request, layout),
+        |ca_pem| prove_gewyvern_health(&request.endpoint, ca_pem, request.api_token()),
+        |had_previous| rollback_published_service(request, layout, had_previous),
+    )
+}
+
+fn activate_gewyvern_artifact_with(
+    source: &Path,
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+    activate: impl FnOnce() -> Result<(), GewyvernInstallError>,
+    prove_health: impl FnOnce(&str) -> Result<(), GewyvernInstallError>,
+    rollback_service: impl FnOnce(bool) -> Result<(), GewyvernInstallError>,
+) -> Result<GewyvernInstallerResponse, GewyvernInstallError> {
+    let rollback = ActivationRollback::capture(request, layout)?;
+    let mut response = match install_gewyvern_artifact(source, request, layout) {
+        Ok(response) => response,
+        Err(error) => {
+            rollback.restore(request, layout)?;
+            return Err(error);
+        }
+    };
+    let generation = layout
+        .runtime_root(request)
+        .join("generations")
+        .join(&response.generation);
+    if let Err(error) = publish_service_descriptor(&generation, request, layout)
+        .and_then(|()| activate())
+        .and_then(|()| prove_health(&response.tls_ca_pem))
+    {
+        let state_restore = rollback.restore(request, layout);
+        let service_restore = rollback_service(rollback.previous_descriptor.is_some());
+        state_restore?;
+        service_restore?;
+        return Err(error);
+    }
+    response.service_state = GewyvernInstallerServiceState::Ready;
+    Ok(response)
+}
+
+struct ActivationRollback {
+    previous_current: Option<Vec<u8>>,
+    previous_descriptor: Option<Vec<u8>>,
+    generation_preexisted: bool,
+}
+
+impl ActivationRollback {
+    fn capture(
+        request: &GewyvernInstallerRequest,
+        layout: &GewyvernInstallLayout,
+    ) -> Result<Self, GewyvernInstallError> {
+        let generation = layout
+            .runtime_root(request)
+            .join("generations")
+            .join(&request.artifact_sha256);
+        Ok(Self {
+            previous_current: read_optional_private_file(
+                &layout.runtime_root(request).join(CURRENT_NAME),
+                128,
+            )?,
+            previous_descriptor: read_optional_private_file(
+                &published_service_path(request, layout),
+                64 * 1024,
+            )?,
+            generation_preexisted: generation.exists(),
+        })
+    }
+
+    fn restore(
+        &self,
+        request: &GewyvernInstallerRequest,
+        layout: &GewyvernInstallLayout,
+    ) -> Result<(), GewyvernInstallError> {
+        restore_private_file(
+            &layout.runtime_root(request).join(CURRENT_NAME),
+            self.previous_current.as_deref(),
+        )?;
+        restore_private_file(
+            &published_service_path(request, layout),
+            self.previous_descriptor.as_deref(),
+        )?;
+        if !self.generation_preexisted {
+            let generation = layout
+                .runtime_root(request)
+                .join("generations")
+                .join(&request.artifact_sha256);
+            if generation.exists() {
+                fs::remove_dir_all(&generation).map_err(|_| GewyvernInstallError::Storage)?;
+                sync_dir(
+                    generation
+                        .parent()
+                        .ok_or(GewyvernInstallError::InvalidLayout)?,
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn publish_service_descriptor(
+    generation: &Path,
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<(), GewyvernInstallError> {
+    reject_existing_symlink_components(&layout.service_directory)?;
+    fs::create_dir_all(&layout.service_directory).map_err(|_| GewyvernInstallError::Storage)?;
+    let metadata = fs::symlink_metadata(&layout.service_directory)
+        .map_err(|_| GewyvernInstallError::Storage)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(GewyvernInstallError::InvalidLayout);
+    }
+    let retained = read_private_file(&generation.join(SERVICE_DESCRIPTOR_NAME), 64 * 1024)?;
+    let destination = published_service_path(request, layout);
+    reject_non_regular_destination(&destination)?;
+    let temporary = layout.service_directory.join(format!(
+        ".{}-{}-{}",
+        service_descriptor_file_name(request),
+        std::process::id(),
+        unique_suffix()
+    ));
+    let result = (|| {
+        write_new_file(&temporary, &retained, 0o600)?;
+        fs::rename(&temporary, &destination).map_err(|_| GewyvernInstallError::Storage)?;
+        sync_dir(&layout.service_directory)?;
+        if read_private_file(&destination, 64 * 1024)? != retained {
+            return Err(GewyvernInstallError::GenerationConflict);
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temporary);
+    }
+    result
+}
+
+fn reject_non_regular_destination(path: &Path) -> Result<(), GewyvernInstallError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err(GewyvernInstallError::InvalidLayout)
+        }
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(GewyvernInstallError::Storage),
+    }
+}
+
+fn published_service_path(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+) -> PathBuf {
+    layout
+        .service_directory
+        .join(service_descriptor_file_name(request))
+}
+
+#[cfg(target_os = "macos")]
+fn service_descriptor_file_name(request: &GewyvernInstallerRequest) -> String {
+    format!("org.gewyvern.runtime.{}.plist", request.runtime_id.as_str())
+}
+
+#[cfg(target_os = "linux")]
+fn service_descriptor_file_name(request: &GewyvernInstallerRequest) -> String {
+    format!("gewyvern-{}.service", request.runtime_id.as_str())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_descriptor_file_name(request: &GewyvernInstallerRequest) -> String {
+    format!("gewyvern-{}.conf", request.runtime_id.as_str())
+}
+
+struct ServiceManagerCommand {
+    program: PathBuf,
+    arguments: Vec<OsString>,
+    tolerate_failure: bool,
+}
+
+fn activate_published_service(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<(), GewyvernInstallError> {
+    verify_published_service(request, layout)?;
+    execute_service_commands(service_activation_commands(request, layout)?)
+}
+
+fn rollback_published_service(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+    had_previous: bool,
+) -> Result<(), GewyvernInstallError> {
+    execute_service_commands(service_rollback_commands(request, layout, had_previous)?)
+}
+
+fn verify_published_service(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<(), GewyvernInstallError> {
+    let current = read_private_file(&layout.runtime_root(request).join(CURRENT_NAME), 128)?;
+    if current != format!("{}\n", request.artifact_sha256).as_bytes() {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    let generation = layout
+        .runtime_root(request)
+        .join("generations")
+        .join(&request.artifact_sha256);
+    let retained = read_private_file(&generation.join(SERVICE_DESCRIPTOR_NAME), 64 * 1024)?;
+    let published = read_private_file(&published_service_path(request, layout), 64 * 1024)?;
+    if retained != published {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    Ok(())
+}
+
+fn execute_service_commands(
+    commands: Vec<ServiceManagerCommand>,
+) -> Result<(), GewyvernInstallError> {
+    for command in commands {
+        let status = Command::new(&command.program)
+            .args(&command.arguments)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|_| GewyvernInstallError::ServiceActivation)?;
+        if !status.success() && !command.tolerate_failure {
+            return Err(GewyvernInstallError::ServiceActivation);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn service_activation_commands(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let domain = match layout.profile.as_str() {
+        "system" => "system".to_string(),
+        "user" => format!(
+            "gui/{}",
+            fs::metadata(&layout.service_directory)
+                .map_err(|_| GewyvernInstallError::ServiceActivation)?
+                .uid()
+        ),
+        _ => return Err(GewyvernInstallError::ServiceActivation),
+    };
+    let label = format!("org.gewyvern.runtime.{}", request.runtime_id.as_str());
+    let target = format!("{domain}/{label}");
+    Ok(vec![
+        ServiceManagerCommand {
+            program: PathBuf::from("/bin/launchctl"),
+            arguments: vec!["bootout".into(), target.clone().into()],
+            tolerate_failure: true,
+        },
+        ServiceManagerCommand {
+            program: PathBuf::from("/bin/launchctl"),
+            arguments: vec![
+                "bootstrap".into(),
+                domain.into(),
+                published_service_path(request, layout).into_os_string(),
+            ],
+            tolerate_failure: false,
+        },
+        ServiceManagerCommand {
+            program: PathBuf::from("/bin/launchctl"),
+            arguments: vec!["kickstart".into(), "-k".into(), target.into()],
+            tolerate_failure: false,
+        },
+    ])
+}
+
+#[cfg(target_os = "macos")]
+fn service_rollback_commands(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+    had_previous: bool,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let domain = match layout.profile.as_str() {
+        "system" => "system".to_string(),
+        "user" => format!(
+            "gui/{}",
+            fs::metadata(&layout.service_directory)
+                .map_err(|_| GewyvernInstallError::ServiceActivation)?
+                .uid()
+        ),
+        _ => return Err(GewyvernInstallError::ServiceActivation),
+    };
+    let label = format!("org.gewyvern.runtime.{}", request.runtime_id.as_str());
+    let target = format!("{domain}/{label}");
+    let mut commands = vec![ServiceManagerCommand {
+        program: PathBuf::from("/bin/launchctl"),
+        arguments: vec!["bootout".into(), target.clone().into()],
+        tolerate_failure: true,
+    }];
+    if had_previous {
+        commands.extend([
+            ServiceManagerCommand {
+                program: PathBuf::from("/bin/launchctl"),
+                arguments: vec![
+                    "bootstrap".into(),
+                    domain.into(),
+                    published_service_path(request, layout).into_os_string(),
+                ],
+                tolerate_failure: false,
+            },
+            ServiceManagerCommand {
+                program: PathBuf::from("/bin/launchctl"),
+                arguments: vec!["kickstart".into(), "-k".into(), target.into()],
+                tolerate_failure: false,
+            },
+        ]);
+    }
+    Ok(commands)
+}
+
+#[cfg(target_os = "linux")]
+fn service_activation_commands(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    let (program, prefix) = systemctl(layout)?;
+    let unit = service_descriptor_file_name(request);
+    let command = |verb: &str, include_unit: bool, tolerate_failure: bool| {
+        let mut arguments = prefix.clone();
+        arguments.push(verb.into());
+        if include_unit {
+            arguments.push(unit.clone().into());
+        }
+        ServiceManagerCommand {
+            program: program.clone(),
+            arguments,
+            tolerate_failure,
+        }
+    };
+    Ok(vec![
+        command("daemon-reload", false, false),
+        command("enable", true, false),
+        command("restart", true, false),
+    ])
+}
+
+#[cfg(target_os = "linux")]
+fn service_rollback_commands(
+    request: &GewyvernInstallerRequest,
+    layout: &GewyvernInstallLayout,
+    had_previous: bool,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    let (program, prefix) = systemctl(layout)?;
+    let unit = service_descriptor_file_name(request);
+    let command = |verb: &str, include_unit: bool, tolerate_failure: bool| {
+        let mut arguments = prefix.clone();
+        arguments.push(verb.into());
+        if include_unit {
+            arguments.push(unit.clone().into());
+        }
+        ServiceManagerCommand {
+            program: program.clone(),
+            arguments,
+            tolerate_failure,
+        }
+    };
+    let mut commands = vec![command("stop", true, true)];
+    if had_previous {
+        commands.extend([
+            command("daemon-reload", false, false),
+            command("enable", true, false),
+            command("restart", true, false),
+        ]);
+    } else {
+        commands.extend([
+            command("disable", true, true),
+            command("daemon-reload", false, false),
+        ]);
+    }
+    Ok(commands)
+}
+
+#[cfg(target_os = "linux")]
+fn systemctl(
+    layout: &GewyvernInstallLayout,
+) -> Result<(PathBuf, Vec<OsString>), GewyvernInstallError> {
+    let program = ["/usr/bin/systemctl", "/bin/systemctl"]
+        .into_iter()
+        .map(PathBuf::from)
+        .find(|path| path.is_file())
+        .ok_or(GewyvernInstallError::ServiceActivation)?;
+    let prefix = match layout.profile.as_str() {
+        "system" => Vec::new(),
+        "user" => vec![OsString::from("--user")],
+        _ => return Err(GewyvernInstallError::ServiceActivation),
+    };
+    Ok((program, prefix))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_activation_commands(
+    _request: &GewyvernInstallerRequest,
+    _layout: &GewyvernInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    Err(GewyvernInstallError::ServiceActivation)
+}
+
+fn prove_gewyvern_health(
+    endpoint: &str,
+    ca_pem: &str,
+    token: &str,
+) -> Result<(), GewyvernInstallError> {
+    let endpoint = HealthEndpoint::parse(endpoint)?;
+    let tls = health_client_config(ca_pem)?;
+    let deadline = Instant::now() + HEALTH_DEADLINE;
+    loop {
+        if probe_health_once(&endpoint, Arc::clone(&tls), token).is_ok() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(GewyvernInstallError::HealthProof);
+        }
+        thread::sleep(HEALTH_RETRY_INTERVAL);
+    }
+}
+
+fn health_client_config(ca_pem: &str) -> Result<Arc<ClientConfig>, GewyvernInstallError> {
+    let certificates = CertificateDer::pem_slice_iter(ca_pem.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| GewyvernInstallError::TlsIdentity)?;
+    if certificates.is_empty() {
+        return Err(GewyvernInstallError::TlsIdentity);
+    }
+    let mut roots = RootCertStore::empty();
+    for certificate in certificates {
+        roots
+            .add(certificate)
+            .map_err(|_| GewyvernInstallError::TlsIdentity)?;
+    }
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|_| GewyvernInstallError::TlsIdentity)?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    Ok(Arc::new(config))
+}
+
+fn probe_health_once(
+    endpoint: &HealthEndpoint,
+    tls: Arc<ClientConfig>,
+    token: &str,
+) -> Result<(), GewyvernInstallError> {
+    let socket = connect_with_deadline(
+        SocketAddr::from((Ipv4Addr::LOCALHOST, endpoint.port)),
+        HEALTH_ATTEMPT_TIMEOUT,
+    )
+    .map_err(|_| GewyvernInstallError::HealthProof)?;
+    socket
+        .set_read_timeout(Some(HEALTH_ATTEMPT_TIMEOUT))
+        .and_then(|()| socket.set_write_timeout(Some(HEALTH_ATTEMPT_TIMEOUT)))
+        .map_err(|_| GewyvernInstallError::HealthProof)?;
+    let connection = ClientConnection::new(tls, endpoint.server_name.clone())
+        .map_err(|_| GewyvernInstallError::HealthProof)?;
+    let mut stream = StreamOwned::new(connection, socket);
+    let header = Zeroizing::new(format!(
+        "GET /health HTTP/1.1\r\nHost: {}\r\nX-Gewyvern-Admin-Token: {}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
+        endpoint.authority, token
+    ));
+    stream
+        .write_all(header.as_bytes())
+        .and_then(|()| stream.flush())
+        .map_err(|_| GewyvernInstallError::HealthProof)?;
+    let body = read_health_response(&mut stream)?;
+    let value = serde_json::from_slice::<serde_json::Value>(&body)
+        .map_err(|_| GewyvernInstallError::HealthProof)?;
+    if value.get("ok") != Some(&serde_json::Value::Bool(true)) {
+        return Err(GewyvernInstallError::HealthProof);
+    }
+    Ok(())
+}
+
+fn read_health_response(reader: &mut impl Read) -> Result<Vec<u8>, GewyvernInstallError> {
+    const MAX_HEALTH_BODY_BYTES: usize = 64 * 1024;
+    let mut bytes = Vec::with_capacity(2048);
+    let header_end = loop {
+        if let Some(position) = bytes
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .map(|position| position + 4)
+        {
+            break position;
+        }
+        if bytes.len() > MAX_HTTP_HEADER_BYTES {
+            return Err(GewyvernInstallError::HealthProof);
+        }
+        let mut chunk = [0_u8; 1024];
+        let read = reader
+            .read(&mut chunk)
+            .map_err(|_| GewyvernInstallError::HealthProof)?;
+        if read == 0 {
+            return Err(GewyvernInstallError::HealthProof);
+        }
+        bytes.extend_from_slice(&chunk[..read]);
+    };
+    if header_end > MAX_HTTP_HEADER_BYTES || !bytes[..header_end - 4].is_ascii() {
+        return Err(GewyvernInstallError::HealthProof);
+    }
+    let header = std::str::from_utf8(&bytes[..header_end - 4])
+        .map_err(|_| GewyvernInstallError::HealthProof)?;
+    let mut lines = header.split("\r\n");
+    if lines.next().and_then(|line| line.split_whitespace().nth(1)) != Some("200") {
+        return Err(GewyvernInstallError::HealthProof);
+    }
+    let mut content_length = None;
+    let mut content_type = None;
+    for line in lines {
+        let (name, value) = line
+            .split_once(':')
+            .ok_or(GewyvernInstallError::HealthProof)?;
+        if !is_http_header_name(name) {
+            return Err(GewyvernInstallError::HealthProof);
+        }
+        let value = value.trim();
+        if name.eq_ignore_ascii_case("content-length") {
+            if content_length.replace(value).is_some() {
+                return Err(GewyvernInstallError::HealthProof);
+            }
+        } else if name.eq_ignore_ascii_case("content-type") {
+            if content_type.replace(value).is_some() {
+                return Err(GewyvernInstallError::HealthProof);
+            }
+        } else if name.eq_ignore_ascii_case("transfer-encoding") {
+            return Err(GewyvernInstallError::HealthProof);
+        }
+    }
+    if !content_type.is_some_and(|value| {
+        value
+            .split(';')
+            .next()
+            .is_some_and(|kind| kind.trim().eq_ignore_ascii_case("application/json"))
+    }) {
+        return Err(GewyvernInstallError::HealthProof);
+    }
+    let content_length = content_length
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|length| *length <= MAX_HEALTH_BODY_BYTES)
+        .ok_or(GewyvernInstallError::HealthProof)?;
+    let mut body = bytes.split_off(header_end);
+    if body.len() > content_length {
+        return Err(GewyvernInstallError::HealthProof);
+    }
+    let initial = body.len();
+    body.resize(content_length, 0);
+    reader
+        .read_exact(&mut body[initial..])
+        .map_err(|_| GewyvernInstallError::HealthProof)?;
+    Ok(body)
+}
+
+struct HealthEndpoint {
+    authority: String,
+    port: u16,
+    server_name: ServerName<'static>,
+}
+
+impl HealthEndpoint {
+    fn parse(endpoint: &str) -> Result<Self, GewyvernInstallError> {
+        let authority = endpoint
+            .strip_prefix("https://")
+            .filter(|value| {
+                !value.is_empty()
+                    && value.len() <= 320
+                    && !value.contains(['/', '?', '#', '@'])
+                    && !value.bytes().any(|byte| byte <= 0x20)
+            })
+            .ok_or(GewyvernInstallError::InvalidRequest)?;
+        let (host, port) = if let Some(bracketed) = authority.strip_prefix('[') {
+            let (host, suffix) = bracketed
+                .split_once(']')
+                .ok_or(GewyvernInstallError::InvalidRequest)?;
+            let port = suffix
+                .strip_prefix(':')
+                .map(str::parse::<u16>)
+                .transpose()
+                .map_err(|_| GewyvernInstallError::InvalidRequest)?
+                .unwrap_or(443);
+            (host.to_string(), port)
+        } else {
+            match authority.rsplit_once(':') {
+                Some((host, port)) => (
+                    host.to_string(),
+                    port.parse::<u16>()
+                        .map_err(|_| GewyvernInstallError::InvalidRequest)?,
+                ),
+                None => (authority.to_string(), 443),
+            }
+        };
+        if port == 0 {
+            return Err(GewyvernInstallError::InvalidRequest);
+        }
+        let server_name =
+            ServerName::try_from(host).map_err(|_| GewyvernInstallError::InvalidRequest)?;
+        Ok(Self {
+            authority: authority.into(),
+            port,
+            server_name,
+        })
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_rollback_commands(
+    _request: &GewyvernInstallerRequest,
+    _layout: &GewyvernInstallLayout,
+    _had_previous: bool,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    Err(GewyvernInstallError::ServiceActivation)
+}
+
 fn read_stdio_request(
     mut reader: impl Read,
 ) -> Result<GewyvernInstallerRequest, GewyvernInstallError> {
@@ -178,19 +876,55 @@ fn read_stdio_request(
 }
 
 fn platform_layout(profile: &str) -> Result<GewyvernInstallLayout, GewyvernInstallError> {
-    let root = match profile {
-        "system" => PathBuf::from("/var/lib/gewyvern"),
+    let (root, service_directory) = match profile {
+        "system" => {
+            #[cfg(target_os = "macos")]
+            let pair = (
+                PathBuf::from("/Library/Application Support/Gewyvern"),
+                PathBuf::from("/Library/LaunchDaemons"),
+            );
+            #[cfg(target_os = "linux")]
+            let pair = (
+                PathBuf::from("/var/lib/gewyvern"),
+                PathBuf::from("/etc/systemd/system"),
+            );
+            #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+            return Err(GewyvernInstallError::ServiceActivation);
+            pair
+        }
         "user" => {
             let home = env::var_os("HOME").ok_or(GewyvernInstallError::InvalidLayout)?;
-            PathBuf::from(home).join(".local/share/gewyvern")
+            let home = PathBuf::from(home);
+            #[cfg(target_os = "macos")]
+            let pair = (
+                home.join("Library/Application Support/Gewyvern"),
+                home.join("Library/LaunchAgents"),
+            );
+            #[cfg(target_os = "linux")]
+            let pair = (
+                home.join(".local/share/gewyvern"),
+                home.join(".config/systemd/user"),
+            );
+            #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+            return Err(GewyvernInstallError::ServiceActivation);
+            pair
         }
-        "test" => PathBuf::from(
-            env::var_os("GEWYVERN_INSTALL_ROOT").ok_or(GewyvernInstallError::InvalidLayout)?,
-        ),
+        "test" => {
+            let root = PathBuf::from(
+                env::var_os("GEWYVERN_INSTALL_ROOT").ok_or(GewyvernInstallError::InvalidLayout)?,
+            );
+            let service_directory = root.join("services");
+            (root, service_directory)
+        }
         _ => return Err(GewyvernInstallError::InvalidLayout),
     };
     validate_root(&root)?;
-    Ok(GewyvernInstallLayout { root })
+    validate_root(&service_directory)?;
+    Ok(GewyvernInstallLayout {
+        root,
+        service_directory,
+        profile: profile.into(),
+    })
 }
 
 fn validate_root(root: &Path) -> Result<(), GewyvernInstallError> {
@@ -253,6 +987,12 @@ fn stage_generation(
         let service_bytes =
             serde_json::to_vec(&service_plan).map_err(|_| GewyvernInstallError::Storage)?;
         write_new_file(&stage.join(SERVICE_PLAN_NAME), &service_bytes, 0o600)?;
+        let service_descriptor = render_service_descriptor(destination, request, &service_plan)?;
+        write_new_file(
+            &stage.join(SERVICE_DESCRIPTOR_NAME),
+            service_descriptor.as_bytes(),
+            0o600,
+        )?;
         sync_dir(&stage)?;
         fs::rename(&stage, destination).map_err(|_| GewyvernInstallError::Storage)?;
         sync_dir(generations)
@@ -278,11 +1018,129 @@ fn service_plan(
         schema_version: INSTALL_MANIFEST_SCHEMA_VERSION,
         runtime_id: request.runtime_id.as_str().into(),
         endpoint: request.endpoint.clone(),
+        listen: format!("0.0.0.0:{}", endpoint_port(&request.endpoint)?),
         executable: path(EXECUTABLE_NAME)?,
         api_token_file: path(TOKEN_NAME)?,
         tls_certificate_file: path(TLS_CERTIFICATE_NAME)?,
         tls_private_key_file: path(TLS_PRIVATE_KEY_NAME)?,
     })
+}
+
+fn endpoint_port(endpoint: &str) -> Result<u16, GewyvernInstallError> {
+    let authority = endpoint
+        .strip_prefix("https://")
+        .ok_or(GewyvernInstallError::InvalidRequest)?;
+    let value = if authority.starts_with('[') {
+        authority
+            .rsplit_once("]:")
+            .map(|(_, port)| port)
+            .unwrap_or("443")
+    } else {
+        authority
+            .rsplit_once(':')
+            .map(|(_, port)| port)
+            .unwrap_or("443")
+    };
+    value
+        .parse::<u16>()
+        .ok()
+        .filter(|port| *port != 0)
+        .ok_or(GewyvernInstallError::InvalidRequest)
+}
+
+fn path_text(path: &Path) -> Result<String, GewyvernInstallError> {
+    path.to_str()
+        .filter(|value| !value.chars().any(char::is_control))
+        .map(str::to_owned)
+        .ok_or(GewyvernInstallError::InvalidLayout)
+}
+
+#[cfg(target_os = "macos")]
+fn render_service_descriptor(
+    generation: &Path,
+    request: &GewyvernInstallerRequest,
+    plan: &ServicePlan,
+) -> Result<String, GewyvernInstallError> {
+    let runtime_root = generation
+        .parent()
+        .and_then(Path::parent)
+        .ok_or(GewyvernInstallError::InvalidLayout)?;
+    let stdout = path_text(&runtime_root.join("logs/gewyvern.stdout.log"))?;
+    let stderr = path_text(&runtime_root.join("logs/gewyvern.stderr.log"))?;
+    let label = format!("org.gewyvern.runtime.{}", request.runtime_id.as_str());
+    Ok(format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \
+\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n\
+<plist version=\"1.0\">\n<dict>\n\
+  <key>Label</key>\n  <string>{}</string>\n\
+  <key>ProgramArguments</key>\n  <array>\n    <string>{}</string>\n    <string>gewyvern-service-v1</string>\n  </array>\n\
+  <key>RunAtLoad</key>\n  <true/>\n\
+  <key>KeepAlive</key>\n  <true/>\n\
+  <key>StandardOutPath</key>\n  <string>{}</string>\n\
+  <key>StandardErrorPath</key>\n  <string>{}</string>\n\
+</dict>\n</plist>\n",
+        xml_escape(&label),
+        xml_escape(&plan.executable),
+        xml_escape(&stdout),
+        xml_escape(&stderr),
+    ))
+}
+
+#[cfg(target_os = "linux")]
+fn render_service_descriptor(
+    generation: &Path,
+    request: &GewyvernInstallerRequest,
+    plan: &ServicePlan,
+) -> Result<String, GewyvernInstallError> {
+    let runtime_root = generation
+        .parent()
+        .and_then(Path::parent)
+        .ok_or(GewyvernInstallError::InvalidLayout)?;
+    let wanted_by = if request.install_profile == "system" {
+        "multi-user.target"
+    } else {
+        "default.target"
+    };
+    Ok(format!(
+        "[Unit]\nDescription=Gewyvern runtime ({})\nAfter=network-online.target\nWants=network-online.target\n\n\
+[Service]\nType=simple\nExecStart={} gewyvern-service-v1\nRestart=on-failure\nRestartSec=2\n\
+NoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nReadWritePaths={}\n\n\
+[Install]\nWantedBy={wanted_by}\n",
+        request.runtime_id.as_str(),
+        systemd_quote(&plan.executable)?,
+        systemd_quote(&path_text(runtime_root)?)?,
+    ))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn render_service_descriptor(
+    _generation: &Path,
+    _request: &GewyvernInstallerRequest,
+    _plan: &ServicePlan,
+) -> Result<String, GewyvernInstallError> {
+    Err(GewyvernInstallError::ServiceActivation)
+}
+
+#[cfg(target_os = "macos")]
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+#[cfg(target_os = "linux")]
+fn systemd_quote(value: &str) -> Result<String, GewyvernInstallError> {
+    if value.is_empty() || value.chars().any(char::is_control) {
+        return Err(GewyvernInstallError::InvalidLayout);
+    }
+    Ok(format!(
+        "\"{}\"",
+        value.replace('\\', "\\\\").replace('"', "\\\"")
+    ))
 }
 
 fn verify_generation(
@@ -320,6 +1178,12 @@ fn verify_generation(
         return Err(GewyvernInstallError::GenerationConflict);
     }
     require_mode(&generation.join(SERVICE_PLAN_NAME), 0o600)?;
+    let expected_descriptor = render_service_descriptor(generation, request, &expected_plan)?;
+    let descriptor = read_private_text(&generation.join(SERVICE_DESCRIPTOR_NAME), 64 * 1024)?;
+    if descriptor != expected_descriptor {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    require_mode(&generation.join(SERVICE_DESCRIPTOR_NAME), 0o600)?;
     let certificate = read_private_text(&generation.join(TLS_CERTIFICATE_NAME), 32 * 1024)?;
     if !certificate.starts_with("-----BEGIN CERTIFICATE-----\n") {
         return Err(GewyvernInstallError::GenerationConflict);
@@ -333,6 +1197,33 @@ fn verify_generation(
         return Err(GewyvernInstallError::GenerationConflict);
     }
     require_mode(&generation.join(TLS_PRIVATE_KEY_NAME), 0o600)
+}
+
+fn read_service_plan(generation: &Path) -> Result<ServicePlan, GewyvernInstallError> {
+    require_directory_mode(generation, 0o700)?;
+    let bytes = read_private_file(&generation.join(SERVICE_PLAN_NAME), 64 * 1024)?;
+    require_mode(&generation.join(SERVICE_PLAN_NAME), 0o600)?;
+    let plan = serde_json::from_slice::<ServicePlan>(&bytes)
+        .map_err(|_| GewyvernInstallError::GenerationConflict)?;
+    if plan.schema_version != INSTALL_MANIFEST_SCHEMA_VERSION
+        || plan.runtime_id.is_empty()
+        || plan.endpoint.len() > 2048
+        || plan.listen.len() > 320
+    {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    for path in [
+        &plan.executable,
+        &plan.api_token_file,
+        &plan.tls_certificate_file,
+        &plan.tls_private_key_file,
+    ] {
+        let path = Path::new(path);
+        if path.parent() != Some(generation) {
+            return Err(GewyvernInstallError::GenerationConflict);
+        }
+    }
+    Ok(plan)
 }
 
 fn generate_tls_identity(
@@ -456,6 +1347,51 @@ fn read_private_file(path: &Path, limit: u64) -> Result<Vec<u8>, GewyvernInstall
         return Err(GewyvernInstallError::GenerationConflict);
     }
     Ok(bytes)
+}
+
+fn read_optional_private_file(
+    path: &Path,
+    limit: u64,
+) -> Result<Option<Vec<u8>>, GewyvernInstallError> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => read_private_file(path, limit).map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(_) => Err(GewyvernInstallError::Storage),
+    }
+}
+
+fn restore_private_file(path: &Path, previous: Option<&[u8]>) -> Result<(), GewyvernInstallError> {
+    let Some(parent) = path.parent() else {
+        return Err(GewyvernInstallError::InvalidLayout);
+    };
+    if previous.is_none() && !parent.exists() {
+        return Ok(());
+    }
+    reject_non_regular_destination(path)?;
+    match previous {
+        Some(bytes) => {
+            fs::create_dir_all(parent).map_err(|_| GewyvernInstallError::Storage)?;
+            let temporary = parent.join(format!(
+                ".restore-{}-{}",
+                std::process::id(),
+                unique_suffix()
+            ));
+            let result = (|| {
+                write_new_file(&temporary, bytes, 0o600)?;
+                fs::rename(&temporary, path).map_err(|_| GewyvernInstallError::Storage)?;
+                sync_dir(parent)
+            })();
+            if result.is_err() {
+                let _ = fs::remove_file(temporary);
+            }
+            result
+        }
+        None => match fs::remove_file(path) {
+            Ok(()) => sync_dir(parent),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(_) => Err(GewyvernInstallError::Storage),
+        },
+    }
 }
 
 fn read_private_text(path: &Path, limit: u64) -> Result<String, GewyvernInstallError> {
@@ -635,6 +1571,9 @@ mod tests {
         assert!(!manifest.contains(request.api_token()));
         let service = fs::read_to_string(generation.join(SERVICE_PLAN_NAME)).unwrap();
         assert!(!service.contains(request.api_token()));
+        let descriptor = fs::read_to_string(generation.join(SERVICE_DESCRIPTOR_NAME)).unwrap();
+        assert!(descriptor.contains("gewyvern-service-v1"));
+        assert!(!descriptor.contains(request.api_token()));
         #[cfg(unix)]
         {
             assert_eq!(
@@ -667,6 +1606,157 @@ mod tests {
         assert!(replay.replayed);
         assert_eq!(replay.generation, first.generation);
         assert_eq!(replay.tls_ca_sha256, first.tls_ca_sha256);
+    }
+
+    #[test]
+    fn ready_requires_service_activation_and_authenticated_health() {
+        let (_temp, source, request, layout) = fixture();
+        let response = activate_gewyvern_artifact_with(
+            &source,
+            &request,
+            &layout,
+            || Ok(()),
+            |ca_pem| {
+                assert!(ca_pem.starts_with("-----BEGIN CERTIFICATE-----\n"));
+                Ok(())
+            },
+            |_| panic!("successful activation must not roll back"),
+        )
+        .unwrap();
+
+        assert_eq!(response.service_state, GewyvernInstallerServiceState::Ready);
+        assert!(published_service_path(&request, &layout).is_file());
+        assert_eq!(
+            fs::read_to_string(layout.runtime_root(&request).join(CURRENT_NAME)).unwrap(),
+            format!("{}\n", response.generation)
+        );
+    }
+
+    #[test]
+    fn health_failure_restores_current_descriptor_and_new_generation() {
+        let (_temp, source, request, layout) = fixture();
+        let mut rolled_back = false;
+        let result = activate_gewyvern_artifact_with(
+            &source,
+            &request,
+            &layout,
+            || Ok(()),
+            |_| Err(GewyvernInstallError::HealthProof),
+            |had_previous| {
+                assert!(!had_previous);
+                rolled_back = true;
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Err(GewyvernInstallError::HealthProof));
+        assert!(rolled_back);
+        assert!(!layout.runtime_root(&request).join(CURRENT_NAME).exists());
+        assert!(!published_service_path(&request, &layout).exists());
+        assert!(
+            !layout
+                .runtime_root(&request)
+                .join("generations")
+                .join(&request.artifact_sha256)
+                .exists()
+        );
+    }
+
+    #[test]
+    fn failed_upgrade_restores_the_previous_generation_and_descriptor() {
+        let (temp, source, request, layout) = fixture();
+        let first = activate_gewyvern_artifact_with(
+            &source,
+            &request,
+            &layout,
+            || Ok(()),
+            |_| Ok(()),
+            |_| panic!("successful activation must not roll back"),
+        )
+        .unwrap();
+        let runtime_root = layout.runtime_root(&request);
+        let previous_current = fs::read(runtime_root.join(CURRENT_NAME)).unwrap();
+        let previous_descriptor = fs::read(published_service_path(&request, &layout)).unwrap();
+
+        let replacement_source = temp.0.join("gewyvern-replacement");
+        fs::write(&replacement_source, b"replacement-gewyvern-artifact").unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&replacement_source, fs::Permissions::from_mode(0o700)).unwrap();
+        let replacement_digest = hex(digest(&SHA256, b"replacement-gewyvern-artifact").as_ref());
+        let replacement = GewyvernInstallerRequest::new(
+            request.provisioning_id.clone(),
+            request.runtime_id.clone(),
+            request.endpoint.clone(),
+            request.install_profile.clone(),
+            replacement_digest.clone(),
+            request.api_credential_handle.clone(),
+            request.trust_credential_handle.clone(),
+            request.api_token(),
+        )
+        .unwrap();
+        let mut rolled_back = false;
+
+        let result = activate_gewyvern_artifact_with(
+            &replacement_source,
+            &replacement,
+            &layout,
+            || Ok(()),
+            |_| Err(GewyvernInstallError::HealthProof),
+            |had_previous| {
+                assert!(had_previous);
+                rolled_back = true;
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Err(GewyvernInstallError::HealthProof));
+        assert!(rolled_back);
+        assert_eq!(
+            fs::read(runtime_root.join(CURRENT_NAME)).unwrap(),
+            previous_current
+        );
+        assert_eq!(
+            fs::read(published_service_path(&request, &layout)).unwrap(),
+            previous_descriptor
+        );
+        assert!(
+            runtime_root
+                .join("generations")
+                .join(first.generation)
+                .is_dir()
+        );
+        assert!(
+            !runtime_root
+                .join("generations")
+                .join(replacement_digest)
+                .exists()
+        );
+    }
+
+    #[test]
+    fn service_rollback_is_attempted_even_when_state_restore_fails() {
+        let (_temp, source, request, layout) = fixture();
+        let current = layout.runtime_root(&request).join(CURRENT_NAME);
+        let mut service_rollback_attempted = false;
+
+        let result = activate_gewyvern_artifact_with(
+            &source,
+            &request,
+            &layout,
+            || Ok(()),
+            |_| {
+                fs::remove_file(&current).unwrap();
+                fs::create_dir(&current).unwrap();
+                Err(GewyvernInstallError::HealthProof)
+            },
+            |_| {
+                service_rollback_attempted = true;
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Err(GewyvernInstallError::InvalidLayout));
+        assert!(service_rollback_attempted);
     }
 
     #[test]

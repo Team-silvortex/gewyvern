@@ -242,7 +242,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/gewyvern-provisioning")
         .expect("Gewyvern provisioning must be tracked independently from pipeline deployment");
     assert_eq!(provisioning.maturity, Maturity::Developing);
-    assert_eq!(provisioning.completion, 80);
+    assert_eq!(provisioning.completion, 90);
     assert_eq!(provisioning.contract.stability, ContractStability::Draft);
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
@@ -260,7 +260,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         provisioning
             .blockers
             .iter()
-            .any(|blocker| { blocker.id == "gewyvern-service-activation-proof-missing" })
+            .any(|blocker| { blocker.id == "gewyvern-registration-handoff-missing" })
     );
     assert!(
         provisioning
@@ -309,6 +309,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .contract
             .surfaces
             .iter()
+            .any(|surface| { surface == "native-gewyvern-activate-v1-entrypoint" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "native-gewyvern-service-v1-entrypoint" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
             .any(|surface| { surface == "installer-installed-only-preparation" })
     );
     assert!(
@@ -324,6 +338,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| { surface == "ready-before-trust-before-receipt" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "tls-token-health-before-ready" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "activation-rollback-preserves-prior-service" })
     );
 
     let ui = catalog

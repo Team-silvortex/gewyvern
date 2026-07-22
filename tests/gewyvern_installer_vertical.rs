@@ -125,17 +125,25 @@ fn native_installer_entrypoint_prepares_and_replays_a_private_generation() {
 }
 
 #[test]
-fn native_installer_entrypoint_rejects_extra_arguments_before_mutation() {
+fn native_installer_entrypoints_reject_extra_arguments_before_mutation() {
     let binary = env!("CARGO_BIN_EXE_gewyvern");
     let temp = TempDir::new();
     let install_root = temp.0.join("install");
-    let output = Command::new(binary)
-        .args(["gewyvern-install-v1", "unexpected"])
-        .env("GEWYVERN_INSTALL_ROOT", &install_root)
-        .output()
-        .unwrap();
+    for entrypoint in [
+        "gewyvern-install-v1",
+        "gewyvern-activate-v1",
+        "gewyvern-service-v1",
+    ] {
+        let output = Command::new(binary)
+            .args([entrypoint, "unexpected"])
+            .env("GEWYVERN_INSTALL_ROOT", &install_root)
+            .output()
+            .unwrap();
 
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("accepts no command-line arguments"));
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("accepts no command-line arguments")
+        );
+    }
     assert!(!install_root.exists());
 }

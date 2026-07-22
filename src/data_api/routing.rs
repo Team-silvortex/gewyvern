@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::io::{Read, Write};
-use std::net::{IpAddr, TcpStream};
+use std::net::IpAddr;
 
 use super::anomaly_flow_view::api_target_anomaly_flow_json;
 use super::certificate_inventory::api_runtime_certificates_json;
@@ -26,9 +26,8 @@ use super::training_manifest::{
     target_training_dataset_manifest_json, training_dataset_manifest_json,
 };
 use super::{
-    API_ADMIN_TOKEN_HEADER, API_CLIENT_READ_TIMEOUT, API_ENDPOINTS_JSON,
-    API_MAX_RESPONSE_BODY_BYTES, API_VERSION, ApiAccessPolicy, ApiDeploymentState, ApiSnapshot,
-    ApiState, api_client_is_loopback,
+    API_ADMIN_TOKEN_HEADER, API_ENDPOINTS_JSON, API_MAX_RESPONSE_BODY_BYTES, API_VERSION,
+    ApiAccessPolicy, ApiDeploymentState, ApiSnapshot, ApiState, api_client_is_loopback,
 };
 
 pub(crate) fn api_response_for_request<'a>(
@@ -513,26 +512,23 @@ fn protocol_cluster_response<'a>(rest: &str) -> (u16, &'static str, Cow<'a, str>
     }
 }
 
-pub(super) fn handle_api_client(
-    mut stream: TcpStream,
+pub(super) fn handle_api_client<S: Read + Write>(
+    stream: &mut S,
     remote_ip: IpAddr,
     state: ApiState,
     deployments: ApiDeploymentState,
     access_policy: ApiAccessPolicy,
 ) {
-    let _ = stream.set_read_timeout(Some(API_CLIENT_READ_TIMEOUT));
-    let _ = stream.set_write_timeout(Some(super::API_CLIENT_WRITE_TIMEOUT));
-    let request = match read_http_request(&mut stream) {
+    let request = match read_http_request(stream) {
         Ok(request) => request,
         Err((status, body)) => {
-            let _ =
-                write_http_response(&mut stream, status, "application/json; charset=utf-8", body);
+            let _ = write_http_response(stream, status, "application/json; charset=utf-8", body);
             return;
         }
     };
     if !request_is_authorized(remote_ip, &request, &access_policy) {
         let _ = write_http_response(
-            &mut stream,
+            stream,
             403,
             "application/json; charset=utf-8",
             "{\"error\":\"api_access_denied\",\"reason\":\"gewyvern runtime API requires loopback access or a valid admin token\"}",
@@ -545,7 +541,7 @@ pub(super) fn handle_api_client(
     let path = parts.next().unwrap_or("/health");
     if path == "/v1/deployments" && !request_has_valid_admin_token(&request, &access_policy) {
         let _ = write_http_response(
-            &mut stream,
+            stream,
             403,
             "application/json; charset=utf-8",
             "{\"error\":\"deployment_auth_required\",\"reason\":\"deployment control always requires a valid gewyvern admin token\"}",
@@ -564,12 +560,7 @@ pub(super) fn handle_api_client(
                 "{\"error\":\"deployment_state_unavailable\"}".to_string(),
             ),
         };
-        let _ = write_http_response(
-            &mut stream,
-            status,
-            "application/json; charset=utf-8",
-            &response,
-        );
+        let _ = write_http_response(stream, status, "application/json; charset=utf-8", &response);
         return;
     }
     if method == "GET" && path == "/v1/deployments" {
@@ -580,17 +571,12 @@ pub(super) fn handle_api_client(
                 "{\"error\":\"deployment_state_unavailable\"}".to_string(),
             ),
         };
-        let _ = write_http_response(
-            &mut stream,
-            status,
-            "application/json; charset=utf-8",
-            &response,
-        );
+        let _ = write_http_response(stream, status, "application/json; charset=utf-8", &response);
         return;
     }
     if method != "GET" {
         let _ = write_http_response(
-            &mut stream,
+            stream,
             405,
             "application/json; charset=utf-8",
             "{\"error\":\"method_not_allowed\",\"allowed\":\"GET; POST /v1/deployments\"}",
@@ -602,10 +588,10 @@ pub(super) fn handle_api_client(
         guard.clone()
     };
     let (status, content_type, body) = api_response_for_request(path, &snapshot);
-    let _ = write_http_response(&mut stream, status, content_type, body.as_ref());
+    let _ = write_http_response(stream, status, content_type, body.as_ref());
 }
 
-fn read_http_request(stream: &mut TcpStream) -> Result<String, (u16, &'static str)> {
+fn read_http_request(stream: &mut impl Read) -> Result<String, (u16, &'static str)> {
     const MAX_HEADER_BYTES: usize = 8 * 1024;
     const MAX_BODY_BYTES: usize = 16 * 1024;
     let mut request = Vec::with_capacity(2048);
@@ -657,7 +643,7 @@ fn request_is_authorized(
     request_text: &str,
     access_policy: &ApiAccessPolicy,
 ) -> bool {
-    if api_client_is_loopback(remote_ip) {
+    if api_client_is_loopback(remote_ip) && !access_policy.require_token {
         return true;
     }
     request_has_valid_admin_token(request_text, access_policy)
@@ -702,7 +688,7 @@ fn request_header_value<'a>(request_text: &'a str, header_name: &str) -> Option<
 }
 
 fn write_http_response(
-    stream: &mut TcpStream,
+    stream: &mut impl Write,
     status: u16,
     content_type: &str,
     body: &str,
@@ -728,7 +714,8 @@ fn write_http_response(
         content_type,
         body.len(),
         body
-    )
+    )?;
+    stream.flush()
 }
 
 #[cfg(test)]
@@ -740,6 +727,7 @@ mod tests {
         let policy = ApiAccessPolicy {
             allow_remote_bind: true,
             admin_token: Some("secret-token".into()),
+            require_token: false,
         };
         assert!(!request_is_authorized(
             "10.0.0.5".parse().unwrap(),
@@ -763,6 +751,7 @@ mod tests {
         let policy = ApiAccessPolicy {
             allow_remote_bind: true,
             admin_token: Some("secret-token".into()),
+            require_token: false,
         };
         assert!(request_is_authorized(
             "10.0.0.5".parse().unwrap(),
@@ -781,6 +770,7 @@ mod tests {
         let policy = ApiAccessPolicy {
             allow_remote_bind: false,
             admin_token: None,
+            require_token: false,
         };
         assert!(request_is_authorized(
             "127.0.0.1".parse().unwrap(),
@@ -794,6 +784,7 @@ mod tests {
         let policy = ApiAccessPolicy {
             allow_remote_bind: false,
             admin_token: Some("secret-token".into()),
+            require_token: false,
         };
         assert!(!request_has_valid_admin_token(
             "POST /v1/deployments HTTP/1.1\r\nHost: localhost\r\n\r\n",

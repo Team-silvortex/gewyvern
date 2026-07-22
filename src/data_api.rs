@@ -31,7 +31,7 @@ mod training_manifest;
 
 use self::deployment::ApiDeploymentStore;
 use self::routing::handle_api_client;
-pub use self::service::{ApiService, start_api_service};
+pub use self::service::{ApiService, start_api_service, start_tls_api_service};
 pub(crate) use self::training_manifest::training_sample_id;
 
 pub type ApiState = Arc<Mutex<Arc<ApiSnapshot>>>;
@@ -50,6 +50,7 @@ const API_ENDPOINTS_JSON: &str = "[\"/health\",\"/v1/capabilities\",\"/v1/runtim
 pub struct ApiAccessPolicy {
     pub allow_remote_bind: bool,
     pub admin_token: Option<String>,
+    pub require_token: bool,
 }
 
 impl ApiAccessPolicy {
@@ -60,6 +61,7 @@ impl ApiAccessPolicy {
                 .ok()
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty()),
+            require_token: false,
         }
     }
 }

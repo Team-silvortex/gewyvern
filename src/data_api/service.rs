@@ -1,27 +1,47 @@
-use std::io::Write;
+use std::io::{BufReader, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use leserpent_protocol::transport_safety::open_bounded_regular_file;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
+use rustls::{ServerConfig, ServerConnection, StreamOwned};
+
 use super::{
-    API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy, ApiSnapshot, ApiState,
-    EVENT_API_CLIENT_ACCEPT_FAILED, EVENT_API_CLIENT_OVERLOAD_REJECTED,
+    API_CLIENT_READ_TIMEOUT, API_CLIENT_WRITE_TIMEOUT, API_MAX_CONCURRENT_CLIENTS, ApiAccessPolicy,
+    ApiSnapshot, ApiState, EVENT_API_CLIENT_ACCEPT_FAILED, EVENT_API_CLIENT_OVERLOAD_REJECTED,
     EVENT_API_LISTENER_BIND_FAILED, api_client_is_loopback, handle_api_client, log_error_event,
     log_warn_event,
 };
 
 pub struct ApiService {
     state: ApiState,
+    #[cfg(test)]
+    local_addr: std::net::SocketAddr,
     shutdown: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
+}
+
+#[derive(Clone)]
+enum ApiTransport {
+    Plain,
+    Tls(Arc<ServerConfig>),
 }
 
 impl ApiService {
     pub fn state(&self) -> &ApiState {
         &self.state
+    }
+
+    #[cfg(test)]
+    pub fn local_addr(&self) -> std::net::SocketAddr {
+        self.local_addr
     }
 
     pub fn shutdown(&mut self) {
@@ -40,7 +60,7 @@ impl Drop for ApiService {
 
 pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
     let access_policy = ApiAccessPolicy::from_env(allow_remote_bind);
-    validate_api_bind_addr(addr, &access_policy).unwrap_or_else(|message| {
+    start_api_service_with(addr, access_policy, ApiTransport::Plain).unwrap_or_else(|message| {
         log_error_event(
             "api",
             EVENT_API_LISTENER_BIND_FAILED,
@@ -49,27 +69,48 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
         );
         eprintln!("{message}");
         std::process::exit(1);
-    });
-    let listener = TcpListener::bind(addr).unwrap_or_else(|err| {
-        log_error_event(
-            "api",
-            EVENT_API_LISTENER_BIND_FAILED,
-            &[("socket", addr.to_string()), ("error", err.to_string())],
-            "failed to bind api listener",
-        );
-        eprintln!("failed to bind api socket {}: {}", addr, err);
-        std::process::exit(1);
-    });
-    listener.set_nonblocking(true).unwrap_or_else(|err| {
-        log_error_event(
-            "api",
-            EVENT_API_LISTENER_BIND_FAILED,
-            &[("socket", addr.to_string()), ("error", err.to_string())],
-            "failed to configure api listener",
-        );
-        eprintln!("failed to configure api socket {}: {}", addr, err);
-        std::process::exit(1);
-    });
+    })
+}
+
+pub fn start_tls_api_service(
+    addr: &str,
+    certificate_path: impl AsRef<Path>,
+    private_key_path: impl AsRef<Path>,
+    admin_token: &str,
+) -> Result<ApiService, String> {
+    if !(32..=256).contains(&admin_token.len())
+        || admin_token.chars().any(char::is_whitespace)
+        || admin_token.chars().any(char::is_control)
+    {
+        return Err("Gewyvern HTTPS admin token is invalid".into());
+    }
+    let tls = load_tls_server_config(certificate_path.as_ref(), private_key_path.as_ref())?;
+    start_api_service_with(
+        addr,
+        ApiAccessPolicy {
+            allow_remote_bind: true,
+            admin_token: Some(admin_token.to_string()),
+            require_token: true,
+        },
+        ApiTransport::Tls(Arc::new(tls)),
+    )
+}
+
+fn start_api_service_with(
+    addr: &str,
+    access_policy: ApiAccessPolicy,
+    transport: ApiTransport,
+) -> Result<ApiService, String> {
+    validate_api_bind_addr(addr, &access_policy)?;
+    let listener = TcpListener::bind(addr)
+        .map_err(|error| format!("failed to bind api socket {addr}: {error}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|error| format!("failed to configure api socket {addr}: {error}"))?;
+    #[cfg(test)]
+    let local_addr = listener
+        .local_addr()
+        .map_err(|error| format!("failed to inspect api socket {addr}: {error}"))?;
     let state = Arc::new(std::sync::Mutex::new(Arc::new(ApiSnapshot::default())));
     let deployments = Arc::new(std::sync::Mutex::new(Default::default()));
     let thread_state = Arc::clone(&state);
@@ -81,7 +122,7 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
     let handle = thread::spawn(move || {
         while !thread_shutdown.load(Ordering::Acquire) {
             match listener.accept() {
-                Ok((stream, remote_addr)) => {
+                Ok((mut stream, remote_addr)) => {
                     let previous = active_clients.fetch_add(1, Ordering::AcqRel);
                     if previous >= API_MAX_CONCURRENT_CLIENTS {
                         active_clients.fetch_sub(1, Ordering::AcqRel);
@@ -94,22 +135,61 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
                             ],
                             "rejected api client because concurrency limit was reached",
                         );
-                        reject_api_client_overload(stream);
+                        if matches!(&transport, ApiTransport::Plain) {
+                            reject_api_client_overload(stream);
+                        }
                         continue;
                     }
                     let client_state = Arc::clone(&thread_state);
                     let client_deployments = Arc::clone(&thread_deployments);
                     let client_counter = Arc::clone(&active_clients);
                     let client_access_policy = thread_access_policy.clone();
+                    let client_transport = transport.clone();
                     thread::spawn(move || {
                         let _guard = ActiveApiClientGuard(client_counter);
-                        handle_api_client(
-                            stream,
-                            remote_addr.ip(),
-                            client_state,
-                            client_deployments,
-                            client_access_policy,
-                        );
+                        if stream
+                            .set_nonblocking(false)
+                            .and_then(|()| stream.set_read_timeout(Some(API_CLIENT_READ_TIMEOUT)))
+                            .and_then(|()| stream.set_write_timeout(Some(API_CLIENT_WRITE_TIMEOUT)))
+                            .is_err()
+                        {
+                            return;
+                        }
+                        match client_transport {
+                            ApiTransport::Plain => handle_api_client(
+                                &mut stream,
+                                remote_addr.ip(),
+                                client_state,
+                                client_deployments,
+                                client_access_policy,
+                            ),
+                            ApiTransport::Tls(config) => {
+                                let Ok(mut connection) = ServerConnection::new(config) else {
+                                    return;
+                                };
+                                while connection.is_handshaking() {
+                                    if let Err(error) = connection.complete_io(&mut stream) {
+                                        log_warn_event(
+                                            "api",
+                                            EVENT_API_CLIENT_ACCEPT_FAILED,
+                                            &[("error", error.to_string())],
+                                            "rejected invalid API TLS peer",
+                                        );
+                                        return;
+                                    }
+                                }
+                                let mut stream = StreamOwned::new(connection, stream);
+                                handle_api_client(
+                                    &mut stream,
+                                    remote_addr.ip(),
+                                    client_state,
+                                    client_deployments,
+                                    client_access_policy,
+                                );
+                                stream.conn.send_close_notify();
+                                let _ = stream.flush();
+                            }
+                        }
                     });
                 }
                 Err(err) => {
@@ -127,11 +207,51 @@ pub fn start_api_service(addr: &str, allow_remote_bind: bool) -> ApiService {
             }
         }
     });
-    ApiService {
+    Ok(ApiService {
         state,
+        #[cfg(test)]
+        local_addr,
         shutdown,
         handle: Some(handle),
+    })
+}
+
+fn load_tls_server_config(
+    certificate_path: &Path,
+    private_key_path: &Path,
+) -> Result<ServerConfig, String> {
+    let certificate_file = open_bounded_regular_file(certificate_path, 1024 * 1024)
+        .map_err(|_| "Gewyvern TLS certificate must be a bounded regular file".to_string())?;
+    let private_key_file = open_bounded_regular_file(private_key_path, 64 * 1024)
+        .map_err(|_| "Gewyvern TLS private key must be a bounded regular file".to_string())?;
+    #[cfg(unix)]
+    if private_key_file
+        .metadata()
+        .map_err(|_| "Gewyvern TLS private key metadata is unavailable".to_string())?
+        .permissions()
+        .mode()
+        & 0o077
+        != 0
+    {
+        return Err("Gewyvern TLS private key must not be accessible by group or others".into());
     }
+    let certificates = CertificateDer::pem_reader_iter(&mut BufReader::new(certificate_file))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Gewyvern TLS certificate contains invalid PEM".to_string())?;
+    if certificates.is_empty() {
+        return Err("Gewyvern TLS certificate contains no certificates".into());
+    }
+    let private_key = PrivateKeyDer::from_pem_reader(&mut BufReader::new(private_key_file))
+        .map_err(|_| "Gewyvern TLS private key contains invalid PEM".to_string())?;
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|_| "Gewyvern TLS protocol configuration failed".to_string())?
+        .with_no_client_auth()
+        .with_single_cert(certificates, private_key)
+        .map_err(|_| "Gewyvern TLS certificate and private key do not match".to_string())?;
+    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    Ok(config)
 }
 
 fn validate_api_bind_addr(bind_addr: &str, access_policy: &ApiAccessPolicy) -> Result<(), String> {
@@ -181,7 +301,98 @@ fn service_busy_response() -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::io::{Read, Write};
+    use std::sync::Arc;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use rcgen::{CertifiedKey, generate_simple_self_signed};
+    use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
+    use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+
     use super::*;
+
+    fn https_request(address: std::net::SocketAddr, ca_pem: &str, token: &str) -> String {
+        let certificate = CertificateDer::pem_slice_iter(ca_pem.as_bytes())
+            .next()
+            .unwrap()
+            .unwrap();
+        let mut roots = RootCertStore::empty();
+        roots.add(certificate).unwrap();
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let config = ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let socket = TcpStream::connect(address).unwrap();
+        let connection = ClientConnection::new(
+            Arc::new(config),
+            ServerName::try_from("localhost").unwrap().to_owned(),
+        )
+        .unwrap();
+        let mut stream = StreamOwned::new(connection, socket);
+        write!(
+            stream,
+            "GET /health HTTP/1.1\r\nHost: localhost\r\nX-Gewyvern-Admin-Token: {token}\r\nConnection: close\r\n\r\n"
+        )
+        .unwrap();
+        stream.flush().unwrap();
+        let mut response = Vec::new();
+        let mut chunk = [0_u8; 1024];
+        let mut expected_length = None;
+        loop {
+            let read = match stream.read(&mut chunk) {
+                Ok(read) => read,
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::UnexpectedEof
+                        && !response.is_empty() =>
+                {
+                    break;
+                }
+                Err(error) => panic!(
+                    "HTTPS response read failed after {} bytes: {error}",
+                    response.len()
+                ),
+            };
+            assert_ne!(read, 0, "HTTPS response ended before its declared body");
+            response.extend_from_slice(&chunk[..read]);
+            if expected_length.is_none()
+                && let Some(header_start) =
+                    response.windows(4).position(|window| window == b"\r\n\r\n")
+            {
+                let header_end = header_start + 4;
+                let headers = std::str::from_utf8(&response[..header_start]).unwrap();
+                let body_length = headers
+                    .lines()
+                    .find_map(|line| {
+                        line.split_once(':').and_then(|(name, value)| {
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse::<usize>().unwrap())
+                        })
+                    })
+                    .unwrap();
+                expected_length = Some(header_end + body_length);
+            }
+            if expected_length.is_some_and(|length| response.len() >= length) {
+                response.truncate(expected_length.unwrap());
+                break;
+            }
+        }
+        let response = String::from_utf8(response).unwrap();
+        let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+        let content_length = headers
+            .lines()
+            .find_map(|line| {
+                line.split_once(':').and_then(|(name, value)| {
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().unwrap())
+                })
+            })
+            .unwrap();
+        assert_eq!(body.len(), content_length);
+        response
+    }
 
     #[test]
     fn active_api_client_guard_releases_slot_on_drop() {
@@ -208,6 +419,7 @@ mod tests {
             &ApiAccessPolicy {
                 allow_remote_bind: false,
                 admin_token: Some("secret-token".into()),
+                require_token: false,
             },
         )
         .expect_err("remote bind should require explicit flag");
@@ -221,6 +433,7 @@ mod tests {
             &ApiAccessPolicy {
                 allow_remote_bind: true,
                 admin_token: None,
+                require_token: false,
             },
         )
         .expect_err("remote bind should require admin token");
@@ -234,8 +447,46 @@ mod tests {
             &ApiAccessPolicy {
                 allow_remote_bind: true,
                 admin_token: Some("secret-token".into()),
+                require_token: false,
             },
         )
         .expect("remote bind should succeed with explicit flag and token");
+    }
+
+    #[test]
+    fn tls_api_requires_the_configured_token_even_from_loopback() {
+        let root = std::env::temp_dir().join(format!(
+            "gewyvern-tls-api-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let certificate = root.join("server.crt");
+        let private_key = root.join("server.key");
+        fs::write(&certificate, cert.pem()).unwrap();
+        fs::write(&private_key, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&private_key, fs::Permissions::from_mode(0o600)).unwrap();
+        let token = "0123456789abcdef0123456789abcdef";
+        let service =
+            start_tls_api_service("127.0.0.1:0", &certificate, &private_key, token).unwrap();
+
+        let denied = https_request(
+            service.local_addr(),
+            &cert.pem(),
+            "abcdef0123456789abcdef0123456789",
+        );
+        assert!(denied.starts_with("HTTP/1.1 403 Forbidden"));
+        let ready = https_request(service.local_addr(), &cert.pem(), token);
+        assert!(ready.starts_with("HTTP/1.1 200 OK"));
+        assert!(ready.contains("\"ok\":true"));
+
+        drop(service);
+        fs::remove_dir_all(root).unwrap();
     }
 }

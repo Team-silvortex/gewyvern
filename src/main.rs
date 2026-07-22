@@ -98,6 +98,28 @@ fn main() {
         }
         return;
     }
+    if args.first().map(String::as_str) == Some("gewyvern-activate-v1") {
+        if args.len() != 1 {
+            eprintln!("gewyvern: gewyvern-activate-v1 accepts no command-line arguments");
+            std::process::exit(1);
+        }
+        if let Err(error) = gewyvern_install::run_gewyvern_activate_stdio() {
+            eprintln!("gewyvern: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if args.first().map(String::as_str) == Some("gewyvern-service-v1") {
+        if args.len() != 1 {
+            eprintln!("gewyvern: gewyvern-service-v1 accepts no command-line arguments");
+            std::process::exit(1);
+        }
+        if let Err(error) = gewyvern_install::run_gewyvern_service() {
+            eprintln!("gewyvern: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if matches!(args.as_slice(), [flag] if flag == "--version" || flag == "-V") {
         println!("gewyvern {}", env!("CARGO_PKG_VERSION"));
         return;

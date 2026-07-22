@@ -238,16 +238,24 @@ services and all request/response identity drift. The native
 a private immutable runtime generation, writes secret-bearing files with mode
 `0600`, generates the endpoint TLS identity, replay-checks every retained
 manifest and service-plan identity, and atomically advances a non-symlink
-`current` pointer. It deliberately returns only `Installed`. Native SSH
+`current` pointer. It deliberately returns only `Installed`.
+`gewyvern-activate-v1` additionally publishes and activates the retained native
+launchd/systemd descriptor, while `gewyvern-service-v1` starts the managed
+rustls API from generation-confined paths. `Ready` is emitted only after a
+bounded loopback probe validates the requested endpoint name, generated CA,
+private API token, JSON health response, and active service. Activation or
+health failure restores the previous `current` pointer and descriptor, removes
+the failed new generation, and restarts the previous service. Native SSH
 transport now reuses the same host-key-pinned Rust substrate as daemon bootstrap:
 exclusive private SFTP staging, bounded command output, timeout cleanup, and no
 shell script or secret argument. A strict mode-`0600` daemon origin configuration
 binds each target to its artifact, endpoint, API/trust handles, and platform
 secret service. A valid `Installed` response persists no trust and yields no
 service receipt; a valid `Ready` response must persist its endpoint-bound CA in
-the namespaced controller trust store before returning a receipt. Service-manager
-activation, authenticated TLS/token health proof, service registration proof,
-CLI, and Avalonia control remain subsequent layers.
+the namespaced controller trust store before returning a receipt. The remaining
+authority gap is the atomic conversion of that receipt into the daemon-owned
+registration proof and `RuntimeRegistered` checkpoint; CLI and Avalonia controls
+remain hidden until that handoff and its compensation path are proven.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the

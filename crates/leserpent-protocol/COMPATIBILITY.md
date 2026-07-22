@@ -61,26 +61,29 @@ runtime generation, stores the API token and generated TLS key only in mode
 publishes a mode `0600` `current` generation pointer. Existing path components,
 generation files, manifests, service plans, and credentials are replay-checked
 without following symbolic links. This preparation command always reports
-`installed`; it cannot report `ready` before a separate service-manager
-activation and authenticated TLS health proof succeed.
+`installed`. The separate `gewyvern-activate-v1` entrypoint may report `ready`
+only after native service-manager activation and an authenticated TLS health
+proof succeed.
 
 The target installer also retains a mode `0600` native service descriptor in
 each immutable generation: launchd plist on macOS and systemd unit on Linux.
 The descriptor references the private token, TLS identity, database, and logs by
 path and contains no token text. Replay compares it byte-for-byte with the
-expected descriptor. Service-manager activation remains outside installer wire
-v1. The target publishes the verified descriptor atomically before advancing
-its `current` generation, but does not load it into the service manager;
-therefore the response remains `installed` rather than `ready`.
+expected descriptor. Service-manager activation remains outside the preparation
+entrypoint but uses the same installer wire v1 response. The target retains the
+verified descriptor inside the generation; activation publishes it atomically to
+the native manager directory and loads it only through `gewyvern-activate-v1`.
 
 The target has a native launchctl/systemctl activation primitive, fenced by the
 request-derived current generation and byte-identical retained/published
-descriptors. It uses no shell and carries no token in manager arguments. The
-SSH installer command now invokes it through `bootstrap-activate-v1`, then runs
-a bounded loopback health request whose TLS server name remains the requested
-endpoint host. The response may claim `ready` only after generated-CA validation,
-session authentication, strict wire-v1 decoding, and daemon authority proof.
-The separate `bootstrap-install-v1` preparation command still returns only
+descriptors. It uses no shell and carries no token in manager arguments. The SSH
+installer command invokes `gewyvern-activate-v1`, then runs a bounded loopback
+health request whose TLS server name remains the requested endpoint host. The
+response may claim `ready` only after generated-CA validation, API-token
+authentication, strict JSON health decoding, and active service proof. Any
+activation or health failure restores the prior current pointer and descriptor,
+removes the failed new generation, and restarts the previous service. The
+separate `gewyvern-install-v1` preparation command still returns only
 `installed`.
 
 Bootstrap state schema v1 now carries an optional opaque
@@ -132,9 +135,10 @@ mode-`0600` `--gewyvern-provisioning-config` selects the artifact, target policy
 endpoint, and API/trust handles without containing secret text. A valid
 `installed` response writes no controller trust and returns no service receipt.
 A valid `ready` response must persist its endpoint-bound CA under the namespaced
-`gewyvern-ca` handle before a receipt can leave the adapter. Target-side service
-activation, authenticated health proof, and the later authority-owned
-registration proof remain subsequent layers.
+`gewyvern-ca` handle before a receipt can leave the adapter. Target-side native
+activation and authenticated health proof are implemented; atomic conversion of
+the receipt into the later authority-owned registration proof remains the next
+layer.
 
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure

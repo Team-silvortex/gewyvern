@@ -44,6 +44,7 @@ default-run = "gewyvern"
 serde.workspace = true
 serde_json.workspace = true
 ring = "0.17"
+rustls.workspace = true
 x509-parser = "0.18.1"
 leserpent-protocol = { path = "crates/leserpent-protocol" }
 rcgen = "0.14"

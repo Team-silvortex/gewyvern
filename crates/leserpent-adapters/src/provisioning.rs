@@ -261,7 +261,7 @@ impl GewyvernProvisioningTransport for NativeSshGewyvernProvisioningTransport {
         let payload = encode_gewyvern_installer_request(&request)
             .map_err(|_| GewyvernProvisioningTransportError::InstallerRejected)?;
         let staging_path = self.artifact.staging_path(&intent.provisioning_id);
-        let command = format!("{staging_path} gewyvern-install-v1");
+        let command = format!("{staging_path} gewyvern-activate-v1");
         let stdout = self
             .client
             .execute(NativeSshJob {

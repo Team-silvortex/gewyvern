@@ -520,18 +520,26 @@ The internal Gewyvern installer wire is now separate, strict, 64 KiB-bounded,
 secret-redacted, and request/ready-response identity bound. It distinguishes
 `Installed` from health-proven `Ready`, validates the artifact generation and
 public CA digest, and refuses credential-handle substitution. The Gewyvern target
-binary now implements its `gewyvern-install-v1` preparation half: it digest-checks
+binary implements its `gewyvern-install-v1` preparation half: it digest-checks
 the bounded source artifact before mutation, creates a private immutable runtime
 generation, retains secret-free replay metadata and a service plan, generates the
 endpoint TLS identity, rejects symbolic-link layouts, and atomically publishes the
-current generation. It returns only `Installed`. The host-key-pinned native SSH
+current generation. It returns only `Installed`. Its `gewyvern-activate-v1`
+entrypoint atomically publishes and activates a launchd/systemd descriptor, and
+the descriptor starts `gewyvern-service-v1` without secret arguments. The managed
+service exposes rustls HTTPS and requires its private API token even on loopback.
+A bounded endpoint-name TLS/token health proof is required before `Ready`; failure
+restores and restarts the prior generation. The host-key-pinned native SSH
 transport now shares bootstrap's Rust connection, exclusive SFTP staging, bounded
 command, and timeout-cleanup substrate. A strict private daemon origin config
 selects targets and opaque handles; API tokens resolve only through the platform
 store. `Installed` withholds trust and a receipt, while `Ready` persists its
-endpoint-bound CA before returning authority. The next product slice adds native
-service-manager activation, authenticated TLS/token health, and adapter-target
-registration proof before exposing the action in CLI or Avalonia.
+endpoint-bound CA before returning authority. The activation path has also passed
+a real Linux systemd proof with correct-token HTTP 200, wrong-token HTTP 403, and
+post-proof service/unit/runtime cleanup. The next product slice atomically derives
+the daemon-owned registration proof from that receipt and advances
+`ServiceReady` to `RuntimeRegistered` before exposing the action in CLI or
+Avalonia.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path
