@@ -1,3 +1,7 @@
+use leserpent_domain::bootstrap::{
+    BootstrapError, BootstrapId, BootstrapPhase, DaemonSessionProof, DeploymentBootstrap,
+    DeploymentBootstrapCheckpoint, DeploymentBootstrapSnapshot,
+};
 use leserpent_domain::{
     CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
     DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
@@ -106,6 +110,7 @@ pub enum RuntimeError {
     InvalidPlan(CommandPlanError),
     InvalidEffectOutcome(&'static str),
     Domain(DomainError),
+    Bootstrap(BootstrapError),
     InvalidSnapshot(DomainSnapshotError),
     Storage(String),
     ReplayMismatch { sequence: i64 },
@@ -119,6 +124,7 @@ impl fmt::Display for RuntimeError {
                 write!(formatter, "invalid effect outcome: {reason}")
             }
             Self::Domain(error) => write!(formatter, "domain execution failed: {error}"),
+            Self::Bootstrap(error) => write!(formatter, "bootstrap state failed: {error}"),
             Self::InvalidSnapshot(error) => write!(formatter, "invalid runtime snapshot: {error}"),
             Self::Storage(error) => write!(formatter, "runtime storage failed: {error}"),
             Self::ReplayMismatch { sequence } => {
@@ -136,6 +142,7 @@ impl std::error::Error for RuntimeError {
         match self {
             Self::InvalidPlan(error) => Some(error),
             Self::Domain(error) => Some(error),
+            Self::Bootstrap(error) => Some(error),
             Self::InvalidSnapshot(error) => Some(error),
             Self::InvalidEffectOutcome(_) | Self::Storage(_) | Self::ReplayMismatch { .. } => None,
         }
@@ -557,6 +564,112 @@ impl ControlRuntime {
         journal
             .complete_effect(lease, outcome)
             .map_err(RuntimeError::Storage)
+    }
+
+    pub fn complete_bootstrap_effect(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+        checkpoint: &DeploymentBootstrapCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint.validate().map_err(RuntimeError::Bootstrap)?;
+        if !matches!(
+            checkpoint.state.phase,
+            BootstrapPhase::Bootstrapped | BootstrapPhase::Failed
+        ) {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "bootstrap effect did not reach a terminal deployment phase",
+            ));
+        }
+        let payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "bootstrap handoff requires persistent storage".into(),
+            ));
+        };
+        journal
+            .complete_effect_with_bootstrap_checkpoint(
+                lease,
+                outcome,
+                checkpoint.state.bootstrap_id.as_str(),
+                bootstrap_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn bootstrap_checkpoint(
+        &mut self,
+        bootstrap_id: &BootstrapId,
+    ) -> Result<Option<DeploymentBootstrapCheckpoint>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "bootstrap handoff requires persistent storage".into(),
+            ));
+        };
+        let Some(record) = journal
+            .bootstrap_checkpoint(bootstrap_id.as_str())
+            .map_err(RuntimeError::Storage)?
+        else {
+            return Ok(None);
+        };
+        let checkpoint: DeploymentBootstrapCheckpoint = serde_json::from_slice(&record.payload)
+            .map_err(|_| RuntimeError::Storage("bootstrap checkpoint is invalid JSON".into()))?;
+        checkpoint.validate().map_err(|error| {
+            RuntimeError::Storage(format!("invalid bootstrap checkpoint: {error}"))
+        })?;
+        if checkpoint.revision != record.revision
+            || checkpoint.state.bootstrap_id != *bootstrap_id
+            || bootstrap_phase_label(checkpoint.state.phase) != record.phase
+        {
+            return Err(RuntimeError::Storage(
+                "bootstrap checkpoint identity or revision diverged".into(),
+            ));
+        }
+        Ok(Some(checkpoint))
+    }
+
+    pub fn bind_bootstrap_session(
+        &mut self,
+        bootstrap_id: &BootstrapId,
+        proof: DaemonSessionProof,
+    ) -> Result<DeploymentBootstrapSnapshot, RuntimeError> {
+        let checkpoint = self
+            .bootstrap_checkpoint(bootstrap_id)?
+            .ok_or_else(|| RuntimeError::Storage("bootstrap checkpoint was not found".into()))?;
+        let mut bootstrap =
+            DeploymentBootstrap::resume(&checkpoint).map_err(RuntimeError::Bootstrap)?;
+        let state = bootstrap
+            .bind_session(proof)
+            .map_err(RuntimeError::Bootstrap)?;
+        if checkpoint.state.phase == BootstrapPhase::SessionBound {
+            return Ok(state);
+        }
+        let next_revision = checkpoint
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| RuntimeError::Storage("bootstrap revision overflow".into()))?;
+        let next = bootstrap
+            .checkpoint(next_revision)
+            .map_err(RuntimeError::Bootstrap)?;
+        let payload =
+            serde_json::to_vec(&next).map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "bootstrap handoff requires persistent storage".into(),
+            ));
+        };
+        journal
+            .update_bootstrap_checkpoint(
+                bootstrap_id.as_str(),
+                checkpoint.revision,
+                bootstrap_phase_label(next.state.phase),
+                &payload,
+            )
+            .map_err(RuntimeError::Storage)?;
+        Ok(state)
     }
 
     pub fn fail_effect(
@@ -1061,6 +1174,16 @@ fn deployment_receipt_from_record(
         outcome,
         error,
     })
+}
+
+fn bootstrap_phase_label(phase: BootstrapPhase) -> &'static str {
+    match phase {
+        BootstrapPhase::Planned => "planned",
+        BootstrapPhase::Deploying => "deploying",
+        BootstrapPhase::Bootstrapped => "bootstrapped",
+        BootstrapPhase::SessionBound => "session_bound",
+        BootstrapPhase::Failed => "failed",
+    }
 }
 
 #[cfg(test)]
@@ -1587,8 +1710,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 10);
-        assert_eq!(migration_count, 10);
+        assert_eq!(schema, 11);
+        assert_eq!(migration_count, 11);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1596,7 +1719,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v10");
+        let path = temp_journal("incomplete-v11");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -1611,14 +1734,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 10);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 11);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 10")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 11")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1653,6 +1776,15 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 11",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE bootstrap_handoffs", [])
+            .unwrap();
+        connection
             .execute("DROP TABLE orchestra_events", [])
             .unwrap();
         connection.execute("DROP TABLE orchestra_runs", []).unwrap();
@@ -1681,7 +1813,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 10);
+        assert_eq!(schema, 11);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1702,7 +1834,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 10 journal kind")
+                if error.contains("invalid runtime journal schema 11 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1715,14 +1847,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (11, 0)",
+                 VALUES (12, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 10 migration history")
+                if error.contains("invalid runtime journal schema 11 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2001,6 +2133,7 @@ mod tests {
                  DROP TABLE runtime_logs;
                  DROP TABLE orchestra_events;
                  DROP TABLE orchestra_runs;
+                 DROP TABLE bootstrap_handoffs;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -2027,7 +2160,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 10);
+        assert_eq!(schema, 11);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2076,6 +2209,75 @@ mod tests {
         assert_eq!(count, 1);
         assert_eq!(outcome, b"ok");
         drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn lost_effect_lease_rolls_back_bootstrap_checkpoint_insertion() {
+        let path = temp_journal("bootstrap-atomic-settlement");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .enqueue_effect(
+                "bootstrap-effect",
+                "leserpent.host.bootstrap",
+                b"request",
+                3,
+            )
+            .unwrap();
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_millis(1))
+            .unwrap()
+            .unwrap();
+        let bootstrap_id = BootstrapId::new("bootstrap-atomic-1").unwrap();
+        let checkpoint = DeploymentBootstrapCheckpoint::new(
+            1,
+            DeploymentBootstrapSnapshot {
+                bootstrap_id: bootstrap_id.clone(),
+                phase: BootstrapPhase::Bootstrapped,
+                target: leserpent_domain::bootstrap::BootstrapTarget {
+                    transport: leserpent_domain::bootstrap::BootstrapTransport::Ssh,
+                    host: "host.example".into(),
+                    port: 22,
+                },
+                bootstrap_credential_present: true,
+                daemon_id: Some(
+                    leserpent_domain::bootstrap::DaemonId::new("daemon-host-example").unwrap(),
+                ),
+                endpoint: Some("https://host.example:9443/".into()),
+                session_credential_handle: Some(
+                    leserpent_domain::bootstrap::CredentialHandle::new(
+                        "vault:leserpentd:host-example",
+                    )
+                    .unwrap(),
+                ),
+                trust_credential_handle: Some(
+                    leserpent_domain::bootstrap::CredentialHandle::new(
+                        "vault:leserpent-ca:host-example",
+                    )
+                    .unwrap(),
+                ),
+                fault_code: None,
+                mutation_authorized: false,
+            },
+            Some(
+                leserpent_domain::bootstrap::CredentialHandle::new("vault:ssh:host-example")
+                    .unwrap(),
+            ),
+        )
+        .unwrap();
+        std::thread::sleep(Duration::from_millis(5));
+
+        assert!(matches!(
+            runtime.complete_bootstrap_effect(&lease, b"outcome", &checkpoint),
+            Err(RuntimeError::Storage(ref error)) if error.contains("lease was lost or expired")
+        ));
+        assert!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .is_none()
+        );
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 
@@ -2295,7 +2497,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 10);
+        assert_eq!(schema, 11);
         drop(connection);
         fs::remove_file(path).unwrap();
     }

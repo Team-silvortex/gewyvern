@@ -87,6 +87,27 @@ the validated PEM into the existing content-addressed desktop CA store. They do
 not persist PEM or replace the opaque handle with a cached certificate path.
 This is a local profile-schema extension and does not change daemon wire v1.
 
+The Linux physical-host proof additionally confirms that these draft bootstrap
+states preserve their wire-v1 meaning across real SSH deployment: trust failure
+and timeout return `failed` without authority handles, successful deployment
+returns `bootstrapped` with mutation disabled, and only a matching session proof
+produces `session_bound`. Target health failure rolls back local service
+publication and never emits a ready installer response. No daemon wire-v1 field
+was added for this proof.
+
+The production daemon worker now treats a successful bootstrap effect as a
+typed state transition rather than an opaque scheduler result. Runtime SQLite
+schema 11 commits the validated effect outcome and a private checkpoint in one
+transaction. The checkpoint contains only the public state plus its opaque
+bootstrap vault handle; it contains no password, token, private key, or CA PEM.
+After restart, the runtime reconstructs the domain state, keeps mutation denied
+while it is `bootstrapped`, rejects mismatched daemon/session/trust proof without
+advancing the checkpoint revision, and atomically promotes matching proof to
+`session_bound`. Promotion removes the bootstrap handle from the current
+checkpoint. This local durability contract does not add or relax a wire-v1
+field; packaged adapter configuration and a remote bind-session operation remain
+draft work.
+
 ## Supported 1.x Slice
 
 The first compatibility slice covers:

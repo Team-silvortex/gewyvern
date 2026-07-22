@@ -26,7 +26,7 @@ use russh::{ChannelMsg, client, keys::HashAlg};
 #[cfg(feature = "native-ssh")]
 use russh_sftp::{
     client::SftpSession,
-    protocol::{FileAttributes, OpenFlags},
+    protocol::{FileAttributes, OpenFlags, StatusCode},
 };
 #[cfg(feature = "native-ssh")]
 use tokio::io::AsyncWriteExt;
@@ -348,7 +348,7 @@ pub struct NativeSshBootstrapTransport {
 impl Default for NativeSshBootstrapTransport {
     fn default() -> Self {
         Self {
-            timeout: Duration::from_secs(30),
+            timeout: Duration::from_secs(300),
         }
     }
 }
@@ -377,9 +377,17 @@ impl SshBootstrapTransport for NativeSshBootstrapTransport {
                         .build()
                         .map_err(|_| SshBootstrapTransportError::Transport)?;
                     runtime.block_on(async {
-                        tokio::time::timeout(self.timeout, deploy_native(job))
-                            .await
-                            .map_err(|_| SshBootstrapTransportError::Transport)?
+                        match tokio::time::timeout(self.timeout, deploy_native(&job)).await {
+                            Ok(result) => result,
+                            Err(_) => {
+                                let _ = tokio::time::timeout(
+                                    Duration::from_secs(60),
+                                    remove_timed_out_staging(&job),
+                                )
+                                .await;
+                                Err(SshBootstrapTransportError::Transport)
+                            }
+                        }
                     })
                 })
                 .join()
@@ -413,8 +421,28 @@ impl client::Handler for PinnedHostKey {
 
 #[cfg(feature = "native-ssh")]
 async fn deploy_native(
-    job: SshBootstrapJob<'_>,
+    job: &SshBootstrapJob<'_>,
 ) -> Result<SshBootstrapOutcome, SshBootstrapTransportError> {
+    let mut session = connect_authenticated(job).await?;
+    let staging_path = job.artifact.staging_path(job.bootstrap_id);
+    let sftp = open_sftp(&mut session).await?;
+    let activation = async {
+        upload_and_verify(&sftp, &staging_path, job.artifact).await?;
+        activate_installer(&mut session, &staging_path, job).await
+    }
+    .await;
+    let _ = sftp.remove_file(staging_path).await;
+    let _ = sftp.close().await;
+    let _ = session
+        .disconnect(russh::Disconnect::ByApplication, "", "English")
+        .await;
+    activation
+}
+
+#[cfg(feature = "native-ssh")]
+async fn connect_authenticated(
+    job: &SshBootstrapJob<'_>,
+) -> Result<client::Handle<PinnedHostKey>, SshBootstrapTransportError> {
     let config = Arc::new(client::Config {
         inactivity_timeout: Some(Duration::from_secs(15)),
         ..Default::default()
@@ -442,8 +470,13 @@ async fn deploy_native(
     if !authentication.success() {
         return Err(SshBootstrapTransportError::Authentication);
     }
+    Ok(session)
+}
 
-    let staging_path = job.artifact.staging_path(job.bootstrap_id);
+#[cfg(feature = "native-ssh")]
+async fn open_sftp(
+    session: &mut client::Handle<PinnedHostKey>,
+) -> Result<SftpSession, SshBootstrapTransportError> {
     let sftp_channel = session
         .channel_open_session()
         .await
@@ -455,17 +488,44 @@ async fn deploy_native(
     let sftp = SftpSession::new(sftp_channel.into_stream())
         .await
         .map_err(|_| SshBootstrapTransportError::Transport)?;
-    let activation = async {
-        upload_and_verify(&sftp, &staging_path, job.artifact).await?;
-        activate_installer(&mut session, &staging_path, &job).await
+    Ok(sftp)
+}
+
+#[cfg(feature = "native-ssh")]
+async fn remove_timed_out_staging(
+    job: &SshBootstrapJob<'_>,
+) -> Result<(), SshBootstrapTransportError> {
+    for attempt in 0..3 {
+        if remove_timed_out_staging_once(job).await.is_ok() {
+            return Ok(());
+        }
+        if attempt < 2 {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
     }
-    .await;
-    let _ = sftp.remove_file(staging_path).await;
+    Err(SshBootstrapTransportError::Transport)
+}
+
+#[cfg(feature = "native-ssh")]
+async fn remove_timed_out_staging_once(
+    job: &SshBootstrapJob<'_>,
+) -> Result<(), SshBootstrapTransportError> {
+    let mut session = connect_authenticated(job).await?;
+    let sftp = open_sftp(&mut session).await?;
+    match sftp
+        .remove_file(job.artifact.staging_path(job.bootstrap_id))
+        .await
+    {
+        Ok(()) => {}
+        Err(russh_sftp::client::error::Error::Status(status))
+            if status.status_code == StatusCode::NoSuchFile => {}
+        Err(_) => return Err(SshBootstrapTransportError::Transport),
+    }
     let _ = sftp.close().await;
     let _ = session
         .disconnect(russh::Disconnect::ByApplication, "", "English")
         .await;
-    activation
+    Ok(())
 }
 
 #[cfg(feature = "native-ssh")]

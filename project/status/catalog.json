@@ -1229,12 +1229,12 @@
       "feature": "reverse-bootstrap",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 79,
+      "completion": 88,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.10.0",
+        "version": "0.12.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1295,6 +1295,20 @@
           "renderer-independent-trust-record-decoder",
           "managed-ca-import-from-retained-handle",
           "avalonia-managed-trust-settings",
+          "real-linux-ssh-authority-binding",
+          "real-trust-failure-authority-withholding",
+          "timeout-staging-compensation",
+          "health-failure-publication-rollback",
+          "native-failed-service-rollback",
+          "real-session-bound-mutation-fence",
+          "schema-v1-private-bootstrap-checkpoint",
+          "runtime-schema-11-bootstrap-handoff",
+          "atomic-effect-checkpoint-settlement",
+          "restart-safe-session-promotion",
+          "checkpoint-revision-cas-fence",
+          "idempotent-session-proof-replay",
+          "malformed-outcome-authority-withholding",
+          "post-bind-bootstrap-handle-retirement",
           "trust-endpoint-confusion-rejection",
           "exclusive-ca-source-selection"
         ]
@@ -1302,12 +1316,12 @@
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/transport-protocol/wire-compatibility"],
       "blockers": [
         {
-          "id": "host-bootstrap-installation-incomplete",
-          "summary": "The bootstrap-install-v1 path prepares and publishes the atomic generation, while native SSH invokes bootstrap-activate-v1 and returns ready only after bounded authenticated authority proof. The returned CA is endpoint/digest validated and atomically persisted before the domain exposes its opaque trust handle; the native CLI and Avalonia profiles now resolve that handle with endpoint-confusion rejection. Timeout rollback, WinRM, and real-host rollback proof remain."
+          "id": "cross-platform-bootstrap-installation-incomplete",
+          "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and a product uninstall/retirement flow remain."
         },
         {
-          "id": "bootstrap-cross-process-proof-missing",
-          "summary": "No real host proof yet deploys leserpentd, obtains a daemon-issued session credential handle, and rejects mutation before session binding."
+          "id": "bootstrap-production-entry-missing",
+          "summary": "The production daemon worker now atomically retains Bootstrapped with its effect outcome, rejects mutation before session binding, and resumes matching proof promotion after restart. The packaged daemon still needs native SSH policy registration and an authenticated remote bind-session surface."
         },
         {
           "id": "bootstrap-client-flow-missing",
@@ -1327,15 +1341,19 @@
         { "kind": "source", "path": "crates/leserpent-adapters/src/bootstrap.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-adapters/src/bootstrap.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/bootstrap_install.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-runtime/src/persistence.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/bootstrap_install.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/tests/bootstrap_installer_vertical.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/BootstrapTrustRecordStore.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopProductStartup.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionWindow.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopCertificateAuthorityStore.cs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_bootstrap.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_bootstrap_20260722.json", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/bootstrap_vertical.rs", "state": "planned" }
       ],
-      "next_gate": "Run one real SSH authority-binding vertical with trust-failure, timeout, mutation-before-session rejection, and rollback proof."
+      "next_gate": "Register the native SSH adapter from packaged daemon configuration and expose authenticated bind-session/query operations before post-session Gewyvern deployment."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

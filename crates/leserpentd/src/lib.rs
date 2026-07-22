@@ -2,8 +2,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
+use leserpent_adapters::HOST_BOOTSTRAP_EFFECT_KIND;
 pub use leserpent_adapters::{AdapterRegistry, EffectAdapter, EffectContext};
-use leserpent_runtime::{ControlRuntime, RuntimeError, WorkerStep};
+use leserpent_domain::bootstrap::{BootstrapPhase, DeploymentBootstrapCheckpoint};
+use leserpent_protocol::bootstrap::{
+    BootstrapResponse, decode_bootstrap_request, decode_bootstrap_response,
+};
+use leserpent_runtime::{ControlRuntime, EffectExecution, EffectLease, RuntimeError, WorkerStep};
 
 pub mod bootstrap_health;
 pub mod bootstrap_install;
@@ -100,11 +105,18 @@ impl DaemonHost {
         let step = if self.registry.is_empty() {
             WorkerStep::Idle
         } else {
-            self.runtime.run_effect_once(
-                &self.config.worker_id,
-                self.config.lease_duration,
-                &mut self.registry,
-            )?
+            let Some(lease) = self
+                .runtime
+                .claim_effect(&self.config.worker_id, self.config.lease_duration)?
+            else {
+                self.record_step(&WorkerStep::Idle);
+                return Ok(WorkerStep::Idle);
+            };
+            let cancelled = AtomicBool::new(false);
+            let execution = self
+                .registry
+                .execute_lease(&lease, &EffectContext::new(&cancelled));
+            self.settle_execution(&lease, execution)?
         };
         self.record_step(&step);
         Ok(step)
@@ -169,7 +181,7 @@ impl DaemonHost {
 
         let mut steps = Vec::with_capacity(executions.len());
         for (lease, execution) in executions {
-            let step = self.runtime.settle_effect(&lease, execution)?;
+            let step = self.settle_execution(&lease, execution)?;
             self.record_step(&step);
             steps.push(step);
         }
@@ -213,6 +225,38 @@ impl DaemonHost {
         self.stats
     }
 
+    fn settle_execution(
+        &mut self,
+        lease: &EffectLease,
+        execution: EffectExecution,
+    ) -> Result<WorkerStep, RuntimeError> {
+        let EffectExecution::Complete(outcome) = execution else {
+            return self.runtime.settle_effect(lease, execution);
+        };
+        if lease.kind != HOST_BOOTSTRAP_EFFECT_KIND {
+            return self
+                .runtime
+                .settle_effect(lease, EffectExecution::Complete(outcome));
+        }
+        let checkpoint = match checkpoint_from_bootstrap_effect(lease, &outcome) {
+            Ok(checkpoint) => checkpoint,
+            Err(error) => {
+                self.runtime
+                    .reject_effect(lease, &format!("bootstrap outcome was rejected: {error}"))?;
+                return Ok(WorkerStep::Rejected {
+                    effect_id: lease.effect_id.clone(),
+                    attempt: lease.attempt,
+                });
+            }
+        };
+        self.runtime
+            .complete_bootstrap_effect(lease, &outcome, &checkpoint)?;
+        Ok(WorkerStep::Completed {
+            effect_id: lease.effect_id.clone(),
+            attempt: lease.attempt,
+        })
+    }
+
     fn prepare_tick(&mut self) -> Result<(), RuntimeError> {
         self.runtime.heartbeat()?;
         self.stats.heartbeats += 1;
@@ -238,6 +282,31 @@ impl DaemonHost {
             WorkerStep::Rejected { .. } => self.stats.rejected += 1,
         }
     }
+}
+
+fn checkpoint_from_bootstrap_effect(
+    lease: &EffectLease,
+    outcome: &[u8],
+) -> Result<DeploymentBootstrapCheckpoint, String> {
+    let request = decode_bootstrap_request(&lease.payload)
+        .map_err(|_| "invalid persisted bootstrap request".to_string())?;
+    let response =
+        decode_bootstrap_response(outcome).map_err(|_| "invalid bootstrap response".to_string())?;
+    let BootstrapResponse::State(state) = response.response else {
+        return Err("bootstrap adapter returned an error envelope as success".into());
+    };
+    if state.bootstrap_id != request.request.intent.bootstrap_id
+        || state.target != request.request.intent.target
+    {
+        return Err("bootstrap response identity does not match its request".into());
+    }
+    let credential_handle = match state.phase {
+        BootstrapPhase::Bootstrapped => Some(request.request.intent.credential_handle),
+        BootstrapPhase::Failed => None,
+        _ => return Err("bootstrap effect stopped before deployment was terminal".into()),
+    };
+    DeploymentBootstrapCheckpoint::new(1, state, credential_handle)
+        .map_err(|error| error.to_string())
 }
 
 fn sleep_until_stop(duration: Duration, stop: &AtomicBool) {
@@ -277,6 +346,17 @@ mod tests {
         GEWYVERN_HEALTH_EFFECT_KIND, GewyvernDeploymentAdapter, GewyvernDiscoveryAdapter,
         GewyvernHealthAdapter, GewyvernTarget, SecretKey, SecretValue,
     };
+    use leserpent_domain::bootstrap::{
+        BOOTSTRAP_DOMAIN_SCHEMA_VERSION, BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId,
+        BootstrapIntent, BootstrapTarget, BootstrapTransport, CAPABILITY_HOST_BOOTSTRAP,
+        CredentialHandle, DaemonBootstrapReceipt, DaemonId, DaemonSessionProof,
+        DeploymentBootstrap,
+    };
+    use leserpent_domain::{CapabilitySet, Principal};
+    use leserpent_protocol::bootstrap::{
+        BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
+        BootstrapResponseEnvelope, encode_bootstrap_request, encode_bootstrap_response,
+    };
     use leserpent_runtime::EffectExecution;
 
     fn temp_database(label: &str) -> PathBuf {
@@ -300,6 +380,69 @@ mod tests {
         fn execute(&mut self, payload: &[u8]) -> EffectExecution {
             EffectExecution::Complete(payload.to_vec())
         }
+    }
+
+    struct FixedBootstrapAdapter {
+        outcome: Vec<u8>,
+    }
+
+    impl EffectAdapter for FixedBootstrapAdapter {
+        fn kind(&self) -> &str {
+            HOST_BOOTSTRAP_EFFECT_KIND
+        }
+
+        fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
+            EffectExecution::Complete(self.outcome.clone())
+        }
+    }
+
+    fn bootstrap_request_and_outcome() -> (Vec<u8>, Vec<u8>, BootstrapId) {
+        let bootstrap_id = BootstrapId::new("bootstrap-restart-1").unwrap();
+        let target = BootstrapTarget {
+            transport: BootstrapTransport::Ssh,
+            host: "host.example".into(),
+            port: 22,
+        };
+        let intent = BootstrapIntent {
+            schema_version: BOOTSTRAP_DOMAIN_SCHEMA_VERSION,
+            bootstrap_id: bootstrap_id.clone(),
+            target,
+            credential_handle: CredentialHandle::new("vault:ssh:host-example").unwrap(),
+            requested_by: "operator-a".into(),
+            confirmed: true,
+        };
+        let principal = Principal {
+            id: "operator-a".into(),
+        };
+        let capabilities = CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]);
+        let request = encode_bootstrap_request(&BootstrapRequestEnvelope {
+            schema_version: BOOTSTRAP_PROTOCOL_SCHEMA_VERSION,
+            request: BootstrapRequest {
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                intent: intent.clone(),
+            },
+        })
+        .unwrap();
+        let mut bootstrap = DeploymentBootstrap::plan(&principal, &capabilities, intent).unwrap();
+        bootstrap.begin().unwrap();
+        let state = bootstrap
+            .accept_deployed(DaemonBootstrapReceipt {
+                bootstrap_id: bootstrap_id.clone(),
+                daemon_id: DaemonId::new("daemon-host-example").unwrap(),
+                endpoint: "https://host.example:9443/".into(),
+                session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
+                    .unwrap(),
+            })
+            .unwrap();
+        let outcome = encode_bootstrap_response(&BootstrapResponseEnvelope {
+            schema_version: BOOTSTRAP_PROTOCOL_SCHEMA_VERSION,
+            response: BootstrapResponse::State(state),
+        })
+        .unwrap();
+        (request, outcome, bootstrap_id)
     }
 
     struct BarrierAdapter {
@@ -728,6 +871,148 @@ mod tests {
             Some(&true)
         );
         server.join().unwrap();
+        drop(host);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn bootstrap_handoff_survives_restart_and_requires_matching_session_proof() {
+        let path = temp_database("bootstrap-handoff-restart");
+        let (request, outcome, bootstrap_id) = bootstrap_request_and_outcome();
+        let runtime = ControlRuntime::open(&path).unwrap();
+        let mut registry = AdapterRegistry::default();
+        registry
+            .register(FixedBootstrapAdapter { outcome })
+            .unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        host.runtime_mut()
+            .enqueue_effect(
+                "bootstrap-effect-1",
+                HOST_BOOTSTRAP_EFFECT_KIND,
+                &request,
+                3,
+            )
+            .unwrap();
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Completed { attempt: 1, .. }
+        ));
+        let before_restart = host
+            .runtime_mut()
+            .bootstrap_checkpoint(&bootstrap_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(before_restart.state.phase, BootstrapPhase::Bootstrapped);
+        assert!(!before_restart.state.mutation_authorized);
+        drop(host);
+
+        let bytes = fs::read(&path).unwrap();
+        assert!(
+            !bytes
+                .windows(22)
+                .any(|window| window == b"raw-bootstrap-password")
+        );
+        assert!(
+            !bytes
+                .windows(17)
+                .any(|window| window == b"raw-session-token")
+        );
+
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        let recovered_checkpoint = recovered
+            .bootstrap_checkpoint(&bootstrap_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(recovered_checkpoint.revision, 1);
+        assert_eq!(
+            recovered_checkpoint.state.phase,
+            BootstrapPhase::Bootstrapped
+        );
+        let mut proof = DaemonSessionProof {
+            bootstrap_id: bootstrap_id.clone(),
+            daemon_id: DaemonId::new("daemon-wrong").unwrap(),
+            session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
+                .unwrap(),
+            trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
+                .unwrap(),
+            authority_owned: true,
+            protocol_schema_version: BOOTSTRAP_SESSION_PROTOCOL_VERSION,
+        };
+        assert!(matches!(
+            recovered.bind_bootstrap_session(&bootstrap_id, proof.clone()),
+            Err(RuntimeError::Bootstrap(
+                leserpent_domain::bootstrap::BootstrapError::IdentityMismatch
+            ))
+        ));
+        assert_eq!(
+            recovered
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+
+        proof.daemon_id = DaemonId::new("daemon-host-example").unwrap();
+        let bound = recovered
+            .bind_bootstrap_session(&bootstrap_id, proof.clone())
+            .unwrap();
+        assert_eq!(bound.phase, BootstrapPhase::SessionBound);
+        assert!(bound.mutation_authorized);
+        drop(recovered);
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        let durable = restarted
+            .bootstrap_checkpoint(&bootstrap_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(durable.revision, 2);
+        assert_eq!(durable.state.phase, BootstrapPhase::SessionBound);
+        assert!(durable.state.mutation_authorized);
+        assert!(durable.bootstrap_credential_handle.is_none());
+        let replay = restarted
+            .bind_bootstrap_session(&bootstrap_id, proof)
+            .unwrap();
+        assert_eq!(replay, durable.state);
+        assert_eq!(
+            restarted
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            2
+        );
+        drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn malformed_bootstrap_outcome_is_rejected_without_a_handoff() {
+        let path = temp_database("bootstrap-handoff-malformed");
+        let (request, _, bootstrap_id) = bootstrap_request_and_outcome();
+        let runtime = ControlRuntime::open(&path).unwrap();
+        let mut registry = AdapterRegistry::default();
+        registry
+            .register(FixedBootstrapAdapter {
+                outcome: br#"{"not":"a bootstrap response"}"#.to_vec(),
+            })
+            .unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        host.runtime_mut()
+            .enqueue_effect(
+                "bootstrap-effect-malformed",
+                HOST_BOOTSTRAP_EFFECT_KIND,
+                &request,
+                3,
+            )
+            .unwrap();
+        assert!(matches!(host.tick().unwrap(), WorkerStep::Rejected { .. }));
+        assert!(
+            host.runtime_mut()
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .is_none()
+        );
         drop(host);
         fs::remove_file(path).unwrap();
     }

@@ -442,7 +442,34 @@ transport. Existing authenticated HTTPS, IPC, and Leselang parity verticals
 remain green. Avalonia now retains the same opaque handle in its connection
 profile, strictly decodes the private Rust record through RemoteClient, rejects
 endpoint/digest/source confusion, and imports only the validated PEM into its
-content-addressed CA store. Real SSH timeout and rollback evidence remain.
+content-addressed CA store.
+
+The Linux real-host gate is now closed. An ignored, explicit-environment Rust
+vertical uploads a size-optimized x86_64 artifact through the production Russh
+and SFTP adapter, activates a systemd-user daemon, proves TLS/token/authority
+health, commits private controller trust, and keeps mutation disabled until the
+matching session and trust identities bind. The same run proves real trust-store
+rejection, one-millisecond timeout cleanup, and occupied-port health rollback.
+The failed daemon leaves no unit, generation, or staging artifact, while the
+primary daemon remains active with zero restarts. Evidence is retained in
+`docs/fixtures/leserpent_real_ssh_bootstrap_20260722.json`; credentials and PEM
+are deliberately absent.
+
+Controller restart durability is also implemented. The daemon worker converts
+only a validated terminal bootstrap outcome into a private schema-v1 checkpoint,
+and runtime SQLite schema 11 commits that checkpoint in the same transaction as
+effect completion. Restart leaves `Bootstrapped` read-only. A mismatched session
+proof preserves revision 1; matching daemon/session/trust authority promotes it
+through the restored domain state machine to revision 2 `SessionBound`, retires
+the bootstrap handle, and survives another restart. Malformed adapter output is
+terminally rejected without creating a handoff. Unit coverage lives in
+`crates/leserpentd/src/lib.rs`.
+
+The next product slice is intentionally narrower: register the native SSH
+adapter and its policy/artifact/trust providers from packaged daemon
+configuration, then expose authenticated checkpoint query and bind-session
+operations to the CLI and Avalonia Hub. Post-session Gewyvern deployment stays
+behind that gate.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

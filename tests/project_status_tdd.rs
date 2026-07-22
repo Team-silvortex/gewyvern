@@ -180,7 +180,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/reverse-bootstrap")
         .expect("reverse deployment bootstrap must be tracked independently");
     assert_eq!(bootstrap.maturity, Maturity::Developing);
-    assert!((40..80).contains(&bootstrap.completion));
+    assert!((80..90).contains(&bootstrap.completion));
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
     assert!(
         bootstrap
@@ -190,14 +190,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|surface| surface == "native-rust-ssh-transport")
     );
     assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "host-bootstrap-installation-incomplete"
-            && blocker.summary.contains("bootstrap-install-v1")
-    }));
-    assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "bootstrap-cross-process-proof-missing"
+        blocker.id == "cross-platform-bootstrap-installation-incomplete"
             && blocker
                 .summary
-                .contains("rejects mutation before session binding")
+                .contains("real Linux SSH/systemd-user authority proof")
+    }));
+    assert!(bootstrap.blockers.iter().any(|blocker| {
+        blocker.id == "bootstrap-production-entry-missing"
+            && blocker
+                .summary
+                .contains("resumes matching proof promotion after restart")
     }));
 
     let ui = catalog

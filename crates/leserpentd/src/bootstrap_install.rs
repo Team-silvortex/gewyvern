@@ -221,6 +221,7 @@ pub fn activate_bootstrap_artifact(
             )
             .map_err(|_| BootstrapInstallError::HealthProof)
         },
+        |had_previous_service| rollback_published_service(request, layout, had_previous_service),
     )
 }
 
@@ -230,12 +231,69 @@ fn activate_bootstrap_artifact_with(
     layout: &BootstrapInstallLayout,
     activate: impl FnOnce() -> Result<(), BootstrapInstallError>,
     prove_health: impl FnOnce(&str) -> Result<(), BootstrapInstallError>,
+    rollback_service: impl FnOnce(bool) -> Result<(), BootstrapInstallError>,
 ) -> Result<BootstrapInstallerResponse, BootstrapInstallError> {
+    let rollback = ActivationRollback::capture(request, layout)?;
     let mut response = install_bootstrap_artifact(source, request, layout)?;
-    activate()?;
-    prove_health(&response.tls_ca_pem)?;
+    if let Err(error) = activate().and_then(|()| prove_health(&response.tls_ca_pem)) {
+        rollback.restore(request, layout)?;
+        rollback_service(rollback.previous_descriptor.is_some())?;
+        return Err(error);
+    }
     response.service_state = BootstrapInstallerServiceState::Ready;
     Ok(response)
+}
+
+struct ActivationRollback {
+    previous_current: Option<Zeroizing<Vec<u8>>>,
+    previous_descriptor: Option<Zeroizing<Vec<u8>>>,
+    generation_preexisted: bool,
+}
+
+impl ActivationRollback {
+    fn capture(
+        request: &BootstrapInstallerRequest,
+        layout: &BootstrapInstallLayout,
+    ) -> Result<Self, BootstrapInstallError> {
+        let generation = layout.root.join("generations").join(generation_id(request));
+        Ok(Self {
+            previous_current: read_optional_private_file(&layout.root.join(CURRENT_NAME), 128)?,
+            previous_descriptor: read_optional_private_file(
+                &published_service_path(request, layout),
+                64 * 1024,
+            )?,
+            generation_preexisted: generation.exists(),
+        })
+    }
+
+    fn restore(
+        &self,
+        request: &BootstrapInstallerRequest,
+        layout: &BootstrapInstallLayout,
+    ) -> Result<(), BootstrapInstallError> {
+        restore_private_file(
+            &layout.root.join(CURRENT_NAME),
+            self.previous_current.as_ref().map(|value| value.as_slice()),
+        )?;
+        restore_private_file(
+            &published_service_path(request, layout),
+            self.previous_descriptor
+                .as_ref()
+                .map(|value| value.as_slice()),
+        )?;
+        if !self.generation_preexisted {
+            let generation = layout.root.join("generations").join(generation_id(request));
+            if generation.exists() {
+                fs::remove_dir_all(&generation).map_err(|_| BootstrapInstallError::Storage)?;
+                sync_directory(
+                    generation
+                        .parent()
+                        .ok_or(BootstrapInstallError::InvalidLayout)?,
+                )?;
+            }
+        }
+        Ok(())
+    }
 }
 
 fn write_stdio_response(
@@ -256,7 +314,25 @@ pub fn activate_published_service(
     layout: &BootstrapInstallLayout,
 ) -> Result<(), BootstrapInstallError> {
     verify_published_service(request, layout)?;
-    for command in service_activation_commands(request, layout)? {
+    execute_service_commands(service_activation_commands(request, layout)?)
+}
+
+fn rollback_published_service(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+    had_previous_service: bool,
+) -> Result<(), BootstrapInstallError> {
+    execute_service_commands(service_rollback_commands(
+        request,
+        layout,
+        had_previous_service,
+    )?)
+}
+
+fn execute_service_commands(
+    commands: Vec<ServiceManagerCommand>,
+) -> Result<(), BootstrapInstallError> {
+    for command in commands {
         let status = Command::new(&command.program)
             .args(&command.arguments)
             .stdin(Stdio::null())
@@ -340,6 +416,52 @@ fn service_activation_commands(
     ])
 }
 
+#[cfg(target_os = "macos")]
+fn service_rollback_commands(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+    had_previous_service: bool,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let domain = match layout.profile.as_str() {
+        "system" => "system".to_string(),
+        "user" => {
+            let uid = fs::metadata(&layout.service_directory)
+                .map_err(|_| BootstrapInstallError::ServiceActivation)?
+                .uid();
+            format!("gui/{uid}")
+        }
+        _ => return Err(BootstrapInstallError::UnsupportedProfile),
+    };
+    let label = format!("org.gewyvern.leserpentd.{}", request.daemon_id.as_str());
+    let target = format!("{domain}/{label}");
+    let mut commands = vec![ServiceManagerCommand {
+        program: PathBuf::from("/bin/launchctl"),
+        arguments: vec!["bootout".into(), target.clone().into()],
+        tolerate_failure: true,
+    }];
+    if had_previous_service {
+        commands.extend([
+            ServiceManagerCommand {
+                program: PathBuf::from("/bin/launchctl"),
+                arguments: vec![
+                    "bootstrap".into(),
+                    domain.into(),
+                    published_service_path(request, layout).into_os_string(),
+                ],
+                tolerate_failure: false,
+            },
+            ServiceManagerCommand {
+                program: PathBuf::from("/bin/launchctl"),
+                arguments: vec!["kickstart".into(), "-k".into(), target.into()],
+                tolerate_failure: false,
+            },
+        ]);
+    }
+    Ok(commands)
+}
+
 #[cfg(target_os = "linux")]
 fn service_activation_commands(
     request: &BootstrapInstallerRequest,
@@ -384,10 +506,67 @@ fn service_activation_commands(
     ])
 }
 
+#[cfg(target_os = "linux")]
+fn service_rollback_commands(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+    had_previous_service: bool,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    let program = [
+        PathBuf::from("/usr/bin/systemctl"),
+        PathBuf::from("/bin/systemctl"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
+    .ok_or(BootstrapInstallError::ServiceActivation)?;
+    let mut prefix = Vec::new();
+    match layout.profile.as_str() {
+        "system" => {}
+        "user" => prefix.push(OsString::from("--user")),
+        _ => return Err(BootstrapInstallError::UnsupportedProfile),
+    }
+    let unit = service_descriptor_file_name(request);
+    let command = |verb: &str, include_unit: bool, tolerate_failure: bool| {
+        let mut arguments = prefix.clone();
+        arguments.push(verb.into());
+        if include_unit {
+            arguments.push(unit.clone().into());
+        }
+        ServiceManagerCommand {
+            program: program.clone(),
+            arguments,
+            tolerate_failure,
+        }
+    };
+    let mut commands = vec![command("stop", true, true)];
+    if had_previous_service {
+        commands.extend([
+            command("daemon-reload", false, false),
+            command("enable", true, false),
+            command("restart", true, false),
+        ]);
+    } else {
+        commands.extend([
+            command("disable", true, true),
+            command("daemon-reload", false, false),
+        ]);
+    }
+    Ok(commands)
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn service_activation_commands(
     _request: &BootstrapInstallerRequest,
     _layout: &BootstrapInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    Err(BootstrapInstallError::UnsupportedProfile)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_rollback_commands(
+    _request: &BootstrapInstallerRequest,
+    _layout: &BootstrapInstallLayout,
+    _had_previous_service: bool,
 ) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
     Err(BootstrapInstallError::UnsupportedProfile)
 }
@@ -925,6 +1104,50 @@ fn read_private_file(path: &Path, limit: u64) -> Result<Zeroizing<Vec<u8>>, Boot
     Ok(bytes)
 }
 
+fn read_optional_private_file(
+    path: &Path,
+    limit: u64,
+) -> Result<Option<Zeroizing<Vec<u8>>>, BootstrapInstallError> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => read_private_file(path, limit).map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(_) => Err(BootstrapInstallError::Storage),
+    }
+}
+
+fn restore_private_file(path: &Path, previous: Option<&[u8]>) -> Result<(), BootstrapInstallError> {
+    let parent = path.parent().ok_or(BootstrapInstallError::InvalidLayout)?;
+    match previous {
+        Some(bytes) => {
+            let temporary = parent.join(format!(
+                ".rollback-{}-{}",
+                std::process::id(),
+                unique_suffix()
+            ));
+            let result = (|| {
+                write_new_file(&temporary, bytes, 0o600)?;
+                fs::rename(&temporary, path).map_err(|_| BootstrapInstallError::Storage)?;
+                sync_directory(parent)
+            })();
+            if result.is_err() {
+                let _ = fs::remove_file(temporary);
+            }
+            result
+        }
+        None => match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                Err(BootstrapInstallError::InvalidLayout)
+            }
+            Ok(_) => {
+                fs::remove_file(path).map_err(|_| BootstrapInstallError::Storage)?;
+                sync_directory(parent)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(_) => Err(BootstrapInstallError::Storage),
+        },
+    }
+}
+
 fn write_new_file(path: &Path, bytes: &[u8], mode: u32) -> Result<(), BootstrapInstallError> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
@@ -1297,6 +1520,7 @@ mod tests {
                 steps.borrow_mut().push("healthy");
                 Ok(())
             },
+            |_| Ok(()),
         )
         .unwrap();
         assert_eq!(
@@ -1311,7 +1535,85 @@ mod tests {
             &layout,
             || Ok(()),
             |_| Err(BootstrapInstallError::HealthProof),
+            |_| Ok(()),
         );
         assert_eq!(health_failure, Err(BootstrapInstallError::HealthProof));
+    }
+
+    #[test]
+    fn health_failure_rolls_back_new_and_replacement_publication() {
+        let (_temp, source, request, layout) = fixture();
+        let failed_generation = generation_id(&request);
+        let rollback_observed = RefCell::new(None);
+        let failure = activate_bootstrap_artifact_with(
+            &source,
+            &request,
+            &layout,
+            || Ok(()),
+            |_| Err(BootstrapInstallError::HealthProof),
+            |had_previous| {
+                rollback_observed.replace(Some(had_previous));
+                Ok(())
+            },
+        );
+        assert_eq!(failure, Err(BootstrapInstallError::HealthProof));
+        assert_eq!(*rollback_observed.borrow(), Some(false));
+        assert!(!layout.root.join(CURRENT_NAME).exists());
+        assert!(!published_service_path(&request, &layout).exists());
+        assert!(
+            !layout
+                .root
+                .join("generations")
+                .join(failed_generation)
+                .exists()
+        );
+
+        let installed = install_bootstrap_artifact(&source, &request, &layout).unwrap();
+        let previous_current = fs::read(layout.root.join(CURRENT_NAME)).unwrap();
+        let previous_descriptor = fs::read(published_service_path(&request, &layout)).unwrap();
+        let replacement = BootstrapInstallerRequest::new(
+            request.bootstrap_id.clone(),
+            request.daemon_id.clone(),
+            "https://host.example:7444",
+            request.install_profile.clone(),
+            request.artifact_sha256.clone(),
+            request.session_token(),
+        )
+        .unwrap();
+        let replacement_generation = generation_id(&replacement);
+        let replacement_failure = activate_bootstrap_artifact_with(
+            &source,
+            &replacement,
+            &layout,
+            || Ok(()),
+            |_| Err(BootstrapInstallError::HealthProof),
+            |had_previous| {
+                assert!(had_previous);
+                Ok(())
+            },
+        );
+        assert_eq!(replacement_failure, Err(BootstrapInstallError::HealthProof));
+        assert_eq!(
+            fs::read(layout.root.join(CURRENT_NAME)).unwrap(),
+            previous_current
+        );
+        assert_eq!(
+            fs::read(published_service_path(&request, &layout)).unwrap(),
+            previous_descriptor
+        );
+        assert!(
+            layout
+                .root
+                .join("generations")
+                .join(installed.generation)
+                .exists()
+        );
+        assert!(
+            !layout
+                .root
+                .join("generations")
+                .join(replacement_generation)
+                .exists()
+        );
     }
 }

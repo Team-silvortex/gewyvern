@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{CapabilitySet, Principal};
 
 pub const BOOTSTRAP_DOMAIN_SCHEMA_VERSION: u32 = 1;
+pub const BOOTSTRAP_CHECKPOINT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_HOST_BOOTSTRAP: &str = "host.bootstrap";
 pub const BOOTSTRAP_SESSION_PROTOCOL_VERSION: u32 = 1;
 
@@ -189,6 +190,48 @@ pub struct DeploymentBootstrapSnapshot {
     pub mutation_authorized: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeploymentBootstrapCheckpoint {
+    pub schema_version: u32,
+    pub revision: u64,
+    pub state: DeploymentBootstrapSnapshot,
+    pub bootstrap_credential_handle: Option<CredentialHandle>,
+}
+
+impl DeploymentBootstrapCheckpoint {
+    pub fn new(
+        revision: u64,
+        state: DeploymentBootstrapSnapshot,
+        bootstrap_credential_handle: Option<CredentialHandle>,
+    ) -> Result<Self, BootstrapError> {
+        let checkpoint = Self {
+            schema_version: BOOTSTRAP_CHECKPOINT_SCHEMA_VERSION,
+            revision,
+            state,
+            bootstrap_credential_handle,
+        };
+        checkpoint.validate()?;
+        Ok(checkpoint)
+    }
+
+    pub fn validate(&self) -> Result<(), BootstrapError> {
+        if self.schema_version != BOOTSTRAP_CHECKPOINT_SCHEMA_VERSION {
+            return Err(BootstrapError::InvalidSchemaVersion {
+                actual: self.schema_version,
+                expected: BOOTSTRAP_CHECKPOINT_SCHEMA_VERSION,
+            });
+        }
+        if self.revision == 0
+            || self.state.bootstrap_credential_present != self.bootstrap_credential_handle.is_some()
+        {
+            return Err(BootstrapError::InvalidCheckpoint);
+        }
+        self.state.validate()?;
+        Ok(())
+    }
+}
+
 impl DeploymentBootstrapSnapshot {
     pub fn validate(&self) -> Result<(), BootstrapError> {
         self.target.validate()?;
@@ -301,6 +344,32 @@ impl DeploymentBootstrap {
         Ok(self.snapshot())
     }
 
+    pub fn resume(checkpoint: &DeploymentBootstrapCheckpoint) -> Result<Self, BootstrapError> {
+        checkpoint.validate()?;
+        Ok(Self {
+            bootstrap_id: checkpoint.state.bootstrap_id.clone(),
+            target: checkpoint.state.target.clone(),
+            bootstrap_credential_handle: checkpoint.bootstrap_credential_handle.clone(),
+            phase: checkpoint.state.phase,
+            daemon_id: checkpoint.state.daemon_id.clone(),
+            endpoint: checkpoint.state.endpoint.clone(),
+            session_credential_handle: checkpoint.state.session_credential_handle.clone(),
+            trust_credential_handle: checkpoint.state.trust_credential_handle.clone(),
+            fault_code: checkpoint.state.fault_code.clone(),
+        })
+    }
+
+    pub fn checkpoint(
+        &self,
+        revision: u64,
+    ) -> Result<DeploymentBootstrapCheckpoint, BootstrapError> {
+        DeploymentBootstrapCheckpoint::new(
+            revision,
+            self.snapshot(),
+            self.bootstrap_credential_handle.clone(),
+        )
+    }
+
     pub fn accept_deployed(
         &mut self,
         receipt: DaemonBootstrapReceipt,
@@ -322,7 +391,18 @@ impl DeploymentBootstrap {
         &mut self,
         proof: DaemonSessionProof,
     ) -> Result<DeploymentBootstrapSnapshot, BootstrapError> {
+        if self.phase == BootstrapPhase::SessionBound {
+            self.validate_session_proof(&proof)?;
+            return Ok(self.snapshot());
+        }
         self.require_phase(BootstrapPhase::Bootstrapped)?;
+        self.validate_session_proof(&proof)?;
+        self.bootstrap_credential_handle = None;
+        self.phase = BootstrapPhase::SessionBound;
+        Ok(self.snapshot())
+    }
+
+    fn validate_session_proof(&self, proof: &DaemonSessionProof) -> Result<(), BootstrapError> {
         if proof.bootstrap_id != self.bootstrap_id
             || self.daemon_id.as_ref() != Some(&proof.daemon_id)
             || self.session_credential_handle.as_ref() != Some(&proof.session_credential_handle)
@@ -335,9 +415,7 @@ impl DeploymentBootstrap {
         {
             return Err(BootstrapError::SessionProofRejected);
         }
-        self.bootstrap_credential_handle = None;
-        self.phase = BootstrapPhase::SessionBound;
-        Ok(self.snapshot())
+        Ok(())
     }
 
     pub fn record_fault(
@@ -394,6 +472,7 @@ pub enum BootstrapError {
     InvalidEndpoint,
     InvalidFaultCode,
     InvalidSnapshot,
+    InvalidCheckpoint,
     ConfirmationRequired,
     PrincipalMismatch,
     Unauthorized,
@@ -417,6 +496,7 @@ impl fmt::Display for BootstrapError {
             Self::InvalidEndpoint => write!(formatter, "invalid daemon endpoint"),
             Self::InvalidFaultCode => write!(formatter, "invalid bootstrap fault code"),
             Self::InvalidSnapshot => write!(formatter, "invalid bootstrap snapshot"),
+            Self::InvalidCheckpoint => write!(formatter, "invalid bootstrap checkpoint"),
             Self::ConfirmationRequired => write!(formatter, "bootstrap requires confirmation"),
             Self::PrincipalMismatch => write!(formatter, "bootstrap principal mismatch"),
             Self::Unauthorized => write!(formatter, "host bootstrap capability is required"),
@@ -529,11 +609,72 @@ mod tests {
         assert_eq!(bootstrap.snapshot().phase, BootstrapPhase::Bootstrapped);
 
         wrong.daemon_id = DaemonId::new("daemon-host-example").unwrap();
-        let bound = bootstrap.bind_session(wrong).unwrap();
+        let bound = bootstrap.bind_session(wrong.clone()).unwrap();
         assert_eq!(bound.phase, BootstrapPhase::SessionBound);
         assert!(bound.mutation_authorized);
         assert!(!bound.bootstrap_credential_present);
         bound.validate().unwrap();
+        assert_eq!(bootstrap.bind_session(wrong.clone()).unwrap(), bound);
+        wrong.daemon_id = DaemonId::new("daemon-other").unwrap();
+        assert_eq!(
+            bootstrap.bind_session(wrong),
+            Err(BootstrapError::IdentityMismatch)
+        );
+    }
+
+    #[test]
+    fn bootstrapped_checkpoint_resumes_without_granting_mutation() {
+        let mut bootstrap = plan();
+        bootstrap.begin().unwrap();
+        bootstrap
+            .accept_deployed(DaemonBootstrapReceipt {
+                bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
+                daemon_id: DaemonId::new("daemon-host-example").unwrap(),
+                endpoint: "https://host.example:9443/".into(),
+                session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
+                    .unwrap(),
+            })
+            .unwrap();
+        let checkpoint = bootstrap.checkpoint(3).unwrap();
+
+        let mut resumed = DeploymentBootstrap::resume(&checkpoint).unwrap();
+        assert_eq!(resumed.snapshot().phase, BootstrapPhase::Bootstrapped);
+        assert!(!resumed.snapshot().mutation_authorized);
+        let bound = resumed
+            .bind_session(DaemonSessionProof {
+                bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
+                daemon_id: DaemonId::new("daemon-host-example").unwrap(),
+                session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
+                    .unwrap(),
+                authority_owned: true,
+                protocol_schema_version: BOOTSTRAP_SESSION_PROTOCOL_VERSION,
+            })
+            .unwrap();
+        assert!(bound.mutation_authorized);
+        let bound_checkpoint = resumed.checkpoint(4).unwrap();
+        assert!(bound_checkpoint.bootstrap_credential_handle.is_none());
+    }
+
+    #[test]
+    fn checkpoint_rejects_missing_private_handle_and_zero_revision() {
+        let bootstrap = plan();
+        let state = bootstrap.snapshot();
+        assert_eq!(
+            DeploymentBootstrapCheckpoint::new(1, state.clone(), None),
+            Err(BootstrapError::InvalidCheckpoint)
+        );
+        assert_eq!(
+            DeploymentBootstrapCheckpoint::new(
+                0,
+                state,
+                Some(CredentialHandle::new("vault:ssh:host-example").unwrap()),
+            ),
+            Err(BootstrapError::InvalidCheckpoint)
+        );
     }
 
     #[test]

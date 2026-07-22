@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-07-22",
+  "version": "1.5.0",
+  "target": {
+    "os": "linux",
+    "arch": "x86_64",
+    "host_id_sha256": "734d6b3fb4778119bbf7010d94157466f40f860a003f057574e1d066d58b6c3d",
+    "ssh_host_key_sha256": "SHA256:1Avwm67cEqHvgz83C/mTUKQjl3vrEI+bX/wzbsoy0kg",
+    "service_manager": "systemd-user"
+  },
+  "artifact": {
+    "format": "elf-pie",
+    "sha256": "657931f017c356da1c685d20507ca7961c0e82e2de1bef2d836fc83bf4e50e82",
+    "bytes": 3622648,
+    "stripped": true
+  },
+  "transport": {
+    "implementation": "NativeSshBootstrapTransport",
+    "shell_entrypoint": false,
+    "host_key_pinned": true,
+    "sftp_upload_readback": true,
+    "staging_mode": "0700",
+    "timeout_cleanup_reconnect": true,
+    "staging_retained_after_matrix": false
+  },
+  "authority": {
+    "service_ready": true,
+    "tls_endpoint_name_verified": true,
+    "session_token_verified": true,
+    "daemon_authority_owned": true,
+    "controller_trust_mode": "0700/0600",
+    "bootstrapped_mutation_authorized": false,
+    "session_bound_mutation_authorized": true
+  },
+  "negative_proofs": {
+    "trust_persistence_failure_withheld_all_handles": true,
+    "one_millisecond_timeout_withheld_all_handles": true,
+    "one_millisecond_timeout_removed_staging": true,
+    "occupied_port_health_failure_rejected_installer": true,
+    "health_failure_restored_previous_current": true,
+    "health_failure_removed_failed_unit": true,
+    "health_failure_removed_failed_generation": true,
+    "primary_service_restart_count": 0
+  },
+  "elapsed_seconds": 39.49,
+  "secrets_retained": false
+}

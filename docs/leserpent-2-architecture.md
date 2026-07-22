@@ -302,6 +302,41 @@ passes the retained PEM into the existing content-addressed desktop CA store.
 The profile retains the opaque handle rather than replacing it with a cached CA
 path, so every connection and topology refresh re-enters the authority binding.
 
+The first physical-host vertical now exercises this complete path against an
+x86_64 Linux host through `NativeSshBootstrapTransport`: pinned host key,
+password authentication, SFTP upload/readback, systemd-user activation,
+endpoint-name TLS, token authentication, private controller trust persistence,
+and the Bootstrapped-to-SessionBound mutation fence. A trust-store rejection
+withholds all authority handles. A one-millisecond transport deadline also
+withholds authority and reconnects through the same pinned SSH/SFTP boundary to
+remove the partial staging artifact.
+
+The controller-side handoff is now part of the production daemon/runtime path,
+not a test-only reconstruction. `DaemonHost` strictly decodes completed host
+bootstrap effects and rejects malformed, mismatched, or non-terminal outcomes.
+Runtime SQLite schema 11 then commits the scheduler outcome and a validated
+private `DeploymentBootstrapCheckpoint` atomically under the existing owner
+lease. A restarted `ControlRuntime` restores `Bootstrapped` without mutation
+authority. Session promotion re-enters the domain state machine, compares the
+bootstrap, daemon, session, trust, authority, and protocol identities, and uses a
+checkpoint revision CAS before publishing `SessionBound`. The bootstrap vault
+handle is removed from the current checkpoint at that boundary; raw passwords,
+tokens, CA PEM, and private keys never enter the journal.
+
+This closes durable handoff recovery but not the product entrypoint. The
+packaged daemon must still register native SSH policy/artifact/trust providers,
+and authenticated clients need bind-session and checkpoint-query operations
+before the Hub can drive the complete reverse-deploy workflow.
+
+Target activation is transactional around `current`, the published service
+descriptor, and a newly created generation. Activation or authenticated health
+failure restores the previous private files atomically, removes the failed
+generation, and asks launchd/systemd to stop the failed unit and resume the
+previous one when present. The physical-host negative proof occupies the target
+port with the healthy primary daemon, deploys a second daemon with a different
+token, observes installer rejection, and confirms that the failed unit and
+generation are absent while the primary remains healthy with zero restarts.
+
 The contract requires the operator to confirm deployment actions that cross from
 host bootstrap into runtime mutation. The command graph is still single-source:
 all panel actions and `runtime.deploy` intents share the same `CommandEnvelope` and
