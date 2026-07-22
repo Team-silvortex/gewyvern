@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "provisioning_id": "provision-fixture-1",
+  "runtime_id": "runtime-fixture-1",
+  "endpoint": "https://runtime.example:9443",
+  "install_profile": "test",
+  "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "api_credential_handle": "vault:gewyvern:runtime-fixture-api",
+  "trust_credential_handle": "vault:gewyvern-ca:runtime-fixture-ca",
+  "api_token": "0123456789abcdef0123456789abcdef"
+}

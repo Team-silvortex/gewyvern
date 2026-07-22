@@ -11,6 +11,7 @@ mod diagnosis_runtime;
 #[path = "main/diagnostics_mode.rs"]
 mod diagnostics_mode;
 mod external_analysis;
+mod gewyvern_install;
 #[path = "main/helpers.rs"]
 mod helpers;
 #[path = "main/history_catalog_delta.rs"]
@@ -86,6 +87,17 @@ pub(crate) use self::ui_locale::UiLocale;
 fn main() {
     let locale = UiLocale::detect();
     let args = env::args().skip(1).collect::<Vec<_>>();
+    if args.first().map(String::as_str) == Some("gewyvern-install-v1") {
+        if args.len() != 1 {
+            eprintln!("gewyvern: gewyvern-install-v1 accepts no command-line arguments");
+            std::process::exit(1);
+        }
+        if let Err(error) = gewyvern_install::run_gewyvern_install_stdio() {
+            eprintln!("gewyvern: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if matches!(args.as_slice(), [flag] if flag == "--version" || flag == "-V") {
         println!("gewyvern {}", env!("CARGO_PKG_VERSION"));
         return;

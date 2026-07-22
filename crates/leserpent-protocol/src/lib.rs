@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub mod bootstrap;
 pub mod bootstrap_installer;
 pub mod compatibility_v1;
+pub mod gewyvern_installer;
 pub mod provisioning;
 pub mod transport_safety;
 

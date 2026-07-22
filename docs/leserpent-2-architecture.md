@@ -229,8 +229,19 @@ strict, 64 KiB-bounded envelope that rejects unknown and raw credential fields.
 the dedicated `gewyvern.runtime.provision` adapter is registered. The adapter
 resolves the installation credential locally, returns only `ServiceReady` or
 `Failed`, and daemon settlement rejects identity drift before atomically advancing
-the checkpoint. The concrete native SSH installer transport, service registration
-proof, CLI, and Avalonia control remain subsequent layers.
+the checkpoint. The separate `leserpent-protocol::gewyvern_installer` wire now
+binds the internal installer exchange to provisioning/runtime identity, HTTPS
+endpoint, artifact generation, API/trust handles, a zeroizing API token, and a
+digest-verified public CA. Its readiness validator refuses merely `Installed`
+services and all request/response identity drift. The native
+`gewyvern-install-v1` target entrypoint verifies its own artifact digest, creates
+a private immutable runtime generation, writes secret-bearing files with mode
+`0600`, generates the endpoint TLS identity, replay-checks every retained
+manifest and service-plan identity, and atomically advances a non-symlink
+`current` pointer. It deliberately returns only `Installed`. Native SSH
+transport, service-manager activation, controller trust persistence,
+authenticated health proof, service registration proof, CLI, and Avalonia
+control remain subsequent layers.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the

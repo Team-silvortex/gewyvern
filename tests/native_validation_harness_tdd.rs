@@ -504,8 +504,7 @@ fn linux_ebpf_smokes_are_native_with_legacy_wrappers() {
             && kprobe_script.contains("linux-kprobe-smoke")
     );
     assert!(
-        tc_script.contains("run_native_validation_bin.sh")
-            && tc_script.contains("linux-tc-smoke")
+        tc_script.contains("run_native_validation_bin.sh") && tc_script.contains("linux-tc-smoke")
     );
     assert!(
         entrypoints

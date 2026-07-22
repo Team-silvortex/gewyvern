@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "provisioning_id": "provision-fixture-1",
+  "runtime_id": "runtime-fixture-1",
+  "endpoint": "https://runtime.example:9443",
+  "service_state": "ready",
+  "generation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "replayed": false,
+  "api_credential_handle": "vault:gewyvern:runtime-fixture-api",
+  "trust_credential_handle": "vault:gewyvern-ca:runtime-fixture-ca",
+  "tls_ca_pem": "-----BEGIN CERTIFICATE-----\nZ2V3eXZlcm4tdGVzdC1jYQ==\n-----END CERTIFICATE-----\n",
+  "tls_ca_sha256": "99558883b004a92ffb8f971342b749c8a38af97eae42034162c2aba5b40fd8bd"
+}

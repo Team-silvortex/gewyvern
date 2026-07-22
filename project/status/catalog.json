@@ -1419,12 +1419,12 @@
       "feature": "gewyvern-provisioning",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 50,
+      "completion": 70,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-gewyvern-provisioning-contract",
-        "version": "0.3.0",
+        "version": "0.5.0",
         "stability": "draft",
         "surfaces": [
           "runtime-provision-capability",
@@ -1455,7 +1455,22 @@
           "adapter-registration-route-gate",
           "typed-provisioning-effect-contract",
           "terminal-provisioning-outcome-validation",
-          "daemon-provisioning-identity-fence"
+          "daemon-provisioning-identity-fence",
+          "independent-gewyvern-installer-wire-v1",
+          "bounded-gewyvern-installer-wire-frame",
+          "zeroizing-installer-api-token",
+          "installer-ca-digest-validation",
+          "installer-request-ready-response-binding",
+          "installer-installed-not-authoritative",
+          "canonical-gewyvern-installer-v1-fixtures",
+          "native-gewyvern-install-v1-entrypoint",
+          "artifact-digest-before-install",
+          "private-immutable-runtime-generation",
+          "atomic-runtime-current-pointer",
+          "installer-secret-digest-replay-fence",
+          "installer-symlink-layout-rejection",
+          "target-generated-tls-identity",
+          "installer-installed-only-preparation"
         ]
       },
       "depends_on": [
@@ -1466,7 +1481,7 @@
       "blockers": [
         {
           "id": "native-gewyvern-provisioning-transport-missing",
-          "summary": "The typed state, wire, durable runtime, authenticated daemon routes, and effect adapter contract are present, but the dedicated Gewyvern installer wire, native SSH transport, and adapter-target registration proof are not yet implemented."
+          "summary": "The typed state, public and internal installer wires, durable runtime, authenticated daemon routes, effect adapter contract, and target-side Installed preparation are present, but native SSH transport, service-manager activation, controller trust persistence, authenticated health proof, and adapter-target registration proof are not yet implemented."
         },
         {
           "id": "gewyvern-provisioning-client-controls-missing",
@@ -1488,9 +1503,15 @@
         { "kind": "source", "path": "crates/leserpentd/src/provisioning_submission.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/ipc.rs", "state": "present" },
-        { "kind": "test", "path": "crates/leserpentd/src/remote.rs", "state": "present" }
+        { "kind": "test", "path": "crates/leserpentd/src/remote.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol/src/gewyvern_installer.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/gewyvern-installer-request-v1.json", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/gewyvern-installer-ready-response-v1.json", "state": "present" },
+        { "kind": "source", "path": "src/gewyvern_install.rs", "state": "present" },
+        { "kind": "source", "path": "src/main.rs", "state": "present" },
+        { "kind": "test", "path": "tests/gewyvern_installer_vertical.rs", "state": "present" }
       ],
-      "next_gate": "Implement the dedicated Gewyvern installer wire and native SSH transport, then derive and persist the authority-owned runtime registration proof before adding any client control."
+      "next_gate": "Invoke gewyvern-install-v1 through a host-key-pinned native SSH transport, persist the returned CA in controller trust, activate the retained service plan, and require authenticated TLS health before deriving the authority-owned runtime registration proof."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

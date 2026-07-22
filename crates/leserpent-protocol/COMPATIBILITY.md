@@ -53,6 +53,17 @@ key and session token never enter the response; daemon services consume the
 token from a private bounded token file instead of command-line or environment
 text.
 
+The root `gewyvern` binary now implements the separate
+`gewyvern-install-v1` stdin/stdout entrypoint. It verifies its own bounded
+artifact against the request digest before mutation, creates a private immutable
+runtime generation, stores the API token and generated TLS key only in mode
+`0600` files, retains only the token digest in its manifest, and atomically
+publishes a mode `0600` `current` generation pointer. Existing path components,
+generation files, manifests, service plans, and credentials are replay-checked
+without following symbolic links. This preparation command always reports
+`installed`; it cannot report `ready` before a separate service-manager
+activation and authenticated TLS health proof succeed.
+
 The target installer also retains a mode `0600` native service descriptor in
 each immutable generation: launchd plist on macOS and systemd unit on Linux.
 The descriptor references the private token, TLS identity, database, and logs by
@@ -104,9 +115,19 @@ The adapter resolves only a validated `vault:ssh:<key>` installation handle and
 never serializes the resolved secret. A successful effect may settle only to
 `service_ready`; a bounded fault settles to `failed`. Daemon settlement verifies
 the provisioning ID, runtime ID, target, planned revision, and retired credential
-before committing the outcome and checkpoint atomically. A concrete native SSH
-installer exchange and the later authority-owned registration proof are not yet
-part of this draft compatibility surface.
+before committing the outcome and checkpoint atomically.
+
+`leserpent_protocol::gewyvern_installer` now owns the separate internal installer
+wire intended for the future host-key-pinned SSH channel. Its strict request and
+response are independently capped at 64 KiB. The request binds provisioning and
+runtime IDs, HTTPS endpoint, artifact digest, install profile, API/trust handles,
+and a redacted zeroizing API token. The response contains no token; it binds the
+same identities and handles to `installed` or `ready`, generation digest, and a
+digest-verified public CA. The shared readiness validator rejects `installed`,
+identity drift, handle substitution, endpoint drift, and generation mismatch.
+Target-side installation, native SSH execution, controller trust persistence,
+and the later authority-owned registration proof remain outside this protocol-only
+slice.
 
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure

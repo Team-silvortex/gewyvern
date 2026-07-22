@@ -45,6 +45,9 @@ serde.workspace = true
 serde_json.workspace = true
 ring = "0.17"
 x509-parser = "0.18.1"
+leserpent-protocol = { path = "crates/leserpent-protocol" }
+rcgen = "0.14"
+zeroize = "1"
 
 [dev-dependencies]
 leselang-hir = { path = "crates/leselang-hir" }

@@ -516,9 +516,18 @@ without sharing operation identities. Authenticated HTTPS now uses only
 disabled until a dedicated adapter is registered. The daemon validates adapter
 identity and terminal phase before atomically settling `ServiceReady` or `Failed`;
 restart retains the public service authority without restoring the install secret.
-The next product slice adds the separate native Gewyvern installer wire/SSH
-transport and derives an adapter-target registration proof before exposing the
-action in CLI or Avalonia.
+The internal Gewyvern installer wire is now separate, strict, 64 KiB-bounded,
+secret-redacted, and request/ready-response identity bound. It distinguishes
+`Installed` from health-proven `Ready`, validates the artifact generation and
+public CA digest, and refuses credential-handle substitution. The Gewyvern target
+binary now implements its `gewyvern-install-v1` preparation half: it digest-checks
+the bounded source artifact before mutation, creates a private immutable runtime
+generation, retains secret-free replay metadata and a service plan, generates the
+endpoint TLS identity, rejects symbolic-link layouts, and atomically publishes the
+current generation. It returns only `Installed`. The next product slice adds the
+host-key-pinned native SSH transport, service-manager activation, controller trust
+persistence, authenticated health proof, and adapter-target registration proof
+before exposing the action in CLI or Avalonia.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

@@ -817,10 +817,13 @@ dependencies = [
  "leselang-syntax",
  "leselang-vm",
  "leserpent-domain",
+ "leserpent-protocol",
+ "rcgen",
  "ring",
  "serde",
  "serde_json",
  "x509-parser",
+ "zeroize",
 ]
 
 [[package]]

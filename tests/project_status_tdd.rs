@@ -242,7 +242,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/gewyvern-provisioning")
         .expect("Gewyvern provisioning must be tracked independently from pipeline deployment");
     assert_eq!(provisioning.maturity, Maturity::Developing);
-    assert_eq!(provisioning.completion, 50);
+    assert_eq!(provisioning.completion, 70);
     assert_eq!(provisioning.contract.stability, ContractStability::Draft);
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
@@ -282,6 +282,34 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| { surface == "daemon-provisioning-identity-fence" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "independent-gewyvern-installer-wire-v1" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "installer-request-ready-response-binding" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "native-gewyvern-install-v1-entrypoint" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "installer-installed-only-preparation" })
     );
 
     let ui = catalog

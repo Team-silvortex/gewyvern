@@ -26,7 +26,7 @@ fn run() -> Result<(), ValidationError> {
 
     match command.as_str() {
         "socket-roundtrip" => {
-            let socket_target = args.get(0).cloned().unwrap_or_else(default_socket_path);
+            let socket_target = args.first().cloned().unwrap_or_else(default_socket_path);
             let template = args.get(1).cloned().unwrap_or_else(|| "udp".into());
             let output_path = args
                 .get(2)
@@ -44,7 +44,7 @@ fn run() -> Result<(), ValidationError> {
             Ok(())
         }
         "external-engine-roundtrip" => {
-            let ingest_addr = args.get(0).cloned();
+            let ingest_addr = args.first().cloned();
             let api_addr = args.get(1).cloned();
             let template = args.get(2).cloned();
             let analysis_out = args
@@ -77,7 +77,7 @@ fn run() -> Result<(), ValidationError> {
         }
         "training-roundtrip" => {
             let api_addr = args
-                .get(0)
+                .first()
                 .cloned()
                 .unwrap_or_else(|| "127.0.0.1:9910".into());
             let out_dir = args
@@ -103,7 +103,7 @@ fn run() -> Result<(), ValidationError> {
         }
         "linux-attach-smoke" => {
             let hookpoint = args
-                .get(0)
+                .first()
                 .cloned()
                 .unwrap_or_else(|| "syscalls/sys_enter_nanosleep".into());
             let _report = run_linux_attach_smoke(&hookpoint, None)?;
@@ -111,14 +111,14 @@ fn run() -> Result<(), ValidationError> {
         }
         "linux-kprobe-smoke" => {
             let symbol = args
-                .get(0)
+                .first()
                 .cloned()
                 .unwrap_or_else(|| "ip_route_output_flow".into());
             let _report = run_linux_kprobe_smoke(&symbol, None)?;
             Ok(())
         }
         "linux-tc-smoke" => {
-            let dev = args.get(0).cloned().unwrap_or_else(|| "eth0".into());
+            let dev = args.first().cloned().unwrap_or_else(|| "eth0".into());
             let _report = run_linux_tc_smoke(&dev, None)?;
             Ok(())
         }
