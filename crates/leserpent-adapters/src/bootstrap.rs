@@ -2,8 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 #[cfg(feature = "native-ssh")]
-use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(feature = "native-ssh")]
 use std::time::Duration;
 
 use leserpent_domain::bootstrap::{
@@ -21,18 +19,9 @@ use leserpent_protocol::bootstrap_installer::{
 };
 use leserpent_runtime::EffectExecution;
 use ring::digest::{SHA256, digest};
-#[cfg(feature = "native-ssh")]
-use russh::{ChannelMsg, client, keys::HashAlg};
-#[cfg(feature = "native-ssh")]
-use russh_sftp::{
-    client::SftpSession,
-    protocol::{FileAttributes, OpenFlags, StatusCode},
-};
-#[cfg(feature = "native-ssh")]
-use tokio::io::AsyncWriteExt;
-#[cfg(feature = "native-ssh")]
-use zeroize::Zeroizing;
 
+#[cfg(feature = "native-ssh")]
+use crate::native_ssh::{NativeSshClient, NativeSshError, NativeSshJob};
 use crate::{
     BootstrapTrustRecord, BootstrapTrustStore, EffectAdapter, SecretKey, SecretStore, SecretValue,
     validate_id,
@@ -339,27 +328,17 @@ impl<T: SshBootstrapTransport> EffectAdapter for SshBootstrapAdapter<T> {
 }
 
 #[cfg(feature = "native-ssh")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct NativeSshBootstrapTransport {
-    timeout: Duration,
-}
-
-#[cfg(feature = "native-ssh")]
-impl Default for NativeSshBootstrapTransport {
-    fn default() -> Self {
-        Self {
-            timeout: Duration::from_secs(300),
-        }
-    }
+    client: NativeSshClient,
 }
 
 #[cfg(feature = "native-ssh")]
 impl NativeSshBootstrapTransport {
     pub fn with_timeout(timeout: Duration) -> Result<Self, String> {
-        if timeout.is_zero() || timeout > Duration::from_secs(300) {
-            return Err("SSH bootstrap timeout must be between 1ms and 300s".into());
-        }
-        Ok(Self { timeout })
+        Ok(Self {
+            client: NativeSshClient::with_timeout(timeout)?,
+        })
     }
 }
 
@@ -369,266 +348,51 @@ impl SshBootstrapTransport for NativeSshBootstrapTransport {
         &mut self,
         job: SshBootstrapJob<'_>,
     ) -> Result<SshBootstrapOutcome, SshBootstrapTransportError> {
-        std::thread::scope(|scope| {
-            scope
-                .spawn(|| {
-                    let runtime = tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .map_err(|_| SshBootstrapTransportError::Transport)?;
-                    runtime.block_on(async {
-                        match tokio::time::timeout(self.timeout, deploy_native(&job)).await {
-                            Ok(result) => result,
-                            Err(_) => {
-                                let _ = tokio::time::timeout(
-                                    Duration::from_secs(60),
-                                    remove_timed_out_staging(&job),
-                                )
-                                .await;
-                                Err(SshBootstrapTransportError::Transport)
-                            }
-                        }
-                    })
-                })
-                .join()
-                .map_err(|_| SshBootstrapTransportError::Transport)?
-        })
-    }
-}
-
-#[cfg(feature = "native-ssh")]
-struct PinnedHostKey {
-    expected: String,
-    checked: Arc<AtomicBool>,
-    matched: Arc<AtomicBool>,
-}
-
-#[cfg(feature = "native-ssh")]
-impl client::Handler for PinnedHostKey {
-    type Error = russh::Error;
-
-    async fn check_server_key(
-        &mut self,
-        server_public_key: &russh::keys::ssh_key::PublicKey,
-    ) -> Result<bool, Self::Error> {
-        let actual = server_public_key.fingerprint(HashAlg::Sha256).to_string();
-        let matched = actual == self.expected;
-        self.matched.store(matched, Ordering::Release);
-        self.checked.store(true, Ordering::Release);
-        Ok(matched)
-    }
-}
-
-#[cfg(feature = "native-ssh")]
-async fn deploy_native(
-    job: &SshBootstrapJob<'_>,
-) -> Result<SshBootstrapOutcome, SshBootstrapTransportError> {
-    let mut session = connect_authenticated(job).await?;
-    let staging_path = job.artifact.staging_path(job.bootstrap_id);
-    let sftp = open_sftp(&mut session).await?;
-    let activation = async {
-        upload_and_verify(&sftp, &staging_path, job.artifact).await?;
-        activate_installer(&mut session, &staging_path, job).await
-    }
-    .await;
-    let _ = sftp.remove_file(staging_path).await;
-    let _ = sftp.close().await;
-    let _ = session
-        .disconnect(russh::Disconnect::ByApplication, "", "English")
-        .await;
-    activation
-}
-
-#[cfg(feature = "native-ssh")]
-async fn connect_authenticated(
-    job: &SshBootstrapJob<'_>,
-) -> Result<client::Handle<PinnedHostKey>, SshBootstrapTransportError> {
-    let config = Arc::new(client::Config {
-        inactivity_timeout: Some(Duration::from_secs(15)),
-        ..Default::default()
-    });
-    let host_key_checked = Arc::new(AtomicBool::new(false));
-    let host_key_matched = Arc::new(AtomicBool::new(false));
-    let handler = PinnedHostKey {
-        expected: job.host_key_sha256.to_string(),
-        checked: host_key_checked.clone(),
-        matched: host_key_matched.clone(),
-    };
-    let connection =
-        client::connect(config, (job.target.host.as_str(), job.target.port), handler).await;
-    if host_key_checked.load(Ordering::Acquire) && !host_key_matched.load(Ordering::Acquire) {
-        return Err(SshBootstrapTransportError::HostKeyRejected);
-    }
-    let mut session = connection.map_err(|_| SshBootstrapTransportError::Transport)?;
-    if !host_key_matched.load(Ordering::Acquire) {
-        return Err(SshBootstrapTransportError::HostKeyRejected);
-    }
-    let authentication = session
-        .authenticate_password(job.username, job.bootstrap_password.expose_secret())
-        .await
-        .map_err(|_| SshBootstrapTransportError::Authentication)?;
-    if !authentication.success() {
-        return Err(SshBootstrapTransportError::Authentication);
-    }
-    Ok(session)
-}
-
-#[cfg(feature = "native-ssh")]
-async fn open_sftp(
-    session: &mut client::Handle<PinnedHostKey>,
-) -> Result<SftpSession, SshBootstrapTransportError> {
-    let sftp_channel = session
-        .channel_open_session()
-        .await
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-    sftp_channel
-        .request_subsystem(true, "sftp")
-        .await
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-    let sftp = SftpSession::new(sftp_channel.into_stream())
-        .await
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-    Ok(sftp)
-}
-
-#[cfg(feature = "native-ssh")]
-async fn remove_timed_out_staging(
-    job: &SshBootstrapJob<'_>,
-) -> Result<(), SshBootstrapTransportError> {
-    for attempt in 0..3 {
-        if remove_timed_out_staging_once(job).await.is_ok() {
-            return Ok(());
-        }
-        if attempt < 2 {
-            tokio::time::sleep(Duration::from_millis(250)).await;
-        }
-    }
-    Err(SshBootstrapTransportError::Transport)
-}
-
-#[cfg(feature = "native-ssh")]
-async fn remove_timed_out_staging_once(
-    job: &SshBootstrapJob<'_>,
-) -> Result<(), SshBootstrapTransportError> {
-    let mut session = connect_authenticated(job).await?;
-    let sftp = open_sftp(&mut session).await?;
-    match sftp
-        .remove_file(job.artifact.staging_path(job.bootstrap_id))
-        .await
-    {
-        Ok(()) => {}
-        Err(russh_sftp::client::error::Error::Status(status))
-            if status.status_code == StatusCode::NoSuchFile => {}
-        Err(_) => return Err(SshBootstrapTransportError::Transport),
-    }
-    let _ = sftp.close().await;
-    let _ = session
-        .disconnect(russh::Disconnect::ByApplication, "", "English")
-        .await;
-    Ok(())
-}
-
-#[cfg(feature = "native-ssh")]
-async fn upload_and_verify(
-    sftp: &SftpSession,
-    staging_path: &str,
-    artifact: &BootstrapArtifact,
-) -> Result<(), SshBootstrapTransportError> {
-    let mut attributes = FileAttributes::empty();
-    attributes.permissions = Some(0o100700);
-    let mut file = sftp
-        .open_with_flags_and_attributes(
-            staging_path,
-            OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE,
-            attributes,
+        let request = BootstrapInstallerRequest::new(
+            job.bootstrap_id.clone(),
+            job.daemon_id.clone(),
+            job.endpoint,
+            job.install_profile,
+            job.artifact.sha256_hex(),
+            job.session_token.expose_secret(),
         )
-        .await
-        .map_err(|_| SshBootstrapTransportError::UploadRejected)?;
-    file.write_all(artifact.bytes())
-        .await
-        .map_err(|_| SshBootstrapTransportError::UploadRejected)?;
-    file.flush()
-        .await
-        .map_err(|_| SshBootstrapTransportError::UploadRejected)?;
-    file.shutdown()
-        .await
-        .map_err(|_| SshBootstrapTransportError::UploadRejected)?;
-    let uploaded = sftp
-        .read(staging_path)
-        .await
-        .map_err(|_| SshBootstrapTransportError::UploadRejected)?;
-    let uploaded_hash = hex(digest(&SHA256, &uploaded).as_ref());
-    if uploaded.len() != artifact.bytes().len() || uploaded_hash != artifact.sha256_hex() {
-        return Err(SshBootstrapTransportError::UploadRejected);
+        .map_err(|_| SshBootstrapTransportError::Transport)?;
+        let payload = encode_bootstrap_installer_request(&request)
+            .map_err(|_| SshBootstrapTransportError::Transport)?;
+        let staging_path = job.artifact.staging_path(job.bootstrap_id);
+        let command = format!("{staging_path} bootstrap-activate-v1");
+        let stdout = self
+            .client
+            .execute(NativeSshJob {
+                host: &job.target.host,
+                port: job.target.port,
+                username: job.username,
+                host_key_sha256: job.host_key_sha256,
+                password: job.bootstrap_password.expose_secret(),
+                staging_path: &staging_path,
+                artifact: job.artifact.bytes(),
+                artifact_sha256: job.artifact.sha256_hex(),
+                command: &command,
+                stdin: &payload,
+                max_stdout_bytes: MAX_BOOTSTRAP_INSTALLER_BYTES,
+            })
+            .map_err(map_native_ssh_error)?;
+        let response = decode_bootstrap_installer_response(&stdout)
+            .map_err(|_| SshBootstrapTransportError::InvalidResponse)?;
+        validate_installer_readiness(response, job.bootstrap_id, job.daemon_id, job.endpoint)
     }
-    let metadata = sftp
-        .metadata(staging_path)
-        .await
-        .map_err(|_| SshBootstrapTransportError::UploadRejected)?;
-    if metadata.permissions.map(|mode| mode & 0o777) != Some(0o700) {
-        return Err(SshBootstrapTransportError::UploadRejected);
-    }
-    Ok(())
 }
 
 #[cfg(feature = "native-ssh")]
-async fn activate_installer(
-    session: &mut client::Handle<PinnedHostKey>,
-    staging_path: &str,
-    job: &SshBootstrapJob<'_>,
-) -> Result<SshBootstrapOutcome, SshBootstrapTransportError> {
-    let command = format!("{staging_path} bootstrap-activate-v1");
-    let mut channel = session
-        .channel_open_session()
-        .await
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-    channel
-        .exec(true, command)
-        .await
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-    let request = BootstrapInstallerRequest::new(
-        job.bootstrap_id.clone(),
-        job.daemon_id.clone(),
-        job.endpoint,
-        job.install_profile,
-        job.artifact.sha256_hex(),
-        job.session_token.expose_secret(),
-    )
-    .map_err(|_| SshBootstrapTransportError::Transport)?;
-    let payload = encode_bootstrap_installer_request(&request)
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-    channel
-        .data(payload.as_slice())
-        .await
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-    channel
-        .eof()
-        .await
-        .map_err(|_| SshBootstrapTransportError::Transport)?;
-
-    let mut stdout = Zeroizing::new(Vec::new());
-    let mut exit_status = None;
-    while let Some(message) = channel.wait().await {
-        match message {
-            ChannelMsg::Data { data } => {
-                if stdout.len().saturating_add(data.len()) > MAX_BOOTSTRAP_INSTALLER_BYTES {
-                    return Err(SshBootstrapTransportError::InvalidResponse);
-                }
-                stdout.extend_from_slice(&data);
-            }
-            ChannelMsg::ExtendedData { .. } => {}
-            ChannelMsg::ExitStatus {
-                exit_status: status,
-            } => exit_status = Some(status),
-            _ => {}
-        }
+fn map_native_ssh_error(error: NativeSshError) -> SshBootstrapTransportError {
+    match error {
+        NativeSshError::Authentication => SshBootstrapTransportError::Authentication,
+        NativeSshError::HostKeyRejected => SshBootstrapTransportError::HostKeyRejected,
+        NativeSshError::Transport => SshBootstrapTransportError::Transport,
+        NativeSshError::UploadRejected => SshBootstrapTransportError::UploadRejected,
+        NativeSshError::CommandRejected => SshBootstrapTransportError::InstallerRejected,
+        NativeSshError::InvalidResponse => SshBootstrapTransportError::InvalidResponse,
     }
-    if exit_status != Some(0) {
-        return Err(SshBootstrapTransportError::InstallerRejected);
-    }
-    let response = decode_bootstrap_installer_response(&stdout)
-        .map_err(|_| SshBootstrapTransportError::InvalidResponse)?;
-    validate_installer_readiness(response, job.bootstrap_id, job.daemon_id, job.endpoint)
 }
 
 #[cfg(feature = "native-ssh")]
@@ -681,11 +445,11 @@ fn encode_state(
     .map_err(|_| "bootstrap response encoding failed")
 }
 
-fn target_key(target: &BootstrapTarget) -> String {
+pub(crate) fn target_key(target: &BootstrapTarget) -> String {
     format!("{}:{}", target.host, target.port)
 }
 
-fn valid_staging_prefix(value: &str) -> bool {
+pub(crate) fn valid_staging_prefix(value: &str) -> bool {
     value.starts_with("/tmp/")
         && value.len() <= 180
         && !value.contains("..")
@@ -694,7 +458,7 @@ fn valid_staging_prefix(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-'))
 }
 
-fn valid_sha256_fingerprint(value: &str) -> bool {
+pub(crate) fn valid_sha256_fingerprint(value: &str) -> bool {
     let Some(encoded) = value.strip_prefix("SHA256:") else {
         return false;
     };
@@ -704,7 +468,7 @@ fn valid_sha256_fingerprint(value: &str) -> bool {
         })
 }
 
-fn validate_https_origin(value: &str) -> Result<(), String> {
+pub(crate) fn validate_https_origin(value: &str) -> Result<(), String> {
     let Some(authority) = value.strip_prefix("https://") else {
         return Err("daemon endpoint must be an HTTPS origin".into());
     };

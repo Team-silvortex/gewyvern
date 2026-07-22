@@ -18,7 +18,7 @@ use leserpent_protocol::transport_safety::open_bounded_regular_file;
 use serde::Deserialize;
 
 pub const BOOTSTRAP_ORIGIN_CONFIG_SCHEMA_VERSION: u32 = 1;
-const MAX_BOOTSTRAP_ORIGIN_CONFIG_BYTES: u64 = 64 * 1024;
+pub(crate) const MAX_ORIGIN_CONFIG_BYTES: u64 = 64 * 1024;
 const MAX_BOOTSTRAP_HOST_POLICIES: usize = 64;
 
 #[derive(Debug, Deserialize)]
@@ -53,23 +53,7 @@ struct ValidatedBootstrapOrigin {
 impl BootstrapOriginConfig {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         let path = path.as_ref();
-        require_absolute_clean_path(path, "bootstrap origin configuration")?;
-        let mut file = open_bounded_regular_file(path, MAX_BOOTSTRAP_ORIGIN_CONFIG_BYTES)
-            .map_err(|error| format!("cannot open bootstrap origin configuration: {error}"))?;
-        #[cfg(unix)]
-        if file
-            .metadata()
-            .map_err(|error| format!("cannot inspect bootstrap origin configuration: {error}"))?
-            .permissions()
-            .mode()
-            & 0o777
-            != 0o600
-        {
-            return Err("bootstrap origin configuration must have mode 0600".into());
-        }
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes)
-            .map_err(|error| format!("cannot read bootstrap origin configuration: {error}"))?;
+        let bytes = read_private_origin_config(path, "bootstrap origin configuration")?;
         let config = serde_json::from_slice::<Self>(&bytes)
             .map_err(|_| "bootstrap origin configuration is invalid".to_string())?;
         config.validate_shape()?;
@@ -149,8 +133,38 @@ impl BootstrapOriginConfig {
 }
 
 fn load_artifact(path: &Path, staging_prefix: &str) -> Result<BootstrapArtifact, String> {
-    let mut file = open_bounded_regular_file(path, MAX_BOOTSTRAP_ARTIFACT_BYTES as u64)
-        .map_err(|error| format!("cannot open bootstrap artifact: {error}"))?;
+    let bytes = load_executable_artifact(path, MAX_BOOTSTRAP_ARTIFACT_BYTES, "bootstrap artifact")?;
+    BootstrapArtifact::new(bytes, staging_prefix)
+}
+
+pub(crate) fn read_private_origin_config(path: &Path, label: &str) -> Result<Vec<u8>, String> {
+    require_absolute_clean_path(path, label)?;
+    let mut file = open_bounded_regular_file(path, MAX_ORIGIN_CONFIG_BYTES)
+        .map_err(|error| format!("cannot open {label}: {error}"))?;
+    #[cfg(unix)]
+    if file
+        .metadata()
+        .map_err(|error| format!("cannot inspect {label}: {error}"))?
+        .permissions()
+        .mode()
+        & 0o777
+        != 0o600
+    {
+        return Err(format!("{label} must have mode 0600"));
+    }
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|error| format!("cannot read {label}: {error}"))?;
+    Ok(bytes)
+}
+
+pub(crate) fn load_executable_artifact(
+    path: &Path,
+    max_bytes: usize,
+    label: &str,
+) -> Result<Arc<[u8]>, String> {
+    let mut file = open_bounded_regular_file(path, max_bytes as u64)
+        .map_err(|error| format!("cannot open {label}: {error}"))?;
     #[cfg(unix)]
     {
         let mode = file
@@ -159,18 +173,18 @@ fn load_artifact(path: &Path, staging_prefix: &str) -> Result<BootstrapArtifact,
             .permissions()
             .mode();
         if mode & 0o111 == 0 || mode & 0o022 != 0 {
-            return Err(
-                "bootstrap artifact must be executable and not writable by group or other".into(),
-            );
+            return Err(format!(
+                "{label} must be executable and not writable by group or other"
+            ));
         }
     }
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes)
-        .map_err(|error| format!("cannot read bootstrap artifact: {error}"))?;
-    BootstrapArtifact::new(Arc::<[u8]>::from(bytes), staging_prefix)
+        .map_err(|error| format!("cannot read {label}: {error}"))?;
+    Ok(Arc::<[u8]>::from(bytes))
 }
 
-fn require_absolute_clean_path(path: &Path, label: &str) -> Result<(), String> {
+pub(crate) fn require_absolute_clean_path(path: &Path, label: &str) -> Result<(), String> {
     let valid = path.is_absolute()
         && path != Path::new("/")
         && path

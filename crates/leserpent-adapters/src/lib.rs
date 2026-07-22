@@ -10,6 +10,8 @@ mod bootstrap_trust;
 mod deployment;
 mod discovery;
 mod gewyvern;
+#[cfg(feature = "native-ssh")]
+mod native_ssh;
 mod provisioning;
 mod secret;
 
@@ -36,9 +38,12 @@ pub use gewyvern::{
     GewyvernStatusObservation, GewyvernStatusRefreshAdapter, GewyvernStatusRefreshRequest,
     GewyvernTarget,
 };
+#[cfg(feature = "native-ssh")]
+pub use provisioning::NativeSshGewyvernProvisioningTransport;
 pub use provisioning::{
-    GEWYVERN_PROVISIONING_EFFECT_KIND, GewyvernProvisioningAdapter, GewyvernProvisioningJob,
-    GewyvernProvisioningTransport, GewyvernProvisioningTransportError,
+    GEWYVERN_PROVISIONING_EFFECT_KIND, GewyvernArtifact, GewyvernProvisioningAdapter,
+    GewyvernProvisioningJob, GewyvernProvisioningTransport, GewyvernProvisioningTransportError,
+    MAX_GEWYVERN_ARTIFACT_BYTES, SshGewyvernHostPolicy,
 };
 pub use secret::{
     ConfiguredSecretStore, EmptySecretStore, EnvironmentSecretStore, MAX_SECRET_BYTES,

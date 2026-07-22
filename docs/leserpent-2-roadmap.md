@@ -524,10 +524,14 @@ binary now implements its `gewyvern-install-v1` preparation half: it digest-chec
 the bounded source artifact before mutation, creates a private immutable runtime
 generation, retains secret-free replay metadata and a service plan, generates the
 endpoint TLS identity, rejects symbolic-link layouts, and atomically publishes the
-current generation. It returns only `Installed`. The next product slice adds the
-host-key-pinned native SSH transport, service-manager activation, controller trust
-persistence, authenticated health proof, and adapter-target registration proof
-before exposing the action in CLI or Avalonia.
+current generation. It returns only `Installed`. The host-key-pinned native SSH
+transport now shares bootstrap's Rust connection, exclusive SFTP staging, bounded
+command, and timeout-cleanup substrate. A strict private daemon origin config
+selects targets and opaque handles; API tokens resolve only through the platform
+store. `Installed` withholds trust and a receipt, while `Ready` persists its
+endpoint-bound CA before returning authority. The next product slice adds native
+service-manager activation, authenticated TLS/token health, and adapter-target
+registration proof before exposing the action in CLI or Avalonia.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

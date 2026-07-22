@@ -13,14 +13,14 @@ use leserpent_adapters::{
 use leserpent_adapters::{GEWYVERN_PROVISIONING_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND};
 use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
-#[cfg(feature = "native-ssh")]
-use leserpentd::BootstrapOriginConfig;
 #[cfg(unix)]
 use leserpentd::IpcServer;
 use leserpentd::{
     AdapterRegistry, BootstrapSessionVerifier, DaemonConfig, DaemonHost,
     NativeBootstrapSessionVerifier, RemoteServer, load_remote_token_file,
 };
+#[cfg(feature = "native-ssh")]
+use leserpentd::{BootstrapOriginConfig, GewyvernOriginConfig};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use zeroize::Zeroizing;
 
@@ -57,6 +57,7 @@ fn run() -> Result<(), String> {
     let mut gewyvern_https_targets = Vec::new();
     let mut gewyvern_admin_secret = None;
     let mut bootstrap_config = None;
+    let mut gewyvern_provisioning_config = None;
     let mut bootstrap_trust_root = None;
     let mut steps = None;
     let mut arguments = arguments.into_iter();
@@ -151,6 +152,15 @@ fn run() -> Result<(), String> {
             "--bootstrap-config" => {
                 return Err("--bootstrap-config was provided more than once".into());
             }
+            "--gewyvern-provisioning-config" if gewyvern_provisioning_config.is_none() => {
+                gewyvern_provisioning_config =
+                    Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                        "--gewyvern-provisioning-config requires a path".to_string()
+                    })?));
+            }
+            "--gewyvern-provisioning-config" => {
+                return Err("--gewyvern-provisioning-config was provided more than once".into());
+            }
             "--steps" => {
                 let value = arguments
                     .next()
@@ -171,7 +181,7 @@ fn run() -> Result<(), String> {
                      [--gewyvern-target ID=LOOPBACK:PORT] \
                      [--gewyvern-https-target ID=HTTPS_ORIGIN,CA_PATH] \
                      [--gewyvern-admin-secret KEY] [--bootstrap-trust-root PATH] \
-                     [--bootstrap-config PATH] \
+                     [--bootstrap-config PATH] [--gewyvern-provisioning-config PATH] \
                      [--once | --steps N]\n\
                      Environment: LESERPENT_DATABASE may provide the database path; \
                      LESERPENT_IPC_TOKEN is required when --socket is used; \
@@ -187,9 +197,10 @@ fn run() -> Result<(), String> {
         "database path is required via --database or LESERPENT_DATABASE".to_string()
     })?;
     #[cfg(not(feature = "native-ssh"))]
-    if bootstrap_config.is_some() {
+    if bootstrap_config.is_some() || gewyvern_provisioning_config.is_some() {
         return Err(
-            "--bootstrap-config requires a leserpentd build with the native-ssh feature".into(),
+            "SSH origin configuration requires a leserpentd build with the native-ssh feature"
+                .into(),
         );
     }
     #[cfg(feature = "native-ssh")]
@@ -197,8 +208,12 @@ fn run() -> Result<(), String> {
         .map(BootstrapOriginConfig::load)
         .transpose()?;
     #[cfg(feature = "native-ssh")]
-    if bootstrap_origin.is_some() && bootstrap_trust_root.is_none() {
-        return Err("--bootstrap-config requires --bootstrap-trust-root".into());
+    let gewyvern_origin = gewyvern_provisioning_config
+        .map(GewyvernOriginConfig::load)
+        .transpose()?;
+    #[cfg(feature = "native-ssh")]
+    if (bootstrap_origin.is_some() || gewyvern_origin.is_some()) && bootstrap_trust_root.is_none() {
+        return Err("SSH origin configuration requires --bootstrap-trust-root".into());
     }
     let mut runtime = ControlRuntime::open(database).map_err(|error| error.to_string())?;
     let mut registry = AdapterRegistry::default();
@@ -313,6 +328,22 @@ fn run() -> Result<(), String> {
                     .expect("bootstrap origin trust-root requirement was checked"),
             )
             .map_err(|error| format!("cannot open bootstrap trust store: {error:?}"))?,
+        );
+        registry.register(origin.into_native_adapter(secrets, trust)?)?;
+    }
+    #[cfg(feature = "native-ssh")]
+    if let Some(origin) = gewyvern_origin {
+        let secrets: Arc<dyn SecretStore> = Arc::new(
+            PlatformSecretStore::new(origin.secret_service())
+                .map_err(|error| format!("cannot open Gewyvern provisioning store: {error:?}"))?,
+        );
+        let trust: Arc<dyn BootstrapTrustStore> = Arc::new(
+            FileBootstrapTrustStore::new(
+                bootstrap_trust_root
+                    .as_ref()
+                    .expect("Gewyvern origin trust-root requirement was checked"),
+            )
+            .map_err(|error| format!("cannot open Gewyvern trust store: {error:?}"))?,
         );
         registry.register(origin.into_native_adapter(secrets, trust)?)?;
     }

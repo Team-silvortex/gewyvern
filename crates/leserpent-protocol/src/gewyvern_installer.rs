@@ -251,12 +251,22 @@ pub fn validate_gewyvern_installer_readiness(
     request: &GewyvernInstallerRequest,
     response: &GewyvernInstallerResponse,
 ) -> Result<(), GewyvernInstallerCodecError> {
+    validate_gewyvern_installer_response_binding(request, response)?;
+    if response.service_state != GewyvernInstallerServiceState::Ready {
+        return Err(GewyvernInstallerCodecError::InvalidResponseBinding);
+    }
+    Ok(())
+}
+
+pub fn validate_gewyvern_installer_response_binding(
+    request: &GewyvernInstallerRequest,
+    response: &GewyvernInstallerResponse,
+) -> Result<(), GewyvernInstallerCodecError> {
     request.validate()?;
     response.validate()?;
     if response.provisioning_id != request.provisioning_id
         || response.runtime_id != request.runtime_id
         || response.endpoint != request.endpoint
-        || response.service_state != GewyvernInstallerServiceState::Ready
         || response.generation != request.artifact_sha256
         || response.api_credential_handle != request.api_credential_handle
         || response.trust_credential_handle != request.trust_credential_handle
@@ -411,6 +421,7 @@ mod tests {
 
         let mut installed = ready_response();
         installed.service_state = GewyvernInstallerServiceState::Installed;
+        validate_gewyvern_installer_response_binding(&request, &installed).unwrap();
         assert_eq!(
             validate_gewyvern_installer_readiness(&request, &installed),
             Err(GewyvernInstallerCodecError::InvalidResponseBinding)

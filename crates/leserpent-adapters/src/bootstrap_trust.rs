@@ -101,7 +101,7 @@ impl FileBootstrapTrustStore {
 
     fn record_path(&self, handle: &CredentialHandle) -> Result<PathBuf, BootstrapTrustError> {
         let (provider, key) = handle.parts();
-        if provider != "leserpent-ca"
+        if !matches!(provider, "leserpent-ca" | "gewyvern-ca")
             || key.is_empty()
             || !key
                 .bytes()
@@ -109,7 +109,12 @@ impl FileBootstrapTrustStore {
         {
             return Err(BootstrapTrustError::InvalidHandle);
         }
-        Ok(self.root.join(format!("{key}.json")))
+        let file_name = if provider == "leserpent-ca" {
+            format!("{key}.json")
+        } else {
+            format!("gewyvern-ca--{key}.json")
+        };
+        Ok(self.root.join(file_name))
     }
 }
 
@@ -383,5 +388,21 @@ mod tests {
             Err(BootstrapTrustError::InvalidHandle)
         );
         fs::remove_dir_all(parent).unwrap();
+    }
+
+    #[test]
+    fn file_store_namespaces_gewyvern_ca_records_without_changing_bootstrap_paths() {
+        let root =
+            std::env::temp_dir().join(format!("leserpent-trust-gewyvern-{}", unique_suffix()));
+        let store = FileBootstrapTrustStore::new(&root).unwrap();
+        let ca = rcgen::generate_simple_self_signed(vec!["runtime.example".into()])
+            .unwrap()
+            .cert
+            .pem();
+        let handle = CredentialHandle::new("vault:gewyvern-ca:runtime-example").unwrap();
+        store.persist(&handle, &record(&ca)).unwrap();
+        assert_eq!(store.load(&handle).unwrap(), Some(record(&ca)));
+        assert!(root.join("gewyvern-ca--runtime-example.json").is_file());
+        fs::remove_dir_all(root).unwrap();
     }
 }

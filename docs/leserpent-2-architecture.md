@@ -239,9 +239,15 @@ a private immutable runtime generation, writes secret-bearing files with mode
 `0600`, generates the endpoint TLS identity, replay-checks every retained
 manifest and service-plan identity, and atomically advances a non-symlink
 `current` pointer. It deliberately returns only `Installed`. Native SSH
-transport, service-manager activation, controller trust persistence,
-authenticated health proof, service registration proof, CLI, and Avalonia
-control remain subsequent layers.
+transport now reuses the same host-key-pinned Rust substrate as daemon bootstrap:
+exclusive private SFTP staging, bounded command output, timeout cleanup, and no
+shell script or secret argument. A strict mode-`0600` daemon origin configuration
+binds each target to its artifact, endpoint, API/trust handles, and platform
+secret service. A valid `Installed` response persists no trust and yields no
+service receipt; a valid `Ready` response must persist its endpoint-bound CA in
+the namespaced controller trust store before returning a receipt. Service-manager
+activation, authenticated TLS/token health proof, service registration proof,
+CLI, and Avalonia control remain subsequent layers.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the

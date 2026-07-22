@@ -117,17 +117,24 @@ never serializes the resolved secret. A successful effect may settle only to
 the provisioning ID, runtime ID, target, planned revision, and retired credential
 before committing the outcome and checkpoint atomically.
 
-`leserpent_protocol::gewyvern_installer` now owns the separate internal installer
-wire intended for the future host-key-pinned SSH channel. Its strict request and
+`leserpent_protocol::gewyvern_installer` owns the separate internal installer
+wire used by the host-key-pinned native SSH channel. Its strict request and
 response are independently capped at 64 KiB. The request binds provisioning and
 runtime IDs, HTTPS endpoint, artifact digest, install profile, API/trust handles,
 and a redacted zeroizing API token. The response contains no token; it binds the
 same identities and handles to `installed` or `ready`, generation digest, and a
 digest-verified public CA. The shared readiness validator rejects `installed`,
 identity drift, handle substitution, endpoint drift, and generation mismatch.
-Target-side installation, native SSH execution, controller trust persistence,
-and the later authority-owned registration proof remain outside this protocol-only
-slice.
+The adapter shares one native SSH safety substrate with daemon bootstrap: exact
+SHA-256 host-key pinning, password authentication from a platform secret handle,
+exclusive mode-`0700` SFTP staging, bounded stdout, and timeout cleanup. A strict
+mode-`0600` `--gewyvern-provisioning-config` selects the artifact, target policy,
+endpoint, and API/trust handles without containing secret text. A valid
+`installed` response writes no controller trust and returns no service receipt.
+A valid `ready` response must persist its endpoint-bound CA under the namespaced
+`gewyvern-ca` handle before a receipt can leave the adapter. Target-side service
+activation, authenticated health proof, and the later authority-owned
+registration proof remain subsequent layers.
 
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure

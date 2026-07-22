@@ -21,7 +21,11 @@ pub mod bootstrap_install;
 #[cfg(feature = "native-ssh")]
 mod bootstrap_origin;
 #[cfg(feature = "native-ssh")]
+mod gewyvern_origin;
+#[cfg(feature = "native-ssh")]
 pub use bootstrap_origin::{BOOTSTRAP_ORIGIN_CONFIG_SCHEMA_VERSION, BootstrapOriginConfig};
+#[cfg(feature = "native-ssh")]
+pub use gewyvern_origin::{GEWYVERN_ORIGIN_CONFIG_SCHEMA_VERSION, GewyvernOriginConfig};
 mod bootstrap_session;
 pub use bootstrap_session::NativeBootstrapSessionVerifier;
 mod bootstrap_submission;
