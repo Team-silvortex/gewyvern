@@ -244,7 +244,7 @@ pub(super) fn batch_entry_for_target_persistence(target: &TargetDaemonOutput) ->
 pub(super) fn compact_daemon_snapshot_for_persistence(snapshot: &DaemonSnapshot) -> DaemonSnapshot {
     let retained_target_outputs = retained_target_outputs_for_persistence(&snapshot.target_outputs);
     let (latest_output_json, latest_recommendation_summary_json) =
-        if snapshot.source == "python-targets-url" {
+        if snapshot.source.ends_with("targets-url") {
             let entries = retained_target_outputs
                 .iter()
                 .map(batch_entry_for_target_persistence)

@@ -184,6 +184,10 @@ dependencies = [
 [[package]]
 name = "etragon"
 version = "1.5.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "fallible-iterator"

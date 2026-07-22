@@ -1,33 +1,33 @@
 use super::*;
 
 pub(super) fn memory_state_route_response(
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     snapshot: Option<&DaemonSnapshot>,
 ) -> String {
-    daemon_gateway_json_response(python_worker_memory_state_json(config, snapshot))
+    daemon_gateway_json_response(learning_backend_memory_state_json(config, snapshot))
 }
 
-pub(super) fn memory_model_route_response(config: &PythonWorkerConfig) -> String {
-    daemon_gateway_json_response(python_worker_model_info_json(config))
+pub(super) fn memory_model_route_response(config: &LearningBackendConfig) -> String {
+    daemon_gateway_json_response(learning_backend_model_info_json(config))
 }
 
-pub(super) fn memory_versions_route_response(config: &PythonWorkerConfig) -> String {
-    daemon_gateway_json_response(python_worker_memory_versions_json(config))
+pub(super) fn memory_versions_route_response(config: &LearningBackendConfig) -> String {
+    daemon_gateway_json_response(learning_backend_memory_versions_json(config))
 }
 
-pub(super) fn memory_snapshot_route_response(config: &PythonWorkerConfig) -> String {
-    daemon_gateway_json_response(python_worker_memory_snapshot_json(config))
+pub(super) fn memory_snapshot_route_response(config: &LearningBackendConfig) -> String {
+    daemon_gateway_json_response(learning_backend_memory_snapshot_json(config))
 }
 
 pub(super) fn save_memory_slot_route_response(
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     request_text: &str,
 ) -> String {
     with_request_slot(request_text, |body, slot| {
         let label = body.optional_field("label");
         let note = body.optional_field("note");
         let source = body.optional_field("source");
-        save_python_worker_memory_slot(
+        save_learning_backend_memory_slot(
             config,
             slot,
             label.as_deref(),
@@ -38,12 +38,12 @@ pub(super) fn save_memory_slot_route_response(
 }
 
 pub(super) fn clear_memory_route_response(
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> String {
-    daemon_gateway_json_response(clear_python_worker_memory(
+    daemon_gateway_json_response(clear_learning_backend_memory(
         config,
         latest,
         daemon_state_file,
@@ -52,7 +52,7 @@ pub(super) fn clear_memory_route_response(
 }
 
 pub(super) fn load_memory_route_response(
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     request_text: &str,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     daemon_state_file: Option<&Path>,
@@ -67,7 +67,7 @@ pub(super) fn load_memory_route_response(
         .optional_field("strategy")
         .unwrap_or_else(|| "replace".to_string());
     let result = if let Some(slot) = slot {
-        load_python_worker_memory_slot(
+        load_learning_backend_memory_slot(
             config,
             &slot,
             &strategy,
@@ -76,7 +76,7 @@ pub(super) fn load_memory_route_response(
             invalidation_epoch,
         )
     } else {
-        load_python_worker_memory(
+        load_learning_backend_memory(
             config,
             body.body,
             latest,
@@ -88,11 +88,11 @@ pub(super) fn load_memory_route_response(
 }
 
 pub(super) fn delete_memory_slot_route_response(
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     request_text: &str,
 ) -> String {
     with_request_slot(request_text, |_, slot| {
-        delete_python_worker_memory_slot(config, slot)
+        delete_learning_backend_memory_slot(config, slot)
     })
 }
 

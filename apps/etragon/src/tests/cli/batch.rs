@@ -54,6 +54,63 @@ fn cli_analyzes_python_target_batch_once() {
 }
 
 #[test]
+fn cli_trains_native_target_batch_once() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let state_path =
+        std::env::temp_dir().join(format!("etragon-native-target-train-state-{unique}.json"));
+    let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+    let addr = listener
+        .local_addr()
+        .expect("listener should have local addr");
+    let handle = thread::spawn(move || {
+        for expected_path in [
+            "/v1/latest/targets",
+            "/v1/latest/targets/scan:http:request/analysis.json",
+        ] {
+            let (mut stream, _) = listener.accept().expect("client should connect");
+            let mut request = [0u8; 2048];
+            let size = stream.read(&mut request).expect("request should read");
+            let request_text = String::from_utf8_lossy(&request[..size]);
+            assert!(request_text.starts_with(&format!("GET {} ", expected_path)));
+            let body = if expected_path == "/v1/latest/targets" {
+                "{\"target_refs\":[{\"path_segment\":\"scan:http:request\"}]}"
+            } else {
+                "{\"primary_module_kind\":\"http_request_response\",\"primary_failure_mode\":\"no_response\",\"primary_failure_detail\":\"request_sent_no_reply\",\"primary_failure_confidence\":\"medium\",\"primary_failure_basis\":\"missing_transition\",\"ambiguous\":false,\"competing_hypotheses\":[]}"
+            };
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("response should write");
+        }
+    });
+
+    let output = run_cli(&[
+        "train-targets-url".to_string(),
+        format!("http://{}/v1/latest/targets", addr),
+        "--label".to_string(),
+        "http_request_followup".to_string(),
+        "--filter".to_string(),
+        "scan:".to_string(),
+        "--state".to_string(),
+        state_path.to_string_lossy().to_string(),
+    ])
+    .expect("native batch train should succeed");
+    assert!(output.contains("\"path_segment\":\"scan:http:request\""));
+    assert!(output.contains("\"backend\":\"rust-native\""));
+    assert!(output.contains("\"label\":\"http_request_followup\""));
+
+    let _ = fs::remove_file(state_path);
+    handle.join().expect("server thread should exit cleanly");
+}
+
+#[test]
 fn cli_trains_python_target_batch_once() {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -352,7 +409,7 @@ fn cli_merges_batch_recommendation_summary_counts() {
     assert!(output.contains("\"recommendation_summary\":["));
     assert!(output.contains("\"name\":\"ml_candidate_observe_longer\""));
     assert!(output.contains("\"producer_stage\":\"candidate\""));
-    assert!(output.contains("\"producer_pass\":\"MockMlAdvisoryEngine\""));
+    assert!(output.contains("\"producer_pass\":\"etragon_native_baseline\""));
     assert!(output.contains("\"count\":2"));
 
     handle.join().expect("server thread should exit cleanly");

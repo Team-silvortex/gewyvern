@@ -204,7 +204,7 @@ pub(super) fn learned_route_summary_from_recommendation_summary(
     let counts = extract_named_numeric_fields(summary_json, "count");
     let mut learned_routes = 0usize;
     for (index, name) in names.into_iter().enumerate() {
-        if name == "py_ml_candidate_learned_route" {
+        if is_learned_route_name(&name) {
             let count = counts
                 .get(index)
                 .and_then(|value| value.parse::<usize>().ok())
@@ -221,7 +221,7 @@ pub(super) fn top_learned_state_json_from_recommendation_summary(summary_json: &
         merged_recommendation_entries(&[("latest".to_string(), summary_json.to_string())]);
     let Some(entry) = entries
         .into_iter()
-        .find(|entry| entry.name == "py_ml_candidate_learned_route")
+        .find(|entry| is_learned_route_name(&entry.name))
     else {
         return "null".to_string();
     };
@@ -289,6 +289,13 @@ pub(super) fn top_learned_state_json_from_recommendation_summary(summary_json: &
     ));
     json.push('}');
     json
+}
+
+pub(super) fn is_learned_route_name(name: &str) -> bool {
+    matches!(
+        name,
+        "ml_candidate_learned_route" | "py_ml_candidate_learned_route"
+    )
 }
 
 pub(super) fn transition_policy_summary_json_for_label(label: Option<&str>) -> String {

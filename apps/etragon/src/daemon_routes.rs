@@ -1,11 +1,32 @@
 use super::*;
 
+#[cfg(test)]
 pub(super) fn handle_daemon_client(
-    mut stream: TcpStream,
+    stream: TcpStream,
     remote_ip: IpAddr,
     access_policy: &DaemonAccessPolicy,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     config: &PythonWorkerConfig,
+    daemon_state_file: Option<&Path>,
+    invalidation_epoch: &Arc<AtomicU64>,
+) -> Result<(), String> {
+    handle_daemon_client_with_backend(
+        stream,
+        remote_ip,
+        access_policy,
+        latest,
+        &LearningBackendConfig::Python(config.clone()),
+        daemon_state_file,
+        invalidation_epoch,
+    )
+}
+
+pub(super) fn handle_daemon_client_with_backend(
+    mut stream: TcpStream,
+    remote_ip: IpAddr,
+    access_policy: &DaemonAccessPolicy,
+    latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
+    config: &LearningBackendConfig,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<(), String> {
@@ -52,7 +73,7 @@ pub(super) fn handle_daemon_client(
         "/v1/memory-versions.json" => memory_versions_route_response(config),
         "/v1/memory-snapshot.json" => memory_snapshot_route_response(config),
         "/v1/protocol-capabilities.json" => {
-            daemon_gateway_json_response(protocol_capabilities_json(config))
+            daemon_gateway_json_response(learning_backend_protocol_capabilities_json(config))
         }
         "/v1/memory-admin/save" if method == "POST" => {
             save_memory_slot_route_response(config, &request_text)
@@ -71,10 +92,11 @@ pub(super) fn handle_daemon_client(
             delete_memory_slot_route_response(config, &request_text)
         }
         "/v1/latest/status" => daemon_json_ok(&daemon_status_json(snapshot.as_ref())),
-        "/v1/latest/meta" => daemon_json_ok(&daemon_meta_json(
-            snapshot.as_ref(),
-            Some(&daemon_meta_worker_state_json(snapshot.as_ref())),
-        )),
+        "/v1/latest/meta" => {
+            let worker_state = learning_backend_memory_state_json(config, snapshot.as_ref())
+                .unwrap_or_else(|_| daemon_meta_worker_state_json(snapshot.as_ref()));
+            daemon_json_ok(&daemon_meta_json(snapshot.as_ref(), Some(&worker_state)))
+        }
         "/v1/latest/recommendation-summary.json" => match snapshot {
             Some(snapshot) => daemon_json_ok(&snapshot.latest_recommendation_summary_json),
             None => no_snapshot_response(),
@@ -139,11 +161,13 @@ fn train_and_refresh_daemon_input(
     input_json: &str,
     label: &str,
     weight: f64,
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
 ) -> Result<DaemonTrainingRefresh, String> {
-    let mut worker = PythonWorkerClient::spawn(config)?;
-    let training_json = worker.train_json_with_weight(input_json, label, weight)?;
-    let analysis_json = worker.analyze_json(input_json)?;
+    let (training_json, analysis_json) = with_learning_backend(config, |worker| {
+        let training_json = worker.train_json_with_weight(input_json, label, weight)?;
+        let analysis_json = worker.analyze_json(input_json)?;
+        Ok((training_json, analysis_json))
+    })?;
     let recommendation_summary_json = single_output_recommendation_summary(&analysis_json);
     Ok(DaemonTrainingRefresh {
         training_json,
@@ -155,7 +179,7 @@ fn train_and_refresh_daemon_input(
 fn train_latest_route_response(
     snapshot: Option<&DaemonSnapshot>,
     request_text: &str,
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
@@ -185,7 +209,7 @@ fn train_target_route_response(
     snapshot: Option<&DaemonSnapshot>,
     path: &str,
     request_text: &str,
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
@@ -225,7 +249,7 @@ fn complete_training_route<F>(
     input_json: &str,
     label: &str,
     weight: f64,
-    config: &PythonWorkerConfig,
+    config: &LearningBackendConfig,
     apply_refresh: F,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,

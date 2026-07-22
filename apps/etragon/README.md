@@ -43,10 +43,10 @@ It provides:
 - `MockRecommendationAugmenter`
 - `MockScoreRerankPass`
 
-The mock engine is not a real model, and the current Python worker is a
-dependency-light behavioral baseline rather than a deep-learning stack. They
-exist to prove the intended
-single-runtime diagnosis-partner shape for later ML or rerank passes:
+The mock engine is not a real model. The production CLI and resident paths now
+use the Rust-native online learner; the Python worker remains only as an
+explicit compatibility baseline. These components prove the intended
+single-runtime diagnosis-partner shape for later deep-learning or rerank passes:
 
 - ambiguous mixed hypotheses -> `ml_candidate_multi_hypothesis`
 - medium-confidence missing transition -> `ml_candidate_observe_longer`
@@ -121,16 +121,16 @@ it a small federation manifest:
 }
 ```
 
-Analyze the whole runtime set with one resident Python worker:
+Analyze the whole runtime set with one resident native backend:
 
 ```bash
-cargo run -p etragon -- analyze-python-federation-json /tmp/etragon-federation.json --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- analyze-federation-json /tmp/etragon-federation.json --state /tmp/etragon-online-state.json
 ```
 
 Train across the same runtime set:
 
 ```bash
-cargo run -p etragon -- train-python-federation-json /tmp/etragon-federation.json --label network_observe_longer --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- train-federation-json /tmp/etragon-federation.json --label network_observe_longer --state /tmp/etragon-online-state.json
 ```
 
 The output is a federated batch with:
@@ -145,41 +145,42 @@ The output is a federated batch with:
 This is intentionally learning aggregation, not fleet orchestration.
 `etragon` may learn from many runtimes; `leserpent` still coordinates them.
 
-## Python worker and resident mode
+## Native learning and compatibility mode
 
-`etragon` now also ships with a small Python baseline worker at
-`apps/etragon/scripts/python_baseline_worker.py`.
+Analysis, training, memory management, watch, federation, and daemon commands
+use `etragon-native-memory-v1` in-process by default. No Python, Node.js, or
+shell runtime is required for these paths.
 
-That worker is intentionally lightweight today: it uses the Python standard library,
-emits machine-friendly augmentations, and keeps the Rust side free to swap in a
-future `torch` worker later without changing the CLI contract.
-
-You can run a one-shot Python-backed analysis like this:
+Run one-shot native analysis like this:
 
 ```bash
-cargo run -p etragon -- analyze-python-url http://127.0.0.1:9910/v1/latest/analysis.json --python-worker ./apps/etragon/scripts/python_baseline_worker.py
+cargo run -p etragon -- analyze-url http://127.0.0.1:9910/v1/latest/analysis.json --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- analyze-python-targets-url http://127.0.0.1:9910/v1/latest/targets --filter scan: --python-worker ./apps/etragon/scripts/python_baseline_worker.py
+cargo run -p etragon -- analyze-targets-url http://127.0.0.1:9910/v1/latest/targets --filter scan: --state /tmp/etragon-online-state.json
 ```
 
-If you want the baseline worker to keep a small online-learning memory across runs,
-pass a shared state file:
+To keep online-learning memory across runs, pass a shared state file:
 
 ```bash
-cargo run -p etragon -- train-python-json /tmp/analysis.json --label http_request_followup --weight 2.5 --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- train-json /tmp/analysis.json --label http_request_followup --weight 2.5 --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- analyze-python-json /tmp/analysis.json --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- analyze-json /tmp/analysis.json --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- train-python-targets-url http://127.0.0.1:9910/v1/latest/targets --label http_request_followup --filter scan: --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- train-targets-url http://127.0.0.1:9910/v1/latest/targets --label http_request_followup --filter scan: --state /tmp/etragon-online-state.json
 ```
 
 The first command teaches the worker a label for the current snapshot pattern. The
 second command reuses that memory and can emit a learned-route candidate such as
-`py_ml_candidate_learned_route`. That learned candidate now carries very-light
+`ml_candidate_learned_route`. That learned candidate carries very-light
 online-learning metadata such as `support_score`, `support_count`, `train_count`,
 `score_margin`, and `last_trained_unix_ms`. The third command does the same thing
 for every matching live target snapshot behind a `gewyvern /v1/latest/targets`
 index.
+
+The legacy Python implementation remains available through explicitly named
+commands such as `analyze-python-json`, `train-python-json`, and
+`serve-python-url`. It reads the same schema so existing state can migrate to
+the native backend without a flag day.
 
 Current canonical training labels are:
 
@@ -203,23 +204,23 @@ cargo run -p etragon -- training-labels
 If you want to inspect or reset the local online-memory state itself, you can now use:
 
 ```bash
-cargo run -p etragon -- python-memory-info --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- memory-info --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- python-memory-model-info --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- memory-model-info --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- protocol-capabilities --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- protocol-capabilities --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- clear-python-memory --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- clear-memory --state /tmp/etragon-online-state.json
 ```
 
-`python-memory-info` returns a very-light summary including the current
+`memory-info` returns a very-light summary including the current
 `schema_version`, `model_version`, `pattern_count`, `label_count`, and the latest
-`last_trained_unix_ms`. `python-memory-model-info` returns the worker protocol
+`last_trained_unix_ms`. `memory-model-info` returns the backend protocol
 version, supported commands, and supported training labels for compatibility
 checks. `protocol-capabilities` returns the fuller sidecar-facing capability
 document, including input/output contracts, daemon route families, resident
 feature flags, IR surfaces, merge hints, handoff readiness levels, and the
-worker declaration. `clear-python-memory` clears the learned pattern memory
+backend declaration. `clear-memory` clears the learned pattern memory
 without changing the Rust CLI contract around `analyze-*`, `train-*`, `watch-*`,
 or `serve-*`.
 
@@ -231,13 +232,13 @@ experience transfer for pattern memory, not a neural checkpoint transfer.
 Export the current memory:
 
 ```bash
-cargo run -p etragon -- python-memory-snapshot --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json > /tmp/etragon-memory-export.json
+cargo run -p etragon -- memory-snapshot --state /tmp/etragon-online-state.json > /tmp/etragon-memory-export.json
 ```
 
 Plan a transfer before importing it:
 
 ```bash
-cargo run -p etragon -- python-memory-transfer-plan /tmp/etragon-memory-export.json --merge --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- memory-transfer-plan /tmp/etragon-memory-export.json --merge --state /tmp/etragon-online-state.json
 ```
 
 The transfer plan is a dry run. It checks schema/model compatibility, the
@@ -248,17 +249,17 @@ the destination state.
 When the plan looks safe, import the snapshot:
 
 ```bash
-cargo run -p etragon -- import-python-memory /tmp/etragon-memory-export.json --merge --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- import-memory /tmp/etragon-memory-export.json --merge --state /tmp/etragon-online-state.json
 ```
 
 Use slots for rollback checkpoints:
 
 ```bash
-cargo run -p etragon -- save-python-memory-slot baseline --label baseline-v1 --note "known-good lab state" --source operator --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- save-memory-slot baseline --label baseline-v1 --note "known-good lab state" --source operator --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- load-python-memory-slot baseline --merge --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- load-memory-slot baseline --merge --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- delete-python-memory-slot baseline --python-worker ./apps/etragon/scripts/python_baseline_worker.py --python-state /tmp/etragon-online-state.json
+cargo run -p etragon -- delete-memory-slot baseline --state /tmp/etragon-online-state.json
 ```
 
 That dictionary now also exposes a very-light transition policy:
@@ -274,14 +275,14 @@ label transition as equally destructive.
 If you just want streaming polling output in stdout, keep `etragon` resident like this:
 
 ```bash
-cargo run -p etragon -- watch-python-url http://127.0.0.1:9910/v1/latest/analysis.json --interval-ms 1000 --python-worker ./apps/etragon/scripts/python_baseline_worker.py
+cargo run -p etragon -- watch-url http://127.0.0.1:9910/v1/latest/analysis.json --interval-ms 1000 --state /tmp/etragon-online-state.json
 
-cargo run -p etragon -- watch-python-targets-url http://127.0.0.1:9910/v1/latest/targets --filter scan: --interval-ms 1000 --python-worker ./apps/etragon/scripts/python_baseline_worker.py
+cargo run -p etragon -- watch-targets-url http://127.0.0.1:9910/v1/latest/targets --filter scan: --interval-ms 1000 --state /tmp/etragon-online-state.json
 ```
 
 Use `--cycles <n>` during tests or local dry runs when you want the watch command to stop after a fixed number of polling rounds.
 
-`--python-state <path>` also works with `watch-*` and `serve-*`, so a resident
+`--state <path>` also works with `watch-*` and `serve-*`, so a resident
 daemon can keep learning-specific memory across restarts without changing the Rust
 side interface.
 
@@ -295,13 +296,13 @@ states are retained, so the resident state stays restart-friendly instead of
 growing without bound.
 
 If you want `etragon` itself to behave like a tiny resident external-analysis service,
-you can also run a daemon that keeps polling `gewyvern`, reuses one Python worker,
+you can also run a daemon that keeps polling `gewyvern`, reuses one native backend,
 and exposes the latest output over HTTP:
 
 ```bash
-cargo run -p etragon -- serve-python-url http://127.0.0.1:9910/v1/latest/analysis.json --bind 127.0.0.1:4321 --interval-ms 1000 --python-worker ./apps/etragon/scripts/python_baseline_worker.py --daemon-state /tmp/etragon-daemon-state.json
+cargo run -p etragon -- serve-url http://127.0.0.1:9910/v1/latest/analysis.json --bind 127.0.0.1:4321 --interval-ms 1000 --state /tmp/etragon-online-state.json --daemon-state /tmp/etragon-daemon-state.json
 
-cargo run -p etragon -- serve-python-targets-url http://127.0.0.1:9910/v1/latest/targets --bind 127.0.0.1:4321 --filter scan: --interval-ms 1000 --python-worker ./apps/etragon/scripts/python_baseline_worker.py --daemon-state /tmp/etragon-daemon-state.json
+cargo run -p etragon -- serve-targets-url http://127.0.0.1:9910/v1/latest/targets --bind 127.0.0.1:4321 --filter scan: --interval-ms 1000 --state /tmp/etragon-online-state.json --daemon-state /tmp/etragon-daemon-state.json
 ```
 
 When the upstream Gewyvern API is remotely bound and protected, set
@@ -346,13 +347,13 @@ The resident daemon exposes:
 
 The daemon also keeps a very-light input fingerprint cache, so if the upstream
 `gewyvern` payload has not changed between polling cycles, `etragon` can reuse
-the last output instead of re-running the Python worker.
+the last output instead of re-running the native backend.
 
-If the daemon is running with `--python-state <path>`, those `POST /v1/train/*`
+If the daemon is running with `--state <path>`, those `POST /v1/train/*`
 routes can accept a tiny JSON body such as `{"label":"http_request_followup","weight":2.5}`.
 They train the resident online-memory worker against the latest cached snapshot,
 invalidate the current cache entry, and let the next polling cycle republish a
-fresh output that can include `py_ml_candidate_learned_route`.
+fresh output that can include `ml_candidate_learned_route`.
 
 For polling clients, `/v1/latest/meta` and `/v1/latest/output.json` also carry:
 
@@ -408,7 +409,7 @@ It now also carries evolution guidance for consumers:
 - `merge_capabilities.operator_review_hints`: the hints that should keep a human in the loop
 - `compatibility.forward_compatibility_rules`: the downgrade rules consumers should follow when new fields or new hints appear
 
-`POST /v1/memory-admin/clear` clears the Python worker's persisted pattern memory,
+`POST /v1/memory-admin/clear` clears the active backend's persisted pattern memory,
 clears the daemon's resident training-event history, and invalidates the current
 cache so the next polling cycle can republish a fresh non-learned view.
 
@@ -493,7 +494,7 @@ The daemon-level recommendation summary routes also expose a richer overview:
 - `top_recommendation`
 - `top_candidates`
 
-When the online learner contributes `py_ml_candidate_learned_route`, those
+When the native online learner contributes `ml_candidate_learned_route`, those
 recommendation-summary objects can also carry very-light learning hints such as:
 
 - `support_score`

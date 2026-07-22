@@ -1,11 +1,21 @@
 use super::*;
 
-const USAGE: &str = "usage: etragon training-labels | etragon python-memory-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-model-info [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-versions [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-snapshot [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon python-memory-transfer-plan <path> [--merge|--replace] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon clear-python-memory [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon save-python-memory-slot <slot> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon load-python-memory-slot <slot> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon delete-python-memory-slot <slot> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon import-python-memory <path> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon protocol-capabilities [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-json <path|-> | etragon analyze-url <http://host[:port]/path> | etragon analyze-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] | etragon analyze-python-json <path|-> [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-targets-url <http://host[:port]/v1/latest/targets> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon analyze-python-federation-json <path|-> [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon train-python-federation-json <path|-> --label <label> [--filter <path-segment-prefix>] [--weight <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-url <http://host[:port]/path> [--interval-ms <ms>] [--cycles <n>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon watch-python-targets-url <http://host[:port]/v1/latest/targets> [--interval-ms <ms>] [--cycles <n>] [--filter <path-segment-prefix>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] | etragon serve-python-url <http://host[:port]/path> [--bind <host:port>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>] | etragon serve-python-targets-url <http://host[:port]/v1/latest/targets> [--bind <host:port>] [--filter <path-segment-prefix>] [--interval-ms <ms>] [--python-worker <path>] [--python-bin <bin>] [--python-state <path>] [--daemon-state <path>]";
+const USAGE: &str = "usage: etragon analyze-json <path|-> [--state <path>] | etragon train-json <path|-> --label <label> [--weight <n>] [--state <path>] | etragon memory-info|memory-model-info|memory-versions|memory-snapshot|clear-memory [--state <path>] | etragon save-memory-slot|load-memory-slot|delete-memory-slot <slot> [options] [--state <path>] | etragon memory-transfer-plan|import-memory <path> [--merge|--replace] [--state <path>] | etragon analyze-url|watch-url|serve-url <url> [options] | etragon analyze-targets-url|train-targets-url|watch-targets-url|serve-targets-url <url> [options] | etragon analyze-federation-json <path> [options] | etragon train-federation-json <path> --label <label> [options] | etragon training-labels | etragon protocol-capabilities; Python compatibility commands: analyze-python-json, train-python-json, python-memory-info, python-memory-model-info, python-protocol-capabilities, watch-python-url, watch-python-targets-url, serve-python-url, serve-python-targets-url";
 
-pub(super) fn analyze_input(input: &str) -> Result<String, String> {
-    let output = analyze_gewyvern_analysis_json(&MockMlAdvisoryEngine, input)
-        .map_err(|err| format!("failed to analyze gewyvern analysis json: {}", err.message))?;
-    Ok(engine_output_json(&output))
+pub(super) fn analyze_input_with_native_backend(
+    input: &str,
+    config: NativeLearningConfig,
+) -> Result<String, String> {
+    NativeLearningBackend::open(config)?.analyze_json(input)
+}
+
+pub(super) fn train_input_with_native_backend(
+    input: &str,
+    label: &str,
+    weight: f64,
+    config: NativeLearningConfig,
+) -> Result<String, String> {
+    NativeLearningBackend::open(config)?.train_json_with_weight(input, label, weight)
 }
 
 pub(super) fn analyze_input_with_python_worker(
@@ -26,26 +36,48 @@ pub(super) fn train_input_with_python_worker(
     })
 }
 
-pub(super) fn analyze_targets_url(url: &str) -> Result<String, String> {
-    analyze_targets_url_with_filter(url, None)
-}
-
-pub(super) fn analyze_targets_url_with_filter(
+pub(super) fn analyze_targets_url_with_filter_and_native_backend(
     url: &str,
     filter_prefix: Option<&str>,
+    config: NativeLearningConfig,
 ) -> Result<String, String> {
     let endpoint = resolve_target_batch_endpoint(
         url,
         "analyze-targets-url expects a /v1/latest/targets endpoint",
         filter_prefix,
     )?;
-    let mut entries = Vec::new();
-    for segment in endpoint.segments.clone() {
-        let analysis_json = endpoint.fetch_analysis_json(&segment)?;
-        let output = analyze_input(&analysis_json)?;
-        entries.push((segment, output));
-    }
-    Ok(batch_output_json(&entries))
+    with_learning_backend(&LearningBackendConfig::Native(config), |backend| {
+        let mut entries = Vec::new();
+        for segment in endpoint.segments.clone() {
+            let analysis_json = endpoint.fetch_analysis_json(&segment)?;
+            let output = backend.analyze_json(&analysis_json)?;
+            entries.push((segment, output));
+        }
+        Ok(batch_output_json(&entries))
+    })
+}
+
+pub(super) fn train_targets_url_with_native_backend(
+    url: &str,
+    label: &str,
+    weight: f64,
+    filter_prefix: Option<&str>,
+    config: NativeLearningConfig,
+) -> Result<String, String> {
+    let endpoint = resolve_target_batch_endpoint(
+        url,
+        "train-targets-url expects a /v1/latest/targets endpoint",
+        filter_prefix,
+    )?;
+    with_learning_backend(&LearningBackendConfig::Native(config), |backend| {
+        let mut entries = Vec::new();
+        for segment in endpoint.segments.clone() {
+            let analysis_json = endpoint.fetch_analysis_json(&segment)?;
+            let output = backend.train_json_with_weight(&analysis_json, label, weight)?;
+            entries.push((segment, output));
+        }
+        Ok(target_results_json(&entries))
+    })
 }
 
 pub(super) fn analyze_targets_url_with_filter_and_python_worker(
@@ -138,11 +170,42 @@ pub(super) fn watch_python_url(
     cycles: usize,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    with_python_worker(config, |worker| {
+    watch_url_with_backend(
+        url,
+        interval_ms,
+        cycles,
+        &LearningBackendConfig::Python(config.clone()),
+        "python-url",
+    )
+}
+
+pub(super) fn watch_native_url(
+    url: &str,
+    interval_ms: u64,
+    cycles: usize,
+    config: NativeLearningConfig,
+) -> Result<String, String> {
+    watch_url_with_backend(
+        url,
+        interval_ms,
+        cycles,
+        &LearningBackendConfig::Native(config),
+        "native-url",
+    )
+}
+
+fn watch_url_with_backend(
+    url: &str,
+    interval_ms: u64,
+    cycles: usize,
+    config: &LearningBackendConfig,
+    source: &str,
+) -> Result<String, String> {
+    with_learning_backend(config, |worker| {
         execute_watch_loop(cycles, interval_ms, |cycle| {
             let analysis_json = read_url(url)?;
             let output = worker.analyze_json(&analysis_json)?;
-            Ok(watch_event_json(cycle, "python-url", url, &output))
+            Ok(watch_event_json(cycle, source, url, &output))
         })
     })
 }
@@ -154,11 +217,46 @@ pub(super) fn watch_python_targets_url(
     filter_prefix: Option<&str>,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
-    with_python_worker(config, |worker| {
+    watch_targets_url_with_backend(
+        url,
+        interval_ms,
+        cycles,
+        filter_prefix,
+        &LearningBackendConfig::Python(config.clone()),
+        "python-targets-url",
+    )
+}
+
+pub(super) fn watch_native_targets_url(
+    url: &str,
+    interval_ms: u64,
+    cycles: usize,
+    filter_prefix: Option<&str>,
+    config: NativeLearningConfig,
+) -> Result<String, String> {
+    watch_targets_url_with_backend(
+        url,
+        interval_ms,
+        cycles,
+        filter_prefix,
+        &LearningBackendConfig::Native(config),
+        "native-targets-url",
+    )
+}
+
+fn watch_targets_url_with_backend(
+    url: &str,
+    interval_ms: u64,
+    cycles: usize,
+    filter_prefix: Option<&str>,
+    config: &LearningBackendConfig,
+    source: &str,
+) -> Result<String, String> {
+    with_learning_backend(config, |worker| {
         execute_watch_loop(cycles, interval_ms, |cycle| {
             let endpoint = resolve_target_batch_endpoint(
                 url,
-                "watch-python-targets-url expects a /v1/latest/targets endpoint",
+                "watch-targets-url expects a /v1/latest/targets endpoint",
                 filter_prefix,
             )?;
             let mut entries = Vec::new();
@@ -168,7 +266,7 @@ pub(super) fn watch_python_targets_url(
                 entries.push((segment, output));
             }
             let batch = batch_output_json(&entries);
-            Ok(watch_event_json(cycle, "python-targets-url", url, &batch))
+            Ok(watch_event_json(cycle, source, url, &batch))
         })
     })
 }
@@ -180,12 +278,47 @@ pub(super) fn serve_python_url(
     config: &PythonWorkerConfig,
     daemon_state_file: Option<&Path>,
 ) -> Result<String, String> {
-    run_python_daemon_until(
+    serve_url_with_backend(
+        url,
+        bind_addr,
+        interval_ms,
+        daemon_state_file,
+        &LearningBackendConfig::Python(config.clone()),
+        "python-url",
+    )
+}
+
+pub(super) fn serve_native_url(
+    url: &str,
+    bind_addr: &str,
+    interval_ms: u64,
+    config: NativeLearningConfig,
+    daemon_state_file: Option<&Path>,
+) -> Result<String, String> {
+    serve_url_with_backend(
+        url,
+        bind_addr,
+        interval_ms,
+        daemon_state_file,
+        &LearningBackendConfig::Native(config),
+        "native-url",
+    )
+}
+
+fn serve_url_with_backend(
+    url: &str,
+    bind_addr: &str,
+    interval_ms: u64,
+    daemon_state_file: Option<&Path>,
+    config: &LearningBackendConfig,
+    source: &str,
+) -> Result<String, String> {
+    run_learning_daemon_until(
         bind_addr,
         interval_ms,
         config,
         daemon_state_file,
-        "python-url",
+        source,
         url,
         |_, worker| {
             let analysis_json = read_url(url)?;
@@ -211,17 +344,56 @@ pub(super) fn serve_python_targets_url(
     config: &PythonWorkerConfig,
     daemon_state_file: Option<&Path>,
 ) -> Result<String, String> {
-    run_python_daemon_until(
+    serve_targets_url_with_backend(
+        url,
+        bind_addr,
+        interval_ms,
+        filter_prefix,
+        daemon_state_file,
+        &LearningBackendConfig::Python(config.clone()),
+        "python-targets-url",
+    )
+}
+
+pub(super) fn serve_native_targets_url(
+    url: &str,
+    bind_addr: &str,
+    interval_ms: u64,
+    filter_prefix: Option<&str>,
+    config: NativeLearningConfig,
+    daemon_state_file: Option<&Path>,
+) -> Result<String, String> {
+    serve_targets_url_with_backend(
+        url,
+        bind_addr,
+        interval_ms,
+        filter_prefix,
+        daemon_state_file,
+        &LearningBackendConfig::Native(config),
+        "native-targets-url",
+    )
+}
+
+fn serve_targets_url_with_backend(
+    url: &str,
+    bind_addr: &str,
+    interval_ms: u64,
+    filter_prefix: Option<&str>,
+    daemon_state_file: Option<&Path>,
+    config: &LearningBackendConfig,
+    source: &str,
+) -> Result<String, String> {
+    run_learning_daemon_until(
         bind_addr,
         interval_ms,
         config,
         daemon_state_file,
-        "python-targets-url",
+        source,
         url,
         |_, worker| {
             let endpoint = resolve_target_batch_endpoint(
                 url,
-                "serve-python-targets-url expects a /v1/latest/targets endpoint",
+                "serve-targets-url expects a /v1/latest/targets endpoint",
                 filter_prefix,
             )?;
             let segments = endpoint.segments.clone();
@@ -301,11 +473,215 @@ pub(super) fn serve_python_targets_url(
 pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
     match args {
         [cmd] if cmd == "training-labels" => Ok(training_labels_json()),
-        [cmd, path] if cmd == "analyze-json" => analyze_input(&read_input(path)?),
-        [cmd, url] if cmd == "analyze-url" => analyze_input(&read_url(url)?),
-        [cmd, url] if cmd == "analyze-targets-url" => analyze_targets_url(url),
-        [cmd, url, flag, prefix] if cmd == "analyze-targets-url" && flag == "--filter" => {
-            analyze_targets_url_with_filter(url, Some(prefix))
+        [cmd, path, rest @ ..] if cmd == "analyze-json" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for analyze-json: {}",
+                    rest[consumed]
+                ));
+            }
+            analyze_input_with_native_backend(&read_input(path)?, config)
+        }
+        [cmd, path, flag, label, rest @ ..] if cmd == "train-json" && flag == "--label" => {
+            let (weight, config) = parse_native_train_options(rest)?;
+            let canonical_label = normalize_training_label(label)?;
+            train_input_with_native_backend(&read_input(path)?, &canonical_label, weight, config)
+        }
+        [cmd, url, rest @ ..] if cmd == "analyze-url" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for analyze-url: {}",
+                    rest[consumed]
+                ));
+            }
+            analyze_input_with_native_backend(&read_url(url)?, config)
+        }
+        [cmd, url, rest @ ..] if cmd == "analyze-targets-url" => {
+            let (interval_ms, cycles, filter_prefix, config) = parse_native_watch_options(rest)?;
+            if interval_ms != 1000 || cycles != 0 {
+                return Err("analyze-targets-url only accepts --filter and --state".to_string());
+            }
+            analyze_targets_url_with_filter_and_native_backend(
+                url,
+                filter_prefix.as_deref(),
+                config,
+            )
+        }
+        [cmd, url, flag, label, rest @ ..] if cmd == "train-targets-url" && flag == "--label" => {
+            let (filter_prefix, weight, config) = parse_native_batch_train_options(rest)?;
+            let canonical_label = normalize_training_label(label)?;
+            train_targets_url_with_native_backend(
+                url,
+                &canonical_label,
+                weight,
+                filter_prefix.as_deref(),
+                config,
+            )
+        }
+        [cmd, rest @ ..] if cmd == "memory-info" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for memory-info: {}",
+                    rest[consumed]
+                ));
+            }
+            native_memory_info(config)
+        }
+        [cmd, rest @ ..] if cmd == "memory-model-info" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for memory-model-info: {}",
+                    rest[consumed]
+                ));
+            }
+            native_memory_model_info(config)
+        }
+        [cmd, rest @ ..] if cmd == "memory-versions" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for memory-versions: {}",
+                    rest[consumed]
+                ));
+            }
+            native_memory_versions(config)
+        }
+        [cmd, rest @ ..] if cmd == "memory-snapshot" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for memory-snapshot: {}",
+                    rest[consumed]
+                ));
+            }
+            native_memory_snapshot(config)
+        }
+        [cmd, rest @ ..] if cmd == "clear-memory" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for clear-memory: {}",
+                    rest[consumed]
+                ));
+            }
+            clear_native_memory(config)
+        }
+        [cmd, path, rest @ ..] if cmd == "import-memory" => {
+            let (strategy, config, consumed) = parse_native_memory_strategy(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for import-memory: {}",
+                    rest[consumed]
+                ));
+            }
+            import_native_memory(&read_input(path)?, &strategy, config)
+        }
+        [cmd, path, rest @ ..] if cmd == "memory-transfer-plan" => {
+            let (strategy, config, consumed) = parse_native_memory_strategy(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for memory-transfer-plan: {}",
+                    rest[consumed]
+                ));
+            }
+            plan_native_memory_transfer(&read_input(path)?, &strategy, config)
+        }
+        [cmd, slot, rest @ ..] if cmd == "save-memory-slot" => {
+            let (label, note, source, config, consumed) = parse_native_slot_metadata(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for save-memory-slot: {}",
+                    rest[consumed]
+                ));
+            }
+            save_native_memory_slot(
+                slot,
+                label.as_deref(),
+                note.as_deref(),
+                source.as_deref(),
+                config,
+            )
+        }
+        [cmd, slot, rest @ ..] if cmd == "load-memory-slot" => {
+            let (strategy, config, consumed) = parse_native_memory_strategy(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for load-memory-slot: {}",
+                    rest[consumed]
+                ));
+            }
+            load_native_memory_slot(slot, &strategy, config)
+        }
+        [cmd, slot, rest @ ..] if cmd == "delete-memory-slot" => {
+            let (config, consumed) = parse_native_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for delete-memory-slot: {}",
+                    rest[consumed]
+                ));
+            }
+            delete_native_memory_slot(slot, config)
+        }
+        [cmd, path, rest @ ..] if cmd == "analyze-federation-json" => {
+            let manifest = read_input(path)?;
+            let (interval_ms, cycles, filter_prefix, config) = parse_native_watch_options(rest)?;
+            if interval_ms != 1000 || cycles != 0 {
+                return Err("analyze-federation-json only accepts --filter and --state".to_string());
+            }
+            analyze_federation_manifest_with_backend(
+                &manifest,
+                filter_prefix.as_deref(),
+                &LearningBackendConfig::Native(config),
+            )
+        }
+        [cmd, path, flag, label, rest @ ..]
+            if cmd == "train-federation-json" && flag == "--label" =>
+        {
+            let manifest = read_input(path)?;
+            let (filter_prefix, weight, config) = parse_native_batch_train_options(rest)?;
+            let canonical_label = normalize_training_label(label)?;
+            train_federation_manifest_with_backend(
+                &manifest,
+                &canonical_label,
+                weight,
+                filter_prefix.as_deref(),
+                &LearningBackendConfig::Native(config),
+            )
+        }
+        [cmd, url, rest @ ..] if cmd == "watch-url" => {
+            let (interval_ms, cycles, _filter_prefix, config) = parse_native_watch_options(rest)?;
+            watch_native_url(url, interval_ms, cycles, config)
+        }
+        [cmd, url, rest @ ..] if cmd == "watch-targets-url" => {
+            let (interval_ms, cycles, filter_prefix, config) = parse_native_watch_options(rest)?;
+            watch_native_targets_url(url, interval_ms, cycles, filter_prefix.as_deref(), config)
+        }
+        [cmd, url, rest @ ..] if cmd == "serve-url" => {
+            let (bind_addr, interval_ms, _filter_prefix, config, daemon_state_file) =
+                parse_native_daemon_options(rest)?;
+            serve_native_url(
+                url,
+                &bind_addr,
+                interval_ms,
+                config,
+                daemon_state_file.as_deref(),
+            )
+        }
+        [cmd, url, rest @ ..] if cmd == "serve-targets-url" => {
+            let (bind_addr, interval_ms, filter_prefix, config, daemon_state_file) =
+                parse_native_daemon_options(rest)?;
+            serve_native_targets_url(
+                url,
+                &bind_addr,
+                interval_ms,
+                filter_prefix.as_deref(),
+                config,
+                daemon_state_file.as_deref(),
+            )
         }
         [cmd, rest @ ..] if cmd == "python-memory-info" => {
             let (config, consumed) = parse_python_worker_options(rest)?;
@@ -365,10 +741,20 @@ pub(super) fn run_cli(args: &[String]) -> Result<String, String> {
             )
         }
         [cmd, rest @ ..] if cmd == "protocol-capabilities" => {
-            let (config, consumed) = parse_python_worker_options(rest)?;
+            let (config, consumed) = parse_native_options(rest)?;
             if consumed != rest.len() {
                 return Err(format!(
                     "unknown option for protocol-capabilities: {}",
+                    rest[consumed]
+                ));
+            }
+            native_protocol_capabilities(config)
+        }
+        [cmd, rest @ ..] if cmd == "python-protocol-capabilities" => {
+            let (config, consumed) = parse_python_worker_options(rest)?;
+            if consumed != rest.len() {
+                return Err(format!(
+                    "unknown option for python-protocol-capabilities: {}",
                     rest[consumed]
                 ));
             }

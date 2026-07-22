@@ -8,6 +8,204 @@ pub(super) fn default_python_config() -> PythonWorkerConfig {
     }
 }
 
+pub(super) fn parse_native_options(
+    args: &[String],
+) -> Result<(NativeLearningConfig, usize), String> {
+    let mut config = NativeLearningConfig::default();
+    let mut index = 0;
+    while let Some(option) = args.get(index) {
+        if option != "--state" {
+            break;
+        }
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| "missing value for --state".to_string())?;
+        config.state_file = Some(PathBuf::from(value));
+        index += 2;
+    }
+    Ok((config, index))
+}
+
+pub(super) fn parse_native_train_options(
+    args: &[String],
+) -> Result<(f64, NativeLearningConfig), String> {
+    let mut weight = 1.0;
+    let mut config = NativeLearningConfig::default();
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--weight" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "missing value for --weight".to_string())?;
+                weight = value
+                    .parse::<f64>()
+                    .map_err(|_| format!("invalid value for --weight: {value}"))?;
+                if !weight.is_finite() || weight <= 0.0 {
+                    return Err("--weight must be a finite number greater than 0".to_string());
+                }
+                index += 2;
+            }
+            "--state" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "missing value for --state".to_string())?;
+                config.state_file = Some(PathBuf::from(value));
+                index += 2;
+            }
+            other => return Err(format!("unknown option for train command: {other}")),
+        }
+    }
+    Ok((weight, config))
+}
+
+pub(super) fn parse_native_batch_train_options(
+    args: &[String],
+) -> Result<(Option<String>, f64, NativeLearningConfig), String> {
+    let mut filter_prefix = None;
+    let mut weight = 1.0;
+    let mut config = NativeLearningConfig::default();
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--filter" => {
+                filter_prefix = Some(required_option_value(args, index, "--filter")?.to_string());
+                index += 2;
+            }
+            "--weight" => {
+                weight = parse_positive_f64(required_option_value(args, index, "--weight")?)?;
+                index += 2;
+            }
+            "--state" => {
+                config.state_file = Some(PathBuf::from(required_option_value(
+                    args, index, "--state",
+                )?));
+                index += 2;
+            }
+            other => return Err(format!("unknown option for train command: {other}")),
+        }
+    }
+    Ok((filter_prefix, weight, config))
+}
+
+pub(super) fn parse_native_watch_options(
+    args: &[String],
+) -> Result<(u64, usize, Option<String>, NativeLearningConfig), String> {
+    let mut interval_ms = 1000;
+    let mut cycles = 0;
+    let mut filter_prefix = None;
+    let mut config = NativeLearningConfig::default();
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--interval-ms" => {
+                let value = required_option_value(args, index, "--interval-ms")?;
+                interval_ms = value
+                    .parse::<u64>()
+                    .map_err(|_| format!("invalid interval for --interval-ms: {value}"))?;
+                index += 2;
+            }
+            "--cycles" => {
+                let value = required_option_value(args, index, "--cycles")?;
+                cycles = value
+                    .parse::<usize>()
+                    .map_err(|_| format!("invalid cycle count for --cycles: {value}"))?;
+                index += 2;
+            }
+            "--filter" => {
+                filter_prefix = Some(required_option_value(args, index, "--filter")?.to_string());
+                index += 2;
+            }
+            "--state" => {
+                config.state_file = Some(PathBuf::from(required_option_value(
+                    args, index, "--state",
+                )?));
+                index += 2;
+            }
+            other => return Err(format!("unknown option for watch command: {other}")),
+        }
+    }
+    Ok((interval_ms, cycles, filter_prefix, config))
+}
+
+pub(super) type NativeDaemonOptions = (
+    String,
+    u64,
+    Option<String>,
+    NativeLearningConfig,
+    Option<PathBuf>,
+);
+
+pub(super) fn parse_native_daemon_options(args: &[String]) -> Result<NativeDaemonOptions, String> {
+    let mut bind_addr = "127.0.0.1:4321".to_string();
+    let mut interval_ms = 1000;
+    let mut filter_prefix = None;
+    let mut config = NativeLearningConfig::default();
+    let mut daemon_state_file = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--bind" => {
+                bind_addr = required_option_value(args, index, "--bind")?.to_string();
+                index += 2;
+            }
+            "--interval-ms" => {
+                let value = required_option_value(args, index, "--interval-ms")?;
+                interval_ms = value
+                    .parse::<u64>()
+                    .map_err(|_| format!("invalid interval for --interval-ms: {value}"))?;
+                index += 2;
+            }
+            "--filter" => {
+                filter_prefix = Some(required_option_value(args, index, "--filter")?.to_string());
+                index += 2;
+            }
+            "--state" => {
+                config.state_file = Some(PathBuf::from(required_option_value(
+                    args, index, "--state",
+                )?));
+                index += 2;
+            }
+            "--daemon-state" => {
+                daemon_state_file = Some(PathBuf::from(required_option_value(
+                    args,
+                    index,
+                    "--daemon-state",
+                )?));
+                index += 2;
+            }
+            other => return Err(format!("unknown option for daemon command: {other}")),
+        }
+    }
+    Ok((
+        bind_addr,
+        interval_ms,
+        filter_prefix,
+        config,
+        daemon_state_file,
+    ))
+}
+
+fn required_option_value<'a>(
+    args: &'a [String],
+    index: usize,
+    option: &str,
+) -> Result<&'a str, String> {
+    args.get(index + 1)
+        .map(String::as_str)
+        .ok_or_else(|| format!("missing value for {option}"))
+}
+
+fn parse_positive_f64(value: &str) -> Result<f64, String> {
+    let parsed = value
+        .parse::<f64>()
+        .map_err(|_| format!("invalid numeric value: {value}"))?;
+    if !parsed.is_finite() || parsed <= 0.0 {
+        return Err("numeric value must be a finite number greater than 0".to_string());
+    }
+    Ok(parsed)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct TrainingEvent {
     pub(super) label: String,

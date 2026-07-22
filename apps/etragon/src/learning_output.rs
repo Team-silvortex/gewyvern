@@ -230,7 +230,7 @@ pub(super) fn learning_summary_json_from_output_and_history_with_scope(
     let summary = recommendation_overview_json(&[("latest".to_string(), summary_json.to_string())]);
     let top_candidate_name = extract_named_string_fields(summary_json, "name")
         .into_iter()
-        .find(|name| name == "py_ml_candidate_learned_route")
+        .find(|name| is_learned_route_name(name))
         .map(|value| format!("\"{}\"", escape_json_string(&value)))
         .unwrap_or_else(|| "null".to_string());
     let top_learned_label = training_history

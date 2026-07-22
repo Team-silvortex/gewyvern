@@ -3,7 +3,9 @@ use super::*;
 #[test]
 fn cli_reports_usage_for_missing_arguments() {
     let err = run_cli(&[]).expect_err("missing args should fail");
-    assert!(err.contains("usage: etragon training-labels | etragon python-memory-info"));
+    assert!(err.contains("usage: etragon analyze-json"));
+    assert!(err.contains("train-json"));
+    assert!(err.contains("memory-info"));
     assert!(err.contains("python-memory-model-info"));
     assert!(err.contains("protocol-capabilities"));
 }

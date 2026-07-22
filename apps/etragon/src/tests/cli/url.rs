@@ -73,6 +73,43 @@ fn cli_analyzes_target_specific_snapshot_url() {
 }
 
 #[test]
+fn cli_watch_url_uses_native_backend_by_default() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+    let addr = listener
+        .local_addr()
+        .expect("listener should have local addr");
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("client should connect");
+        let mut request = [0u8; 1024];
+        let _ = stream.read(&mut request).expect("request should read");
+        let body = "{\"primary_module_kind\":\"authentication_exchange\",\"primary_failure_mode\":\"server_denied\",\"primary_failure_detail\":\"access_denied\",\"primary_failure_confidence\":\"high\",\"primary_failure_basis\":\"direct_protocol_signal\",\"ambiguous\":false,\"competing_hypotheses\":[]}";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("response should write");
+    });
+
+    let output = run_cli(&[
+        "watch-url".to_string(),
+        format!("http://{}/v1/latest/analysis.json", addr),
+        "--cycles".to_string(),
+        "1".to_string(),
+        "--interval-ms".to_string(),
+        "1".to_string(),
+    ])
+    .expect("native watch should succeed");
+    assert!(output.contains("\"source\":\"native-url\""));
+    assert!(output.contains("\"name\":\"ml_candidate_targeted_escalation\""));
+    assert!(!output.contains("python_baseline_worker"));
+
+    handle.join().expect("server thread should exit cleanly");
+}
+
+#[test]
 fn cli_watch_python_url_runs_single_cycle() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let addr = listener

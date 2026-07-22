@@ -128,32 +128,40 @@ const FORWARD_COMPATIBILITY_RULES: &[&str] = &[
     "missing_experimental_fields_must_not_break_consumers",
 ];
 
-pub(super) fn python_worker_memory_state_json(
-    config: &PythonWorkerConfig,
+pub(super) fn learning_backend_memory_state_json(
+    config: &LearningBackendConfig,
     snapshot: Option<&DaemonSnapshot>,
 ) -> Result<String, String> {
-    let worker_state = with_python_worker(config, |worker| worker.memory_info_json())?;
+    let worker_state = with_learning_backend(config, |worker| worker.memory_info_json())?;
     Ok(daemon_memory_state_json(&worker_state, snapshot))
 }
 
-pub(super) fn python_worker_model_info_json(config: &PythonWorkerConfig) -> Result<String, String> {
-    with_python_worker(config, |worker| worker.model_info_json())
+pub(super) fn learning_backend_model_info_json(
+    config: &LearningBackendConfig,
+) -> Result<String, String> {
+    with_learning_backend(config, |worker| worker.model_info_json())
 }
 
-pub(super) fn python_worker_memory_snapshot_json(
-    config: &PythonWorkerConfig,
+pub(super) fn learning_backend_memory_snapshot_json(
+    config: &LearningBackendConfig,
 ) -> Result<String, String> {
-    with_python_worker(config, |worker| worker.export_memory_json())
+    with_learning_backend(config, |worker| worker.export_memory_json())
 }
 
-pub(super) fn python_worker_memory_versions_json(
-    config: &PythonWorkerConfig,
+pub(super) fn learning_backend_memory_versions_json(
+    config: &LearningBackendConfig,
 ) -> Result<String, String> {
-    with_python_worker(config, |worker| worker.memory_versions_json())
+    with_learning_backend(config, |worker| worker.memory_versions_json())
 }
 
 pub(super) fn protocol_capabilities_json(config: &PythonWorkerConfig) -> Result<String, String> {
-    let worker_model_info = python_worker_model_info_json(config)?;
+    learning_backend_protocol_capabilities_json(&LearningBackendConfig::Python(config.clone()))
+}
+
+pub(super) fn learning_backend_protocol_capabilities_json(
+    config: &LearningBackendConfig,
+) -> Result<String, String> {
+    let worker_model_info = learning_backend_model_info_json(config)?;
     let access_policy = daemon_access_policy_from_env();
     Ok(protocol_capabilities_document_json(
         &worker_model_info,
@@ -161,13 +169,13 @@ pub(super) fn protocol_capabilities_json(config: &PythonWorkerConfig) -> Result<
     ))
 }
 
-pub(super) fn clear_python_worker_memory(
-    config: &PythonWorkerConfig,
+pub(super) fn clear_learning_backend_memory(
+    config: &LearningBackendConfig,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<String, String> {
-    let worker_state = with_python_worker(config, |worker| worker.clear_memory_json())?;
+    let worker_state = with_learning_backend(config, |worker| worker.clear_memory_json())?;
     let snapshot_to_persist =
         reset_snapshot_training_state(latest, daemon_state_file, invalidation_epoch)?;
     Ok(daemon_memory_state_json(
@@ -176,14 +184,14 @@ pub(super) fn clear_python_worker_memory(
     ))
 }
 
-pub(super) fn load_python_worker_memory(
-    config: &PythonWorkerConfig,
+pub(super) fn load_learning_backend_memory(
+    config: &LearningBackendConfig,
     memory_snapshot_json: &str,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<String, String> {
-    let worker_state = with_python_worker(config, |worker| {
+    let worker_state = with_learning_backend(config, |worker| {
         worker.import_memory_json(memory_snapshot_json)
     })?;
     let snapshot_to_persist =
@@ -194,27 +202,27 @@ pub(super) fn load_python_worker_memory(
     ))
 }
 
-pub(super) fn save_python_worker_memory_slot(
-    config: &PythonWorkerConfig,
+pub(super) fn save_learning_backend_memory_slot(
+    config: &LearningBackendConfig,
     slot: &str,
     label: Option<&str>,
     note: Option<&str>,
     source: Option<&str>,
 ) -> Result<String, String> {
-    with_python_worker(config, |worker| {
+    with_learning_backend(config, |worker| {
         worker.save_memory_slot_json(slot, label, note, source)
     })
 }
 
-pub(super) fn load_python_worker_memory_slot(
-    config: &PythonWorkerConfig,
+pub(super) fn load_learning_backend_memory_slot(
+    config: &LearningBackendConfig,
     slot: &str,
     strategy: &str,
     latest: &Arc<Mutex<Option<DaemonSnapshot>>>,
     daemon_state_file: Option<&Path>,
     invalidation_epoch: &Arc<AtomicU64>,
 ) -> Result<String, String> {
-    let worker_state = with_python_worker(config, |worker| {
+    let worker_state = with_learning_backend(config, |worker| {
         worker.load_memory_slot_json(slot, strategy)
     })?;
     let snapshot_to_persist =
@@ -225,11 +233,11 @@ pub(super) fn load_python_worker_memory_slot(
     ))
 }
 
-pub(super) fn delete_python_worker_memory_slot(
-    config: &PythonWorkerConfig,
+pub(super) fn delete_learning_backend_memory_slot(
+    config: &LearningBackendConfig,
     slot: &str,
 ) -> Result<String, String> {
-    with_python_worker(config, |worker| worker.delete_memory_slot_json(slot))
+    with_learning_backend(config, |worker| worker.delete_memory_slot_json(slot))
 }
 
 fn reset_snapshot_training_state(

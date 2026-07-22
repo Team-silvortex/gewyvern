@@ -93,7 +93,7 @@ fn binary_filters_target_index_batch_by_prefix() {
     assert!(stdout.contains("\"path_segment\":\"scan:http:request\""));
     assert!(!stdout.contains("\"path_segment\":\"socket_session\""));
     assert!(stdout.contains("\"producer_stage\":\"candidate\""));
-    assert!(stdout.contains("\"producer_pass\":\"MockMlAdvisoryEngine\""));
+    assert!(stdout.contains("\"producer_pass\":\"etragon_native_baseline\""));
     assert!(stdout.contains("\"recommendation_summary\":["));
 
     handle.join().expect("server thread should exit");

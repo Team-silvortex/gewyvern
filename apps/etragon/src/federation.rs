@@ -45,8 +45,20 @@ pub(super) fn analyze_federation_manifest_with_python_worker(
     filter_prefix: Option<&str>,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
+    analyze_federation_manifest_with_backend(
+        manifest_json,
+        filter_prefix,
+        &LearningBackendConfig::Python(config.clone()),
+    )
+}
+
+pub(super) fn analyze_federation_manifest_with_backend(
+    manifest_json: &str,
+    filter_prefix: Option<&str>,
+    config: &LearningBackendConfig,
+) -> Result<String, String> {
     let members = parse_federation_members(manifest_json)?;
-    with_python_worker(config, |worker| {
+    with_learning_backend(config, |worker| {
         let mut entries = Vec::new();
         let mut runtime_results = Vec::new();
         for member in members {
@@ -64,8 +76,24 @@ pub(super) fn train_federation_manifest_with_python_worker(
     filter_prefix: Option<&str>,
     config: &PythonWorkerConfig,
 ) -> Result<String, String> {
+    train_federation_manifest_with_backend(
+        manifest_json,
+        label,
+        weight,
+        filter_prefix,
+        &LearningBackendConfig::Python(config.clone()),
+    )
+}
+
+pub(super) fn train_federation_manifest_with_backend(
+    manifest_json: &str,
+    label: &str,
+    weight: f64,
+    filter_prefix: Option<&str>,
+    config: &LearningBackendConfig,
+) -> Result<String, String> {
     let members = parse_federation_members(manifest_json)?;
-    with_python_worker(config, |worker| {
+    with_learning_backend(config, |worker| {
         let mut entries = Vec::new();
         let mut runtime_results = Vec::new();
         for member in members {
@@ -86,7 +114,7 @@ pub(super) fn train_federation_manifest_with_python_worker(
 fn analyze_federation_member(
     member: &FederationMember,
     filter_prefix: Option<&str>,
-    worker: &mut PythonWorkerClient,
+    worker: &mut dyn LearningBackend,
     entries: &mut Vec<(String, String)>,
 ) -> FederationRuntimeResult {
     visit_federation_member_targets(member, filter_prefix, entries, |analysis_json| {
@@ -99,7 +127,7 @@ fn train_federation_member(
     label: &str,
     weight: f64,
     filter_prefix: Option<&str>,
-    worker: &mut PythonWorkerClient,
+    worker: &mut dyn LearningBackend,
     entries: &mut Vec<(String, String)>,
 ) -> FederationRuntimeResult {
     visit_federation_member_targets(member, filter_prefix, entries, |analysis_json| {
@@ -225,7 +253,7 @@ fn federation_output_json(
 }
 
 pub(super) fn federation_summary_json_from_snapshot(snapshot: &DaemonSnapshot) -> String {
-    let source = if snapshot.source == "python-targets-url" {
+    let source = if snapshot.source.ends_with("targets-url") {
         "single_upstream_targets"
     } else {
         "single_upstream_latest"

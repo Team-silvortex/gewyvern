@@ -1,6 +1,77 @@
 use super::*;
 
 #[test]
+fn native_daemon_trains_and_reports_native_memory_without_python() {
+    let _guard = lock_daemon_test_guard();
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let state_path =
+        std::env::temp_dir().join(format!("etragon-native-daemon-state-{unique}.json"));
+    let bind_addr = reserve_bind_addr();
+    let bind_addr_for_thread = bind_addr.clone();
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_for_thread = Arc::clone(&stop);
+    let config = LearningBackendConfig::native(Some(state_path.clone()));
+    let daemon = thread::spawn(move || {
+        run_learning_daemon_until(
+            &bind_addr_for_thread,
+            10,
+            &config,
+            None,
+            "native-url",
+            "http://example.test/v1/latest/analysis.json",
+            |_, worker| {
+                let analysis_json = fixture("missing_transition_analysis.json");
+                let output_json = worker.analyze_json(&analysis_json)?;
+                Ok(PolledDaemonOutput {
+                    input_fingerprint: analysis_json.clone(),
+                    latest_input_json: Some(analysis_json),
+                    recommendation_summary_json: single_output_recommendation_summary(&output_json),
+                    output_json,
+                    target_outputs: Vec::new(),
+                })
+            },
+            stop_for_thread,
+        )
+    });
+
+    wait_for_daemon_health(&bind_addr).expect("native daemon should publish health endpoint");
+    wait_for_daemon_ready(&bind_addr).expect("native daemon should publish ready status");
+    wait_for_body(
+        &format!("http://{}/v1/latest/output.json", bind_addr),
+        |body| body.contains("\"ml_candidate_observe_longer\""),
+    )
+    .expect("native daemon should publish baseline output");
+
+    let trained = post_json(
+        &format!("http://{}/v1/train/latest", bind_addr),
+        "{\"label\":\"network_observe_longer\"}",
+    )
+    .expect("native daemon should accept training request");
+    assert!(trained.contains("\"backend\":\"rust-native\""));
+
+    let learned = wait_for_body(
+        &format!("http://{}/v1/latest/output.json", bind_addr),
+        |body| body.contains("\"ml_candidate_learned_route\""),
+    )
+    .expect("native daemon should republish learned route");
+    assert!(learned.contains("\"producer_pass\":\"etragon_native_memory\""));
+
+    let meta = read_url(&format!("http://{}/v1/latest/meta", bind_addr))
+        .expect("native daemon meta should respond");
+    assert!(meta.contains("\"memory_model_version\":\"etragon-native-memory-v1\""));
+
+    stop.store(true, Ordering::Relaxed);
+    daemon
+        .join()
+        .expect("native daemon thread should join")
+        .expect("native daemon should stop cleanly");
+    let _ = fs::remove_file(state_path);
+}
+
+#[test]
 fn daemon_training_route_invalidates_cache_and_emits_learned_route() {
     let _guard = lock_daemon_test_guard();
     let unique = SystemTime::now()

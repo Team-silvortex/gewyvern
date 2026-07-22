@@ -9,6 +9,7 @@ pub(super) struct DaemonAccessPolicy {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(super) fn run_python_daemon_until<F>(
     bind_addr: &str,
     interval_ms: u64,
@@ -16,11 +17,37 @@ pub(super) fn run_python_daemon_until<F>(
     daemon_state_file: Option<&Path>,
     source: &str,
     upstream_url: &str,
+    poll_output: F,
+    stop: Arc<AtomicBool>,
+) -> Result<(), String>
+where
+    F: FnMut(usize, &mut dyn LearningBackend) -> Result<PolledDaemonOutput, String>,
+{
+    run_learning_daemon_until(
+        bind_addr,
+        interval_ms,
+        &LearningBackendConfig::Python(config.clone()),
+        daemon_state_file,
+        source,
+        upstream_url,
+        poll_output,
+        stop,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn run_learning_daemon_until<F>(
+    bind_addr: &str,
+    interval_ms: u64,
+    config: &LearningBackendConfig,
+    daemon_state_file: Option<&Path>,
+    source: &str,
+    upstream_url: &str,
     mut poll_output: F,
     stop: Arc<AtomicBool>,
 ) -> Result<(), String>
 where
-    F: FnMut(usize, &mut PythonWorkerClient) -> Result<PolledDaemonOutput, String>,
+    F: FnMut(usize, &mut dyn LearningBackend) -> Result<PolledDaemonOutput, String>,
 {
     let restored_snapshot = daemon_state_file
         .map(read_daemon_state)
@@ -51,7 +78,7 @@ where
         while !stop_for_server.load(Ordering::Relaxed) {
             match listener.accept() {
                 Ok((stream, remote_addr)) => {
-                    if let Err(err) = handle_daemon_client(
+                    if let Err(err) = handle_daemon_client_with_backend(
                         stream,
                         remote_addr.ip(),
                         &access_policy_for_server,
@@ -74,7 +101,7 @@ where
         Ok(())
     });
 
-    let mut worker = match PythonWorkerClient::spawn(config) {
+    let mut worker = match spawn_learning_backend(config) {
         Ok(worker) => worker,
         Err(err) => {
             stop.store(true, Ordering::Relaxed);
@@ -103,10 +130,10 @@ where
         cycle += 1;
         let current_epoch = invalidation_epoch.load(Ordering::Relaxed);
         if current_epoch != worker_epoch {
-            worker = PythonWorkerClient::spawn(config)?;
+            worker = spawn_learning_backend(config)?;
             worker_epoch = current_epoch;
         }
-        let polled = match poll_output(cycle, &mut worker) {
+        let polled = match poll_output(cycle, worker.as_mut()) {
             Ok(polled) => polled,
             Err(err) => {
                 persist_poll_error_snapshot(

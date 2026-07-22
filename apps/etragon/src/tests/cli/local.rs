@@ -51,6 +51,85 @@ fn cli_analyzes_snapshot_file() {
 }
 
 #[test]
+fn native_cli_training_persists_without_python() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock should be after unix epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("etragon-native-cli-{unique}.json"));
+    let state_path = std::env::temp_dir().join(format!("etragon-native-cli-state-{unique}.json"));
+    fs::write(
+        &path,
+        r#"{"primary_module_kind":"http_request_response","primary_failure_mode":"no_response","primary_failure_detail":"request_sent_no_reply","primary_failure_confidence":"medium","primary_failure_basis":"missing_transition","ambiguous":false,"competing_hypotheses":[]}"#,
+    )
+    .expect("temp snapshot should write");
+
+    let trained = run_cli(&[
+        "train-json".to_string(),
+        path.to_string_lossy().to_string(),
+        "--label".to_string(),
+        "request_followup".to_string(),
+        "--weight".to_string(),
+        "2.5".to_string(),
+        "--state".to_string(),
+        state_path.to_string_lossy().to_string(),
+    ])
+    .expect("native training should succeed");
+    assert!(trained.contains(r#""backend":"rust-native""#));
+    assert!(trained.contains(r#""label":"http_request_followup""#));
+
+    let analyzed = run_cli(&[
+        "analyze-json".to_string(),
+        path.to_string_lossy().to_string(),
+        "--state".to_string(),
+        state_path.to_string_lossy().to_string(),
+    ])
+    .expect("native analysis should reload persisted memory");
+    assert!(analyzed.contains(r#""name":"ml_candidate_learned_route""#));
+    assert!(analyzed.contains(r#""producer_pass":"etragon_native_memory""#));
+    assert!(!analyzed.contains("python_online_memory"));
+
+    let info = run_cli(&[
+        "memory-info".to_string(),
+        "--state".to_string(),
+        state_path.to_string_lossy().to_string(),
+    ])
+    .expect("native memory info should succeed");
+    assert!(info.contains(r#""model_version":"etragon-native-memory-v1""#));
+    assert!(info.contains(r#""pattern_count":1"#));
+
+    let snapshot = run_cli(&[
+        "memory-snapshot".to_string(),
+        "--state".to_string(),
+        state_path.to_string_lossy().to_string(),
+    ])
+    .expect("native memory snapshot should succeed");
+    let legacy_snapshot_path =
+        std::env::temp_dir().join(format!("etragon-native-cli-legacy-{unique}.json"));
+    fs::write(
+        &legacy_snapshot_path,
+        snapshot.replace("etragon-native-memory-v1", "python-online-memory-v1"),
+    )
+    .expect("legacy-compatible snapshot should write");
+    let plan = run_cli(&[
+        "memory-transfer-plan".to_string(),
+        legacy_snapshot_path.to_string_lossy().to_string(),
+        "--merge".to_string(),
+        "--state".to_string(),
+        state_path.to_string_lossy().to_string(),
+    ])
+    .expect("native transfer plan should accept legacy memory");
+    assert!(plan.contains(r#""dry_run":true"#));
+    assert!(plan.contains(r#""will_import":false"#));
+    assert!(plan.contains(r#""compatible":true"#));
+    assert!(plan.contains(r#""model_compatible":true"#));
+
+    let _ = fs::remove_file(path);
+    let _ = fs::remove_file(state_path);
+    let _ = fs::remove_file(legacy_snapshot_path);
+}
+
+#[test]
 fn cli_analyzes_python_snapshot_file() {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -372,7 +451,8 @@ fn cli_reports_python_memory_info_and_can_clear_state() {
     assert!(transfer_plan.contains(r#""will_import":false"#));
     assert!(transfer_plan.contains(r#""strategy":"merge""#));
     assert!(transfer_plan.contains(r#""compatible":true"#));
-    assert!(transfer_plan.contains(r#""incoming":{"schema_version":1"#));
+    assert!(transfer_plan.contains(r#""incoming":{"label_count":1"#));
+    assert!(transfer_plan.contains(r#""schema_version":1"#));
     assert!(transfer_plan.contains(r#""overlap_pattern_count":1"#));
 
     let mut analyze_args = vec![
@@ -414,8 +494,7 @@ fn cli_reports_protocol_capabilities() {
         std::env::temp_dir().join(format!("etragon-python-capabilities-state-{unique}.json"));
 
     let mut args = vec!["protocol-capabilities".to_string()];
-    args.extend(default_worker_args());
-    args.push("--python-state".to_string());
+    args.push("--state".to_string());
     args.push(state_path.to_string_lossy().to_string());
     let output = run_cli(&args).expect("protocol capabilities should succeed");
     assert!(output.contains(r#""protocol_family":"etragon-resident-protocol""#));
@@ -446,6 +525,8 @@ fn cli_reports_protocol_capabilities() {
         r#""forward_compatibility_rules":["unknown_top_level_fields_must_be_ignored","unknown_ir_fields_must_be_ignored""#
     ));
     assert!(output.contains(r#""worker_protocol_version":1"#));
+    assert!(output.contains(r#""model_version":"etragon-native-memory-v1""#));
+    assert!(output.contains(r#""backend":"rust-native""#));
 
     let _ = fs::remove_file(state_path);
 }
