@@ -180,7 +180,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/reverse-bootstrap")
         .expect("reverse deployment bootstrap must be tracked independently");
     assert_eq!(bootstrap.maturity, Maturity::Developing);
-    assert!((80..90).contains(&bootstrap.completion));
+    assert!((80..=95).contains(&bootstrap.completion));
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
     assert!(
         bootstrap
@@ -189,17 +189,35 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "native-rust-ssh-transport")
     );
+    assert!(
+        bootstrap
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "strict-bootstrap-origin-config-v1")
+    );
+    assert!(
+        bootstrap
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "independent-authenticated-bootstrap-submission")
+    );
     assert!(bootstrap.blockers.iter().any(|blocker| {
         blocker.id == "cross-platform-bootstrap-installation-incomplete"
             && blocker
                 .summary
                 .contains("real Linux SSH/systemd-user authority proof")
     }));
+    assert!(
+        !bootstrap
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id == "bootstrap-production-entry-missing")
+    );
     assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "bootstrap-production-entry-missing"
-            && blocker
-                .summary
-                .contains("resumes matching proof promotion after restart")
+        blocker.id == "bootstrap-client-flow-missing"
+            && blocker.summary.contains("Avalonia Hub")
     }));
 
     let ui = catalog

@@ -6,19 +6,22 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, encode_bootstrap_response};
 use leserpent_protocol::transport_safety::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
 };
-use leserpent_protocol::{
-    MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request, encode_response,
-};
+use leserpent_protocol::{MAX_PROTOCOL_MESSAGE_BYTES, decode_request, encode_response};
 use leserpent_runtime::ControlRuntime;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
 use zeroize::{Zeroize, Zeroizing};
 
+use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
 use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
-use crate::wire::{constant_time_equals, error_response, execute_request, validate_auth_token};
+use crate::wire::{
+    BootstrapSessionVerifier, constant_time_equals, error_response, execute_request,
+    validate_auth_token,
+};
 
 const MAX_CERTIFICATE_FILE_BYTES: u64 = 1024 * 1024;
 const MAX_PRIVATE_KEY_FILE_BYTES: u64 = 64 * 1024;
@@ -80,6 +83,8 @@ pub struct RemoteServer {
     tls: Arc<ServerConfig>,
     token: Zeroizing<Vec<u8>>,
     event_sessions: Vec<EventSession>,
+    bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>>,
+    bootstrap_submission_enabled: bool,
 }
 
 impl RemoteServer {
@@ -128,7 +133,19 @@ impl RemoteServer {
             tls: Arc::new(tls),
             token: Zeroizing::new(token.as_bytes().to_vec()),
             event_sessions: Vec::new(),
+            bootstrap_verifier: None,
+            bootstrap_submission_enabled: false,
         })
+    }
+
+    pub fn with_bootstrap_verifier(mut self, verifier: Arc<dyn BootstrapSessionVerifier>) -> Self {
+        self.bootstrap_verifier = Some(verifier);
+        self
+    }
+
+    pub fn with_bootstrap_submission(mut self) -> Self {
+        self.bootstrap_submission_enabled = true;
+        self
     }
 
     pub fn local_addr(&self) -> Result<SocketAddr, String> {
@@ -200,18 +217,46 @@ impl RemoteServer {
             }
             return EventSession::upgrade(stream, prefix, &self.token).map(Some);
         }
+        let bootstrap_route = prefix.starts_with(b"POST /v1/bootstrap HTTP/1.1\r\n");
         let mut stream = PrefixedStream::new(prefix, stream);
-        let (status, response) = match read_http_request(&mut stream, &self.token) {
-            Ok(bytes) => match decode_request(&bytes) {
-                Ok(request) => (HttpStatus::Ok, execute_request(runtime, request)),
-                Err(_) => (
-                    HttpStatus::BadRequest,
-                    error_response("invalid_request", "wire protocol request is invalid"),
-                ),
-            },
-            Err(error) => (error.status, error_response(error.code, error.message)),
+        let (status, body) = match read_http_request(&mut stream, &self.token) {
+            Ok(HttpRequest {
+                route: HttpRoute::Wire,
+                body,
+            }) => {
+                let response = match decode_request(&body) {
+                    Ok(request) => {
+                        execute_request(runtime, request, self.bootstrap_verifier.as_deref())
+                    }
+                    Err(_) => error_response("invalid_request", "wire protocol request is invalid"),
+                };
+                (
+                    HttpStatus::Ok,
+                    encode_response(&response).map_err(|error| error.to_string())?,
+                )
+            }
+            Ok(HttpRequest {
+                route: HttpRoute::Bootstrap,
+                body,
+            }) => {
+                let response = decode_and_submit(runtime, &body, self.bootstrap_submission_enabled);
+                (
+                    HttpStatus::Ok,
+                    encode_bootstrap_response(&response).map_err(|error| error.to_string())?,
+                )
+            }
+            Err(error) => {
+                let body = if bootstrap_route {
+                    encode_bootstrap_response(&bootstrap_error(None, error.code, error.message))
+                        .map_err(|error| error.to_string())?
+                } else {
+                    encode_response(&error_response(error.code, error.message))
+                        .map_err(|error| error.to_string())?
+                };
+                (error.status, body)
+            }
         };
-        write_http_response(&mut stream, status, &response)?;
+        write_http_response(&mut stream, status, &body)?;
         stream.inner.conn.send_close_notify();
         stream.flush().map_err(|error| error.to_string())?;
         Ok(None)
@@ -281,6 +326,18 @@ struct HttpError {
     message: &'static str,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HttpRoute {
+    Wire,
+    Bootstrap,
+}
+
+#[derive(Debug)]
+struct HttpRequest {
+    route: HttpRoute,
+    body: Vec<u8>,
+}
+
 impl HttpError {
     fn bad_request() -> Self {
         Self {
@@ -291,7 +348,10 @@ impl HttpError {
     }
 }
 
-fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Vec<u8>, HttpError> {
+fn read_http_request(
+    stream: &mut impl Read,
+    expected_token: &[u8],
+) -> Result<HttpRequest, HttpError> {
     let mut bytes = Zeroizing::new(Vec::new());
     let header_end = loop {
         if let Some(position) = find_header_end(&bytes) {
@@ -376,13 +436,17 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
             message: "remote wire endpoint requires POST",
         });
     }
-    if parts[1] != "/v1/wire" {
-        return Err(HttpError {
-            status: HttpStatus::NotFound,
-            code: "not_found",
-            message: "remote endpoint was not found",
-        });
-    }
+    let route = match parts[1] {
+        "/v1/wire" => HttpRoute::Wire,
+        "/v1/bootstrap" => HttpRoute::Bootstrap,
+        _ => {
+            return Err(HttpError {
+                status: HttpStatus::NotFound,
+                code: "not_found",
+                message: "remote endpoint was not found",
+            });
+        }
+    };
     if !content_type.is_some_and(|value| {
         value
             .split(';')
@@ -392,18 +456,22 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
         return Err(HttpError {
             status: HttpStatus::UnsupportedMediaType,
             code: "unsupported_media_type",
-            message: "remote wire endpoint requires application/json",
+            message: "remote endpoint requires application/json",
         });
     }
     let content_length = content_length
         .ok_or_else(HttpError::bad_request)?
         .parse::<usize>()
         .map_err(|_| HttpError::bad_request())?;
-    if content_length > MAX_PROTOCOL_MESSAGE_BYTES {
+    let limit = match route {
+        HttpRoute::Wire => MAX_PROTOCOL_MESSAGE_BYTES,
+        HttpRoute::Bootstrap => MAX_BOOTSTRAP_PROTOCOL_BYTES,
+    };
+    if content_length > limit {
         return Err(HttpError {
             status: HttpStatus::PayloadTooLarge,
             code: "payload_too_large",
-            message: "remote wire request is too large",
+            message: "remote request is too large",
         });
     }
 
@@ -419,7 +487,7 @@ fn read_http_request(stream: &mut impl Read, expected_token: &[u8]) -> Result<Ve
             .map_err(|_| HttpError::bad_request())?;
         body.extend_from_slice(&remainder);
     }
-    Ok(body)
+    Ok(HttpRequest { route, body })
 }
 
 fn read_http_head(stream: &mut impl Read) -> Result<Vec<u8>, HttpError> {
@@ -458,9 +526,8 @@ fn find_header_end(bytes: &[u8]) -> Option<usize> {
 fn write_http_response(
     stream: &mut impl Write,
     status: HttpStatus,
-    response: &ResponseEnvelope,
+    body: &[u8],
 ) -> Result<(), String> {
-    let body = encode_response(response).map_err(|error| error.to_string())?;
     let challenge = if matches!(status, HttpStatus::Unauthorized) {
         "WWW-Authenticate: Bearer\r\n"
     } else {
@@ -474,7 +541,7 @@ fn write_http_response(
     );
     stream
         .write_all(header.as_bytes())
-        .and_then(|()| stream.write_all(&body))
+        .and_then(|()| stream.write_all(body))
         .and_then(|()| stream.flush())
         .map_err(|error| error.to_string())
 }
@@ -547,8 +614,12 @@ mod tests {
     }
 
     fn request(token: &str, body: &[u8]) -> Vec<u8> {
+        request_at(token, "/v1/wire", body)
+    }
+
+    fn request_at(token: &str, path: &str, body: &[u8]) -> Vec<u8> {
         format!(
-            "POST /v1/wire HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            "POST {path} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
             body.len()
         )
         .bytes()
@@ -648,10 +719,17 @@ mod tests {
     #[test]
     fn strict_http_parser_accepts_only_bounded_authenticated_json() {
         let body = health_body();
-        assert_eq!(
-            read_http_request(&mut Cursor::new(request(TOKEN, &body)), TOKEN.as_bytes()).unwrap(),
-            body
-        );
+        let parsed =
+            read_http_request(&mut Cursor::new(request(TOKEN, &body)), TOKEN.as_bytes()).unwrap();
+        assert_eq!(parsed.route, HttpRoute::Wire);
+        assert_eq!(parsed.body, body);
+        let bootstrap = read_http_request(
+            &mut Cursor::new(request_at(TOKEN, "/v1/bootstrap", b"{}")),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(bootstrap.route, HttpRoute::Bootstrap);
+        assert_eq!(bootstrap.body, b"{}");
 
         let wrong_token = read_http_request(
             &mut Cursor::new(request("fedcba9876543210fedcba9876543210", &health_body())),

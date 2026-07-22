@@ -48,7 +48,7 @@
           Condition="('$(RuntimeIdentifier)' == 'linux-x64' Or '$(RuntimeIdentifier)' == 'linux-arm64') And $([MSBuild]::IsOSPlatform('Linux'))">
     <Exec Command="cargo build --locked --release -p leserpent-protocol --bin leserpent-compat-bridge"
           WorkingDirectory="$(RepositoryRoot)" />
-    <Exec Command="cargo build --locked --release -p leserpentd --bin leserpentd"
+    <Exec Command="cargo build --locked --release -p leserpentd --bin leserpentd --features native-ssh"
           WorkingDirectory="$(RepositoryRoot)" />
     <Copy SourceFiles="$(RustCompatibilityBridgePath)"
           DestinationFiles="$(PublishDir)leserpent-compat-bridge" />

@@ -3,6 +3,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use leserpent_adapters::HOST_BOOTSTRAP_EFFECT_KIND;
+#[cfg(feature = "native-ssh")]
+use leserpent_adapters::{BootstrapTrustStore, FileBootstrapTrustStore};
 use leserpent_adapters::{
     EnvironmentSecretStore, GewyvernDeploymentAdapter, GewyvernDiscoveryAdapter,
     GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore,
@@ -10,9 +13,14 @@ use leserpent_adapters::{
 };
 use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
+#[cfg(feature = "native-ssh")]
+use leserpentd::BootstrapOriginConfig;
 #[cfg(unix)]
 use leserpentd::IpcServer;
-use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer, load_remote_token_file};
+use leserpentd::{
+    AdapterRegistry, BootstrapSessionVerifier, DaemonConfig, DaemonHost,
+    NativeBootstrapSessionVerifier, RemoteServer, load_remote_token_file,
+};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use zeroize::Zeroizing;
 
@@ -48,6 +56,8 @@ fn run() -> Result<(), String> {
     let mut gewyvern_targets = Vec::new();
     let mut gewyvern_https_targets = Vec::new();
     let mut gewyvern_admin_secret = None;
+    let mut bootstrap_config = None;
+    let mut bootstrap_trust_root = None;
     let mut steps = None;
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
@@ -123,6 +133,24 @@ fn run() -> Result<(), String> {
             "--gewyvern-admin-secret" => {
                 return Err("--gewyvern-admin-secret was provided more than once".into());
             }
+            "--bootstrap-trust-root" if bootstrap_trust_root.is_none() => {
+                bootstrap_trust_root =
+                    Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                        "--bootstrap-trust-root requires a path".to_string()
+                    })?));
+            }
+            "--bootstrap-trust-root" => {
+                return Err("--bootstrap-trust-root was provided more than once".into());
+            }
+            "--bootstrap-config" if bootstrap_config.is_none() => {
+                bootstrap_config =
+                    Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                        "--bootstrap-config requires a path".to_string()
+                    })?));
+            }
+            "--bootstrap-config" => {
+                return Err("--bootstrap-config was provided more than once".into());
+            }
             "--steps" => {
                 let value = arguments
                     .next()
@@ -142,7 +170,9 @@ fn run() -> Result<(), String> {
                       [--remote-token-file PATH]] \
                      [--gewyvern-target ID=LOOPBACK:PORT] \
                      [--gewyvern-https-target ID=HTTPS_ORIGIN,CA_PATH] \
-                     [--gewyvern-admin-secret KEY] [--once | --steps N]\n\
+                     [--gewyvern-admin-secret KEY] [--bootstrap-trust-root PATH] \
+                     [--bootstrap-config PATH] \
+                     [--once | --steps N]\n\
                      Environment: LESERPENT_DATABASE may provide the database path; \
                      LESERPENT_IPC_TOKEN is required when --socket is used; \
                      LESERPENT_REMOTE_TOKEN or --remote-token-file is required for HTTPS; \
@@ -156,6 +186,20 @@ fn run() -> Result<(), String> {
     let database = database.ok_or_else(|| {
         "database path is required via --database or LESERPENT_DATABASE".to_string()
     })?;
+    #[cfg(not(feature = "native-ssh"))]
+    if bootstrap_config.is_some() {
+        return Err(
+            "--bootstrap-config requires a leserpentd build with the native-ssh feature".into(),
+        );
+    }
+    #[cfg(feature = "native-ssh")]
+    let bootstrap_origin = bootstrap_config
+        .map(BootstrapOriginConfig::load)
+        .transpose()?;
+    #[cfg(feature = "native-ssh")]
+    if bootstrap_origin.is_some() && bootstrap_trust_root.is_none() {
+        return Err("--bootstrap-config requires --bootstrap-trust-root".into());
+    }
     let mut runtime = ControlRuntime::open(database).map_err(|error| error.to_string())?;
     let mut registry = AdapterRegistry::default();
     if !gewyvern_targets.is_empty() || !gewyvern_https_targets.is_empty() {
@@ -241,6 +285,50 @@ fn run() -> Result<(), String> {
                 .map_err(|error| error.to_string())?;
         }
     }
+    #[cfg(feature = "native-ssh")]
+    let bootstrap_secret_service = bootstrap_origin
+        .as_ref()
+        .map(BootstrapOriginConfig::secret_service)
+        .unwrap_or("org.gewyvern.leserpent.adapters");
+    #[cfg(not(feature = "native-ssh"))]
+    let bootstrap_secret_service = "org.gewyvern.leserpent.adapters";
+    let bootstrap_secrets: Option<Arc<dyn SecretStore>> = bootstrap_trust_root
+        .as_ref()
+        .map(|_| {
+            PlatformSecretStore::new(bootstrap_secret_service)
+                .map(|store| Arc::new(store) as Arc<dyn SecretStore>)
+                .map_err(|error| format!("cannot open bootstrap session store: {error:?}"))
+        })
+        .transpose()?;
+    #[cfg(feature = "native-ssh")]
+    if let Some(origin) = bootstrap_origin {
+        let secrets = bootstrap_secrets
+            .as_ref()
+            .expect("bootstrap origin trust-root requirement was checked")
+            .clone();
+        let trust: Arc<dyn BootstrapTrustStore> = Arc::new(
+            FileBootstrapTrustStore::new(
+                bootstrap_trust_root
+                    .as_ref()
+                    .expect("bootstrap origin trust-root requirement was checked"),
+            )
+            .map_err(|error| format!("cannot open bootstrap trust store: {error:?}"))?,
+        );
+        registry.register(origin.into_native_adapter(secrets, trust)?)?;
+    }
+    let bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>> = bootstrap_trust_root
+        .map(|trust_root| {
+            NativeBootstrapSessionVerifier::new(
+                bootstrap_secrets
+                    .as_ref()
+                    .expect("bootstrap trust root always initializes a secret store")
+                    .clone(),
+                trust_root,
+            )
+            .map(|verifier| Arc::new(verifier) as Arc<dyn BootstrapSessionVerifier>)
+        })
+        .transpose()?;
+    let bootstrap_submission_enabled = registry.contains_kind(HOST_BOOTSTRAP_EFFECT_KIND);
     let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default())?;
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(SIGINT, Arc::clone(&stop)).map_err(|error| error.to_string())?;
@@ -250,7 +338,16 @@ fn run() -> Result<(), String> {
         Some(path) => {
             let token = std::env::var("LESERPENT_IPC_TOKEN")
                 .map_err(|_| "LESERPENT_IPC_TOKEN is required with --socket".to_string())?;
-            Some(IpcServer::bind(path, &token)?)
+            let server = IpcServer::bind(path, &token)?;
+            let server = match &bootstrap_verifier {
+                Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
+                None => server,
+            };
+            Some(if bootstrap_submission_enabled {
+                server.with_bootstrap_submission()
+            } else {
+                server
+            })
         }
         None => None,
     };
@@ -278,12 +375,16 @@ fn run() -> Result<(), String> {
                 }
                 (Some(_), Some(_)) => unreachable!("mutual exclusion was checked"),
             };
-            Some(RemoteServer::bind(
-                address,
-                certificate,
-                private_key,
-                &token,
-            )?)
+            let server = RemoteServer::bind(address, certificate, private_key, &token)?;
+            let server = match &bootstrap_verifier {
+                Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
+                None => server,
+            };
+            Some(if bootstrap_submission_enabled {
+                server.with_bootstrap_submission()
+            } else {
+                server
+            })
         }
         _ => {
             return Err(

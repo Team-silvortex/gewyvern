@@ -3,17 +3,20 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
+use leserpent_protocol::bootstrap::{BootstrapResponseEnvelope, encode_bootstrap_response};
 use leserpent_protocol::{
     MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request, encode_response,
 };
 use leserpent_runtime::ControlRuntime;
 use serde::Deserialize;
 
+use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
 use crate::wire::{
-    MAX_AUTH_TOKEN_BYTES, constant_time_equals, error_response, execute_request,
-    validate_auth_token,
+    BootstrapSessionVerifier, MAX_AUTH_TOKEN_BYTES, constant_time_equals, error_response,
+    execute_request, validate_auth_token,
 };
 
 const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
@@ -22,7 +25,22 @@ const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
 #[serde(deny_unknown_fields)]
 struct AuthenticatedRequest {
     token: String,
+    #[serde(default)]
+    route: IpcRoute,
     request: serde_json::Value,
+}
+
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum IpcRoute {
+    #[default]
+    Wire,
+    BootstrapV1,
+}
+
+enum IpcResponse {
+    Wire(Box<ResponseEnvelope>),
+    Bootstrap(BootstrapResponseEnvelope),
 }
 
 pub struct IpcServer {
@@ -31,6 +49,8 @@ pub struct IpcServer {
     socket_device: u64,
     socket_inode: u64,
     token: Vec<u8>,
+    bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>>,
+    bootstrap_submission_enabled: bool,
 }
 
 impl IpcServer {
@@ -59,7 +79,19 @@ impl IpcServer {
             socket_device: metadata.dev(),
             socket_inode: metadata.ino(),
             token: token.as_bytes().to_vec(),
+            bootstrap_verifier: None,
+            bootstrap_submission_enabled: false,
         })
+    }
+
+    pub fn with_bootstrap_verifier(mut self, verifier: Arc<dyn BootstrapSessionVerifier>) -> Self {
+        self.bootstrap_verifier = Some(verifier);
+        self
+    }
+
+    pub fn with_bootstrap_submission(mut self) -> Self {
+        self.bootstrap_submission_enabled = true;
+        self
     }
 
     pub fn poll_once(&self, runtime: &mut ControlRuntime) -> Result<bool, String> {
@@ -88,35 +120,83 @@ impl IpcServer {
             .read_until(b'\n', &mut frame)
             .map_err(|error| error.to_string())?;
         let response = self.dispatch(&frame, runtime);
-        let mut encoded = encode_response(&response).map_err(|error| error.to_string())?;
+        let mut encoded = match response {
+            IpcResponse::Wire(response) => {
+                encode_response(&response).map_err(|error| error.to_string())?
+            }
+            IpcResponse::Bootstrap(response) => {
+                encode_bootstrap_response(&response).map_err(|error| error.to_string())?
+            }
+        };
         encoded.push(b'\n');
         stream
             .write_all(&encoded)
             .map_err(|error| error.to_string())
     }
 
-    fn dispatch(&self, frame: &[u8], runtime: &mut ControlRuntime) -> ResponseEnvelope {
+    fn dispatch(&self, frame: &[u8], runtime: &mut ControlRuntime) -> IpcResponse {
         if frame.len() > MAX_IPC_FRAME_BYTES || !frame.ends_with(b"\n") {
-            return error_response("invalid_frame", "IPC frame is missing or too large");
+            return IpcResponse::Wire(Box::new(error_response(
+                "invalid_frame",
+                "IPC frame is missing or too large",
+            )));
         }
         let authenticated: AuthenticatedRequest = match serde_json::from_slice(frame) {
             Ok(request) => request,
-            Err(_) => return error_response("invalid_json", "IPC frame is not valid JSON"),
+            Err(_) => {
+                return IpcResponse::Wire(Box::new(error_response(
+                    "invalid_json",
+                    "IPC frame is not valid JSON",
+                )));
+            }
         };
         if authenticated.token.len() > MAX_AUTH_TOKEN_BYTES
             || !constant_time_equals(authenticated.token.as_bytes(), &self.token)
         {
-            return error_response("unauthorized", "IPC authentication failed");
+            return match authenticated.route {
+                IpcRoute::Wire => IpcResponse::Wire(Box::new(error_response(
+                    "unauthorized",
+                    "IPC authentication failed",
+                ))),
+                IpcRoute::BootstrapV1 => IpcResponse::Bootstrap(bootstrap_error(
+                    None,
+                    "unauthorized",
+                    "IPC authentication failed",
+                )),
+            };
         }
         let request_bytes = match serde_json::to_vec(&authenticated.request) {
             Ok(bytes) => bytes,
-            Err(_) => return error_response("invalid_request", "IPC request cannot be encoded"),
+            Err(_) => {
+                return IpcResponse::Wire(Box::new(error_response(
+                    "invalid_request",
+                    "IPC request cannot be encoded",
+                )));
+            }
         };
-        let request = match decode_request(&request_bytes) {
-            Ok(request) => request,
-            Err(_) => return error_response("invalid_request", "IPC protocol request is invalid"),
-        };
-        execute_request(runtime, request)
+        match authenticated.route {
+            IpcRoute::Wire => {
+                let request = match decode_request(&request_bytes) {
+                    Ok(request) => request,
+                    Err(_) => {
+                        return IpcResponse::Wire(Box::new(error_response(
+                            "invalid_request",
+                            "IPC protocol request is invalid",
+                        )));
+                    }
+                };
+                IpcResponse::Wire(Box::new(execute_request(
+                    runtime,
+                    request,
+                    self.bootstrap_verifier.as_deref(),
+                )))
+            }
+            IpcRoute::BootstrapV1 => IpcResponse::Bootstrap(decode_and_submit(
+                runtime,
+                &request_bytes,
+                self.bootstrap_submission_enabled,
+            )),
+        }
     }
 }
 
@@ -215,6 +295,88 @@ mod tests {
         assert!(matches!(response.response, ProtocolResponse::Query(_)));
         drop(server);
         assert!(!socket.exists());
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn explicit_bootstrap_route_authenticates_and_commits_planned_checkpoint() {
+        let database = temp_path("bootstrap-submit", "sqlite");
+        let socket = temp_path("bootstrap-submit", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN)
+            .unwrap()
+            .with_bootstrap_submission();
+        let request: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../leserpent-protocol/tests/fixtures/bootstrap-request-v1.json"
+        ))
+        .unwrap();
+        let frame = serde_json::to_vec(&serde_json::json!({
+            "token": TOKEN,
+            "route": "bootstrap_v1",
+            "request": request,
+        }))
+        .unwrap()
+        .into_iter()
+        .chain([b'\n'])
+        .collect::<Vec<_>>();
+        let response = server.dispatch(&frame, &mut runtime);
+        assert!(matches!(
+            response,
+            IpcResponse::Bootstrap(BootstrapResponseEnvelope {
+                response: leserpent_protocol::bootstrap::BootstrapResponse::State(ref state),
+                ..
+            }) if state.phase == leserpent_domain::bootstrap::BootstrapPhase::Planned
+        ));
+        let bootstrap_id = leserpent_domain::bootstrap::BootstrapId::new("bootstrap-1").unwrap();
+        assert_eq!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+        let mut conflicting: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../leserpent-protocol/tests/fixtures/bootstrap-request-v1.json"
+        ))
+        .unwrap();
+        conflicting["request"]["intent"]["credential_handle"] =
+            serde_json::Value::String("vault:ssh:different-host-key".into());
+        let conflicting = serde_json::to_vec(&serde_json::json!({
+            "token": TOKEN,
+            "route": "bootstrap_v1",
+            "request": conflicting,
+        }))
+        .unwrap()
+        .into_iter()
+        .chain([b'\n'])
+        .collect::<Vec<_>>();
+        assert!(matches!(
+            server.dispatch(&conflicting, &mut runtime),
+            IpcResponse::Bootstrap(BootstrapResponseEnvelope {
+                response: leserpent_protocol::bootstrap::BootstrapResponse::Error(ref error),
+                ..
+            }) if error.code == "bootstrap_identity_conflict"
+        ));
+
+        let unauthorized = serde_json::to_vec(&serde_json::json!({
+            "token": "fedcba9876543210fedcba9876543210",
+            "route": "bootstrap_v1",
+            "request": serde_json::json!({}),
+        }))
+        .unwrap()
+        .into_iter()
+        .chain([b'\n'])
+        .collect::<Vec<_>>();
+        assert!(matches!(
+            server.dispatch(&unauthorized, &mut runtime),
+            IpcResponse::Bootstrap(BootstrapResponseEnvelope {
+                response: leserpent_protocol::bootstrap::BootstrapResponse::Error(ref error),
+                ..
+            }) if error.code == "unauthorized"
+        ));
+        drop(server);
         drop(runtime);
         fs::remove_file(database).unwrap();
     }
@@ -666,14 +828,16 @@ mod tests {
         let server = IpcServer::bind(&socket, TOKEN).unwrap();
         let response = server.dispatch(br#"{"token":"ignored"}"#, &mut runtime);
         assert!(matches!(
-            response.response,
-            ProtocolResponse::Error(ref error) if error.code == "invalid_frame"
+            response,
+            IpcResponse::Wire(ref response)
+                if matches!(&response.response, ProtocolResponse::Error(error) if error.code == "invalid_frame")
         ));
         let oversized = vec![b'x'; MAX_IPC_FRAME_BYTES + 1];
         let response = server.dispatch(&oversized, &mut runtime);
         assert!(matches!(
-            response.response,
-            ProtocolResponse::Error(ref error) if error.code == "invalid_frame"
+            response,
+            IpcResponse::Wire(ref response)
+                if matches!(&response.response, ProtocolResponse::Error(error) if error.code == "invalid_frame")
         ));
         drop(server);
         drop(runtime);

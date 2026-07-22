@@ -5,6 +5,10 @@ edition.workspace = true
 description = "Standalone Leserpent runtime host and bounded effect worker"
 license.workspace = true
 
+[features]
+default = []
+native-ssh = ["leserpent-adapters/native-ssh"]
+
 [dependencies]
 leserpent-adapters = { path = "../leserpent-adapters" }
 leserpent-domain = { path = "../leserpent-domain" }

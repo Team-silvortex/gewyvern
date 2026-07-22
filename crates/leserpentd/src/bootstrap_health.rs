@@ -1,10 +1,12 @@
 use std::io::{Read, Write};
-use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use leserpent_protocol::transport_safety::{MAX_HTTP_HEADER_BYTES, is_http_header_name};
+use leserpent_protocol::transport_safety::{
+    MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
+};
 use leserpent_protocol::{
     HealthRequest, MAX_PROTOCOL_MESSAGE_BYTES, PROTOCOL_SCHEMA_VERSION, ProtocolRequest,
     ProtocolResponse, RequestEnvelope, decode_response, encode_request,
@@ -18,6 +20,23 @@ const ATTEMPT_TIMEOUT: Duration = Duration::from_millis(750);
 const RETRY_INTERVAL: Duration = Duration::from_millis(100);
 
 pub fn prove_bootstrap_health(endpoint: &str, ca_pem: &str, token: &str) -> Result<(), String> {
+    prove_health(endpoint, ca_pem, token, HealthRoute::Loopback)
+}
+
+pub fn prove_remote_bootstrap_health(
+    endpoint: &str,
+    ca_pem: &str,
+    token: &str,
+) -> Result<(), String> {
+    prove_health(endpoint, ca_pem, token, HealthRoute::Endpoint)
+}
+
+fn prove_health(
+    endpoint: &str,
+    ca_pem: &str,
+    token: &str,
+    route: HealthRoute,
+) -> Result<(), String> {
     let endpoint = HealthEndpoint::parse(endpoint)?;
     let tls = client_config(ca_pem)?;
     let request = RequestEnvelope {
@@ -27,7 +46,7 @@ pub fn prove_bootstrap_health(endpoint: &str, ca_pem: &str, token: &str) -> Resu
     let body = encode_request(&request).map_err(|_| "health request encoding failed")?;
     let deadline = Instant::now() + HEALTH_DEADLINE;
     loop {
-        if probe_once(&endpoint, Arc::clone(&tls), token, &body).is_ok() {
+        if probe_once(&endpoint, route, Arc::clone(&tls), token, &body).is_ok() {
             return Ok(());
         }
         if Instant::now() >= deadline {
@@ -62,17 +81,21 @@ fn client_config(ca_pem: &str) -> Result<Arc<ClientConfig>, String> {
 
 fn probe_once(
     endpoint: &HealthEndpoint,
+    route: HealthRoute,
     tls: Arc<ClientConfig>,
     token: &str,
     body: &[u8],
 ) -> Result<(), String> {
-    let address = SocketAddr::from((Ipv4Addr::LOCALHOST, endpoint.port));
-    let socket = TcpStream::connect_timeout(&address, ATTEMPT_TIMEOUT)
-        .map_err(|_| "bootstrap health endpoint unavailable")?;
-    socket
-        .set_read_timeout(Some(ATTEMPT_TIMEOUT))
-        .and_then(|()| socket.set_write_timeout(Some(ATTEMPT_TIMEOUT)))
-        .map_err(|_| "bootstrap health timeout setup failed")?;
+    let socket = match route {
+        HealthRoute::Loopback => connect_with_deadline(
+            SocketAddr::from((Ipv4Addr::LOCALHOST, endpoint.port)),
+            ATTEMPT_TIMEOUT,
+        ),
+        HealthRoute::Endpoint => {
+            connect_with_deadline((endpoint.host.as_str(), endpoint.port), ATTEMPT_TIMEOUT)
+        }
+    }
+    .map_err(|_| "bootstrap health endpoint unavailable")?;
     let connection = ClientConnection::new(tls, endpoint.server_name.clone())
         .map_err(|_| "bootstrap health TLS setup failed")?;
     let mut stream = StreamOwned::new(connection, socket);
@@ -198,6 +221,7 @@ fn find_header_end(bytes: &[u8]) -> Option<usize> {
 
 struct HealthEndpoint {
     authority: String,
+    host: String,
     port: u16,
     server_name: ServerName<'static>,
 }
@@ -232,14 +256,21 @@ impl HealthEndpoint {
                 });
             (host.to_string(), port?)
         };
-        let server_name = ServerName::try_from(host)
+        let server_name = ServerName::try_from(host.clone())
             .map_err(|_| "bootstrap health TLS server name is invalid")?;
         Ok(Self {
             authority: authority.into(),
+            host,
             port,
             server_name,
         })
     }
+}
+
+#[derive(Clone, Copy)]
+enum HealthRoute {
+    Loopback,
+    Endpoint,
 }
 
 fn parse_port(value: &str) -> Result<u16, String> {
@@ -331,7 +362,7 @@ mod tests {
     fn health_probe_proves_real_tls_token_and_runtime_authority() {
         let temp = TempTree::new();
         let CertifiedKey { cert, signing_key } =
-            generate_simple_self_signed(vec!["host.example".into()]).unwrap();
+            generate_simple_self_signed(vec!["host.example".into(), "localhost".into()]).unwrap();
         let certificate = cert.pem();
         let certificate_path = temp.0.join("server.crt");
         let private_key_path = temp.0.join("server.key");
@@ -362,5 +393,17 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
         assert!(probe.join().unwrap().is_ok());
+
+        let remote_endpoint = format!("https://localhost:{}", server.local_addr().unwrap().port());
+        let remote_ca = certificate.clone();
+        let remote_probe = thread::spawn(move || {
+            prove_remote_bootstrap_health(&remote_endpoint, &remote_ca, token)
+        });
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !remote_probe.is_finished() && Instant::now() < deadline {
+            server.poll_once(&mut runtime).unwrap();
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(remote_probe.join().unwrap().is_ok());
     }
 }

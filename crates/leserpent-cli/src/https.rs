@@ -6,6 +6,10 @@ use std::time::Duration;
 
 use leserpent_adapters::FileBootstrapTrustStore;
 use leserpent_domain::bootstrap::CredentialHandle;
+use leserpent_protocol::bootstrap::{
+    BootstrapRequestEnvelope, BootstrapResponseEnvelope, MAX_BOOTSTRAP_PROTOCOL_BYTES,
+    decode_bootstrap_response, encode_bootstrap_request,
+};
 use leserpent_protocol::transport_safety::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
     open_bounded_regular_file,
@@ -105,23 +109,44 @@ impl HttpsClient {
                 "remote request exceeds the protocol limit".into(),
             ));
         }
+        let response = self.send_json("/v1/wire", &body)?;
+        decode_response(&response).map_err(|error| CliError::Protocol(format!("{error:?}")))
+    }
+
+    pub fn send_bootstrap(
+        &self,
+        request: &BootstrapRequestEnvelope,
+    ) -> Result<BootstrapResponseEnvelope, CliError> {
+        let body = encode_bootstrap_request(request)
+            .map_err(|error| CliError::Protocol(error.to_string()))?;
+        if body.len() > MAX_BOOTSTRAP_PROTOCOL_BYTES {
+            return Err(CliError::Protocol(
+                "remote bootstrap request exceeds the protocol limit".into(),
+            ));
+        }
+        let response = self.send_json("/v1/bootstrap", &body)?;
+        decode_bootstrap_response(&response)
+            .map_err(|error| CliError::Protocol(format!("{error:?}")))
+    }
+
+    fn send_json(&self, path: &str, body: &[u8]) -> Result<Vec<u8>, CliError> {
         let socket = connect_endpoint(&self.endpoint)?;
         let connection =
             ClientConnection::new(Arc::clone(&self.tls), self.endpoint.server_name.clone())
                 .map_err(|error| CliError::Transport(format!("TLS setup failed: {error}")))?;
         let mut stream = StreamOwned::new(connection, socket);
         let header = Zeroizing::new(format!(
-            "POST /v1/wire HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
+            "POST {path} HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
             self.endpoint.authority,
             self.token.as_str(),
             body.len(),
         ));
         stream
             .write_all(header.as_bytes())
-            .and_then(|()| stream.write_all(&body))
+            .and_then(|()| stream.write_all(body))
             .and_then(|()| stream.flush())
             .map_err(|error| CliError::Transport(error.to_string()))?;
-        read_http_response(&mut stream)
+        read_http_response_body(&mut stream)
     }
 }
 
@@ -217,7 +242,7 @@ fn validate_remote_token(token: &str) -> Result<(), CliError> {
     Ok(())
 }
 
-fn read_http_response(stream: &mut impl Read) -> Result<ResponseEnvelope, CliError> {
+fn read_http_response_body(stream: &mut impl Read) -> Result<Vec<u8>, CliError> {
     let mut bytes = Vec::new();
     let header_end = loop {
         if let Some(position) = find_header_end(&bytes) {
@@ -335,7 +360,7 @@ fn read_http_response(stream: &mut impl Read) -> Result<ResponseEnvelope, CliErr
         body.extend_from_slice(&remainder);
     }
     body.truncate(content_length);
-    decode_response(&body).map_err(|error| CliError::Protocol(format!("{error:?}")))
+    Ok(body)
 }
 
 fn find_header_end(bytes: &[u8]) -> Option<usize> {
@@ -487,7 +512,7 @@ mod tests {
             &format!("Content-Length: {}\r\n", body.len()),
             &body,
         );
-        assert!(read_http_response(&mut Cursor::new(valid)).is_ok());
+        assert!(read_http_response_body(&mut Cursor::new(valid)).is_ok());
 
         let duplicate = response(
             "200 OK",
@@ -498,9 +523,9 @@ mod tests {
             ),
             &body,
         );
-        assert!(read_http_response(&mut Cursor::new(duplicate)).is_err());
+        assert!(read_http_response_body(&mut Cursor::new(duplicate)).is_err());
         let chunked = response("200 OK", "Transfer-Encoding: chunked\r\n", &body);
-        assert!(read_http_response(&mut Cursor::new(chunked)).is_err());
+        assert!(read_http_response_body(&mut Cursor::new(chunked)).is_err());
         let disguised_chunked = response(
             "200 OK",
             &format!(
@@ -509,19 +534,19 @@ mod tests {
             ),
             &body,
         );
-        assert!(read_http_response(&mut Cursor::new(disguised_chunked)).is_err());
+        assert!(read_http_response_body(&mut Cursor::new(disguised_chunked)).is_err());
         let redirect = response(
             "302 Found",
             &format!("Content-Length: {}\r\n", body.len()),
             &body,
         );
-        assert!(read_http_response(&mut Cursor::new(redirect)).is_err());
+        assert!(read_http_response_body(&mut Cursor::new(redirect)).is_err());
         let oversized = response(
             "200 OK",
             &format!("Content-Length: {}\r\n", MAX_PROTOCOL_MESSAGE_BYTES + 1),
             &[],
         );
-        assert!(read_http_response(&mut Cursor::new(oversized)).is_err());
+        assert!(read_http_response_body(&mut Cursor::new(oversized)).is_err());
     }
 
     fn response(status: &str, framing: &str, body: &[u8]) -> Vec<u8> {

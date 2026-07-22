@@ -1,3 +1,6 @@
+use leserpent_domain::bootstrap::{
+    CAPABILITY_HOST_BOOTSTRAP, DaemonSessionProof, DeploymentBootstrapCheckpoint,
+};
 use leserpent_domain::{
     CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
     CAPABILITY_RUNTIME_REFRESH, Command, CommandPlan, IdempotencyKey, PlannedOperation, Query,
@@ -12,9 +15,17 @@ use leserpent_runtime::{ControlRuntime, DeploymentEffectState, PlanResult, Runti
 
 pub(crate) const MAX_AUTH_TOKEN_BYTES: usize = 256;
 
+pub trait BootstrapSessionVerifier: Send + Sync {
+    fn prove_session(
+        &self,
+        checkpoint: &DeploymentBootstrapCheckpoint,
+    ) -> Result<DaemonSessionProof, String>;
+}
+
 pub(crate) fn execute_request(
     runtime: &mut ControlRuntime,
     request: RequestEnvelope,
+    bootstrap_verifier: Option<&dyn BootstrapSessionVerifier>,
 ) -> ResponseEnvelope {
     let request = match request.request {
         ProtocolRequest::Health(_) => {
@@ -206,6 +217,66 @@ pub(crate) fn execute_request(
                 }
             };
         }
+        ProtocolRequest::BootstrapHandoff(request) => {
+            if request.principal.id.trim().is_empty()
+                || !request.capabilities.contains(CAPABILITY_HOST_BOOTSTRAP)
+            {
+                return error_response("unauthorized", "bootstrap handoff access was rejected");
+            }
+            return match runtime.bootstrap_checkpoint(&request.bootstrap_id) {
+                Ok(Some(checkpoint)) => {
+                    response(ProtocolResponse::BootstrapHandoff(checkpoint.state))
+                }
+                Ok(None) => error_response(
+                    "bootstrap_handoff_not_found",
+                    "bootstrap handoff was not found",
+                ),
+                Err(_) => error_response("runtime_failed", "bootstrap handoff lookup failed"),
+            };
+        }
+        ProtocolRequest::BootstrapSessionBind(request) => {
+            if request.principal.id.trim().is_empty()
+                || !request.capabilities.contains(CAPABILITY_HOST_BOOTSTRAP)
+                || !request.confirmed
+            {
+                return error_response("unauthorized", "bootstrap session binding was rejected");
+            }
+            let checkpoint = match runtime.bootstrap_checkpoint(&request.bootstrap_id) {
+                Ok(Some(checkpoint)) => checkpoint,
+                Ok(None) => {
+                    return error_response(
+                        "bootstrap_handoff_not_found",
+                        "bootstrap handoff was not found",
+                    );
+                }
+                Err(_) => {
+                    return error_response("runtime_failed", "bootstrap handoff lookup failed");
+                }
+            };
+            let Some(verifier) = bootstrap_verifier else {
+                return error_response(
+                    "bootstrap_verifier_unavailable",
+                    "server-side bootstrap session verification is unavailable",
+                );
+            };
+            let proof = match verifier.prove_session(&checkpoint) {
+                Ok(proof) => proof,
+                Err(_) => {
+                    return error_response(
+                        "bootstrap_session_unverified",
+                        "target daemon session authority could not be verified",
+                    );
+                }
+            };
+            return match runtime.bind_bootstrap_session(&request.bootstrap_id, proof) {
+                Ok(state) => response(ProtocolResponse::BootstrapHandoff(state)),
+                Err(RuntimeError::Bootstrap(_)) => error_response(
+                    "bootstrap_session_rejected",
+                    "target daemon session identity was rejected",
+                ),
+                Err(_) => error_response("runtime_failed", "bootstrap session binding failed"),
+            };
+        }
         request => request,
     };
     let required_capability = match &request {
@@ -231,7 +302,9 @@ pub(crate) fn execute_request(
         | ProtocolRequest::DeploymentReceipt(_)
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
-        | ProtocolRequest::OrchestraDelete(_) => unreachable!(),
+        | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::BootstrapHandoff(_)
+        | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };
     let operation = match request {
         ProtocolRequest::Query(query) => PlannedOperation::Query(query),
@@ -240,7 +313,9 @@ pub(crate) fn execute_request(
         | ProtocolRequest::DeploymentReceipt(_)
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
-        | ProtocolRequest::OrchestraDelete(_) => unreachable!(),
+        | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::BootstrapHandoff(_)
+        | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };
     match runtime.execute_plan(CommandPlan {
         schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
@@ -289,5 +364,193 @@ fn response(response: ProtocolResponse) -> ResponseEnvelope {
     ResponseEnvelope {
         schema_version: PROTOCOL_SCHEMA_VERSION,
         response,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    use leserpent_domain::bootstrap::{
+        BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId, BootstrapPhase, BootstrapTarget,
+        BootstrapTransport, CredentialHandle, DaemonId, DeploymentBootstrapSnapshot,
+    };
+    use leserpent_domain::{CapabilitySet, Principal};
+    use leserpent_protocol::{
+        BootstrapHandoffRequest, BootstrapSessionBindRequest, ProtocolRequest,
+    };
+
+    use super::*;
+
+    struct FixedVerifier {
+        proof: DaemonSessionProof,
+    }
+
+    impl BootstrapSessionVerifier for FixedVerifier {
+        fn prove_session(
+            &self,
+            _checkpoint: &DeploymentBootstrapCheckpoint,
+        ) -> Result<DaemonSessionProof, String> {
+            Ok(self.proof.clone())
+        }
+    }
+
+    fn temp_database() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "leserpent-wire-bootstrap-{}-{unique}.sqlite",
+            std::process::id()
+        ))
+    }
+
+    fn seed_bootstrapped(runtime: &mut ControlRuntime) -> BootstrapId {
+        let bootstrap_id = BootstrapId::new("bootstrap-wire-1").unwrap();
+        runtime
+            .enqueue_effect(
+                "bootstrap-wire-effect",
+                "leserpent.host.bootstrap",
+                b"request",
+                3,
+            )
+            .unwrap();
+        let lease = runtime
+            .claim_effect("wire-worker", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        let checkpoint = DeploymentBootstrapCheckpoint::new(
+            1,
+            DeploymentBootstrapSnapshot {
+                bootstrap_id: bootstrap_id.clone(),
+                phase: BootstrapPhase::Bootstrapped,
+                target: BootstrapTarget {
+                    transport: BootstrapTransport::Ssh,
+                    host: "host.example".into(),
+                    port: 22,
+                },
+                bootstrap_credential_present: true,
+                daemon_id: Some(DaemonId::new("daemon-host-example").unwrap()),
+                endpoint: Some("https://host.example:9443/".into()),
+                session_credential_handle: Some(
+                    CredentialHandle::new("vault:leserpentd:host-example").unwrap(),
+                ),
+                trust_credential_handle: Some(
+                    CredentialHandle::new("vault:leserpent-ca:host-example").unwrap(),
+                ),
+                fault_code: None,
+                mutation_authorized: false,
+            },
+            Some(CredentialHandle::new("vault:ssh:host-example").unwrap()),
+        )
+        .unwrap();
+        runtime
+            .complete_bootstrap_effect(&lease, b"outcome", &checkpoint)
+            .unwrap();
+        bootstrap_id
+    }
+
+    fn query(bootstrap_id: &BootstrapId) -> RequestEnvelope {
+        RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::BootstrapHandoff(BootstrapHandoffRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+                bootstrap_id: bootstrap_id.clone(),
+            }),
+        }
+    }
+
+    fn bind(bootstrap_id: &BootstrapId) -> RequestEnvelope {
+        RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::BootstrapSessionBind(BootstrapSessionBindRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+                bootstrap_id: bootstrap_id.clone(),
+                confirmed: true,
+            }),
+        }
+    }
+
+    fn proof(bootstrap_id: &BootstrapId, daemon_id: &str) -> DaemonSessionProof {
+        DaemonSessionProof {
+            bootstrap_id: bootstrap_id.clone(),
+            daemon_id: DaemonId::new(daemon_id).unwrap(),
+            session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
+                .unwrap(),
+            trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
+                .unwrap(),
+            authority_owned: true,
+            protocol_schema_version: BOOTSTRAP_SESSION_PROTOCOL_VERSION,
+        }
+    }
+
+    #[test]
+    fn wire_handoff_requires_server_side_proof_before_session_binding() {
+        let path = temp_database();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let bootstrap_id = seed_bootstrapped(&mut runtime);
+
+        let queried = execute_request(&mut runtime, query(&bootstrap_id), None);
+        assert!(matches!(
+            queried.response,
+            ProtocolResponse::BootstrapHandoff(ref state)
+                if state.phase == BootstrapPhase::Bootstrapped
+                    && !state.mutation_authorized
+        ));
+        let unavailable = execute_request(&mut runtime, bind(&bootstrap_id), None);
+        assert!(matches!(
+            unavailable.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "bootstrap_verifier_unavailable"
+        ));
+
+        let wrong = FixedVerifier {
+            proof: proof(&bootstrap_id, "daemon-wrong"),
+        };
+        let rejected = execute_request(&mut runtime, bind(&bootstrap_id), Some(&wrong));
+        assert!(matches!(
+            rejected.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "bootstrap_session_rejected"
+        ));
+        assert_eq!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+
+        let verifier = FixedVerifier {
+            proof: proof(&bootstrap_id, "daemon-host-example"),
+        };
+        let bound = execute_request(&mut runtime, bind(&bootstrap_id), Some(&verifier));
+        assert!(matches!(
+            &bound.response,
+            ProtocolResponse::BootstrapHandoff(state)
+                if state.phase == BootstrapPhase::SessionBound && state.mutation_authorized
+        ));
+        let replay = execute_request(&mut runtime, bind(&bootstrap_id), Some(&verifier));
+        assert_eq!(replay, bound);
+        assert_eq!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            2
+        );
+        drop(runtime);
+        fs::remove_file(path).unwrap();
     }
 }

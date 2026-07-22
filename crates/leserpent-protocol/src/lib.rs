@@ -1,3 +1,4 @@
+use leserpent_domain::bootstrap::{BootstrapId, DeploymentBootstrapSnapshot};
 use leserpent_domain::{
     CapabilitySet, CommandEnvelope, CommandId, CommandResult, DOMAIN_SCHEMA_VERSION, DomainError,
     Principal, QueryEnvelope, QueryResult, RefreshStatus, Revision, RuntimeCapabilitySnapshot,
@@ -26,6 +27,8 @@ pub enum ProtocolRequest {
     OrchestraPersist(OrchestraPersistenceRequest),
     OrchestraHistory(OrchestraHistoryRequest),
     OrchestraDelete(OrchestraDeleteRequest),
+    BootstrapHandoff(BootstrapHandoffRequest),
+    BootstrapSessionBind(BootstrapSessionBindRequest),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -70,6 +73,23 @@ pub struct OrchestraDeleteRequest {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct BootstrapHandoffRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub bootstrap_id: BootstrapId,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BootstrapSessionBindRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub bootstrap_id: BootstrapId,
+    pub confirmed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RequestEnvelope {
     pub schema_version: u32,
     pub request: ProtocolRequest,
@@ -85,6 +105,7 @@ pub enum ProtocolResponse {
     OrchestraPersisted(OrchestraPersistenceResponse),
     OrchestraHistory(OrchestraHistoryResponse),
     OrchestraDeleted(OrchestraDeleteResponse),
+    BootstrapHandoff(DeploymentBootstrapSnapshot),
     Error(ProtocolError),
 }
 
@@ -258,7 +279,9 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::DeploymentReceipt(_)
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
-        | ProtocolRequest::OrchestraDelete(_) => DOMAIN_SCHEMA_VERSION,
+        | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::BootstrapHandoff(_)
+        | ProtocolRequest::BootstrapSessionBind(_) => DOMAIN_SCHEMA_VERSION,
     };
     if domain_version != DOMAIN_SCHEMA_VERSION {
         return Err(DecodeError::InvalidDomainSchemaVersion {
@@ -343,6 +366,9 @@ pub fn domain_error_response(error: &DomainError) -> ResponseEnvelope {
 mod tests {
     use std::collections::BTreeMap;
 
+    use leserpent_domain::bootstrap::{
+        BootstrapId, BootstrapPhase, BootstrapTarget, BootstrapTransport, CAPABILITY_HOST_BOOTSTRAP,
+    };
     use leserpent_domain::{
         CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
         CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
@@ -678,6 +704,54 @@ mod tests {
         assert_eq!(
             decode_request(&encode_request(&delete).unwrap()).unwrap(),
             delete
+        );
+    }
+
+    #[test]
+    fn bootstrap_handoff_wire_accepts_only_an_id_and_public_state() {
+        let bootstrap_id = BootstrapId::new("bootstrap-wire-1").unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::BootstrapSessionBind(BootstrapSessionBindRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+                bootstrap_id: bootstrap_id.clone(),
+                confirmed: true,
+            }),
+        };
+        let encoded = encode_request(&request).unwrap();
+        assert_eq!(decode_request(&encoded).unwrap(), request);
+        let mut forged: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+        forged["request"]["payload"]["authority_owned"] = serde_json::Value::Bool(true);
+        assert!(matches!(
+            decode_request(&serde_json::to_vec(&forged).unwrap()),
+            Err(DecodeError::InvalidJson(message)) if message.contains("unknown field")
+        ));
+
+        let response = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::BootstrapHandoff(DeploymentBootstrapSnapshot {
+                bootstrap_id,
+                phase: BootstrapPhase::Failed,
+                target: BootstrapTarget {
+                    transport: BootstrapTransport::Ssh,
+                    host: "host.example".into(),
+                    port: 22,
+                },
+                bootstrap_credential_present: false,
+                daemon_id: None,
+                endpoint: None,
+                session_credential_handle: None,
+                trust_credential_handle: None,
+                fault_code: Some("transport_failure".into()),
+                mutation_authorized: false,
+            }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&response).unwrap()).unwrap(),
+            response
         );
     }
 

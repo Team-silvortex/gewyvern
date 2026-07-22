@@ -458,18 +458,42 @@ are deliberately absent.
 Controller restart durability is also implemented. The daemon worker converts
 only a validated terminal bootstrap outcome into a private schema-v1 checkpoint,
 and runtime SQLite schema 11 commits that checkpoint in the same transaction as
-effect completion. Restart leaves `Bootstrapped` read-only. A mismatched session
-proof preserves revision 1; matching daemon/session/trust authority promotes it
-through the restored domain state machine to revision 2 `SessionBound`, retires
-the bootstrap handle, and survives another restart. Malformed adapter output is
-terminally rejected without creating a handoff. Unit coverage lives in
-`crates/leserpentd/src/lib.rs`.
+effect completion. Restart leaves `Bootstrapped` read-only. The legacy internal
+direct-enqueue proof reaches terminal revision 1 and binds at revision 2; the
+production submission path starts at revision-1 `Planned`, reaches terminal
+revision 2, and binds at revision 3. In both paths a mismatched proof preserves
+the current revision, while matching daemon/session/trust authority retires the
+bootstrap handle and survives another restart. Malformed adapter output is
+terminally rejected without creating or advancing authoritative handoff state.
+Unit coverage lives in `crates/leserpentd/src/lib.rs`.
 
-The next product slice is intentionally narrower: register the native SSH
-adapter and its policy/artifact/trust providers from packaged daemon
-configuration, then expose authenticated checkpoint query and bind-session
-operations to the CLI and Avalonia Hub. Post-session Gewyvern deployment stays
-behind that gate.
+Authenticated checkpoint query and bind-session operations are now available on
+the shared IPC/HTTPS dispatch and in the native CLI. Query returns only the
+public snapshot. Bind requires explicit confirmation and only a bootstrap ID;
+client-supplied authority booleans, daemon identities, handles, and secrets are
+unknown fields. A default-off server verifier resolves the private session and
+trust handles, checks exact endpoint binding, and proves remote TLS/token health
+before the runtime may publish `SessionBound`. The packaged daemon enables this
+resolver with `--bootstrap-trust-root` and its platform secret store.
+
+The bootstrap origin is now packaged. `leserpentd` accepts a private, bounded,
+strict schema-v1 `--bootstrap-config` only in native-SSH builds, requires the
+existing `--bootstrap-trust-root`, loads a non-writable executable artifact,
+rejects duplicate daemon/session/trust identities, and registers
+`SshBootstrapAdapter<NativeSshBootstrapTransport>` with the same platform
+secret service and controller trust root used by session verification. Official
+Avalonia Linux publishing and documented macOS bundling enable the feature.
+
+The independent authenticated submission route is also complete. HTTPS uses
+`POST /v1/bootstrap`; Unix IPC requires an explicit `bootstrap_v1` route and
+never guesses from a failed ordinary-wire decode. Submission is origin-gated
+and atomically persists both its effect and revision-1 `Planned` checkpoint,
+with idempotent replay and divergent-identity rejection. Worker completion
+advances to revision 2 in the same transaction as effect settlement. The native
+CLI now exposes `bootstrap deploy ... --yes` with only a target and
+`vault:ssh:*` credential handle, plus the existing inspect and bind commands.
+The next product slice is Avalonia Hub submission and handoff controls.
+Post-session Gewyvern deployment stays behind that UI gate.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

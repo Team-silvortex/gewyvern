@@ -541,6 +541,112 @@ impl Journal {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn enqueue_effect_with_bootstrap_checkpoint(
+        &mut self,
+        effect_id: &str,
+        kind: &str,
+        effect_payload: &[u8],
+        max_attempts: u32,
+        bootstrap_id: &str,
+        phase: &str,
+        revision: u64,
+        checkpoint: &[u8],
+    ) -> Result<(), String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("effect_id", effect_id)?;
+        validate_scheduler_id("effect kind", kind)?;
+        validate_scheduler_id("bootstrap_id", bootstrap_id)?;
+        validate_bootstrap_phase(phase)?;
+        validate_blob("effect payload", effect_payload)?;
+        validate_blob("bootstrap checkpoint", checkpoint)?;
+        if max_attempts == 0 || max_attempts > 100 {
+            return Err("effect max_attempts must be between 1 and 100".into());
+        }
+        let revision = i64::try_from(revision)
+            .map_err(|_| "bootstrap checkpoint revision is out of range".to_string())?;
+        if revision == 0 {
+            return Err("bootstrap checkpoint revision must be positive".into());
+        }
+        let now = unix_time_ms()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let existing_effect: Option<(String, Vec<u8>, i64)> = transaction
+            .query_row(
+                "SELECT kind, payload, max_attempts FROM runtime_effect_tasks WHERE effect_id = ?1",
+                [effect_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        let existing_checkpoint: Option<(i64, String, Vec<u8>)> = transaction
+            .query_row(
+                "SELECT revision, phase, checkpoint FROM bootstrap_handoffs WHERE bootstrap_id = ?1",
+                [bootstrap_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        match (existing_effect, existing_checkpoint) {
+            (
+                Some((stored_kind, stored_payload, stored_attempts)),
+                Some((stored_revision, stored_phase, stored_checkpoint)),
+            ) if stored_kind == kind
+                && stored_payload == effect_payload
+                && stored_attempts == i64::from(max_attempts)
+                && stored_revision == revision
+                && stored_phase == phase
+                && stored_checkpoint == checkpoint =>
+            {
+                transaction.commit().map_err(|error| error.to_string())?;
+                return Ok(());
+            }
+            (Some(_), Some(_)) => {
+                return Err("bootstrap identity was reused with different input".into());
+            }
+            (None, None) => {}
+            _ => return Err("bootstrap submission persistence is incomplete".into()),
+        }
+        let active: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_effect_tasks WHERE state IN ('ready', 'leased')",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if active >= MAX_EFFECT_TASKS {
+            return Err(format!(
+                "runtime effect queue limit {MAX_EFFECT_TASKS} reached"
+            ));
+        }
+        transaction
+            .execute(
+                "INSERT INTO runtime_effect_tasks
+                     (effect_id, kind, payload, state, attempt, max_attempts,
+                      available_at_unix_ms, created_at_unix_ms, updated_at_unix_ms)
+                 VALUES (?1, ?2, ?3, 'ready', 0, ?4, ?5, ?5, ?5)",
+                params![
+                    effect_id,
+                    kind,
+                    effect_payload,
+                    i64::from(max_attempts),
+                    now
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction
+            .execute(
+                "INSERT INTO bootstrap_handoffs
+                     (bootstrap_id, revision, phase, checkpoint, updated_at_unix_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![bootstrap_id, revision, phase, checkpoint, now],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())
+    }
+
     pub fn effect_record(&mut self, effect_id: &str) -> Result<Option<EffectRecord>, String> {
         self.ensure_owner()?;
         validate_scheduler_id("effect_id", effect_id)?;
@@ -1192,19 +1298,42 @@ impl Journal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| error.to_string())?;
-        let existing: Option<(i64, Vec<u8>)> = transaction
+        let existing: Option<(i64, String, Vec<u8>)> = transaction
             .query_row(
-                "SELECT revision, checkpoint FROM bootstrap_handoffs WHERE bootstrap_id = ?1",
+                "SELECT revision, phase, checkpoint FROM bootstrap_handoffs WHERE bootstrap_id = ?1",
                 [bootstrap_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(|error| error.to_string())?;
         match existing {
-            Some((stored_revision, stored))
+            Some((stored_revision, _, stored))
                 if stored_revision == revision && stored == checkpoint => {}
+            Some((stored_revision, stored_phase, _))
+                if stored_phase == "planned"
+                    && stored_revision.checked_add(1) == Some(revision) =>
+            {
+                let changed = transaction
+                    .execute(
+                        "UPDATE bootstrap_handoffs SET revision = ?1, phase = ?2,
+                             checkpoint = ?3, updated_at_unix_ms = ?4
+                         WHERE bootstrap_id = ?5 AND revision = ?6 AND phase = 'planned'",
+                        params![
+                            revision,
+                            phase,
+                            checkpoint,
+                            now,
+                            bootstrap_id,
+                            stored_revision
+                        ],
+                    )
+                    .map_err(|error| error.to_string())?;
+                if changed != 1 {
+                    return Err("bootstrap checkpoint changed during effect completion".into());
+                }
+            }
             Some(_) => return Err("bootstrap identity was reused with different state".into()),
-            None => {
+            None if revision == 1 => {
                 transaction
                     .execute(
                         "INSERT INTO bootstrap_handoffs
@@ -1214,6 +1343,7 @@ impl Journal {
                     )
                     .map_err(|error| error.to_string())?;
             }
+            None => return Err("bootstrap planned checkpoint is missing".into()),
         }
         complete_leased_effect(&transaction, lease, outcome, now)?;
         transaction.commit().map_err(|error| error.to_string())

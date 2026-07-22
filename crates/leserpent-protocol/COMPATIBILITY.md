@@ -21,12 +21,17 @@ tokens fail decoding. The response carries only a validated bootstrap state or
 a bounded error. Canonical request and planned-state response fixtures live in
 `tests/fixtures/bootstrap-*-v1.json` and freeze the draft field shape.
 
-This draft boundary does not change ordinary wire v1 and is not accepted by
-`leserpentd` at `/v1/wire`. A platform bootstrap adapter must resolve the vault
-handle locally, install or reconcile the daemon, and return a daemon-issued
-session handle. Runtime commands remain unauthorized until the domain state is
-`session_bound`. Promoting this draft requires native service activation and
-retained cross-process positive and negative proof.
+The host-deployment request remains separate from ordinary wire v1 and is not
+accepted by `leserpentd` at `/v1/wire`. Authenticated HTTPS submits it only to
+`POST /v1/bootstrap`; Unix IPC uses the explicit `bootstrap_v1` route rather
+than decode-fallback protocol guessing. Submission is disabled unless the
+daemon registered a native bootstrap adapter. A platform bootstrap adapter must
+resolve the vault handle locally, install or reconcile the daemon, and return a
+daemon-issued session handle. Authenticated wire v1 does expose two bounded
+handoff-management operations for retained controller state: query by bootstrap
+ID and confirmed bind by bootstrap ID. Bind carries no proof fields or secrets;
+the server must derive proof itself. Runtime commands remain unauthorized until
+the domain state is `session_bound`.
 
 The first implementation is `leserpent-adapters::SshBootstrapAdapter` with the
 pure Rust `NativeSshBootstrapTransport`. SSH bootstrap and daemon session
@@ -96,17 +101,28 @@ publication and never emits a ready installer response. No daemon wire-v1 field
 was added for this proof.
 
 The production daemon worker now treats a successful bootstrap effect as a
-typed state transition rather than an opaque scheduler result. Runtime SQLite
-schema 11 commits the validated effect outcome and a private checkpoint in one
-transaction. The checkpoint contains only the public state plus its opaque
+typed state transition rather than an opaque scheduler result. Submission
+atomically commits the effect and revision-1 `planned` checkpoint, making it
+immediately inspectable and preventing effect retention from reopening an old
+bootstrap identity. The worker atomically advances that checkpoint and its
+validated outcome to revision 2 `bootstrapped` or `failed`; legacy internal
+direct enqueue remains revision-1 compatible. The checkpoint contains only the public state plus its opaque
 bootstrap vault handle; it contains no password, token, private key, or CA PEM.
 After restart, the runtime reconstructs the domain state, keeps mutation denied
 while it is `bootstrapped`, rejects mismatched daemon/session/trust proof without
 advancing the checkpoint revision, and atomically promotes matching proof to
 `session_bound`. Promotion removes the bootstrap handle from the current
-checkpoint. This local durability contract does not add or relax a wire-v1
-field; packaged adapter configuration and a remote bind-session operation remain
-draft work.
+checkpoint. The authenticated handoff query returns only the public snapshot.
+The confirmed bind request contains principal, `host.bootstrap`, bootstrap ID,
+and confirmation, but cannot carry `authority_owned`, daemon identity, handles,
+tokens, or PEM. `NativeBootstrapSessionVerifier` resolves the retained session
+and trust handles through server-owned stores, requires an exact trust endpoint,
+and performs its own remote TLS/token health request before constructing the
+internal proof. Verifier injection is default-off; `--bootstrap-trust-root`
+enables it with the platform secret store. The native CLI exposes the complete
+controller sequence as `bootstrap deploy ... --yes`, `bootstrap inspect`, and
+`bootstrap bind ... --yes`. Deploy accepts only a target plus `vault:ssh:*`
+handle and cannot be lowered into ordinary wire v1.
 
 ## Supported 1.x Slice
 
@@ -252,7 +268,7 @@ Prove the complete configured deployment path through a real daemon, its
 durable effect worker, and a bounded local Gewyvern endpoint:
 
 ```bash
-cargo build --locked -p leserpentd --bin leserpentd
+cargo build --locked -p leserpentd --bin leserpentd --features native-ssh
 LESERPENT_TEST_DAEMON_BIN="$PWD/target/debug/leserpentd" \
   dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj \
   --no-restore --filter \
@@ -264,7 +280,7 @@ typed discovery intake, revision-inspected update, typed list/inspect readback,
 and final projection:
 
 ```bash
-cargo build --locked -p leserpentd --bin leserpentd
+cargo build --locked -p leserpentd --bin leserpentd --features native-ssh
 LESERPENT_TEST_DAEMON_BIN="$PWD/target/debug/leserpentd" \
   dotnet test apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj \
   --no-restore --filter \

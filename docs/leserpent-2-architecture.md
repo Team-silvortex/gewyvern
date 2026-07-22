@@ -324,9 +324,39 @@ handle is removed from the current checkpoint at that boundary; raw passwords,
 tokens, CA PEM, and private keys never enter the journal.
 
 This closes durable handoff recovery but not the product entrypoint. The
-packaged daemon must still register native SSH policy/artifact/trust providers,
-and authenticated clients need bind-session and checkpoint-query operations
-before the Hub can drive the complete reverse-deploy workflow.
+authenticated IPC/HTTPS wire now supports checkpoint query and confirmed
+session bind by bootstrap ID. Bind deliberately accepts no proof fields. A
+server-owned `BootstrapSessionVerifier` must resolve the retained session token
+and CA record, require exact endpoint binding, and prove the target's TLS, token,
+wire schema, readiness, and daemon authority before creating the internal proof.
+Without a verifier the operation fails closed. The packaged daemon can enable
+the native implementation with `--bootstrap-trust-root`; the Rust CLI consumes
+the operations through `bootstrap inspect` and `bootstrap bind ... --yes`.
+
+The packaged daemon now includes the feature-gated native SSH origin and can
+register it through `--bootstrap-config` plus `--bootstrap-trust-root`. The
+strict schema-v1 JSON contains only pinned host policy, opaque credential
+handles, an absolute bounded artifact path, and a platform secret-service name;
+unknown fields, raw passwords, unsafe paths, duplicate authority identities,
+non-private configuration, and writable or non-executable artifacts fail
+closed. The same secret provider and trust root back deployment and subsequent
+session verification. The independent submission boundary is now live at HTTPS
+`POST /v1/bootstrap` and the explicit Unix IPC `bootstrap_v1` route; it is not
+accepted by ordinary `/v1/wire` and remains disabled without a registered
+bootstrap adapter. Submission commits the effect and revision-1 `Planned`
+checkpoint atomically, then worker settlement advances it to revision 2 before
+session binding can advance it again. The Rust CLI owns the full
+deploy/inspect/bind sequence. Avalonia Hub controls must still consume these
+operations before the complete reverse-deploy workflow is user-facing.
+
+The checked shape is
+`docs/fixtures/leserpent-bootstrap-origin-v1.example.json`. Operators must copy
+it to a canonical absolute path, replace the pinned fingerprint and identities,
+set mode `0600`, provision the referenced SSH/session accounts in the named OS
+secret service, and start the native-SSH daemon with both options. The artifact
+may target another operating system or architecture and therefore is selected
+explicitly rather than assuming that the controller executable can run on the
+managed host.
 
 Target activation is transactional around `current`, the published service
 descriptor, and a newly created generation. Activation or authenticated health

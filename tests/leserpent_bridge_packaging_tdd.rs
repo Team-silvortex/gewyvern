@@ -22,7 +22,9 @@ fn linux_publish_builds_and_installs_the_rust_compatibility_bridge() {
     assert!(project.contains(
         "cargo build --locked --release -p leserpent-protocol --bin leserpent-compat-bridge"
     ));
-    assert!(project.contains("cargo build --locked --release -p leserpentd --bin leserpentd"));
+    assert!(project.contains(
+        "cargo build --locked --release -p leserpentd --bin leserpentd --features native-ssh"
+    ));
     assert!(project.contains("DestinationFiles=\"$(PublishDir)leserpentd\""));
     assert!(project.contains("RejectCrossPlatformRustCompatibilityBridge"));
     assert!(project.contains("packages.development.lock.json"));

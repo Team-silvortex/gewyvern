@@ -9,15 +9,22 @@ use leselang_command::{
     plan_runtime_logs, plan_runtime_refresh,
 };
 use leselang_syntax::{format as format_leselang, parse as parse_leselang};
-use leserpent_domain::bootstrap::CredentialHandle;
+use leserpent_domain::bootstrap::{
+    BOOTSTRAP_DOMAIN_SCHEMA_VERSION, BootstrapId, BootstrapIntent, BootstrapTarget,
+    BootstrapTransport, CAPABILITY_HOST_BOOTSTRAP, CredentialHandle,
+};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
     CommandId, CommandOrigin, CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult,
     Revision, RuntimeId, RuntimeListFilter, validate_deployment_intent,
 };
+use leserpent_protocol::bootstrap::{
+    BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
+    BootstrapResponse, BootstrapResponseEnvelope,
+};
 use leserpent_protocol::{
-    HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-    ResponseEnvelope,
+    BootstrapHandoffRequest, BootstrapSessionBindRequest, HealthRequest, PROTOCOL_SCHEMA_VERSION,
+    ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
 };
 
 mod https;
@@ -65,6 +72,16 @@ pub enum CliCommand {
     RuntimeRefresh(RuntimeRefreshOptions),
     RuntimeCapabilitiesRefresh(RuntimeRefreshOptions),
     RuntimeDeploy(RuntimeDeployOptions),
+    BootstrapInspect(BootstrapId),
+    BootstrapBind(BootstrapId),
+    BootstrapDeploy(BootstrapDeployOptions),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BootstrapDeployOptions {
+    pub bootstrap_id: BootstrapId,
+    pub target: BootstrapTarget,
+    pub credential_handle: CredentialHandle,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,7 +136,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 pub const REMOTE_TRUST_USAGE: &str = "Bootstrap trust alternative:\n  replace --remote-ca PATH with --remote-trust-root PATH --remote-trust-handle vault:leserpent-ca:KEY";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -236,6 +253,39 @@ pub fn parse_args_with_remote(
         Some("health") => {
             reject_trailing(arguments)?;
             (CliCommand::Health, None)
+        }
+        Some("bootstrap") => {
+            let action = arguments
+                .next()
+                .ok_or_else(|| CliError::Usage("bootstrap requires inspect or bind".into()))?;
+            let bootstrap_id = BootstrapId::new(arguments.next().ok_or_else(|| {
+                CliError::Usage(format!("bootstrap {action} requires BOOTSTRAP_ID"))
+            })?)
+            .map_err(|error| CliError::Usage(error.to_string()))?;
+            match action.as_str() {
+                "deploy" => (
+                    CliCommand::BootstrapDeploy(parse_bootstrap_deploy(bootstrap_id, arguments)?),
+                    None,
+                ),
+                "inspect" => {
+                    reject_trailing(arguments)?;
+                    (CliCommand::BootstrapInspect(bootstrap_id), None)
+                }
+                "bind" => {
+                    if arguments.next().as_deref() != Some("--yes") {
+                        return Err(CliError::Usage(
+                            "bootstrap bind requires explicit --yes confirmation".into(),
+                        ));
+                    }
+                    reject_trailing(arguments)?;
+                    (CliCommand::BootstrapBind(bootstrap_id), None)
+                }
+                _ => {
+                    return Err(CliError::Usage(format!(
+                        "unknown bootstrap command '{action}'"
+                    )));
+                }
+            }
         }
         Some("runtime") => match arguments.next().as_deref() {
             Some("list") => {
@@ -381,6 +431,30 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
     }
     let request = match &options.command {
         CliCommand::Health => ProtocolRequest::Health(HealthRequest {}),
+        CliCommand::BootstrapInspect(bootstrap_id) => {
+            ProtocolRequest::BootstrapHandoff(BootstrapHandoffRequest {
+                principal: Principal {
+                    id: options.principal.clone(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+                bootstrap_id: bootstrap_id.clone(),
+            })
+        }
+        CliCommand::BootstrapBind(bootstrap_id) => {
+            ProtocolRequest::BootstrapSessionBind(BootstrapSessionBindRequest {
+                principal: Principal {
+                    id: options.principal.clone(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+                bootstrap_id: bootstrap_id.clone(),
+                confirmed: true,
+            })
+        }
+        CliCommand::BootstrapDeploy(_) => {
+            return Err(CliError::Usage(
+                "bootstrap deploy uses the independent bootstrap transport".into(),
+            ));
+        }
         CliCommand::RuntimeList(filter) => {
             let plan = plan_runtime_list(filter, &query_lowering_context(options))
                 .map_err(|error| CliError::Protocol(format!("plan lowering failed: {error:?}")))?;
@@ -559,6 +633,99 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
     Ok(RequestEnvelope {
         schema_version: PROTOCOL_SCHEMA_VERSION,
         request,
+    })
+}
+
+pub fn bootstrap_request_for(
+    options: &CliOptions,
+) -> Result<Option<BootstrapRequestEnvelope>, CliError> {
+    let CliCommand::BootstrapDeploy(deploy) = &options.command else {
+        return Ok(None);
+    };
+    Ok(Some(BootstrapRequestEnvelope {
+        schema_version: BOOTSTRAP_PROTOCOL_SCHEMA_VERSION,
+        request: BootstrapRequest {
+            principal: Principal {
+                id: options.principal.clone(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+            intent: BootstrapIntent {
+                schema_version: BOOTSTRAP_DOMAIN_SCHEMA_VERSION,
+                bootstrap_id: deploy.bootstrap_id.clone(),
+                target: deploy.target.clone(),
+                credential_handle: deploy.credential_handle.clone(),
+                requested_by: options.principal.clone(),
+                confirmed: true,
+            },
+        },
+    }))
+}
+
+fn parse_bootstrap_deploy(
+    bootstrap_id: BootstrapId,
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<BootstrapDeployOptions, CliError> {
+    let mut host = None;
+    let mut port = 22_u16;
+    let mut port_seen = false;
+    let mut credential_handle = None;
+    let mut confirmed = false;
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--host" if host.is_none() => {
+                host = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| CliError::Usage("--host requires HOST".into()))?,
+                );
+            }
+            "--port" if !port_seen => {
+                port_seen = true;
+                port = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--port requires PORT".into()))?
+                    .parse::<u16>()
+                    .map_err(|_| CliError::Usage("bootstrap port is invalid".into()))?;
+            }
+            "--credential-handle" if credential_handle.is_none() => {
+                let handle = CredentialHandle::new(arguments.next().ok_or_else(|| {
+                    CliError::Usage("--credential-handle requires vault:ssh:KEY".into())
+                })?)
+                .map_err(|_| CliError::Usage("bootstrap credential handle is invalid".into()))?;
+                if handle.parts().0 != "ssh" {
+                    return Err(CliError::Usage(
+                        "bootstrap credential handle must use the ssh vault provider".into(),
+                    ));
+                }
+                credential_handle = Some(handle);
+            }
+            "--yes" if !confirmed => confirmed = true,
+            _ => {
+                return Err(CliError::Usage(format!(
+                    "unknown or repeated bootstrap deploy option '{argument}'"
+                )));
+            }
+        }
+    }
+    if !confirmed {
+        return Err(CliError::Usage(
+            "bootstrap deploy requires explicit --yes confirmation".into(),
+        ));
+    }
+    let target = BootstrapTarget {
+        transport: BootstrapTransport::Ssh,
+        host: host.ok_or_else(|| CliError::Usage("bootstrap deploy requires --host".into()))?,
+        port,
+    };
+    target
+        .validate()
+        .map_err(|_| CliError::Usage("bootstrap target is invalid".into()))?;
+    Ok(BootstrapDeployOptions {
+        bootstrap_id,
+        target,
+        credential_handle: credential_handle.ok_or_else(|| {
+            CliError::Usage("bootstrap deploy requires --credential-handle".into())
+        })?,
     })
 }
 
@@ -742,6 +909,36 @@ fn leselang_optional_string(value: Option<&str>) -> String {
     )
 }
 
+pub fn render_bootstrap_response(
+    response: &BootstrapResponseEnvelope,
+    json: bool,
+) -> Result<String, CliError> {
+    if json {
+        return serde_json::to_string(response)
+            .map_err(|error| CliError::Protocol(error.to_string()));
+    }
+    match &response.response {
+        BootstrapResponse::State(state) => Ok(format!(
+            "bootstrap={} phase={} target={}:{} mutation_authorized={}",
+            safe_cell(state.bootstrap_id.as_str()),
+            match state.phase {
+                leserpent_domain::bootstrap::BootstrapPhase::Planned => "planned",
+                leserpent_domain::bootstrap::BootstrapPhase::Deploying => "deploying",
+                leserpent_domain::bootstrap::BootstrapPhase::Bootstrapped => "bootstrapped",
+                leserpent_domain::bootstrap::BootstrapPhase::SessionBound => "session_bound",
+                leserpent_domain::bootstrap::BootstrapPhase::Failed => "failed",
+            },
+            safe_cell(&state.target.host),
+            state.target.port,
+            state.mutation_authorized,
+        )),
+        BootstrapResponse::Error(error) => Err(CliError::Protocol(format!(
+            "{}: {}",
+            error.code, error.message
+        ))),
+    }
+}
+
 pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String, CliError> {
     if json {
         return serde_json::to_string(response)
@@ -864,6 +1061,19 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         )),
         ProtocolResponse::OrchestraDeleted(_) => Err(CliError::Protocol(
             "unexpected Orchestra delete response".into(),
+        )),
+        ProtocolResponse::BootstrapHandoff(state) => Ok(format!(
+            "bootstrap={} phase={} endpoint={} mutation_authorized={}",
+            safe_cell(state.bootstrap_id.as_str()),
+            match state.phase {
+                leserpent_domain::bootstrap::BootstrapPhase::Planned => "planned",
+                leserpent_domain::bootstrap::BootstrapPhase::Deploying => "deploying",
+                leserpent_domain::bootstrap::BootstrapPhase::Bootstrapped => "bootstrapped",
+                leserpent_domain::bootstrap::BootstrapPhase::SessionBound => "session_bound",
+                leserpent_domain::bootstrap::BootstrapPhase::Failed => "failed",
+            },
+            safe_cell(state.endpoint.as_deref().unwrap_or("none")),
+            state.mutation_authorized,
         )),
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
@@ -1018,6 +1228,97 @@ pub fn send_request(
 ) -> Result<ResponseEnvelope, CliError> {
     Err(CliError::Transport(
         "local daemon transport is not implemented on this platform".into(),
+    ))
+}
+
+#[cfg(unix)]
+pub fn send_bootstrap_request(
+    socket: &std::path::Path,
+    token: &str,
+    request: &BootstrapRequestEnvelope,
+) -> Result<BootstrapResponseEnvelope, CliError> {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::os::unix::fs::{FileTypeExt, PermissionsExt};
+    use std::os::unix::net::UnixStream;
+    use std::time::Duration;
+
+    use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, decode_bootstrap_response};
+    use serde::Serialize;
+    use zeroize::Zeroizing;
+
+    #[derive(Serialize)]
+    struct AuthenticatedBootstrapRequest<'a> {
+        token: &'a str,
+        route: &'static str,
+        request: &'a BootstrapRequestEnvelope,
+    }
+
+    validate_token(token)?;
+    let metadata = std::fs::symlink_metadata(socket).map_err(|_| {
+        CliError::Transport(format!(
+            "daemon socket '{}' is unavailable",
+            socket.display()
+        ))
+    })?;
+    if metadata.file_type().is_symlink()
+        || !metadata.file_type().is_socket()
+        || metadata.permissions().mode() & 0o077 != 0
+    {
+        return Err(CliError::Transport(
+            "daemon socket must be an owner-private socket, not a link".into(),
+        ));
+    }
+    let mut stream = UnixStream::connect(socket).map_err(|_| {
+        CliError::Transport(format!(
+            "cannot connect to daemon socket '{}': unavailable",
+            socket.display()
+        ))
+    })?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .map_err(|error| CliError::Transport(error.to_string()))?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(3)))
+        .map_err(|error| CliError::Transport(error.to_string()))?;
+    let mut encoded = Zeroizing::new(
+        serde_json::to_vec(&AuthenticatedBootstrapRequest {
+            token,
+            route: "bootstrap_v1",
+            request,
+        })
+        .map_err(|error| CliError::Protocol(error.to_string()))?,
+    );
+    if encoded.len() > MAX_BOOTSTRAP_PROTOCOL_BYTES + 1024 {
+        return Err(CliError::Protocol(
+            "authenticated bootstrap request is too large".into(),
+        ));
+    }
+    encoded.push(b'\n');
+    stream
+        .write_all(&encoded)
+        .map_err(|error| CliError::Transport(error.to_string()))?;
+    let mut response = Vec::new();
+    BufReader::new(stream)
+        .take((MAX_BOOTSTRAP_PROTOCOL_BYTES + 1) as u64)
+        .read_until(b'\n', &mut response)
+        .map_err(|error| CliError::Transport(error.to_string()))?;
+    if response.len() > MAX_BOOTSTRAP_PROTOCOL_BYTES || !response.ends_with(b"\n") {
+        return Err(CliError::Protocol(
+            "daemon bootstrap response is missing or exceeds the protocol limit".into(),
+        ));
+    }
+    response.pop();
+    decode_bootstrap_response(&response).map_err(|error| CliError::Protocol(format!("{error:?}")))
+}
+
+#[cfg(not(unix))]
+pub fn send_bootstrap_request(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &BootstrapRequestEnvelope,
+) -> Result<BootstrapResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon bootstrap transport is not implemented on this platform".into(),
     ))
 }
 
@@ -1996,5 +2297,116 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn bootstrap_cli_requires_confirmation_and_emits_id_only_wire_requests() {
+        let deploy = parse_args(
+            [
+                "bootstrap",
+                "deploy",
+                "bootstrap-1",
+                "--host",
+                "host.example",
+                "--credential-handle",
+                "vault:ssh:host-example",
+                "--yes",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let request = bootstrap_request_for(&deploy).unwrap().unwrap();
+        assert_eq!(request.request.intent.bootstrap_id.as_str(), "bootstrap-1");
+        assert_eq!(request.request.intent.target.host, "host.example");
+        assert_eq!(request.request.intent.target.port, 22);
+        assert_eq!(
+            request.request.intent.credential_handle.as_str(),
+            "vault:ssh:host-example"
+        );
+        assert!(request.request.intent.confirmed);
+        assert!(request_for(&deploy).is_err());
+        assert!(
+            parse_args(
+                [
+                    "bootstrap",
+                    "deploy",
+                    "bootstrap-1",
+                    "--host",
+                    "host.example",
+                    "--credential-handle",
+                    "vault:ssh:host-example",
+                ]
+                .into_iter()
+                .map(str::to_string),
+                Some(PathBuf::from("/tmp/leserpent.sock")),
+                Some("operator-a".into()),
+            )
+            .is_err()
+        );
+        assert!(
+            parse_args(
+                [
+                    "bootstrap",
+                    "deploy",
+                    "bootstrap-1",
+                    "--host",
+                    "host.example",
+                    "--credential-handle",
+                    "vault:leserpentd:wrong-provider",
+                    "--yes",
+                ]
+                .into_iter()
+                .map(str::to_string),
+                Some(PathBuf::from("/tmp/leserpent.sock")),
+                Some("operator-a".into()),
+            )
+            .is_err()
+        );
+
+        let inspect = parse_args(
+            ["bootstrap", "inspect", "bootstrap-1"]
+                .into_iter()
+                .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            request_for(&inspect).unwrap().request,
+            ProtocolRequest::BootstrapHandoff(BootstrapHandoffRequest {
+                bootstrap_id,
+                ..
+            }) if bootstrap_id.as_str() == "bootstrap-1"
+        ));
+
+        assert!(
+            parse_args(
+                ["bootstrap", "bind", "bootstrap-1"]
+                    .into_iter()
+                    .map(str::to_string),
+                Some(PathBuf::from("/tmp/leserpent.sock")),
+                Some("operator-a".into()),
+            )
+            .is_err()
+        );
+        let bind = parse_args(
+            ["bootstrap", "bind", "bootstrap-1", "--yes"]
+                .into_iter()
+                .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            request_for(&bind).unwrap().request,
+            ProtocolRequest::BootstrapSessionBind(BootstrapSessionBindRequest {
+                bootstrap_id,
+                confirmed: true,
+                ..
+            }) if bootstrap_id.as_str() == "bootstrap-1"
+        ));
     }
 }

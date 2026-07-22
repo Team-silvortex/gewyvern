@@ -33,7 +33,9 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
                 "http://127.0.0.1:9411",
             )
             .unwrap();
-        let ipc = IpcServer::bind(&server_socket, TOKEN).unwrap();
+        let ipc = IpcServer::bind(&server_socket, TOKEN)
+            .unwrap()
+            .with_bootstrap_submission();
         ready_tx.send(()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             ipc.poll_once(&mut runtime).unwrap();
@@ -213,6 +215,72 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
         panic!("health command must return health");
     };
     assert_eq!(health.effect_queue.unwrap().ready, 1);
+
+    let unconfirmed_bootstrap = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "bootstrap",
+            "deploy",
+            "bootstrap-cli-1",
+            "--host",
+            "host.example",
+            "--credential-handle",
+            "vault:ssh:host-example",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert_eq!(unconfirmed_bootstrap.status.code(), Some(2));
+    assert!(
+        String::from_utf8(unconfirmed_bootstrap.stderr)
+            .unwrap()
+            .contains("requires explicit --yes")
+    );
+
+    let bootstrap = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "bootstrap",
+            "deploy",
+            "bootstrap-cli-1",
+            "--host",
+            "host.example",
+            "--port",
+            "22",
+            "--credential-handle",
+            "vault:ssh:host-example",
+            "--yes",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert!(bootstrap.status.success());
+    assert!(
+        String::from_utf8(bootstrap.stdout)
+            .unwrap()
+            .contains("bootstrap=bootstrap-cli-1 phase=planned target=host.example:22")
+    );
+
+    let inspect_bootstrap = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "bootstrap",
+            "inspect",
+            "bootstrap-cli-1",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert!(inspect_bootstrap.status.success());
+    assert!(
+        String::from_utf8(inspect_bootstrap.stdout)
+            .unwrap()
+            .contains("bootstrap=bootstrap-cli-1 phase=planned")
+    );
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();

@@ -10,14 +10,48 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use leserpent_adapters::{GewyvernDiscoveryAdapter, GewyvernTarget};
+use leserpent_adapters::{
+    EffectAdapter, GewyvernDiscoveryAdapter, GewyvernTarget, HOST_BOOTSTRAP_EFFECT_KIND,
+};
 use leserpent_domain::RuntimeId;
+use leserpent_domain::bootstrap::DeploymentBootstrap;
+use leserpent_protocol::bootstrap::{
+    BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapResponse, BootstrapResponseEnvelope,
+    decode_bootstrap_request, encode_bootstrap_response,
+};
 use leserpent_protocol::{ProtocolResponse, decode_response};
-use leserpent_runtime::ControlRuntime;
+use leserpent_runtime::{ControlRuntime, EffectExecution};
 use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
+
+struct FailedBootstrapAdapter;
+
+impl EffectAdapter for FailedBootstrapAdapter {
+    fn kind(&self) -> &str {
+        HOST_BOOTSTRAP_EFFECT_KIND
+    }
+
+    fn execute(&mut self, payload: &[u8]) -> EffectExecution {
+        let request = decode_bootstrap_request(payload).unwrap();
+        let mut bootstrap = DeploymentBootstrap::plan(
+            &request.request.principal,
+            &request.request.capabilities,
+            request.request.intent,
+        )
+        .unwrap();
+        bootstrap.begin().unwrap();
+        let state = bootstrap.record_fault("test_failure").unwrap();
+        EffectExecution::Complete(
+            encode_bootstrap_response(&BootstrapResponseEnvelope {
+                schema_version: BOOTSTRAP_PROTOCOL_SCHEMA_VERSION,
+                response: BootstrapResponse::State(state),
+            })
+            .unwrap(),
+        )
+    }
+}
 
 #[test]
 fn native_cli_preserves_command_semantics_over_authenticated_https() {
@@ -68,6 +102,7 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
         let adapter = GewyvernDiscoveryAdapter::new([("runtime-a".to_string(), target)]).unwrap();
         let mut registry = AdapterRegistry::default();
         registry.register(adapter).unwrap();
+        registry.register(FailedBootstrapAdapter).unwrap();
         let mut host = DaemonHost::new(
             runtime,
             registry,
@@ -83,7 +118,8 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
             server_private_key,
             TOKEN,
         )
-        .unwrap();
+        .unwrap()
+        .with_bootstrap_submission();
         ready_tx.send(https.local_addr().unwrap()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             https.poll_once(host.runtime_mut()).unwrap();
@@ -105,6 +141,44 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
             .unwrap()
             .contains("status=ready authority_owned=true")
     );
+
+    let bootstrap = remote_command(binary, &endpoint, &certificate)
+        .args([
+            "bootstrap",
+            "deploy",
+            "bootstrap-https-1",
+            "--host",
+            "host.example",
+            "--credential-handle",
+            "vault:ssh:host-example",
+            "--yes",
+        ])
+        .env("LESERPENT_PRINCIPAL", "remote-integration-test")
+        .output()
+        .unwrap();
+    assert!(bootstrap.status.success(), "{}", stderr(&bootstrap));
+    assert!(
+        String::from_utf8(bootstrap.stdout)
+            .unwrap()
+            .contains("bootstrap=bootstrap-https-1 phase=planned")
+    );
+    let bootstrap_deadline = std::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        let inspect = remote_command(binary, &endpoint, &certificate)
+            .args(["bootstrap", "inspect", "bootstrap-https-1"])
+            .output()
+            .unwrap();
+        assert!(inspect.status.success(), "{}", stderr(&inspect));
+        let output = String::from_utf8(inspect.stdout).unwrap();
+        if output.contains("phase=failed") {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < bootstrap_deadline,
+            "bootstrap effect did not settle: {output}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
 
     let list = remote_command(binary, &endpoint, &certificate)
         .args(["--json", "runtime", "list"])
@@ -225,6 +299,27 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
         .unwrap();
     assert_eq!(unauthorized.status.code(), Some(3));
     assert!(stderr(&unauthorized).contains("unauthorized"));
+
+    let unauthorized_bootstrap = Command::new(binary)
+        .args([
+            "--remote",
+            &endpoint,
+            "--remote-ca",
+            certificate.to_str().unwrap(),
+            "bootstrap",
+            "deploy",
+            "bootstrap-unauthorized",
+            "--host",
+            "host.example",
+            "--credential-handle",
+            "vault:ssh:host-example",
+            "--yes",
+        ])
+        .env("LESERPENT_REMOTE_TOKEN", "fedcba9876543210fedcba9876543210")
+        .output()
+        .unwrap();
+    assert_eq!(unauthorized_bootstrap.status.code(), Some(3));
+    assert!(stderr(&unauthorized_bootstrap).contains("unauthorized"));
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();

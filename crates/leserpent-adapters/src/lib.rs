@@ -95,6 +95,10 @@ impl AdapterRegistry {
         self.adapters.len()
     }
 
+    pub fn contains_kind(&self, kind: &str) -> bool {
+        self.adapters.contains_key(kind)
+    }
+
     pub fn execute_lease(
         &self,
         lease: &EffectLease,

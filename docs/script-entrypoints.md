@@ -486,7 +486,7 @@ a locked dependency graph and native-host execution evidence.
 After publishing the locked `osx-arm64` NativeAOT directory, run:
 
 ```bash
-cargo build --release -p leserpentd
+cargo build --release -p leserpentd --features native-ssh
 cargo run --bin gewyvern_leserpent_bundle -- \
   --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
   --daemon target/release/leserpentd \

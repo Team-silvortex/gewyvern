@@ -6,12 +6,20 @@ use leserpent_adapters::HOST_BOOTSTRAP_EFFECT_KIND;
 pub use leserpent_adapters::{AdapterRegistry, EffectAdapter, EffectContext};
 use leserpent_domain::bootstrap::{BootstrapPhase, DeploymentBootstrapCheckpoint};
 use leserpent_protocol::bootstrap::{
-    BootstrapResponse, decode_bootstrap_request, decode_bootstrap_response,
+    BootstrapRequestEnvelope, BootstrapResponse, decode_bootstrap_request,
+    decode_bootstrap_response,
 };
 use leserpent_runtime::{ControlRuntime, EffectExecution, EffectLease, RuntimeError, WorkerStep};
 
 pub mod bootstrap_health;
 pub mod bootstrap_install;
+#[cfg(feature = "native-ssh")]
+mod bootstrap_origin;
+#[cfg(feature = "native-ssh")]
+pub use bootstrap_origin::{BOOTSTRAP_ORIGIN_CONFIG_SCHEMA_VERSION, BootstrapOriginConfig};
+mod bootstrap_session;
+pub use bootstrap_session::NativeBootstrapSessionVerifier;
+mod bootstrap_submission;
 #[cfg(unix)]
 mod ipc;
 #[cfg(unix)]
@@ -20,6 +28,7 @@ mod remote;
 pub use remote::{RemoteServer, load_remote_token_file};
 mod events;
 mod wire;
+pub use wire::BootstrapSessionVerifier;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DaemonConfig {
@@ -238,17 +247,34 @@ impl DaemonHost {
                 .runtime
                 .settle_effect(lease, EffectExecution::Complete(outcome));
         }
-        let checkpoint = match checkpoint_from_bootstrap_effect(lease, &outcome) {
-            Ok(checkpoint) => checkpoint,
-            Err(error) => {
+        let request = match decode_bootstrap_request(&lease.payload) {
+            Ok(request) => request,
+            Err(_) => {
                 self.runtime
-                    .reject_effect(lease, &format!("bootstrap outcome was rejected: {error}"))?;
+                    .reject_effect(lease, "bootstrap persisted request was rejected")?;
                 return Ok(WorkerStep::Rejected {
                     effect_id: lease.effect_id.clone(),
                     attempt: lease.attempt,
                 });
             }
         };
+        let existing = self
+            .runtime
+            .bootstrap_checkpoint(&request.request.intent.bootstrap_id)?;
+        let checkpoint =
+            match checkpoint_from_bootstrap_effect(&request, &outcome, existing.as_ref()) {
+                Ok(checkpoint) => checkpoint,
+                Err(error) => {
+                    self.runtime.reject_effect(
+                        lease,
+                        &format!("bootstrap outcome was rejected: {error}"),
+                    )?;
+                    return Ok(WorkerStep::Rejected {
+                        effect_id: lease.effect_id.clone(),
+                        attempt: lease.attempt,
+                    });
+                }
+            };
         self.runtime
             .complete_bootstrap_effect(lease, &outcome, &checkpoint)?;
         Ok(WorkerStep::Completed {
@@ -285,11 +311,10 @@ impl DaemonHost {
 }
 
 fn checkpoint_from_bootstrap_effect(
-    lease: &EffectLease,
+    request: &BootstrapRequestEnvelope,
     outcome: &[u8],
+    existing: Option<&DeploymentBootstrapCheckpoint>,
 ) -> Result<DeploymentBootstrapCheckpoint, String> {
-    let request = decode_bootstrap_request(&lease.payload)
-        .map_err(|_| "invalid persisted bootstrap request".to_string())?;
     let response =
         decode_bootstrap_response(outcome).map_err(|_| "invalid bootstrap response".to_string())?;
     let BootstrapResponse::State(state) = response.response else {
@@ -301,11 +326,25 @@ fn checkpoint_from_bootstrap_effect(
         return Err("bootstrap response identity does not match its request".into());
     }
     let credential_handle = match state.phase {
-        BootstrapPhase::Bootstrapped => Some(request.request.intent.credential_handle),
+        BootstrapPhase::Bootstrapped => Some(request.request.intent.credential_handle.clone()),
         BootstrapPhase::Failed => None,
         _ => return Err("bootstrap effect stopped before deployment was terminal".into()),
     };
-    DeploymentBootstrapCheckpoint::new(1, state, credential_handle)
+    let revision = match existing {
+        Some(checkpoint)
+            if checkpoint.revision == 1
+                && checkpoint.state.phase == BootstrapPhase::Planned
+                && checkpoint.state.bootstrap_id == request.request.intent.bootstrap_id
+                && checkpoint.state.target == request.request.intent.target
+                && checkpoint.bootstrap_credential_handle.as_ref()
+                    == Some(&request.request.intent.credential_handle) =>
+        {
+            2
+        }
+        Some(_) => return Err("bootstrap planned checkpoint does not match its request".into()),
+        None => 1,
+    };
+    DeploymentBootstrapCheckpoint::new(revision, state, credential_handle)
         .map_err(|error| error.to_string())
 }
 
@@ -879,20 +918,30 @@ mod tests {
     fn bootstrap_handoff_survives_restart_and_requires_matching_session_proof() {
         let path = temp_database("bootstrap-handoff-restart");
         let (request, outcome, bootstrap_id) = bootstrap_request_and_outcome();
-        let runtime = ControlRuntime::open(&path).unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let submitted =
+            crate::bootstrap_submission::decode_and_submit(&mut runtime, &request, true);
+        assert!(matches!(
+            submitted.response,
+            BootstrapResponse::State(ref state)
+                if state.phase == BootstrapPhase::Planned
+                    && state.bootstrap_id == bootstrap_id
+        ));
+        assert_eq!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+        let replay = crate::bootstrap_submission::decode_and_submit(&mut runtime, &request, true);
+        assert_eq!(replay, submitted);
         let mut registry = AdapterRegistry::default();
         registry
             .register(FixedBootstrapAdapter { outcome })
             .unwrap();
         let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
-        host.runtime_mut()
-            .enqueue_effect(
-                "bootstrap-effect-1",
-                HOST_BOOTSTRAP_EFFECT_KIND,
-                &request,
-                3,
-            )
-            .unwrap();
         assert!(matches!(
             host.tick().unwrap(),
             WorkerStep::Completed { attempt: 1, .. }
@@ -902,6 +951,7 @@ mod tests {
             .bootstrap_checkpoint(&bootstrap_id)
             .unwrap()
             .unwrap();
+        assert_eq!(before_restart.revision, 2);
         assert_eq!(before_restart.state.phase, BootstrapPhase::Bootstrapped);
         assert!(!before_restart.state.mutation_authorized);
         drop(host);
@@ -923,7 +973,7 @@ mod tests {
             .bootstrap_checkpoint(&bootstrap_id)
             .unwrap()
             .unwrap();
-        assert_eq!(recovered_checkpoint.revision, 1);
+        assert_eq!(recovered_checkpoint.revision, 2);
         assert_eq!(
             recovered_checkpoint.state.phase,
             BootstrapPhase::Bootstrapped
@@ -950,7 +1000,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .revision,
-            1
+            2
         );
 
         proof.daemon_id = DaemonId::new("daemon-host-example").unwrap();
@@ -966,7 +1016,7 @@ mod tests {
             .bootstrap_checkpoint(&bootstrap_id)
             .unwrap()
             .unwrap();
-        assert_eq!(durable.revision, 2);
+        assert_eq!(durable.revision, 3);
         assert_eq!(durable.state.phase, BootstrapPhase::SessionBound);
         assert!(durable.state.mutation_authorized);
         assert!(durable.bootstrap_credential_handle.is_none());
@@ -980,7 +1030,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .revision,
-            2
+            3
         );
         drop(restarted);
         fs::remove_file(path).unwrap();

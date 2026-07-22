@@ -524,7 +524,7 @@ On macOS, turn that flat NativeAOT output into a Finder/Dock application with
 the native Rust bundler:
 
 ```bash
-cargo build --release -p leserpentd
+cargo build --release -p leserpentd --features native-ssh
 cargo run --bin gewyvern_leserpent_bundle -- \
   --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
   --daemon target/release/leserpentd \
@@ -575,7 +575,7 @@ a bounded forced-shutdown fallback. Verify the complete start, health,
 shutdown, and immediate-restart path with:
 
 ```bash
-cargo build -p leserpentd
+cargo build -p leserpentd --features native-ssh
 dotnet run --project \
   apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj \
   -- --verify-local-orchestra target/debug/leserpentd

@@ -406,6 +406,41 @@ impl ControlRuntime {
             .map_err(RuntimeError::Storage)
     }
 
+    pub fn enqueue_bootstrap_effect(
+        &mut self,
+        effect_id: &str,
+        kind: &str,
+        payload: &[u8],
+        max_attempts: u32,
+        checkpoint: &DeploymentBootstrapCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint.validate().map_err(RuntimeError::Bootstrap)?;
+        if checkpoint.revision != 1 || checkpoint.state.phase != BootstrapPhase::Planned {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "bootstrap submission must begin at planned revision 1",
+            ));
+        }
+        let checkpoint_payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "bootstrap submission requires persistent storage".into(),
+            ));
+        };
+        journal
+            .enqueue_effect_with_bootstrap_checkpoint(
+                effect_id,
+                kind,
+                payload,
+                max_attempts,
+                checkpoint.state.bootstrap_id.as_str(),
+                bootstrap_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &checkpoint_payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
     pub fn effect_queue_stats(&mut self) -> Result<EffectQueueStats, RuntimeError> {
         let Some(journal) = &mut self.journal else {
             return Ok(EffectQueueStats {

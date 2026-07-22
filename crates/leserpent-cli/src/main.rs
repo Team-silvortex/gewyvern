@@ -3,8 +3,9 @@ use std::time::Duration;
 use std::{io, io::Write};
 
 use leserpent_cli::{
-    CliCommand, CliError, HttpsClient, RemoteTrust, RuntimeWatchOptions, export_leselang,
-    export_plan, parse_args_with_remote, render_response, request_for, send_request,
+    CliCommand, CliError, HttpsClient, RemoteTrust, RuntimeWatchOptions, bootstrap_request_for,
+    export_leselang, export_plan, parse_args_with_remote, render_bootstrap_response,
+    render_response, request_for, send_bootstrap_request, send_request,
 };
 use leserpent_domain::QueryResult;
 use leserpent_protocol::{ProtocolResponse, RequestEnvelope};
@@ -66,6 +67,22 @@ fn run() -> Result<i32, CliError> {
             ));
         }
     };
+    if let Some(request) = bootstrap_request_for(&options)? {
+        let response = transport.send_bootstrap(&request)?;
+        let is_error = matches!(
+            response.response,
+            leserpent_protocol::bootstrap::BootstrapResponse::Error(_)
+        );
+        match render_bootstrap_response(&response, options.json) {
+            Ok(rendered) => println!("{rendered}"),
+            Err(error) if is_error => {
+                eprintln!("leserpent: {error}");
+                return Ok(3);
+            }
+            Err(error) => return Err(error),
+        }
+        return Ok(if is_error { 3 } else { 0 });
+    }
     let request = request_for(&options)?;
     if let CliCommand::RuntimeWatch(watch) = &options.command {
         return run_watch(&transport, &request, watch, options.json);
@@ -135,6 +152,18 @@ impl ActiveTransport {
         match self {
             Self::Local { socket, token } => send_request(socket, token.as_str(), request),
             Self::Remote(client) => client.send(request),
+        }
+    }
+
+    fn send_bootstrap(
+        &self,
+        request: &leserpent_protocol::bootstrap::BootstrapRequestEnvelope,
+    ) -> Result<leserpent_protocol::bootstrap::BootstrapResponseEnvelope, CliError> {
+        match self {
+            Self::Local { socket, token } => {
+                send_bootstrap_request(socket, token.as_str(), request)
+            }
+            Self::Remote(client) => client.send_bootstrap(request),
         }
     }
 }
