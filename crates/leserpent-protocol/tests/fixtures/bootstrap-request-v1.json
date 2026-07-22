@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "request": {
+    "principal": {
+      "id": "operator-a"
+    },
+    "capabilities": [
+      "host.bootstrap"
+    ],
+    "intent": {
+      "schema_version": 1,
+      "bootstrap_id": "bootstrap-1",
+      "target": {
+        "transport": "ssh",
+        "host": "host.example",
+        "port": 22
+      },
+      "credential_handle": "vault:ssh:host-example",
+      "requested_by": "operator-a",
+      "confirmed": true
+    }
+  }
+}

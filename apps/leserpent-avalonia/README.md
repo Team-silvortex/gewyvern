@@ -77,9 +77,25 @@ each remote card has independent Open and Manage actions. Every daemon card
 performs a bounded read-only `runtime_list` query and renders up to six owned
 gewyvern runtime children with live revision and refresh state. Topology loading
 is limited to four concurrent authorities, is cancelled with the Hub window,
-and falls back only to the endpoint-bound private snapshot cache. Verify the
+and falls back only to the endpoint-bound private snapshot cache. While the Hub
+is open, cards refresh every 30 seconds without overlapping a card's active
+query. A renderer-neutral state machine distinguishes live, cached, retained,
+and unavailable topology: a transient failure keeps the last child tree visibly
+stale instead of deleting it, and a response with an older revision is rejected.
+Each live refresh composes a strict authority `health` proof with `runtime_list`
+in parallel. A card cannot become live unless the daemon is ready, owns the
+protocol-v1 authority, and reports internally consistent queue counters. Queue
+pressure is visible on the card; cached snapshots never invent missing health.
+Verify the
 strict wire projection with `--verify-remote-topology` and the real Hub control
 tree with `--verify-hub-topology`.
+
+Runtime children are direct workspace actions. Selecting one creates or reuses
+its owning daemon session, but the workspace is not opened from the Hub's query
+projection. The request remains bounded and pending until that daemon session
+receives an authoritative event snapshot whose snapshot revision is at least the
+Hub topology revision. Heartbeats, stale/cache-only state, removed runtimes, and
+cross-daemon session state cannot release this fence.
 
 A submitted connection token is validated and stored under the canonical HTTPS
 origin in macOS Keychain or Linux Secret Service; leaving it blank reuses an

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "state",
+    "payload": {
+      "bootstrap_id": "bootstrap-1",
+      "phase": "planned",
+      "target": {
+        "transport": "ssh",
+        "host": "host.example",
+        "port": 22
+      },
+      "bootstrap_credential_present": true,
+      "daemon_id": null,
+      "endpoint": null,
+      "session_credential_handle": null,
+      "fault_code": null,
+      "mutation_authorized": false
+    }
+  }
+}

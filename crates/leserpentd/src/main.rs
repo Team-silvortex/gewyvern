@@ -12,7 +12,7 @@ use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
 #[cfg(unix)]
 use leserpentd::IpcServer;
-use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
+use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer, load_remote_token_file};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use zeroize::Zeroizing;
 
@@ -24,16 +24,25 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
+    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().map(String::as_str) == Some("bootstrap-install-v1") {
+        if arguments.len() != 1 {
+            return Err("bootstrap-install-v1 accepts no command-line arguments".into());
+        }
+        return leserpentd::bootstrap_install::run_bootstrap_install_stdio()
+            .map_err(|error| error.to_string());
+    }
     let mut database = std::env::var_os("LESERPENT_DATABASE").map(PathBuf::from);
     let mut socket = None;
     let mut remote_listen = None;
     let mut remote_certificate = None;
     let mut remote_private_key = None;
+    let mut remote_token_file = None;
     let mut gewyvern_targets = Vec::new();
     let mut gewyvern_https_targets = Vec::new();
     let mut gewyvern_admin_secret = None;
     let mut steps = None;
-    let mut arguments = std::env::args().skip(1);
+    let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--database" => {
@@ -72,6 +81,15 @@ fn run() -> Result<(), String> {
                         .next()
                         .ok_or_else(|| "--remote-key requires a path".to_string())?,
                 ));
+            }
+            "--remote-token-file" if remote_token_file.is_none() => {
+                remote_token_file =
+                    Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                        "--remote-token-file requires a path".to_string()
+                    })?));
+            }
+            "--remote-token-file" => {
+                return Err("--remote-token-file was provided more than once".into());
             }
             "--once" => steps = Some(1),
             "--gewyvern-target" => {
@@ -113,13 +131,14 @@ fn run() -> Result<(), String> {
             "-h" | "--help" => {
                 println!(
                     "Usage: leserpentd --database PATH [--socket PATH] \
-                     [--remote-listen ADDR --remote-cert PATH --remote-key PATH] \
+                     [--remote-listen ADDR --remote-cert PATH --remote-key PATH \
+                      [--remote-token-file PATH]] \
                      [--gewyvern-target ID=LOOPBACK:PORT] \
                      [--gewyvern-https-target ID=HTTPS_ORIGIN,CA_PATH] \
                      [--gewyvern-admin-secret KEY] [--once | --steps N]\n\
                      Environment: LESERPENT_DATABASE may provide the database path; \
                      LESERPENT_IPC_TOKEN is required when --socket is used; \
-                     LESERPENT_REMOTE_TOKEN is required for the HTTPS remote endpoint; \
+                     LESERPENT_REMOTE_TOKEN or --remote-token-file is required for HTTPS; \
                      GEWY_API_ADMIN_TOKEN optionally authenticates Gewyvern targets"
                 );
                 return Ok(());
@@ -235,9 +254,23 @@ fn run() -> Result<(), String> {
     let mut remote = match (remote_listen, remote_certificate, remote_private_key) {
         (None, None, None) => None,
         (Some(address), Some(certificate), Some(private_key)) => {
-            let token = Zeroizing::new(std::env::var("LESERPENT_REMOTE_TOKEN").map_err(|_| {
-                "LESERPENT_REMOTE_TOKEN is required with --remote-listen".to_string()
-            })?);
+            let environment_token = std::env::var("LESERPENT_REMOTE_TOKEN").ok();
+            if remote_token_file.is_some() && environment_token.is_some() {
+                return Err(
+                    "--remote-token-file and LESERPENT_REMOTE_TOKEN are mutually exclusive".into(),
+                );
+            }
+            let token = match (remote_token_file.as_ref(), environment_token) {
+                (Some(path), None) => load_remote_token_file(path)?,
+                (None, Some(token)) => Zeroizing::new(token),
+                (None, None) => {
+                    return Err(
+                        "LESERPENT_REMOTE_TOKEN or --remote-token-file is required with --remote-listen"
+                            .into(),
+                    );
+                }
+                (Some(_), Some(_)) => unreachable!("mutual exclusion was checked"),
+            };
             Some(RemoteServer::bind(
                 address,
                 certificate,
@@ -251,6 +284,9 @@ fn run() -> Result<(), String> {
             );
         }
     };
+    if remote.is_none() && remote_token_file.is_some() {
+        return Err("--remote-token-file requires the remote HTTPS options".into());
+    }
     match steps {
         Some(steps) => {
             for _ in 0..steps {

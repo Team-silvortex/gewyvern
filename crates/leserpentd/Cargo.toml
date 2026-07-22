@@ -14,6 +14,8 @@ serde.workspace = true
 serde_json.workspace = true
 signal-hook.workspace = true
 rustls.workspace = true
+ring = "0.17"
+rcgen = "0.14"
 tungstenite.workspace = true
 zeroize = "1"
 

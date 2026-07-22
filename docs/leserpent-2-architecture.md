@@ -212,6 +212,61 @@ The bootstrap credential must never become implicit session authority. A `leserp
 session token is checked for every mutation and workspace command, and a failed
 session check must block both control and deployment operations before adapter dispatch.
 
+The first native contract now lives in `leserpent-domain::bootstrap` and
+`leserpent-protocol::bootstrap`. It models
+`Planned -> Deploying -> Bootstrapped -> SessionBound` independently from the
+ordinary daemon command envelope. Only `SessionBound` authorizes later runtime
+mutation. Bootstrap credentials cross the domain as validated
+`vault:<provider>:<key>` handles, are retired after session binding, and cannot
+be substituted for the daemon-issued session handle. The separate 64 KiB
+bootstrap wire-v1 envelope rejects raw credential fields and unknown fields.
+Host adapters and client workflows remain outside this semantic kernel.
+
+The first host adapter now lives in `leserpent-adapters::bootstrap`. Its
+`NativeSshBootstrapTransport` uses Rust SSH and SFTP libraries directly rather
+than launching `ssh`, a shell script, Node, or Python. Each host is admitted by
+an exact target policy containing a pinned SHA-256 host-key fingerprint,
+expected daemon identity, HTTPS origin, install profile, and a separate
+`vault:leserpentd:*` session handle. The adapter resolves the SSH bootstrap
+password and daemon session token independently, uploads a bounded native
+installer as mode `0700`, reads it back to verify SHA-256, and sends the install
+request over a bounded zeroized stdin buffer. The typed response must echo the
+bootstrap, daemon, and endpoint identities before the domain may enter
+`Bootstrapped`; it still cannot authorize mutation until session proof binds.
+The network driver is isolated behind the `leserpent-adapters/native-ssh`
+feature so ordinary `leserpentd` builds retain the policy adapter without
+linking an unused SSH client stack.
+
+The target-side `bootstrap-install-v1` executable contract now shares a strict
+64 KiB installer wire with the SSH adapter. It verifies the running artifact's
+SHA-256, writes an immutable private generation containing the executable,
+session token, and non-secret manifest, then atomically commits a `current`
+generation marker. Existing generations are verified before replay; token or
+identity conflicts preserve the old marker. The native process test executes
+the actual `leserpentd` entry point in an isolated home and proves private,
+idempotent installation without token output.
+
+Installer responses distinguish `installed` from `ready`. The SSH adapter
+rejects `installed`, so copied files can never be mistaken for a live daemon.
+Native launchd/systemd publication and activation plus an authenticated endpoint
+health proof must complete before the installer may emit `ready`; those service
+layers and the real SSH host proof remain the next boundary.
+
+The generation now also owns a target-generated self-signed TLS identity for
+the requested endpoint SAN. Both certificate and private key remain in the
+private generation, while the installer response returns only the public CA PEM
+and its SHA-256. The installer protocol verifies that digest against the PEM
+contents. `leserpentd` accepts the session secret through
+`--remote-token-file`; the file must be bounded, regular, non-symlink, and deny
+group/other access, so platform service descriptors do not need to expose the
+token in arguments or environment variables. Each immutable generation now
+retains a mode `0600` launchd plist on macOS or systemd unit on Linux. It points
+at generation-owned executable, certificate, key, and token files plus private
+state/log directories; replay verifies the complete descriptor before accepting
+the generation. The installer does not publish or activate that descriptor yet.
+Controller-side CA persistence is also still required before the service can
+become authoritative.
+
 The contract requires the operator to confirm deployment actions that cross from
 host bootstrap into runtime mutation. The command graph is still single-source:
 all panel actions and `runtime.deploy` intents share the same `CommandEnvelope` and
@@ -236,9 +291,9 @@ The intended source ownership is:
 | `leselang-observe` | validated, sanitized VM/runtime projections for UI consumers |
 | `leselang-command` | operation DSL lowering into `CommandPlan` |
 | `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch` |
-| `leserpent-domain` | validated IDs, commands, queries, events, revisions, capabilities, and plan authorization |
+| `leserpent-domain` | validated IDs, commands, queries, events, revisions, capabilities, bootstrap state, and plan authorization |
 | `leserpent-runtime` | transactions, scheduling, policy, replay, projections |
-| `leserpent-protocol` | IPC, HTTP, WebSocket, schema, compatibility, and shared transport safety |
+| `leserpent-protocol` | IPC, HTTP, WebSocket, bootstrap wire, schema, compatibility, and shared transport safety |
 | `leserpent-adapters` | typed Gewyvern health, status, deployment, discovery, and native secret-store integrations |
 | `leserpent-cli` | native CLI parsing and rendering |
 | `leserpentd` | local and remote runtime host |

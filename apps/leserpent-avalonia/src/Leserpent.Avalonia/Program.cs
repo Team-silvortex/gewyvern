@@ -95,7 +95,7 @@ internal static class Program
         {
             LocalOrchestraServiceSupervisor.VerifyContract(daemonPath);
             Console.WriteLine(
-                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, runtime_topology_query=true, private_files=true, minimal_child_environment=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
+                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, runtime_topology_query=true, health_topology_composition=true, authority_bound_live_state=true, private_files=true, minimal_child_environment=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
             return 0;
         }
         if (args is ["--verify-connection-maintenance"])

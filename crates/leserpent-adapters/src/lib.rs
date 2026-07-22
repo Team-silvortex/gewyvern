@@ -5,11 +5,19 @@ use std::time::Duration;
 
 use leserpent_runtime::{EffectExecution, EffectExecutor, EffectLease};
 
+mod bootstrap;
 mod deployment;
 mod discovery;
 mod gewyvern;
 mod secret;
 
+#[cfg(feature = "native-ssh")]
+pub use bootstrap::NativeSshBootstrapTransport;
+pub use bootstrap::{
+    BootstrapArtifact, HOST_BOOTSTRAP_EFFECT_KIND, MAX_BOOTSTRAP_ARTIFACT_BYTES,
+    SshBootstrapAdapter, SshBootstrapHostPolicy, SshBootstrapJob, SshBootstrapOutcome,
+    SshBootstrapTransport, SshBootstrapTransportError,
+};
 pub use deployment::{
     GEWYVERN_DEPLOYMENT_EFFECT_KIND, GewyvernDeploymentAdapter, GewyvernDeploymentRequest,
     GewyvernDeploymentResponse,

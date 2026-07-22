@@ -22,6 +22,7 @@ use crate::wire::{constant_time_equals, error_response, execute_request, validat
 
 const MAX_CERTIFICATE_FILE_BYTES: u64 = 1024 * 1024;
 const MAX_PRIVATE_KEY_FILE_BYTES: u64 = 64 * 1024;
+const MAX_REMOTE_TOKEN_FILE_BYTES: u64 = 256;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub(crate) type RemoteTlsStream = StreamOwned<ServerConnection, TcpStream>;
@@ -221,6 +222,31 @@ impl RemoteServer {
         self.event_sessions
             .retain_mut(|session| session.poll(revision, &runtimes));
     }
+}
+
+pub fn load_remote_token_file(path: impl AsRef<Path>) -> Result<Zeroizing<String>, String> {
+    let file = open_regular_file(
+        path.as_ref(),
+        MAX_REMOTE_TOKEN_FILE_BYTES,
+        "remote token file",
+    )?;
+    #[cfg(unix)]
+    {
+        let mode = file
+            .metadata()
+            .map_err(|error| format!("cannot inspect remote token file permissions: {error}"))?
+            .permissions()
+            .mode();
+        if mode & 0o077 != 0 {
+            return Err("remote token file must not grant group or other access".into());
+        }
+    }
+    let mut token = Zeroizing::new(String::new());
+    file.take(MAX_REMOTE_TOKEN_FILE_BYTES + 1)
+        .read_to_string(&mut token)
+        .map_err(|_| "remote token file must contain UTF-8 text".to_string())?;
+    validate_auth_token(&token).map_err(|error| format!("remote {error}"))?;
+    Ok(token)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -905,5 +931,33 @@ mod tests {
         assert!(open_private_key_file(&link_path).is_err());
         fs::remove_file(link_path).unwrap();
         fs::remove_file(key_path).unwrap();
+    }
+
+    #[test]
+    fn remote_token_file_is_private_bounded_and_redacted() {
+        let token_path = temp_path("token", "secret");
+        fs::write(&token_path, TOKEN).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&token_path, fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(load_remote_token_file(&token_path).unwrap().as_str(), TOKEN);
+
+        #[cfg(unix)]
+        {
+            fs::set_permissions(&token_path, fs::Permissions::from_mode(0o644)).unwrap();
+            let error = load_remote_token_file(&token_path).unwrap_err();
+            assert!(!error.contains(TOKEN));
+            fs::set_permissions(&token_path, fs::Permissions::from_mode(0o600)).unwrap();
+            let link_path = temp_path("token-link", "secret");
+            symlink(&token_path, &link_path).unwrap();
+            assert!(load_remote_token_file(&link_path).is_err());
+            fs::remove_file(link_path).unwrap();
+        }
+        fs::write(
+            &token_path,
+            "x".repeat(MAX_REMOTE_TOKEN_FILE_BYTES as usize + 1),
+        )
+        .unwrap();
+        assert!(load_remote_token_file(&token_path).is_err());
+        fs::remove_file(token_path).unwrap();
     }
 }

@@ -15,6 +15,8 @@ internal sealed class RemoteMainWindow : Window
     private readonly RemoteClientOptions options;
     private readonly Dictionary<string, RemoteRuntimeWorkspaceWindow> workspaceWindows =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ulong> pendingWorkspaceRequests =
+        new(StringComparer.Ordinal);
     private readonly CancellationTokenSource lifetime = new();
     private readonly string principal;
     private RemoteFeedState currentState;
@@ -458,6 +460,83 @@ internal sealed class RemoteMainWindow : Window
             {
                 workspace.ReloadIfOlder(runtime.Revision);
             }
+        }
+        ResolvePendingWorkspaces(state);
+    }
+
+    internal string? RequestRuntimeWorkspace(string runtimeId, ulong topologyRevision)
+    {
+        if (!RemoteWorkspaceLaunchPolicy.IsRuntimeId(runtimeId))
+        {
+            return "Workspace request contains an invalid runtime ID.";
+        }
+        if (isClosed)
+        {
+            return "The daemon session is already closed.";
+        }
+        if (workspaceWindows.TryGetValue(runtimeId, out var existing))
+        {
+            existing.Show();
+            existing.Activate();
+            return null;
+        }
+        if (workspaceWindows.Count + pendingWorkspaceRequests.Count >= MaxOpenWorkspaces
+            && !pendingWorkspaceRequests.ContainsKey(runtimeId))
+        {
+            return $"Close one of the {MaxOpenWorkspaces} open or pending workspaces first.";
+        }
+        if (RemoteWorkspaceLaunchPolicy.CanResolve(currentState, topologyRevision))
+        {
+            pendingWorkspaceRequests.Remove(runtimeId);
+            var runtime = currentState.Runtimes.FirstOrDefault(candidate =>
+                candidate.Id == runtimeId);
+            if (runtime is null)
+            {
+                return "The runtime is no longer present in the daemon's authoritative topology.";
+            }
+            OpenWorkspace(runtime);
+            return null;
+        }
+        pendingWorkspaceRequests[runtimeId] = pendingWorkspaceRequests.TryGetValue(
+            runtimeId,
+            out var previousRevision)
+            ? Math.Max(previousRevision, topologyRevision)
+            : topologyRevision;
+        SetMutationStatus(
+            $"Waiting for an authoritative daemon snapshot before opening {SafeDisplay(runtimeId)}...",
+            LeserpentTheme.Primary);
+        return null;
+    }
+
+    private void ResolvePendingWorkspaces(RemoteFeedState state)
+    {
+        if (state.Phase is RemoteFeedPhase.Stale or RemoteFeedPhase.Stopped)
+        {
+            if (pendingWorkspaceRequests.Count > 0)
+            {
+                pendingWorkspaceRequests.Clear();
+                SetMutationStatus(
+                    "Pending workspaces were not opened because no authoritative daemon snapshot is available",
+                    LeserpentTheme.Destructive);
+            }
+            return;
+        }
+        foreach (var request in pendingWorkspaceRequests.ToArray())
+        {
+            if (!RemoteWorkspaceLaunchPolicy.CanResolve(state, request.Value))
+            {
+                continue;
+            }
+            pendingWorkspaceRequests.Remove(request.Key);
+            var runtime = state.Runtimes.FirstOrDefault(candidate => candidate.Id == request.Key);
+            if (runtime is null)
+            {
+                SetMutationStatus(
+                    $"Workspace not opened: {SafeDisplay(request.Key)} is absent from the authoritative topology",
+                    LeserpentTheme.Destructive);
+                continue;
+            }
+            OpenWorkspace(runtime);
         }
     }
 
@@ -999,7 +1078,9 @@ internal sealed class RemoteMainWindow : Window
 
     private void OpenWorkspace(RemoteRuntimeProjection runtime)
     {
-        if (currentState.Phase != RemoteFeedPhase.Live || currentState.IsStale)
+        if (currentState.Phase != RemoteFeedPhase.Live
+            || currentState.IsStale
+            || currentState.SnapshotGeneration == 0)
         {
             SetMutationStatus(
                 "Inspect blocked: remote state is not live",
@@ -1051,6 +1132,7 @@ internal sealed class RemoteMainWindow : Window
         {
             workspace.Close();
         }
+        pendingWorkspaceRequests.Clear();
         healthClient.Dispose();
         mutationClient.Dispose();
         ObserveShutdown(eventClient.DisposeAsync());
@@ -1167,6 +1249,57 @@ internal sealed class RemoteMainWindow : Window
         return null;
     }
 
+}
+
+internal static class RemoteWorkspaceLaunchPolicy
+{
+    public static bool IsRuntimeId(string runtimeId) => runtimeId.Length is >= 1 and <= 128
+        && runtimeId.All(character => char.IsAsciiLetterOrDigit(character)
+            || character is '-' or '_' or '.' or ':');
+
+    public static bool CanResolve(RemoteFeedState state, ulong minimumRevision) =>
+        state.Phase == RemoteFeedPhase.Live
+        && !state.IsStale
+        && state.SnapshotRevision is { } snapshotRevision
+        && snapshotRevision >= minimumRevision;
+
+    public static void VerifyContract()
+    {
+        var runtimes = new[]
+        {
+            new RemoteRuntimeProjection
+            {
+                Id = "runtime-a",
+                Name = "Runtime A",
+                Revision = 9,
+                Tags = new RuntimeTags(),
+                Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+            },
+        };
+        var cached = new RemoteFeedState(
+            RemoteFeedPhase.Live,
+            9,
+            runtimes,
+            0,
+            false,
+            "cached heartbeat",
+            0);
+        var stale = cached with { IsStale = true, SnapshotGeneration = 1, SnapshotRevision = 9 };
+        var heartbeatOnly = cached with { Revision = 10, SnapshotGeneration = 1 };
+        var older = cached with { SnapshotGeneration = 1, SnapshotRevision = 8 };
+        var authoritative = cached with { SnapshotGeneration = 1, SnapshotRevision = 9 };
+        if (CanResolve(cached, 9)
+            || CanResolve(stale, 9)
+            || CanResolve(heartbeatOnly, 9)
+            || CanResolve(older, 9)
+            || !CanResolve(authoritative, 9)
+            || !IsRuntimeId("runtime-a")
+            || IsRuntimeId("runtime/a"))
+        {
+            throw new InvalidDataException(
+                "Hub runtime workspace launch policy drifted");
+        }
+    }
 }
 
 internal sealed class RuntimeRefreshConfirmationWindow : Window

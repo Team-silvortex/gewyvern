@@ -4,7 +4,8 @@ using System.Text.Json.Serialization;
 public sealed record RemoteTopologySnapshot(
     ulong Revision,
     IReadOnlyList<RemoteRuntimeProjection> Runtimes,
-    bool IsStale = false);
+    bool IsStale = false,
+    RemoteHealth? Health = null);
 
 public sealed class RemoteTopologyClient : IDisposable
 {

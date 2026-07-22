@@ -305,6 +305,25 @@ The Hub limits topology reads to four concurrent authorities, cancels them on
 close, marks live versus endpoint-bound cached evidence, and preserves manual
 session opening when a preview is unavailable. The local-orchestra vertical now
 proves this query against a real Rust `leserpentd`, not only a fixture codec.
+Topology card lifecycle is now a renderer-neutral RemoteClient state machine.
+The desktop refreshes all cards every 30 seconds with the existing four-query
+concurrency bound and no same-card overlap. A failed refresh retains the latest
+child tree as explicitly stale, rather than erasing useful evidence; live,
+cached, retained, and unavailable states remain distinct, and revision
+regression is rejected before rendering.
+Live daemon identity is now stronger than a successful fleet read. Each refresh
+performs strict `health` and `runtime_list` requests in parallel, composes them
+into one topology snapshot, and refuses the live phase without a ready owned
+protocol-v1 authority proof. Validated queue pressure is visible per daemon;
+cached snapshots retain no fabricated health. The real local Rust-daemon
+vertical proves this composition across the TLS process boundary.
+Runtime preview rows now route directly to the existing per-runtime workspace
+through their owning daemon session. The session is created or reused first,
+then holds a bounded pending request until an authoritative event snapshot has a
+`snapshot_revision` at least as new as the Hub topology revision. Feed heartbeat
+revision is tracked separately and cannot release the workspace fence. A newer
+snapshot that no longer contains the runtime rejects the request, and the shared
+eight-workspace limit counts pending requests as well as open windows.
 The supervisor also rejects symlinked state/daemon boundaries, performs no
 ambient `PATH` daemon discovery, clears the inherited child environment, writes
 all TLS material with atomic owner-only creation, and zeroes exported private
@@ -348,6 +367,53 @@ Failure behavior is part of the slice:
   binds in;
 - if session establishment succeeds but `runtime.deploy` is denied, the daemon
   session remains readonly for inspected operations and returns signed rejection.
+
+The first bootstrap kernel is implemented in Rust. `leserpent-domain` owns a
+validated `Planned / Deploying / Bootstrapped / SessionBound / Failed` state
+machine, bootstrap-only capability and confirmation checks, principal binding,
+opaque vault credential handles, daemon/session identity matching, and the rule
+that only `SessionBound` permits runtime mutation. `leserpent-protocol` owns a
+separate strict 64 KiB bootstrap wire-v1 envelope rather than adding bootstrap
+proof to the ordinary daemon command channel. Unit tests cover successful
+handoff, pre-session mutation denial, transport failure cleanup, identity
+confusion, unknown secret fields, raw-secret handles, and malformed response
+state.
+
+The native Rust SSH transport is now implemented in `leserpent-adapters`. It
+requires an exact host policy and pinned SHA-256 host key, resolves bootstrap
+and session credentials through separate vault handles, transfers the bounded
+installer through SFTP, verifies its read-back digest and private executable
+mode, and accepts only a bounded typed installer response matching the planned
+bootstrap, daemon, and endpoint identities. It never invokes a system `ssh`
+binary, shell script, Node, or Python. Transport and policy tests prove that
+missing policy, wrong credential provider, host-key rejection, and remote
+identity drift fail before session authority is granted.
+
+The target-side native `bootstrap-install-v1` entry point is now implemented.
+Its shared strict installer wire keeps the session token in zeroized private
+storage and separates `installed` from `ready`. The daemon verifies its own
+uploaded digest, commits an immutable generation with private file modes, and
+atomically advances a non-symlink `current` marker. Unit tests cover digest
+failure, symlink rejection, retained-token conflict, rollback preservation, and
+idempotent replay; a subprocess proof executes the real entry point and confirms
+that stdout contains no token. The SSH adapter rejects the `installed` state.
+
+Native launchd/systemd publication and activation, timeout recovery, a real SSH
+cross-process ready proof, WinRM, CLI commands, and the Avalonia Hub flow remain
+before this gate exits.
+
+The next service prerequisite is also complete: each immutable generation now
+creates and validates a self-signed endpoint TLS identity. The public CA PEM and
+its content-bound SHA-256 return over the pinned installer channel, while the
+private key stays mode `0600` on the target. Daemon startup can consume the
+session token from a bounded private `--remote-token-file`, removing secrets
+from launchd/systemd arguments and environments. Controller-side trust
+persistence, native service activation, and authenticated health promotion to
+`ready` remain. The installer now renders a retained mode `0600` launchd plist
+or systemd unit inside the immutable generation. It references only private
+files and state/log paths, never token text; idempotent replay rejects descriptor
+tampering. Publishing and loading that descriptor remain a separate privileged
+step, so this preparation still reports only `installed`.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

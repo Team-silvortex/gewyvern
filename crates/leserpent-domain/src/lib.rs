@@ -4,6 +4,8 @@ use std::fmt;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 
+pub mod bootstrap;
+
 pub const DOMAIN_SCHEMA_VERSION: u32 = 1;
 pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
 pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;

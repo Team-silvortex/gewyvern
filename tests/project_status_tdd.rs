@@ -174,6 +174,32 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
     assert!(runtime.blockers.is_empty());
 
+    let bootstrap = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/reverse-bootstrap")
+        .expect("reverse deployment bootstrap must be tracked independently");
+    assert_eq!(bootstrap.maturity, Maturity::Developing);
+    assert!((40..80).contains(&bootstrap.completion));
+    assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
+    assert!(
+        bootstrap
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "native-rust-ssh-transport")
+    );
+    assert!(bootstrap.blockers.iter().any(|blocker| {
+        blocker.id == "host-bootstrap-installation-incomplete"
+            && blocker.summary.contains("bootstrap-install-v1")
+    }));
+    assert!(bootstrap.blockers.iter().any(|blocker| {
+        blocker.id == "bootstrap-cross-process-proof-missing"
+            && blocker
+                .summary
+                .contains("rejects mutation before session binding")
+    }));
+
     let ui = catalog
         .cells
         .iter()
@@ -206,6 +232,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "boundary-leserpent-adapters",
         "boundary-leserpent-cli",
         "boundary-leserpentd",
+        "boundary-leserpent-bootstrap",
         "boundary-gewyvern-runtime-evidence",
         "boundary-gewyvern-linux-ebpf",
         "boundary-gewylang-compiler",
@@ -323,9 +350,9 @@ fn native_status_cli_exposes_human_and_machine_views() {
     let payload: serde_json::Value =
         serde_json::from_slice(&summary.stdout).expect("summary must be JSON");
     assert_eq!(payload["schema_version"], STATUS_SCHEMA_VERSION);
-    assert_eq!(payload["coverage"]["requirement_count"], 28);
+    assert_eq!(payload["coverage"]["requirement_count"], 29);
     assert_eq!(payload["coverage"]["architecture_count"], 6);
-    assert_eq!(payload["coverage"]["ownership_boundary_count"], 20);
+    assert_eq!(payload["coverage"]["ownership_boundary_count"], 21);
     assert_eq!(payload["coverage"]["roadmap_gate_count"], 7);
     assert_eq!(payload["coverage"]["proof_shelf_count"], 1);
     assert_eq!(payload["weakest"].as_array().unwrap().len(), 3);

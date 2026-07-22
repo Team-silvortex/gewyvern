@@ -14,7 +14,8 @@ public sealed record RemoteFeedState(
     int ConsecutiveFailures,
     bool IsStale,
     string Detail,
-    ulong SnapshotGeneration = 0)
+    ulong SnapshotGeneration = 0,
+    ulong? SnapshotRevision = null)
 {
     public static RemoteFeedState Initial { get; } = new(
         RemoteFeedPhase.Connecting,
@@ -61,7 +62,8 @@ public sealed class RemoteFeedStateMachine(int maxReconnectAttempts = 8)
                     0,
                     false,
                     $"Live at revision {snapshot.Revision}",
-                    snapshotGeneration);
+                    snapshotGeneration,
+                    snapshot.Revision);
                 ResyncRequested = false;
                 break;
             case RemoteEvent.Heartbeat heartbeat:

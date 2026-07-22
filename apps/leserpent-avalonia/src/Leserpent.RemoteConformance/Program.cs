@@ -167,6 +167,7 @@ if (args.Length != 0)
 var snapshot = RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.SnapshotJson));
 var fixtureHealth = RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.HealthJson));
 RemoteLeselangExport.VerifyContract();
+RemoteTopologyStateMachine.VerifyContract();
 Require(fixtureHealth is
 {
     Status: "ready",
@@ -250,9 +251,13 @@ Require(!liveState.IsStale && liveState.Phase == RemoteFeedPhase.Live,
     "snapshot did not establish a live state");
 Require(liveState.SnapshotGeneration == 1,
     "snapshot did not advance the projection generation");
+Require(liveState.SnapshotRevision == 7,
+    "snapshot did not bind the projection revision");
 var heartbeatState = stateMachine.Accept(new RemoteEvent.Heartbeat(7));
 Require(heartbeatState.SnapshotGeneration == 1,
     "heartbeat incorrectly advanced the projection generation");
+Require(heartbeatState.SnapshotRevision == 7,
+    "heartbeat incorrectly advanced the projection revision");
 var reconnecting = stateMachine.ConnectionLost("test disconnect");
 Require(reconnecting.IsStale && reconnecting.Phase == RemoteFeedPhase.Reconnecting,
     "disconnect did not mark cached data stale");
@@ -411,7 +416,7 @@ Console.WriteLine(
     "remote health conformance valid: codec=true, fail_closed=true, queue_consistent=true");
 Console.WriteLine(
     "remote GUI Leselang export conformance valid: refresh=true, capabilities=true, deployment=true, workspace_queries=true, canonical=true, execution=false");
-Console.WriteLine("remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true");
+Console.WriteLine("remote state conformance valid: codec=true, stale=true, snapshot_revision=true, heartbeat_snapshot_fence=true, topology_state=true, authority_bound_topology=true, unproved_live_rejection=true, retained_topology=true, topology_regression_fence=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true");
 return 0;
 
 static object RunWorkspaceLogBenchmark()

@@ -10,6 +10,52 @@ This policy governs the migration bridge between the Leserpent 1.x ASP.NET API
 and the Rust domain/protocol kernel. The bridge translates representations; it
 does not own business rules.
 
+## Draft Bootstrap Boundary
+
+Host bootstrap is intentionally separate from the authenticated daemon wire.
+`leserpent_protocol::bootstrap` defines a strict schema-v1 envelope capped at
+64 KiB. Its request carries a principal, the `host.bootstrap` capability, a
+confirmed target intent, and only a validated `vault:<provider>:<key>`
+credential handle. Unknown fields such as passwords, private keys, and session
+tokens fail decoding. The response carries only a validated bootstrap state or
+a bounded error. Canonical request and planned-state response fixtures live in
+`tests/fixtures/bootstrap-*-v1.json` and freeze the draft field shape.
+
+This draft boundary does not change ordinary wire v1 and is not accepted by
+`leserpentd` at `/v1/wire`. A platform bootstrap adapter must resolve the vault
+handle locally, install or reconcile the daemon, and return a daemon-issued
+session handle. Runtime commands remain unauthorized until the domain state is
+`session_bound`. Promoting this draft requires native service activation and
+retained cross-process positive and negative proof.
+
+The first implementation is `leserpent-adapters::SshBootstrapAdapter` with the
+pure Rust `NativeSshBootstrapTransport`. SSH bootstrap and daemon session
+secrets are resolved from different provider-scoped handles. Its internal
+installer exchange is not a public daemon wire: it is a bounded, versioned,
+single-purpose stdin/stdout exchange over a host-key-pinned SSH channel, and
+only a validated `BootstrapResponseEnvelope` may leave the adapter.
+
+`leserpent_protocol::bootstrap_installer` owns the separate internal installer
+wire used inside that pinned SSH channel. It caps requests and responses at
+64 KiB, redacts and zeroizes the session token, rejects unknown fields, and
+distinguishes an atomically `installed` generation from a health-proven `ready`
+service. Adapter compatibility requires `ready`; `installed` is intentionally
+non-authoritative.
+
+Installer response v1 also carries the target-generated public CA PEM and its
+SHA-256. Decoding verifies that the digest matches the PEM bytes. The private
+key and session token never enter the response; daemon services consume the
+token from a private bounded token file instead of command-line or environment
+text.
+
+The target installer also retains a mode `0600` native service descriptor in
+each immutable generation: launchd plist on macOS and systemd unit on Linux.
+The descriptor references the private token, TLS identity, database, and logs by
+path and contains no token text. Replay compares it byte-for-byte with the
+expected descriptor. Descriptor publication and activation remain outside
+installer wire v1, so a prepared generation still returns `installed` rather
+than `ready`.
+
 ## Supported 1.x Slice
 
 The first compatibility slice covers:

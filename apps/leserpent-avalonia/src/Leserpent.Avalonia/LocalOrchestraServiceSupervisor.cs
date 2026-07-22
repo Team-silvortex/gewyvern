@@ -456,11 +456,18 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                     "local orchestra verification did not reach an owned authority");
             }
             using var topologyClient = new RemoteTopologyClient(plan.Options);
-            var topology = topologyClient.LoadAsync("avalonia-hub").GetAwaiter().GetResult();
+            var topology = topologyClient.LoadAsync("avalonia-hub").GetAwaiter().GetResult()
+                with { Health = health };
             if (topology.Revision != 0 || topology.Runtimes.Count != 0 || topology.IsStale)
             {
                 throw new InvalidDataException(
                     "local orchestra topology query did not return its empty owned fleet");
+            }
+            if (new RemoteTopologyStateMachine().Accept(topology).Phase
+                != RemoteTopologyPhase.Live)
+            {
+                throw new InvalidDataException(
+                    "local orchestra health and topology did not compose into live authority state");
             }
             if (!OperatingSystem.IsWindows())
             {

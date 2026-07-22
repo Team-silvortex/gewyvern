@@ -5,12 +5,13 @@ use std::time::Duration;
 pub use leserpent_adapters::{AdapterRegistry, EffectAdapter, EffectContext};
 use leserpent_runtime::{ControlRuntime, RuntimeError, WorkerStep};
 
+pub mod bootstrap_install;
 #[cfg(unix)]
 mod ipc;
 #[cfg(unix)]
 pub use ipc::IpcServer;
 mod remote;
-pub use remote::RemoteServer;
+pub use remote::{RemoteServer, load_remote_token_file};
 mod events;
 mod wire;
 

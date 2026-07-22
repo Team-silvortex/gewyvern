@@ -2,8 +2,10 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 internal sealed class HubWindow : Window
 {
@@ -12,6 +14,10 @@ internal sealed class HubWindow : Window
     private readonly List<DaemonTopologyCard> topologyCards = [];
     private readonly SemaphoreSlim topologyLoadGate = new(4, 4);
     private readonly CancellationTokenSource lifetime = new();
+    private readonly DispatcherTimer topologyRefreshTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(30),
+    };
     private readonly int daemonCardCount;
     private readonly int expectedAuditedControlCount;
     private readonly TextBlock statusText = new()
@@ -28,6 +34,9 @@ internal sealed class HubWindow : Window
         string? initialError,
         Func<string?> openLocal,
         Func<DesktopDaemonConnection, string?> openRemote,
+        Func<RemoteRuntimeProjection, ulong, string?> openLocalRuntime,
+        Func<DesktopDaemonConnection, RemoteRuntimeProjection, ulong, string?>
+            openRemoteRuntime,
         Func<CancellationToken, Task<RemoteTopologySnapshot>> loadLocalTopology,
         Func<DesktopDaemonConnection, CancellationToken, Task<RemoteTopologySnapshot>>
             loadRemoteTopology,
@@ -120,6 +129,7 @@ internal sealed class HubWindow : Window
                 "LOCAL",
                 "Ephemeral session authority",
                 openLocal,
+                openLocalRuntime,
                 loadLocalTopology,
                 null));
         }
@@ -134,6 +144,7 @@ internal sealed class HubWindow : Window
                 "REMOTE",
                 $"CA  {Path.GetFileName(connection.Profile.CertificateAuthorityPath)}",
                 () => openRemote(captured),
+                (runtime, revision) => openRemoteRuntime(captured, runtime, revision),
                 cancellationToken => loadRemoteTopology(captured, cancellationToken),
                 () => manageConnection(captured)));
         }
@@ -195,8 +206,17 @@ internal sealed class HubWindow : Window
                 Close();
             }
         };
-        Opened += (_, _) => _ = RefreshAllTopologiesAsync();
-        Closed += (_, _) => lifetime.Cancel();
+        topologyRefreshTimer.Tick += (_, _) => _ = RefreshAllTopologiesAsync();
+        Opened += (_, _) =>
+        {
+            topologyRefreshTimer.Start();
+            _ = RefreshAllTopologiesAsync();
+        };
+        Closed += (_, _) =>
+        {
+            topologyRefreshTimer.Stop();
+            lifetime.Cancel();
+        };
     }
 
     public void VerifyTopologyContract()
@@ -216,6 +236,27 @@ internal sealed class HubWindow : Window
     }
 
     public int RenderedRuntimeCount => topologyCards.Sum(card => card.RenderedRuntimeCount);
+    public int LiveTopologyCount => topologyCards.Count(card =>
+        card.State.State.Phase == RemoteTopologyPhase.Live);
+    public int VerifiedAuthorityCount => topologyCards.Count(card =>
+        card.State.State is
+        {
+            Phase: RemoteTopologyPhase.Live,
+            Snapshot.Health: not null,
+        });
+    public int RenderedRuntimeActionCount => topologyCards.Sum(card =>
+        card.RuntimeList.Children.OfType<Button>().Count(button =>
+            !string.IsNullOrWhiteSpace(AutomationProperties.GetAutomationId(button))
+            && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(button))));
+
+    public void ProbeFirstRuntimeAction()
+    {
+        var action = topologyCards
+            .SelectMany(card => card.RuntimeList.Children.OfType<Button>())
+            .FirstOrDefault()
+            ?? throw new InvalidDataException("Hub topology has no runtime action to probe");
+        action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
 
     private Border CreateClientRoot(int remoteCount, bool localSupported)
     {
@@ -252,6 +293,7 @@ internal sealed class HubWindow : Window
         string kind,
         string detail,
         Func<string?> open,
+        Func<RemoteRuntimeProjection, ulong, string?> openRuntime,
         Func<CancellationToken, Task<RemoteTopologySnapshot>> loadTopology,
         Action? manage)
     {
@@ -323,6 +365,17 @@ internal sealed class HubWindow : Window
         AutomationProperties.SetName(
             topologySummary,
             $"Runtime topology for daemon {name} is awaiting refresh");
+        var authoritySummary = new TextBlock
+        {
+            Text = "AUTHORITY / awaiting proof",
+            Foreground = LeserpentTheme.Muted,
+            FontSize = 11,
+            FontWeight = FontWeight.Bold,
+            LetterSpacing = 0.8,
+        };
+        AutomationProperties.SetName(
+            authoritySummary,
+            $"Authority health for daemon {name} is awaiting proof");
         var runtimeList = new StackPanel
         {
             Spacing = 7,
@@ -339,10 +392,14 @@ internal sealed class HubWindow : Window
         var topologyCard = new DaemonTopologyCard(
             daemonId,
             name,
+            openRuntime,
             loadTopology,
             topologySummary,
+            authoritySummary,
             runtimeList,
             refreshButton);
+        topologyCard.ReportWorkspaceResult = (runtime, error) =>
+            ReportWorkspaceOpen(name, runtime, error);
         topologyCards.Add(topologyCard);
         refreshButton.Click += (_, _) => _ = RefreshTopologyAsync(topologyCard);
 
@@ -377,7 +434,7 @@ internal sealed class HubWindow : Window
                         Child = new StackPanel
                         {
                             Spacing = 9,
-                            Children = { topologySummary, runtimeList },
+                            Children = { topologySummary, authoritySummary, runtimeList },
                         },
                     },
                 },
@@ -398,7 +455,10 @@ internal sealed class HubWindow : Window
         }
         card.Refreshing = true;
         card.RefreshButton.IsEnabled = false;
-        card.Summary.Text = "RUNTIMES / loading";
+        var loading = card.State.BeginRefresh();
+        card.Summary.Text = loading.Snapshot is null
+            ? "RUNTIMES / loading"
+            : $"RUNTIMES / refreshing / REV {loading.Snapshot.Revision}";
         card.Summary.Foreground = LeserpentTheme.Primary;
         AutomationProperties.SetName(
             card.Summary,
@@ -411,7 +471,7 @@ internal sealed class HubWindow : Window
             var snapshot = await card.Load(lifetime.Token);
             if (!lifetime.IsCancellationRequested)
             {
-                RenderTopology(card, snapshot);
+                RenderTopology(card, card.State.Accept(snapshot));
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
@@ -422,15 +482,7 @@ internal sealed class HubWindow : Window
         {
             if (!lifetime.IsCancellationRequested)
             {
-                card.RuntimeList.Children.Clear();
-                card.RenderedRuntimeCount = 0;
-                card.RuntimeList.Children.Add(RuntimeMessage(
-                    "Topology unavailable. The daemon session can still be opened manually."));
-                card.Summary.Text = "RUNTIMES / unavailable";
-                card.Summary.Foreground = LeserpentTheme.Destructive;
-                AutomationProperties.SetName(
-                    card.Summary,
-                    $"Runtime topology for daemon {Safe(card.Name)} is unavailable");
+                RenderTopologyFailure(card, card.State.Reject());
             }
         }
         finally
@@ -449,18 +501,22 @@ internal sealed class HubWindow : Window
 
     private static void RenderTopology(
         DaemonTopologyCard card,
-        RemoteTopologySnapshot snapshot)
+        RemoteTopologyState state)
     {
+        var snapshot = state.Snapshot
+            ?? throw new InvalidDataException("renderable topology state has no snapshot");
         card.RuntimeList.Children.Clear();
         card.RenderedRuntimeCount = 0;
-        var source = snapshot.IsStale ? "CACHED" : "LIVE";
+        var source = state.Phase.ToString().ToUpperInvariant();
         card.Summary.Text = $"RUNTIMES / {source} / REV {snapshot.Revision} / {snapshot.Runtimes.Count}";
-        card.Summary.Foreground = snapshot.IsStale
+        card.Summary.Foreground = state.Phase is RemoteTopologyPhase.Cached
+            or RemoteTopologyPhase.Retained
             ? LeserpentTheme.Muted
             : LeserpentTheme.Accent;
         AutomationProperties.SetName(
             card.Summary,
             $"Daemon {Safe(card.Name)} has {snapshot.Runtimes.Count} runtimes at revision {snapshot.Revision}, {source.ToLowerInvariant()}");
+        RenderAuthority(card, state);
         if (snapshot.Runtimes.Count == 0)
         {
             card.RuntimeList.Children.Add(RuntimeMessage(
@@ -469,7 +525,7 @@ internal sealed class HubWindow : Window
         }
         foreach (var runtime in snapshot.Runtimes.Take(MaxVisibleRuntimesPerDaemon))
         {
-            card.RuntimeList.Children.Add(RuntimeRow(runtime));
+            card.RuntimeList.Children.Add(RuntimeRow(card, runtime, snapshot.Revision));
             card.RenderedRuntimeCount++;
         }
         var hidden = snapshot.Runtimes.Count - MaxVisibleRuntimesPerDaemon;
@@ -480,7 +536,67 @@ internal sealed class HubWindow : Window
         }
     }
 
-    private static Border RuntimeRow(RemoteRuntimeProjection runtime)
+    private static void RenderAuthority(
+        DaemonTopologyCard card,
+        RemoteTopologyState state)
+    {
+        if (state.Snapshot?.Health is not { } health)
+        {
+            card.AuthoritySummary.Text = "AUTHORITY / unverified cache";
+            card.AuthoritySummary.Foreground = LeserpentTheme.Muted;
+            AutomationProperties.SetName(
+                card.AuthoritySummary,
+                $"Authority health for daemon {Safe(card.Name)} is unavailable in the cached topology");
+            return;
+        }
+        var presentation = RemoteAuthorityHealthPresentation.Create(health);
+        var stale = state.Phase is RemoteTopologyPhase.Cached or RemoteTopologyPhase.Retained;
+        card.AuthoritySummary.Text = stale
+            ? $"{presentation.Label} / STALE"
+            : presentation.Label;
+        card.AuthoritySummary.Foreground = presentation.IsSaturated
+            ? LeserpentTheme.Destructive
+            : stale
+                ? LeserpentTheme.Muted
+                : LeserpentTheme.Primary;
+        AutomationProperties.SetName(
+            card.AuthoritySummary,
+            stale
+                ? $"{presentation.AutomationName}; stale topology evidence"
+                : presentation.AutomationName);
+    }
+
+    private static void RenderTopologyFailure(
+        DaemonTopologyCard card,
+        RemoteTopologyState state)
+    {
+        if (state.Snapshot is not null)
+        {
+            RenderTopology(card, state);
+            card.RuntimeList.Children.Insert(0, RuntimeMessage(
+                $"Refresh failed {state.ConsecutiveFailures} time(s). Retaining the last known topology; workspace launch still requires a live daemon snapshot."));
+            return;
+        }
+        card.RuntimeList.Children.Clear();
+        card.RenderedRuntimeCount = 0;
+        card.RuntimeList.Children.Add(RuntimeMessage(
+            "Topology unavailable. The daemon session can still be opened manually."));
+        card.Summary.Text = $"RUNTIMES / unavailable / failures {state.ConsecutiveFailures}";
+        card.Summary.Foreground = LeserpentTheme.Destructive;
+        card.AuthoritySummary.Text = "AUTHORITY / unavailable";
+        card.AuthoritySummary.Foreground = LeserpentTheme.Destructive;
+        AutomationProperties.SetName(
+            card.AuthoritySummary,
+            $"Authority health for daemon {Safe(card.Name)} is unavailable");
+        AutomationProperties.SetName(
+            card.Summary,
+            $"Runtime topology for daemon {Safe(card.Name)} is unavailable after {state.ConsecutiveFailures} failures");
+    }
+
+    private static Button RuntimeRow(
+        DaemonTopologyCard card,
+        RemoteRuntimeProjection runtime,
+        ulong topologyRevision)
     {
         var state = runtime.Status.StatusFetchError is { Length: > 0 }
             ? "FAILED"
@@ -520,12 +636,12 @@ internal sealed class HubWindow : Window
             },
         };
         Grid.SetColumn(identity, 1);
-        var row = new Border
+        var row = new Button
         {
             Background = Brush.Parse("#16140F"),
-            CornerRadius = new CornerRadius(7),
             Padding = new Thickness(10, 8),
-            Child = new Grid
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Content = new Grid
             {
                 ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto"),
                 ColumnSpacing = 10,
@@ -537,9 +653,20 @@ internal sealed class HubWindow : Window
                 },
             },
         };
+        AutomationProperties.SetAutomationId(
+            row,
+            $"hub-runtime-{card.DaemonId}-{runtime.Id}");
         AutomationProperties.SetName(
             row,
-            $"Gewyvern runtime {Safe(runtime.Name)}, ID {Safe(runtime.Id)}, status {state}");
+            $"Open gewyvern runtime {Safe(runtime.Name)}, ID {Safe(runtime.Id)}, status {state}");
+        AutomationProperties.SetHelpText(
+            row,
+            "Opens this runtime through its owning daemon session after an authoritative revision check.");
+        row.Click += (_, _) =>
+        {
+            var error = card.OpenRuntime(runtime, topologyRevision);
+            card.ReportWorkspaceResult(runtime, error);
+        };
         return row;
     }
 
@@ -567,6 +694,21 @@ internal sealed class HubWindow : Window
         statusText.Text = Safe(error);
         statusText.Foreground = LeserpentTheme.Destructive;
         button.IsEnabled = true;
+    }
+
+    private void ReportWorkspaceOpen(
+        string daemonName,
+        RemoteRuntimeProjection runtime,
+        string? error)
+    {
+        if (error is null)
+        {
+            statusText.Text = $"Opening {Safe(runtime.Name)} through {Safe(daemonName)}...";
+            statusText.Foreground = LeserpentTheme.Accent;
+            return;
+        }
+        statusText.Text = Safe(error);
+        statusText.Foreground = LeserpentTheme.Destructive;
     }
 
     private static Border NodeGlyph(
@@ -651,18 +793,25 @@ internal sealed class HubWindow : Window
     private sealed class DaemonTopologyCard(
         string daemonId,
         string name,
+        Func<RemoteRuntimeProjection, ulong, string?> openRuntime,
         Func<CancellationToken, Task<RemoteTopologySnapshot>> load,
         TextBlock summary,
+        TextBlock authoritySummary,
         StackPanel runtimeList,
         Button refreshButton)
     {
         public string DaemonId { get; } = daemonId;
         public string Name { get; } = name;
+        public Func<RemoteRuntimeProjection, ulong, string?> OpenRuntime { get; } = openRuntime;
         public Func<CancellationToken, Task<RemoteTopologySnapshot>> Load { get; } = load;
         public TextBlock Summary { get; } = summary;
+        public TextBlock AuthoritySummary { get; } = authoritySummary;
         public StackPanel RuntimeList { get; } = runtimeList;
         public Button RefreshButton { get; } = refreshButton;
+        public RemoteTopologyStateMachine State { get; } = new();
         public bool Refreshing { get; set; }
         public int RenderedRuntimeCount { get; set; }
+        public Action<RemoteRuntimeProjection, string?> ReportWorkspaceResult { get; set; } =
+            (_, _) => { };
     }
 }

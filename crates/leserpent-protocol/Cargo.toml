@@ -7,8 +7,10 @@ license.workspace = true
 
 [dependencies]
 leserpent-domain = { path = "../leserpent-domain" }
+ring = "0.17"
 serde.workspace = true
 serde_json.workspace = true
+zeroize = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
