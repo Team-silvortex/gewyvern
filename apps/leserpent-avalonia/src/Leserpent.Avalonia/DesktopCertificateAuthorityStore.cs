@@ -64,7 +64,10 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
         }
     }
 
-    public void PruneExcept(string? retainedPath)
+    public void PruneExcept(string? retainedPath) =>
+        PruneExcept(retainedPath is null ? [] : [retainedPath]);
+
+    public void PruneExcept(IEnumerable<string> retainedPaths)
     {
         if (!Directory.Exists(directory))
         {
@@ -72,16 +75,20 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
         }
         EnsurePrivateDirectory();
         var trustDirectory = Path.GetFullPath(directory);
-        var retained = retainedPath is null ? null : Path.GetFullPath(retainedPath);
-        if (retained is not null && !IsDirectChild(retained, trustDirectory))
+        var retained = new HashSet<string>(PathComparer());
+        foreach (var retainedPath in retainedPaths)
         {
-            throw new InvalidDataException("retained desktop CA is outside the trust directory");
-        }
-        if (retained is not null
-            && (!File.Exists(retained)
-                || !IsCanonicalCertificateName(Path.GetFileName(retained))))
-        {
-            throw new InvalidDataException("retained desktop CA is not a managed certificate");
+            var fullPath = Path.GetFullPath(retainedPath);
+            if (!IsDirectChild(fullPath, trustDirectory))
+            {
+                throw new InvalidDataException("retained desktop CA is outside the trust directory");
+            }
+            if (!File.Exists(fullPath)
+                || !IsCanonicalCertificateName(Path.GetFileName(fullPath)))
+            {
+                throw new InvalidDataException("retained desktop CA is not a managed certificate");
+            }
+            retained.Add(fullPath);
         }
 
         foreach (var entry in Directory.EnumerateFileSystemEntries(trustDirectory))
@@ -101,7 +108,7 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
             {
                 throw new InvalidDataException("desktop trust directory contains an unknown entry");
             }
-            if (!string.Equals(entry, retained, PathComparison()))
+            if (!retained.Contains(entry))
             {
                 File.Delete(entry);
             }
@@ -239,12 +246,17 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
                 Path.GetDirectoryName(second)!,
                 $".{new string('A', 64)}.{new string('b', 32)}.tmp");
             File.WriteAllText(staleTemporary, "stale");
-            store.PruneExcept(second);
-            if (File.Exists(imported)
+            store.PruneExcept([imported, second]);
+            if (!File.Exists(imported)
                 || !File.Exists(second)
                 || File.Exists(staleTemporary))
             {
-                throw new InvalidDataException("desktop CA pruning did not retain only the active CA");
+                throw new InvalidDataException("desktop CA pruning did not retain the active CA set");
+            }
+            store.PruneExcept(second);
+            if (File.Exists(imported) || !File.Exists(second))
+            {
+                throw new InvalidDataException("desktop CA pruning did not remove an unused CA");
             }
         }
         finally
@@ -367,6 +379,11 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
+
+    private static StringComparer PathComparer() =>
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
     private static bool IsCanonicalCertificateName(string name)
     {

@@ -362,9 +362,12 @@ public static class RemoteWorkspaceCodec
         }
     }
 
-    private static void ValidateRuntime(WireRuntimeProjection runtime, string expectedRuntimeId)
+    internal static void ValidateRuntime(
+        WireRuntimeProjection runtime,
+        string? expectedRuntimeId = null)
     {
-        if (runtime.Id is null
+        if (runtime is null
+            || runtime.Id is null
             || runtime.Name is null
             || runtime.Endpoint is null
             || runtime.Tags is null
@@ -375,7 +378,7 @@ public static class RemoteWorkspaceCodec
                 "remote workspace runtime is missing required data");
         }
         RemoteQueryValidation.RequireIdentifier(runtime.Id, "runtime ID");
-        if (runtime.Id != expectedRuntimeId)
+        if (expectedRuntimeId is not null && runtime.Id != expectedRuntimeId)
         {
             throw new InvalidDataException("remote workspace runtime identity is invalid");
         }
@@ -388,7 +391,7 @@ public static class RemoteWorkspaceCodec
             runtime.Revision);
     }
 
-    private static RemoteRuntimeProjection Project(WireRuntimeProjection runtime) => new()
+    internal static RemoteRuntimeProjection Project(WireRuntimeProjection runtime) => new()
     {
         Id = runtime.Id,
         Name = runtime.Name,

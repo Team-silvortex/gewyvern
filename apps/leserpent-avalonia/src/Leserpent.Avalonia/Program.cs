@@ -12,6 +12,13 @@ internal static class Program
                 "remote filter valid: name=true, id=true, tag=true, status=true, bounded=true, empty_state=true");
             return 0;
         }
+        if (args is ["--verify-remote-topology"])
+        {
+            RemoteTopologyCodec.VerifyContract();
+            Console.WriteLine(
+                "remote topology valid: typed_runtime_list=true, bounded=true, strict_decode=true, null_runtime_rejected=true, typed_query_error=true, unique_runtime_ids=true, revision_fenced=true, runtime_endpoint_retained=false");
+            return 0;
+        }
         if (args is ["--verify-credential-source"])
         {
             RemoteCredentialPresentation.VerifyContract();
@@ -65,8 +72,9 @@ internal static class Program
         if (args is ["--verify-desktop-profile"])
         {
             DesktopConnectionProfileStore.VerifyContract();
+            DesktopConnectionCatalogStore.VerifyContract();
             Console.WriteLine(
-                "desktop connection profile valid: bounded=true, atomic=true, private=true, token_persisted=false, unknown_fields=false");
+                "desktop connection catalog valid: multi_daemon=true, legacy_migration=true, stable_authority_id=true, bounded=true, atomic=true, private=true, token_persisted=false, unknown_fields=false");
             return 0;
         }
         if (args is ["--verify-desktop-ca-store"])
@@ -87,7 +95,7 @@ internal static class Program
         {
             LocalOrchestraServiceSupervisor.VerifyContract(daemonPath);
             Console.WriteLine(
-                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, private_files=true, minimal_child_environment=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
+                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, runtime_topology_query=true, private_files=true, minimal_child_environment=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
             return 0;
         }
         if (args is ["--verify-connection-maintenance"])

@@ -10,6 +10,8 @@ internal sealed class LeserpentApp : Application
 {
     private const int MaxPayloadBytes = 2 * 1024 * 1024;
     private static LocalOrchestraServiceSupervisor? localOrchestraService;
+    private static readonly Dictionary<string, RemoteMainWindow> daemonSessions =
+        new(StringComparer.Ordinal);
     private static bool shutdownHookInstalled;
 
     public override void Initialize()
@@ -37,6 +39,12 @@ internal sealed class LeserpentApp : Application
             if (desktop.Args is ["--verify-connection-management-controls"])
             {
                 ConfigureConnectionManagementVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+            if (desktop.Args is ["--verify-hub-topology"])
+            {
+                ConfigureHubTopologyVerification(desktop);
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
@@ -221,6 +229,75 @@ internal sealed class LeserpentApp : Application
         desktop.MainWindow = window;
     }
 
+    private static void ConfigureHubTopologyVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var topology = new RemoteTopologySnapshot(7,
+        [
+            new RemoteRuntimeProjection
+            {
+                Id = "runtime-a",
+                Name = "Runtime A",
+                Revision = 7,
+                RefreshStatus = RefreshStatus.Ready,
+                Tags = new RuntimeTags { Environment = "production" },
+                Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+            },
+            new RemoteRuntimeProjection
+            {
+                Id = "runtime-b",
+                Name = "Runtime B",
+                Revision = 7,
+                RefreshStatus = RefreshStatus.Pending,
+                Tags = new RuntimeTags { Environment = "staging" },
+                Status = new RuntimeStatusSnapshot { StatusSource = "gewyvern" },
+            },
+        ]);
+        var connections = new[]
+        {
+            DesktopDaemonConnection.FromProfile(new DesktopConnectionProfile
+            {
+                SchemaVersion = 1,
+                Endpoint = "https://alpha.example:9443",
+                CertificateAuthorityPath = "/verification/alpha-ca.pem",
+            }),
+            DesktopDaemonConnection.FromProfile(new DesktopConnectionProfile
+            {
+                SchemaVersion = 1,
+                Endpoint = "https://beta.example:9443",
+                CertificateAuthorityPath = "/verification/beta-ca.pem",
+            }),
+        };
+        var window = new HubWindow(
+            connections,
+            true,
+            null,
+            () => "verification only",
+            _ => "verification only",
+            _ => Task.FromResult(topology),
+            (_, _) => Task.FromResult(topology),
+            () => { },
+            _ => { });
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += (_, _) =>
+        {
+            DispatcherTimer.RunOnce(() =>
+            {
+                window.VerifyTopologyContract();
+                if (window.RenderedRuntimeCount != 6)
+                {
+                    throw new InvalidDataException(
+                        "Hub topology did not render daemon-owned runtime children");
+                }
+                Console.WriteLine(
+                    "Hub topology valid: client_root=true, local_daemon=true, remote_daemons=2, runtime_children=6, bounded_preview=true, independent_actions=true, legacy_remote_button=false, automation=true");
+                window.Close();
+            }, TimeSpan.FromMilliseconds(150));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
     private static void ConfigureRemoteWindow(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -259,25 +336,24 @@ internal sealed class LeserpentApp : Application
     private static void ConfigureInteractiveDesktop(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
-        var store = new DesktopConnectionProfileStore(
+        var legacyStore = new DesktopConnectionProfileStore(
             DesktopConnectionProfileStore.DefaultPath());
+        var catalogStore = new DesktopConnectionCatalogStore(
+            DesktopConnectionCatalogStore.DefaultPath());
         var certificateStore = DesktopCertificateAuthorityStore.Default();
-        DesktopConnectionProfile? profile = null;
+        var catalog = DesktopConnectionCatalog.Empty;
         string? initialError = null;
         try
         {
-            profile = store.Load();
-            if (profile is not null)
-            {
-                profile = DesktopProductStartup.PrepareSavedProfile(
-                    profile,
-                    store,
-                    certificateStore);
-            }
+            catalog = catalogStore.LoadOrMigrate(legacyStore);
+            catalog = DesktopProductStartup.PrepareSavedCatalog(
+                catalog,
+                catalogStore,
+                certificateStore);
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
-            profile = null;
+            catalog = DesktopConnectionCatalog.Empty;
             initialError = StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
@@ -305,33 +381,64 @@ internal sealed class LeserpentApp : Application
             }
         }
 
+        try
+        {
+            certificateStore.PruneExcept(RetainedCertificatePaths(catalog));
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            var trustError = StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+            initialError = string.IsNullOrWhiteSpace(initialError)
+                ? trustError
+                : $"{initialError}{Environment.NewLine}{trustError}";
+        }
+
         var hub = new HubWindow(
-            profile,
+            catalog.Connections,
+            !IsMobilePlatform(),
             initialError,
-            () => OpenRemoteFromSelfHostOrProfile(desktop, store, certificateStore),
-            () => ShowConnectionManager(desktop));
+            () => OpenLocalOrchestra(desktop, certificateStore),
+            connection => OpenRemoteFromConnection(
+                desktop,
+                catalogStore,
+                certificateStore,
+                connection),
+            cancellationToken => LoadLocalTopologyAsync(
+                certificateStore,
+                cancellationToken),
+            (connection, cancellationToken) => LoadRemoteTopologyAsync(
+                catalogStore,
+                certificateStore,
+                connection,
+                cancellationToken),
+            () => ShowConnectionManager(desktop, null),
+            connection => ShowConnectionManager(desktop, connection));
         RegisterMainWindowLifecycle(desktop, hub);
         desktop.MainWindow = hub;
     }
 
-    private static string? OpenRemoteFromProfile(
+    private static string? OpenRemoteFromConnection(
         IClassicDesktopStyleApplicationLifetime desktop,
-        DesktopConnectionProfileStore store,
-        DesktopCertificateAuthorityStore certificateStore)
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore,
+        DesktopDaemonConnection expected)
     {
         try
         {
-            var profile = store.Load();
-            if (profile is null)
+            var saved = catalogStore.Load().Connections.SingleOrDefault(
+                item => item.DaemonId == expected.DaemonId);
+            if (saved is null || saved != expected)
             {
-                return "No saved connection profile. Open Connection... to configure one first.";
+                return "This daemon connection changed. Reopen the Hub before connecting.";
             }
-
-            profile = DesktopProductStartup.PrepareSavedProfile(
-                profile,
-                store,
+            var catalog = DesktopProductStartup.PrepareSavedCatalog(
+                catalogStore.Load(),
+                catalogStore,
                 certificateStore);
-            var plan = DesktopProductStartup.Resolve(profile);
+            saved = catalog.Connections.Single(item => item.DaemonId == expected.DaemonId);
+            var plan = DesktopProductStartup.Resolve(saved.Profile);
             OpenProductRemoteWindow(desktop, plan);
             return null;
         }
@@ -343,58 +450,123 @@ internal sealed class LeserpentApp : Application
         }
     }
 
-    private static string? OpenRemoteFromSelfHostOrProfile(
+    private static string? OpenLocalOrchestra(
         IClassicDesktopStyleApplicationLifetime desktop,
-        DesktopConnectionProfileStore store,
         DesktopCertificateAuthorityStore certificateStore)
     {
-        var localError = string.Empty;
-        if (!IsMobilePlatform())
+        if (IsMobilePlatform())
         {
-            if (localOrchestraService is null)
+            return "Self-host is not supported on this platform.";
+        }
+        if (localOrchestraService is null)
+        {
+            localOrchestraService = new LocalOrchestraServiceSupervisor();
+        }
+        try
+        {
+            if (localOrchestraService.TryEnsureReady(
+                    certificateStore,
+                    out var localPlan,
+                    out var startupError)
+                && localPlan is not null)
             {
-                localOrchestraService = new LocalOrchestraServiceSupervisor();
+                OpenProductRemoteWindow(desktop, localPlan);
+                return null;
             }
+            return startupError ?? "Local orchestra did not become ready.";
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            return StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+        }
+    }
+
+    private static async Task<RemoteTopologySnapshot> LoadLocalTopologyAsync(
+        DesktopCertificateAuthorityStore certificateStore,
+        CancellationToken cancellationToken)
+    {
+        localOrchestraService ??= new LocalOrchestraServiceSupervisor();
+        var plan = await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!localOrchestraService.TryEnsureReady(
+                    certificateStore,
+                    out var localPlan,
+                    out var startupError)
+                || localPlan is null)
+            {
+                throw new InvalidDataException(
+                    startupError ?? "local orchestra did not become ready");
+            }
+            return localPlan;
+        }, cancellationToken);
+        using var client = new RemoteTopologyClient(plan.Options);
+        return await client.LoadAsync("avalonia-hub", cancellationToken);
+    }
+
+    private static async Task<RemoteTopologySnapshot> LoadRemoteTopologyAsync(
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore,
+        DesktopDaemonConnection expected,
+        CancellationToken cancellationToken)
+    {
+        var catalog = catalogStore.Load();
+        var current = catalog.Connections.SingleOrDefault(
+            item => item.DaemonId == expected.DaemonId);
+        if (current is null || current != expected)
+        {
+            throw new InvalidDataException(
+                "the saved daemon connection changed; reopen the Hub before refreshing it");
+        }
+        try
+        {
+            catalog = DesktopProductStartup.PrepareSavedCatalog(
+                catalog,
+                catalogStore,
+                certificateStore);
+            current = catalog.Connections.Single(item => item.DaemonId == expected.DaemonId);
+            var plan = DesktopProductStartup.Resolve(current.Profile);
+            using var client = new RemoteTopologyClient(plan.Options);
+            return await client.LoadAsync("avalonia-hub", cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception liveError) when (StartupFailure.IsExpected(liveError)
+            || liveError is TaskCanceledException or TimeoutException)
+        {
             try
             {
-                if (localOrchestraService.TryEnsureReady(
-                        certificateStore,
-                        out var localPlan,
-                        out var startupError)
-                    && localPlan is not null)
+                var endpoint = RemoteClientOptions.ParseEndpoint(current.Profile.Endpoint);
+                var cache = new RemoteSnapshotStore(
+                    endpoint,
+                    RemoteSnapshotStore.DefaultPath(endpoint)).Load();
+                if (cache is not null)
                 {
-                    OpenProductRemoteWindow(desktop, localPlan);
-                    return null;
+                    return RemoteTopologyCodec.FromCache(cache);
                 }
-                localError = startupError ?? string.Empty;
             }
-            catch (Exception error) when (StartupFailure.IsExpected(error))
+            catch (Exception cacheError) when (StartupFailure.IsExpected(cacheError))
             {
-                localError = StartupFailure.Describe(
-                    error,
-                    Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+                throw new InvalidDataException(
+                    "live daemon topology and its cached snapshot are unavailable",
+                    cacheError);
             }
+            throw new InvalidDataException(
+                "live daemon topology is unavailable and has no cached snapshot",
+                liveError);
         }
-        else
-        {
-            localError = "Self-host is not supported on this platform.";
-        }
-
-        var profileError = OpenRemoteFromProfile(desktop, store, certificateStore);
-        if (!string.IsNullOrWhiteSpace(localError))
-        {
-            return string.IsNullOrWhiteSpace(profileError)
-                ? localError
-                : $"{localError}{Environment.NewLine}{profileError}";
-        }
-        return profileError;
     }
 
     private static bool IsMobilePlatform() => OperatingSystem.IsIOS()
         || OperatingSystem.IsAndroid();
 
     private static void ShowConnectionManager(
-        IClassicDesktopStyleApplicationLifetime desktop)
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopDaemonConnection? connection = null)
     {
         var existing = desktop.Windows.OfType<DesktopConnectionWindow>().FirstOrDefault();
         if (existing is not null)
@@ -404,27 +576,19 @@ internal sealed class LeserpentApp : Application
             return;
         }
 
-        var store = new DesktopConnectionProfileStore(
-            DesktopConnectionProfileStore.DefaultPath());
-        DesktopConnectionProfile? profile = null;
         string? initialError = null;
-        try
-        {
-            profile = store.Load();
-        }
-        catch (Exception error) when (StartupFailure.IsExpected(error))
-        {
-            initialError = StartupFailure.Describe(
-                error,
-                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
-        }
-        ShowConnectionWindow(desktop, store, profile, initialError, false);
+        ShowConnectionWindow(
+            desktop,
+            new DesktopConnectionCatalogStore(DesktopConnectionCatalogStore.DefaultPath()),
+            connection,
+            initialError,
+            false);
     }
 
     private static void ShowConnectionWindow(
         IClassicDesktopStyleApplicationLifetime desktop,
-        DesktopConnectionProfileStore store,
-        DesktopConnectionProfile? profile,
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopDaemonConnection? connection,
         string? initialError,
         bool isInitialSetup)
     {
@@ -432,7 +596,7 @@ internal sealed class LeserpentApp : Application
         var certificateStore = DesktopCertificateAuthorityStore.Default();
         DesktopConnectionWindow? setup = null;
         setup = new DesktopConnectionWindow(
-            profile,
+            connection?.Profile,
             initialError,
             request =>
             {
@@ -451,20 +615,17 @@ internal sealed class LeserpentApp : Application
                         request.Token);
                     if (request.Remember)
                     {
-                        store.Save(requestedProfile);
+                        var savedConnection = DesktopDaemonConnection.FromProfile(
+                            requestedProfile);
+                        catalogStore.Upsert(savedConnection, connection?.DaemonId);
                     }
-                    else
-                    {
-                        store.Clear();
-                    }
-                    certificateStore.PruneExcept(
-                        request.Remember ? requestedProfile.CertificateAuthorityPath : null);
+                    certificateStore.PruneExcept(RetainedCertificatePaths(
+                        catalogStore.Load()));
                     OpenProductRemoteWindow(desktop, plan);
                     setup!.Close();
-                    if (previousMainWindow is not null
-                        && !ReferenceEquals(previousMainWindow, setup))
+                    if (request.Remember)
                     {
-                        previousMainWindow.Close();
+                        RefreshHub(desktop);
                     }
                     return null;
                 }
@@ -478,7 +639,22 @@ internal sealed class LeserpentApp : Application
             },
             TestConnectionAsync,
             isInitialSetup ? () => desktop.TryShutdown(0) : null,
-            profile is null ? null : () => ForgetSavedConnection(profile, store));
+            connection is null
+                ? null
+                : () =>
+                {
+                    var error = ForgetSavedConnection(
+                        connection,
+                        catalogStore,
+                        certificateStore);
+                    if (error is null)
+                    {
+                        DispatcherTimer.RunOnce(
+                            () => RefreshHub(desktop),
+                            TimeSpan.FromMilliseconds(100));
+                    }
+                    return error;
+                });
         if (isInitialSetup)
         {
             RegisterMainWindowLifecycle(desktop, setup);
@@ -498,20 +674,57 @@ internal sealed class LeserpentApp : Application
     private static RemoteMainWindow CreateProductRemoteWindow(
         IClassicDesktopStyleApplicationLifetime desktop,
         DesktopProductStartupPlan plan) =>
-        new(plan.Options, plan.TokenSource, () => ShowConnectionManager(desktop));
+        new(
+            plan.Options,
+            plan.TokenSource,
+            () => ShowConnectionManager(desktop, FindSavedConnection(plan.Profile)));
 
     private static void OpenProductRemoteWindow(
         IClassicDesktopStyleApplicationLifetime desktop,
         DesktopProductStartupPlan plan)
     {
-        var previousWindow = desktop.MainWindow;
+        var sessionKey = RemoteClientOptions.ParseEndpoint(plan.Profile.Endpoint).ToString();
+        if (daemonSessions.TryGetValue(sessionKey, out var existing))
+        {
+            existing.Show();
+            existing.Activate();
+            return;
+        }
         var remote = CreateProductRemoteWindow(desktop, plan);
         RegisterMainWindowLifecycle(desktop, remote);
-        desktop.MainWindow = remote;
+        daemonSessions.Add(sessionKey, remote);
+        remote.Closed += (_, _) => daemonSessions.Remove(sessionKey);
         remote.Show();
-        if (previousWindow is not null)
+    }
+
+    private static DesktopDaemonConnection? FindSavedConnection(
+        DesktopConnectionProfile profile)
+    {
+        try
         {
-            previousWindow.Close();
+            var daemonId = DesktopDaemonConnection.DeriveDaemonId(profile.Endpoint);
+            return new DesktopConnectionCatalogStore(
+                DesktopConnectionCatalogStore.DefaultPath())
+                .Load()
+                .Connections
+                .SingleOrDefault(item => item.DaemonId == daemonId);
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            return null;
+        }
+    }
+
+    private static void RefreshHub(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var previousHub = desktop.MainWindow as HubWindow;
+        ConfigureInteractiveDesktop(desktop);
+        var currentHub = desktop.MainWindow;
+        currentHub?.Show();
+        currentHub?.Activate();
+        if (previousHub is not null && !ReferenceEquals(previousHub, currentHub))
+        {
+            previousHub.Close();
         }
     }
 
@@ -546,12 +759,23 @@ internal sealed class LeserpentApp : Application
     }
 
     private static string? ForgetSavedConnection(
-        DesktopConnectionProfile profile,
-        DesktopConnectionProfileStore store)
+        DesktopDaemonConnection connection,
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore)
     {
         try
         {
-            DesktopConnectionMaintenance.ForgetSavedConnection(profile, store);
+            var current = catalogStore.Load().Connections.SingleOrDefault(
+                item => item.DaemonId == connection.DaemonId);
+            if (current != connection)
+            {
+                throw new InvalidDataException(
+                    "the saved daemon connection changed; reopen the Hub before removing it");
+            }
+            var endpoint = RemoteClientOptions.ParseEndpoint(connection.Profile.Endpoint);
+            RemoteTokenResolver.Delete(endpoint);
+            var catalog = catalogStore.Remove(connection);
+            certificateStore.PruneExcept(RetainedCertificatePaths(catalog));
             return null;
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
@@ -559,6 +783,19 @@ internal sealed class LeserpentApp : Application
             return StartupFailure.Describe(
                 error,
                 Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+        }
+    }
+
+    private static IEnumerable<string> RetainedCertificatePaths(
+        DesktopConnectionCatalog catalog)
+    {
+        foreach (var connection in catalog.Connections)
+        {
+            yield return connection.Profile.CertificateAuthorityPath;
+        }
+        if (localOrchestraService?.ManagedAuthorityPath is { } localAuthority)
+        {
+            yield return localAuthority;
         }
     }
 

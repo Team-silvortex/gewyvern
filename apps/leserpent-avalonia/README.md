@@ -67,17 +67,24 @@ Automation properties. Buttons only emit their action node ID; command lowering
 remains in the shared Rust boundary.
 
 Launching `Leserpent.Avalonia` without arguments is the normal desktop product
-entry. It now opens the Hub first, then lets operators choose between existing
-runtime modules. The Hub loads a bounded non-secret connection profile from
-local application data and offers a single-click path into the remote console
-when the saved profile and Keychain/Secret Service credential are both usable.
-If a profile is missing or incomplete, it stays as a secondary action via
-`Connection...`.
+entry. It opens a topology Hub rooted at the desktop client. Local Orchestra and
+every saved `leserpentd` authority are separate daemon cards; opening a card
+creates or reuses that authority's independent session window without closing
+the Hub or another daemon session. The Hub loads a bounded non-secret connection
+catalog from local application data, and old single-profile state is migrated
+atomically on first use. `+ Add daemon` creates another authority branch, while
+each remote card has independent Open and Manage actions. Every daemon card
+performs a bounded read-only `runtime_list` query and renders up to six owned
+gewyvern runtime children with live revision and refresh state. Topology loading
+is limited to four concurrent authorities, is cancelled with the Hub window,
+and falls back only to the endpoint-bound private snapshot cache. Verify the
+strict wire projection with `--verify-remote-topology` and the real Hub control
+tree with `--verify-hub-topology`.
 
 A submitted connection token is validated and stored under the canonical HTTPS
 origin in macOS Keychain or Linux Secret Service; leaving it blank reuses an
 existing platform credential. The input is cleared immediately after
-submission. The profile is atomically written with private permissions and never
+submission. The catalog is atomically written with private permissions and never
 contains a token, and no token enters cache or UI IR; fixture paths remain
 test-only entrypoints. Verify the persistence contract with
 `--verify-desktop-profile` and the real setup controls with
@@ -535,7 +542,10 @@ separate release steps and are not implied by local ad-hoc signing.
 
 No-argument desktop startup creates an app-private loopback TLS identity and an
 ephemeral local-process credential, starts the bundled Rust `leserpentd`, and
-opens that authority through the same remote client used for saved profiles.
+exposes that authority as the Local Orchestra branch through the same remote
+client used for saved daemon profiles. Managed CA pruning retains the complete
+active remote catalog plus the local authority instead of treating trust as a
+single global slot.
 The supervisor sends SIGTERM first so Rust releases its journal lease, then uses
 a bounded forced-shutdown fallback. Verify the complete start, health,
 shutdown, and immediate-restart path with:

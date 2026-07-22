@@ -289,6 +289,22 @@ uses SIGTERM-first cleanup so journal ownership is released before immediate
 restart; a real .NET-to-Rust verification command covers startup, TLS health,
 shutdown, and restart. The macOS bundler fails closed when the arm64 daemon
 payload is absent.
+The Hub now implements the architecture's actual daemon topology instead of a
+single remote-launch shortcut. A bounded private catalog atomically migrates the
+legacy profile, derives stable IDs from normalized authenticated authorities,
+and renders Local Orchestra plus every saved `leserpentd` as independent daemon
+branches. The Hub remains open while authority-keyed session windows are reused;
+different daemon sessions can run concurrently without sharing runtime state.
+Managed trust pruning retains the full catalog CA set and the local authority.
+A real Avalonia probe verifies the hierarchy and independent Open/Manage controls.
+Each daemon branch now exposes a bounded direct runtime preview. A strict shared
+RemoteClient query sends the canonical read-only `runtime_list` envelope,
+validates unique runtime identities and revision ownership, drops runtime
+endpoints before projection, and renders at most six gewyvern children per card.
+The Hub limits topology reads to four concurrent authorities, cancels them on
+close, marks live versus endpoint-bound cached evidence, and preserves manual
+session opening when a preview is unavailable. The local-orchestra vertical now
+proves this query against a real Rust `leserpentd`, not only a fixture codec.
 The supervisor also rejects symlinked state/daemon boundaries, performs no
 ambient `PATH` daemon discovery, clears the inherited child environment, writes
 all TLS material with atomic owner-only creation, and zeroes exported private
@@ -616,8 +632,8 @@ Remembered desktop CA trust is now copied out of ambient user paths into an
 application-private, content-addressed trust directory. A strict contract proves
 single-PEM parsing, CA and key-usage constraints, atomic/private writes, legacy
 profile migration, valid-certificate replacement rejection, symlink rejection,
-bounded stale-CA pruning, and recognized crash-temporary cleanup. Ephemeral
-connections remain non-persistent.
+bounded set-based stale-CA pruning, and recognized crash-temporary cleanup.
+Ephemeral connections remain non-persistent.
 Android adoption resumes after that paradigm is stable. Windows native-host
 evidence is not a blocking gate.
 

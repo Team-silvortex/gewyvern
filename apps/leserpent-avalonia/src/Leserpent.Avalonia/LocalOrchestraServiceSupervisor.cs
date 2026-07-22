@@ -31,6 +31,7 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
     private readonly string? configuredDaemonPath;
     private readonly string remoteToken;
     private Process? process;
+    private string? managedAuthorityPath;
     private int remotePort;
     private bool disposed;
 
@@ -71,6 +72,7 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                 }
 
                 var authorityPath = certificateStore.Import(caCertificatePath);
+                managedAuthorityPath = authorityPath;
                 var options = CreateRemoteOptions(authorityPath, remotePort, remoteToken);
                 VerifyReadiness(options, process);
                 var profile = new DesktopConnectionProfile
@@ -95,6 +97,17 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                 ShutdownProcessLocked();
             }
             return false;
+        }
+    }
+
+    public string? ManagedAuthorityPath
+    {
+        get
+        {
+            lock (lifecycleGate)
+            {
+                return managedAuthorityPath;
+            }
         }
     }
 
@@ -441,6 +454,13 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
             {
                 throw new InvalidDataException(
                     "local orchestra verification did not reach an owned authority");
+            }
+            using var topologyClient = new RemoteTopologyClient(plan.Options);
+            var topology = topologyClient.LoadAsync("avalonia-hub").GetAwaiter().GetResult();
+            if (topology.Revision != 0 || topology.Runtimes.Count != 0 || topology.IsStale)
+            {
+                throw new InvalidDataException(
+                    "local orchestra topology query did not return its empty owned fleet");
             }
             if (!OperatingSystem.IsWindows())
             {

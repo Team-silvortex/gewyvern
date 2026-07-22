@@ -20,6 +20,7 @@ internal static class StartupFailure
         or InvalidOperationException
         or IOException
         or PlatformNotSupportedException
+        or RemoteQueryException
         or SecurityException
         or UnauthorizedAccessException;
 

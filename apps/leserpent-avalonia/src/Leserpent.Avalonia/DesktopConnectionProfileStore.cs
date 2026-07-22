@@ -145,7 +145,7 @@ internal sealed class DesktopConnectionProfileStore(string path)
         }
     }
 
-    private static void Validate(DesktopConnectionProfile profile)
+    internal static void Validate(DesktopConnectionProfile profile)
     {
         if (profile.SchemaVersion != SchemaVersion)
         {

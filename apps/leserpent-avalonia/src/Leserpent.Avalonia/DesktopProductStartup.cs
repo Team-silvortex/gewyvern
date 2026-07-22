@@ -38,6 +38,42 @@ internal static class DesktopProductStartup
         return profile;
     }
 
+    public static DesktopConnectionCatalog PrepareSavedCatalog(
+        DesktopConnectionCatalog catalog,
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        var changed = false;
+        var connections = new List<DesktopDaemonConnection>(catalog.Connections.Count);
+        foreach (var connection in catalog.Connections)
+        {
+            var importedCertificate = certificateStore.Import(
+                connection.Profile.CertificateAuthorityPath);
+            if (string.Equals(
+                importedCertificate,
+                connection.Profile.CertificateAuthorityPath,
+                StringComparison.Ordinal))
+            {
+                connections.Add(connection);
+                continue;
+            }
+            changed = true;
+            connections.Add(connection with
+            {
+                Profile = connection.Profile with
+                {
+                    CertificateAuthorityPath = importedCertificate,
+                },
+            });
+        }
+        var prepared = changed ? catalog with { Connections = connections } : catalog;
+        if (changed)
+        {
+            catalogStore.Save(prepared);
+        }
+        return prepared;
+    }
+
     public static DesktopProductStartupPlan Resolve(
         DesktopConnectionProfile profile,
         string? submittedToken = null)
