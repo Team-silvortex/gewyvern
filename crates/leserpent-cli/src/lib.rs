@@ -13,6 +13,10 @@ use leserpent_domain::bootstrap::{
     BOOTSTRAP_DOMAIN_SCHEMA_VERSION, BootstrapId, BootstrapIntent, BootstrapTarget,
     BootstrapTransport, CAPABILITY_HOST_BOOTSTRAP, CredentialHandle,
 };
+use leserpent_domain::provisioning::{
+    CAPABILITY_RUNTIME_PROVISION, PROVISIONING_DOMAIN_SCHEMA_VERSION, ProvisioningId,
+    ProvisioningPhase, RuntimeProvisioningIntent,
+};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
     CommandId, CommandOrigin, CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult,
@@ -21,6 +25,10 @@ use leserpent_domain::{
 use leserpent_protocol::bootstrap::{
     BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
     BootstrapResponse, BootstrapResponseEnvelope,
+};
+use leserpent_protocol::provisioning::{
+    PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningRequest, ProvisioningRequestEnvelope,
+    ProvisioningResponse, ProvisioningResponseEnvelope,
 };
 use leserpent_protocol::{
     BootstrapHandoffRequest, BootstrapSessionBindRequest, HealthRequest, PROTOCOL_SCHEMA_VERSION,
@@ -72,6 +80,7 @@ pub enum CliCommand {
     RuntimeRefresh(RuntimeRefreshOptions),
     RuntimeCapabilitiesRefresh(RuntimeRefreshOptions),
     RuntimeDeploy(RuntimeDeployOptions),
+    RuntimeProvision(RuntimeProvisionOptions),
     BootstrapInspect(BootstrapId),
     BootstrapBind(BootstrapId),
     BootstrapDeploy(BootstrapDeployOptions),
@@ -116,6 +125,21 @@ pub struct RuntimeDeployOptions {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeProvisionOptions {
+    pub provisioning_id: ProvisioningId,
+    pub runtime_id: RuntimeId,
+    pub target: BootstrapTarget,
+    pub credential_handle: CredentialHandle,
+    pub wait: Option<ProvisioningWaitOptions>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProvisioningWaitOptions {
+    pub count: u16,
+    pub interval_ms: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CliError {
     Usage(String),
     Configuration(String),
@@ -136,7 +160,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 pub const REMOTE_TRUST_USAGE: &str = "Bootstrap trust alternative:\n  replace --remote-ca PATH with --remote-trust-root PATH --remote-trust-handle vault:leserpent-ca:KEY";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -338,6 +362,10 @@ pub fn parse_args_with_remote(
                 CliCommand::RuntimeDeploy(parse_runtime_deploy(arguments)?),
                 None,
             ),
+            Some("provision") => (
+                CliCommand::RuntimeProvision(parse_runtime_provision(arguments)?),
+                None,
+            ),
             Some(command) => {
                 return Err(CliError::Usage(format!(
                     "unknown runtime command '{command}'"
@@ -453,6 +481,11 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
         CliCommand::BootstrapDeploy(_) => {
             return Err(CliError::Usage(
                 "bootstrap deploy uses the independent bootstrap transport".into(),
+            ));
+        }
+        CliCommand::RuntimeProvision(_) => {
+            return Err(CliError::Usage(
+                "runtime provision uses the independent provisioning transport".into(),
             ));
         }
         CliCommand::RuntimeList(filter) => {
@@ -654,6 +687,32 @@ pub fn bootstrap_request_for(
                 bootstrap_id: deploy.bootstrap_id.clone(),
                 target: deploy.target.clone(),
                 credential_handle: deploy.credential_handle.clone(),
+                requested_by: options.principal.clone(),
+                confirmed: true,
+            },
+        },
+    }))
+}
+
+pub fn provisioning_request_for(
+    options: &CliOptions,
+) -> Result<Option<ProvisioningRequestEnvelope>, CliError> {
+    let CliCommand::RuntimeProvision(provision) = &options.command else {
+        return Ok(None);
+    };
+    Ok(Some(ProvisioningRequestEnvelope {
+        schema_version: PROVISIONING_PROTOCOL_SCHEMA_VERSION,
+        request: ProvisioningRequest {
+            principal: Principal {
+                id: options.principal.clone(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_PROVISION]),
+            intent: RuntimeProvisioningIntent {
+                schema_version: PROVISIONING_DOMAIN_SCHEMA_VERSION,
+                provisioning_id: provision.provisioning_id.clone(),
+                runtime_id: provision.runtime_id.clone(),
+                target: provision.target.clone(),
+                install_credential_handle: provision.credential_handle.clone(),
                 requested_by: options.principal.clone(),
                 confirmed: true,
             },
@@ -936,6 +995,43 @@ pub fn render_bootstrap_response(
             "{}: {}",
             error.code, error.message
         ))),
+    }
+}
+
+pub fn render_provisioning_response(
+    response: &ProvisioningResponseEnvelope,
+    json: bool,
+) -> Result<String, CliError> {
+    if json {
+        return serde_json::to_string(response)
+            .map_err(|error| CliError::Protocol(error.to_string()));
+    }
+    match &response.response {
+        ProvisioningResponse::State(state) => Ok(format!(
+            "provisioning={} runtime={} phase={} target={}:{} endpoint={} registered={} fault={}",
+            safe_cell(state.provisioning_id.as_str()),
+            safe_cell(state.runtime_id.as_str()),
+            provisioning_phase_name(state.phase),
+            safe_cell(&state.target.host),
+            state.target.port,
+            safe_cell(state.endpoint.as_deref().unwrap_or("none")),
+            state.runtime_registered,
+            safe_cell(state.fault_code.as_deref().unwrap_or("none")),
+        )),
+        ProvisioningResponse::Error(error) => Err(CliError::Protocol(format!(
+            "{}: {}",
+            error.code, error.message
+        ))),
+    }
+}
+
+pub fn provisioning_phase_name(phase: ProvisioningPhase) -> &'static str {
+    match phase {
+        ProvisioningPhase::Planned => "planned",
+        ProvisioningPhase::Installing => "installing",
+        ProvisioningPhase::ServiceReady => "service_ready",
+        ProvisioningPhase::RuntimeRegistered => "runtime_registered",
+        ProvisioningPhase::Failed => "failed",
     }
 }
 
@@ -1237,20 +1333,63 @@ pub fn send_bootstrap_request(
     token: &str,
     request: &BootstrapRequestEnvelope,
 ) -> Result<BootstrapResponseEnvelope, CliError> {
+    use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, decode_bootstrap_response};
+
+    let response = send_routed_ipc_request(
+        socket,
+        token,
+        "bootstrap_v1",
+        "bootstrap",
+        request,
+        MAX_BOOTSTRAP_PROTOCOL_BYTES,
+    )?;
+    decode_bootstrap_response(&response).map_err(|error| CliError::Protocol(format!("{error:?}")))
+}
+
+#[cfg(unix)]
+pub fn send_provisioning_request(
+    socket: &std::path::Path,
+    token: &str,
+    request: &ProvisioningRequestEnvelope,
+) -> Result<ProvisioningResponseEnvelope, CliError> {
+    use leserpent_protocol::provisioning::{
+        MAX_PROVISIONING_PROTOCOL_BYTES, decode_provisioning_response,
+    };
+
+    let response = send_routed_ipc_request(
+        socket,
+        token,
+        "provisioning_v1",
+        "provisioning",
+        request,
+        MAX_PROVISIONING_PROTOCOL_BYTES,
+    )?;
+    decode_provisioning_response(&response)
+        .map_err(|error| CliError::Protocol(format!("{error:?}")))
+}
+
+#[cfg(unix)]
+fn send_routed_ipc_request(
+    socket: &std::path::Path,
+    token: &str,
+    route: &'static str,
+    scope: &'static str,
+    request: &impl serde::Serialize,
+    protocol_limit: usize,
+) -> Result<Vec<u8>, CliError> {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::fs::{FileTypeExt, PermissionsExt};
     use std::os::unix::net::UnixStream;
     use std::time::Duration;
 
-    use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, decode_bootstrap_response};
     use serde::Serialize;
     use zeroize::Zeroizing;
 
     #[derive(Serialize)]
-    struct AuthenticatedBootstrapRequest<'a> {
+    struct AuthenticatedRoutedRequest<'a, T> {
         token: &'a str,
         route: &'static str,
-        request: &'a BootstrapRequestEnvelope,
+        request: &'a T,
     }
 
     validate_token(token)?;
@@ -1281,17 +1420,17 @@ pub fn send_bootstrap_request(
         .set_write_timeout(Some(Duration::from_secs(3)))
         .map_err(|error| CliError::Transport(error.to_string()))?;
     let mut encoded = Zeroizing::new(
-        serde_json::to_vec(&AuthenticatedBootstrapRequest {
+        serde_json::to_vec(&AuthenticatedRoutedRequest {
             token,
-            route: "bootstrap_v1",
+            route,
             request,
         })
         .map_err(|error| CliError::Protocol(error.to_string()))?,
     );
-    if encoded.len() > MAX_BOOTSTRAP_PROTOCOL_BYTES + 1024 {
-        return Err(CliError::Protocol(
-            "authenticated bootstrap request is too large".into(),
-        ));
+    if encoded.len() > protocol_limit + 1024 {
+        return Err(CliError::Protocol(format!(
+            "authenticated {scope} request is too large"
+        )));
     }
     encoded.push(b'\n');
     stream
@@ -1299,16 +1438,27 @@ pub fn send_bootstrap_request(
         .map_err(|error| CliError::Transport(error.to_string()))?;
     let mut response = Vec::new();
     BufReader::new(stream)
-        .take((MAX_BOOTSTRAP_PROTOCOL_BYTES + 1) as u64)
+        .take((protocol_limit + 1) as u64)
         .read_until(b'\n', &mut response)
         .map_err(|error| CliError::Transport(error.to_string()))?;
-    if response.len() > MAX_BOOTSTRAP_PROTOCOL_BYTES || !response.ends_with(b"\n") {
-        return Err(CliError::Protocol(
-            "daemon bootstrap response is missing or exceeds the protocol limit".into(),
-        ));
+    if response.len() > protocol_limit || !response.ends_with(b"\n") {
+        return Err(CliError::Protocol(format!(
+            "daemon {scope} response is missing or exceeds the protocol limit"
+        )));
     }
     response.pop();
-    decode_bootstrap_response(&response).map_err(|error| CliError::Protocol(format!("{error:?}")))
+    Ok(response)
+}
+
+#[cfg(not(unix))]
+pub fn send_provisioning_request(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &ProvisioningRequestEnvelope,
+) -> Result<ProvisioningResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon provisioning transport is not implemented on this platform".into(),
+    ))
 }
 
 #[cfg(not(unix))]
@@ -1613,31 +1763,11 @@ fn parse_runtime_watch(
         match argument.as_str() {
             "--count" if !count_set => {
                 count_set = true;
-                let value = arguments
-                    .next()
-                    .ok_or_else(|| CliError::Usage("--count requires an integer".into()))?;
-                count = value.parse().map_err(|_| {
-                    CliError::Usage("--count requires an integer from 1 to 1000".into())
-                })?;
-                if !(1..=1_000).contains(&count) {
-                    return Err(CliError::Usage(
-                        "--count requires an integer from 1 to 1000".into(),
-                    ));
-                }
+                count = parse_observation_count(arguments.next())?;
             }
             "--interval-ms" if !interval_set => {
                 interval_set = true;
-                let value = arguments
-                    .next()
-                    .ok_or_else(|| CliError::Usage("--interval-ms requires an integer".into()))?;
-                interval_ms = value.parse().map_err(|_| {
-                    CliError::Usage("--interval-ms requires an integer from 50 to 60000".into())
-                })?;
-                if !(50..=60_000).contains(&interval_ms) {
-                    return Err(CliError::Usage(
-                        "--interval-ms requires an integer from 50 to 60000".into(),
-                    ));
-                }
+                interval_ms = parse_observation_interval(arguments.next())?;
             }
             "--count" | "--interval-ms" => {
                 return Err(CliError::Usage(format!(
@@ -1656,6 +1786,152 @@ fn parse_runtime_watch(
         count,
         interval_ms,
     })
+}
+
+fn parse_runtime_provision(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<RuntimeProvisionOptions, CliError> {
+    let runtime_id = arguments
+        .next()
+        .ok_or_else(|| CliError::Usage("runtime provision requires RUNTIME_ID".into()))?;
+    let runtime_id =
+        RuntimeId::new(runtime_id).map_err(|error| CliError::Usage(error.to_string()))?;
+    let mut provisioning_id = None;
+    let mut host = None;
+    let mut port = 22_u16;
+    let mut port_seen = false;
+    let mut credential_handle = None;
+    let mut confirmed = false;
+    let mut wait = false;
+    let mut count = 30_u16;
+    let mut count_seen = false;
+    let mut interval_ms = 1_000_u64;
+    let mut interval_seen = false;
+
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--provisioning-id" if provisioning_id.is_none() => {
+                provisioning_id =
+                    Some(
+                        ProvisioningId::new(arguments.next().ok_or_else(|| {
+                            CliError::Usage("--provisioning-id requires ID".into())
+                        })?)
+                        .map_err(|error| CliError::Usage(error.to_string()))?,
+                    );
+            }
+            "--host" if host.is_none() => {
+                host = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| CliError::Usage("--host requires HOST".into()))?,
+                );
+            }
+            "--port" if !port_seen => {
+                port_seen = true;
+                port = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--port requires PORT".into()))?
+                    .parse()
+                    .map_err(|_| CliError::Usage("provisioning port is invalid".into()))?;
+            }
+            "--credential-handle" if credential_handle.is_none() => {
+                let handle = CredentialHandle::new(arguments.next().ok_or_else(|| {
+                    CliError::Usage("--credential-handle requires vault:ssh:KEY".into())
+                })?)
+                .map_err(|_| CliError::Usage("provisioning credential handle is invalid".into()))?;
+                if handle.parts().0 != "ssh" {
+                    return Err(CliError::Usage(
+                        "provisioning credential handle must use the ssh vault provider".into(),
+                    ));
+                }
+                credential_handle = Some(handle);
+            }
+            "--yes" if !confirmed => confirmed = true,
+            "--wait" if !wait => wait = true,
+            "--count" if !count_seen => {
+                count_seen = true;
+                count = parse_observation_count(arguments.next())?;
+            }
+            "--interval-ms" if !interval_seen => {
+                interval_seen = true;
+                interval_ms = parse_observation_interval(arguments.next())?;
+            }
+            "--provisioning-id"
+            | "--host"
+            | "--port"
+            | "--credential-handle"
+            | "--yes"
+            | "--wait"
+            | "--count"
+            | "--interval-ms" => {
+                return Err(CliError::Usage(format!(
+                    "{argument} was provided more than once"
+                )));
+            }
+            _ => {
+                return Err(CliError::Usage(format!(
+                    "unknown runtime provision option '{argument}'"
+                )));
+            }
+        }
+    }
+    if !confirmed {
+        return Err(CliError::Usage(
+            "runtime provision requires explicit --yes confirmation".into(),
+        ));
+    }
+    if !wait && (count_seen || interval_seen) {
+        return Err(CliError::Usage(
+            "--count and --interval-ms require --wait".into(),
+        ));
+    }
+    let target = BootstrapTarget {
+        transport: BootstrapTransport::Ssh,
+        host: host.ok_or_else(|| CliError::Usage("runtime provision requires --host".into()))?,
+        port,
+    };
+    target
+        .validate()
+        .map_err(|_| CliError::Usage("provisioning target is invalid".into()))?;
+    Ok(RuntimeProvisionOptions {
+        provisioning_id: provisioning_id.ok_or_else(|| {
+            CliError::Usage("runtime provision requires --provisioning-id".into())
+        })?,
+        runtime_id,
+        target,
+        credential_handle: credential_handle.ok_or_else(|| {
+            CliError::Usage("runtime provision requires --credential-handle".into())
+        })?,
+        wait: wait.then_some(ProvisioningWaitOptions { count, interval_ms }),
+    })
+}
+
+fn parse_observation_count(value: Option<String>) -> Result<u16, CliError> {
+    let count = value
+        .ok_or_else(|| CliError::Usage("--count requires an integer".into()))?
+        .parse()
+        .map_err(|_| CliError::Usage("--count requires an integer from 1 to 1000".into()))?;
+    if !(1..=1_000).contains(&count) {
+        return Err(CliError::Usage(
+            "--count requires an integer from 1 to 1000".into(),
+        ));
+    }
+    Ok(count)
+}
+
+fn parse_observation_interval(value: Option<String>) -> Result<u64, CliError> {
+    let interval_ms = value
+        .ok_or_else(|| CliError::Usage("--interval-ms requires an integer".into()))?
+        .parse()
+        .map_err(|_| {
+            CliError::Usage("--interval-ms requires an integer from 50 to 60000".into())
+        })?;
+    if !(50..=60_000).contains(&interval_ms) {
+        return Err(CliError::Usage(
+            "--interval-ms requires an integer from 50 to 60000".into(),
+        ));
+    }
+    Ok(interval_ms)
 }
 
 fn reject_trailing(mut arguments: impl Iterator<Item = String>) -> Result<(), CliError> {
@@ -2408,5 +2684,148 @@ mod tests {
                 ..
             }) if bootstrap_id.as_str() == "bootstrap-1"
         ));
+    }
+
+    #[test]
+    fn provisioning_cli_requires_confirmation_and_builds_a_bounded_identity_request() {
+        let options = parse_args(
+            [
+                "runtime",
+                "provision",
+                "runtime-new",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--port",
+                "2222",
+                "--credential-handle",
+                "vault:ssh:runtime-example",
+                "--yes",
+                "--wait",
+                "--count",
+                "3",
+                "--interval-ms",
+                "50",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            &options.command,
+            CliCommand::RuntimeProvision(RuntimeProvisionOptions {
+                provisioning_id,
+                runtime_id,
+                target,
+                wait: Some(ProvisioningWaitOptions {
+                    count: 3,
+                    interval_ms: 50,
+                }),
+                ..
+            }) if provisioning_id.as_str() == "provision-cli-1"
+                && runtime_id.as_str() == "runtime-new"
+                && target.host == "runtime.example"
+                && target.port == 2222
+        ));
+        let request = provisioning_request_for(&options).unwrap().unwrap();
+        assert_eq!(request.request.principal.id, "operator-a");
+        assert_eq!(request.request.intent.requested_by, "operator-a");
+        assert!(request.request.intent.confirmed);
+        assert_eq!(
+            request.request.intent.install_credential_handle.parts(),
+            ("ssh", "runtime-example")
+        );
+        assert!(request_for(&options).is_err());
+
+        for arguments in [
+            vec![
+                "runtime",
+                "provision",
+                "runtime-new",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:ssh:runtime-example",
+            ],
+            vec![
+                "runtime",
+                "provision",
+                "runtime-new",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:ssh:runtime-example",
+                "--yes",
+                "--count",
+                "3",
+            ],
+            vec![
+                "runtime",
+                "provision",
+                "runtime-new",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:api:wrong-provider",
+                "--yes",
+            ],
+        ] {
+            assert!(
+                parse_args(
+                    arguments.into_iter().map(str::to_string),
+                    Some(PathBuf::from("/tmp/leserpent.sock")),
+                    Some("operator-a".into()),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn provisioning_renderer_exposes_progress_without_install_credentials() {
+        let options = parse_args(
+            [
+                "runtime",
+                "provision",
+                "runtime-new",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:ssh:secret-alias",
+                "--yes",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let request = provisioning_request_for(&options).unwrap().unwrap();
+        let provisioning = leserpent_domain::provisioning::RuntimeProvisioning::plan(
+            &request.request.principal,
+            &request.request.capabilities,
+            request.request.intent,
+        )
+        .unwrap();
+        let response = ProvisioningResponseEnvelope {
+            schema_version: PROVISIONING_PROTOCOL_SCHEMA_VERSION,
+            response: ProvisioningResponse::State(provisioning.snapshot()),
+        };
+        let rendered = render_provisioning_response(&response, false).unwrap();
+        assert!(rendered.contains("phase=planned"));
+        assert!(rendered.contains("registered=false"));
+        assert!(!rendered.contains("secret-alias"));
+        assert!(!rendered.contains("credential"));
     }
 }

@@ -3,11 +3,14 @@ use std::time::Duration;
 use std::{io, io::Write};
 
 use leserpent_cli::{
-    CliCommand, CliError, HttpsClient, RemoteTrust, RuntimeWatchOptions, bootstrap_request_for,
-    export_leselang, export_plan, parse_args_with_remote, render_bootstrap_response,
-    render_response, request_for, send_bootstrap_request, send_request,
+    CliCommand, CliError, HttpsClient, ProvisioningWaitOptions, RemoteTrust, RuntimeWatchOptions,
+    bootstrap_request_for, export_leselang, export_plan, parse_args_with_remote,
+    provisioning_phase_name, provisioning_request_for, render_bootstrap_response,
+    render_provisioning_response, render_response, request_for, send_bootstrap_request,
+    send_provisioning_request, send_request,
 };
 use leserpent_domain::QueryResult;
+use leserpent_domain::provisioning::ProvisioningPhase;
 use leserpent_protocol::{ProtocolResponse, RequestEnvelope};
 use zeroize::Zeroizing;
 
@@ -83,6 +86,12 @@ fn run() -> Result<i32, CliError> {
         }
         return Ok(if is_error { 3 } else { 0 });
     }
+    if let Some(request) = provisioning_request_for(&options)? {
+        let CliCommand::RuntimeProvision(provision) = &options.command else {
+            unreachable!("provisioning request requires a runtime provision command");
+        };
+        return run_provisioning(&transport, &request, provision.wait, options.json);
+    }
     let request = request_for(&options)?;
     if let CliCommand::RuntimeWatch(watch) = &options.command {
         return run_watch(&transport, &request, watch, options.json);
@@ -98,6 +107,54 @@ fn run() -> Result<i32, CliError> {
         Err(error) => return Err(error),
     }
     Ok(if is_error { 3 } else { 0 })
+}
+
+fn run_provisioning(
+    transport: &ActiveTransport,
+    request: &leserpent_protocol::provisioning::ProvisioningRequestEnvelope,
+    wait: Option<ProvisioningWaitOptions>,
+    json: bool,
+) -> Result<i32, CliError> {
+    let observations = wait.map_or(1, |options| options.count);
+    let mut last_phase = None;
+    for observation in 0..observations {
+        let response = transport.send_provisioning(request)?;
+        match &response.response {
+            leserpent_protocol::provisioning::ProvisioningResponse::Error(_) => {
+                let error = render_provisioning_response(&response, json).unwrap_err();
+                eprintln!("leserpent: {error}");
+                return Ok(3);
+            }
+            leserpent_protocol::provisioning::ProvisioningResponse::State(state) => {
+                if last_phase != Some(state.phase) {
+                    println!("{}", render_provisioning_response(&response, json)?);
+                    io::stdout()
+                        .flush()
+                        .map_err(|error| CliError::Transport(error.to_string()))?;
+                    last_phase = Some(state.phase);
+                }
+                match state.phase {
+                    ProvisioningPhase::RuntimeRegistered => return Ok(0),
+                    ProvisioningPhase::Failed => return Ok(4),
+                    _ if wait.is_none() => return Ok(0),
+                    _ => {}
+                }
+            }
+        }
+        if observation + 1 < observations {
+            std::thread::sleep(Duration::from_millis(
+                wait.expect("multiple observations require wait options")
+                    .interval_ms,
+            ));
+        }
+    }
+    let provisioning_id = request.request.intent.provisioning_id.as_str();
+    let phase = last_phase.map(provisioning_phase_name).unwrap_or("unknown");
+    eprintln!(
+        "leserpent: provisioning {} did not reach a terminal phase after {} observations (last_phase={})",
+        provisioning_id, observations, phase
+    );
+    Ok(5)
 }
 
 fn run_watch(
@@ -164,6 +221,18 @@ impl ActiveTransport {
                 send_bootstrap_request(socket, token.as_str(), request)
             }
             Self::Remote(client) => client.send_bootstrap(request),
+        }
+    }
+
+    fn send_provisioning(
+        &self,
+        request: &leserpent_protocol::provisioning::ProvisioningRequestEnvelope,
+    ) -> Result<leserpent_protocol::provisioning::ProvisioningResponseEnvelope, CliError> {
+        match self {
+            Self::Local { socket, token } => {
+                send_provisioning_request(socket, token.as_str(), request)
+            }
+            Self::Remote(client) => client.send_provisioning(request),
         }
     }
 }

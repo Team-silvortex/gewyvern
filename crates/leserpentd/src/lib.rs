@@ -132,9 +132,10 @@ impl DaemonHost {
                 return Ok(WorkerStep::Idle);
             };
             let cancelled = AtomicBool::new(false);
-            let execution = self
-                .registry
-                .execute_lease(&lease, &EffectContext::new(&cancelled));
+            let execution = self.preflight_execution(&lease).unwrap_or_else(|| {
+                self.registry
+                    .execute_lease(&lease, &EffectContext::new(&cancelled))
+            });
             self.settle_execution(&lease, execution)?
         };
         self.record_step(&step);
@@ -168,14 +169,24 @@ impl DaemonHost {
             return Ok(steps);
         }
 
+        let leases = leases
+            .into_iter()
+            .map(|lease| {
+                let preflight = self.preflight_execution(&lease);
+                (lease, preflight)
+            })
+            .collect::<Vec<_>>();
         let registry = self.registry.clone();
         let executions = thread::scope(|scope| {
             let handles = leases
                 .into_iter()
-                .map(|lease| {
+                .map(|(lease, preflight)| {
                     let registry = registry.clone();
                     let fallback_lease = lease.clone();
                     let handle = scope.spawn(move || {
+                        if let Some(execution) = preflight {
+                            return (lease, execution);
+                        }
                         let context = EffectContext::new(cancelled);
                         let execution = registry.execute_lease(&lease, &context);
                         (lease, execution)
@@ -205,6 +216,26 @@ impl DaemonHost {
             steps.push(step);
         }
         Ok(steps)
+    }
+
+    fn preflight_execution(&self, lease: &EffectLease) -> Option<EffectExecution> {
+        if lease.kind != GEWYVERN_PROVISIONING_EFFECT_KIND {
+            return None;
+        }
+        let request = match decode_provisioning_request(&lease.payload) {
+            Ok(request) => request,
+            Err(_) => {
+                return Some(EffectExecution::Reject {
+                    error: "provisioning persisted request was rejected".into(),
+                });
+            }
+        };
+        self.runtime
+            .runtime_projection(&request.request.intent.runtime_id)
+            .is_some()
+            .then(|| EffectExecution::Reject {
+                error: "provisioning runtime identity became unavailable before dispatch".into(),
+            })
     }
 
     pub fn run_steps(&mut self, steps: u64) -> Result<DaemonStats, RuntimeError> {
@@ -329,8 +360,13 @@ impl DaemonHost {
                     });
                 }
             };
-        self.runtime
-            .complete_provisioning_effect(lease, &outcome, &checkpoint)?;
+        if checkpoint.state.phase == ProvisioningPhase::ServiceReady {
+            self.runtime
+                .complete_provisioning_effect_and_register(lease, &outcome, &checkpoint)?;
+        } else {
+            self.runtime
+                .complete_provisioning_effect(lease, &outcome, &checkpoint)?;
+        }
         Ok(WorkerStep::Completed {
             effect_id: lease.effect_id.clone(),
             attempt: lease.attempt,
@@ -528,6 +564,10 @@ mod tests {
         outcome: Vec<u8>,
     }
 
+    struct TrackingProvisioningAdapter {
+        called: Arc<AtomicBool>,
+    }
+
     impl EffectAdapter for FixedProvisioningAdapter {
         fn kind(&self) -> &str {
             GEWYVERN_PROVISIONING_EFFECT_KIND
@@ -535,6 +575,19 @@ mod tests {
 
         fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
             EffectExecution::Complete(self.outcome.clone())
+        }
+    }
+
+    impl EffectAdapter for TrackingProvisioningAdapter {
+        fn kind(&self) -> &str {
+            GEWYVERN_PROVISIONING_EFFECT_KIND
+        }
+
+        fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
+            self.called.store(true, Ordering::Release);
+            EffectExecution::Reject {
+                error: "tracking adapter must not execute".into(),
+            }
         }
     }
 
@@ -1200,9 +1253,10 @@ mod tests {
     }
 
     #[test]
-    fn provisioning_submission_reaches_service_ready_and_survives_restart() {
-        let path = temp_database("provisioning-service-ready-restart");
+    fn provisioning_submission_registers_runtime_atomically_and_survives_restart() {
+        let path = temp_database("provisioning-runtime-registered-restart");
         let (request, outcome, provisioning_id) = provisioning_request_and_outcome();
+        let runtime_id = leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap();
         let mut runtime = ControlRuntime::open(&path).unwrap();
         let submitted =
             crate::provisioning_submission::decode_and_submit(&mut runtime, &request, true);
@@ -1238,9 +1292,12 @@ mod tests {
             .provisioning_checkpoint(&provisioning_id)
             .unwrap()
             .unwrap();
-        assert_eq!(checkpoint.revision, 2);
-        assert_eq!(checkpoint.state.phase, ProvisioningPhase::ServiceReady);
+        assert_eq!(checkpoint.revision, 3);
+        assert_eq!(checkpoint.state.phase, ProvisioningPhase::RuntimeRegistered);
         assert!(checkpoint.install_credential_handle.is_none());
+        let projection = host.runtime_mut().runtime_projection(&runtime_id).unwrap();
+        assert_eq!(projection.name, "runtime-provisioned-1");
+        assert_eq!(projection.endpoint, "https://runtime-host.example:9443");
 
         drop(host);
         let mut restarted = ControlRuntime::open(&path).unwrap();
@@ -1249,14 +1306,140 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(restored, checkpoint);
+        assert_eq!(
+            restarted.runtime_projection(&runtime_id).unwrap().endpoint,
+            "https://runtime-host.example:9443"
+        );
         let terminal_replay =
             crate::provisioning_submission::decode_and_submit(&mut restarted, &request, true);
         assert!(matches!(
             terminal_replay.response,
             ProvisioningResponse::State(ref state)
-                if state.phase == ProvisioningPhase::ServiceReady
+                if state.phase == ProvisioningPhase::RuntimeRegistered
         ));
         drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn provisioning_rejects_registered_runtime_identity_before_effect_submission() {
+        let path = temp_database("provisioning-runtime-identity-preflight");
+        let (request, _, provisioning_id) = provisioning_request_and_outcome();
+        let runtime_id = leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .register_runtime(
+                runtime_id,
+                "existing-runtime",
+                "https://existing.example:9443",
+            )
+            .unwrap();
+
+        let response =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request, true);
+        assert!(matches!(
+            response.response,
+            ProvisioningResponse::Error(ref error)
+                if error.provisioning_id.as_ref() == Some(&provisioning_id)
+                    && error.code == "runtime_identity_conflict"
+        ));
+        assert!(
+            runtime
+                .provisioning_checkpoint(&provisioning_id)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(runtime.effect_queue_stats().unwrap().active(), 0);
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn provisioning_worker_rechecks_runtime_identity_before_batch_adapter_dispatch() {
+        let path = temp_database("provisioning-runtime-identity-dispatch-race");
+        let (request, _, provisioning_id) = provisioning_request_and_outcome();
+        let runtime_id = leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let submitted =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request, true);
+        assert!(matches!(submitted.response, ProvisioningResponse::State(_)));
+        runtime
+            .register_runtime(
+                runtime_id,
+                "competing-runtime",
+                "https://competing.example:9443",
+            )
+            .unwrap();
+        let called = Arc::new(AtomicBool::new(false));
+        let mut registry = AdapterRegistry::default();
+        registry
+            .register(TrackingProvisioningAdapter {
+                called: Arc::clone(&called),
+            })
+            .unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+
+        assert!(matches!(
+            host.tick_batch(&AtomicBool::new(false)).unwrap().as_slice(),
+            [WorkerStep::Rejected { attempt: 1, .. }]
+        ));
+        assert!(!called.load(Ordering::Acquire));
+        let checkpoint = host
+            .runtime_mut()
+            .provisioning_checkpoint(&provisioning_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(checkpoint.revision, 1);
+        assert_eq!(checkpoint.state.phase, ProvisioningPhase::Planned);
+        drop(host);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn provisioning_submission_promotes_a_legacy_ready_checkpoint() {
+        let path = temp_database("provisioning-legacy-ready-promotion");
+        let (request_bytes, outcome, provisioning_id) = provisioning_request_and_outcome();
+        let request = decode_provisioning_request(&request_bytes).unwrap();
+        let runtime_id = request.request.intent.runtime_id.clone();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let submitted =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request_bytes, true);
+        assert!(matches!(submitted.response, ProvisioningResponse::State(_)));
+        let lease = runtime
+            .claim_effect("legacy-worker", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        let planned = runtime
+            .provisioning_checkpoint(&provisioning_id)
+            .unwrap()
+            .unwrap();
+        let ready =
+            checkpoint_from_provisioning_effect(&request, &outcome, Some(&planned)).unwrap();
+        runtime
+            .complete_provisioning_effect(&lease, &outcome, &ready)
+            .unwrap();
+        assert_eq!(
+            runtime
+                .provisioning_checkpoint(&provisioning_id)
+                .unwrap()
+                .unwrap()
+                .state
+                .phase,
+            ProvisioningPhase::ServiceReady
+        );
+
+        let promoted =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request_bytes, true);
+        assert!(matches!(
+            promoted.response,
+            ProvisioningResponse::State(ref state)
+                if state.phase == ProvisioningPhase::RuntimeRegistered
+        ));
+        assert_eq!(
+            runtime.runtime_projection(&runtime_id).unwrap().endpoint,
+            "https://runtime-host.example:9443"
+        );
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 

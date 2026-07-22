@@ -115,10 +115,12 @@ explicit Unix IPC `provisioning_v1` route. Submission stays disabled unless the
 daemon registry contains the dedicated `gewyvern.runtime.provision` adapter.
 
 The adapter resolves only a validated `vault:ssh:<key>` installation handle and
-never serializes the resolved secret. A successful effect may settle only to
-`service_ready`; a bounded fault settles to `failed`. Daemon settlement verifies
-the provisioning ID, runtime ID, target, planned revision, and retired credential
-before committing the outcome and checkpoint atomically.
+never serializes the resolved secret. Its successful outcome carries
+`service_ready`; a bounded fault carries `failed`. Daemon settlement verifies the
+provisioning ID, runtime ID, target, planned revision, and retired credential. A
+failed outcome atomically completes at `failed`; a successful outcome derives an
+authority-owned proof and commits effect completion, the runtime registration
+journal entry, and revision-3 `runtime_registered` checkpoint in one transaction.
 
 `leserpent_protocol::gewyvern_installer` owns the separate internal installer
 wire used by the host-key-pinned native SSH channel. Its strict request and
@@ -136,9 +138,20 @@ endpoint, and API/trust handles without containing secret text. A valid
 `installed` response writes no controller trust and returns no service receipt.
 A valid `ready` response must persist its endpoint-bound CA under the namespaced
 `gewyvern-ca` handle before a receipt can leave the adapter. Target-side native
-activation and authenticated health proof are implemented; atomic conversion of
-the receipt into the later authority-owned registration proof remains the next
-layer.
+activation, authenticated health proof, and daemon-owned registration are
+implemented. Runtime ID conflict is rejected before adapter dispatch, a lost
+effect lease rolls registration and checkpoint writes back together, and legacy
+revision-2 `service_ready` checkpoints promote through the same transaction after
+restart. No public provisioning wire field was added for this authority handoff.
+
+The native CLI consumes this unchanged draft envelope through a separate
+`runtime provision` command. Execution requires `--yes`, an explicit stable
+provisioning ID, target, and `vault:ssh:*` handle. Local execution selects only
+the `provisioning_v1` IPC route; remote execution selects only authenticated
+`POST /v1/provisioning`. Optional bounded polling resubmits the identical request,
+so a network retry cannot silently create another installation. Human progress
+omits credential handles, and terminal failure, protocol rejection, and polling
+exhaustion use distinct process outcomes. `runtime.deploy` remains unchanged.
 
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure

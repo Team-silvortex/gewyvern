@@ -3,8 +3,9 @@ use leserpent_domain::bootstrap::{
     DeploymentBootstrapCheckpoint, DeploymentBootstrapSnapshot,
 };
 use leserpent_domain::provisioning::{
-    ProvisioningError, ProvisioningId, ProvisioningPhase, RuntimeProvisioning,
-    RuntimeProvisioningCheckpoint, RuntimeProvisioningSnapshot, RuntimeRegistrationProof,
+    PROVISIONING_SERVICE_PROTOCOL_VERSION, ProvisioningError, ProvisioningId, ProvisioningPhase,
+    RuntimeProvisioning, RuntimeProvisioningCheckpoint, RuntimeProvisioningSnapshot,
+    RuntimeRegistrationProof,
 };
 use leserpent_domain::{
     CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
@@ -835,37 +836,134 @@ impl ControlRuntime {
         let checkpoint = self
             .provisioning_checkpoint(provisioning_id)?
             .ok_or_else(|| RuntimeError::Storage("provisioning checkpoint was not found".into()))?;
+        if checkpoint.state.phase == ProvisioningPhase::RuntimeRegistered {
+            let mut provisioning =
+                RuntimeProvisioning::resume(&checkpoint).map_err(RuntimeError::Provisioning)?;
+            return provisioning
+                .accept_registration(proof)
+                .map_err(RuntimeError::Provisioning);
+        }
+        self.commit_provisioning_registration(&checkpoint, proof, None)
+    }
+
+    pub fn register_ready_provisioning(
+        &mut self,
+        provisioning_id: &ProvisioningId,
+    ) -> Result<RuntimeProvisioningSnapshot, RuntimeError> {
+        let checkpoint = self
+            .provisioning_checkpoint(provisioning_id)?
+            .ok_or_else(|| RuntimeError::Storage("provisioning checkpoint was not found".into()))?;
+        if checkpoint.state.phase == ProvisioningPhase::RuntimeRegistered {
+            return Ok(checkpoint.state);
+        }
+        let proof = registration_proof_from_ready(&checkpoint)?;
+        self.commit_provisioning_registration(&checkpoint, proof, None)
+    }
+
+    pub fn complete_provisioning_effect_and_register(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+        ready: &RuntimeProvisioningCheckpoint,
+    ) -> Result<RuntimeProvisioningSnapshot, RuntimeError> {
+        let proof = registration_proof_from_ready(ready)?;
+        self.commit_provisioning_registration(ready, proof, Some((lease, outcome)))
+    }
+
+    fn commit_provisioning_registration(
+        &mut self,
+        ready: &RuntimeProvisioningCheckpoint,
+        proof: RuntimeRegistrationProof,
+        leased_effect: Option<(&EffectLease, &[u8])>,
+    ) -> Result<RuntimeProvisioningSnapshot, RuntimeError> {
+        ready.validate().map_err(RuntimeError::Provisioning)?;
+        if ready.revision != 2 || ready.state.phase != ProvisioningPhase::ServiceReady {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "provisioning registration requires a revision-2 ready checkpoint",
+            ));
+        }
+        let current = self
+            .provisioning_checkpoint(&ready.state.provisioning_id)?
+            .ok_or_else(|| RuntimeError::Storage("provisioning checkpoint was not found".into()))?;
+        match leased_effect {
+            Some(_) => {
+                if current.revision != 1
+                    || current.state.phase != ProvisioningPhase::Planned
+                    || current.state.provisioning_id != ready.state.provisioning_id
+                    || current.state.runtime_id != ready.state.runtime_id
+                    || current.state.target != ready.state.target
+                {
+                    return Err(RuntimeError::InvalidEffectOutcome(
+                        "planned provisioning checkpoint does not bind the ready service",
+                    ));
+                }
+            }
+            None if current != *ready => {
+                return Err(RuntimeError::InvalidEffectOutcome(
+                    "ready provisioning checkpoint changed before registration",
+                ));
+            }
+            None => {}
+        }
         let mut provisioning =
-            RuntimeProvisioning::resume(&checkpoint).map_err(RuntimeError::Provisioning)?;
+            RuntimeProvisioning::resume(ready).map_err(RuntimeError::Provisioning)?;
         let state = provisioning
             .accept_registration(proof)
             .map_err(RuntimeError::Provisioning)?;
-        if checkpoint.state.phase == ProvisioningPhase::RuntimeRegistered {
-            return Ok(state);
-        }
-        let next_revision = checkpoint
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| RuntimeError::Storage("provisioning revision overflow".into()))?;
-        let next = provisioning
-            .checkpoint(next_revision)
+        let registered = provisioning
+            .checkpoint(3)
             .map_err(RuntimeError::Provisioning)?;
-        let payload =
-            serde_json::to_vec(&next).map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let checkpoint_payload = serde_json::to_vec(&registered)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let runtime_id = state.runtime_id.clone();
+        let runtime_name = runtime_id.as_str().to_string();
+        let endpoint = state
+            .endpoint
+            .clone()
+            .ok_or(RuntimeError::InvalidEffectOutcome(
+                "registered provisioning state has no endpoint",
+            ))?;
+        let mut staged = self.control.clone();
+        let registration = match staged.runtime_projection(&runtime_id) {
+            Some(existing) if existing.name == runtime_name && existing.endpoint == endpoint => {
+                None
+            }
+            Some(_) => {
+                return Err(RuntimeError::Storage(format!(
+                    "runtime '{}' is already registered with different authority",
+                    runtime_id.as_str()
+                )));
+            }
+            None => {
+                staged.register_runtime(runtime_id.clone(), runtime_name.clone(), endpoint.clone());
+                Some(RuntimeRegistration {
+                    runtime_id: runtime_id.as_str().to_string(),
+                    name: runtime_name,
+                    endpoint,
+                })
+            }
+        };
+        let registration_payload = registration
+            .as_ref()
+            .map(serde_json::to_vec)
+            .transpose()
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
         let Some(journal) = &mut self.journal else {
             return Err(RuntimeError::Storage(
                 "runtime provisioning requires persistent storage".into(),
             ));
         };
         journal
-            .update_authority_checkpoint(
-                persistence::AUTHORITY_KIND_GEWYVERN_PROVISIONING,
-                provisioning_id.as_str(),
-                checkpoint.revision,
-                provisioning_phase_label(next.state.phase),
-                &payload,
+            .commit_provisioning_registration(
+                leased_effect,
+                registration_payload.as_deref(),
+                state.provisioning_id.as_str(),
+                current.revision,
+                registered.revision,
+                &checkpoint_payload,
             )
             .map_err(RuntimeError::Storage)?;
+        self.control = staged;
         Ok(state)
     }
 
@@ -1083,6 +1181,10 @@ impl ControlRuntime {
             return Ok(existing.clone());
         }
         self.register_runtime(id, name, endpoint)
+    }
+
+    pub fn runtime_projection(&self, runtime_id: &RuntimeId) -> Option<&RuntimeProjection> {
+        self.control.runtime_projection(runtime_id)
     }
 
     pub fn append_runtime_log(
@@ -1381,6 +1483,40 @@ fn bootstrap_phase_label(phase: BootstrapPhase) -> &'static str {
         BootstrapPhase::SessionBound => "session_bound",
         BootstrapPhase::Failed => "failed",
     }
+}
+
+fn registration_proof_from_ready(
+    checkpoint: &RuntimeProvisioningCheckpoint,
+) -> Result<RuntimeRegistrationProof, RuntimeError> {
+    checkpoint.validate().map_err(RuntimeError::Provisioning)?;
+    if checkpoint.revision != 2 || checkpoint.state.phase != ProvisioningPhase::ServiceReady {
+        return Err(RuntimeError::InvalidEffectOutcome(
+            "registration proof requires a revision-2 ready checkpoint",
+        ));
+    }
+    Ok(RuntimeRegistrationProof {
+        provisioning_id: checkpoint.state.provisioning_id.clone(),
+        runtime_id: checkpoint.state.runtime_id.clone(),
+        endpoint: checkpoint
+            .state
+            .endpoint
+            .clone()
+            .ok_or(RuntimeError::InvalidEffectOutcome(
+                "ready provisioning checkpoint has no endpoint",
+            ))?,
+        api_credential_handle: checkpoint.state.api_credential_handle.clone().ok_or(
+            RuntimeError::InvalidEffectOutcome(
+                "ready provisioning checkpoint has no API credential handle",
+            ),
+        )?,
+        trust_credential_handle: checkpoint.state.trust_credential_handle.clone().ok_or(
+            RuntimeError::InvalidEffectOutcome(
+                "ready provisioning checkpoint has no trust credential handle",
+            ),
+        )?,
+        authority_owned: true,
+        protocol_schema_version: PROVISIONING_SERVICE_PROTOCOL_VERSION,
+    })
 }
 
 fn provisioning_phase_label(phase: ProvisioningPhase) -> &'static str {
@@ -2727,7 +2863,83 @@ mod tests {
             final_checkpoint.state.phase,
             ProvisioningPhase::RuntimeRegistered
         );
+        assert_eq!(
+            final_runtime
+                .runtime_projection(&RuntimeId::new("runtime-a").unwrap())
+                .unwrap()
+                .endpoint,
+            "https://runtime-a.example:9411/"
+        );
         drop(final_runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn lost_lease_rolls_back_registration_and_registered_checkpoint_together() {
+        use leserpent_domain::bootstrap::CredentialHandle;
+        use leserpent_domain::provisioning::GewyvernServiceReceipt;
+
+        let path = temp_journal("provisioning-registration-atomic-rollback");
+        let provisioning_id = ProvisioningId::new("provision-runtime-a").unwrap();
+        let mut provisioning = planned_provisioning();
+        let planned = provisioning.checkpoint(1).unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .enqueue_provisioning_effect(
+                "provision-runtime-a-effect",
+                "gewyvern.host.provision",
+                b"bounded-request",
+                3,
+                &planned,
+            )
+            .unwrap();
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_millis(1))
+            .unwrap()
+            .unwrap();
+        provisioning.begin().unwrap();
+        provisioning
+            .accept_service(GewyvernServiceReceipt {
+                provisioning_id: provisioning_id.clone(),
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                endpoint: "https://runtime-a.example:9411/".into(),
+                api_credential_handle: CredentialHandle::new("vault:gewyvern-api:runtime-a")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:gewyvern-ca:runtime-a")
+                    .unwrap(),
+            })
+            .unwrap();
+        let ready = provisioning.checkpoint(2).unwrap();
+        std::thread::sleep(Duration::from_millis(5));
+
+        assert!(matches!(
+            runtime.complete_provisioning_effect_and_register(&lease, b"service-ready", &ready),
+            Err(RuntimeError::Storage(ref error)) if error.contains("lease was lost or expired")
+        ));
+        assert_eq!(
+            runtime
+                .provisioning_checkpoint(&provisioning_id)
+                .unwrap()
+                .unwrap(),
+            planned
+        );
+        assert!(
+            runtime
+                .runtime_projection(&RuntimeId::new("runtime-a").unwrap())
+                .is_none()
+        );
+        drop(runtime);
+
+        let connection = Connection::open(&path).unwrap();
+        let registrations: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_journal WHERE kind = 'runtime_registration'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(registrations, 0);
+        drop(connection);
         fs::remove_file(path).unwrap();
     }
 

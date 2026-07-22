@@ -72,6 +72,16 @@ fn submit(
                     "provisioning identity was already used by another request",
                 );
             }
+            if existing.state.phase == ProvisioningPhase::ServiceReady {
+                return match runtime.register_ready_provisioning(&provisioning_id) {
+                    Ok(registered) => state(registered),
+                    Err(_) => error(
+                        Some(provisioning_id),
+                        "runtime_registration_failed",
+                        "ready Gewyvern authority could not be registered",
+                    ),
+                };
+            }
             if existing.state.phase != ProvisioningPhase::Planned {
                 return state(existing.state);
             }
@@ -84,6 +94,16 @@ fn submit(
                 "provisioning persistence is unavailable",
             );
         }
+    }
+    if runtime
+        .runtime_projection(&request.request.intent.runtime_id)
+        .is_some()
+    {
+        return error(
+            Some(provisioning_id),
+            "runtime_identity_conflict",
+            "runtime identity is already registered",
+        );
     }
     let payload = match encode_provisioning_request(&request) {
         Ok(payload) => payload,

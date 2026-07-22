@@ -10,6 +10,10 @@ use leserpent_protocol::bootstrap::{
     BootstrapRequestEnvelope, BootstrapResponseEnvelope, MAX_BOOTSTRAP_PROTOCOL_BYTES,
     decode_bootstrap_response, encode_bootstrap_request,
 };
+use leserpent_protocol::provisioning::{
+    MAX_PROVISIONING_PROTOCOL_BYTES, ProvisioningRequestEnvelope, ProvisioningResponseEnvelope,
+    decode_provisioning_response, encode_provisioning_request,
+};
 use leserpent_protocol::transport_safety::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
     open_bounded_regular_file,
@@ -126,6 +130,22 @@ impl HttpsClient {
         }
         let response = self.send_json("/v1/bootstrap", &body)?;
         decode_bootstrap_response(&response)
+            .map_err(|error| CliError::Protocol(format!("{error:?}")))
+    }
+
+    pub fn send_provisioning(
+        &self,
+        request: &ProvisioningRequestEnvelope,
+    ) -> Result<ProvisioningResponseEnvelope, CliError> {
+        let body = encode_provisioning_request(request)
+            .map_err(|error| CliError::Protocol(error.to_string()))?;
+        if body.len() > MAX_PROVISIONING_PROTOCOL_BYTES {
+            return Err(CliError::Protocol(
+                "remote provisioning request exceeds the protocol limit".into(),
+            ));
+        }
+        let response = self.send_json("/v1/provisioning", &body)?;
+        decode_provisioning_response(&response)
             .map_err(|error| CliError::Protocol(format!("{error:?}")))
     }
 

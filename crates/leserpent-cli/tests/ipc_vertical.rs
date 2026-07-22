@@ -8,12 +8,45 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use leserpent_adapters::{EffectAdapter, GEWYVERN_PROVISIONING_EFFECT_KIND};
 use leserpent_domain::RuntimeId;
+use leserpent_domain::provisioning::RuntimeProvisioning;
+use leserpent_protocol::provisioning::{
+    PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningResponse, ProvisioningResponseEnvelope,
+    decode_provisioning_request, encode_provisioning_response,
+};
 use leserpent_protocol::{ProtocolResponse, decode_response};
-use leserpent_runtime::ControlRuntime;
-use leserpentd::IpcServer;
+use leserpent_runtime::{ControlRuntime, EffectExecution};
+use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, IpcServer};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
+
+struct FailedProvisioningAdapter;
+
+impl EffectAdapter for FailedProvisioningAdapter {
+    fn kind(&self) -> &str {
+        GEWYVERN_PROVISIONING_EFFECT_KIND
+    }
+
+    fn execute(&mut self, payload: &[u8]) -> EffectExecution {
+        let request = decode_provisioning_request(payload).unwrap();
+        let mut provisioning = RuntimeProvisioning::plan(
+            &request.request.principal,
+            &request.request.capabilities,
+            request.request.intent,
+        )
+        .unwrap();
+        provisioning.begin().unwrap();
+        let state = provisioning.record_fault("test_install_failed").unwrap();
+        EffectExecution::Complete(
+            encode_provisioning_response(&ProvisioningResponseEnvelope {
+                schema_version: PROVISIONING_PROTOCOL_SCHEMA_VERSION,
+                response: ProvisioningResponse::State(state),
+            })
+            .unwrap(),
+        )
+    }
+}
 
 #[test]
 fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
@@ -35,7 +68,8 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
             .unwrap();
         let ipc = IpcServer::bind(&server_socket, TOKEN)
             .unwrap()
-            .with_bootstrap_submission();
+            .with_bootstrap_submission()
+            .with_provisioning_submission();
         ready_tx.send(()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             ipc.poll_once(&mut runtime).unwrap();
@@ -281,6 +315,158 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
             .unwrap()
             .contains("bootstrap=bootstrap-cli-1 phase=planned")
     );
+
+    let unconfirmed_provisioning = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "provision",
+            "runtime-new",
+            "--provisioning-id",
+            "provision-cli-1",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-example",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert_eq!(unconfirmed_provisioning.status.code(), Some(2));
+    assert!(
+        String::from_utf8(unconfirmed_provisioning.stderr)
+            .unwrap()
+            .contains("requires explicit --yes")
+    );
+
+    let provisioning = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "provision",
+            "runtime-new",
+            "--provisioning-id",
+            "provision-cli-1",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-example",
+            "--yes",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert!(provisioning.status.success());
+    let provisioning_output = String::from_utf8(provisioning.stdout).unwrap();
+    assert!(provisioning_output.contains("provisioning=provision-cli-1"));
+    assert!(provisioning_output.contains("runtime=runtime-new phase=planned"));
+    assert!(!provisioning_output.contains("runtime-example"));
+
+    let bounded_wait = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "provision",
+            "runtime-new",
+            "--provisioning-id",
+            "provision-cli-1",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-example",
+            "--yes",
+            "--wait",
+            "--count",
+            "1",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(bounded_wait.status.code(), Some(5));
+    assert!(
+        String::from_utf8(bounded_wait.stdout)
+            .unwrap()
+            .contains("phase=planned")
+    );
+    assert!(
+        String::from_utf8(bounded_wait.stderr)
+            .unwrap()
+            .contains("did not reach a terminal phase after 1 observations")
+    );
+
+    stop.store(true, Ordering::Release);
+    server.join().unwrap();
+    fs::remove_file(database).unwrap();
+}
+
+#[test]
+fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
+    let database = temp_path("fail.sqlite");
+    let socket = temp_path("fail.sock");
+    let stop = Arc::new(AtomicBool::new(false));
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let server_stop = Arc::clone(&stop);
+    let server_database = database.clone();
+    let server_socket = socket.clone();
+    let server = thread::spawn(move || {
+        let runtime = ControlRuntime::open(&server_database).unwrap();
+        let mut registry = AdapterRegistry::default();
+        registry.register(FailedProvisioningAdapter).unwrap();
+        let mut host = DaemonHost::new(
+            runtime,
+            registry,
+            DaemonConfig {
+                idle_interval: Duration::from_millis(1),
+                ..DaemonConfig::default()
+            },
+        )
+        .unwrap();
+        let ipc = IpcServer::bind(&server_socket, TOKEN)
+            .unwrap()
+            .with_provisioning_submission();
+        ready_tx.send(()).unwrap();
+        while !server_stop.load(Ordering::Acquire) {
+            ipc.poll_once(host.runtime_mut()).unwrap();
+            host.tick().unwrap();
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+    ready_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+
+    let result = Command::new(env!("CARGO_BIN_EXE_leserpent"))
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "provision",
+            "runtime-failed",
+            "--provisioning-id",
+            "provision-failed-1",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-example",
+            "--yes",
+            "--wait",
+            "--count",
+            "20",
+            "--interval-ms",
+            "50",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(4));
+    let stdout = String::from_utf8(result.stdout).unwrap();
+    assert!(stdout.contains("phase=planned"));
+    assert!(stdout.contains("phase=failed"));
+    assert!(stdout.contains("fault=test_install_failed"));
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();

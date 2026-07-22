@@ -536,10 +536,20 @@ selects targets and opaque handles; API tokens resolve only through the platform
 store. `Installed` withholds trust and a receipt, while `Ready` persists its
 endpoint-bound CA before returning authority. The activation path has also passed
 a real Linux systemd proof with correct-token HTTP 200, wrong-token HTTP 403, and
-post-proof service/unit/runtime cleanup. The next product slice atomically derives
-the daemon-owned registration proof from that receipt and advances
-`ServiceReady` to `RuntimeRegistered` before exposing the action in CLI or
-Avalonia.
+post-proof service/unit/runtime cleanup. Daemon settlement derives the
+authority-owned registration proof from that receipt and commits effect
+completion, runtime registration, and the revision-3 `RuntimeRegistered`
+checkpoint in one SQLite transaction. Runtime identity conflict is rejected
+before dispatch, lost leases roll the entire registration transaction back, and
+legacy revision-2 Ready checkpoints promote safely after restart. The native CLI
+now exposes `runtime provision` with explicit `--yes`, an operator-owned
+provisioning ID, `vault:ssh:*` handle, authenticated IPC/HTTPS transport, and an
+optional bounded `--wait` phase loop. Reusing the same ID is an idempotent replay;
+new attempts require a new ID. Human and JSON progress surfaces omit installation
+secrets, while protocol failure, terminal provisioning failure, and observation
+exhaustion remain distinguishable to automation. The next product slice brings
+the same contract to Avalonia, then adds explicit retry guidance and remote
+compensation/retirement without changing `runtime.deploy` semantics.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

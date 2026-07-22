@@ -233,7 +233,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         blocker.id == "post-bind-gewyvern-ui-missing"
             && blocker
                 .summary
-                .contains("Post-session Gewyvern provisioning")
+                .contains("daemon-derived atomic registration proof")
+    }));
+    assert!(bootstrap.blockers.iter().all(|blocker| {
+        !blocker
+            .summary
+            .contains("still needs service activation, registration proof")
     }));
 
     let provisioning = catalog
@@ -242,7 +247,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/gewyvern-provisioning")
         .expect("Gewyvern provisioning must be tracked independently from pipeline deployment");
     assert_eq!(provisioning.maturity, Maturity::Developing);
-    assert_eq!(provisioning.completion, 90);
+    assert_eq!(provisioning.completion, 97);
     assert_eq!(provisioning.contract.stability, ContractStability::Draft);
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
@@ -257,7 +262,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|surface| { surface == "raw-provisioning-credential-field-rejection" })
     );
     assert!(
-        provisioning
+        !provisioning
             .blockers
             .iter()
             .any(|blocker| { blocker.id == "gewyvern-registration-handoff-missing" })
@@ -352,6 +357,53 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| { surface == "activation-rollback-preserves-prior-service" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "daemon-derived-runtime-registration-proof" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "atomic-effect-registration-checkpoint" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "legacy-service-ready-promotion" })
+    );
+    for surface in [
+        "native-cli-confirmed-runtime-provision",
+        "explicit-provisioning-id-replay",
+        "authenticated-cli-provisioning-ipc-https",
+        "bounded-cli-provisioning-progress",
+        "provisioning-terminal-exit-codes",
+    ] {
+        assert!(
+            provisioning
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing provisioning client surface {surface}"
+        );
+    }
+    assert!(provisioning.blockers.iter().any(|blocker| {
+        blocker.id == "gewyvern-provisioning-client-controls-incomplete"
+            && blocker.summary.contains("Avalonia controls")
+    }));
+    assert!(
+        !provisioning
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id == "gewyvern-provisioning-client-controls-missing")
     );
 
     let ui = catalog

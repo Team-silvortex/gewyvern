@@ -1378,6 +1378,99 @@ impl Journal {
         transaction.commit().map_err(|error| error.to_string())
     }
 
+    pub fn commit_provisioning_registration(
+        &mut self,
+        leased_effect: Option<(&EffectLease, &[u8])>,
+        registration: Option<&[u8]>,
+        operation_id: &str,
+        expected_revision: u64,
+        final_revision: u64,
+        checkpoint: &[u8],
+    ) -> Result<(), String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("authority operation_id", operation_id)?;
+        validate_blob("provisioning checkpoint", checkpoint)?;
+        if let Some((_, outcome)) = leased_effect {
+            validate_blob("effect outcome", outcome)?;
+        }
+        if let Some(payload) = registration {
+            validate_blob("runtime registration", payload)?;
+        }
+        let expected_revision = i64::try_from(expected_revision)
+            .map_err(|_| "authority checkpoint revision is out of range".to_string())?;
+        let final_revision = i64::try_from(final_revision)
+            .map_err(|_| "authority checkpoint revision is out of range".to_string())?;
+        let expected_phase = if leased_effect.is_some() {
+            if expected_revision != 1 || final_revision != 3 {
+                return Err("new provisioning registration must advance revision 1 to 3".into());
+            }
+            "planned"
+        } else {
+            if expected_revision != 2 || final_revision != 3 {
+                return Err("ready provisioning recovery must advance revision 2 to 3".into());
+            }
+            "service_ready"
+        };
+        let now = unix_time_ms()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let stored: Option<(i64, String)> = transaction
+            .query_row(
+                "SELECT revision, phase FROM authority_checkpoints
+                 WHERE operation_kind = ?1 AND operation_id = ?2",
+                params![AUTHORITY_KIND_GEWYVERN_PROVISIONING, operation_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if stored != Some((expected_revision, expected_phase.to_string())) {
+            return Err("provisioning checkpoint changed before registration".into());
+        }
+        if let Some(payload) = registration {
+            let count: i64 = transaction
+                .query_row("SELECT COUNT(*) FROM runtime_journal", [], |row| row.get(0))
+                .map_err(|error| error.to_string())?;
+            if count >= MAX_JOURNAL_RECORDS {
+                return Err(format!(
+                    "runtime journal record limit {MAX_JOURNAL_RECORDS} reached"
+                ));
+            }
+            transaction
+                .execute(
+                    "INSERT INTO runtime_journal (kind, payload, created_at_unix_ms)
+                     VALUES (?1, ?2, ?3)",
+                    params![JournalEntryKind::RuntimeRegistration.as_str(), payload, now],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        let changed = transaction
+            .execute(
+                "UPDATE authority_checkpoints SET revision = ?1, phase = 'runtime_registered',
+                     checkpoint = ?2, updated_at_unix_ms = ?3
+                 WHERE operation_kind = ?4 AND operation_id = ?5
+                   AND revision = ?6 AND phase = ?7",
+                params![
+                    final_revision,
+                    checkpoint,
+                    now,
+                    AUTHORITY_KIND_GEWYVERN_PROVISIONING,
+                    operation_id,
+                    expected_revision,
+                    expected_phase
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        if changed != 1 {
+            return Err("provisioning checkpoint changed during registration".into());
+        }
+        if let Some((lease, outcome)) = leased_effect {
+            complete_leased_effect(&transaction, lease, outcome, now)?;
+        }
+        transaction.commit().map_err(|error| error.to_string())
+    }
+
     pub fn authority_checkpoint(
         &mut self,
         authority_kind: &str,

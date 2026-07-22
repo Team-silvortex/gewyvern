@@ -119,7 +119,8 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
             TOKEN,
         )
         .unwrap()
-        .with_bootstrap_submission();
+        .with_bootstrap_submission()
+        .with_provisioning_submission();
         ready_tx.send(https.local_addr().unwrap()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             https.poll_once(host.runtime_mut()).unwrap();
@@ -162,6 +163,28 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
             .unwrap()
             .contains("bootstrap=bootstrap-https-1 phase=planned")
     );
+
+    let provisioning = remote_command(binary, &endpoint, &certificate)
+        .args([
+            "runtime",
+            "provision",
+            "runtime-https-new",
+            "--provisioning-id",
+            "provision-https-1",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-example",
+            "--yes",
+        ])
+        .env("LESERPENT_PRINCIPAL", "remote-integration-test")
+        .output()
+        .unwrap();
+    assert!(provisioning.status.success(), "{}", stderr(&provisioning));
+    let provisioning_output = String::from_utf8(provisioning.stdout).unwrap();
+    assert!(provisioning_output.contains("provisioning=provision-https-1"));
+    assert!(provisioning_output.contains("runtime=runtime-https-new phase=planned"));
+    assert!(!provisioning_output.contains("runtime-example"));
     let bootstrap_deadline = std::time::Instant::now() + Duration::from_secs(3);
     loop {
         let inspect = remote_command(binary, &endpoint, &certificate)

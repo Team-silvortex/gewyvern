@@ -1,6 +1,6 @@
 use super::profiles::PROTOCOL_PROFILES;
 use super::tests_env::EnvGuard;
-use super::{protocol_dsl_path, resolve_built_in_dsl_path};
+use super::{resolve_built_in_dsl_path, resolve_protocol_profile_from_dir};
 use std::fs;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs as unix_fs;
@@ -109,8 +109,7 @@ fn built_in_dsl_path_falls_back_to_packaged_share_root() {
 }
 
 #[test]
-fn packaged_registry_root_is_used_when_explicitly_set() {
-    let _lock = super::tests_env::lock();
+fn profile_resolves_from_an_explicit_registry_directory() {
     let root = std::env::temp_dir().join(format!(
         "gewyvern-packaged-protocol-registry-{}",
         SystemTime::now()
@@ -126,12 +125,8 @@ fn packaged_registry_root_is_used_when_explicitly_set() {
     )
     .unwrap();
     fs::write(package_dir.join("main.gewy"), "template(:http_request)\n").unwrap();
-    let _guard = EnvGuard::set(
-        "GEWY_PROTOCOL_REGISTRY_ROOT",
-        root.to_string_lossy().into_owned(),
-    );
-
-    let resolved = protocol_dsl_path("http", Some("request"));
+    let resolved = resolve_protocol_profile_from_dir(&root, "http", Some("request"))
+        .map(|profile| profile.dsl_path);
     let expected = fs::canonicalize(&package_dir)
         .unwrap()
         .to_string_lossy()

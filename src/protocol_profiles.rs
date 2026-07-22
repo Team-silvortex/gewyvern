@@ -200,45 +200,10 @@ pub fn resolve_protocol_profile(
     protocol: &str,
     entry: Option<&str>,
 ) -> Option<ResolvedProtocolProfile> {
-    if let Some(registry) = scan_protocol_registry() {
-        if entry.is_none()
-            && let Some(manifest) = registry
-                .iter()
-                .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
-        {
-            return Some(ResolvedProtocolProfile {
-                protocol: manifest.protocol.clone(),
-                entry: manifest.entry.clone(),
-                dsl_path: manifest.dsl_path.clone(),
-            });
-        }
-        let canonical =
-            resolve_registry_alias(&registry, protocol).unwrap_or_else(|| protocol.to_string());
-        let mut matches = registry
-            .into_iter()
-            .filter(|manifest| manifest.protocol == canonical)
-            .collect::<Vec<_>>();
-        matches.sort_by(|left, right| left.entry.cmp(&right.entry));
-        if let Some(selected) = if let Some(entry) = entry {
-            let resolved_entry = resolve_registry_entry_alias(&matches, &canonical, entry)
-                .map(str::to_string)
-                .unwrap_or_else(|| entry.to_string());
-            matches
-                .into_iter()
-                .find(|manifest| manifest.entry == resolved_entry)
-        } else {
-            matches
-                .iter()
-                .find(|manifest| manifest.default)
-                .cloned()
-                .or_else(|| matches.into_iter().next())
-        } {
-            return Some(ResolvedProtocolProfile {
-                protocol: selected.protocol,
-                entry: selected.entry,
-                dsl_path: selected.dsl_path,
-            });
-        }
+    if let Some(registry) = scan_protocol_registry()
+        && let Some(profile) = resolve_protocol_profile_from_registry(registry, protocol, entry)
+    {
+        return Some(profile);
     }
     let (protocol_name, alias_entry) = split_protocol_alias(protocol);
     let profile = find_protocol_profile(protocol_name)?;
@@ -255,6 +220,59 @@ pub fn resolve_protocol_profile(
             entry: item.mode.to_string(),
             dsl_path: resolve_built_in_dsl_path_inner(item.dsl_path),
         })
+}
+
+fn resolve_protocol_profile_from_registry(
+    registry: Vec<RegistryManifest>,
+    protocol: &str,
+    entry: Option<&str>,
+) -> Option<ResolvedProtocolProfile> {
+    if entry.is_none()
+        && let Some(manifest) = registry
+            .iter()
+            .find(|manifest| manifest.aliases.iter().any(|alias| alias == protocol))
+    {
+        return Some(ResolvedProtocolProfile {
+            protocol: manifest.protocol.clone(),
+            entry: manifest.entry.clone(),
+            dsl_path: manifest.dsl_path.clone(),
+        });
+    }
+    let canonical =
+        resolve_registry_alias(&registry, protocol).unwrap_or_else(|| protocol.to_string());
+    let mut matches = registry
+        .into_iter()
+        .filter(|manifest| manifest.protocol == canonical)
+        .collect::<Vec<_>>();
+    matches.sort_by(|left, right| left.entry.cmp(&right.entry));
+    let selected = if let Some(entry) = entry {
+        let resolved_entry = resolve_registry_entry_alias(&matches, &canonical, entry)
+            .map(str::to_string)
+            .unwrap_or_else(|| entry.to_string());
+        matches
+            .into_iter()
+            .find(|manifest| manifest.entry == resolved_entry)
+    } else {
+        matches
+            .iter()
+            .find(|manifest| manifest.default)
+            .cloned()
+            .or_else(|| matches.into_iter().next())
+    }?;
+    Some(ResolvedProtocolProfile {
+        protocol: selected.protocol,
+        entry: selected.entry,
+        dsl_path: selected.dsl_path,
+    })
+}
+
+#[cfg(test)]
+fn resolve_protocol_profile_from_dir(
+    dir: &Path,
+    protocol: &str,
+    entry: Option<&str>,
+) -> Option<ResolvedProtocolProfile> {
+    resolve_protocol_profile_from_registry(scan_protocol_registry_in(dir)?, protocol, entry)
 }
 
 pub fn default_protocol_scan_set() -> Vec<ResolvedProtocolProfile> {
@@ -287,10 +305,26 @@ pub fn protocol_target_name_for_template_id(template_id: &str) -> Option<String>
     if template_id.trim().is_empty() {
         return None;
     }
-    default_protocol_scan_set().into_iter().find_map(|profile| {
+    protocol_target_name_from_scan_set(default_protocol_scan_set(), template_id)
+}
+
+fn protocol_target_name_from_scan_set(
+    profiles: impl IntoIterator<Item = ResolvedProtocolProfile>,
+    template_id: &str,
+) -> Option<String> {
+    profiles.into_iter().find_map(|profile| {
         protocol_profile_matches_template_id(&profile, template_id)
             .then(|| format!("scan:{}:{}", profile.protocol, profile.entry))
     })
+}
+
+#[cfg(test)]
+fn protocol_target_name_for_template_id_from_dir(dir: &Path, template_id: &str) -> Option<String> {
+    if template_id.trim().is_empty() {
+        return None;
+    }
+    let profiles = default_protocol_scan_set_from_registry(scan_protocol_registry_in(dir)?);
+    protocol_target_name_from_scan_set(profiles, template_id)
 }
 
 fn protocol_profile_matches_template_id(

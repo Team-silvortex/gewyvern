@@ -252,21 +252,34 @@ shell script or secret argument. A strict mode-`0600` daemon origin configuratio
 binds each target to its artifact, endpoint, API/trust handles, and platform
 secret service. A valid `Installed` response persists no trust and yields no
 service receipt; a valid `Ready` response must persist its endpoint-bound CA in
-the namespaced controller trust store before returning a receipt. The remaining
-authority gap is the atomic conversion of that receipt into the daemon-owned
-registration proof and `RuntimeRegistered` checkpoint; CLI and Avalonia controls
-remain hidden until that handoff and its compensation path are proven.
+the namespaced controller trust store before returning a receipt. Daemon
+settlement derives the registration proof itself and commits effect completion,
+the runtime registration journal entry, and revision-3 `RuntimeRegistered`
+checkpoint in one immediate SQLite transaction. It updates the in-memory
+projection only after commit. A lost lease rolls all three durable writes back,
+and an existing revision-2 `ServiceReady` checkpoint is promoted safely after
+restart. The native CLI now exposes a separate `runtime provision` command with
+explicit confirmation, opaque SSH handles, operator-supplied idempotent
+provisioning IDs, authenticated IPC/HTTPS transport, bounded phase polling, and
+distinct protocol-failure, provisioning-failure, and wait-exhaustion exit codes.
+It never aliases this operation to `runtime.deploy`, and repeated polling reuses
+the exact provisioning identity rather than creating a second install attempt.
+Avalonia controls, explicit new-attempt retry guidance, and remote
+compensation/retirement remain to be productized.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the
 kind-scoped `authority_checkpoints` table, where daemon bootstrap and Gewyvern
 provisioning reuse one transaction/CAS implementation without sharing identities
 or phase vocabularies. Provisioning submission atomically stores its revision-1
-`Planned` checkpoint with the effect; effect settlement advances only to
-`ServiceReady` or `Failed`; an authority-bound registration proof advances
-`ServiceReady` to `RuntimeRegistered` with a revision CAS. Restart restores each
-phase and never restores the retired installation credential after service
-readiness. Schema-11 daemon checkpoints migrate losslessly.
+`Planned` checkpoint with the effect and rejects an already registered runtime ID
+before adapter dispatch. A failed adapter outcome advances to `Failed`; a
+successful Ready receipt is identity-checked and atomically materializes effect
+completion, runtime registration, and the revision-3 `RuntimeRegistered`
+checkpoint. Restart restores the resulting projection and never restores the
+retired installation credential. Legacy revision-2 Ready checkpoints are
+promoted through the same registration transaction. Schema-11 daemon checkpoints
+migrate losslessly.
 
 The first native contract now lives in `leserpent-domain::bootstrap` and
 `leserpent-protocol::bootstrap`. It models

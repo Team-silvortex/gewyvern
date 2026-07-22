@@ -1,4 +1,7 @@
-use super::{protocol_target_name_for_template_id, resolve_protocol_profile};
+use super::{
+    protocol_target_name_for_template_id, protocol_target_name_for_template_id_from_dir,
+    resolve_protocol_profile,
+};
 use std::fs;
 
 #[test]
@@ -48,7 +51,6 @@ fn empty_or_unknown_template_id_has_no_protocol_target_name() {
 
 #[test]
 fn packaged_registry_root_target_name_uses_main_gewy_template() {
-    let _lock = super::tests_env::lock();
     let root = std::env::temp_dir().join(format!(
         "gewyvern-protocol-target-name-{}",
         std::time::SystemTime::now()
@@ -69,12 +71,7 @@ fn packaged_registry_root_target_name_uses_main_gewy_template() {
     )
     .unwrap();
 
-    let _registry = super::tests_env::EnvGuard::set(
-        "GEWY_PROTOCOL_REGISTRY_ROOT",
-        root.to_string_lossy().into_owned(),
-    );
-
-    let resolved = protocol_target_name_for_template_id("custom_observe_path");
+    let resolved = protocol_target_name_for_template_id_from_dir(&root, "custom_observe_path");
 
     fs::remove_dir_all(&root).unwrap();
 
