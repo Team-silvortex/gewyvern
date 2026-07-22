@@ -62,6 +62,78 @@ public static class RemoteTokenResolver
         UriFormat.UriEscaped).ToLowerInvariant();
 }
 
+public static class BootstrapSessionCredentialResolver
+{
+    public const string DefaultService = "org.gewyvern.leserpent.adapters";
+    private const string HandlePrefix = "vault:leserpentd:";
+
+    public static string Resolve(string handle)
+    {
+        var account = ParseHandle(handle);
+        string? token;
+        if (OperatingSystem.IsMacOS())
+        {
+            token = MacKeychain.Load(DefaultService, account);
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            token = LinuxSecretService.LoadAccount(DefaultService, account);
+        }
+        else
+        {
+            throw new PlatformNotSupportedException(
+                "bootstrap session promotion requires macOS Keychain or Linux Secret Service");
+        }
+        if (token is null)
+        {
+            throw new InvalidDataException(
+                "bootstrap session credential is absent from the local platform store");
+        }
+        RemoteClientOptions.ValidateToken(token);
+        return token;
+    }
+
+    public static void VerifyContract()
+    {
+        if (ParseHandle("vault:leserpentd:target-session") != "target-session")
+        {
+            throw new InvalidDataException("bootstrap session handle projection drifted");
+        }
+        ExpectInvalid("vault:ssh:target-session");
+        ExpectInvalid("vault:leserpentd:bad/key");
+    }
+
+    private static string ParseHandle(string handle)
+    {
+        if (handle.Length is <= 0 or > 128
+            || !handle.StartsWith(HandlePrefix, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("bootstrap session handle is invalid");
+        }
+        var key = handle[HandlePrefix.Length..];
+        if (key.Length == 0 || key.Any(character =>
+                !char.IsAsciiLetterOrDigit(character)
+                && character is not ('.' or '_' or '-')))
+        {
+            throw new InvalidDataException("bootstrap session handle is invalid");
+        }
+        return key;
+    }
+
+    private static void ExpectInvalid(string handle)
+    {
+        try
+        {
+            _ = ParseHandle(handle);
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidDataException("bootstrap session resolver accepted an invalid handle");
+    }
+}
+
 public sealed class PlatformRemoteTokenStore : IRemoteTokenVault
 {
     public const string Service = "org.gewyvern.leserpent.remote";
@@ -326,14 +398,20 @@ internal static partial class LinuxSecretService
     private const int AttributeString = 0;
     private const int DontMatchSchemaName = 2;
 
-    public static string? Load(string service, string endpoint)
+    public static string? Load(string service, string endpoint) =>
+        Load(service, "endpoint", endpoint);
+
+    public static string? LoadAccount(string service, string account) =>
+        Load(service, "account", account);
+
+    private static string? Load(string service, string attribute, string value)
     {
         var schema = SecretSchemaNew(
             service,
             DontMatchSchemaName,
             "service",
             AttributeString,
-            "endpoint",
+            attribute,
             AttributeString,
             IntPtr.Zero);
         if (schema == IntPtr.Zero)
@@ -348,8 +426,8 @@ internal static partial class LinuxSecretService
                 out var error,
                 "service",
                 service,
-                "endpoint",
-                endpoint,
+                attribute,
+                value,
                 IntPtr.Zero);
             if (error != IntPtr.Zero)
             {

@@ -398,6 +398,7 @@ internal sealed class LeserpentApp : Application
         var submitCount = 0;
         var inspectCount = 0;
         var bindCount = 0;
+        var promoteCount = 0;
         var target = new RemoteBootstrapSnapshot(
             "bootstrap-verification",
             "planned",
@@ -415,7 +416,8 @@ internal sealed class LeserpentApp : Application
             [new BootstrapAuthorityOption(
                 "daemon-verification",
                 "Verification authority",
-                "https://controller.example:9443/")],
+                "https://controller.example:9443",
+                true)],
             new BootstrapHubOperations(
                 (_, intent, _) =>
                 {
@@ -431,7 +433,7 @@ internal sealed class LeserpentApp : Application
                         BootstrapId = bootstrapId,
                         Phase = "bootstrapped",
                         DaemonId = "daemon-target",
-                        Endpoint = "https://target.example:9443/",
+                        Endpoint = "https://target.example:9443",
                         SessionCredentialHandle = "vault:leserpentd:target",
                         TrustCredentialHandle = "vault:leserpent-ca:target",
                     };
@@ -448,6 +450,16 @@ internal sealed class LeserpentApp : Application
                         MutationAuthorized = true,
                     };
                     return Task.FromResult(target);
+                },
+                (_, state, _) =>
+                {
+                    if (state is not { Phase: "session_bound", MutationAuthorized: true })
+                    {
+                        throw new InvalidDataException(
+                            "bootstrap controls promoted an unbound session");
+                    }
+                    promoteCount++;
+                    return Task.CompletedTask;
                 }));
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += async (_, _) =>
@@ -460,13 +472,13 @@ internal sealed class LeserpentApp : Application
                     "bootstrap controls submitted without explicit confirmation");
             }
             await window.ProbeWorkflowAsync();
-            if (submitCount != 1 || inspectCount != 1 || bindCount != 1)
+            if (submitCount != 1 || inspectCount != 1 || bindCount != 1 || promoteCount != 1)
             {
                 throw new InvalidDataException(
-                    "bootstrap controls did not preserve the submit-inspect-bind sequence");
+                    "bootstrap controls did not preserve the submit-inspect-bind-promote sequence");
             }
             Console.WriteLine(
-                "bootstrap controls valid: controls=11, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, submit=true, inspect=true, bind=true, phase_gated=true, polling=true, mutation_authorized=true, automation=true");
+                "bootstrap controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, submit=true, inspect=true, bind=true, phase_gated=true, polling=true, mutation_authorized=true, local_promotion=true, automation=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -811,8 +823,17 @@ internal sealed class LeserpentApp : Application
                 .Select(connection => new BootstrapAuthorityOption(
                     connection.DaemonId,
                     connection.DisplayName,
-                    connection.Profile.Endpoint))
-                .ToArray();
+                    connection.Profile.Endpoint,
+                    false))
+                .ToList();
+            if (localOrchestraService is { BootstrapEnabled: true })
+            {
+                authorities.Insert(0, new BootstrapAuthorityOption(
+                    "local-orchestra",
+                    "Local Orchestra",
+                    "Managed on this device",
+                    true));
+            }
             var operations = new BootstrapHubOperations(
                 (authorityId, intent, cancellationToken) => ExecuteBootstrapAsync(
                     catalogStore,
@@ -831,7 +852,17 @@ internal sealed class LeserpentApp : Application
                     certificateStore,
                     authorityId,
                     (client, token) => client.BindAsync(bootstrapId, principal, token),
-                    cancellationToken));
+                    cancellationToken),
+                async (authorityId, state, cancellationToken) =>
+                {
+                    await PromoteBoundBootstrapAsync(
+                        catalogStore,
+                        certificateStore,
+                        authorityId,
+                        state,
+                        cancellationToken);
+                    RefreshHub(desktop);
+                });
             var window = new BootstrapDeploymentWindow(authorities, operations);
             if (desktop.MainWindow is { } owner)
             {
@@ -858,6 +889,24 @@ internal sealed class LeserpentApp : Application
         Func<RemoteBootstrapClient, CancellationToken, Task<RemoteBootstrapSnapshot>> operation,
         CancellationToken cancellationToken)
     {
+        if (authorityId == "local-orchestra")
+        {
+            if (localOrchestraService is not { BootstrapEnabled: true } localService)
+            {
+                throw new InvalidDataException("local bootstrap authority is unavailable");
+            }
+            if (!localService.TryEnsureReady(
+                    certificateStore,
+                    out var localPlan,
+                    out var startupError)
+                || localPlan is null)
+            {
+                throw new InvalidDataException(
+                    startupError ?? "local bootstrap authority is unavailable");
+            }
+            using var localClient = new RemoteBootstrapClient(localPlan.Options);
+            return await operation(localClient, cancellationToken);
+        }
         var connection = catalogStore.Load().Connections.SingleOrDefault(
             item => item.DaemonId == authorityId)
             ?? throw new InvalidDataException(
@@ -868,6 +917,43 @@ internal sealed class LeserpentApp : Application
             connection);
         using var client = new RemoteBootstrapClient(plan.Options);
         return await operation(client, cancellationToken);
+    }
+
+    private static async Task PromoteBoundBootstrapAsync(
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore,
+        string authorityId,
+        RemoteBootstrapSnapshot state,
+        CancellationToken cancellationToken)
+    {
+        if (authorityId != "local-orchestra"
+            || localOrchestraService is not { BootstrapEnabled: true }
+            || localOrchestraService.BootstrapTrustRoot is not { } trustRoot
+            || state is not
+            {
+                Phase: "session_bound",
+                MutationAuthorized: true,
+                Endpoint: not null,
+                SessionCredentialHandle: not null,
+                TrustCredentialHandle: not null,
+            })
+        {
+            throw new InvalidDataException(
+                "connection promotion requires a locally bound bootstrap authority");
+        }
+
+        var promotion = new DesktopBootstrapPromotion(
+            catalogStore,
+            certificateStore,
+            trustRoot,
+            PlatformRemoteTokenStore.Instance,
+            BootstrapSessionCredentialResolver.Resolve,
+            async (options, token) =>
+            {
+                using var health = new RemoteHealthClient(options);
+                _ = await health.CheckAsync(token);
+            });
+        _ = await promotion.PromoteAsync(state, cancellationToken);
     }
 
     private static void ShowConnectionManager(

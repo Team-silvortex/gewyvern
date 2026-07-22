@@ -65,8 +65,16 @@ internal static class Program
         if (args is ["--verify-bootstrap-client"])
         {
             RemoteBootstrapClient.VerifyContract();
+            BootstrapSessionCredentialResolver.VerifyContract();
             Console.WriteLine(
-                "bootstrap client valid: submit_route=true, inspect_wire=true, bind_wire=true, strict_state=true, bounded=true, opaque_handles=true, raw_secrets=false");
+                "bootstrap client valid: submit_route=true, inspect_wire=true, bind_wire=true, strict_state=true, bounded=true, opaque_handles=true, rust_secret_schema=true, raw_secrets=false");
+            return 0;
+        }
+        if (args is ["--verify-bootstrap-promotion"])
+        {
+            DesktopBootstrapPromotion.VerifyContract();
+            Console.WriteLine(
+                "bootstrap promotion valid: session_bound_only=true, endpoint_trust_bound=true, rust_secret_handle=true, health_before_persist=true, platform_vault=true, catalog_secret_free=true, conflicting_credential_rejected=true");
             return 0;
         }
         if (args is ["--verify-parameterized-form"])
@@ -103,7 +111,7 @@ internal static class Program
         {
             LocalOrchestraServiceSupervisor.VerifyContract(daemonPath);
             Console.WriteLine(
-                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, runtime_topology_query=true, health_topology_composition=true, authority_bound_live_state=true, private_files=true, minimal_child_environment=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
+                "local orchestra valid: rust_daemon=true, loopback_tls=true, ephemeral_token=true, owned_authority=true, runtime_topology_query=true, health_topology_composition=true, authority_bound_live_state=true, private_files=true, minimal_child_environment=true, optional_bootstrap_origin=true, private_bootstrap_trust=true, package_local_daemon=true, symlink_rejection=true, process_cleanup=true");
             return 0;
         }
         if (args is ["--verify-connection-maintenance"])

@@ -101,6 +101,18 @@ private keys, session tokens, and CA material never enter the form or bootstrap
 IR. Verify the strict client codec with `--verify-bootstrap-client` and the real
 control sequence with `--verify-bootstrap-controls`.
 
+On macOS and Linux, set `LESERPENT_BOOTSTRAP_CONFIG` to the absolute private
+origin-config path before launching the desktop app to make Local Orchestra a
+deployment authority. The managed local daemon receives that config plus a
+private app-owned trust root. After server-verified binding, `Add to Hub` reads
+the endpoint-bound CA record from that root, resolves the `vault:leserpentd:*`
+session handle from the Rust-compatible platform secret schema, proves target
+TLS/token health, then stores the target token and secret-free profile. Automatic
+promotion currently requires the config's default secret service
+`org.gewyvern.leserpent.adapters`; remote deployment authorities can complete
+binding but cannot export their local trust or session stores into the desktop.
+Verify the transaction with `--verify-bootstrap-promotion`.
+
 Runtime children are direct workspace actions. Selecting one creates or reuses
 its owning daemon session, but the workspace is not opened from the Hub's query
 projection. The request remains bounded and pending until that daemon session

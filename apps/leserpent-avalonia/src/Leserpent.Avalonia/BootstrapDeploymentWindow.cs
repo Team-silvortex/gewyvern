@@ -9,7 +9,8 @@ using Avalonia.Threading;
 internal sealed record BootstrapAuthorityOption(
     string AuthorityId,
     string DisplayName,
-    string Endpoint)
+    string Endpoint,
+    bool CanPromote)
 {
     public override string ToString() => $"{DisplayName}  /  {Endpoint}";
 }
@@ -17,7 +18,8 @@ internal sealed record BootstrapAuthorityOption(
 internal sealed record BootstrapHubOperations(
     Func<string, RemoteBootstrapIntent, CancellationToken, Task<RemoteBootstrapSnapshot>> Submit,
     Func<string, string, string, CancellationToken, Task<RemoteBootstrapSnapshot>> Inspect,
-    Func<string, string, string, CancellationToken, Task<RemoteBootstrapSnapshot>> Bind);
+    Func<string, string, string, CancellationToken, Task<RemoteBootstrapSnapshot>> Bind,
+    Func<string, RemoteBootstrapSnapshot, CancellationToken, Task> Promote);
 
 internal sealed class BootstrapDeploymentWindow : Window
 {
@@ -58,6 +60,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         Padding = new Thickness(16, 9),
         IsEnabled = false,
     };
+    private readonly Button promoteButton = PrimaryButton("Add to Hub");
     private readonly TextBlock status = new()
     {
         Foreground = LeserpentTheme.Muted,
@@ -74,6 +77,7 @@ internal sealed class BootstrapDeploymentWindow : Window
     private readonly DispatcherTimer polling = new() { Interval = TimeSpan.FromSeconds(2) };
     private RemoteBootstrapSnapshot? snapshot;
     private bool operationInFlight;
+    private bool promotionCompleted;
 
     public BootstrapDeploymentWindow(
         IReadOnlyList<BootstrapAuthorityOption> authorities,
@@ -92,6 +96,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         authority.ItemsSource = authorities;
         authority.SelectedIndex = authorities.Count > 0 ? 0 : -1;
         authority.IsEnabled = authorities.Count > 1;
+        promoteButton.IsEnabled = false;
         bootstrapId.Text = $"desktop-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..48];
 
         var close = new Button { Content = "Close", Padding = new Thickness(16, 9) };
@@ -99,6 +104,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         submitButton.Click += async (_, _) => await SubmitAsync();
         refreshButton.Click += async (_, _) => await RefreshAsync();
         bindButton.Click += async (_, _) => await BindAsync();
+        promoteButton.Click += async (_, _) => await PromoteAsync();
         polling.Tick += async (_, _) => await RefreshAsync(background: true);
         KeyDown += (_, eventArgs) =>
         {
@@ -124,6 +130,7 @@ internal sealed class BootstrapDeploymentWindow : Window
         Audit(submitButton, "bootstrap-submit", "Deploy leserpent daemon to target host");
         Audit(refreshButton, "bootstrap-refresh", "Refresh bootstrap deployment status");
         Audit(bindButton, "bootstrap-bind", "Verify and bind deployed daemon session");
+        Audit(promoteButton, "bootstrap-promote", "Add authenticated daemon connection to Hub");
         Audit(close, "bootstrap-close", "Close daemon deployment window");
         Audit(status, "bootstrap-status", "Bootstrap deployment status");
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
@@ -213,7 +220,14 @@ internal sealed class BootstrapDeploymentWindow : Window
                         Orientation = Orientation.Horizontal,
                         Spacing = 10,
                         HorizontalAlignment = HorizontalAlignment.Right,
-                        Children = { close, refreshButton, bindButton, submitButton },
+                        Children =
+                        {
+                            close,
+                            refreshButton,
+                            bindButton,
+                            promoteButton,
+                            submitButton,
+                        },
                     },
                 },
             },
@@ -222,7 +236,7 @@ internal sealed class BootstrapDeploymentWindow : Window
 
     public void VerifyAccessibility()
     {
-        if (auditedControls.Count != 11
+        if (auditedControls.Count != 12
             || auditedControls.Select(AutomationProperties.GetAutomationId)
                 .Distinct(StringComparer.Ordinal).Count() != auditedControls.Count
             || auditedControls.Any(control =>
@@ -241,7 +255,9 @@ internal sealed class BootstrapDeploymentWindow : Window
         await SubmitAsync();
         await RefreshAsync();
         await BindAsync();
-        if (snapshot is not { Phase: "session_bound", MutationAuthorized: true })
+        await PromoteAsync();
+        if (snapshot is not { Phase: "session_bound", MutationAuthorized: true }
+            || !promotionCompleted)
         {
             throw new InvalidDataException("bootstrap deployment controls did not complete binding");
         }
@@ -340,6 +356,38 @@ internal sealed class BootstrapDeploymentWindow : Window
         }
     }
 
+    private async Task PromoteAsync()
+    {
+        var source = SelectedAuthority();
+        if (operationInFlight
+            || promotionCompleted
+            || !source.CanPromote
+            || snapshot is not { Phase: "session_bound", MutationAuthorized: true } state)
+        {
+            return;
+        }
+        operationInFlight = true;
+        UpdateActions();
+        status.Text = "Verifying target trust and session credential before saving...";
+        status.Foreground = LeserpentTheme.Muted;
+        try
+        {
+            await operations.Promote(source.AuthorityId, state, lifetime.Token);
+            promotionCompleted = true;
+            status.Text = $"Daemon {Safe(state.DaemonId)} was verified and added to the Hub.";
+            status.Foreground = LeserpentTheme.Accent;
+        }
+        catch (Exception error) when (IsExpected(error))
+        {
+            ShowError(error);
+        }
+        finally
+        {
+            operationInFlight = false;
+            UpdateActions();
+        }
+    }
+
     private async Task RunAsync(
         Func<Task<RemoteBootstrapSnapshot>> operation,
         bool background = false)
@@ -392,6 +440,10 @@ internal sealed class BootstrapDeploymentWindow : Window
         submitButton.IsEnabled = !operationInFlight && snapshot is null;
         refreshButton.IsEnabled = !operationInFlight && snapshot is not null;
         bindButton.IsEnabled = !operationInFlight && snapshot is { CanBind: true };
+        promoteButton.IsEnabled = !operationInFlight
+            && !promotionCompleted
+            && SelectedAuthorityOrNull() is { CanPromote: true }
+            && snapshot is { Phase: "session_bound", MutationAuthorized: true };
     }
 
     private void LockIdentityFields()
@@ -407,6 +459,9 @@ internal sealed class BootstrapDeploymentWindow : Window
     private BootstrapAuthorityOption SelectedAuthority() =>
         authority.SelectedItem as BootstrapAuthorityOption
         ?? throw new ArgumentException("Select a deployment authority first.");
+
+    private BootstrapAuthorityOption? SelectedAuthorityOrNull() =>
+        authority.SelectedItem as BootstrapAuthorityOption;
 
     private void ShowError(Exception error)
     {

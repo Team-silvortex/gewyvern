@@ -351,7 +351,7 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
         .find("private static async Task<string?> TestConnectionAsync")
         .expect("connection test callback must exist");
     let test_end = app[test_start..]
-        .find("private static string? ForgetSavedConnection")
+        .find("private static DesktopConnectionProfile RequestedProfile")
         .expect("connection test callback must have a bounded source region");
     let test_body = &app[test_start..test_start + test_end];
 
@@ -364,8 +364,9 @@ fn desktop_connection_preflight_is_explicit_cancellable_and_side_effect_free() {
     assert!(health.contains("remote health response exceeds the message limit"));
     assert!(health.contains("JsonUnmappedMemberHandling.Disallow"));
     assert!(test_body.contains("RemoteHealthClient"));
+    assert!(test_body.contains("manageCertificate: false"));
+    assert!(test_body.contains("ResolveCertificateAuthorityPath"));
     assert!(!test_body.contains("profileStore"));
-    assert!(!test_body.contains("certificateStore"));
     assert!(!test_body.contains("RemoteTokenResolver.Store"));
     assert!(!test_body.contains(".Save("));
     assert!(!test_body.contains(".Import("));
@@ -379,7 +380,9 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     let token_store = avalonia_source("Leserpent.RemoteClient/RemoteTokenStore.cs");
     let presentation = avalonia_source("Leserpent.Avalonia/RemoteCredentialPresentation.cs");
 
-    assert!(app.contains("OpenRemoteFromSelfHostOrProfile"));
+    assert!(app.contains("OpenLocalOrchestra"));
+    assert!(app.contains("OpenLocalRuntimeWorkspace"));
+    assert!(app.contains("LoadLocalTopologyAsync"));
     assert!(app.contains("new LocalOrchestraServiceSupervisor()"));
     assert!(supervisor.contains("DaemonExecutable = \"leserpentd\""));
     assert!(supervisor.contains("LESERPENT_REMOTE_TOKEN"));
@@ -398,6 +401,7 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(program.contains("owned_authority=true"));
     assert!(program.contains("private_files=true"));
     assert!(program.contains("minimal_child_environment=true"));
+    assert!(program.contains("optional_bootstrap_origin=true"));
     assert!(program.contains("package_local_daemon=true"));
     assert!(program.contains("symlink_rejection=true"));
     assert!(supervisor.contains("Directory.CreateSymbolicLink"));

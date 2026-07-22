@@ -191,7 +191,7 @@ public sealed class RemoteBootstrapClient : IDisposable
         }
 
         const string bound = """
-            {"schema_version":1,"response":{"kind":"bootstrap_handoff","payload":{"bootstrap_id":"bootstrap-ui-1","phase":"session_bound","target":{"transport":"ssh","host":"target.example","port":22},"bootstrap_credential_present":false,"daemon_id":"daemon-target","endpoint":"https://target.example:9443/","session_credential_handle":"vault:leserpentd:target","trust_credential_handle":"vault:leserpent-ca:target","fault_code":null,"mutation_authorized":true}}}
+            {"schema_version":1,"response":{"kind":"bootstrap_handoff","payload":{"bootstrap_id":"bootstrap-ui-1","phase":"session_bound","target":{"transport":"ssh","host":"target.example","port":22},"bootstrap_credential_present":false,"daemon_id":"daemon-target","endpoint":"https://target.example:9443","session_credential_handle":"vault:leserpentd:target","trust_credential_handle":"vault:leserpent-ca:target","fault_code":null,"mutation_authorized":true}}}
             """;
         state = DecodeWireResponse(Encoding.UTF8.GetBytes(bound), intent.BootstrapId);
         if (!state.IsTerminal || state.CanBind || !state.MutationAuthorized)
@@ -358,7 +358,10 @@ public sealed class RemoteBootstrapClient : IDisposable
         RequireHandle(state.SessionCredentialHandle!, "leserpentd");
         RequireHandle(state.TrustCredentialHandle!, "leserpent-ca");
         var endpoint = RemoteClientOptions.ParseEndpoint(state.Endpoint!);
-        if (endpoint.ToString() != state.Endpoint)
+        var canonicalOrigin = endpoint.GetComponents(
+            UriComponents.SchemeAndServer,
+            UriFormat.UriEscaped);
+        if (canonicalOrigin != state.Endpoint)
         {
             throw new InvalidDataException("bootstrap response endpoint is not canonical");
         }

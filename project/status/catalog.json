@@ -239,6 +239,11 @@
         "summary": "Deploy leserpentd through bootstrap-only credentials and bind the resulting daemon session before runtime mutation."
       },
       {
+        "id": "gewyvern-provisioning",
+        "label": "Gewyvern Provisioning",
+        "summary": "Install, attest, and register a Gewyvern runtime before submitting debugging pipelines."
+      },
+      {
         "id": "cli-parity",
         "label": "CLI Parity",
         "summary": "Native CLI equivalence with GUI and Leselang."
@@ -440,9 +445,9 @@
       "id": "boundary-leserpent-bootstrap",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
-      "summary": "The deployment-bootstrap boundary owns bootstrap-only credentials, host installation state, and the explicit handoff to daemon-issued session authority.",
+      "summary": "The deployment-bootstrap boundary owns bootstrap-only credentials, daemon and Gewyvern installation state, and explicit authority handoffs before runtime mutation.",
       "source": "docs/leserpent-2-roadmap.md",
-      "cells": ["leserpent-2/deployment-bootstrap/reverse-bootstrap"]
+      "cells": ["leserpent-2/deployment-bootstrap/reverse-bootstrap", "leserpent-2/deployment-bootstrap/gewyvern-provisioning"]
     },
     {
       "id": "gate-one-domain-protocol",
@@ -482,7 +487,7 @@
       "kind": "roadmap-gate",
       "summary": "Gate 5 moves durable authority into the Rust runtime and isolated daemon.",
       "source": "docs/leserpent-2-roadmap.md",
-      "cells": ["leserpent-2/control-runtime/durable-authority", "leserpent-2/effect-adapters/typed-integrations", "leserpent-2/daemon-host/daemon-lifecycle", "leserpent-2/deployment-bootstrap/reverse-bootstrap", "leserpent-2/transport-protocol/wire-compatibility"]
+      "cells": ["leserpent-2/control-runtime/durable-authority", "leserpent-2/effect-adapters/typed-integrations", "leserpent-2/daemon-host/daemon-lifecycle", "leserpent-2/deployment-bootstrap/reverse-bootstrap", "leserpent-2/deployment-bootstrap/gewyvern-provisioning", "leserpent-2/transport-protocol/wire-compatibility"]
     },
     {
       "id": "gate-six-remote-mobile",
@@ -1229,12 +1234,12 @@
       "feature": "reverse-bootstrap",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 95,
+      "completion": 97,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.16.0",
+        "version": "0.18.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1302,7 +1307,8 @@
           "native-failed-service-rollback",
           "real-session-bound-mutation-fence",
           "schema-v1-private-bootstrap-checkpoint",
-          "runtime-schema-11-bootstrap-handoff",
+          "runtime-schema-12-shared-authority-checkpoint",
+          "schema-11-bootstrap-checkpoint-migration",
           "atomic-effect-checkpoint-settlement",
           "restart-safe-session-promotion",
           "checkpoint-revision-cas-fence",
@@ -1341,6 +1347,15 @@
           "avalonia-phase-gated-session-binding",
           "avalonia-catalog-identity-revalidation",
           "avalonia-opaque-ssh-handle-form",
+          "optional-local-bootstrap-origin",
+          "private-local-bootstrap-trust-root",
+          "rust-compatible-session-secret-resolution",
+          "session-bound-add-to-hub-gate",
+          "endpoint-bound-trust-record-promotion",
+          "target-health-before-catalog-persistence",
+          "conflicting-platform-credential-rejection",
+          "catalog-failure-token-compensation",
+          "remote-origin-promotion-withholding",
           "malformed-outcome-authority-withholding",
           "post-bind-bootstrap-handle-retirement",
           "trust-endpoint-confusion-rejection",
@@ -1354,8 +1369,8 @@
           "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and a product uninstall/retirement flow remain."
         },
         {
-          "id": "bootstrap-client-promotion-missing",
-          "summary": "The Rust CLI and Avalonia Hub now expose authenticated bootstrap deployment, handoff inspection, and confirmed server-verified session binding. Avalonia still needs locally verified connection promotion and post-session Gewyvern deployment controls."
+          "id": "post-bind-gewyvern-ui-missing",
+          "summary": "The Rust CLI and Avalonia Hub now expose authenticated daemon bootstrap, handoff inspection, confirmed binding, and locally verified connection promotion. Post-session Gewyvern provisioning now has an independent Rust domain/protocol foundation, but still needs a durable daemon route, native installer adapter, and Avalonia controls."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1391,9 +1406,79 @@
         { "kind": "test", "path": "crates/leserpent-cli/tests/ipc_vertical.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteBootstrapClient.cs", "state": "present" },
-        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" }
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapPromotion.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" }
       ],
-      "next_gate": "Promote SessionBound receipts into saved Avalonia connections only through locally verifiable trust records, then expose post-bind Gewyvern deployment controls."
+      "next_gate": "Expose confirmed post-bind Gewyvern deployment controls through the newly promoted daemon authority."
+    },
+    {
+      "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
+      "architecture": "leserpent-2",
+      "module": "deployment-bootstrap",
+      "feature": "gewyvern-provisioning",
+      "lifecycle": "target",
+      "maturity": "developing",
+      "completion": 35,
+      "confidence": "high",
+      "independence": "reusable-library",
+      "contract": {
+        "id": "leserpent-gewyvern-provisioning-contract",
+        "version": "0.2.0",
+        "stability": "draft",
+        "surfaces": [
+          "runtime-provision-capability",
+          "explicit-provisioning-confirmation",
+          "principal-intent-binding",
+          "opaque-install-credential-handle",
+          "planned-installing-service-ready-runtime-registered-state",
+          "installation-credential-retirement",
+          "https-service-identity",
+          "runtime-endpoint-credential-trust-binding",
+          "authority-owned-registration-proof",
+          "idempotent-registration-proof-replay",
+          "identity-confusion-rejection",
+          "private-restart-checkpoint",
+          "bounded-redacted-fault-state",
+          "independent-provisioning-wire-v1",
+          "bounded-provisioning-wire-frame",
+          "strict-provisioning-envelope-fields",
+          "raw-provisioning-credential-field-rejection",
+          "validated-provisioning-response-state",
+          "schema-12-shared-authority-checkpoint",
+          "atomic-provisioning-effect-checkpoint",
+          "restart-safe-service-ready-checkpoint",
+          "provisioning-registration-revision-cas",
+          "schema-11-bootstrap-checkpoint-migration"
+        ]
+      },
+      "depends_on": [
+        "leserpent-2/deployment-bootstrap/reverse-bootstrap",
+        "leserpent-2/domain-model/command-query-kernel",
+        "leserpent-2/transport-protocol/wire-compatibility"
+      ],
+      "blockers": [
+        {
+          "id": "native-gewyvern-provisioning-execution-missing",
+          "summary": "The typed state, wire contract, and durable runtime checkpoint APIs are present, but leserpentd does not yet expose the submission route or execute a native Gewyvern installer and adapter-target registration proof."
+        },
+        {
+          "id": "gewyvern-provisioning-client-controls-missing",
+          "summary": "CLI and Avalonia must remain hidden until daemon execution, receipt polling, and compensation are real; runtime.deploy continues to mean pipeline submission only."
+        }
+      ],
+      "consumers": ["leserpentd", "leserpent-cli", "avalonia-client", "model-automation"],
+      "evidence": [
+        { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
+        { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-domain/src/provisioning.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-domain/src/provisioning.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol/src/provisioning.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/src/provisioning.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-runtime/src/persistence.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-runtime/src/lib.rs", "state": "present" }
+      ],
+      "next_gate": "Expose durable daemon provisioning submission and execute a native, attested Gewyvern installer effect before adding any client control."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

@@ -191,7 +191,8 @@ The intended deployment control loop is reverse-first:
 2. Leserpent uses that credential to deploy/refresh `leserpentd` on the target.
 3. Leserpent connects to the target's `leserpentd` service endpoint (`/v1/wire`, `/v1/events`) using the target-issued session token or certificate chain.
 4. The `leserpentd` session exposes a fleet panel and accepted runtime identities.
-5. Deployment control continues through `runtime` intents, especially `runtime.deploy`, to install/update `gewyvern` inside that same host partition.
+5. A confirmed `runtime.provision` intent installs or reconciles `gewyvern`, proves its authenticated service identity, and registers that runtime with the daemon.
+6. Later `runtime.deploy` intents submit debugging pipelines to that already registered Gewyvern runtime; they never install a runtime or mutate host service configuration.
 
 This makes `leserpent` responsible for control-plane bootstrap and orchestration,
 while `leserpentd` remains the per-host control gate for later state and actions.
@@ -200,17 +201,42 @@ while `leserpentd` remains the per-host control gate for later state and actions
 Leserpent (operator)
   --bootstrap token--> host bootstrap endpoint
   --leserpentd-token/ca--> leserpentd@host (panel + wire session)
-  --runtime.deploy--> target gewyvern endpoints
+  --runtime.provision--> install + attest + register gewyvern
+  --runtime.deploy--> submit pipelines to registered gewyvern
 ```
 
-Two credential layers are therefore required:
+Four credential layers are therefore explicit:
 
 - **bootstrap credential**: creates/reconciles a managed `leserpentd` on the target
 - **session credential**: binds the `leserpentd` session and all mutation/effect calls
+- **runtime installation credential**: creates/reconciles Gewyvern and is retired as soon as the authenticated service is ready
+- **runtime API/trust handles**: bind later adapter calls to the attested Gewyvern endpoint without putting secrets in runtime metadata
 
 The bootstrap credential must never become implicit session authority. A `leserpentd`
 session token is checked for every mutation and workspace command, and a failed
 session check must block both control and deployment operations before adapter dispatch.
+
+The host and runtime deployment state machines are deliberately separate.
+`leserpent-domain::provisioning` owns the first runtime-provisioning contract:
+`Planned -> Installing -> ServiceReady -> RuntimeRegistered`, with a terminal
+`Failed` branch. `ServiceReady` retires the installation credential before
+registration. `RuntimeRegistered` requires a proof bound to the provisioning ID,
+runtime ID, HTTPS endpoint, API/trust handles, authority ownership, and protocol
+version. `leserpent-protocol::provisioning` carries this state in an independent,
+strict, 64 KiB-bounded envelope that rejects unknown and raw credential fields.
+The native installer/effect adapter, durable daemon route, CLI, and Avalonia control
+are subsequent layers; the protocol foundation alone does not claim host mutation.
+
+The runtime persistence layer now supplies that contract with shared durable
+ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the
+kind-scoped `authority_checkpoints` table, where daemon bootstrap and Gewyvern
+provisioning reuse one transaction/CAS implementation without sharing identities
+or phase vocabularies. Provisioning submission atomically stores its revision-1
+`Planned` checkpoint with the effect; effect settlement advances only to
+`ServiceReady` or `Failed`; an authority-bound registration proof advances
+`ServiceReady` to `RuntimeRegistered` with a revision CAS. Restart restores each
+phase and never restores the retired installation credential after service
+readiness. Schema-11 daemon checkpoints migrate losslessly.
 
 The first native contract now lives in `leserpent-domain::bootstrap` and
 `leserpent-protocol::bootstrap`. It models
@@ -314,8 +340,8 @@ remove the partial staging artifact.
 The controller-side handoff is now part of the production daemon/runtime path,
 not a test-only reconstruction. `DaemonHost` strictly decodes completed host
 bootstrap effects and rejects malformed, mismatched, or non-terminal outcomes.
-Runtime SQLite schema 11 then commits the scheduler outcome and a validated
-private `DeploymentBootstrapCheckpoint` atomically under the existing owner
+Runtime SQLite schema 12 then commits the scheduler outcome and a validated
+private authority checkpoint atomically under the existing owner
 lease. A restarted `ControlRuntime` restores `Bootstrapped` without mutation
 authority. Session promotion re-enters the domain state machine, compares the
 bootstrap, daemon, session, trust, authority, and protocol identities, and uses a
@@ -351,8 +377,14 @@ daemon authority, submits only a `vault:ssh:*` handle, polls the public handoff,
 and keeps session binding disabled until the server publishes `Bootstrapped`.
 Each operation re-resolves the authority from the connection catalog so a
 replaced profile cannot inherit an open window's trust. Connection promotion
-still requires a locally verifiable trust record; the client must not invent
-local CA state for a receipt produced by an inaccessible remote trust root.
+is now implemented for the locally managed authority: an explicit bootstrap
+config enables its private trust root, `SessionBound` unlocks `Add to Hub`, and
+the desktop resolves the Rust-compatible session handle, validates the
+endpoint-bound CA record, proves target TLS/token health, and only then writes
+the platform credential and secret-free catalog profile. A conflicting existing
+credential fails before mutation, while catalog failure removes a newly written
+token. Remote-source binding remains valid but intentionally cannot invent local
+CA or session state from an inaccessible remote trust root.
 
 The checked shape is
 `docs/fixtures/leserpent-bootstrap-origin-v1.example.json`. Operators must copy

@@ -457,7 +457,7 @@ are deliberately absent.
 
 Controller restart durability is also implemented. The daemon worker converts
 only a validated terminal bootstrap outcome into a private schema-v1 checkpoint,
-and runtime SQLite schema 11 commits that checkpoint in the same transaction as
+and runtime SQLite schema 12 commits that checkpoint in the same transaction as
 effect completion. Restart leaves `Bootstrapped` read-only. The legacy internal
 direct-enqueue proof reaches terminal revision 1 and binds at revision 2; the
 production submission path starts at revision-1 `Planned`, reaches terminal
@@ -495,9 +495,25 @@ CLI now exposes `bootstrap deploy ... --yes` with only a target and
 Avalonia Hub now exposes the same authority-scoped sequence through native
 controls: explicit deployment confirmation, independent `/v1/bootstrap`
 submission, bounded handoff polling, and phase-gated server-verified binding.
-The next product slice promotes a bound receipt into the saved connection
-catalog only when its trust record is locally verifiable, then exposes
-post-session Gewyvern deployment through that newly authenticated daemon.
+The locally managed authority now also promotes a bound receipt into the saved
+connection catalog only after endpoint-bound trust loading, Rust-compatible
+session-handle resolution, and live target health proof. Remote authorities do
+not export their local trust stores.
+
+The post-session runtime path now has a separate domain/protocol foundation rather
+than overloading `runtime.deploy`. `runtime.provision` models confirmed native
+installation, authenticated service readiness, installation-credential retirement,
+and identity-bound runtime registration. Its independent strict 64 KiB protocol
+rejects unknown fields and raw credentials. `runtime.deploy` remains only the
+debugging-pipeline submission operation for an already registered Gewyvern endpoint.
+Runtime SQLite schema 12 now provides shared, kind-scoped authority checkpoints.
+It atomically queues provisioning with revision-1 `Planned`, settles installation
+to `ServiceReady` or `Failed`, restores both after restart, retires the installation
+credential at readiness, and revision-CAS gates `RuntimeRegistered`. Existing
+schema-11 daemon bootstrap checkpoints migrate losslessly into the same storage
+without sharing operation identities. The next product slice connects these APIs
+to a durable daemon submission route and native provisioning adapter before
+exposing the action in CLI or Avalonia.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

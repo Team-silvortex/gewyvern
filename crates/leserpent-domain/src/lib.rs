@@ -5,6 +5,7 @@ use http::Uri;
 use serde::{Deserialize, Serialize};
 
 pub mod bootstrap;
+pub mod provisioning;
 
 pub const DOMAIN_SCHEMA_VERSION: u32 = 1;
 pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;

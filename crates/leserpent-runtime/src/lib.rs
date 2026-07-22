@@ -2,6 +2,10 @@ use leserpent_domain::bootstrap::{
     BootstrapError, BootstrapId, BootstrapPhase, DaemonSessionProof, DeploymentBootstrap,
     DeploymentBootstrapCheckpoint, DeploymentBootstrapSnapshot,
 };
+use leserpent_domain::provisioning::{
+    ProvisioningError, ProvisioningId, ProvisioningPhase, RuntimeProvisioning,
+    RuntimeProvisioningCheckpoint, RuntimeProvisioningSnapshot, RuntimeRegistrationProof,
+};
 use leserpent_domain::{
     CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
     DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
@@ -111,6 +115,7 @@ pub enum RuntimeError {
     InvalidEffectOutcome(&'static str),
     Domain(DomainError),
     Bootstrap(BootstrapError),
+    Provisioning(ProvisioningError),
     InvalidSnapshot(DomainSnapshotError),
     Storage(String),
     ReplayMismatch { sequence: i64 },
@@ -125,6 +130,9 @@ impl fmt::Display for RuntimeError {
             }
             Self::Domain(error) => write!(formatter, "domain execution failed: {error}"),
             Self::Bootstrap(error) => write!(formatter, "bootstrap state failed: {error}"),
+            Self::Provisioning(error) => {
+                write!(formatter, "runtime provisioning state failed: {error}")
+            }
             Self::InvalidSnapshot(error) => write!(formatter, "invalid runtime snapshot: {error}"),
             Self::Storage(error) => write!(formatter, "runtime storage failed: {error}"),
             Self::ReplayMismatch { sequence } => {
@@ -143,6 +151,7 @@ impl std::error::Error for RuntimeError {
             Self::InvalidPlan(error) => Some(error),
             Self::Domain(error) => Some(error),
             Self::Bootstrap(error) => Some(error),
+            Self::Provisioning(error) => Some(error),
             Self::InvalidSnapshot(error) => Some(error),
             Self::InvalidEffectOutcome(_) | Self::Storage(_) | Self::ReplayMismatch { .. } => None,
         }
@@ -428,11 +437,12 @@ impl ControlRuntime {
             ));
         };
         journal
-            .enqueue_effect_with_bootstrap_checkpoint(
+            .enqueue_effect_with_authority_checkpoint(
                 effect_id,
                 kind,
                 payload,
                 max_attempts,
+                persistence::AUTHORITY_KIND_DAEMON_BOOTSTRAP,
                 checkpoint.state.bootstrap_id.as_str(),
                 bootstrap_phase_label(checkpoint.state.phase),
                 checkpoint.revision,
@@ -624,9 +634,10 @@ impl ControlRuntime {
             ));
         };
         journal
-            .complete_effect_with_bootstrap_checkpoint(
+            .complete_effect_with_authority_checkpoint(
                 lease,
                 outcome,
+                persistence::AUTHORITY_KIND_DAEMON_BOOTSTRAP,
                 checkpoint.state.bootstrap_id.as_str(),
                 bootstrap_phase_label(checkpoint.state.phase),
                 checkpoint.revision,
@@ -645,7 +656,10 @@ impl ControlRuntime {
             ));
         };
         let Some(record) = journal
-            .bootstrap_checkpoint(bootstrap_id.as_str())
+            .authority_checkpoint(
+                persistence::AUTHORITY_KIND_DAEMON_BOOTSTRAP,
+                bootstrap_id.as_str(),
+            )
             .map_err(RuntimeError::Storage)?
         else {
             return Ok(None);
@@ -697,10 +711,158 @@ impl ControlRuntime {
             ));
         };
         journal
-            .update_bootstrap_checkpoint(
+            .update_authority_checkpoint(
+                persistence::AUTHORITY_KIND_DAEMON_BOOTSTRAP,
                 bootstrap_id.as_str(),
                 checkpoint.revision,
                 bootstrap_phase_label(next.state.phase),
+                &payload,
+            )
+            .map_err(RuntimeError::Storage)?;
+        Ok(state)
+    }
+
+    pub fn enqueue_provisioning_effect(
+        &mut self,
+        effect_id: &str,
+        kind: &str,
+        payload: &[u8],
+        max_attempts: u32,
+        checkpoint: &RuntimeProvisioningCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint.validate().map_err(RuntimeError::Provisioning)?;
+        if checkpoint.revision != 1 || checkpoint.state.phase != ProvisioningPhase::Planned {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "provisioning submission must begin at planned revision 1",
+            ));
+        }
+        let checkpoint_payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime provisioning requires persistent storage".into(),
+            ));
+        };
+        journal
+            .enqueue_effect_with_authority_checkpoint(
+                effect_id,
+                kind,
+                payload,
+                max_attempts,
+                persistence::AUTHORITY_KIND_GEWYVERN_PROVISIONING,
+                checkpoint.state.provisioning_id.as_str(),
+                provisioning_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &checkpoint_payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn complete_provisioning_effect(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+        checkpoint: &RuntimeProvisioningCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint.validate().map_err(RuntimeError::Provisioning)?;
+        if !matches!(
+            checkpoint.state.phase,
+            ProvisioningPhase::ServiceReady | ProvisioningPhase::Failed
+        ) {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "provisioning effect did not reach a terminal installation phase",
+            ));
+        }
+        let payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime provisioning requires persistent storage".into(),
+            ));
+        };
+        journal
+            .complete_effect_with_authority_checkpoint(
+                lease,
+                outcome,
+                persistence::AUTHORITY_KIND_GEWYVERN_PROVISIONING,
+                checkpoint.state.provisioning_id.as_str(),
+                provisioning_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn provisioning_checkpoint(
+        &mut self,
+        provisioning_id: &ProvisioningId,
+    ) -> Result<Option<RuntimeProvisioningCheckpoint>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime provisioning requires persistent storage".into(),
+            ));
+        };
+        let Some(record) = journal
+            .authority_checkpoint(
+                persistence::AUTHORITY_KIND_GEWYVERN_PROVISIONING,
+                provisioning_id.as_str(),
+            )
+            .map_err(RuntimeError::Storage)?
+        else {
+            return Ok(None);
+        };
+        let checkpoint: RuntimeProvisioningCheckpoint = serde_json::from_slice(&record.payload)
+            .map_err(|_| RuntimeError::Storage("provisioning checkpoint is invalid JSON".into()))?;
+        checkpoint.validate().map_err(|error| {
+            RuntimeError::Storage(format!("invalid provisioning checkpoint: {error}"))
+        })?;
+        if checkpoint.revision != record.revision
+            || checkpoint.state.provisioning_id != *provisioning_id
+            || provisioning_phase_label(checkpoint.state.phase) != record.phase
+        {
+            return Err(RuntimeError::Storage(
+                "provisioning checkpoint identity or revision diverged".into(),
+            ));
+        }
+        Ok(Some(checkpoint))
+    }
+
+    pub fn accept_provisioning_registration(
+        &mut self,
+        provisioning_id: &ProvisioningId,
+        proof: RuntimeRegistrationProof,
+    ) -> Result<RuntimeProvisioningSnapshot, RuntimeError> {
+        let checkpoint = self
+            .provisioning_checkpoint(provisioning_id)?
+            .ok_or_else(|| RuntimeError::Storage("provisioning checkpoint was not found".into()))?;
+        let mut provisioning =
+            RuntimeProvisioning::resume(&checkpoint).map_err(RuntimeError::Provisioning)?;
+        let state = provisioning
+            .accept_registration(proof)
+            .map_err(RuntimeError::Provisioning)?;
+        if checkpoint.state.phase == ProvisioningPhase::RuntimeRegistered {
+            return Ok(state);
+        }
+        let next_revision = checkpoint
+            .revision
+            .checked_add(1)
+            .ok_or_else(|| RuntimeError::Storage("provisioning revision overflow".into()))?;
+        let next = provisioning
+            .checkpoint(next_revision)
+            .map_err(RuntimeError::Provisioning)?;
+        let payload =
+            serde_json::to_vec(&next).map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime provisioning requires persistent storage".into(),
+            ));
+        };
+        journal
+            .update_authority_checkpoint(
+                persistence::AUTHORITY_KIND_GEWYVERN_PROVISIONING,
+                provisioning_id.as_str(),
+                checkpoint.revision,
+                provisioning_phase_label(next.state.phase),
                 &payload,
             )
             .map_err(RuntimeError::Storage)?;
@@ -1221,6 +1383,16 @@ fn bootstrap_phase_label(phase: BootstrapPhase) -> &'static str {
     }
 }
 
+fn provisioning_phase_label(phase: ProvisioningPhase) -> &'static str {
+    match phase {
+        ProvisioningPhase::Planned => "planned",
+        ProvisioningPhase::Installing => "installing",
+        ProvisioningPhase::ServiceReady => "service_ready",
+        ProvisioningPhase::RuntimeRegistered => "runtime_registered",
+        ProvisioningPhase::Failed => "failed",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use leselang_command::{LoweringContext, PlannedOperation, lower_effect, plan_runtime_deploy};
@@ -1252,6 +1424,51 @@ mod tests {
             origin: CommandOrigin::Leselang,
             confirmation: Confirmation::NotRequired,
             dry_run: false,
+        }
+    }
+
+    fn planned_provisioning() -> RuntimeProvisioning {
+        use leserpent_domain::bootstrap::{BootstrapTarget, BootstrapTransport, CredentialHandle};
+        use leserpent_domain::provisioning::{
+            CAPABILITY_RUNTIME_PROVISION, PROVISIONING_DOMAIN_SCHEMA_VERSION,
+            RuntimeProvisioningIntent,
+        };
+
+        RuntimeProvisioning::plan(
+            &Principal {
+                id: "operator-a".into(),
+            },
+            &CapabilitySet::new([CAPABILITY_RUNTIME_PROVISION]),
+            RuntimeProvisioningIntent {
+                schema_version: PROVISIONING_DOMAIN_SCHEMA_VERSION,
+                provisioning_id: ProvisioningId::new("provision-runtime-a").unwrap(),
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                target: BootstrapTarget {
+                    transport: BootstrapTransport::Ssh,
+                    host: "runtime-a.example".into(),
+                    port: 22,
+                },
+                install_credential_handle: CredentialHandle::new("vault:ssh:runtime-a-example")
+                    .unwrap(),
+                requested_by: "operator-a".into(),
+                confirmed: true,
+            },
+        )
+        .unwrap()
+    }
+
+    fn provisioning_registration_proof() -> RuntimeRegistrationProof {
+        use leserpent_domain::bootstrap::CredentialHandle;
+        use leserpent_domain::provisioning::PROVISIONING_SERVICE_PROTOCOL_VERSION;
+
+        RuntimeRegistrationProof {
+            provisioning_id: ProvisioningId::new("provision-runtime-a").unwrap(),
+            runtime_id: RuntimeId::new("runtime-a").unwrap(),
+            endpoint: "https://runtime-a.example:9411/".into(),
+            api_credential_handle: CredentialHandle::new("vault:gewyvern-api:runtime-a").unwrap(),
+            trust_credential_handle: CredentialHandle::new("vault:gewyvern-ca:runtime-a").unwrap(),
+            authority_owned: true,
+            protocol_schema_version: PROVISIONING_SERVICE_PROTOCOL_VERSION,
         }
     }
 
@@ -1745,16 +1962,110 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 11);
-        assert_eq!(migration_count, 11);
+        assert_eq!(schema, 12);
+        assert_eq!(migration_count, 12);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
 
     #[test]
+    fn schema_11_bootstrap_checkpoint_migrates_to_shared_authority_storage() {
+        use leserpent_domain::bootstrap::{
+            BOOTSTRAP_DOMAIN_SCHEMA_VERSION, BootstrapIntent, BootstrapTarget, BootstrapTransport,
+            CAPABILITY_HOST_BOOTSTRAP, CredentialHandle,
+        };
+
+        let path = temp_journal("v11-authority-checkpoint-migration");
+        let bootstrap_id = BootstrapId::new("bootstrap-migrate-1").unwrap();
+        let bootstrap = DeploymentBootstrap::plan(
+            &Principal {
+                id: "operator-a".into(),
+            },
+            &CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+            BootstrapIntent {
+                schema_version: BOOTSTRAP_DOMAIN_SCHEMA_VERSION,
+                bootstrap_id: bootstrap_id.clone(),
+                target: BootstrapTarget {
+                    transport: BootstrapTransport::Ssh,
+                    host: "host.example".into(),
+                    port: 22,
+                },
+                credential_handle: CredentialHandle::new("vault:ssh:host-example").unwrap(),
+                requested_by: "operator-a".into(),
+                confirmed: true,
+            },
+        )
+        .unwrap();
+        let checkpoint = bootstrap.checkpoint(1).unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .enqueue_bootstrap_effect(
+                "bootstrap-migrate-effect",
+                "leserpent.host.bootstrap",
+                b"request",
+                3,
+                &checkpoint,
+            )
+            .unwrap();
+        drop(runtime);
+
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE bootstrap_handoffs (
+                     bootstrap_id TEXT PRIMARY KEY,
+                     revision INTEGER NOT NULL CHECK (revision >= 1),
+                     phase TEXT NOT NULL CHECK (
+                         phase IN ('planned', 'deploying', 'bootstrapped', 'session_bound', 'failed')
+                     ),
+                     checkpoint BLOB NOT NULL CHECK (length(checkpoint) <= 65536),
+                     updated_at_unix_ms INTEGER NOT NULL CHECK (updated_at_unix_ms >= 0)
+                 ) STRICT;
+                 CREATE INDEX bootstrap_handoffs_by_phase
+                     ON bootstrap_handoffs (phase, updated_at_unix_ms DESC);
+                 INSERT INTO bootstrap_handoffs
+                     (bootstrap_id, revision, phase, checkpoint, updated_at_unix_ms)
+                 SELECT operation_id, revision, phase, checkpoint, updated_at_unix_ms
+                 FROM authority_checkpoints WHERE operation_kind = 'daemon_bootstrap';
+                 DROP INDEX authority_checkpoints_by_kind_phase;
+                 DROP TABLE authority_checkpoints;
+                 DELETE FROM runtime_schema_migrations WHERE version = 12;
+                 UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
+            )
+            .unwrap();
+        drop(connection);
+
+        let mut migrated = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            migrated
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap(),
+            checkpoint
+        );
+        drop(migrated);
+        let connection = Connection::open(&path).unwrap();
+        let (schema, bootstrap_rows, provisioning_rows): (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT value FROM runtime_metadata WHERE key = 'schema_version'),
+                     (SELECT COUNT(*) FROM authority_checkpoints
+                      WHERE operation_kind = 'daemon_bootstrap'),
+                     (SELECT COUNT(*) FROM authority_checkpoints
+                      WHERE operation_kind = 'gewyvern_provisioning')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (12, 1, 0));
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v11");
+        let path = temp_journal("incomplete-v12");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -1769,14 +2080,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 11);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 12);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 11")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 12")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1817,7 +2128,13 @@ mod tests {
             )
             .unwrap();
         connection
-            .execute("DROP TABLE bootstrap_handoffs", [])
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 12",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE authority_checkpoints", [])
             .unwrap();
         connection
             .execute("DROP TABLE orchestra_events", [])
@@ -1848,7 +2165,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 11);
+        assert_eq!(schema, 12);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -1869,7 +2186,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 11 journal kind")
+                if error.contains("invalid runtime journal schema 12 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -1882,14 +2199,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (12, 0)",
+                 VALUES (13, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 11 migration history")
+                if error.contains("invalid runtime journal schema 12 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2168,7 +2485,7 @@ mod tests {
                  DROP TABLE runtime_logs;
                  DROP TABLE orchestra_events;
                  DROP TABLE orchestra_runs;
-                 DROP TABLE bootstrap_handoffs;
+                 DROP TABLE authority_checkpoints;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -2195,7 +2512,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 11);
+        assert_eq!(schema, 12);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2313,6 +2630,104 @@ mod tests {
                 .is_none()
         );
         drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn provisioning_checkpoint_is_atomic_restart_safe_and_registration_fenced() {
+        use leserpent_domain::bootstrap::CredentialHandle;
+        use leserpent_domain::provisioning::GewyvernServiceReceipt;
+
+        let path = temp_journal("provisioning-authority-checkpoint");
+        let provisioning_id = ProvisioningId::new("provision-runtime-a").unwrap();
+        let mut provisioning = planned_provisioning();
+        let planned = provisioning.checkpoint(1).unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .enqueue_provisioning_effect(
+                "provision-runtime-a-effect",
+                "gewyvern.host.provision",
+                b"bounded-request",
+                3,
+                &planned,
+            )
+            .unwrap();
+        runtime
+            .enqueue_provisioning_effect(
+                "provision-runtime-a-effect",
+                "gewyvern.host.provision",
+                b"bounded-request",
+                3,
+                &planned,
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .enqueue_provisioning_effect(
+                    "provision-runtime-a-effect",
+                    "gewyvern.host.provision",
+                    b"different-request",
+                    3,
+                    &planned,
+                )
+                .is_err()
+        );
+
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        provisioning.begin().unwrap();
+        provisioning
+            .accept_service(GewyvernServiceReceipt {
+                provisioning_id: provisioning_id.clone(),
+                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                endpoint: "https://runtime-a.example:9411/".into(),
+                api_credential_handle: CredentialHandle::new("vault:gewyvern-api:runtime-a")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:gewyvern-ca:runtime-a")
+                    .unwrap(),
+            })
+            .unwrap();
+        let ready = provisioning.checkpoint(2).unwrap();
+        runtime
+            .complete_provisioning_effect(&lease, b"service-ready", &ready)
+            .unwrap();
+        drop(runtime);
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        let restored = restarted
+            .provisioning_checkpoint(&provisioning_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored.state.phase, ProvisioningPhase::ServiceReady);
+        assert!(!restored.state.install_credential_present);
+        let registered = restarted
+            .accept_provisioning_registration(&provisioning_id, provisioning_registration_proof())
+            .unwrap();
+        assert_eq!(registered.phase, ProvisioningPhase::RuntimeRegistered);
+        assert_eq!(
+            restarted
+                .accept_provisioning_registration(
+                    &provisioning_id,
+                    provisioning_registration_proof(),
+                )
+                .unwrap(),
+            registered
+        );
+        drop(restarted);
+
+        let mut final_runtime = ControlRuntime::open(&path).unwrap();
+        let final_checkpoint = final_runtime
+            .provisioning_checkpoint(&provisioning_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(final_checkpoint.revision, 3);
+        assert_eq!(
+            final_checkpoint.state.phase,
+            ProvisioningPhase::RuntimeRegistered
+        );
+        drop(final_runtime);
         fs::remove_file(path).unwrap();
     }
 
@@ -2532,7 +2947,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 11);
+        assert_eq!(schema, 12);
         drop(connection);
         fs::remove_file(path).unwrap();
     }

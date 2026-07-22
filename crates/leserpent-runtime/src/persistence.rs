@@ -14,7 +14,9 @@ use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
 use crate::{EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH};
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 11;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 12;
+pub const AUTHORITY_KIND_DAEMON_BOOTSTRAP: &str = "daemon_bootstrap";
+pub const AUTHORITY_KIND_GEWYVERN_PROVISIONING: &str = "gewyvern_provisioning";
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
@@ -107,7 +109,7 @@ pub struct OrchestraDeleteRecord {
     pub deleted_event_count: u64,
 }
 
-pub struct BootstrapCheckpointRecord {
+pub struct AuthorityCheckpointRecord {
     pub revision: u64,
     pub phase: String,
     pub payload: Vec<u8>,
@@ -542,13 +544,14 @@ impl Journal {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn enqueue_effect_with_bootstrap_checkpoint(
+    pub fn enqueue_effect_with_authority_checkpoint(
         &mut self,
         effect_id: &str,
         kind: &str,
         effect_payload: &[u8],
         max_attempts: u32,
-        bootstrap_id: &str,
+        authority_kind: &str,
+        operation_id: &str,
         phase: &str,
         revision: u64,
         checkpoint: &[u8],
@@ -556,17 +559,18 @@ impl Journal {
         self.ensure_owner()?;
         validate_scheduler_id("effect_id", effect_id)?;
         validate_scheduler_id("effect kind", kind)?;
-        validate_scheduler_id("bootstrap_id", bootstrap_id)?;
-        validate_bootstrap_phase(phase)?;
+        validate_scheduler_id("authority checkpoint kind", authority_kind)?;
+        validate_scheduler_id("authority operation_id", operation_id)?;
+        validate_authority_phase(authority_kind, phase)?;
         validate_blob("effect payload", effect_payload)?;
         validate_blob("bootstrap checkpoint", checkpoint)?;
         if max_attempts == 0 || max_attempts > 100 {
             return Err("effect max_attempts must be between 1 and 100".into());
         }
         let revision = i64::try_from(revision)
-            .map_err(|_| "bootstrap checkpoint revision is out of range".to_string())?;
+            .map_err(|_| "authority checkpoint revision is out of range".to_string())?;
         if revision == 0 {
-            return Err("bootstrap checkpoint revision must be positive".into());
+            return Err("authority checkpoint revision must be positive".into());
         }
         let now = unix_time_ms()?;
         let transaction = self
@@ -583,8 +587,9 @@ impl Journal {
             .map_err(|error| error.to_string())?;
         let existing_checkpoint: Option<(i64, String, Vec<u8>)> = transaction
             .query_row(
-                "SELECT revision, phase, checkpoint FROM bootstrap_handoffs WHERE bootstrap_id = ?1",
-                [bootstrap_id],
+                "SELECT revision, phase, checkpoint FROM authority_checkpoints
+                 WHERE operation_kind = ?1 AND operation_id = ?2",
+                params![authority_kind, operation_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
@@ -604,10 +609,10 @@ impl Journal {
                 return Ok(());
             }
             (Some(_), Some(_)) => {
-                return Err("bootstrap identity was reused with different input".into());
+                return Err("authority operation identity was reused with different input".into());
             }
             (None, None) => {}
-            _ => return Err("bootstrap submission persistence is incomplete".into()),
+            _ => return Err("authority submission persistence is incomplete".into()),
         }
         let active: i64 = transaction
             .query_row(
@@ -638,10 +643,18 @@ impl Journal {
             .map_err(|error| error.to_string())?;
         transaction
             .execute(
-                "INSERT INTO bootstrap_handoffs
-                     (bootstrap_id, revision, phase, checkpoint, updated_at_unix_ms)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![bootstrap_id, revision, phase, checkpoint, now],
+                "INSERT INTO authority_checkpoints
+                     (operation_kind, operation_id, revision, phase, checkpoint,
+                      updated_at_unix_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    authority_kind,
+                    operation_id,
+                    revision,
+                    phase,
+                    checkpoint,
+                    now
+                ],
             )
             .map_err(|error| error.to_string())?;
         transaction.commit().map_err(|error| error.to_string())
@@ -1274,24 +1287,27 @@ impl Journal {
         self.finish_effect(lease, Some(outcome), None, Duration::ZERO)
     }
 
-    pub fn complete_effect_with_bootstrap_checkpoint(
+    #[allow(clippy::too_many_arguments)]
+    pub fn complete_effect_with_authority_checkpoint(
         &mut self,
         lease: &EffectLease,
         outcome: &[u8],
-        bootstrap_id: &str,
+        authority_kind: &str,
+        operation_id: &str,
         phase: &str,
         revision: u64,
         checkpoint: &[u8],
     ) -> Result<(), String> {
         self.ensure_owner()?;
-        validate_scheduler_id("bootstrap_id", bootstrap_id)?;
-        validate_bootstrap_phase(phase)?;
+        validate_scheduler_id("authority checkpoint kind", authority_kind)?;
+        validate_scheduler_id("authority operation_id", operation_id)?;
+        validate_authority_phase(authority_kind, phase)?;
         validate_blob("effect outcome", outcome)?;
         validate_blob("bootstrap checkpoint", checkpoint)?;
         let revision = i64::try_from(revision)
-            .map_err(|_| "bootstrap checkpoint revision is out of range".to_string())?;
+            .map_err(|_| "authority checkpoint revision is out of range".to_string())?;
         if revision == 0 {
-            return Err("bootstrap checkpoint revision must be positive".into());
+            return Err("authority checkpoint revision must be positive".into());
         }
         let now = unix_time_ms()?;
         let transaction = self
@@ -1300,8 +1316,9 @@ impl Journal {
             .map_err(|error| error.to_string())?;
         let existing: Option<(i64, String, Vec<u8>)> = transaction
             .query_row(
-                "SELECT revision, phase, checkpoint FROM bootstrap_handoffs WHERE bootstrap_id = ?1",
-                [bootstrap_id],
+                "SELECT revision, phase, checkpoint FROM authority_checkpoints
+                 WHERE operation_kind = ?1 AND operation_id = ?2",
+                params![authority_kind, operation_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
@@ -1315,62 +1332,77 @@ impl Journal {
             {
                 let changed = transaction
                     .execute(
-                        "UPDATE bootstrap_handoffs SET revision = ?1, phase = ?2,
+                        "UPDATE authority_checkpoints SET revision = ?1, phase = ?2,
                              checkpoint = ?3, updated_at_unix_ms = ?4
-                         WHERE bootstrap_id = ?5 AND revision = ?6 AND phase = 'planned'",
+                         WHERE operation_kind = ?5 AND operation_id = ?6
+                           AND revision = ?7 AND phase = 'planned'",
                         params![
                             revision,
                             phase,
                             checkpoint,
                             now,
-                            bootstrap_id,
+                            authority_kind,
+                            operation_id,
                             stored_revision
                         ],
                     )
                     .map_err(|error| error.to_string())?;
                 if changed != 1 {
-                    return Err("bootstrap checkpoint changed during effect completion".into());
+                    return Err("authority checkpoint changed during effect completion".into());
                 }
             }
-            Some(_) => return Err("bootstrap identity was reused with different state".into()),
+            Some(_) => {
+                return Err("authority operation identity was reused with different state".into());
+            }
             None if revision == 1 => {
                 transaction
                     .execute(
-                        "INSERT INTO bootstrap_handoffs
-                             (bootstrap_id, revision, phase, checkpoint, updated_at_unix_ms)
-                         VALUES (?1, ?2, ?3, ?4, ?5)",
-                        params![bootstrap_id, revision, phase, checkpoint, now],
+                        "INSERT INTO authority_checkpoints
+                             (operation_kind, operation_id, revision, phase, checkpoint,
+                              updated_at_unix_ms)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        params![
+                            authority_kind,
+                            operation_id,
+                            revision,
+                            phase,
+                            checkpoint,
+                            now
+                        ],
                     )
                     .map_err(|error| error.to_string())?;
             }
-            None => return Err("bootstrap planned checkpoint is missing".into()),
+            None => return Err("authority planned checkpoint is missing".into()),
         }
         complete_leased_effect(&transaction, lease, outcome, now)?;
         transaction.commit().map_err(|error| error.to_string())
     }
 
-    pub fn bootstrap_checkpoint(
+    pub fn authority_checkpoint(
         &mut self,
-        bootstrap_id: &str,
-    ) -> Result<Option<BootstrapCheckpointRecord>, String> {
+        authority_kind: &str,
+        operation_id: &str,
+    ) -> Result<Option<AuthorityCheckpointRecord>, String> {
         self.ensure_owner()?;
-        validate_scheduler_id("bootstrap_id", bootstrap_id)?;
+        validate_scheduler_id("authority checkpoint kind", authority_kind)?;
+        validate_scheduler_id("authority operation_id", operation_id)?;
         let record: Option<(i64, String, Vec<u8>)> = self
             .connection
             .query_row(
-                "SELECT revision, phase, checkpoint FROM bootstrap_handoffs WHERE bootstrap_id = ?1",
-                [bootstrap_id],
+                "SELECT revision, phase, checkpoint FROM authority_checkpoints
+                 WHERE operation_kind = ?1 AND operation_id = ?2",
+                params![authority_kind, operation_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(|error| error.to_string())?;
         record
             .map(|(revision, phase, payload)| {
-                validate_bootstrap_phase(&phase)?;
-                validate_blob("bootstrap checkpoint", &payload)?;
-                Ok(BootstrapCheckpointRecord {
+                validate_authority_phase(authority_kind, &phase)?;
+                validate_blob("authority checkpoint", &payload)?;
+                Ok(AuthorityCheckpointRecord {
                     revision: u64::try_from(revision)
-                        .map_err(|_| "bootstrap checkpoint revision is invalid".to_string())?,
+                        .map_err(|_| "authority checkpoint revision is invalid".to_string())?,
                     phase,
                     payload,
                 })
@@ -1378,40 +1410,43 @@ impl Journal {
             .transpose()
     }
 
-    pub fn update_bootstrap_checkpoint(
+    pub fn update_authority_checkpoint(
         &mut self,
-        bootstrap_id: &str,
+        authority_kind: &str,
+        operation_id: &str,
         expected_revision: u64,
         phase: &str,
         checkpoint: &[u8],
     ) -> Result<(), String> {
         self.ensure_owner()?;
-        validate_scheduler_id("bootstrap_id", bootstrap_id)?;
-        validate_bootstrap_phase(phase)?;
-        validate_blob("bootstrap checkpoint", checkpoint)?;
+        validate_scheduler_id("authority checkpoint kind", authority_kind)?;
+        validate_scheduler_id("authority operation_id", operation_id)?;
+        validate_authority_phase(authority_kind, phase)?;
+        validate_blob("authority checkpoint", checkpoint)?;
         let expected_revision = i64::try_from(expected_revision)
-            .map_err(|_| "bootstrap checkpoint revision is out of range".to_string())?;
+            .map_err(|_| "authority checkpoint revision is out of range".to_string())?;
         let next_revision = expected_revision
             .checked_add(1)
-            .ok_or_else(|| "bootstrap checkpoint revision overflow".to_string())?;
+            .ok_or_else(|| "authority checkpoint revision overflow".to_string())?;
         let changed = self
             .connection
             .execute(
-                "UPDATE bootstrap_handoffs SET revision = ?1, phase = ?2,
+                "UPDATE authority_checkpoints SET revision = ?1, phase = ?2,
                      checkpoint = ?3, updated_at_unix_ms = ?4
-                 WHERE bootstrap_id = ?5 AND revision = ?6",
+                 WHERE operation_kind = ?5 AND operation_id = ?6 AND revision = ?7",
                 params![
                     next_revision,
                     phase,
                     checkpoint,
                     unix_time_ms()?,
-                    bootstrap_id,
+                    authority_kind,
+                    operation_id,
                     expected_revision
                 ],
             )
             .map_err(|error| error.to_string())?;
         if changed != 1 {
-            return Err("bootstrap checkpoint was missing or concurrently changed".into());
+            return Err("authority checkpoint was missing or concurrently changed".into());
         }
         Ok(())
     }
@@ -1622,13 +1657,21 @@ fn complete_leased_effect(
     Ok(())
 }
 
-fn validate_bootstrap_phase(phase: &str) -> Result<(), String> {
-    matches!(
-        phase,
-        "planned" | "deploying" | "bootstrapped" | "session_bound" | "failed"
-    )
-    .then_some(())
-    .ok_or_else(|| "bootstrap checkpoint phase is invalid".to_string())
+fn validate_authority_phase(operation_kind: &str, phase: &str) -> Result<(), String> {
+    let valid = match operation_kind {
+        AUTHORITY_KIND_DAEMON_BOOTSTRAP => matches!(
+            phase,
+            "planned" | "deploying" | "bootstrapped" | "session_bound" | "failed"
+        ),
+        AUTHORITY_KIND_GEWYVERN_PROVISIONING => matches!(
+            phase,
+            "planned" | "installing" | "service_ready" | "runtime_registered" | "failed"
+        ),
+        _ => false,
+    };
+    valid
+        .then_some(())
+        .ok_or_else(|| "authority checkpoint kind or phase is invalid".to_string())
 }
 
 fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String> {
@@ -1643,10 +1686,68 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         8 => migrate_schema_8_to_9(connection),
         9 => migrate_schema_9_to_10(connection),
         10 => migrate_schema_10_to_11(connection),
+        11 => migrate_schema_11_to_12(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_11_to_12(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE authority_checkpoints (
+                 operation_kind TEXT NOT NULL CHECK (
+                     operation_kind IN ('daemon_bootstrap', 'gewyvern_provisioning')
+                 ),
+                 operation_id TEXT NOT NULL,
+                 revision INTEGER NOT NULL CHECK (revision >= 1),
+                 phase TEXT NOT NULL,
+                 checkpoint BLOB NOT NULL CHECK (length(checkpoint) <= 65536),
+                 updated_at_unix_ms INTEGER NOT NULL CHECK (updated_at_unix_ms >= 0),
+                 PRIMARY KEY (operation_kind, operation_id),
+                 CHECK (
+                     (operation_kind = 'daemon_bootstrap' AND phase IN (
+                         'planned', 'deploying', 'bootstrapped', 'session_bound', 'failed'
+                     )) OR
+                     (operation_kind = 'gewyvern_provisioning' AND phase IN (
+                         'planned', 'installing', 'service_ready', 'runtime_registered', 'failed'
+                     ))
+                 )
+             ) STRICT;
+             INSERT INTO authority_checkpoints
+                 (operation_kind, operation_id, revision, phase, checkpoint, updated_at_unix_ms)
+             SELECT 'daemon_bootstrap', bootstrap_id, revision, phase, checkpoint,
+                    updated_at_unix_ms
+             FROM bootstrap_handoffs;
+             DROP INDEX bootstrap_handoffs_by_phase;
+             DROP TABLE bootstrap_handoffs;
+             CREATE INDEX authority_checkpoints_by_kind_phase
+                 ON authority_checkpoints
+                    (operation_kind, phase, updated_at_unix_ms DESC);",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (12, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 12 WHERE key = 'schema_version' AND value = 11",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(12)
 }
 
 fn migrate_schema_10_to_11(connection: &mut Connection) -> Result<i64, String> {
@@ -2028,9 +2129,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (11, 1, 11) {
-        return Err("invalid runtime journal schema 11 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (12, 1, 12) {
+        return Err("invalid runtime journal schema 12 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -2040,23 +2141,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 11 timestamp column".into());
+        return Err("invalid runtime journal schema 12 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -2068,9 +2169,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 11 effect columns".into());
+        return Err("invalid runtime journal schema 12 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -2080,9 +2181,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 11 effect claim index".into());
+        return Err("invalid runtime journal schema 12 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
@@ -2094,9 +2195,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 11 journal kind".into());
+        return Err("invalid runtime journal schema 12 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -2105,9 +2206,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 11 log columns".into());
+        return Err("invalid runtime journal schema 12 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -2117,9 +2218,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 11 log index".into());
+        return Err("invalid runtime journal schema 12 log index".into());
     }
     let orchestra_tables: i64 = connection
         .query_row(
@@ -2128,9 +2229,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     if orchestra_tables != 2 {
-        return Err("invalid runtime journal schema 11 Orchestra tables".into());
+        return Err("invalid runtime journal schema 12 Orchestra tables".into());
     }
     let orchestra_indexes: i64 = connection
         .query_row(
@@ -2142,34 +2243,35 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
     if orchestra_indexes != 3 {
-        return Err("invalid runtime journal schema 11 Orchestra indexes".into());
+        return Err("invalid runtime journal schema 12 Orchestra indexes".into());
     }
-    let bootstrap_columns: i64 = connection
+    let authority_columns: i64 = connection
         .query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('bootstrap_handoffs')
+            "SELECT COUNT(*) FROM pragma_table_info('authority_checkpoints')
              WHERE name IN (
-                 'bootstrap_id', 'revision', 'phase', 'checkpoint', 'updated_at_unix_ms'
+                 'operation_kind', 'operation_id', 'revision', 'phase', 'checkpoint',
+                 'updated_at_unix_ms'
              )",
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
-    if bootstrap_columns != 5 {
-        return Err("invalid runtime journal schema 11 bootstrap columns".into());
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+    if authority_columns != 6 {
+        return Err("invalid runtime journal schema 12 authority checkpoint columns".into());
     }
-    let bootstrap_index: i64 = connection
+    let authority_index: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'index' AND name = 'bootstrap_handoffs_by_phase'
-               AND tbl_name = 'bootstrap_handoffs'",
+             WHERE type = 'index' AND name = 'authority_checkpoints_by_kind_phase'
+               AND tbl_name = 'authority_checkpoints'",
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 11: {error}"))?;
-    if bootstrap_index != 1 {
-        return Err("invalid runtime journal schema 11 bootstrap index".into());
+        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+    if authority_index != 1 {
+        return Err("invalid runtime journal schema 12 authority checkpoint index".into());
     }
     Ok(())
 }

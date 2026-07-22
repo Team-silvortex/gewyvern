@@ -15,6 +15,8 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
     private const string CaFile = "orchestra-local-ca.pem";
     private const string CertFile = "orchestra-local-server.pem";
     private const string KeyFile = "orchestra-local-server-key.pem";
+    private const string BootstrapConfigEnvironment = "LESERPENT_BOOTSTRAP_CONFIG";
+    private const string BootstrapTrustDirectory = "bootstrap-trust-v1";
     private const int DaemonPortStart = 9443;
     private const int DaemonPortEnd = 9503;
     private const int HealthPollMilliseconds = 120;
@@ -28,6 +30,8 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
     private readonly string caCertificatePath;
     private readonly string serverCertificatePath;
     private readonly string serverKeyPath;
+    private readonly string bootstrapTrustRoot;
+    private readonly string? bootstrapConfigPath;
     private readonly string? configuredDaemonPath;
     private readonly string remoteToken;
     private Process? process;
@@ -36,20 +40,39 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
     private bool disposed;
 
     public LocalOrchestraServiceSupervisor()
-        : this(DefaultRootDirectory(), null)
+        : this(
+            DefaultRootDirectory(),
+            null,
+            Environment.GetEnvironmentVariable(BootstrapConfigEnvironment))
     {
     }
 
     private LocalOrchestraServiceSupervisor(string rootDirectory, string? daemonPath)
+        : this(rootDirectory, daemonPath, null)
+    {
+    }
+
+    private LocalOrchestraServiceSupervisor(
+        string rootDirectory,
+        string? daemonPath,
+        string? bootstrapConfigPath)
     {
         this.rootDirectory = Path.GetFullPath(rootDirectory);
         configuredDaemonPath = daemonPath is null ? null : Path.GetFullPath(daemonPath);
+        this.bootstrapConfigPath = string.IsNullOrWhiteSpace(bootstrapConfigPath)
+            ? null
+            : Path.GetFullPath(bootstrapConfigPath);
         EnsurePrivateRootDirectory(this.rootDirectory);
 
         databasePath = Path.Combine(this.rootDirectory, "orchestra.sqlite");
         caCertificatePath = Path.Combine(this.rootDirectory, CaFile);
         serverCertificatePath = Path.Combine(this.rootDirectory, CertFile);
         serverKeyPath = Path.Combine(this.rootDirectory, KeyFile);
+        bootstrapTrustRoot = Path.Combine(this.rootDirectory, BootstrapTrustDirectory);
+        if (this.bootstrapConfigPath is not null)
+        {
+            EnsurePrivateRootDirectory(bootstrapTrustRoot);
+        }
         remoteToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     }
 
@@ -111,6 +134,10 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
         }
     }
 
+    public bool BootstrapEnabled => bootstrapConfigPath is not null;
+
+    public string? BootstrapTrustRoot => BootstrapEnabled ? bootstrapTrustRoot : null;
+
     public void Dispose()
     {
         lock (lifecycleGate)
@@ -125,6 +152,34 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
     }
 
     private static Uri CreateRemoteUri(int port) => new($"https://127.0.0.1:{port}");
+
+    private void AppendBootstrapArguments(ProcessStartInfo info)
+    {
+        if (bootstrapConfigPath is null)
+        {
+            return;
+        }
+        info.ArgumentList.Add("--bootstrap-config");
+        info.ArgumentList.Add(bootstrapConfigPath);
+        info.ArgumentList.Add("--bootstrap-trust-root");
+        info.ArgumentList.Add(bootstrapTrustRoot);
+    }
+
+    private void CopyBootstrapEnvironment(ProcessStartInfo info)
+    {
+        if (bootstrapConfigPath is null || !OperatingSystem.IsLinux())
+        {
+            return;
+        }
+        foreach (var name in new[] { "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR" })
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (value is { Length: > 0 and <= 4096 } && !value.Any(char.IsControl))
+            {
+                info.Environment[name] = value;
+            }
+        }
+    }
 
     private static RemoteClientOptions CreateRemoteOptions(
         string authorityPath,
@@ -210,6 +265,8 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
         info.ArgumentList.Add(serverCertificatePath);
         info.ArgumentList.Add("--remote-key");
         info.ArgumentList.Add(serverKeyPath);
+        AppendBootstrapArguments(info);
+        CopyBootstrapEnvironment(info);
         info.Environment["LESERPENT_REMOTE_TOKEN"] = remoteToken;
         var candidate = new Process { StartInfo = info };
         var localOutput = new StringBuilder();
@@ -456,8 +513,9 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                     "local orchestra verification did not reach an owned authority");
             }
             using var topologyClient = new RemoteTopologyClient(plan.Options);
-            var topology = topologyClient.LoadAsync("avalonia-hub").GetAwaiter().GetResult()
-                with { Health = health };
+            var loadedTopology = topologyClient.LoadAsync("avalonia-hub")
+                .GetAwaiter().GetResult();
+            var topology = loadedTopology with { Health = health };
             if (topology.Revision != 0 || topology.Runtimes.Count != 0 || topology.IsStale)
             {
                 throw new InvalidDataException(
@@ -480,6 +538,34 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                 {
                     throw new InvalidDataException(
                         "local orchestra TLS material is not owner-private");
+                }
+            }
+
+            var bootstrapConfig = Path.Combine(root, "bootstrap-origin.json");
+            File.WriteAllText(bootstrapConfig, "{}");
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(
+                    bootstrapConfig,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            using (var bootstrapSupervisor = new LocalOrchestraServiceSupervisor(
+                Path.Combine(root, "bootstrap-state"),
+                daemonPath,
+                bootstrapConfig))
+            {
+                var arguments = new ProcessStartInfo();
+                bootstrapSupervisor.AppendBootstrapArguments(arguments);
+                if (!bootstrapSupervisor.BootstrapEnabled
+                    || bootstrapSupervisor.BootstrapTrustRoot is null
+                    || arguments.ArgumentList.Count != 4
+                    || arguments.ArgumentList[0] != "--bootstrap-config"
+                    || arguments.ArgumentList[1] != Path.GetFullPath(bootstrapConfig)
+                    || arguments.ArgumentList[2] != "--bootstrap-trust-root"
+                    || arguments.ArgumentList[3] != bootstrapSupervisor.BootstrapTrustRoot)
+                {
+                    throw new InvalidDataException(
+                        "local orchestra bootstrap origin arguments drifted");
                 }
             }
 

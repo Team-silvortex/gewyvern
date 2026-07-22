@@ -180,7 +180,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/reverse-bootstrap")
         .expect("reverse deployment bootstrap must be tracked independently");
     assert_eq!(bootstrap.maturity, Maturity::Developing);
-    assert!((80..=95).contains(&bootstrap.completion));
+    assert!((80..=98).contains(&bootstrap.completion));
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
     assert!(
         bootstrap
@@ -210,6 +210,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "avalonia-phase-gated-session-binding")
     );
+    assert!(
+        bootstrap
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "session-bound-add-to-hub-gate")
+    );
     assert!(bootstrap.blockers.iter().any(|blocker| {
         blocker.id == "cross-platform-bootstrap-installation-incomplete"
             && blocker
@@ -223,9 +230,45 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|blocker| blocker.id == "bootstrap-production-entry-missing")
     );
     assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "bootstrap-client-promotion-missing"
-            && blocker.summary.contains("connection promotion")
+        blocker.id == "post-bind-gewyvern-ui-missing"
+            && blocker
+                .summary
+                .contains("Post-session Gewyvern provisioning")
     }));
+
+    let provisioning = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/gewyvern-provisioning")
+        .expect("Gewyvern provisioning must be tracked independently from pipeline deployment");
+    assert_eq!(provisioning.maturity, Maturity::Developing);
+    assert_eq!(provisioning.completion, 35);
+    assert_eq!(provisioning.contract.stability, ContractStability::Draft);
+    assert!(
+        provisioning.contract.surfaces.iter().any(|surface| {
+            surface == "planned-installing-service-ready-runtime-registered-state"
+        })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "raw-provisioning-credential-field-rejection" })
+    );
+    assert!(
+        provisioning
+            .blockers
+            .iter()
+            .any(|blocker| { blocker.id == "native-gewyvern-provisioning-execution-missing" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "schema-12-shared-authority-checkpoint" })
+    );
 
     let ui = catalog
         .cells
