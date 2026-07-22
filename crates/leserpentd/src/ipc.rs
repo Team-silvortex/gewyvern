@@ -7,6 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use leserpent_protocol::bootstrap::{BootstrapResponseEnvelope, encode_bootstrap_response};
+use leserpent_protocol::provisioning::{
+    ProvisioningResponseEnvelope, encode_provisioning_response,
+};
 use leserpent_protocol::{
     MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request, encode_response,
 };
@@ -14,6 +17,9 @@ use leserpent_runtime::ControlRuntime;
 use serde::Deserialize;
 
 use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
+use crate::provisioning_submission::{
+    decode_and_submit as decode_and_submit_provisioning, error as provisioning_error,
+};
 use crate::wire::{
     BootstrapSessionVerifier, MAX_AUTH_TOKEN_BYTES, constant_time_equals, error_response,
     execute_request, validate_auth_token,
@@ -36,11 +42,13 @@ enum IpcRoute {
     #[default]
     Wire,
     BootstrapV1,
+    ProvisioningV1,
 }
 
 enum IpcResponse {
     Wire(Box<ResponseEnvelope>),
     Bootstrap(BootstrapResponseEnvelope),
+    Provisioning(ProvisioningResponseEnvelope),
 }
 
 pub struct IpcServer {
@@ -51,6 +59,7 @@ pub struct IpcServer {
     token: Vec<u8>,
     bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>>,
     bootstrap_submission_enabled: bool,
+    provisioning_submission_enabled: bool,
 }
 
 impl IpcServer {
@@ -81,6 +90,7 @@ impl IpcServer {
             token: token.as_bytes().to_vec(),
             bootstrap_verifier: None,
             bootstrap_submission_enabled: false,
+            provisioning_submission_enabled: false,
         })
     }
 
@@ -91,6 +101,11 @@ impl IpcServer {
 
     pub fn with_bootstrap_submission(mut self) -> Self {
         self.bootstrap_submission_enabled = true;
+        self
+    }
+
+    pub fn with_provisioning_submission(mut self) -> Self {
+        self.provisioning_submission_enabled = true;
         self
     }
 
@@ -126,6 +141,9 @@ impl IpcServer {
             }
             IpcResponse::Bootstrap(response) => {
                 encode_bootstrap_response(&response).map_err(|error| error.to_string())?
+            }
+            IpcResponse::Provisioning(response) => {
+                encode_provisioning_response(&response).map_err(|error| error.to_string())?
             }
         };
         encoded.push(b'\n');
@@ -163,6 +181,11 @@ impl IpcServer {
                     "unauthorized",
                     "IPC authentication failed",
                 )),
+                IpcRoute::ProvisioningV1 => IpcResponse::Provisioning(provisioning_error(
+                    None,
+                    "unauthorized",
+                    "IPC authentication failed",
+                )),
             };
         }
         let request_bytes = match serde_json::to_vec(&authenticated.request) {
@@ -195,6 +218,11 @@ impl IpcServer {
                 runtime,
                 &request_bytes,
                 self.bootstrap_submission_enabled,
+            )),
+            IpcRoute::ProvisioningV1 => IpcResponse::Provisioning(decode_and_submit_provisioning(
+                runtime,
+                &request_bytes,
+                self.provisioning_submission_enabled,
             )),
         }
     }
@@ -373,6 +401,82 @@ mod tests {
             server.dispatch(&unauthorized, &mut runtime),
             IpcResponse::Bootstrap(BootstrapResponseEnvelope {
                 response: leserpent_protocol::bootstrap::BootstrapResponse::Error(ref error),
+                ..
+            }) if error.code == "unauthorized"
+        ));
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn explicit_provisioning_route_authenticates_and_commits_planned_checkpoint() {
+        let database = temp_path("provisioning-submit", "sqlite");
+        let socket = temp_path("provisioning-submit", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN)
+            .unwrap()
+            .with_provisioning_submission();
+        let request = serde_json::json!({
+            "schema_version": 1,
+            "request": {
+                "principal": { "id": "operator-a" },
+                "capabilities": ["runtime.provision"],
+                "intent": {
+                    "schema_version": 1,
+                    "provisioning_id": "provision-ipc-1",
+                    "runtime_id": "runtime-ipc-1",
+                    "target": {
+                        "transport": "ssh",
+                        "host": "runtime.example",
+                        "port": 22
+                    },
+                    "install_credential_handle": "vault:ssh:runtime-example",
+                    "requested_by": "operator-a",
+                    "confirmed": true
+                }
+            }
+        });
+        let frame = serde_json::to_vec(&serde_json::json!({
+            "token": TOKEN,
+            "route": "provisioning_v1",
+            "request": request,
+        }))
+        .unwrap()
+        .into_iter()
+        .chain([b'\n'])
+        .collect::<Vec<_>>();
+        assert!(matches!(
+            server.dispatch(&frame, &mut runtime),
+            IpcResponse::Provisioning(ProvisioningResponseEnvelope {
+                response: leserpent_protocol::provisioning::ProvisioningResponse::State(ref state),
+                ..
+            }) if state.phase == leserpent_domain::provisioning::ProvisioningPhase::Planned
+        ));
+        let provisioning_id =
+            leserpent_domain::provisioning::ProvisioningId::new("provision-ipc-1").unwrap();
+        assert_eq!(
+            runtime
+                .provisioning_checkpoint(&provisioning_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+
+        let unauthorized = serde_json::to_vec(&serde_json::json!({
+            "token": "fedcba9876543210fedcba9876543210",
+            "route": "provisioning_v1",
+            "request": serde_json::json!({}),
+        }))
+        .unwrap()
+        .into_iter()
+        .chain([b'\n'])
+        .collect::<Vec<_>>();
+        assert!(matches!(
+            server.dispatch(&unauthorized, &mut runtime),
+            IpcResponse::Provisioning(ProvisioningResponseEnvelope {
+                response: leserpent_protocol::provisioning::ProvisioningResponse::Error(ref error),
                 ..
             }) if error.code == "unauthorized"
         ));

@@ -224,8 +224,13 @@ registration. `RuntimeRegistered` requires a proof bound to the provisioning ID,
 runtime ID, HTTPS endpoint, API/trust handles, authority ownership, and protocol
 version. `leserpent-protocol::provisioning` carries this state in an independent,
 strict, 64 KiB-bounded envelope that rejects unknown and raw credential fields.
-The native installer/effect adapter, durable daemon route, CLI, and Avalonia control
-are subsequent layers; the protocol foundation alone does not claim host mutation.
+`leserpentd` now accepts this envelope only through authenticated
+`POST /v1/provisioning` or the explicit `provisioning_v1` IPC route, and only when
+the dedicated `gewyvern.runtime.provision` adapter is registered. The adapter
+resolves the installation credential locally, returns only `ServiceReady` or
+`Failed`, and daemon settlement rejects identity drift before atomically advancing
+the checkpoint. The concrete native SSH installer transport, service registration
+proof, CLI, and Avalonia control remain subsequent layers.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the

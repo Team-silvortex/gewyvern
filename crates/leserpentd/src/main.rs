@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use leserpent_adapters::HOST_BOOTSTRAP_EFFECT_KIND;
 #[cfg(feature = "native-ssh")]
 use leserpent_adapters::{BootstrapTrustStore, FileBootstrapTrustStore};
 use leserpent_adapters::{
@@ -11,6 +10,7 @@ use leserpent_adapters::{
     GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore,
     SecretKey, SecretStore,
 };
+use leserpent_adapters::{GEWYVERN_PROVISIONING_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND};
 use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
 #[cfg(feature = "native-ssh")]
@@ -329,6 +329,7 @@ fn run() -> Result<(), String> {
         })
         .transpose()?;
     let bootstrap_submission_enabled = registry.contains_kind(HOST_BOOTSTRAP_EFFECT_KIND);
+    let provisioning_submission_enabled = registry.contains_kind(GEWYVERN_PROVISIONING_EFFECT_KIND);
     let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default())?;
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(SIGINT, Arc::clone(&stop)).map_err(|error| error.to_string())?;
@@ -343,8 +344,13 @@ fn run() -> Result<(), String> {
                 Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
                 None => server,
             };
-            Some(if bootstrap_submission_enabled {
+            let server = if bootstrap_submission_enabled {
                 server.with_bootstrap_submission()
+            } else {
+                server
+            };
+            Some(if provisioning_submission_enabled {
+                server.with_provisioning_submission()
             } else {
                 server
             })
@@ -380,8 +386,13 @@ fn run() -> Result<(), String> {
                 Some(verifier) => server.with_bootstrap_verifier(Arc::clone(verifier)),
                 None => server,
             };
-            Some(if bootstrap_submission_enabled {
+            let server = if bootstrap_submission_enabled {
                 server.with_bootstrap_submission()
+            } else {
+                server
+            };
+            Some(if provisioning_submission_enabled {
+                server.with_provisioning_submission()
             } else {
                 server
             })

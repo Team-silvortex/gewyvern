@@ -242,7 +242,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/gewyvern-provisioning")
         .expect("Gewyvern provisioning must be tracked independently from pipeline deployment");
     assert_eq!(provisioning.maturity, Maturity::Developing);
-    assert_eq!(provisioning.completion, 35);
+    assert_eq!(provisioning.completion, 50);
     assert_eq!(provisioning.contract.stability, ContractStability::Draft);
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
@@ -260,7 +260,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         provisioning
             .blockers
             .iter()
-            .any(|blocker| { blocker.id == "native-gewyvern-provisioning-execution-missing" })
+            .any(|blocker| { blocker.id == "native-gewyvern-provisioning-transport-missing" })
     );
     assert!(
         provisioning
@@ -268,6 +268,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| { surface == "schema-12-shared-authority-checkpoint" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "authenticated-provisioning-https-route" })
+    );
+    assert!(
+        provisioning
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| { surface == "daemon-provisioning-identity-fence" })
     );
 
     let ui = catalog

@@ -7,6 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, encode_bootstrap_response};
+use leserpent_protocol::provisioning::{
+    MAX_PROVISIONING_PROTOCOL_BYTES, encode_provisioning_response,
+};
 use leserpent_protocol::transport_safety::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
 };
@@ -18,6 +21,9 @@ use zeroize::{Zeroize, Zeroizing};
 
 use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
 use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
+use crate::provisioning_submission::{
+    decode_and_submit as decode_and_submit_provisioning, error as provisioning_error,
+};
 use crate::wire::{
     BootstrapSessionVerifier, constant_time_equals, error_response, execute_request,
     validate_auth_token,
@@ -85,6 +91,7 @@ pub struct RemoteServer {
     event_sessions: Vec<EventSession>,
     bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>>,
     bootstrap_submission_enabled: bool,
+    provisioning_submission_enabled: bool,
 }
 
 impl RemoteServer {
@@ -135,6 +142,7 @@ impl RemoteServer {
             event_sessions: Vec::new(),
             bootstrap_verifier: None,
             bootstrap_submission_enabled: false,
+            provisioning_submission_enabled: false,
         })
     }
 
@@ -145,6 +153,11 @@ impl RemoteServer {
 
     pub fn with_bootstrap_submission(mut self) -> Self {
         self.bootstrap_submission_enabled = true;
+        self
+    }
+
+    pub fn with_provisioning_submission(mut self) -> Self {
+        self.provisioning_submission_enabled = true;
         self
     }
 
@@ -218,6 +231,7 @@ impl RemoteServer {
             return EventSession::upgrade(stream, prefix, &self.token).map(Some);
         }
         let bootstrap_route = prefix.starts_with(b"POST /v1/bootstrap HTTP/1.1\r\n");
+        let provisioning_route = prefix.starts_with(b"POST /v1/provisioning HTTP/1.1\r\n");
         let mut stream = PrefixedStream::new(prefix, stream);
         let (status, body) = match read_http_request(&mut stream, &self.token) {
             Ok(HttpRequest {
@@ -245,10 +259,31 @@ impl RemoteServer {
                     encode_bootstrap_response(&response).map_err(|error| error.to_string())?,
                 )
             }
+            Ok(HttpRequest {
+                route: HttpRoute::Provisioning,
+                body,
+            }) => {
+                let response = decode_and_submit_provisioning(
+                    runtime,
+                    &body,
+                    self.provisioning_submission_enabled,
+                );
+                (
+                    HttpStatus::Ok,
+                    encode_provisioning_response(&response).map_err(|error| error.to_string())?,
+                )
+            }
             Err(error) => {
                 let body = if bootstrap_route {
                     encode_bootstrap_response(&bootstrap_error(None, error.code, error.message))
                         .map_err(|error| error.to_string())?
+                } else if provisioning_route {
+                    encode_provisioning_response(&provisioning_error(
+                        None,
+                        error.code,
+                        error.message,
+                    ))
+                    .map_err(|error| error.to_string())?
                 } else {
                     encode_response(&error_response(error.code, error.message))
                         .map_err(|error| error.to_string())?
@@ -330,6 +365,7 @@ struct HttpError {
 enum HttpRoute {
     Wire,
     Bootstrap,
+    Provisioning,
 }
 
 #[derive(Debug)]
@@ -439,6 +475,7 @@ fn read_http_request(
     let route = match parts[1] {
         "/v1/wire" => HttpRoute::Wire,
         "/v1/bootstrap" => HttpRoute::Bootstrap,
+        "/v1/provisioning" => HttpRoute::Provisioning,
         _ => {
             return Err(HttpError {
                 status: HttpStatus::NotFound,
@@ -466,6 +503,7 @@ fn read_http_request(
     let limit = match route {
         HttpRoute::Wire => MAX_PROTOCOL_MESSAGE_BYTES,
         HttpRoute::Bootstrap => MAX_BOOTSTRAP_PROTOCOL_BYTES,
+        HttpRoute::Provisioning => MAX_PROVISIONING_PROTOCOL_BYTES,
     };
     if content_length > limit {
         return Err(HttpError {
@@ -730,6 +768,13 @@ mod tests {
         .unwrap();
         assert_eq!(bootstrap.route, HttpRoute::Bootstrap);
         assert_eq!(bootstrap.body, b"{}");
+        let provisioning = read_http_request(
+            &mut Cursor::new(request_at(TOKEN, "/v1/provisioning", b"{}")),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(provisioning.route, HttpRoute::Provisioning);
+        assert_eq!(provisioning.body, b"{}");
 
         let wrong_token = read_http_request(
             &mut Cursor::new(request("fedcba9876543210fedcba9876543210", &health_body())),
@@ -791,6 +836,19 @@ mod tests {
             read_http_request(&mut Cursor::new(oversized.into_bytes()), TOKEN.as_bytes())
                 .unwrap_err()
                 .status,
+            HttpStatus::PayloadTooLarge
+        ));
+        let oversized_provisioning = format!(
+            "POST /v1/provisioning HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            MAX_PROVISIONING_PROTOCOL_BYTES + 1
+        );
+        assert!(matches!(
+            read_http_request(
+                &mut Cursor::new(oversized_provisioning.into_bytes()),
+                TOKEN.as_bytes()
+            )
+            .unwrap_err()
+            .status,
             HttpStatus::PayloadTooLarge
         ));
     }

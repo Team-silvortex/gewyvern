@@ -511,9 +511,14 @@ It atomically queues provisioning with revision-1 `Planned`, settles installatio
 to `ServiceReady` or `Failed`, restores both after restart, retires the installation
 credential at readiness, and revision-CAS gates `RuntimeRegistered`. Existing
 schema-11 daemon bootstrap checkpoints migrate losslessly into the same storage
-without sharing operation identities. The next product slice connects these APIs
-to a durable daemon submission route and native provisioning adapter before
-exposing the action in CLI or Avalonia.
+without sharing operation identities. Authenticated HTTPS now uses only
+`POST /v1/provisioning`, Unix IPC uses only `provisioning_v1`, and both remain
+disabled until a dedicated adapter is registered. The daemon validates adapter
+identity and terminal phase before atomically settling `ServiceReady` or `Failed`;
+restart retains the public service authority without restoring the install secret.
+The next product slice adds the separate native Gewyvern installer wire/SSH
+transport and derives an adapter-target registration proof before exposing the
+action in CLI or Avalonia.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

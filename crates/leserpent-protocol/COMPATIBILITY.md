@@ -92,6 +92,22 @@ the validated PEM into the existing content-addressed desktop CA store. They do
 not persist PEM or replace the opaque handle with a cached certificate path.
 This is a local profile-schema extension and does not change daemon wire v1.
 
+## Draft Gewyvern Provisioning Boundary
+
+Post-session Gewyvern installation remains separate from both ordinary wire v1
+and debugging-pipeline `runtime.deploy`. Its strict schema-v1 envelope is capped
+at 64 KiB and is accepted only by authenticated `POST /v1/provisioning` or the
+explicit Unix IPC `provisioning_v1` route. Submission stays disabled unless the
+daemon registry contains the dedicated `gewyvern.runtime.provision` adapter.
+
+The adapter resolves only a validated `vault:ssh:<key>` installation handle and
+never serializes the resolved secret. A successful effect may settle only to
+`service_ready`; a bounded fault settles to `failed`. Daemon settlement verifies
+the provisioning ID, runtime ID, target, planned revision, and retired credential
+before committing the outcome and checkpoint atomically. A concrete native SSH
+installer exchange and the later authority-owned registration proof are not yet
+part of this draft compatibility surface.
+
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure
 and timeout return `failed` without authority handles, successful deployment

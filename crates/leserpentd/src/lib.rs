@@ -2,12 +2,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use leserpent_adapters::HOST_BOOTSTRAP_EFFECT_KIND;
 pub use leserpent_adapters::{AdapterRegistry, EffectAdapter, EffectContext};
+use leserpent_adapters::{GEWYVERN_PROVISIONING_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND};
 use leserpent_domain::bootstrap::{BootstrapPhase, DeploymentBootstrapCheckpoint};
+use leserpent_domain::provisioning::{ProvisioningPhase, RuntimeProvisioningCheckpoint};
 use leserpent_protocol::bootstrap::{
     BootstrapRequestEnvelope, BootstrapResponse, decode_bootstrap_request,
     decode_bootstrap_response,
+};
+use leserpent_protocol::provisioning::{
+    ProvisioningRequestEnvelope, ProvisioningResponse, decode_provisioning_request,
+    decode_provisioning_response,
 };
 use leserpent_runtime::{ControlRuntime, EffectExecution, EffectLease, RuntimeError, WorkerStep};
 
@@ -22,6 +27,7 @@ pub use bootstrap_session::NativeBootstrapSessionVerifier;
 mod bootstrap_submission;
 #[cfg(unix)]
 mod ipc;
+mod provisioning_submission;
 #[cfg(unix)]
 pub use ipc::IpcServer;
 mod remote;
@@ -242,6 +248,9 @@ impl DaemonHost {
         let EffectExecution::Complete(outcome) = execution else {
             return self.runtime.settle_effect(lease, execution);
         };
+        if lease.kind == GEWYVERN_PROVISIONING_EFFECT_KIND {
+            return self.settle_provisioning_execution(lease, outcome);
+        }
         if lease.kind != HOST_BOOTSTRAP_EFFECT_KIND {
             return self
                 .runtime
@@ -277,6 +286,47 @@ impl DaemonHost {
             };
         self.runtime
             .complete_bootstrap_effect(lease, &outcome, &checkpoint)?;
+        Ok(WorkerStep::Completed {
+            effect_id: lease.effect_id.clone(),
+            attempt: lease.attempt,
+        })
+    }
+
+    fn settle_provisioning_execution(
+        &mut self,
+        lease: &EffectLease,
+        outcome: Vec<u8>,
+    ) -> Result<WorkerStep, RuntimeError> {
+        let request = match decode_provisioning_request(&lease.payload) {
+            Ok(request) => request,
+            Err(_) => {
+                self.runtime
+                    .reject_effect(lease, "provisioning persisted request was rejected")?;
+                return Ok(WorkerStep::Rejected {
+                    effect_id: lease.effect_id.clone(),
+                    attempt: lease.attempt,
+                });
+            }
+        };
+        let existing = self
+            .runtime
+            .provisioning_checkpoint(&request.request.intent.provisioning_id)?;
+        let checkpoint =
+            match checkpoint_from_provisioning_effect(&request, &outcome, existing.as_ref()) {
+                Ok(checkpoint) => checkpoint,
+                Err(error) => {
+                    self.runtime.reject_effect(
+                        lease,
+                        &format!("provisioning outcome was rejected: {error}"),
+                    )?;
+                    return Ok(WorkerStep::Rejected {
+                        effect_id: lease.effect_id.clone(),
+                        attempt: lease.attempt,
+                    });
+                }
+            };
+        self.runtime
+            .complete_provisioning_effect(lease, &outcome, &checkpoint)?;
         Ok(WorkerStep::Completed {
             effect_id: lease.effect_id.clone(),
             attempt: lease.attempt,
@@ -348,6 +398,43 @@ fn checkpoint_from_bootstrap_effect(
         .map_err(|error| error.to_string())
 }
 
+fn checkpoint_from_provisioning_effect(
+    request: &ProvisioningRequestEnvelope,
+    outcome: &[u8],
+    existing: Option<&RuntimeProvisioningCheckpoint>,
+) -> Result<RuntimeProvisioningCheckpoint, String> {
+    let response = decode_provisioning_response(outcome)
+        .map_err(|_| "invalid provisioning response".to_string())?;
+    let ProvisioningResponse::State(state) = response.response else {
+        return Err("provisioning adapter returned an error envelope as success".into());
+    };
+    if state.provisioning_id != request.request.intent.provisioning_id
+        || state.runtime_id != request.request.intent.runtime_id
+        || state.target != request.request.intent.target
+    {
+        return Err("provisioning response identity does not match its request".into());
+    }
+    if !matches!(
+        state.phase,
+        ProvisioningPhase::ServiceReady | ProvisioningPhase::Failed
+    ) {
+        return Err("provisioning effect stopped before installation was terminal".into());
+    }
+    match existing {
+        Some(checkpoint)
+            if checkpoint.revision == 1
+                && checkpoint.state.phase == ProvisioningPhase::Planned
+                && checkpoint.state.provisioning_id == request.request.intent.provisioning_id
+                && checkpoint.state.runtime_id == request.request.intent.runtime_id
+                && checkpoint.state.target == request.request.intent.target
+                && checkpoint.install_credential_handle.as_ref()
+                    == Some(&request.request.intent.install_credential_handle) => {}
+        Some(_) => return Err("provisioning planned checkpoint does not match its request".into()),
+        None => return Err("provisioning planned checkpoint is missing".into()),
+    }
+    RuntimeProvisioningCheckpoint::new(2, state, None).map_err(|error| error.to_string())
+}
+
 fn sleep_until_stop(duration: Duration, stop: &AtomicBool) {
     let slice = Duration::from_millis(25);
     let mut remaining = duration;
@@ -391,10 +478,18 @@ mod tests {
         CredentialHandle, DaemonBootstrapReceipt, DaemonId, DaemonSessionProof,
         DeploymentBootstrap,
     };
+    use leserpent_domain::provisioning::{
+        CAPABILITY_RUNTIME_PROVISION, GewyvernServiceReceipt, PROVISIONING_DOMAIN_SCHEMA_VERSION,
+        ProvisioningId, RuntimeProvisioning, RuntimeProvisioningIntent,
+    };
     use leserpent_domain::{CapabilitySet, Principal};
     use leserpent_protocol::bootstrap::{
         BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
         BootstrapResponseEnvelope, encode_bootstrap_request, encode_bootstrap_response,
+    };
+    use leserpent_protocol::provisioning::{
+        PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningRequest, ProvisioningResponseEnvelope,
+        encode_provisioning_request, encode_provisioning_response,
     };
     use leserpent_runtime::EffectExecution;
 
@@ -423,6 +518,20 @@ mod tests {
 
     struct FixedBootstrapAdapter {
         outcome: Vec<u8>,
+    }
+
+    struct FixedProvisioningAdapter {
+        outcome: Vec<u8>,
+    }
+
+    impl EffectAdapter for FixedProvisioningAdapter {
+        fn kind(&self) -> &str {
+            GEWYVERN_PROVISIONING_EFFECT_KIND
+        }
+
+        fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
+            EffectExecution::Complete(self.outcome.clone())
+        }
     }
 
     impl EffectAdapter for FixedBootstrapAdapter {
@@ -482,6 +591,56 @@ mod tests {
         })
         .unwrap();
         (request, outcome, bootstrap_id)
+    }
+
+    fn provisioning_request_and_outcome() -> (Vec<u8>, Vec<u8>, ProvisioningId) {
+        let provisioning_id = ProvisioningId::new("provision-restart-1").unwrap();
+        let target = BootstrapTarget {
+            transport: BootstrapTransport::Ssh,
+            host: "runtime-host.example".into(),
+            port: 22,
+        };
+        let intent = RuntimeProvisioningIntent {
+            schema_version: PROVISIONING_DOMAIN_SCHEMA_VERSION,
+            provisioning_id: provisioning_id.clone(),
+            runtime_id: leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap(),
+            target,
+            install_credential_handle: CredentialHandle::new("vault:ssh:runtime-host").unwrap(),
+            requested_by: "operator-a".into(),
+            confirmed: true,
+        };
+        let principal = Principal {
+            id: "operator-a".into(),
+        };
+        let capabilities = CapabilitySet::new([CAPABILITY_RUNTIME_PROVISION]);
+        let request = encode_provisioning_request(&ProvisioningRequestEnvelope {
+            schema_version: PROVISIONING_PROTOCOL_SCHEMA_VERSION,
+            request: ProvisioningRequest {
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                intent: intent.clone(),
+            },
+        })
+        .unwrap();
+        let mut provisioning =
+            RuntimeProvisioning::plan(&principal, &capabilities, intent).unwrap();
+        provisioning.begin().unwrap();
+        let state = provisioning
+            .accept_service(GewyvernServiceReceipt {
+                provisioning_id: provisioning_id.clone(),
+                runtime_id: leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap(),
+                endpoint: "https://runtime-host.example:9443".into(),
+                api_credential_handle: CredentialHandle::new("vault:gewyvern:runtime-api").unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:gewyvern:runtime-ca")
+                    .unwrap(),
+            })
+            .unwrap();
+        let outcome = encode_provisioning_response(&ProvisioningResponseEnvelope {
+            schema_version: PROVISIONING_PROTOCOL_SCHEMA_VERSION,
+            response: ProvisioningResponse::State(state),
+        })
+        .unwrap();
+        (request, outcome, provisioning_id)
     }
 
     struct BarrierAdapter {
@@ -1033,6 +1192,102 @@ mod tests {
             3
         );
         drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn provisioning_submission_reaches_service_ready_and_survives_restart() {
+        let path = temp_database("provisioning-service-ready-restart");
+        let (request, outcome, provisioning_id) = provisioning_request_and_outcome();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let submitted =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request, true);
+        assert!(matches!(
+            submitted.response,
+            ProvisioningResponse::State(ref state)
+                if state.phase == ProvisioningPhase::Planned
+                    && state.provisioning_id == provisioning_id
+        ));
+        assert_eq!(
+            runtime
+                .provisioning_checkpoint(&provisioning_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+        let replay =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request, true);
+        assert_eq!(replay, submitted);
+
+        let mut registry = AdapterRegistry::default();
+        registry
+            .register(FixedProvisioningAdapter { outcome })
+            .unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Completed { attempt: 1, .. }
+        ));
+        let checkpoint = host
+            .runtime_mut()
+            .provisioning_checkpoint(&provisioning_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(checkpoint.revision, 2);
+        assert_eq!(checkpoint.state.phase, ProvisioningPhase::ServiceReady);
+        assert!(checkpoint.install_credential_handle.is_none());
+
+        drop(host);
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        let restored = restarted
+            .provisioning_checkpoint(&provisioning_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored, checkpoint);
+        let terminal_replay =
+            crate::provisioning_submission::decode_and_submit(&mut restarted, &request, true);
+        assert!(matches!(
+            terminal_replay.response,
+            ProvisioningResponse::State(ref state)
+                if state.phase == ProvisioningPhase::ServiceReady
+        ));
+        drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn provisioning_identity_drift_is_rejected_without_advancing_checkpoint() {
+        let path = temp_database("provisioning-identity-drift");
+        let (request, outcome, provisioning_id) = provisioning_request_and_outcome();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let submitted =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request, true);
+        assert!(matches!(submitted.response, ProvisioningResponse::State(_)));
+
+        let mut value: serde_json::Value = serde_json::from_slice(&outcome).unwrap();
+        value["response"]["payload"]["runtime_id"] =
+            serde_json::Value::String("runtime-confused".into());
+        let mut registry = AdapterRegistry::default();
+        registry
+            .register(FixedProvisioningAdapter {
+                outcome: serde_json::to_vec(&value).unwrap(),
+            })
+            .unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Rejected { attempt: 1, .. }
+        ));
+        let checkpoint = host
+            .runtime_mut()
+            .provisioning_checkpoint(&provisioning_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(checkpoint.revision, 1);
+        assert_eq!(checkpoint.state.phase, ProvisioningPhase::Planned);
+        assert!(checkpoint.install_credential_handle.is_some());
+        drop(host);
         fs::remove_file(path).unwrap();
     }
 
