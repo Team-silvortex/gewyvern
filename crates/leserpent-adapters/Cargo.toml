@@ -25,5 +25,5 @@ zeroize = "1"
 [dev-dependencies]
 rcgen = "0.14"
 
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"

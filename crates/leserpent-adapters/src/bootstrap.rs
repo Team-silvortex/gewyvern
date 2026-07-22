@@ -33,7 +33,10 @@ use tokio::io::AsyncWriteExt;
 #[cfg(feature = "native-ssh")]
 use zeroize::Zeroizing;
 
-use crate::{EffectAdapter, SecretKey, SecretStore, SecretValue, validate_id};
+use crate::{
+    BootstrapTrustRecord, BootstrapTrustStore, EffectAdapter, SecretKey, SecretStore, SecretValue,
+    validate_id,
+};
 
 pub const HOST_BOOTSTRAP_EFFECT_KIND: &str = "leserpent.host.bootstrap";
 pub const MAX_BOOTSTRAP_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
@@ -91,6 +94,7 @@ pub struct SshBootstrapHostPolicy {
     daemon_id: DaemonId,
     endpoint: String,
     session_credential_handle: CredentialHandle,
+    trust_credential_handle: CredentialHandle,
     install_profile: String,
 }
 
@@ -103,6 +107,7 @@ impl SshBootstrapHostPolicy {
         daemon_id: DaemonId,
         endpoint: impl Into<String>,
         session_credential_handle: CredentialHandle,
+        trust_credential_handle: CredentialHandle,
         install_profile: impl Into<String>,
     ) -> Result<Self, String> {
         target.validate().map_err(|error| error.to_string())?;
@@ -122,6 +127,9 @@ impl SshBootstrapHostPolicy {
         if session_credential_handle.parts().0 != "leserpentd" {
             return Err("session credential handle must use the leserpentd vault provider".into());
         }
+        if trust_credential_handle.parts().0 != "leserpent-ca" {
+            return Err("trust credential handle must use the leserpent-ca vault provider".into());
+        }
         Ok(Self {
             target,
             username,
@@ -129,6 +137,7 @@ impl SshBootstrapHostPolicy {
             daemon_id,
             endpoint,
             session_credential_handle,
+            trust_credential_handle,
             install_profile,
         })
     }
@@ -155,6 +164,8 @@ pub struct SshBootstrapJob<'a> {
 pub struct SshBootstrapOutcome {
     pub daemon_id: DaemonId,
     pub endpoint: String,
+    pub tls_ca_pem: String,
+    pub tls_ca_sha256: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -192,6 +203,7 @@ pub trait SshBootstrapTransport: Send {
 pub struct SshBootstrapAdapter<T> {
     policies: BTreeMap<String, SshBootstrapHostPolicy>,
     secrets: Arc<dyn SecretStore>,
+    trust: Arc<dyn BootstrapTrustStore>,
     artifact: BootstrapArtifact,
     transport: T,
 }
@@ -200,6 +212,7 @@ impl<T: SshBootstrapTransport> SshBootstrapAdapter<T> {
     pub fn new(
         policies: impl IntoIterator<Item = SshBootstrapHostPolicy>,
         secrets: Arc<dyn SecretStore>,
+        trust: Arc<dyn BootstrapTrustStore>,
         artifact: BootstrapArtifact,
         transport: T,
     ) -> Result<Self, String> {
@@ -215,6 +228,7 @@ impl<T: SshBootstrapTransport> SshBootstrapAdapter<T> {
         Ok(Self {
             policies: normalized,
             secrets,
+            trust,
             artifact,
             transport,
         })
@@ -283,12 +297,25 @@ impl<T: SshBootstrapTransport> SshBootstrapAdapter<T> {
         if outcome.daemon_id != policy.daemon_id || outcome.endpoint != policy.endpoint {
             return encode_failed(bootstrap, "remote_identity_mismatch");
         }
+        let trust_record = BootstrapTrustRecord {
+            endpoint: outcome.endpoint.clone(),
+            ca_pem: outcome.tls_ca_pem,
+            ca_sha256: outcome.tls_ca_sha256,
+        };
+        if self
+            .trust
+            .persist(&policy.trust_credential_handle, &trust_record)
+            .is_err()
+        {
+            return encode_failed(bootstrap, "trust_persistence_failed");
+        }
         let snapshot = bootstrap
             .accept_deployed(DaemonBootstrapReceipt {
                 bootstrap_id: intent.bootstrap_id.clone(),
                 daemon_id: outcome.daemon_id,
                 endpoint: outcome.endpoint,
                 session_credential_handle: policy.session_credential_handle.clone(),
+                trust_credential_handle: policy.trust_credential_handle.clone(),
             })
             .map_err(|_| "invalid bootstrap receipt")?;
         debug_assert_eq!(snapshot.phase, BootstrapPhase::Bootstrapped);
@@ -490,7 +517,7 @@ async fn activate_installer(
     staging_path: &str,
     job: &SshBootstrapJob<'_>,
 ) -> Result<SshBootstrapOutcome, SshBootstrapTransportError> {
-    let command = format!("{staging_path} bootstrap-install-v1");
+    let command = format!("{staging_path} bootstrap-activate-v1");
     let mut channel = session
         .channel_open_session()
         .await
@@ -561,6 +588,8 @@ fn validate_installer_readiness(
     Ok(SshBootstrapOutcome {
         daemon_id: response.daemon_id,
         endpoint: response.endpoint,
+        tls_ca_pem: response.tls_ca_pem,
+        tls_ca_sha256: response.tls_ca_sha256,
     })
 }
 
@@ -648,7 +677,7 @@ mod tests {
         BootstrapRequest, decode_bootstrap_response, encode_bootstrap_request,
     };
 
-    use crate::{ConfiguredSecretStore, SecretValue};
+    use crate::{BootstrapTrustError, ConfiguredSecretStore, SecretValue};
 
     use super::*;
 
@@ -664,6 +693,43 @@ mod tests {
     struct RecordingTransport {
         seen: Arc<Mutex<Vec<SeenJob>>>,
         result: Result<SshBootstrapOutcome, SshBootstrapTransportError>,
+    }
+
+    #[derive(Default)]
+    struct RecordingTrustStore {
+        records: Mutex<Vec<(String, BootstrapTrustRecord)>>,
+        reject: bool,
+    }
+
+    impl BootstrapTrustStore for RecordingTrustStore {
+        fn persist(
+            &self,
+            handle: &CredentialHandle,
+            record: &BootstrapTrustRecord,
+        ) -> Result<(), BootstrapTrustError> {
+            if self.reject {
+                return Err(BootstrapTrustError::Storage);
+            }
+            self.records
+                .lock()
+                .unwrap()
+                .push((handle.as_str().into(), record.clone()));
+            Ok(())
+        }
+    }
+
+    fn trust() -> Arc<RecordingTrustStore> {
+        Arc::new(RecordingTrustStore::default())
+    }
+
+    fn successful_outcome(daemon_id: &str) -> SshBootstrapOutcome {
+        let ca = "-----BEGIN CERTIFICATE-----\nY2VydA==\n-----END CERTIFICATE-----\n";
+        SshBootstrapOutcome {
+            daemon_id: DaemonId::new(daemon_id).unwrap(),
+            endpoint: "https://host.example:7443".into(),
+            tls_ca_pem: ca.into(),
+            tls_ca_sha256: hex(digest(&SHA256, ca.as_bytes()).as_ref()),
+        }
     }
 
     impl SshBootstrapTransport for RecordingTransport {
@@ -698,6 +764,7 @@ mod tests {
             DaemonId::new("daemon-host-example").unwrap(),
             "https://host.example:7443",
             CredentialHandle::new("vault:leserpentd:host-example-session").unwrap(),
+            CredentialHandle::new("vault:leserpent-ca:host-example-trust").unwrap(),
             "system",
         )
         .unwrap()
@@ -758,18 +825,17 @@ mod tests {
         let seen = Arc::new(Mutex::new(Vec::new()));
         let transport = RecordingTransport {
             seen: seen.clone(),
-            result: Ok(SshBootstrapOutcome {
-                daemon_id: DaemonId::new("daemon-host-example").unwrap(),
-                endpoint: "https://host.example:7443".into(),
-            }),
+            result: Ok(successful_outcome("daemon-host-example")),
         };
         let artifact = BootstrapArtifact::new(
             Arc::<[u8]>::from(b"native-installer".as_slice()),
             "/tmp/leserpent-bootstrap",
         )
         .unwrap();
+        let trust = trust();
         let mut adapter =
-            SshBootstrapAdapter::new([policy()], secrets(), artifact, transport).unwrap();
+            SshBootstrapAdapter::new([policy()], secrets(), trust.clone(), artifact, transport)
+                .unwrap();
         let state = response_state(adapter.execute(&request(target(), "vault:ssh:host-example")));
 
         assert_eq!(state.phase, BootstrapPhase::Bootstrapped);
@@ -779,6 +845,11 @@ mod tests {
             state.session_credential_handle.as_ref().unwrap().as_str(),
             "vault:leserpentd:host-example-session"
         );
+        assert_eq!(
+            state.trust_credential_handle.as_ref().unwrap().as_str(),
+            "vault:leserpent-ca:host-example-trust"
+        );
+        assert_eq!(trust.records.lock().unwrap().len(), 1);
         let seen = seen.lock().unwrap();
         assert_eq!(seen.len(), 1);
         assert_eq!(seen[0].bootstrap_password, "bootstrap-password");
@@ -786,6 +857,7 @@ mod tests {
         let encoded = serde_json::to_string(&state).unwrap();
         assert!(!encoded.contains("bootstrap-password"));
         assert!(!encoded.contains("daemon-session-token"));
+        assert!(!encoded.contains("BEGIN CERTIFICATE"));
     }
 
     #[test]
@@ -801,7 +873,7 @@ mod tests {
         )
         .unwrap();
         let mut adapter =
-            SshBootstrapAdapter::new([policy()], secrets(), artifact, transport).unwrap();
+            SshBootstrapAdapter::new([policy()], secrets(), trust(), artifact, transport).unwrap();
         let mut unknown = target();
         unknown.host = "unknown.example".into();
         let state = response_state(adapter.execute(&request(unknown, "vault:ssh:host-example")));
@@ -824,10 +896,7 @@ mod tests {
                 "host_key_rejected",
             ),
             (
-                Ok(SshBootstrapOutcome {
-                    daemon_id: DaemonId::new("daemon-attacker").unwrap(),
-                    endpoint: "https://host.example:7443".into(),
-                }),
+                Ok(successful_outcome("daemon-attacker")),
                 "remote_identity_mismatch",
             ),
         ] {
@@ -841,7 +910,8 @@ mod tests {
                 result,
             };
             let mut adapter =
-                SshBootstrapAdapter::new([policy()], secrets(), artifact, transport).unwrap();
+                SshBootstrapAdapter::new([policy()], secrets(), trust(), artifact, transport)
+                    .unwrap();
             let state =
                 response_state(adapter.execute(&request(target(), "vault:ssh:host-example")));
             assert_eq!(state.phase, BootstrapPhase::Failed);
@@ -867,10 +937,38 @@ mod tests {
                 DaemonId::new("daemon-host-example").unwrap(),
                 "https://host.example:7443",
                 CredentialHandle::new("vault:leserpentd:host-example-session").unwrap(),
+                CredentialHandle::new("vault:leserpent-ca:host-example-trust").unwrap(),
                 "system",
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn trust_persistence_failure_withholds_bootstrapped_authority() {
+        let artifact = BootstrapArtifact::new(
+            Arc::<[u8]>::from(b"native-installer".as_slice()),
+            "/tmp/leserpent-bootstrap",
+        )
+        .unwrap();
+        let transport = RecordingTransport {
+            seen: Arc::new(Mutex::new(Vec::new())),
+            result: Ok(successful_outcome("daemon-host-example")),
+        };
+        let trust = Arc::new(RecordingTrustStore {
+            records: Mutex::new(Vec::new()),
+            reject: true,
+        });
+        let mut adapter =
+            SshBootstrapAdapter::new([policy()], secrets(), trust, artifact, transport).unwrap();
+        let state = response_state(adapter.execute(&request(target(), "vault:ssh:host-example")));
+        assert_eq!(state.phase, BootstrapPhase::Failed);
+        assert_eq!(
+            state.fault_code.as_deref(),
+            Some("trust_persistence_failed")
+        );
+        assert!(state.session_credential_handle.is_none());
+        assert!(state.trust_credential_handle.is_none());
     }
 
     #[cfg(feature = "native-ssh")]

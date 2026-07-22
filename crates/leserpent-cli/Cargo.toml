@@ -9,6 +9,7 @@ license.workspace = true
 leselang-command = { path = "../leselang-command" }
 leselang-syntax = { path = "../leselang-syntax" }
 leserpent-domain = { path = "../leserpent-domain" }
+leserpent-adapters = { path = "../leserpent-adapters" }
 leserpent-protocol = { path = "../leserpent-protocol" }
 serde.workspace = true
 serde_json.workspace = true
@@ -17,10 +18,10 @@ zeroize = "1"
 
 [dev-dependencies]
 leselang-hir = { path = "../leselang-hir" }
-leserpent-adapters = { path = "../leserpent-adapters" }
 leserpent-runtime = { path = "../leserpent-runtime" }
 leserpentd = { path = "../leserpentd" }
 rcgen = "0.14"
+ring = "0.17"
 
 [[bin]]
 name = "leserpent"

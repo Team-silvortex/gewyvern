@@ -14,6 +14,7 @@
       "daemon_id": null,
       "endpoint": null,
       "session_credential_handle": null,
+      "trust_credential_handle": null,
       "fault_code": null,
       "mutation_authorized": false
     }

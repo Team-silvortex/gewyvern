@@ -1229,12 +1229,12 @@
       "feature": "reverse-bootstrap",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 60,
+      "completion": 79,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.4.0",
+        "version": "0.10.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1273,14 +1273,37 @@
           "tls-ca-pem-digest-binding",
           "native-platform-service-descriptor",
           "secret-free-service-command",
-          "private-service-state-and-logs"
+          "private-service-state-and-logs",
+          "atomic-platform-descriptor-publication",
+          "symlink-safe-service-directory",
+          "pre-current-publication-fence",
+          "native-service-manager-activation-primitive",
+          "pre-activation-generation-binding",
+          "secret-free-manager-argv",
+          "bootstrap-activate-v1-entry",
+          "bounded-loopback-tls-health-proof",
+          "endpoint-name-ca-verification",
+          "authenticated-authority-ready-fence",
+          "native-ssh-activation-command",
+          "opaque-ca-trust-handle",
+          "private-atomic-controller-trust-store",
+          "endpoint-ca-digest-binding",
+          "trust-before-bootstrapped-fence",
+          "trust-failure-authority-withholding",
+          "native-cli-trust-handle-resolution",
+          "avalonia-trust-handle-profile",
+          "renderer-independent-trust-record-decoder",
+          "managed-ca-import-from-retained-handle",
+          "avalonia-managed-trust-settings",
+          "trust-endpoint-confusion-rejection",
+          "exclusive-ca-source-selection"
         ]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/transport-protocol/wire-compatibility"],
       "blockers": [
         {
           "id": "host-bootstrap-installation-incomplete",
-          "summary": "The native Rust SSH transport and bootstrap-install-v1 target path now prepare an atomic generation, private token-file startup, target-generated TLS identity, and secret-free launchd/systemd descriptor; descriptor publication/activation, client trust persistence, ready health proof, timeout recovery, WinRM, and real-host rollback proof remain."
+          "summary": "The bootstrap-install-v1 path prepares and publishes the atomic generation, while native SSH invokes bootstrap-activate-v1 and returns ready only after bounded authenticated authority proof. The returned CA is endpoint/digest validated and atomically persisted before the domain exposes its opaque trust handle; the native CLI and Avalonia profiles now resolve that handle with endpoint-confusion rejection. Timeout rollback, WinRM, and real-host rollback proof remain."
         },
         {
           "id": "bootstrap-cross-process-proof-missing",
@@ -1306,9 +1329,13 @@
         { "kind": "source", "path": "crates/leserpentd/src/bootstrap_install.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/bootstrap_install.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/tests/bootstrap_installer_vertical.rs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/BootstrapTrustRecordStore.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopProductStartup.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopConnectionWindow.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopCertificateAuthorityStore.cs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/bootstrap_vertical.rs", "state": "planned" }
       ],
-      "next_gate": "Publish and activate the retained launchd/systemd descriptor, persist the returned CA trust on the controller, emit ready only after authenticated TLS health proof, then run one loopback SSH authority-binding vertical."
+      "next_gate": "Run one real SSH authority-binding vertical with trust-failure, timeout, mutation-before-session rejection, and rollback proof."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

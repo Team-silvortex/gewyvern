@@ -1122,6 +1122,7 @@ dependencies = [
  "leserpent-runtime",
  "leserpentd",
  "rcgen",
+ "ring",
  "rustls",
  "serde",
  "serde_json",

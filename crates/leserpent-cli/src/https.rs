@@ -4,6 +4,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use leserpent_adapters::FileBootstrapTrustStore;
+use leserpent_domain::bootstrap::CredentialHandle;
 use leserpent_protocol::transport_safety::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
     open_bounded_regular_file,
@@ -35,6 +37,41 @@ impl HttpsClient {
         let certificates = CertificateDer::pem_reader_iter(&mut reader)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| CliError::Configuration("remote CA contains invalid PEM".into()))?;
+        Self::from_certificates(endpoint, certificates, token)
+    }
+
+    pub fn new_with_bootstrap_trust(
+        endpoint: &str,
+        trust_root: impl AsRef<Path>,
+        handle: &CredentialHandle,
+        token: String,
+    ) -> Result<Self, CliError> {
+        let store = FileBootstrapTrustStore::new(trust_root.as_ref())
+            .map_err(|_| CliError::Configuration("bootstrap trust store path is unsafe".into()))?;
+        let record = store
+            .load(handle)
+            .map_err(|_| CliError::Configuration("bootstrap trust record is invalid".into()))?
+            .ok_or_else(|| {
+                CliError::Configuration("bootstrap trust record was not found".into())
+            })?;
+        if record.endpoint != endpoint {
+            return Err(CliError::Configuration(
+                "bootstrap trust record does not match the remote endpoint".into(),
+            ));
+        }
+        validate_remote_token(&token)?;
+        let endpoint = HttpsEndpoint::parse(endpoint)?;
+        let certificates = CertificateDer::pem_slice_iter(record.ca_pem.as_bytes())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| CliError::Configuration("bootstrap trust CA is invalid".into()))?;
+        Self::from_certificates(endpoint, certificates, token)
+    }
+
+    fn from_certificates(
+        endpoint: HttpsEndpoint,
+        certificates: Vec<CertificateDer<'static>>,
+        token: String,
+    ) -> Result<Self, CliError> {
         if certificates.is_empty() {
             return Err(CliError::Configuration(
                 "remote CA contains no certificates".into(),
@@ -310,19 +347,32 @@ fn find_header_end(bytes: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::io::Cursor;
     use std::net::TcpListener;
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
-    #[cfg(unix)]
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use leserpent_adapters::{BootstrapTrustRecord, BootstrapTrustStore, FileBootstrapTrustStore};
+    use leserpent_domain::bootstrap::CredentialHandle;
     use leserpent_protocol::{
         HealthResponse, PROTOCOL_SCHEMA_VERSION, ProtocolResponse, ResponseEnvelope,
         encode_response,
     };
+    use ring::digest::{SHA256, digest};
 
     use super::*;
+
+    fn hex(bytes: &[u8]) -> String {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut output = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            output.push(char::from(HEX[usize::from(byte >> 4)]));
+            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+        }
+        output
+    }
 
     #[test]
     fn endpoint_parser_accepts_dns_ipv4_and_bracketed_ipv6_only() {
@@ -344,6 +394,50 @@ mod tests {
         ] {
             assert!(HttpsEndpoint::parse(endpoint).is_err(), "{endpoint}");
         }
+    }
+
+    #[test]
+    fn bootstrap_trust_handle_loads_only_its_bound_endpoint() {
+        let root = std::env::temp_dir().join(format!(
+            "leserpent-cli-trust-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let store = FileBootstrapTrustStore::new(&root).unwrap();
+        let handle = CredentialHandle::new("vault:leserpent-ca:host-example").unwrap();
+        let ca = rcgen::generate_simple_self_signed(vec!["host.example".into()])
+            .unwrap()
+            .cert
+            .pem();
+        let record = BootstrapTrustRecord {
+            endpoint: "https://host.example:7443".into(),
+            ca_sha256: hex(digest(&SHA256, ca.as_bytes()).as_ref()),
+            ca_pem: ca,
+        };
+        store.persist(&handle, &record).unwrap();
+        let token = "0123456789abcdef0123456789abcdef".to_string();
+        assert!(
+            HttpsClient::new_with_bootstrap_trust(
+                "https://host.example:7443",
+                &root,
+                &handle,
+                token.clone()
+            )
+            .is_ok()
+        );
+        assert!(
+            HttpsClient::new_with_bootstrap_trust(
+                "https://other.example:7443",
+                &root,
+                &handle,
+                token
+            )
+            .is_err()
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

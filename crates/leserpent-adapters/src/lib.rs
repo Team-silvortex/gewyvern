@@ -6,6 +6,7 @@ use std::time::Duration;
 use leserpent_runtime::{EffectExecution, EffectExecutor, EffectLease};
 
 mod bootstrap;
+mod bootstrap_trust;
 mod deployment;
 mod discovery;
 mod gewyvern;
@@ -17,6 +18,9 @@ pub use bootstrap::{
     BootstrapArtifact, HOST_BOOTSTRAP_EFFECT_KIND, MAX_BOOTSTRAP_ARTIFACT_BYTES,
     SshBootstrapAdapter, SshBootstrapHostPolicy, SshBootstrapJob, SshBootstrapOutcome,
     SshBootstrapTransport, SshBootstrapTransportError,
+};
+pub use bootstrap_trust::{
+    BootstrapTrustError, BootstrapTrustRecord, BootstrapTrustStore, FileBootstrapTrustStore,
 };
 pub use deployment::{
     GEWYVERN_DEPLOYMENT_EFFECT_KIND, GewyvernDeploymentAdapter, GewyvernDeploymentRequest,

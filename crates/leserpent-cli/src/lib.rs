@@ -9,6 +9,7 @@ use leselang_command::{
     plan_runtime_logs, plan_runtime_refresh,
 };
 use leselang_syntax::{format as format_leselang, parse as parse_leselang};
+use leserpent_domain::bootstrap::CredentialHandle;
 use leserpent_domain::{
     CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
     CommandId, CommandOrigin, CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult,
@@ -35,7 +36,16 @@ pub struct CliOptions {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RemoteOptions {
     pub endpoint: String,
-    pub ca: PathBuf,
+    pub trust: RemoteTrust,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RemoteTrust {
+    CaFile(PathBuf),
+    BootstrapHandle {
+        root: PathBuf,
+        handle: CredentialHandle,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -110,6 +120,7 @@ impl fmt::Display for CliError {
 impl std::error::Error for CliError {}
 
 pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const REMOTE_TRUST_USAGE: &str = "Bootstrap trust alternative:\n  replace --remote-ca PATH with --remote-trust-root PATH --remote-trust-handle vault:leserpent-ca:KEY";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -135,6 +146,8 @@ pub fn parse_args_with_remote(
     let mut explicit_socket = false;
     let mut explicit_remote = false;
     let mut explicit_remote_ca = false;
+    let mut remote_trust_root = None;
+    let mut remote_trust_handle = None;
     let mut json = false;
     while let Some(argument) = arguments.peek() {
         match argument.as_str() {
@@ -186,7 +199,36 @@ pub fn parse_args_with_remote(
                         CliError::Usage("--remote-ca requires a path".into())
                     })?));
             }
-            "-h" | "--help" => return Err(CliError::Usage(USAGE.into())),
+            "--remote-trust-root" => {
+                arguments.next();
+                if remote_trust_root.is_some() || explicit_socket {
+                    return Err(CliError::Usage(
+                        "transport options must not be repeated or mixed".into(),
+                    ));
+                }
+                socket = None;
+                remote_trust_root = Some(PathBuf::from(arguments.next().ok_or_else(|| {
+                    CliError::Usage("--remote-trust-root requires a path".into())
+                })?));
+            }
+            "--remote-trust-handle" => {
+                arguments.next();
+                if remote_trust_handle.is_some() || explicit_socket {
+                    return Err(CliError::Usage(
+                        "transport options must not be repeated or mixed".into(),
+                    ));
+                }
+                socket = None;
+                remote_trust_handle = Some(
+                    CredentialHandle::new(arguments.next().ok_or_else(|| {
+                        CliError::Usage("--remote-trust-handle requires a handle".into())
+                    })?)
+                    .map_err(|_| CliError::Usage("remote trust handle is invalid".into()))?,
+                );
+            }
+            "-h" | "--help" => {
+                return Err(CliError::Usage(format!("{USAGE}\n\n{REMOTE_TRUST_USAGE}")));
+            }
             _ => break,
         }
     }
@@ -256,17 +298,32 @@ pub fn parse_args_with_remote(
         Some(command) => return Err(CliError::Usage(format!("unknown command '{command}'"))),
         None => return Err(CliError::Usage(USAGE.into())),
     };
-    if socket.is_some() && (remote.is_some() || remote_ca.is_some()) {
+    if socket.is_some()
+        && (remote.is_some()
+            || remote_ca.is_some()
+            || remote_trust_root.is_some()
+            || remote_trust_handle.is_some())
+    {
         return Err(CliError::Configuration(
             "--socket and remote HTTPS transport are mutually exclusive".into(),
         ));
     }
-    let remote = match (remote, remote_ca) {
-        (None, None) => None,
-        (Some(endpoint), Some(ca)) => Some(RemoteOptions { endpoint, ca }),
+    let remote = match (remote, remote_ca, remote_trust_root, remote_trust_handle) {
+        (None, None, None, None) => None,
+        (Some(endpoint), Some(ca), None, None) => Some(RemoteOptions {
+            endpoint,
+            trust: RemoteTrust::CaFile(ca),
+        }),
+        (Some(endpoint), None, Some(root), Some(handle)) if handle.parts().0 == "leserpent-ca" => {
+            Some(RemoteOptions {
+                endpoint,
+                trust: RemoteTrust::BootstrapHandle { root, handle },
+            })
+        }
         _ => {
             return Err(CliError::Configuration(
-                "remote HTTPS transport requires both endpoint and CA path".into(),
+                "remote HTTPS transport requires endpoint and exactly one complete CA source"
+                    .into(),
             ));
         }
     };
@@ -1751,6 +1808,50 @@ mod tests {
                 ["--remote", "https://localhost:9443", "health"]
                     .into_iter()
                     .map(str::to_string),
+                None,
+                None,
+                None,
+                None,
+            )
+            .is_err()
+        );
+        let trusted = parse_args_with_remote(
+            [
+                "--remote",
+                "https://localhost:9443",
+                "--remote-trust-root",
+                "/tmp/leserpent-trust",
+                "--remote-trust-handle",
+                "vault:leserpent-ca:localhost",
+                "health",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            trusted.remote.unwrap().trust,
+            RemoteTrust::BootstrapHandle { .. }
+        ));
+        assert!(
+            parse_args_with_remote(
+                [
+                    "--remote",
+                    "https://localhost:9443",
+                    "--remote-ca",
+                    "/tmp/ca.pem",
+                    "--remote-trust-root",
+                    "/tmp/trust",
+                    "--remote-trust-handle",
+                    "vault:leserpent-ca:localhost",
+                    "health",
+                ]
+                .into_iter()
+                .map(str::to_string),
                 None,
                 None,
                 None,

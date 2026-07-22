@@ -160,6 +160,7 @@ pub struct DaemonBootstrapReceipt {
     pub daemon_id: DaemonId,
     pub endpoint: String,
     pub session_credential_handle: CredentialHandle,
+    pub trust_credential_handle: CredentialHandle,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -168,6 +169,7 @@ pub struct DaemonSessionProof {
     pub bootstrap_id: BootstrapId,
     pub daemon_id: DaemonId,
     pub session_credential_handle: CredentialHandle,
+    pub trust_credential_handle: CredentialHandle,
     pub authority_owned: bool,
     pub protocol_schema_version: u32,
 }
@@ -182,6 +184,7 @@ pub struct DeploymentBootstrapSnapshot {
     pub daemon_id: Option<DaemonId>,
     pub endpoint: Option<String>,
     pub session_credential_handle: Option<CredentialHandle>,
+    pub trust_credential_handle: Option<CredentialHandle>,
     pub fault_code: Option<String>,
     pub mutation_authorized: bool,
 }
@@ -195,6 +198,7 @@ impl DeploymentBootstrapSnapshot {
                     || self.daemon_id.is_some()
                     || self.endpoint.is_some()
                     || self.session_credential_handle.is_some()
+                    || self.trust_credential_handle.is_some()
                     || self.fault_code.is_some()
                     || self.mutation_authorized
                 {
@@ -209,6 +213,7 @@ impl DeploymentBootstrapSnapshot {
                         .as_deref()
                         .is_none_or(|value| validate_endpoint(value).is_err())
                     || self.session_credential_handle.is_none()
+                    || self.trust_credential_handle.is_none()
                     || self.fault_code.is_some()
                     || self.mutation_authorized
                 {
@@ -223,6 +228,7 @@ impl DeploymentBootstrapSnapshot {
                         .as_deref()
                         .is_none_or(|value| validate_endpoint(value).is_err())
                     || self.session_credential_handle.is_none()
+                    || self.trust_credential_handle.is_none()
                     || self.fault_code.is_some()
                     || !self.mutation_authorized
                 {
@@ -234,6 +240,7 @@ impl DeploymentBootstrapSnapshot {
                     || self.daemon_id.is_some()
                     || self.endpoint.is_some()
                     || self.session_credential_handle.is_some()
+                    || self.trust_credential_handle.is_some()
                     || self
                         .fault_code
                         .as_deref()
@@ -257,6 +264,7 @@ pub struct DeploymentBootstrap {
     daemon_id: Option<DaemonId>,
     endpoint: Option<String>,
     session_credential_handle: Option<CredentialHandle>,
+    trust_credential_handle: Option<CredentialHandle>,
     fault_code: Option<String>,
 }
 
@@ -282,6 +290,7 @@ impl DeploymentBootstrap {
             daemon_id: None,
             endpoint: None,
             session_credential_handle: None,
+            trust_credential_handle: None,
             fault_code: None,
         })
     }
@@ -304,6 +313,7 @@ impl DeploymentBootstrap {
         self.daemon_id = Some(receipt.daemon_id);
         self.endpoint = Some(receipt.endpoint);
         self.session_credential_handle = Some(receipt.session_credential_handle);
+        self.trust_credential_handle = Some(receipt.trust_credential_handle);
         self.phase = BootstrapPhase::Bootstrapped;
         Ok(self.snapshot())
     }
@@ -316,6 +326,7 @@ impl DeploymentBootstrap {
         if proof.bootstrap_id != self.bootstrap_id
             || self.daemon_id.as_ref() != Some(&proof.daemon_id)
             || self.session_credential_handle.as_ref() != Some(&proof.session_credential_handle)
+            || self.trust_credential_handle.as_ref() != Some(&proof.trust_credential_handle)
         {
             return Err(BootstrapError::IdentityMismatch);
         }
@@ -345,6 +356,7 @@ impl DeploymentBootstrap {
         self.daemon_id = None;
         self.endpoint = None;
         self.session_credential_handle = None;
+        self.trust_credential_handle = None;
         self.fault_code = Some(fault_code);
         self.phase = BootstrapPhase::Failed;
         Ok(self.snapshot())
@@ -359,6 +371,7 @@ impl DeploymentBootstrap {
             daemon_id: self.daemon_id.clone(),
             endpoint: self.endpoint.clone(),
             session_credential_handle: self.session_credential_handle.clone(),
+            trust_credential_handle: self.trust_credential_handle.clone(),
             fault_code: self.fault_code.clone(),
             mutation_authorized: self.phase == BootstrapPhase::SessionBound,
         }
@@ -492,6 +505,8 @@ mod tests {
                 endpoint: "https://host.example:9443/".into(),
                 session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
                     .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
+                    .unwrap(),
             })
             .unwrap();
         assert_eq!(bootstrapped.phase, BootstrapPhase::Bootstrapped);
@@ -501,6 +516,8 @@ mod tests {
             bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
             daemon_id: DaemonId::new("daemon-other").unwrap(),
             session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
+                .unwrap(),
+            trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
                 .unwrap(),
             authority_owned: true,
             protocol_schema_version: BOOTSTRAP_SESSION_PROTOCOL_VERSION,
@@ -564,6 +581,7 @@ mod tests {
         assert!(!failed.bootstrap_credential_present);
         assert!(failed.daemon_id.is_none());
         assert!(failed.session_credential_handle.is_none());
+        assert!(failed.trust_credential_handle.is_none());
         assert!(!failed.mutation_authorized);
         failed.validate().unwrap();
     }
@@ -578,6 +596,8 @@ mod tests {
                 daemon_id: DaemonId::new("daemon-host-example").unwrap(),
                 endpoint: "https://user:secret@host.example:9443/".into(),
                 session_credential_handle: CredentialHandle::new("vault:leserpentd:daemon")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:daemon")
                     .unwrap(),
             }),
             Err(BootstrapError::InvalidEndpoint)

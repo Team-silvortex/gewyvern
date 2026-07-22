@@ -118,6 +118,14 @@ switching prunes stale managed CAs and recognized crash-temporary files while
 refusing unknown entries and links. Run `--verify-desktop-ca-store` for the full
 positive and negative contract.
 
+Profiles promoted from reverse bootstrap retain a
+`vault:leserpent-ca:*` handle plus its private trust-store root instead of a CA
+path. The RemoteClient reader accepts the Rust record format, rejects unknown
+fields, links, non-private modes, digest replacement, and endpoint mismatch,
+then imports the validated CA through the same managed store. Path and handle
+sources are mutually exclusive. `--verify-desktop-profile` and
+`--verify-desktop-ca-store` cover both profile modes.
+
 After startup, `Connection...` in the native macOS application menu or the
 connection button in the remote status bar reopens the same secure setup flow.
 A replacement session must be constructed successfully before the current

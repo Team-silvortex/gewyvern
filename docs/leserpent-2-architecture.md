@@ -263,9 +263,44 @@ token in arguments or environment variables. Each immutable generation now
 retains a mode `0600` launchd plist on macOS or systemd unit on Linux. It points
 at generation-owned executable, certificate, key, and token files plus private
 state/log directories; replay verifies the complete descriptor before accepting
-the generation. The installer does not publish or activate that descriptor yet.
-Controller-side CA persistence is also still required before the service can
-become authoritative.
+the generation. The installer atomically publishes the verified descriptor to
+the target profile's LaunchAgents/LaunchDaemons or systemd unit directory before
+advancing `current`; symlinked service directories fail closed. It does not load
+or start that descriptor yet. Controller-side CA persistence is also still
+required before the service can become authoritative.
+
+The target code also owns a native activation primitive. Before invoking a
+service manager it rebinds the request-derived generation to `current` and
+requires the retained and published descriptors to match byte-for-byte. It then
+uses absolute launchctl/systemctl paths and argument arrays without a shell or
+secret-bearing arguments. `bootstrap-install-v1` remains the side-effect-bounded
+prepare/publish path. The SSH transport invokes `bootstrap-activate-v1`, which
+composes preparation, platform activation, and a bounded health probe. The probe
+connects to the target loopback port while validating TLS against the requested
+endpoint host name and generated CA, authenticates with the private session
+token, strictly decodes wire v1, and requires `ready` plus daemon-owned authority.
+Only then may the installer response claim `ready`.
+
+The controller persists the returned CA before accepting that ready outcome.
+`FileBootstrapTrustStore` validates the endpoint, parses the CA as a rustls root,
+rechecks its SHA-256, and writes an endpoint-bound record through a private
+`0700` directory and atomic `0600` file replacement. Unix reads and writes use
+`O_NOFOLLOW` and opened-file metadata. Domain snapshots carry only a
+`vault:leserpent-ca:*` trust handle; PEM never enters the bootstrap response
+state. Trust persistence failure converts the operation to `Failed` and withholds
+both session and trust authority handles.
+
+The native CLI connection path now consumes that handle directly through
+`--remote-trust-root` and `--remote-trust-handle`. It loads and revalidates the
+private record, rejects any endpoint mismatch, and feeds the retained PEM to the
+same rustls client used by `--remote-ca`. File and handle trust sources are
+mutually exclusive. Avalonia profiles implement the same choice with either a
+managed CA path or `bootstrap_trust_root` plus `bootstrap_trust_handle`. The
+renderer-independent remote client strictly decodes the Rust trust record,
+requires private directory/file modes, rechecks endpoint and PEM digest, and
+passes the retained PEM into the existing content-addressed desktop CA store.
+The profile retains the opaque handle rather than replacing it with a cached CA
+path, so every connection and topology refresh re-enters the authority binding.
 
 The contract requires the operator to confirm deployment actions that cross from
 host bootstrap into runtime mutation. The command graph is still single-source:

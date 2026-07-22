@@ -412,8 +412,37 @@ persistence, native service activation, and authenticated health promotion to
 `ready` remain. The installer now renders a retained mode `0600` launchd plist
 or systemd unit inside the immutable generation. It references only private
 files and state/log paths, never token text; idempotent replay rejects descriptor
-tampering. Publishing and loading that descriptor remain a separate privileged
-step, so this preparation still reports only `installed`.
+tampering. The descriptor is atomically published to the profile's native
+service directory before `current` advances, with symlinked directories rejected.
+Loading that descriptor remains a separate privileged step, so this preparation
+still reports only `installed`.
+
+A native service-manager activation primitive verifies `current` plus the
+retained and published descriptor before using absolute launchctl/systemctl
+executables with shell-free, secret-free argument arrays. The SSH production
+path now calls `bootstrap-activate-v1`: after activation, an eight-second bounded
+probe connects through loopback while validating the requested TLS server name,
+generated CA, private session token, wire-v1 health payload, and daemon-owned
+authority. Only that complete path returns `ready`; `bootstrap-install-v1`
+continues to stop at `installed` for safe preparation and process testing.
+
+Controller trust retention now has an independent native boundary. The SSH
+outcome carries the validated CA only as far as `FileBootstrapTrustStore`, which
+parses it as a rustls root, binds endpoint and digest, and atomically commits a
+private record without following symlinks. The draft domain/wire schema exposes
+only a `vault:leserpent-ca:*` handle. Persistence must succeed before the state
+can become `Bootstrapped`; failure clears all authority handles. A real-host
+proof remains.
+
+The Rust CLI now completes that consumption path. Remote options select exactly
+one CA source: an explicit PEM file or a bootstrap trust root plus
+`vault:leserpent-ca:*` handle. Handle resolution revalidates the private record
+and requires exact endpoint identity before constructing the existing rustls
+transport. Existing authenticated HTTPS, IPC, and Leselang parity verticals
+remain green. Avalonia now retains the same opaque handle in its connection
+profile, strictly decodes the private Rust record through RemoteClient, rejects
+endpoint/digest/source confusion, and imports only the validated PEM into its
+content-addressed CA store. Real SSH timeout and rollback evidence remain.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

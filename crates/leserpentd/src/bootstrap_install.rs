@@ -1,8 +1,10 @@
 use std::env;
+use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use leserpent_protocol::bootstrap_installer::{
@@ -34,6 +36,7 @@ const SERVICE_DESCRIPTOR_NAME: &str = "service.conf";
 pub struct BootstrapInstallLayout {
     root: PathBuf,
     profile: String,
+    service_directory: PathBuf,
 }
 
 impl BootstrapInstallLayout {
@@ -48,7 +51,12 @@ impl BootstrapInstallLayout {
         if !valid_path || !matches!(profile.as_str(), "system" | "user" | "test") {
             return Err("invalid bootstrap install layout".into());
         }
-        Ok(Self { root, profile })
+        let service_directory = root.join("service-manager");
+        Ok(Self {
+            root,
+            profile,
+            service_directory,
+        })
     }
 
     pub fn root(&self) -> &Path {
@@ -57,6 +65,17 @@ impl BootstrapInstallLayout {
 
     pub fn profile(&self) -> &str {
         &self.profile
+    }
+
+    fn with_service_directory(
+        mut self,
+        service_directory: PathBuf,
+    ) -> Result<Self, BootstrapInstallError> {
+        if !is_safe_absolute_path(&service_directory) {
+            return Err(BootstrapInstallError::InvalidLayout);
+        }
+        self.service_directory = service_directory;
+        Ok(self)
     }
 }
 
@@ -69,6 +88,8 @@ pub enum BootstrapInstallError {
     ArtifactDigestMismatch,
     GenerationConflict,
     TlsIdentity,
+    ServiceActivation,
+    HealthProof,
     Storage,
     ResponseEncoding,
 }
@@ -85,6 +106,8 @@ impl fmt::Display for BootstrapInstallError {
                 "bootstrap installer generation conflicts with retained state"
             }
             Self::TlsIdentity => "bootstrap installer TLS identity is invalid",
+            Self::ServiceActivation => "bootstrap platform service activation failed",
+            Self::HealthProof => "bootstrap authenticated service health proof failed",
             Self::Storage => "bootstrap installer storage operation failed",
             Self::ResponseEncoding => "bootstrap installer response encoding failed",
         })
@@ -147,6 +170,7 @@ pub fn install_bootstrap_artifact(
         )?;
         false
     };
+    publish_service_descriptor(layout, &destination, request)?;
     commit_current(&layout.root, &generation)?;
     let (tls_ca_pem, tls_ca_sha256) = read_tls_identity(&destination)?;
 
@@ -168,7 +192,56 @@ pub fn run_bootstrap_install_stdio() -> Result<(), BootstrapInstallError> {
     let layout = platform_layout(&request.install_profile)?;
     let source = env::current_exe().map_err(|_| BootstrapInstallError::InvalidArtifact)?;
     let response = install_bootstrap_artifact(&source, &request, &layout)?;
-    let encoded = encode_bootstrap_installer_response(&response)
+    write_stdio_response(&response)
+}
+
+pub fn run_bootstrap_activate_stdio() -> Result<(), BootstrapInstallError> {
+    let request = read_stdio_request(std::io::stdin().lock())?;
+    let layout = platform_layout(&request.install_profile)?;
+    let source = env::current_exe().map_err(|_| BootstrapInstallError::InvalidArtifact)?;
+    let response = activate_bootstrap_artifact(&source, &request, &layout)?;
+    write_stdio_response(&response)
+}
+
+pub fn activate_bootstrap_artifact(
+    source: &Path,
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<BootstrapInstallerResponse, BootstrapInstallError> {
+    activate_bootstrap_artifact_with(
+        source,
+        request,
+        layout,
+        || activate_published_service(request, layout),
+        |ca_pem| {
+            crate::bootstrap_health::prove_bootstrap_health(
+                &request.endpoint,
+                ca_pem,
+                request.session_token(),
+            )
+            .map_err(|_| BootstrapInstallError::HealthProof)
+        },
+    )
+}
+
+fn activate_bootstrap_artifact_with(
+    source: &Path,
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+    activate: impl FnOnce() -> Result<(), BootstrapInstallError>,
+    prove_health: impl FnOnce(&str) -> Result<(), BootstrapInstallError>,
+) -> Result<BootstrapInstallerResponse, BootstrapInstallError> {
+    let mut response = install_bootstrap_artifact(source, request, layout)?;
+    activate()?;
+    prove_health(&response.tls_ca_pem)?;
+    response.service_state = BootstrapInstallerServiceState::Ready;
+    Ok(response)
+}
+
+fn write_stdio_response(
+    response: &BootstrapInstallerResponse,
+) -> Result<(), BootstrapInstallError> {
+    let encoded = encode_bootstrap_installer_response(response)
         .map_err(|_| BootstrapInstallError::ResponseEncoding)?;
     let mut stdout = std::io::stdout().lock();
     stdout
@@ -176,6 +249,147 @@ pub fn run_bootstrap_install_stdio() -> Result<(), BootstrapInstallError> {
         .and_then(|_| stdout.write_all(b"\n"))
         .and_then(|_| stdout.flush())
         .map_err(|_| BootstrapInstallError::Storage)
+}
+
+pub fn activate_published_service(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<(), BootstrapInstallError> {
+    verify_published_service(request, layout)?;
+    for command in service_activation_commands(request, layout)? {
+        let status = Command::new(&command.program)
+            .args(&command.arguments)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|_| BootstrapInstallError::ServiceActivation)?;
+        if !status.success() && !command.tolerate_failure {
+            return Err(BootstrapInstallError::ServiceActivation);
+        }
+    }
+    Ok(())
+}
+
+fn verify_published_service(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<(), BootstrapInstallError> {
+    let generation = generation_id(request);
+    let current = read_private_file(&layout.root.join(CURRENT_NAME), 128)?;
+    if current.as_slice() != format!("{generation}\n").as_bytes() {
+        return Err(BootstrapInstallError::GenerationConflict);
+    }
+    let retained = read_private_file(
+        &layout
+            .root
+            .join("generations")
+            .join(generation)
+            .join(SERVICE_DESCRIPTOR_NAME),
+        64 * 1024,
+    )?;
+    let published = read_private_file(&published_service_path(request, layout), 64 * 1024)?;
+    if retained.as_slice() != published.as_slice() {
+        return Err(BootstrapInstallError::GenerationConflict);
+    }
+    Ok(())
+}
+
+struct ServiceManagerCommand {
+    program: PathBuf,
+    arguments: Vec<OsString>,
+    tolerate_failure: bool,
+}
+
+#[cfg(target_os = "macos")]
+fn service_activation_commands(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let domain = match layout.profile.as_str() {
+        "system" => "system".to_string(),
+        "user" => {
+            let uid = fs::metadata(&layout.service_directory)
+                .map_err(|_| BootstrapInstallError::ServiceActivation)?
+                .uid();
+            format!("gui/{uid}")
+        }
+        _ => return Err(BootstrapInstallError::UnsupportedProfile),
+    };
+    let label = format!("org.gewyvern.leserpentd.{}", request.daemon_id.as_str());
+    let target = format!("{domain}/{label}");
+    let descriptor = published_service_path(request, layout).into_os_string();
+    Ok(vec![
+        ServiceManagerCommand {
+            program: PathBuf::from("/bin/launchctl"),
+            arguments: vec!["bootout".into(), target.clone().into()],
+            tolerate_failure: true,
+        },
+        ServiceManagerCommand {
+            program: PathBuf::from("/bin/launchctl"),
+            arguments: vec!["bootstrap".into(), domain.into(), descriptor],
+            tolerate_failure: false,
+        },
+        ServiceManagerCommand {
+            program: PathBuf::from("/bin/launchctl"),
+            arguments: vec!["kickstart".into(), "-k".into(), target.into()],
+            tolerate_failure: false,
+        },
+    ])
+}
+
+#[cfg(target_os = "linux")]
+fn service_activation_commands(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    let program = [
+        PathBuf::from("/usr/bin/systemctl"),
+        PathBuf::from("/bin/systemctl"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
+    .ok_or(BootstrapInstallError::ServiceActivation)?;
+    let mut prefix = Vec::new();
+    match layout.profile.as_str() {
+        "system" => {}
+        "user" => prefix.push(OsString::from("--user")),
+        _ => return Err(BootstrapInstallError::UnsupportedProfile),
+    }
+    let unit = service_descriptor_file_name(request);
+    let mut reload = prefix.clone();
+    reload.push("daemon-reload".into());
+    let mut enable = prefix.clone();
+    enable.extend(["enable".into(), unit.clone().into()]);
+    let mut restart = prefix;
+    restart.extend(["restart".into(), unit.into()]);
+    Ok(vec![
+        ServiceManagerCommand {
+            program: program.clone(),
+            arguments: reload,
+            tolerate_failure: false,
+        },
+        ServiceManagerCommand {
+            program: program.clone(),
+            arguments: enable,
+            tolerate_failure: false,
+        },
+        ServiceManagerCommand {
+            program,
+            arguments: restart,
+            tolerate_failure: false,
+        },
+    ])
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_activation_commands(
+    _request: &BootstrapInstallerRequest,
+    _layout: &BootstrapInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    Err(BootstrapInstallError::UnsupportedProfile)
 }
 
 fn read_stdio_request(
@@ -198,12 +412,17 @@ fn platform_layout(profile: &str) -> Result<BootstrapInstallLayout, BootstrapIns
         "system" => {
             #[cfg(target_os = "macos")]
             let root = PathBuf::from("/Library/Application Support/Leserpent/bootstrap");
+            #[cfg(target_os = "macos")]
+            let service_directory = PathBuf::from("/Library/LaunchDaemons");
             #[cfg(target_os = "linux")]
             let root = PathBuf::from("/var/lib/leserpent/bootstrap");
+            #[cfg(target_os = "linux")]
+            let service_directory = PathBuf::from("/etc/systemd/system");
             #[cfg(not(any(target_os = "macos", target_os = "linux")))]
             return Err(BootstrapInstallError::UnsupportedProfile);
             BootstrapInstallLayout::new(root, profile)
-                .map_err(|_| BootstrapInstallError::InvalidLayout)
+                .map_err(|_| BootstrapInstallError::InvalidLayout)?
+                .with_service_directory(service_directory)
         }
         "user" => {
             let home = env::var_os("HOME")
@@ -212,15 +431,28 @@ fn platform_layout(profile: &str) -> Result<BootstrapInstallLayout, BootstrapIns
                 .ok_or(BootstrapInstallError::InvalidLayout)?;
             #[cfg(target_os = "macos")]
             let root = home.join("Library/Application Support/Leserpent/bootstrap");
+            #[cfg(target_os = "macos")]
+            let service_directory = home.join("Library/LaunchAgents");
             #[cfg(target_os = "linux")]
             let root = home.join(".local/share/leserpent/bootstrap");
+            #[cfg(target_os = "linux")]
+            let service_directory = home.join(".config/systemd/user");
             #[cfg(not(any(target_os = "macos", target_os = "linux")))]
             return Err(BootstrapInstallError::UnsupportedProfile);
             BootstrapInstallLayout::new(root, profile)
-                .map_err(|_| BootstrapInstallError::InvalidLayout)
+                .map_err(|_| BootstrapInstallError::InvalidLayout)?
+                .with_service_directory(service_directory)
         }
         _ => Err(BootstrapInstallError::UnsupportedProfile),
     }
+}
+
+fn is_safe_absolute_path(path: &Path) -> bool {
+    path.is_absolute()
+        && path != Path::new("/")
+        && path
+            .components()
+            .all(|component| !matches!(component, Component::ParentDir | Component::CurDir))
 }
 
 fn prepare_layout(layout: &BootstrapInstallLayout) -> Result<(), BootstrapInstallError> {
@@ -342,6 +574,78 @@ fn verify_generation(
     Ok(())
 }
 
+fn publish_service_descriptor(
+    layout: &BootstrapInstallLayout,
+    generation: &Path,
+    request: &BootstrapInstallerRequest,
+) -> Result<(), BootstrapInstallError> {
+    reject_existing_symlink_components(&layout.service_directory)?;
+    fs::create_dir_all(&layout.service_directory).map_err(|_| BootstrapInstallError::Storage)?;
+    let directory_metadata = fs::symlink_metadata(&layout.service_directory)
+        .map_err(|_| BootstrapInstallError::Storage)?;
+    if !directory_metadata.is_dir() || directory_metadata.file_type().is_symlink() {
+        return Err(BootstrapInstallError::InvalidLayout);
+    }
+
+    let retained = read_private_file(&generation.join(SERVICE_DESCRIPTOR_NAME), 64 * 1024)?;
+    let destination = published_service_path(request, layout);
+    match fs::symlink_metadata(&destination) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(BootstrapInstallError::InvalidLayout);
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err(BootstrapInstallError::Storage),
+    }
+    let temporary = layout.service_directory.join(format!(
+        ".{}-{}-{}",
+        service_descriptor_file_name(request),
+        std::process::id(),
+        unique_suffix()
+    ));
+    let result = (|| {
+        write_new_file(&temporary, &retained, 0o600)?;
+        fs::rename(&temporary, &destination).map_err(|_| BootstrapInstallError::Storage)?;
+        sync_directory(&layout.service_directory)?;
+        let published = read_private_file(&destination, 64 * 1024)?;
+        if published.as_slice() != retained.as_slice() {
+            return Err(BootstrapInstallError::GenerationConflict);
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temporary);
+    }
+    result
+}
+
+fn published_service_path(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+) -> PathBuf {
+    layout
+        .service_directory
+        .join(service_descriptor_file_name(request))
+}
+
+#[cfg(target_os = "macos")]
+fn service_descriptor_file_name(request: &BootstrapInstallerRequest) -> String {
+    format!(
+        "org.gewyvern.leserpentd.{}.plist",
+        request.daemon_id.as_str()
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn service_descriptor_file_name(request: &BootstrapInstallerRequest) -> String {
+    format!("leserpentd-{}.service", request.daemon_id.as_str())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_descriptor_file_name(request: &BootstrapInstallerRequest) -> String {
+    format!("leserpentd-{}.conf", request.daemon_id.as_str())
+}
+
 #[cfg(target_os = "macos")]
 fn render_service_descriptor(
     layout: &BootstrapInstallLayout,
@@ -433,11 +737,16 @@ fn render_service_descriptor(
         .map(|argument| systemd_quote(argument))
         .collect::<Result<Vec<_>, _>>()?
         .join(" ");
+    let wanted_by = if layout.profile == "system" {
+        "multi-user.target"
+    } else {
+        "default.target"
+    };
     Ok(format!(
         "[Unit]\nDescription=Leserpent orchestra daemon ({})\nAfter=network-online.target\nWants=network-online.target\n\n\
 [Service]\nType=simple\nExecStart={command}\nRestart=on-failure\nRestartSec=2\n\
 NoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nReadWritePaths={}\n\n\
-[Install]\nWantedBy=default.target\n",
+[Install]\nWantedBy={wanted_by}\n",
         request.daemon_id.as_str(),
         systemd_quote(&writable_root)?,
     ))
@@ -728,7 +1037,9 @@ fn sync_directory(path: &Path) -> Result<(), BootstrapInstallError> {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     use leserpent_domain::bootstrap::{BootstrapId, DaemonId};
 
@@ -736,12 +1047,15 @@ mod tests {
 
     struct TempTree(PathBuf);
 
+    static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
     impl TempTree {
         fn new(label: &str) -> Self {
             let path = env::temp_dir().join(format!(
-                "leserpent-bootstrap-{label}-{}-{}",
+                "leserpent-bootstrap-{label}-{}-{}-{}",
                 std::process::id(),
-                unique_suffix()
+                unique_suffix(),
+                TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
             ));
             fs::create_dir(&path).unwrap();
             Self(fs::canonicalize(path).unwrap())
@@ -809,6 +1123,14 @@ mod tests {
         assert!(!descriptor.contains(request.session_token()));
         assert!(descriptor.contains("--remote-cert"));
         assert!(descriptor.contains("--remote-key"));
+        let published = layout
+            .service_directory
+            .join(service_descriptor_file_name(&request));
+        assert_eq!(fs::read_to_string(&published).unwrap(), descriptor);
+        assert_eq!(
+            fs::metadata(published).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
         assert_eq!(
             fs::read_to_string(layout.root.join(CURRENT_NAME)).unwrap(),
             format!("{}\n", first.generation)
@@ -900,5 +1222,96 @@ mod tests {
             install_bootstrap_artifact(&source, &request, &layout),
             Err(BootstrapInstallError::GenerationConflict)
         );
+    }
+
+    #[test]
+    fn service_publication_rejects_symlinked_directory_before_current_commit() {
+        let (temp, source, request, layout) = fixture();
+        let redirected = temp.0.join("redirected-service-manager");
+        fs::create_dir(&redirected).unwrap();
+        fs::create_dir(&layout.root).unwrap();
+        symlink(&redirected, &layout.service_directory).unwrap();
+        assert_eq!(
+            install_bootstrap_artifact(&source, &request, &layout),
+            Err(BootstrapInstallError::InvalidLayout)
+        );
+        assert!(!layout.root.join(CURRENT_NAME).exists());
+        assert!(fs::read_dir(redirected).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn activation_plan_uses_native_manager_without_secret_arguments() {
+        let (temp, source, mut request, _layout) = fixture();
+        request.install_profile = "user".into();
+        let layout = BootstrapInstallLayout::new(temp.0.join("user-root"), "user").unwrap();
+        install_bootstrap_artifact(&source, &request, &layout).unwrap();
+        verify_published_service(&request, &layout).unwrap();
+        let commands = service_activation_commands(&request, &layout).unwrap();
+        #[cfg(target_os = "macos")]
+        assert_eq!(commands.len(), 3);
+        #[cfg(target_os = "linux")]
+        assert_eq!(commands.len(), 3);
+        let rendered = commands
+            .iter()
+            .flat_map(|command| {
+                std::iter::once(command.program.as_os_str())
+                    .chain(command.arguments.iter().map(std::ffi::OsString::as_os_str))
+            })
+            .map(|value| value.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(!rendered.contains(request.session_token()));
+        #[cfg(target_os = "macos")]
+        assert!(rendered.contains("/bin/launchctl bootstrap gui/"));
+        #[cfg(target_os = "linux")]
+        assert!(rendered.contains("systemctl --user daemon-reload"));
+    }
+
+    #[test]
+    fn activation_rejects_published_descriptor_drift_before_manager_execution() {
+        let (_temp, source, request, layout) = fixture();
+        install_bootstrap_artifact(&source, &request, &layout).unwrap();
+        let published = published_service_path(&request, &layout);
+        fs::write(&published, b"drifted service descriptor\n").unwrap();
+        fs::set_permissions(&published, fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(
+            activate_published_service(&request, &layout),
+            Err(BootstrapInstallError::GenerationConflict)
+        );
+    }
+
+    #[test]
+    fn ready_requires_activation_then_authenticated_health() {
+        let (_temp, source, request, layout) = fixture();
+        let steps = RefCell::new(Vec::new());
+        let response = activate_bootstrap_artifact_with(
+            &source,
+            &request,
+            &layout,
+            || {
+                steps.borrow_mut().push("activated");
+                Ok(())
+            },
+            |ca_pem| {
+                assert!(ca_pem.starts_with("-----BEGIN CERTIFICATE-----\n"));
+                steps.borrow_mut().push("healthy");
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            response.service_state,
+            BootstrapInstallerServiceState::Ready
+        );
+        assert_eq!(*steps.borrow(), ["activated", "healthy"]);
+
+        let health_failure = activate_bootstrap_artifact_with(
+            &source,
+            &request,
+            &layout,
+            || Ok(()),
+            |_| Err(BootstrapInstallError::HealthProof),
+        );
+        assert_eq!(health_failure, Err(BootstrapInstallError::HealthProof));
     }
 }

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json;
 
 internal sealed class DesktopCertificateAuthorityStore(string directory)
 {
@@ -11,6 +12,29 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
     {
         var source = Path.GetFullPath(sourcePath);
         var payload = ReadBoundedRegularFile(source);
+        return ImportPayload(payload, source);
+    }
+
+    public string ImportPem(string pem)
+    {
+        byte[] payload;
+        try
+        {
+            payload = StrictUtf8.GetBytes(pem);
+        }
+        catch (EncoderFallbackException error)
+        {
+            throw new InvalidDataException("desktop CA is not valid UTF-8 PEM", error);
+        }
+        if (payload.Length is <= 0 or > MaxCertificateBytes)
+        {
+            throw new InvalidDataException("desktop CA has an invalid size");
+        }
+        return ImportPayload(payload, null);
+    }
+
+    private string ImportPayload(byte[] payload, string? source)
+    {
         using var certificate = ParseCertificate(payload);
         ValidateCertificateAuthority(certificate);
 
@@ -21,7 +45,8 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
         EnsurePrivateDirectory();
         var trustDirectory = Path.GetFullPath(directory);
         var destination = Path.Combine(trustDirectory, $"{fingerprint}.pem");
-        if (IsDirectChild(source, trustDirectory)
+        if (source is not null
+            && IsDirectChild(source, trustDirectory)
             && !string.Equals(source, destination, PathComparison()))
         {
             throw new InvalidDataException(
@@ -167,6 +192,54 @@ internal sealed class DesktopCertificateAuthorityStore(string directory)
                     != (UnixFileMode.UserRead | UnixFileMode.UserWrite))
             {
                 throw new InvalidDataException("desktop CA import is not private");
+            }
+
+            var bootstrapRoot = Path.Combine(root, "bootstrap-trust");
+            Directory.CreateDirectory(bootstrapRoot);
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(
+                    bootstrapRoot,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+            const string bootstrapEndpoint = "https://control.example:9443";
+            var bootstrapPem = certificate.ExportCertificatePem().TrimEnd('\r', '\n') + "\n";
+            var bootstrapRecord = Path.Combine(bootstrapRoot, "control-example.json");
+            using (var stream = new FileStream(
+                bootstrapRecord,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None))
+            using (var writer = new Utf8JsonWriter(stream))
+            {
+                writer.WriteStartObject();
+                writer.WriteString("endpoint", bootstrapEndpoint);
+                writer.WriteString("ca_pem", bootstrapPem);
+                writer.WriteString(
+                    "ca_sha256",
+                    Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(bootstrapPem)))
+                        .ToLowerInvariant());
+                writer.WriteEndObject();
+            }
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(
+                    bootstrapRecord,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            var bootstrapProfile = new DesktopConnectionProfile
+            {
+                SchemaVersion = 1,
+                Endpoint = bootstrapEndpoint,
+                BootstrapTrustRoot = bootstrapRoot,
+                BootstrapTrustHandle = "vault:leserpent-ca:control-example",
+            };
+            var resolvedBootstrapCertificate =
+                DesktopProductStartup.ResolveCertificateAuthorityPath(bootstrapProfile, store);
+            if (resolvedBootstrapCertificate != imported)
+            {
+                throw new InvalidDataException(
+                    "desktop bootstrap trust did not resolve to the managed CA");
             }
 
             var profileStore = new DesktopConnectionProfileStore(

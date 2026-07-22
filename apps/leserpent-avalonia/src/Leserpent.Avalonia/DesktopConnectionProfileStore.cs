@@ -129,15 +129,36 @@ internal sealed class DesktopConnectionProfileStore(string path)
                 throw new InvalidDataException("desktop connection profile did not round-trip safely");
             }
             File.WriteAllText(Path.Combine(root, "profile.json"), "{\"schema_version\":1,\"unknown\":true}");
-            try
+            ExpectInvalidData(
+                () => _ = store.Load(),
+                "desktop connection profile accepted an unknown field");
+
+            var trustRoot = Path.Combine(root, "bootstrap-trust");
+            Directory.CreateDirectory(trustRoot);
+            if (!OperatingSystem.IsWindows())
             {
-                _ = store.Load();
+                File.SetUnixFileMode(
+                    trustRoot,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             }
-            catch (InvalidDataException)
+            var trustProfile = new DesktopConnectionProfile
             {
-                return;
+                SchemaVersion = SchemaVersion,
+                Endpoint = "https://control.example:9443",
+                BootstrapTrustRoot = trustRoot,
+                BootstrapTrustHandle = "vault:leserpent-ca:control-example",
+            };
+            store.Save(trustProfile);
+            var trustJson = File.ReadAllText(Path.Combine(root, "profile.json"));
+            if (store.Load() != trustProfile
+                || trustJson.Contains("certificate_authority_path", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "desktop bootstrap trust profile did not round-trip safely");
             }
-            throw new InvalidDataException("desktop connection profile accepted an unknown field");
+            ExpectInvalidData(
+                () => store.Save(trustProfile with { BootstrapTrustHandle = null }),
+                "desktop connection profile accepted an incomplete trust source");
         }
         finally
         {
@@ -152,13 +173,30 @@ internal sealed class DesktopConnectionProfileStore(string path)
             throw new InvalidDataException("unsupported desktop connection profile schema");
         }
         _ = RemoteClientOptions.ParseEndpoint(profile.Endpoint);
-        if (profile.CertificateAuthorityPath.Length is <= 0 or > 4096
-            || profile.CertificateAuthorityPath.Any(char.IsControl)
-            || !Path.IsPathFullyQualified(profile.CertificateAuthorityPath))
+        var certificateAuthorityPath = profile.CertificateAuthorityPath;
+        var hasCertificatePath = certificateAuthorityPath is not null;
+        var hasTrustRoot = profile.BootstrapTrustRoot is not null;
+        var hasTrustHandle = profile.BootstrapTrustHandle is not null;
+        if (hasCertificatePath == (hasTrustRoot && hasTrustHandle)
+            || hasTrustRoot != hasTrustHandle)
+        {
+            throw new InvalidDataException(
+                "desktop profile must contain exactly one complete trust source");
+        }
+        if (!hasCertificatePath)
+        {
+            BootstrapTrustRecordStore.ValidateReference(
+                profile.BootstrapTrustRoot!,
+                profile.BootstrapTrustHandle!);
+            return;
+        }
+        if (certificateAuthorityPath!.Length is <= 0 or > 4096
+            || certificateAuthorityPath.Any(char.IsControl)
+            || !Path.IsPathFullyQualified(certificateAuthorityPath))
         {
             throw new InvalidDataException("desktop profile CA path is invalid");
         }
-        var info = new FileInfo(profile.CertificateAuthorityPath);
+        var info = new FileInfo(certificateAuthorityPath);
         if (!info.Exists
             || info.Length is <= 0 or > 1024 * 1024
             || (info.Attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
@@ -175,6 +213,19 @@ internal sealed class DesktopConnectionProfileStore(string path)
             throw new InvalidDataException("desktop connection profile must be a regular file");
         }
     }
+
+    private static void ExpectInvalidData(Action action, string failure)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidDataException(failure);
+    }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -182,7 +233,12 @@ internal sealed record DesktopConnectionProfile
 {
     public int SchemaVersion { get; set; }
     public required string Endpoint { get; set; }
-    public required string CertificateAuthorityPath { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CertificateAuthorityPath { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BootstrapTrustRoot { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BootstrapTrustHandle { get; set; }
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

@@ -3,8 +3,8 @@ use std::time::Duration;
 use std::{io, io::Write};
 
 use leserpent_cli::{
-    CliCommand, CliError, HttpsClient, RuntimeWatchOptions, export_leselang, export_plan,
-    parse_args_with_remote, render_response, request_for, send_request,
+    CliCommand, CliError, HttpsClient, RemoteTrust, RuntimeWatchOptions, export_leselang,
+    export_plan, parse_args_with_remote, render_response, request_for, send_request,
 };
 use leserpent_domain::QueryResult;
 use leserpent_protocol::{ProtocolResponse, RequestEnvelope};
@@ -13,7 +13,7 @@ use zeroize::Zeroizing;
 fn main() {
     match run() {
         Ok(exit_code) => std::process::exit(exit_code),
-        Err(CliError::Usage(message)) if message == leserpent_cli::USAGE => {
+        Err(CliError::Usage(message)) if message.starts_with(leserpent_cli::USAGE) => {
             println!("{message}");
         }
         Err(error) => {
@@ -52,7 +52,13 @@ fn run() -> Result<i32, CliError> {
             let token = std::env::var("LESERPENT_REMOTE_TOKEN").map_err(|_| {
                 CliError::Configuration("LESERPENT_REMOTE_TOKEN is required".into())
             })?;
-            ActiveTransport::Remote(HttpsClient::new(&remote.endpoint, &remote.ca, token)?)
+            let client = match &remote.trust {
+                RemoteTrust::CaFile(path) => HttpsClient::new(&remote.endpoint, path, token)?,
+                RemoteTrust::BootstrapHandle { root, handle } => {
+                    HttpsClient::new_with_bootstrap_trust(&remote.endpoint, root, handle, token)?
+                }
+            };
+            ActiveTransport::Remote(client)
         }
         _ => {
             return Err(CliError::Configuration(

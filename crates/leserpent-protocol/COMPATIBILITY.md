@@ -52,9 +52,40 @@ The target installer also retains a mode `0600` native service descriptor in
 each immutable generation: launchd plist on macOS and systemd unit on Linux.
 The descriptor references the private token, TLS identity, database, and logs by
 path and contains no token text. Replay compares it byte-for-byte with the
-expected descriptor. Descriptor publication and activation remain outside
-installer wire v1, so a prepared generation still returns `installed` rather
-than `ready`.
+expected descriptor. Service-manager activation remains outside installer wire
+v1. The target publishes the verified descriptor atomically before advancing
+its `current` generation, but does not load it into the service manager;
+therefore the response remains `installed` rather than `ready`.
+
+The target has a native launchctl/systemctl activation primitive, fenced by the
+request-derived current generation and byte-identical retained/published
+descriptors. It uses no shell and carries no token in manager arguments. The
+SSH installer command now invokes it through `bootstrap-activate-v1`, then runs
+a bounded loopback health request whose TLS server name remains the requested
+endpoint host. The response may claim `ready` only after generated-CA validation,
+session authentication, strict wire-v1 decoding, and daemon authority proof.
+The separate `bootstrap-install-v1` preparation command still returns only
+`installed`.
+
+Bootstrap state schema v1 now carries an optional opaque
+`trust_credential_handle`. It is absent before deployment and after failure, and
+required together with the session handle in `bootstrapped` and `session_bound`
+states. The native SSH adapter persists the installer CA in an endpoint- and
+digest-bound private controller trust record before emitting that handle. PEM is
+never serialized into the public bootstrap state. Because this boundary remains
+draft, the canonical planned-state fixture was upgraded in place.
+
+The native CLI can consume this handle through an explicit trust-store root.
+It rejects missing, malformed, wrong-provider, or endpoint-mismatched records
+before network access, and does not permit a trust handle to be mixed with an
+explicit CA file. This changes no daemon wire-v1 request or response shape.
+
+Avalonia connection profiles make the same trust-source choice. Handle-backed
+profiles retain `bootstrap_trust_root` and `bootstrap_trust_handle`, revalidate
+the private Rust record and exact endpoint before every connection, and import
+the validated PEM into the existing content-addressed desktop CA store. They do
+not persist PEM or replace the opaque handle with a cached certificate path.
+This is a local profile-schema extension and does not change daemon wire v1.
 
 ## Supported 1.x Slice
 

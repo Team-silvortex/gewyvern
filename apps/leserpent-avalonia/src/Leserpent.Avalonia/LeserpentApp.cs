@@ -221,8 +221,35 @@ internal sealed class LeserpentApp : Application
             window.VerifyAccessibility();
             new DesktopForgetConnectionWindow(profile.Endpoint, () => null)
                 .VerifyAccessibility();
+            var trustProfile = new DesktopConnectionProfile
+            {
+                SchemaVersion = 1,
+                Endpoint = profile.Endpoint,
+                BootstrapTrustRoot = "/verification/bootstrap-trust",
+                BootstrapTrustHandle = "vault:leserpent-ca:control-example",
+            };
+            DesktopConnectionRequest? trustSubmission = null;
+            var trustWindow = new DesktopConnectionWindow(
+                trustProfile,
+                null,
+                request =>
+                {
+                    trustSubmission = request;
+                    return "verification only";
+                },
+                (_, _) => Task.FromResult<string?>(null));
+            trustWindow.VerifyAccessibility();
+            trustWindow.ProbeSecureTokenSubmission(new string('u', 32));
+            if (trustSubmission?.CertificateAuthorityPath.Length != 0
+                || trustSubmission.BootstrapTrustRoot != trustProfile.BootstrapTrustRoot
+                || trustSubmission.BootstrapTrustHandle != trustProfile.BootstrapTrustHandle)
+            {
+                throw new InvalidDataException(
+                    "desktop connection settings did not retain bootstrap trust authority");
+            }
+            trustWindow.Close();
             Console.WriteLine(
-                "desktop connection management controls valid: settings_controls=10, confirmation_controls=3, automation_ids=true, automation_names=true, forget_confirmation=true, endpoint_scoped=true, connection_test=true");
+                "desktop connection management controls valid: settings_controls=10, confirmation_controls=3, automation_ids=true, automation_names=true, forget_confirmation=true, endpoint_scoped=true, connection_test=true, bootstrap_trust_retained=true");
             DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
         };
         window.Closed += (_, _) => desktop.Shutdown(0);
@@ -408,7 +435,7 @@ internal sealed class LeserpentApp : Application
 
         try
         {
-            certificateStore.PruneExcept(RetainedCertificatePaths(catalog));
+            certificateStore.PruneExcept(RetainedCertificatePaths(catalog, certificateStore));
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
         {
@@ -521,7 +548,7 @@ internal sealed class LeserpentApp : Application
             catalogStore,
             certificateStore);
         saved = catalog.Connections.Single(item => item.DaemonId == expected.DaemonId);
-        return DesktopProductStartup.Resolve(saved.Profile);
+        return DesktopProductStartup.Resolve(saved.Profile, certificateStore);
     }
 
     private static string? OpenLocalOrchestra(
@@ -632,7 +659,7 @@ internal sealed class LeserpentApp : Application
                 catalogStore,
                 certificateStore);
             current = catalog.Connections.Single(item => item.DaemonId == expected.DaemonId);
-            var plan = DesktopProductStartup.Resolve(current.Profile);
+            var plan = DesktopProductStartup.Resolve(current.Profile, certificateStore);
             return await LoadLiveTopologyAsync(plan, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -718,17 +745,16 @@ internal sealed class LeserpentApp : Application
             {
                 try
                 {
-                    var requestedProfile = new DesktopConnectionProfile
-                    {
-                        SchemaVersion = 1,
-                        Endpoint = request.Endpoint,
-                        CertificateAuthorityPath = request.Remember
-                            ? certificateStore.Import(request.CertificateAuthorityPath)
-                            : Path.GetFullPath(request.CertificateAuthorityPath),
-                    };
-                    var plan = DesktopProductStartup.Resolve(
-                        requestedProfile,
-                        request.Token);
+                    var requestedProfile = RequestedProfile(
+                        request,
+                        certificateStore,
+                        manageCertificate: true);
+                    var plan = request.BootstrapTrustHandle is null
+                        ? DesktopProductStartup.Resolve(requestedProfile, request.Token)
+                        : DesktopProductStartup.Resolve(
+                            requestedProfile,
+                            certificateStore,
+                            request.Token);
                     if (request.Remember)
                     {
                         var savedConnection = DesktopDaemonConnection.FromProfile(
@@ -736,7 +762,8 @@ internal sealed class LeserpentApp : Application
                         catalogStore.Upsert(savedConnection, connection?.DaemonId);
                     }
                     certificateStore.PruneExcept(RetainedCertificatePaths(
-                        catalogStore.Load()));
+                        catalogStore.Load(),
+                        certificateStore));
                     OpenProductRemoteWindow(desktop, plan);
                     setup!.Close();
                     if (request.Remember)
@@ -853,9 +880,15 @@ internal sealed class LeserpentApp : Application
         {
             var endpoint = RemoteClientOptions.ParseEndpoint(request.Endpoint);
             var token = request.Token ?? RemoteTokenResolver.Resolve(endpoint).Value;
+            var certificateStore = DesktopCertificateAuthorityStore.Default();
+            var profile = RequestedProfile(request, certificateStore, manageCertificate: false);
+            var certificateAuthorityPath = profile.CertificateAuthorityPath
+                ?? DesktopProductStartup.ResolveCertificateAuthorityPath(
+                    profile,
+                    certificateStore);
             var options = RemoteClientOptions.Create(
                 request.Endpoint,
-                Path.GetFullPath(request.CertificateAuthorityPath),
+                certificateAuthorityPath,
                 token);
             using var client = new RemoteHealthClient(options);
             await client.CheckAsync(cancellationToken);
@@ -875,6 +908,31 @@ internal sealed class LeserpentApp : Application
         }
     }
 
+    private static DesktopConnectionProfile RequestedProfile(
+        DesktopConnectionRequest request,
+        DesktopCertificateAuthorityStore certificateStore,
+        bool manageCertificate)
+    {
+        if (request.BootstrapTrustHandle is not null)
+        {
+            return new DesktopConnectionProfile
+            {
+                SchemaVersion = 1,
+                Endpoint = request.Endpoint,
+                BootstrapTrustRoot = request.BootstrapTrustRoot,
+                BootstrapTrustHandle = request.BootstrapTrustHandle,
+            };
+        }
+        return new DesktopConnectionProfile
+        {
+            SchemaVersion = 1,
+            Endpoint = request.Endpoint,
+            CertificateAuthorityPath = manageCertificate && request.Remember
+                ? certificateStore.Import(request.CertificateAuthorityPath)
+                : Path.GetFullPath(request.CertificateAuthorityPath),
+        };
+    }
+
     private static string? ForgetSavedConnection(
         DesktopDaemonConnection connection,
         DesktopConnectionCatalogStore catalogStore,
@@ -892,7 +950,7 @@ internal sealed class LeserpentApp : Application
             var endpoint = RemoteClientOptions.ParseEndpoint(connection.Profile.Endpoint);
             RemoteTokenResolver.Delete(endpoint);
             var catalog = catalogStore.Remove(connection);
-            certificateStore.PruneExcept(RetainedCertificatePaths(catalog));
+            certificateStore.PruneExcept(RetainedCertificatePaths(catalog, certificateStore));
             return null;
         }
         catch (Exception error) when (StartupFailure.IsExpected(error))
@@ -904,11 +962,14 @@ internal sealed class LeserpentApp : Application
     }
 
     private static IEnumerable<string> RetainedCertificatePaths(
-        DesktopConnectionCatalog catalog)
+        DesktopConnectionCatalog catalog,
+        DesktopCertificateAuthorityStore certificateStore)
     {
         foreach (var connection in catalog.Connections)
         {
-            yield return connection.Profile.CertificateAuthorityPath;
+            yield return DesktopProductStartup.ResolveCertificateAuthorityPath(
+                connection.Profile,
+                certificateStore);
         }
         if (localOrchestraService?.ManagedAuthorityPath is { } localAuthority)
         {

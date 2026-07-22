@@ -5,6 +5,7 @@ use std::time::Duration;
 pub use leserpent_adapters::{AdapterRegistry, EffectAdapter, EffectContext};
 use leserpent_runtime::{ControlRuntime, RuntimeError, WorkerStep};
 
+pub mod bootstrap_health;
 pub mod bootstrap_install;
 #[cfg(unix)]
 mod ipc;

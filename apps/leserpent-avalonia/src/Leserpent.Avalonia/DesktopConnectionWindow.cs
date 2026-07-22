@@ -8,6 +8,8 @@ using Avalonia.Platform.Storage;
 internal sealed record DesktopConnectionRequest(
     string Endpoint,
     string CertificateAuthorityPath,
+    string? BootstrapTrustRoot,
+    string? BootstrapTrustHandle,
     string? Token,
     bool Remember);
 
@@ -92,11 +94,18 @@ internal sealed class DesktopConnectionWindow : Window
         FontFamily = new FontFamily("Avenir Next, Segoe UI, sans-serif");
         endpoint.Text = profile?.Endpoint ?? string.Empty;
         certificate.Text = profile?.CertificateAuthorityPath ?? string.Empty;
+        var usesBootstrapTrust = profile?.BootstrapTrustHandle is not null;
+        if (usesBootstrapTrust)
+        {
+            certificate.PlaceholderText = $"Managed by {profile!.BootstrapTrustHandle}";
+            certificate.IsReadOnly = true;
+        }
         endpoint.TextChanged += (_, _) => UpdateAccount();
 
         var browse = new Button
         {
             Content = "Choose CA...",
+            IsEnabled = !usesBootstrapTrust,
             Padding = new Thickness(14, 8),
         };
         var close = new Button
@@ -204,7 +213,9 @@ internal sealed class DesktopConnectionWindow : Window
                     },
                     new TextBlock
                     {
-                        Text = "Enter a token once to store it in macOS Keychain or Linux Secret Service. Remembered CA certificates are copied into private application storage; the profile stores only the HTTPS origin and managed CA path.",
+                        Text = usesBootstrapTrust
+                            ? "This connection retains its endpoint-bound bootstrap trust handle. Enter a token only to replace the endpoint credential; CA material stays managed outside the UI."
+                            : "Enter a token once to store it in macOS Keychain or Linux Secret Service. Remembered CA certificates are copied into private application storage; the profile stores only the HTTPS origin and managed CA path.",
                         Foreground = LeserpentTheme.Muted,
                         FontSize = 13,
                         TextWrapping = TextWrapping.Wrap,
@@ -409,6 +420,8 @@ internal sealed class DesktopConnectionWindow : Window
         return new DesktopConnectionRequest(
             endpoint.Text?.Trim() ?? string.Empty,
             certificate.Text?.Trim() ?? string.Empty,
+            savedProfile?.BootstrapTrustRoot,
+            savedProfile?.BootstrapTrustHandle,
             submittedToken,
             remember.IsChecked == true);
     }

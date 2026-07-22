@@ -21,12 +21,12 @@ internal static class DesktopProductStartup
         DesktopConnectionProfileStore profileStore,
         DesktopCertificateAuthorityStore certificateStore)
     {
-        var importedCertificate = certificateStore.Import(
-            profile.CertificateAuthorityPath);
-        if (!string.Equals(
-            importedCertificate,
-            profile.CertificateAuthorityPath,
-            StringComparison.Ordinal))
+        var importedCertificate = ResolveCertificateAuthorityPath(profile, certificateStore);
+        if (profile.CertificateAuthorityPath is not null
+            && !string.Equals(
+                importedCertificate,
+                profile.CertificateAuthorityPath,
+                StringComparison.Ordinal))
         {
             profile = profile with
             {
@@ -34,7 +34,7 @@ internal static class DesktopProductStartup
             };
             profileStore.Save(profile);
         }
-        certificateStore.PruneExcept(profile.CertificateAuthorityPath);
+        certificateStore.PruneExcept(importedCertificate);
         return profile;
     }
 
@@ -47,8 +47,14 @@ internal static class DesktopProductStartup
         var connections = new List<DesktopDaemonConnection>(catalog.Connections.Count);
         foreach (var connection in catalog.Connections)
         {
-            var importedCertificate = certificateStore.Import(
-                connection.Profile.CertificateAuthorityPath);
+            var importedCertificate = ResolveCertificateAuthorityPath(
+                connection.Profile,
+                certificateStore);
+            if (connection.Profile.CertificateAuthorityPath is null)
+            {
+                connections.Add(connection);
+                continue;
+            }
             if (string.Equals(
                 importedCertificate,
                 connection.Profile.CertificateAuthorityPath,
@@ -78,6 +84,46 @@ internal static class DesktopProductStartup
         DesktopConnectionProfile profile,
         string? submittedToken = null)
     {
+        DesktopConnectionProfileStore.Validate(profile);
+        var certificateAuthorityPath = profile.CertificateAuthorityPath
+            ?? throw new InvalidDataException(
+                "bootstrap trust profiles require a desktop certificate store");
+        return Resolve(profile, certificateAuthorityPath, submittedToken);
+    }
+
+    public static DesktopProductStartupPlan Resolve(
+        DesktopConnectionProfile profile,
+        DesktopCertificateAuthorityStore certificateStore,
+        string? submittedToken = null)
+    {
+        DesktopConnectionProfileStore.Validate(profile);
+        var certificateAuthorityPath = ResolveCertificateAuthorityPath(
+            profile,
+            certificateStore);
+        return Resolve(profile, certificateAuthorityPath, submittedToken);
+    }
+
+    public static string ResolveCertificateAuthorityPath(
+        DesktopConnectionProfile profile,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        DesktopConnectionProfileStore.Validate(profile);
+        if (profile.CertificateAuthorityPath is { } certificateAuthorityPath)
+        {
+            return certificateStore.Import(certificateAuthorityPath);
+        }
+        var record = BootstrapTrustRecordStore.Load(
+            profile.Endpoint,
+            profile.BootstrapTrustRoot!,
+            profile.BootstrapTrustHandle!);
+        return certificateStore.ImportPem(record.CertificateAuthorityPem);
+    }
+
+    private static DesktopProductStartupPlan Resolve(
+        DesktopConnectionProfile profile,
+        string certificateAuthorityPath,
+        string? submittedToken)
+    {
         var endpoint = RemoteClientOptions.ParseEndpoint(profile.Endpoint);
         if (submittedToken is null)
         {
@@ -86,14 +132,14 @@ internal static class DesktopProductStartup
                 profile,
                 RemoteClientOptions.Create(
                     profile.Endpoint,
-                    profile.CertificateAuthorityPath,
+                    certificateAuthorityPath,
                     token.Value),
                 token.Source);
         }
 
         var options = RemoteClientOptions.Create(
             profile.Endpoint,
-            profile.CertificateAuthorityPath,
+            certificateAuthorityPath,
             submittedToken);
         RemoteTokenResolver.Store(endpoint, submittedToken);
         return new DesktopProductStartupPlan(
@@ -125,7 +171,7 @@ internal static class DesktopProductStartup
         var profile = store.Load()
             ?? throw new InvalidDataException("packaged startup verification profile is absent");
         var endpoint = RemoteClientOptions.ParseEndpoint(profile.Endpoint);
-        var certificatePath = Path.GetFullPath(profile.CertificateAuthorityPath);
+        var certificatePath = Path.GetFullPath(profile.CertificateAuthorityPath!);
         if (!certificatePath.StartsWith(temporaryRoot, StringComparison.Ordinal))
         {
             throw new InvalidDataException(

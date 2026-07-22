@@ -129,6 +129,15 @@ fn native_installer_entrypoint_commits_and_replays_a_private_generation() {
     let descriptor = fs::read_to_string(descriptor).unwrap();
     assert!(descriptor.contains("--remote-token-file"));
     assert!(!descriptor.contains(token));
+    #[cfg(target_os = "macos")]
+    let published = home
+        .0
+        .join("Library/LaunchAgents/org.gewyvern.leserpentd.daemon-process-1.plist");
+    #[cfg(target_os = "linux")]
+    let published = home
+        .0
+        .join(".config/systemd/user/leserpentd-daemon-process-1.service");
+    assert_eq!(fs::read_to_string(published).unwrap(), descriptor);
 
     let replay =
         decode_bootstrap_installer_response(&run_installer(&binary, &home.0, &request)).unwrap();

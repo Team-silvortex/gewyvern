@@ -31,7 +31,10 @@ public sealed record RemoteTrustIdentity(
 internal static class RemoteTls
 {
     public static X509Certificate2 LoadRoot(string path) =>
-        X509Certificate2.CreateFromPem(File.ReadAllText(path));
+        LoadRootFromPem(File.ReadAllText(path));
+
+    public static X509Certificate2 LoadRootFromPem(string pem) =>
+        X509Certificate2.CreateFromPem(pem);
 
     public static bool ValidateServerCertificate(
         X509Certificate? certificate,

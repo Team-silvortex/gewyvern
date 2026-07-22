@@ -74,14 +74,15 @@ internal static class Program
             DesktopConnectionProfileStore.VerifyContract();
             DesktopConnectionCatalogStore.VerifyContract();
             Console.WriteLine(
-                "desktop connection catalog valid: multi_daemon=true, legacy_migration=true, stable_authority_id=true, bounded=true, atomic=true, private=true, token_persisted=false, unknown_fields=false");
+                "desktop connection catalog valid: multi_daemon=true, legacy_migration=true, stable_authority_id=true, path_trust=true, bootstrap_handle_trust=true, exclusive_trust_source=true, bounded=true, atomic=true, private=true, token_persisted=false, unknown_fields=false");
             return 0;
         }
         if (args is ["--verify-desktop-ca-store"])
         {
+            BootstrapTrustRecordStore.VerifyContract();
             DesktopCertificateAuthorityStore.VerifyContract();
             Console.WriteLine(
-                "desktop CA store valid: single_pem=true, certificate_authority=true, content_addressed=true, atomic=true, private=true, idempotent=true, profile_migration=true, bounded_prune=true, stale_temp_cleanup=true, trailing_material=false, managed_replacement=false, symlink=false");
+                "desktop CA store valid: single_pem=true, certificate_authority=true, content_addressed=true, atomic=true, private=true, idempotent=true, profile_migration=true, bootstrap_handle=true, endpoint_bound=true, digest_bound=true, bounded_prune=true, stale_temp_cleanup=true, unknown_fields=false, trailing_material=false, managed_replacement=false, symlink=false");
             return 0;
         }
         if (args is ["--verify-desktop-lifecycle"])

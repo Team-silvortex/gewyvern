@@ -142,7 +142,9 @@ internal sealed class HubWindow : Window
                 connection.DisplayName,
                 connection.Profile.Endpoint,
                 "REMOTE",
-                $"CA  {Path.GetFileName(connection.Profile.CertificateAuthorityPath)}",
+                connection.Profile.BootstrapTrustHandle is { } trustHandle
+                    ? $"TRUST  {trustHandle}"
+                    : $"CA  {Path.GetFileName(connection.Profile.CertificateAuthorityPath)}",
                 () => openRemote(captured),
                 (runtime, revision) => openRemoteRuntime(captured, runtime, revision),
                 cancellationToken => loadRemoteTopology(captured, cancellationToken),
