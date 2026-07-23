@@ -17,6 +17,10 @@ use leserpent_domain::provisioning::{
     CAPABILITY_RUNTIME_PROVISION, PROVISIONING_DOMAIN_SCHEMA_VERSION, ProvisioningId,
     ProvisioningPhase, RuntimeProvisioningIntent,
 };
+use leserpent_domain::retirement::{
+    CAPABILITY_RUNTIME_RETIRE, RETIREMENT_DOMAIN_SCHEMA_VERSION, RetirementId, RetirementPhase,
+    RuntimeRetirementIntent,
+};
 use leserpent_domain::{
     CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
     CommandId, CommandOrigin, CommandStatus, Confirmation, IdempotencyKey, Principal, QueryResult,
@@ -29,6 +33,10 @@ use leserpent_protocol::bootstrap::{
 use leserpent_protocol::provisioning::{
     PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningRequest, ProvisioningRequestEnvelope,
     ProvisioningResponse, ProvisioningResponseEnvelope,
+};
+use leserpent_protocol::retirement::{
+    RETIREMENT_PROTOCOL_SCHEMA_VERSION, RetirementRequest, RetirementRequestEnvelope,
+    RetirementResponse, RetirementResponseEnvelope,
 };
 use leserpent_protocol::{
     BootstrapHandoffRequest, BootstrapSessionBindRequest, HealthRequest, PROTOCOL_SCHEMA_VERSION,
@@ -81,6 +89,7 @@ pub enum CliCommand {
     RuntimeCapabilitiesRefresh(RuntimeRefreshOptions),
     RuntimeDeploy(RuntimeDeployOptions),
     RuntimeProvision(RuntimeProvisionOptions),
+    RuntimeRetire(RuntimeRetireOptions),
     BootstrapInspect(BootstrapId),
     BootstrapBind(BootstrapId),
     BootstrapDeploy(BootstrapDeployOptions),
@@ -140,6 +149,22 @@ pub struct ProvisioningWaitOptions {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeRetireOptions {
+    pub retirement_id: RetirementId,
+    pub provisioning_id: ProvisioningId,
+    pub runtime_id: RuntimeId,
+    pub target: BootstrapTarget,
+    pub credential_handle: CredentialHandle,
+    pub wait: Option<RetirementWaitOptions>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RetirementWaitOptions {
+    pub count: u16,
+    pub interval_ms: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CliError {
     Usage(String),
     Configuration(String),
@@ -160,7 +185,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime retire RUNTIME_ID --retirement-id ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 pub const REMOTE_TRUST_USAGE: &str = "Bootstrap trust alternative:\n  replace --remote-ca PATH with --remote-trust-root PATH --remote-trust-handle vault:leserpent-ca:KEY";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -366,6 +391,10 @@ pub fn parse_args_with_remote(
                 CliCommand::RuntimeProvision(parse_runtime_provision(arguments)?),
                 None,
             ),
+            Some("retire") => (
+                CliCommand::RuntimeRetire(parse_runtime_retire(arguments)?),
+                None,
+            ),
             Some(command) => {
                 return Err(CliError::Usage(format!(
                     "unknown runtime command '{command}'"
@@ -486,6 +515,11 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
         CliCommand::RuntimeProvision(_) => {
             return Err(CliError::Usage(
                 "runtime provision uses the independent provisioning transport".into(),
+            ));
+        }
+        CliCommand::RuntimeRetire(_) => {
+            return Err(CliError::Usage(
+                "runtime retire uses the independent retirement transport".into(),
             ));
         }
         CliCommand::RuntimeList(filter) => {
@@ -713,6 +747,33 @@ pub fn provisioning_request_for(
                 runtime_id: provision.runtime_id.clone(),
                 target: provision.target.clone(),
                 install_credential_handle: provision.credential_handle.clone(),
+                requested_by: options.principal.clone(),
+                confirmed: true,
+            },
+        },
+    }))
+}
+
+pub fn retirement_request_for(
+    options: &CliOptions,
+) -> Result<Option<RetirementRequestEnvelope>, CliError> {
+    let CliCommand::RuntimeRetire(retirement) = &options.command else {
+        return Ok(None);
+    };
+    Ok(Some(RetirementRequestEnvelope {
+        schema_version: RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+        request: RetirementRequest {
+            principal: Principal {
+                id: options.principal.clone(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_RETIRE]),
+            intent: RuntimeRetirementIntent {
+                schema_version: RETIREMENT_DOMAIN_SCHEMA_VERSION,
+                retirement_id: retirement.retirement_id.clone(),
+                provisioning_id: retirement.provisioning_id.clone(),
+                runtime_id: retirement.runtime_id.clone(),
+                target: retirement.target.clone(),
+                retirement_credential_handle: retirement.credential_handle.clone(),
                 requested_by: options.principal.clone(),
                 confirmed: true,
             },
@@ -1032,6 +1093,44 @@ pub fn provisioning_phase_name(phase: ProvisioningPhase) -> &'static str {
         ProvisioningPhase::ServiceReady => "service_ready",
         ProvisioningPhase::RuntimeRegistered => "runtime_registered",
         ProvisioningPhase::Failed => "failed",
+    }
+}
+
+pub fn render_retirement_response(
+    response: &RetirementResponseEnvelope,
+    json: bool,
+) -> Result<String, CliError> {
+    if json {
+        return serde_json::to_string(response)
+            .map_err(|error| CliError::Protocol(error.to_string()));
+    }
+    match &response.response {
+        RetirementResponse::State(state) => Ok(format!(
+            "retirement={} provisioning={} runtime={} phase={} target={}:{} service_retired={} registered={} fault={}",
+            safe_cell(state.retirement_id.as_str()),
+            safe_cell(state.provisioning_id.as_str()),
+            safe_cell(state.runtime_id.as_str()),
+            retirement_phase_name(state.phase),
+            safe_cell(&state.target.host),
+            state.target.port,
+            state.service_retired,
+            state.runtime_registered,
+            safe_cell(state.fault_code.as_deref().unwrap_or("none")),
+        )),
+        RetirementResponse::Error(error) => Err(CliError::Protocol(format!(
+            "{}: {}",
+            error.code, error.message
+        ))),
+    }
+}
+
+pub fn retirement_phase_name(phase: RetirementPhase) -> &'static str {
+    match phase {
+        RetirementPhase::Planned => "planned",
+        RetirementPhase::RetiringService => "retiring_service",
+        RetirementPhase::ServiceRetired => "service_retired",
+        RetirementPhase::RuntimeUnregistered => "runtime_unregistered",
+        RetirementPhase::Failed => "failed",
     }
 }
 
@@ -1369,6 +1468,27 @@ pub fn send_provisioning_request(
 }
 
 #[cfg(unix)]
+pub fn send_retirement_request(
+    socket: &std::path::Path,
+    token: &str,
+    request: &RetirementRequestEnvelope,
+) -> Result<RetirementResponseEnvelope, CliError> {
+    use leserpent_protocol::retirement::{
+        MAX_RETIREMENT_PROTOCOL_BYTES, decode_retirement_response,
+    };
+
+    let response = send_routed_ipc_request(
+        socket,
+        token,
+        "retirement_v1",
+        "retirement",
+        request,
+        MAX_RETIREMENT_PROTOCOL_BYTES,
+    )?;
+    decode_retirement_response(&response).map_err(|error| CliError::Protocol(format!("{error:?}")))
+}
+
+#[cfg(unix)]
 fn send_routed_ipc_request(
     socket: &std::path::Path,
     token: &str,
@@ -1458,6 +1578,17 @@ pub fn send_provisioning_request(
 ) -> Result<ProvisioningResponseEnvelope, CliError> {
     Err(CliError::Transport(
         "local daemon provisioning transport is not implemented on this platform".into(),
+    ))
+}
+
+#[cfg(not(unix))]
+pub fn send_retirement_request(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &RetirementRequestEnvelope,
+) -> Result<RetirementResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon retirement transport is not implemented on this platform".into(),
     ))
 }
 
@@ -1903,6 +2034,135 @@ fn parse_runtime_provision(
             CliError::Usage("runtime provision requires --credential-handle".into())
         })?,
         wait: wait.then_some(ProvisioningWaitOptions { count, interval_ms }),
+    })
+}
+
+fn parse_runtime_retire(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<RuntimeRetireOptions, CliError> {
+    let runtime_id = arguments
+        .next()
+        .ok_or_else(|| CliError::Usage("runtime retire requires RUNTIME_ID".into()))?;
+    let runtime_id =
+        RuntimeId::new(runtime_id).map_err(|error| CliError::Usage(error.to_string()))?;
+    let mut retirement_id = None;
+    let mut provisioning_id = None;
+    let mut host = None;
+    let mut port = 22_u16;
+    let mut port_seen = false;
+    let mut credential_handle = None;
+    let mut confirmed = false;
+    let mut wait = false;
+    let mut count = 30_u16;
+    let mut count_seen = false;
+    let mut interval_ms = 1_000_u64;
+    let mut interval_seen = false;
+
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--retirement-id" if retirement_id.is_none() => {
+                retirement_id =
+                    Some(
+                        RetirementId::new(arguments.next().ok_or_else(|| {
+                            CliError::Usage("--retirement-id requires ID".into())
+                        })?)
+                        .map_err(|error| CliError::Usage(error.to_string()))?,
+                    );
+            }
+            "--provisioning-id" if provisioning_id.is_none() => {
+                provisioning_id =
+                    Some(
+                        ProvisioningId::new(arguments.next().ok_or_else(|| {
+                            CliError::Usage("--provisioning-id requires ID".into())
+                        })?)
+                        .map_err(|error| CliError::Usage(error.to_string()))?,
+                    );
+            }
+            "--host" if host.is_none() => {
+                host = Some(
+                    arguments
+                        .next()
+                        .ok_or_else(|| CliError::Usage("--host requires HOST".into()))?,
+                );
+            }
+            "--port" if !port_seen => {
+                port_seen = true;
+                port = arguments
+                    .next()
+                    .ok_or_else(|| CliError::Usage("--port requires PORT".into()))?
+                    .parse()
+                    .map_err(|_| CliError::Usage("retirement port is invalid".into()))?;
+            }
+            "--credential-handle" if credential_handle.is_none() => {
+                let handle = CredentialHandle::new(arguments.next().ok_or_else(|| {
+                    CliError::Usage("--credential-handle requires vault:ssh:KEY".into())
+                })?)
+                .map_err(|_| CliError::Usage("retirement credential handle is invalid".into()))?;
+                if handle.parts().0 != "ssh" {
+                    return Err(CliError::Usage(
+                        "retirement credential handle must use the ssh vault provider".into(),
+                    ));
+                }
+                credential_handle = Some(handle);
+            }
+            "--yes" if !confirmed => confirmed = true,
+            "--wait" if !wait => wait = true,
+            "--count" if !count_seen => {
+                count_seen = true;
+                count = parse_observation_count(arguments.next())?;
+            }
+            "--interval-ms" if !interval_seen => {
+                interval_seen = true;
+                interval_ms = parse_observation_interval(arguments.next())?;
+            }
+            "--retirement-id"
+            | "--provisioning-id"
+            | "--host"
+            | "--port"
+            | "--credential-handle"
+            | "--yes"
+            | "--wait"
+            | "--count"
+            | "--interval-ms" => {
+                return Err(CliError::Usage(format!(
+                    "{argument} was provided more than once"
+                )));
+            }
+            _ => {
+                return Err(CliError::Usage(format!(
+                    "unknown runtime retire option '{argument}'"
+                )));
+            }
+        }
+    }
+    if !confirmed {
+        return Err(CliError::Usage(
+            "runtime retire requires explicit --yes confirmation".into(),
+        ));
+    }
+    if !wait && (count_seen || interval_seen) {
+        return Err(CliError::Usage(
+            "--count and --interval-ms require --wait".into(),
+        ));
+    }
+    let target = BootstrapTarget {
+        transport: BootstrapTransport::Ssh,
+        host: host.ok_or_else(|| CliError::Usage("runtime retire requires --host".into()))?,
+        port,
+    };
+    target
+        .validate()
+        .map_err(|_| CliError::Usage("retirement target is invalid".into()))?;
+    Ok(RuntimeRetireOptions {
+        retirement_id: retirement_id
+            .ok_or_else(|| CliError::Usage("runtime retire requires --retirement-id".into()))?,
+        provisioning_id: provisioning_id
+            .ok_or_else(|| CliError::Usage("runtime retire requires --provisioning-id".into()))?,
+        runtime_id,
+        target,
+        credential_handle: credential_handle
+            .ok_or_else(|| CliError::Usage("runtime retire requires --credential-handle".into()))?,
+        wait: wait.then_some(RetirementWaitOptions { count, interval_ms }),
     })
 }
 
@@ -2826,6 +3086,162 @@ mod tests {
         assert!(rendered.contains("phase=planned"));
         assert!(rendered.contains("registered=false"));
         assert!(!rendered.contains("secret-alias"));
+        assert!(!rendered.contains("credential"));
+    }
+
+    #[test]
+    fn retirement_cli_requires_confirmation_and_builds_a_bounded_identity_request() {
+        let options = parse_args(
+            [
+                "runtime",
+                "retire",
+                "runtime-existing",
+                "--retirement-id",
+                "retire-cli-1",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--port",
+                "2222",
+                "--credential-handle",
+                "vault:ssh:runtime-retirement",
+                "--yes",
+                "--wait",
+                "--count",
+                "3",
+                "--interval-ms",
+                "50",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            &options.command,
+            CliCommand::RuntimeRetire(RuntimeRetireOptions {
+                retirement_id,
+                provisioning_id,
+                runtime_id,
+                target,
+                wait: Some(RetirementWaitOptions {
+                    count: 3,
+                    interval_ms: 50,
+                }),
+                ..
+            }) if retirement_id.as_str() == "retire-cli-1"
+                && provisioning_id.as_str() == "provision-cli-1"
+                && runtime_id.as_str() == "runtime-existing"
+                && target.host == "runtime.example"
+                && target.port == 2222
+        ));
+        let request = retirement_request_for(&options).unwrap().unwrap();
+        assert_eq!(request.request.principal.id, "operator-a");
+        assert_eq!(request.request.intent.requested_by, "operator-a");
+        assert!(request.request.intent.confirmed);
+        assert_eq!(
+            request.request.intent.retirement_credential_handle.parts(),
+            ("ssh", "runtime-retirement")
+        );
+        assert!(request_for(&options).is_err());
+
+        for arguments in [
+            vec![
+                "runtime",
+                "retire",
+                "runtime-existing",
+                "--retirement-id",
+                "retire-cli-1",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:ssh:runtime-retirement",
+            ],
+            vec![
+                "runtime",
+                "retire",
+                "runtime-existing",
+                "--retirement-id",
+                "retire-cli-1",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:ssh:runtime-retirement",
+                "--yes",
+                "--count",
+                "3",
+            ],
+            vec![
+                "runtime",
+                "retire",
+                "runtime-existing",
+                "--retirement-id",
+                "retire-cli-1",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:api:wrong-provider",
+                "--yes",
+            ],
+        ] {
+            assert!(
+                parse_args(
+                    arguments.into_iter().map(str::to_string),
+                    Some(PathBuf::from("/tmp/leserpent.sock")),
+                    Some("operator-a".into()),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn retirement_renderer_exposes_progress_without_retirement_credentials() {
+        let options = parse_args(
+            [
+                "runtime",
+                "retire",
+                "runtime-existing",
+                "--retirement-id",
+                "retire-cli-1",
+                "--provisioning-id",
+                "provision-cli-1",
+                "--host",
+                "runtime.example",
+                "--credential-handle",
+                "vault:ssh:secret-retirement-alias",
+                "--yes",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let request = retirement_request_for(&options).unwrap().unwrap();
+        let retirement = leserpent_domain::retirement::RuntimeRetirement::plan(
+            &request.request.principal,
+            &request.request.capabilities,
+            request.request.intent,
+        )
+        .unwrap();
+        let response = RetirementResponseEnvelope {
+            schema_version: RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+            response: RetirementResponse::State(retirement.snapshot()),
+        };
+        let rendered = render_retirement_response(&response, false).unwrap();
+        assert!(rendered.contains("phase=planned"));
+        assert!(rendered.contains("service_retired=false"));
+        assert!(rendered.contains("registered=true"));
+        assert!(!rendered.contains("secret-retirement-alias"));
         assert!(!rendered.contains("credential"));
     }
 }

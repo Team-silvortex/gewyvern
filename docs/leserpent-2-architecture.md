@@ -309,8 +309,16 @@ bound and typed error envelope; bad authentication is rejected before
 submission, and a daemon without the production retirement effect adapter
 returns `retirement_unavailable` without creating a checkpoint. The main process
 enables these submission gates only after registry ownership of
-`gewyvern.runtime.retire` is established. CLI/Avalonia controls and physical
-Linux retirement evidence remain the next implementation slice.
+`gewyvern.runtime.retire` is established. The native CLI now exposes this
+contract as a confirmed `runtime retire` command over both authenticated
+transports. It requires stable retirement and provisioning IDs, reuses the exact
+request during bounded polling, emits no credential handle, distinguishes
+protocol rejection, terminal failure, and wait exhaustion, and proves that a
+failed retirement preserves an inspectable runtime registration. The Avalonia
+Hub now exposes the same provisioning-bound identity through an explicitly
+confirmed destructive workspace. Its strict 64 KiB client, locked fields,
+bounded replay, credential-free status, and failure guidance preserve the same
+state invariants. Physical Linux retirement evidence is the remaining gate.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrated schema-11 `bootstrap_handoffs` rows into the

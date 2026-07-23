@@ -77,6 +77,13 @@ internal static class Program
                 "provisioning client valid: https_route=true, strict_state=true, bounded=true, stable_identity=true, opaque_handles=true, raw_secrets=false, runtime_deploy_independent=true");
             return 0;
         }
+        if (args is ["--verify-retirement-client"])
+        {
+            RemoteRetirementClient.VerifyContract();
+            Console.WriteLine(
+                "retirement client valid: https_route=true, strict_state=true, bounded=true, stable_identity=true, provisioning_bound=true, opaque_handles=true, raw_secrets=false, failure_preserves_registration=true");
+            return 0;
+        }
         if (args is ["--verify-bootstrap-promotion"])
         {
             DesktopBootstrapPromotion.VerifyContract();

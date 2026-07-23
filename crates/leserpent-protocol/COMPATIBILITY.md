@@ -173,7 +173,13 @@ only `POST /v1/retirement` over HTTPS or the explicit `retirement_v1` Unix IPC
 route. Both preserve the independent 64 KiB retirement bound and typed response,
 authenticate before submission, and remain disabled unless the daemon registry
 owns `gewyvern.runtime.retire`. An unavailable route creates no retirement
-checkpoint. CLI and Avalonia controls remain outside this protocol slice.
+checkpoint. The native CLI consumes this unchanged envelope through confirmed
+`runtime retire` over IPC or HTTPS. Bounded polling reuses the same retirement
+ID and request, human output omits the credential handle, and protocol failure,
+terminal retirement failure, and wait exhaustion remain distinguishable.
+The Avalonia client consumes the same envelope over HTTPS with strict identity
+validation, explicit confirmation, bounded exact-request replay, and
+credential-free status projection; no desktop-only wire variant exists.
 
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure

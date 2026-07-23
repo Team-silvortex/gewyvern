@@ -577,8 +577,14 @@ daemon now exposes the same typed request through authenticated
 `retirement_v1` Unix IPC and `POST /v1/retirement` HTTPS routes. Each route keeps
 the independent 64 KiB limit and remains disabled unless the production
 retirement adapter is registered; a real TLS proof commits only a provisioning-
-bound revision-1 checkpoint. The remaining work is matching CLI/Avalonia
-controls and a physical Linux proof.
+bound revision-1 checkpoint. The native CLI now provides the confirmed
+`runtime retire` operation over both authenticated transports with stable
+identity replay, bounded polling, credential-free progress, distinct terminal
+exit codes, and a negative proof that adapter failure preserves registration.
+The Avalonia Hub now provides the matching confirmed control with strict
+provisioning/runtime/target identity fencing, locked fields, bounded replay,
+credential-free status, and explicit failure-preserves-registration guidance.
+The remaining work is a physical Linux stop/remove proof.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

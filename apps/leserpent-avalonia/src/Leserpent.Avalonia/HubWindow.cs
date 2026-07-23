@@ -42,11 +42,12 @@ internal sealed class HubWindow : Window
             loadRemoteTopology,
         Action deployDaemon,
         Action provisionRuntime,
+        Action retireRuntime,
         Action addConnection,
         Action<DesktopDaemonConnection> manageConnection)
     {
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 4 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 5 + connections.Count * 3 + (localSupported ? 2 : 0);
         Title = "Leserpent / Hub";
         Width = 900;
         Height = 680;
@@ -94,12 +95,25 @@ internal sealed class HubWindow : Window
         auditedControls.Add(provisionButton);
         provisionButton.Click += (_, _) => provisionRuntime();
 
+        var retireButton = new Button
+        {
+            Content = "Retire gewyvern",
+            Padding = new Thickness(17, 9),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AutomationProperties.SetAutomationId(retireButton, "hub-retire-gewyvern");
+        AutomationProperties.SetName(
+            retireButton,
+            "Retire a gewyvern runtime through its daemon authority");
+        auditedControls.Add(retireButton);
+        retireButton.Click += (_, _) => retireRuntime();
+
         var headingActions = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 9,
             VerticalAlignment = VerticalAlignment.Center,
-            Children = { deployButton, provisionButton, addButton },
+            Children = { deployButton, provisionButton, retireButton, addButton },
         };
 
         var heading = new Grid

@@ -132,6 +132,36 @@ fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
 }
 
 #[test]
+fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
+    let client = avalonia_source("Leserpent.RemoteClient/RemoteRetirementClient.cs");
+    let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
+    let window = avalonia_source("Leserpent.Avalonia/GewyvernRetirementWindow.cs");
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    assert!(client.contains("public sealed class RemoteRetirementClient"));
+    assert!(client.contains("Capability = \"runtime.retire\""));
+    assert!(client.contains("RetirementCredentialHandle"));
+    assert!(client.contains("state.RetirementId != expected.RetirementId"));
+    assert!(client.contains("state.ProvisioningId != expected.ProvisioningId"));
+    assert!(client.contains("state.RuntimeId != expected.RuntimeId"));
+    assert!(client.contains("\"failed\""));
+    assert!(client.contains("state.RuntimeRegistered"));
+    assert!(!client.contains("Capability = \"runtime.deploy\""));
+    assert!(transport.contains("\"v1/retirement\""));
+    assert!(window.contains("MaxAutomaticObservations = 30"));
+    assert!(window.contains("LockIdentityFields()"));
+    assert!(window.contains("new retirement ID"));
+    assert!(window.contains("retirement-credential-handle"));
+    assert!(window.contains("AutomationLiveSetting.Assertive"));
+    assert!(hub.contains("hub-retire-gewyvern"));
+    assert!(app.contains("ExecuteRetirementAsync"));
+    assert!(app.contains("--verify-retirement-controls"));
+    assert!(program.contains("--verify-retirement-client"));
+}
+
+#[test]
 fn remote_window_observes_async_ui_operations_and_fences_shutdown_updates() {
     let source = remote_main_window_source();
 

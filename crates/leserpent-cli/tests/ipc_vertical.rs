@@ -1,5 +1,7 @@
 #![cfg(unix)]
 
+mod support;
+
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -8,12 +10,18 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use leserpent_adapters::{EffectAdapter, GEWYVERN_PROVISIONING_EFFECT_KIND};
-use leserpent_domain::RuntimeId;
+use leserpent_adapters::{
+    EffectAdapter, GEWYVERN_PROVISIONING_EFFECT_KIND, GEWYVERN_RETIREMENT_EFFECT_KIND,
+};
 use leserpent_domain::provisioning::RuntimeProvisioning;
+use leserpent_domain::retirement::RuntimeRetirement;
 use leserpent_protocol::provisioning::{
     PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningResponse, ProvisioningResponseEnvelope,
     decode_provisioning_request, encode_provisioning_response,
+};
+use leserpent_protocol::retirement::{
+    RETIREMENT_PROTOCOL_SCHEMA_VERSION, RetirementResponse, RetirementResponseEnvelope,
+    decode_retirement_request, encode_retirement_response,
 };
 use leserpent_protocol::{ProtocolResponse, decode_response};
 use leserpent_runtime::{ControlRuntime, EffectExecution};
@@ -22,6 +30,7 @@ use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, IpcServer};
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 
 struct FailedProvisioningAdapter;
+struct FailedRetirementAdapter;
 
 impl EffectAdapter for FailedProvisioningAdapter {
     fn kind(&self) -> &str {
@@ -48,6 +57,31 @@ impl EffectAdapter for FailedProvisioningAdapter {
     }
 }
 
+impl EffectAdapter for FailedRetirementAdapter {
+    fn kind(&self) -> &str {
+        GEWYVERN_RETIREMENT_EFFECT_KIND
+    }
+
+    fn execute(&mut self, payload: &[u8]) -> EffectExecution {
+        let request = decode_retirement_request(payload).unwrap();
+        let mut retirement = RuntimeRetirement::plan(
+            &request.request.principal,
+            &request.request.capabilities,
+            request.request.intent,
+        )
+        .unwrap();
+        retirement.begin().unwrap();
+        let state = retirement.record_fault("test_retirement_failed").unwrap();
+        EffectExecution::Complete(
+            encode_retirement_response(&RetirementResponseEnvelope {
+                schema_version: RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+                response: RetirementResponse::State(state),
+            })
+            .unwrap(),
+        )
+    }
+}
+
 #[test]
 fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     let database = temp_path("sqlite");
@@ -59,17 +93,17 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     let server_socket = socket.clone();
     let server = thread::spawn(move || {
         let mut runtime = ControlRuntime::open(&server_database).unwrap();
-        runtime
-            .register_runtime(
-                RuntimeId::new("runtime-a").unwrap(),
-                "Runtime A",
-                "http://127.0.0.1:9411",
-            )
-            .unwrap();
+        support::seed_registered_runtime(
+            &mut runtime,
+            "provision-runtime-a",
+            "runtime-a",
+            "runtime.example",
+        );
         let ipc = IpcServer::bind(&server_socket, TOKEN)
             .unwrap()
             .with_bootstrap_submission()
-            .with_provisioning_submission();
+            .with_provisioning_submission()
+            .with_retirement_submission();
         ready_tx.send(()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             ipc.poll_once(&mut runtime).unwrap();
@@ -125,7 +159,7 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     assert!(inspect.status.success());
     let inspect_stdout = String::from_utf8(inspect.stdout).unwrap();
     assert!(inspect_stdout.contains("runtime=runtime-a"));
-    assert!(inspect_stdout.contains("endpoint=http://127.0.0.1:9411"));
+    assert!(inspect_stdout.contains("endpoint=https://runtime.example:9411/"));
 
     let watch = Command::new(binary)
         .args([
@@ -399,6 +433,90 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
             .contains("did not reach a terminal phase after 1 observations")
     );
 
+    let unconfirmed_retirement = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "retire",
+            "runtime-a",
+            "--retirement-id",
+            "retire-cli-1",
+            "--provisioning-id",
+            "provision-runtime-a",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:secret-retirement-handle",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert_eq!(unconfirmed_retirement.status.code(), Some(2));
+    assert!(
+        String::from_utf8(unconfirmed_retirement.stderr)
+            .unwrap()
+            .contains("requires explicit --yes")
+    );
+
+    let retirement = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "retire",
+            "runtime-a",
+            "--retirement-id",
+            "retire-cli-1",
+            "--provisioning-id",
+            "provision-runtime-a",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-retirement",
+            "--yes",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert!(retirement.status.success());
+    let retirement_output = String::from_utf8(retirement.stdout).unwrap();
+    assert!(retirement_output.contains("retirement=retire-cli-1"));
+    assert!(retirement_output.contains("runtime=runtime-a phase=planned"));
+    assert!(!retirement_output.contains("runtime-retirement"));
+
+    let bounded_retirement_wait = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "retire",
+            "runtime-a",
+            "--retirement-id",
+            "retire-cli-1",
+            "--provisioning-id",
+            "provision-runtime-a",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:runtime-retirement",
+            "--yes",
+            "--wait",
+            "--count",
+            "1",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(bounded_retirement_wait.status.code(), Some(5));
+    assert!(
+        String::from_utf8(bounded_retirement_wait.stderr)
+            .unwrap()
+            .contains("retirement retire-cli-1 did not reach a terminal phase")
+    );
+
     stop.store(true, Ordering::Release);
     server.join().unwrap();
     fs::remove_file(database).unwrap();
@@ -414,9 +532,16 @@ fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
     let server_database = database.clone();
     let server_socket = socket.clone();
     let server = thread::spawn(move || {
-        let runtime = ControlRuntime::open(&server_database).unwrap();
+        let mut runtime = ControlRuntime::open(&server_database).unwrap();
+        support::seed_registered_runtime(
+            &mut runtime,
+            "provision-retirement-failed",
+            "runtime-retirement-failed",
+            "runtime.example",
+        );
         let mut registry = AdapterRegistry::default();
         registry.register(FailedProvisioningAdapter).unwrap();
+        registry.register(FailedRetirementAdapter).unwrap();
         let mut host = DaemonHost::new(
             runtime,
             registry,
@@ -428,7 +553,8 @@ fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
         .unwrap();
         let ipc = IpcServer::bind(&server_socket, TOKEN)
             .unwrap()
-            .with_provisioning_submission();
+            .with_provisioning_submission()
+            .with_retirement_submission();
         ready_tx.send(()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             ipc.poll_once(host.runtime_mut()).unwrap();
@@ -467,6 +593,57 @@ fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
     assert!(stdout.contains("phase=planned"));
     assert!(stdout.contains("phase=failed"));
     assert!(stdout.contains("fault=test_install_failed"));
+
+    let retirement = Command::new(env!("CARGO_BIN_EXE_leserpent"))
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "retire",
+            "runtime-retirement-failed",
+            "--retirement-id",
+            "retire-failed-1",
+            "--provisioning-id",
+            "provision-retirement-failed",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:secret-retirement-handle",
+            "--yes",
+            "--wait",
+            "--count",
+            "20",
+            "--interval-ms",
+            "50",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(retirement.status.code(), Some(4));
+    let stdout = String::from_utf8(retirement.stdout).unwrap();
+    assert!(stdout.contains("phase=planned"));
+    assert!(stdout.contains("phase=failed"));
+    assert!(stdout.contains("fault=test_retirement_failed"));
+    assert!(!stdout.contains("secret-retirement-handle"));
+
+    let inspect = Command::new(env!("CARGO_BIN_EXE_leserpent"))
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "runtime",
+            "inspect",
+            "runtime-retirement-failed",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert!(inspect.status.success());
+    assert!(
+        String::from_utf8(inspect.stdout)
+            .unwrap()
+            .contains("runtime=runtime-retirement-failed")
+    );
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();

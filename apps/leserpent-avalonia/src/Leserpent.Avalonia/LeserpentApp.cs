@@ -60,6 +60,12 @@ internal sealed class LeserpentApp : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            if (desktop.Args is ["--verify-retirement-controls"])
+            {
+                ConfigureRetirementControlVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (desktop.Args is ["--remote", ..])
             {
                 ConfigureRemoteWindow(desktop);
@@ -333,6 +339,7 @@ internal sealed class LeserpentApp : Application
             () => { },
             () => { },
             () => { },
+            () => { },
             _ => { });
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
@@ -564,6 +571,76 @@ internal sealed class LeserpentApp : Application
         desktop.MainWindow = window;
     }
 
+    private static void ConfigureRetirementControlVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var reconcileCount = 0;
+        RemoteRetirementIntent? acceptedIntent = null;
+        var window = new GewyvernRetirementWindow(
+            [new BootstrapAuthorityOption(
+                "daemon-verification",
+                "Verification authority",
+                "https://controller.example:9443",
+                false)],
+            new RetirementHubOperations((_, intent, _) =>
+            {
+                reconcileCount++;
+                acceptedIntent ??= intent;
+                if (acceptedIntent != intent)
+                {
+                    throw new InvalidDataException(
+                        "retirement controls changed identity while observing progress");
+                }
+                return Task.FromResult(reconcileCount == 1
+                    ? new RemoteRetirementSnapshot(
+                        intent.RetirementId,
+                        intent.ProvisioningId,
+                        intent.RuntimeId,
+                        "planned",
+                        "ssh",
+                        intent.Host,
+                        intent.Port,
+                        true,
+                        false,
+                        true,
+                        null)
+                    : new RemoteRetirementSnapshot(
+                        intent.RetirementId,
+                        intent.ProvisioningId,
+                        intent.RuntimeId,
+                        "runtime_unregistered",
+                        "ssh",
+                        intent.Host,
+                        intent.Port,
+                        false,
+                        true,
+                        false,
+                        null));
+            }));
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += async (_, _) =>
+        {
+            window.VerifyAccessibility();
+            await window.ProbeConfirmationFenceAsync();
+            if (reconcileCount != 0)
+            {
+                throw new InvalidDataException(
+                    "retirement controls submitted without explicit confirmation");
+            }
+            await window.ProbeWorkflowAsync();
+            if (reconcileCount != 2 || acceptedIntent is null)
+            {
+                throw new InvalidDataException(
+                    "retirement controls did not preserve submit-observe identity");
+            }
+            Console.WriteLine(
+                "retirement controls valid: controls=13, authority_scoped=true, provisioning_bound=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, terminal_state=true, failure_preserves_registration=true, retry_guidance=true, automation=true");
+            DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
     private static void ConfigureInteractiveDesktop(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -658,6 +735,7 @@ internal sealed class LeserpentApp : Application
                 cancellationToken),
             () => ShowBootstrapDeployment(desktop, catalogStore, certificateStore),
             () => ShowGewyvernProvisioning(desktop, catalogStore, certificateStore),
+            () => ShowGewyvernRetirement(desktop, catalogStore, certificateStore),
             () => ShowConnectionManager(desktop, null),
             connection => ShowConnectionManager(desktop, connection));
         RegisterMainWindowLifecycle(desktop, hub);
@@ -1100,6 +1178,110 @@ internal sealed class LeserpentApp : Application
             certificateStore,
             connection);
         using var client = new RemoteProvisioningClient(plan.Options);
+        return await client.ReconcileAsync(intent, cancellationToken);
+    }
+
+    private static void ShowGewyvernRetirement(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        try
+        {
+            var catalog = DesktopProductStartup.PrepareSavedCatalog(
+                catalogStore.Load(),
+                catalogStore,
+                certificateStore);
+            var authorities = catalog.Connections
+                .Select(connection => new BootstrapAuthorityOption(
+                    connection.DaemonId,
+                    connection.DisplayName,
+                    connection.Profile.Endpoint,
+                    false))
+                .ToList();
+            if (localOrchestraService is { GewyvernProvisioningEnabled: true })
+            {
+                authorities.Insert(0, new BootstrapAuthorityOption(
+                    "local-orchestra",
+                    "Local Orchestra",
+                    "Managed on this device",
+                    false));
+            }
+            if (authorities.Count == 0)
+            {
+                throw new InvalidDataException(
+                    "Add and authenticate the daemon authority that owns the runtime before retiring gewyvern.");
+            }
+            var operations = new RetirementHubOperations(
+                async (authorityId, intent, cancellationToken) =>
+                {
+                    var state = await ExecuteRetirementAsync(
+                        catalogStore,
+                        certificateStore,
+                        authorityId,
+                        intent,
+                        cancellationToken);
+                    if (!state.RuntimeRegistered)
+                    {
+                        RefreshHub(desktop);
+                    }
+                    return state;
+                });
+            var window = new GewyvernRetirementWindow(authorities, operations);
+            if (desktop.MainWindow is { } owner)
+            {
+                window.Show(owner);
+            }
+            else
+            {
+                window.Show();
+            }
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            var description = StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+            new StartupErrorWindow(description).Show();
+        }
+    }
+
+    private static async Task<RemoteRetirementSnapshot> ExecuteRetirementAsync(
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore,
+        string authorityId,
+        RemoteRetirementIntent intent,
+        CancellationToken cancellationToken)
+    {
+        if (authorityId == "local-orchestra")
+        {
+            if (localOrchestraService is not
+                { GewyvernProvisioningEnabled: true } localService)
+            {
+                throw new InvalidDataException(
+                    "local gewyvern retirement authority is unavailable");
+            }
+            if (!localService.TryEnsureReady(
+                    certificateStore,
+                    out var localPlan,
+                    out var startupError)
+                || localPlan is null)
+            {
+                throw new InvalidDataException(
+                    startupError ?? "local gewyvern retirement authority is unavailable");
+            }
+            using var localClient = new RemoteRetirementClient(localPlan.Options);
+            return await localClient.ReconcileAsync(intent, cancellationToken);
+        }
+        var connection = catalogStore.Load().Connections.SingleOrDefault(
+            item => item.DaemonId == authorityId)
+            ?? throw new InvalidDataException(
+                "the retirement authority changed; reopen the Hub before continuing");
+        var plan = ResolveRemoteConnectionPlan(
+            catalogStore,
+            certificateStore,
+            connection);
+        using var client = new RemoteRetirementClient(plan.Options);
         return await client.ReconcileAsync(intent, cancellationToken);
     }
 

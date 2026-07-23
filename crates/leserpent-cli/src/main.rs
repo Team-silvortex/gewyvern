@@ -3,14 +3,16 @@ use std::time::Duration;
 use std::{io, io::Write};
 
 use leserpent_cli::{
-    CliCommand, CliError, HttpsClient, ProvisioningWaitOptions, RemoteTrust, RuntimeWatchOptions,
-    bootstrap_request_for, export_leselang, export_plan, parse_args_with_remote,
-    provisioning_phase_name, provisioning_request_for, render_bootstrap_response,
-    render_provisioning_response, render_response, request_for, send_bootstrap_request,
-    send_provisioning_request, send_request,
+    CliCommand, CliError, HttpsClient, ProvisioningWaitOptions, RemoteTrust, RetirementWaitOptions,
+    RuntimeWatchOptions, bootstrap_request_for, export_leselang, export_plan,
+    parse_args_with_remote, provisioning_phase_name, provisioning_request_for,
+    render_bootstrap_response, render_provisioning_response, render_response,
+    render_retirement_response, request_for, retirement_phase_name, retirement_request_for,
+    send_bootstrap_request, send_provisioning_request, send_request, send_retirement_request,
 };
 use leserpent_domain::QueryResult;
 use leserpent_domain::provisioning::ProvisioningPhase;
+use leserpent_domain::retirement::RetirementPhase;
 use leserpent_protocol::{ProtocolResponse, RequestEnvelope};
 use zeroize::Zeroizing;
 
@@ -92,6 +94,12 @@ fn run() -> Result<i32, CliError> {
         };
         return run_provisioning(&transport, &request, provision.wait, options.json);
     }
+    if let Some(request) = retirement_request_for(&options)? {
+        let CliCommand::RuntimeRetire(retirement) = &options.command else {
+            unreachable!("retirement request requires a runtime retire command");
+        };
+        return run_retirement(&transport, &request, retirement.wait, options.json);
+    }
     let request = request_for(&options)?;
     if let CliCommand::RuntimeWatch(watch) = &options.command {
         return run_watch(&transport, &request, watch, options.json);
@@ -107,6 +115,54 @@ fn run() -> Result<i32, CliError> {
         Err(error) => return Err(error),
     }
     Ok(if is_error { 3 } else { 0 })
+}
+
+fn run_retirement(
+    transport: &ActiveTransport,
+    request: &leserpent_protocol::retirement::RetirementRequestEnvelope,
+    wait: Option<RetirementWaitOptions>,
+    json: bool,
+) -> Result<i32, CliError> {
+    let observations = wait.map_or(1, |options| options.count);
+    let mut last_phase = None;
+    for observation in 0..observations {
+        let response = transport.send_retirement(request)?;
+        match &response.response {
+            leserpent_protocol::retirement::RetirementResponse::Error(_) => {
+                let error = render_retirement_response(&response, json).unwrap_err();
+                eprintln!("leserpent: {error}");
+                return Ok(3);
+            }
+            leserpent_protocol::retirement::RetirementResponse::State(state) => {
+                if last_phase != Some(state.phase) {
+                    println!("{}", render_retirement_response(&response, json)?);
+                    io::stdout()
+                        .flush()
+                        .map_err(|error| CliError::Transport(error.to_string()))?;
+                    last_phase = Some(state.phase);
+                }
+                match state.phase {
+                    RetirementPhase::RuntimeUnregistered => return Ok(0),
+                    RetirementPhase::Failed => return Ok(4),
+                    _ if wait.is_none() => return Ok(0),
+                    _ => {}
+                }
+            }
+        }
+        if observation + 1 < observations {
+            std::thread::sleep(Duration::from_millis(
+                wait.expect("multiple observations require wait options")
+                    .interval_ms,
+            ));
+        }
+    }
+    let retirement_id = request.request.intent.retirement_id.as_str();
+    let phase = last_phase.map(retirement_phase_name).unwrap_or("unknown");
+    eprintln!(
+        "leserpent: retirement {} did not reach a terminal phase after {} observations (last_phase={})",
+        retirement_id, observations, phase
+    );
+    Ok(5)
 }
 
 fn run_provisioning(
@@ -233,6 +289,18 @@ impl ActiveTransport {
                 send_provisioning_request(socket, token.as_str(), request)
             }
             Self::Remote(client) => client.send_provisioning(request),
+        }
+    }
+
+    fn send_retirement(
+        &self,
+        request: &leserpent_protocol::retirement::RetirementRequestEnvelope,
+    ) -> Result<leserpent_protocol::retirement::RetirementResponseEnvelope, CliError> {
+        match self {
+            Self::Local { socket, token } => {
+                send_retirement_request(socket, token.as_str(), request)
+            }
+            Self::Remote(client) => client.send_retirement(request),
         }
     }
 }

@@ -162,6 +162,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(cli.maturity, Maturity::Mature);
     assert_eq!(cli.completion, 100);
     assert_eq!(cli.contract.stability, ContractStability::Stable);
+    assert_eq!(cli.contract.version, "1.6.0");
+    for surface in [
+        "runtime-provision-command",
+        "runtime-retire-command",
+        "authenticated-retirement-ipc-https",
+        "stable-retirement-identity-replay",
+        "credential-free-retirement-progress",
+        "retirement-terminal-exit-code",
+    ] {
+        assert!(
+            cli.contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing CLI retirement surface {surface}"
+        );
+    }
     assert!(cli.blockers.is_empty());
 
     let runtime = catalog
@@ -230,9 +247,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|blocker| blocker.id == "bootstrap-production-entry-missing")
     );
     assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "post-bind-gewyvern-retirement-controls-incomplete"
+        blocker.id == "post-bind-gewyvern-retirement-evidence-incomplete"
             && blocker.summary.contains("authenticated IPC/HTTPS")
-            && blocker.summary.contains("CLI/Avalonia controls")
+            && blocker.summary.contains("native CLI")
+            && blocker.summary.contains("Avalonia client")
+            && blocker
+                .summary
+                .contains("physical Linux stop/remove evidence")
     }));
     assert!(
         !bootstrap
@@ -254,7 +275,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(provisioning.maturity, Maturity::Developing);
     assert_eq!(provisioning.completion, 99);
     assert_eq!(provisioning.contract.stability, ContractStability::Draft);
-    assert_eq!(provisioning.contract.version, "0.15.0");
+    assert_eq!(provisioning.contract.version, "0.17.0");
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
             surface == "planned-installing-service-ready-runtime-registered-state"
@@ -429,6 +450,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "authenticated-retirement-https-route",
         "bounded-retirement-route-payload",
         "adapter-registration-retirement-route-gate",
+        "native-cli-confirmed-runtime-retire",
+        "explicit-retirement-id-replay",
+        "authenticated-cli-retirement-ipc-https",
+        "bounded-cli-retirement-progress",
+        "retirement-terminal-exit-codes",
+        "avalonia-confirmed-runtime-retire",
+        "authority-scoped-avalonia-retirement",
+        "provisioning-bound-avalonia-retirement",
+        "identity-locked-avalonia-retirement-progress",
+        "bounded-avalonia-retirement-poll",
+        "credential-free-avalonia-retirement-status",
+        "retirement-failure-registration-guidance",
     ] {
         assert!(
             provisioning
@@ -441,8 +474,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(provisioning.blockers.iter().any(|blocker| {
         blocker.id == "gewyvern-provisioning-compensation-missing"
-            && blocker.summary.contains("CLI/Avalonia controls")
             && blocker.summary.contains("physical Linux retirement proof")
+            && blocker.summary.contains("native CLI and Avalonia clients")
+            && !blocker.summary.contains("Avalonia controls")
             && !blocker.summary.contains("Authenticated IPC/HTTPS")
     }));
     assert!(

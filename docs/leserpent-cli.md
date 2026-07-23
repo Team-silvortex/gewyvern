@@ -75,6 +75,11 @@ leserpent runtime deploy runtime-a --pipeline-kind http/request \
   --target pid:42 --yes --idempotency-key deploy-a
 leserpent runtime deploy runtime-a --pipeline-kind http/request \
   --target pid:42 --export-leselang
+leserpent runtime provision runtime-new --provisioning-id provision-a \
+  --host runtime.example --credential-handle vault:ssh:runtime-example --yes
+leserpent runtime retire runtime-a --retirement-id retire-a \
+  --provisioning-id provision-a --host runtime.example \
+  --credential-handle vault:ssh:runtime-retirement --yes --wait
 ```
 
 Human list output is tabular and replaces terminal control characters. JSON
@@ -153,5 +158,17 @@ adapter payload come from the shared command envelope; CLI arguments cannot
 override them. Dry-run, canonical Leselang export, and deterministic plan export
 use the same lowering function.
 
+`runtime provision` and `runtime retire` use independent strict 64 KiB
+protocols rather than ordinary wire v1 or `runtime.deploy`. Both require
+explicit `--yes`, an operator-supplied stable operation ID, a bound runtime and
+SSH target, and an opaque `vault:ssh:*` handle. Optional `--wait` polling
+resubmits the exact same request for at most 1-1000 observations and never
+creates a second operation identity. Human progress omits credential handles.
+Retirement additionally binds the original provisioning ID; daemon rejection
+prevents an unrelated registered runtime from being retired. A failed external
+retirement leaves the runtime registered and inspectable.
+
 Exit code `0` means success, `2` means local usage/configuration/transport
-failure, and `3` means the daemon returned a protocol error.
+failure, and `3` means the daemon returned a protocol error. Provisioning or
+retirement terminal failure returns `4`; bounded waiting that never reaches a
+terminal phase returns `5`.

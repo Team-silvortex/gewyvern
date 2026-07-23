@@ -352,6 +352,107 @@ fn native_cli_preserves_command_semantics_over_authenticated_https() {
     fs::remove_file(private_key).unwrap();
 }
 
+#[test]
+fn native_cli_submits_provisioning_bound_retirement_over_authenticated_https() {
+    let database = temp_path("retirement.sqlite");
+    let certificate = temp_path("retirement.crt");
+    let private_key = temp_path("retirement.key");
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["127.0.0.1".to_string()]).unwrap();
+    fs::write(&certificate, cert.pem()).unwrap();
+    fs::write(&private_key, signing_key.serialize_pem()).unwrap();
+    #[cfg(unix)]
+    fs::set_permissions(&private_key, fs::Permissions::from_mode(0o600)).unwrap();
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let server_stop = Arc::clone(&stop);
+    let server_database = database.clone();
+    let server_certificate = certificate.clone();
+    let server_private_key = private_key.clone();
+    let server = thread::spawn(move || {
+        let mut runtime = ControlRuntime::open(&server_database).unwrap();
+        support::seed_registered_runtime(
+            &mut runtime,
+            "provision-https-retire",
+            "runtime-https-retire",
+            "runtime.example",
+        );
+        let mut https = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            server_certificate,
+            server_private_key,
+            TOKEN,
+        )
+        .unwrap()
+        .with_retirement_submission();
+        ready_tx.send(https.local_addr().unwrap()).unwrap();
+        while !server_stop.load(Ordering::Acquire) {
+            https.poll_once(&mut runtime).unwrap();
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+    let address = ready_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+    let endpoint = format!("https://{address}");
+    let binary = env!("CARGO_BIN_EXE_leserpent");
+
+    let retirement = remote_command(binary, &endpoint, &certificate)
+        .args([
+            "runtime",
+            "retire",
+            "runtime-https-retire",
+            "--retirement-id",
+            "retire-https-1",
+            "--provisioning-id",
+            "provision-https-retire",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:https-retirement-secret",
+            "--yes",
+        ])
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert!(retirement.status.success(), "{}", stderr(&retirement));
+    let output = String::from_utf8(retirement.stdout).unwrap();
+    assert!(output.contains("retirement=retire-https-1"));
+    assert!(output.contains("runtime=runtime-https-retire phase=planned"));
+    assert!(!output.contains("https-retirement-secret"));
+
+    let unauthorized = Command::new(binary)
+        .args([
+            "--remote",
+            &endpoint,
+            "--remote-ca",
+            certificate.to_str().unwrap(),
+            "runtime",
+            "retire",
+            "runtime-https-retire",
+            "--retirement-id",
+            "retire-https-unauthorized",
+            "--provisioning-id",
+            "provision-https-retire",
+            "--host",
+            "runtime.example",
+            "--credential-handle",
+            "vault:ssh:https-retirement-secret",
+            "--yes",
+        ])
+        .env("LESERPENT_REMOTE_TOKEN", "fedcba9876543210fedcba9876543210")
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(unauthorized.status.code(), Some(3));
+    assert!(stderr(&unauthorized).contains("unauthorized"));
+
+    stop.store(true, Ordering::Release);
+    server.join().unwrap();
+    fs::remove_file(database).unwrap();
+    fs::remove_file(certificate).unwrap();
+    fs::remove_file(private_key).unwrap();
+}
+
 fn remote_command(binary: &str, endpoint: &str, certificate: &Path) -> Command {
     let mut command = Command::new(binary);
     command
@@ -386,3 +487,4 @@ fn trim_ascii_whitespace(mut value: &[u8]) -> &[u8] {
 fn stderr(output: &std::process::Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
+mod support;

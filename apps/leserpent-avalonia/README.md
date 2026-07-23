@@ -125,11 +125,24 @@ state refreshes the Hub topology. Verify the strict codec with
 `--verify-provisioning-client` and the native control sequence with
 `--verify-provisioning-controls`.
 
+`Retire gewyvern` opens the matching destructive workspace for a runtime owned
+by an authenticated daemon authority. It requires stable retirement,
+provisioning, and runtime IDs, the original SSH target, an opaque `vault:ssh:*`
+handle, and explicit confirmation before calling `POST /v1/retirement`.
+Submission locks the complete identity and bounded observation replays the exact
+request. The UI only reports credential presence, never the handle. A completed
+state refreshes Hub topology only after service retirement and atomic runtime
+unregistration; a failed state explicitly preserves the runtime registration
+for recovery and requires a new retirement ID for a corrected attempt. Verify
+the strict codec with `--verify-retirement-client` and the native controls with
+`--verify-retirement-controls`.
+
 On macOS and Linux, `LESERPENT_GEWYVERN_PROVISIONING_CONFIG` may point to the
 absolute private `gewyvern-provisioning-config` file before app startup. Local
-Orchestra then receives that native daemon config and appears as a provisioning
-authority; without it, the Hub offers only saved daemon authorities and does not
-pretend the local service can install Gewyvern.
+Orchestra then receives that shared native daemon origin config and appears as
+both a provisioning and retirement authority; without it, the Hub offers only
+saved daemon authorities and does not pretend the local service can mutate a
+Gewyvern installation.
 
 Runtime children are direct workspace actions. Selecting one creates or reuses
 its owning daemon session, but the workspace is not opened from the Hub's query

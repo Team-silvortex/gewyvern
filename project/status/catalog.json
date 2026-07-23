@@ -1369,8 +1369,8 @@
           "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and cross-platform product uninstall/retirement proof remain."
         },
         {
-          "id": "post-bind-gewyvern-retirement-controls-incomplete",
-          "summary": "The Rust CLI and Avalonia Hub now expose authenticated daemon bootstrap, handoff inspection, confirmed binding, locally verified connection promotion, and authority-scoped Gewyvern provisioning confirmation, progress, and retry guidance. Post-bind runtime retirement now has durable authority, authenticated IPC/HTTPS, and native target transport, while matching CLI/Avalonia controls and physical Linux evidence remain."
+          "id": "post-bind-gewyvern-retirement-evidence-incomplete",
+          "summary": "The Rust CLI and Avalonia Hub expose authenticated daemon bootstrap, handoff inspection, confirmed binding, locally verified connection promotion, and authority-scoped Gewyvern provisioning and retirement controls. Post-bind retirement has durable authority, authenticated IPC/HTTPS, native CLI and Avalonia clients, and native target transport; only physical Linux stop/remove evidence remains."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1410,7 +1410,7 @@
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapPromotion.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" }
       ],
-      "next_gate": "Complete CLI/Avalonia post-bind runtime retirement controls and retain a physical Linux stop/remove proof."
+      "next_gate": "Retain a physical Linux stop/remove proof for the completed post-bind runtime retirement controls."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
@@ -1424,7 +1424,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-gewyvern-provisioning-contract",
-        "version": "0.15.0",
+        "version": "0.17.0",
         "stability": "draft",
         "surfaces": [
           "runtime-provision-capability",
@@ -1534,7 +1534,19 @@
           "explicit-retirement-ipc-route",
           "authenticated-retirement-https-route",
           "bounded-retirement-route-payload",
-          "adapter-registration-retirement-route-gate"
+          "adapter-registration-retirement-route-gate",
+          "native-cli-confirmed-runtime-retire",
+          "explicit-retirement-id-replay",
+          "authenticated-cli-retirement-ipc-https",
+          "bounded-cli-retirement-progress",
+          "retirement-terminal-exit-codes",
+          "avalonia-confirmed-runtime-retire",
+          "authority-scoped-avalonia-retirement",
+          "provisioning-bound-avalonia-retirement",
+          "identity-locked-avalonia-retirement-progress",
+          "bounded-avalonia-retirement-poll",
+          "credential-free-avalonia-retirement-status",
+          "retirement-failure-registration-guidance"
         ]
       },
       "depends_on": [
@@ -1545,7 +1557,7 @@
       "blockers": [
         {
           "id": "gewyvern-provisioning-compensation-missing",
-          "summary": "The independent runtime.retire domain, strict wire contracts, durable runtime authority, adapter-gated daemon worker, authenticated IPC/HTTPS routes, host-key-pinned native SSH transport, and manifest-bound target entrypoint now require proven service retirement before atomic runtime unregistration. The target uses a private two-phase recovery marker and deletes only the bound runtime; external failure, lost leases, forged receipts, identity drift, relaxed authority permissions, and an absent production adapter preserve registration. CLI/Avalonia controls and a physical Linux retirement proof remain; runtime.deploy continues to mean pipeline submission only."
+          "summary": "The independent runtime.retire domain, strict wire contracts, durable runtime authority, adapter-gated daemon worker, authenticated IPC/HTTPS routes, native CLI and Avalonia clients, host-key-pinned native SSH transport, and manifest-bound target entrypoint require proven service retirement before atomic runtime unregistration. The target uses a private two-phase recovery marker and deletes only the bound runtime; external failure, lost leases, forged receipts, identity drift, relaxed authority permissions, and an absent production adapter preserve registration. Only a physical Linux retirement proof remains; runtime.deploy continues to mean pipeline submission only."
         }
       ],
       "consumers": ["leserpentd", "leserpent-cli", "avalonia-client", "model-automation"],
@@ -1593,10 +1605,12 @@
         { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteProvisioningClient.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernProvisioningWindow.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteRetirementClient.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernRetirementWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Add matching CLI/Avalonia runtime.retire controls and prove the stop/remove path on a physical Linux host before declaring the retirement slice complete."
+      "next_gate": "Prove the stop/remove path on a physical Linux host before declaring the retirement slice complete."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",
@@ -1610,9 +1624,9 @@
       "independence": "standalone-tool",
       "contract": {
         "id": "leserpent-cli-contract",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "stability": "stable",
-        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "bounded-resolved-address-connect-budget", "atomic-unix-ca-open", "strict-ascii-token-header-names", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "zeroized-transport-credentials", "zeroized-authenticated-request-buffer", "zeroized-authorization-header", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "runtime-deploy-command", "bounded-deployment-arguments", "runtime-capability-refresh-command", "remote-capability-refresh-command", "remote-discovery-inspect-readback", "bounded-capability-summary", "explicit-unobserved-capabilities", "capability-observation-revision-output", "canonical-capability-endpoint-output", "sorted-capability-extension-output", "capability-secret-omission", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "cli-leselang-deployment-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping"]
+        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "bounded-resolved-address-connect-budget", "atomic-unix-ca-open", "strict-ascii-token-header-names", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "zeroized-transport-credentials", "zeroized-authenticated-request-buffer", "zeroized-authorization-header", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "runtime-deploy-command", "bounded-deployment-arguments", "runtime-provision-command", "runtime-retire-command", "authenticated-retirement-ipc-https", "stable-retirement-identity-replay", "credential-free-retirement-progress", "retirement-terminal-exit-code", "runtime-capability-refresh-command", "remote-capability-refresh-command", "remote-discovery-inspect-readback", "bounded-capability-summary", "explicit-unobserved-capabilities", "capability-observation-revision-output", "canonical-capability-endpoint-output", "sorted-capability-extension-output", "capability-secret-omission", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "cli-leselang-deployment-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping"]
       },
       "depends_on": [
         "leserpent-2/transport-protocol/wire-compatibility",
