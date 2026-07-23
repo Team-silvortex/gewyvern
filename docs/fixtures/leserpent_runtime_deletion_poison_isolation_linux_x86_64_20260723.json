@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T09:21:10.5671716+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "overlapping_intent_count": 3,
+  "poison_intent_count": 1,
+  "healthy_intent_count": 2,
+  "poison_attempt_count": 3,
+  "interference_runtime_count": 8,
+  "healthy_convergence_latency_ms": 205,
+  "checks": {
+    "real_leserpentd": true,
+    "poison_intent_was_queue_head": true,
+    "poison_failure_was_target_scoped": true,
+    "healthy_intents_converged_while_poison_remained_pending": true,
+    "poison_intent_retried_without_busy_loop": true,
+    "poison_runtime_remained_protected": true,
+    "poison_intent_survived_disk_reload": true,
+    "poison_runtime_remained_protected_after_reload": true,
+    "repaired_authority_converged_poison_intent": true,
+    "concurrent_registration_and_state_save_traffic": true,
+    "every_unrelated_runtime_survived_disk_reload": true,
+    "every_unrelated_daemon_registration_survived": true
+  }
+}

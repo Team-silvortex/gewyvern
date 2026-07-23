@@ -128,6 +128,18 @@ fn retained_runtime_deletion_repeated_takeovers_are_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_poison_isolation_is_non_vacuous() {
+    assert_runtime_deletion_poison_isolation(
+        "docs/fixtures/leserpent_runtime_deletion_poison_isolation_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_poison_isolation(
+        "docs/fixtures/leserpent_runtime_deletion_poison_isolation_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -482,6 +494,50 @@ fn assert_runtime_deletion_repeated_takeover(path: &str, expected_architecture: 
     }
 }
 
+fn assert_runtime_deletion_poison_isolation(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion poison isolation evidence must exist"),
+    )
+    .expect("runtime deletion poison isolation evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["overlapping_intent_count"], 3);
+    assert_eq!(evidence["poison_intent_count"], 1);
+    assert_eq!(evidence["healthy_intent_count"], 2);
+    assert_eq!(evidence["interference_runtime_count"], 8);
+    assert!(
+        evidence["poison_attempt_count"]
+            .as_u64()
+            .is_some_and(|attempts| attempts >= 3)
+    );
+    assert!(
+        evidence["healthy_convergence_latency_ms"]
+            .as_u64()
+            .is_some_and(|latency| latency <= 5_000)
+    );
+    for check in [
+        "real_leserpentd",
+        "poison_intent_was_queue_head",
+        "poison_failure_was_target_scoped",
+        "healthy_intents_converged_while_poison_remained_pending",
+        "poison_intent_retried_without_busy_loop",
+        "poison_runtime_remained_protected",
+        "poison_intent_survived_disk_reload",
+        "poison_runtime_remained_protected_after_reload",
+        "repaired_authority_converged_poison_intent",
+        "concurrent_registration_and_state_save_traffic",
+        "every_unrelated_runtime_survived_disk_reload",
+        "every_unrelated_daemon_registration_survived",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained poison isolation proof {check}"
+        );
+    }
+}
+
 #[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
@@ -715,6 +771,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "partial-deletion-progress-preservation",
         "second-outage-claim-release",
         "physical-linux-repeated-takeover-proof",
+        "poison-intent-isolation",
+        "recovery-queue-fairness",
+        "durable-poison-reservation",
+        "post-repair-poison-convergence",
+        "physical-linux-poison-isolation-proof",
     ] {
         assert!(
             compatibility_control
@@ -728,7 +789,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("permanently failing deletion intent")
+            .contains("high-cardinality recovery queue")
     );
 
     let bootstrap = catalog

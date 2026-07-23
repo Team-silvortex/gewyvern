@@ -308,6 +308,7 @@ JSON state 默认路径：
 - `scripts/validation/leserpent_runtime_deletion_unclean_takeover.sh` 强杀 daemon，验证 30 秒 owner lease 内拒绝双主、自然过期后同库接管与删除恢复收敛
 - `scripts/validation/leserpent_runtime_deletion_overlapping_takeover.sh` 在一次非干净接管中恢复处于三个不同持久化边界的独立删除意图
 - `scripts/validation/leserpent_runtime_deletion_repeated_takeover.sh` 在部分恢复提交后再次强杀 daemon，验证剩余意图可经第二次租约接管继续收敛
+- `scripts/validation/leserpent_runtime_deletion_poison_isolation.sh` 让队首删除意图持续失败，验证健康意图不被饿死且毒化预约跨重载仍受保护
 - guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
 - runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
 - control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件

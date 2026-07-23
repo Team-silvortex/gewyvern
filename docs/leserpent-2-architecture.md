@@ -692,6 +692,13 @@ and the remaining intents must observe the second outage and release their
 claims. A second natural owner-lease takeover then resumes only the remaining
 work. This proves partial progress is monotonic across repeated authority loss
 rather than restarting or rolling back the deletion batch.
+The poison-isolation extension makes the oldest pending intent fail repeatedly
+at the authority boundary while later intents continue against the production
+daemon. Healthy intents must converge in the same recovery pass, while the
+poison runtime remains reserved against new work and survives a fresh state
+reconstruction. Removing the scoped failure must then converge that original
+intent without manual state mutation. Recovery fairness therefore does not
+depend on every target being healthy.
 
 ## Leselang Semantics
 

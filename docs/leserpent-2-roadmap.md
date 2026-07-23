@@ -727,8 +727,17 @@ takeover. Reproduce it with
 Arm64 Unix and physical Ubuntu x86_64 evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_repeated_takeover_20260723.json` and
 `docs/fixtures/leserpent_runtime_deletion_repeated_takeover_linux_x86_64_20260723.json`.
-The next reliability gate proves that one permanently failing deletion intent
-cannot starve independent recoverable intents.
+The poison-isolation gate now makes the oldest pending intent fail for at least
+three recovery passes while later intents continue against the production
+daemon. The poison reservation must remain protected across disk reload, and
+removing the scoped failure must converge the original intent without state
+editing. Reproduce it with
+`scripts/validation/leserpent_runtime_deletion_poison_isolation.sh`; retained
+Arm64 Unix and physical Ubuntu x86_64 evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_poison_isolation_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_poison_isolation_linux_x86_64_20260723.json`.
+The next reliability gate runs a bounded high-cardinality recovery queue with
+sparse poison intents and retains per-pass progress evidence.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

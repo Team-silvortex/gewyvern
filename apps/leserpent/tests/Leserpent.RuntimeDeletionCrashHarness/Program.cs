@@ -55,6 +55,7 @@ if (string.Equals(phase, "mixed_overlapping", StringComparison.Ordinal))
         await authority.RegisterAsync(request, targetId, CancellationToken.None);
         var reservation = registry.ReserveRuntimeDeletion(new[] { targetId });
         reservations.Add(reservation);
+        await Task.Delay(2);
         if (!string.Equals(boundary, "intent_persisted", StringComparison.Ordinal))
         {
             await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);

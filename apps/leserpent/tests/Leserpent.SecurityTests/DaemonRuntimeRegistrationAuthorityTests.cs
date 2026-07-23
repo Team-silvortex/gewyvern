@@ -965,6 +965,204 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionPoisonIntentDoesNotStarveIndependentRecovery()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(File.Exists(harnessAssembly), $"crash harness was not built at {harnessAssembly}");
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var statePath = socketPath + ".poison-intent.state.json";
+        var markerPath = socketPath + ".poison-intent.marker";
+        const string runtimePrefix = "runtime-poison-intent";
+        var targetRuntimeIds = RuntimeDeletionCrashPhases
+            .Select(phase => $"{runtimePrefix}-{phase.Replace('_', '-')}")
+            .ToArray();
+        var poisonRuntimeId = targetRuntimeIds[0];
+        var healthyRuntimeIds = targetRuntimeIds[1..];
+        var interferenceRuntimeIds = Enumerable.Range(0, RuntimeDeletionInterferenceRuntimeCount)
+            .Select(index => $"runtime-poison-intent-traffic-{index}")
+            .ToArray();
+        Process? harness = null;
+        int? harnessProcessId = null;
+        RuntimeDeletionRecoveryService? recovery = null;
+        RuntimeDeletionRecoveryService? repairRecovery = null;
+        DaemonRuntimeRegistrationAuthority? authority = null;
+        using var daemon = new RestartableTestDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await daemon.StartAsync();
+            authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                runtimePrefix,
+                "mixed_overlapping");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+                .Build();
+            var restarted = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            var pendingIntents = restarted.ListPendingRuntimeDeletions();
+            Assert.Equal(3, pendingIntents.Count);
+            Assert.Equal(poisonRuntimeId, Assert.Single(pendingIntents[0].RuntimeIds));
+            await RegisterInterferenceBatchAsync(
+                restarted,
+                authority,
+                interferenceRuntimeIds);
+
+            var poisonAuthority = new PoisonIntentRuntimeDeletionAuthority(
+                authority,
+                poisonRuntimeId,
+                healthyRuntimeIds);
+            recovery = new RuntimeDeletionRecoveryService(
+                restarted,
+                poisonAuthority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            var healthyConvergenceTimer = Stopwatch.StartNew();
+            await recovery.StartAsync(CancellationToken.None);
+            await poisonAuthority.AllHealthyIntentsSucceeded.WaitAsync(
+                TimeSpan.FromSeconds(5));
+            await WaitForPendingDeletionCountAsync(restarted, 1);
+            var healthyConvergenceLatencyMs = healthyConvergenceTimer.ElapsedMilliseconds;
+            await poisonAuthority.PoisonRetriedThreeTimes.WaitAsync(
+                TimeSpan.FromSeconds(5));
+
+            await recovery.StopAsync(CancellationToken.None);
+            recovery.Dispose();
+            recovery = null;
+            var remainingIntent = Assert.Single(restarted.ListPendingRuntimeDeletions());
+            Assert.Equal(poisonRuntimeId, Assert.Single(remainingIntent.RuntimeIds));
+            Assert.NotNull(restarted.GetRuntime(poisonRuntimeId));
+            Assert.NotNull(await authority.InspectAsync(
+                poisonRuntimeId,
+                CancellationToken.None));
+            Assert.Equal(
+                poisonRuntimeId,
+                restarted.CreateSession(new SessionCreateRequest(
+                    poisonRuntimeId,
+                    "diagnostic",
+                    "poison-isolation-test",
+                    Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+
+            restarted.SaveNow();
+            var diskReloaded = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            Assert.Single(diskReloaded.ListPendingRuntimeDeletions());
+            Assert.NotNull(diskReloaded.GetRuntime(poisonRuntimeId));
+            Assert.Equal(
+                poisonRuntimeId,
+                diskReloaded.CreateSession(new SessionCreateRequest(
+                    poisonRuntimeId,
+                    "diagnostic",
+                    "poison-reload-test",
+                    Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+
+            repairRecovery = new RuntimeDeletionRecoveryService(
+                diskReloaded,
+                authority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            await repairRecovery.StartAsync(CancellationToken.None);
+            await WaitForDeletionRecoveryAsync(diskReloaded, poisonRuntimeId);
+            await repairRecovery.StopAsync(CancellationToken.None);
+            repairRecovery.Dispose();
+            repairRecovery = null;
+            Assert.Null(await authority.InspectAsync(
+                poisonRuntimeId,
+                CancellationToken.None));
+            foreach (var runtimeId in interferenceRuntimeIds)
+            {
+                Assert.NotNull(diskReloaded.GetRuntime(runtimeId));
+                Assert.NotNull(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            }
+            WritePoisonIntentIsolationEvidenceIfRequested(
+                poisonAuthority.PoisonAttemptCount,
+                healthyConvergenceLatencyMs);
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            if (repairRecovery is not null)
+            {
+                await repairRecovery.StopAsync(CancellationToken.None);
+                repairRecovery.Dispose();
+            }
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            if (authority is not null)
+            {
+                try
+                {
+                    await authority.UnregisterAsync(
+                        interferenceRuntimeIds,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // The isolated daemon database is removed below.
+                }
+            }
+            daemon.Stop();
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ConfiguredAuthorityReadsStrictTypedRuntimeProjections()
     {
         if (OperatingSystem.IsWindows())
@@ -2034,6 +2232,54 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 new JsonSerializerOptions { WriteIndented = true }) + "\n");
     }
 
+    private static void WritePoisonIntentIsolationEvidenceIfRequested(
+        int poisonAttemptCount,
+        long healthyConvergenceLatencyMs)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_POISON_ISOLATION_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+            overlapping_intent_count = RuntimeDeletionCrashPhases.Length,
+            poison_intent_count = 1,
+            healthy_intent_count = RuntimeDeletionCrashPhases.Length - 1,
+            poison_attempt_count = poisonAttemptCount,
+            interference_runtime_count = RuntimeDeletionInterferenceRuntimeCount,
+            healthy_convergence_latency_ms = healthyConvergenceLatencyMs,
+            checks = new
+            {
+                real_leserpentd = true,
+                poison_intent_was_queue_head = true,
+                poison_failure_was_target_scoped = true,
+                healthy_intents_converged_while_poison_remained_pending = true,
+                poison_intent_retried_without_busy_loop = true,
+                poison_runtime_remained_protected = true,
+                poison_intent_survived_disk_reload = true,
+                poison_runtime_remained_protected_after_reload = true,
+                repaired_authority_converged_poison_intent = true,
+                concurrent_registration_and_state_save_traffic = true,
+                every_unrelated_runtime_survived_disk_reload = true,
+                every_unrelated_daemon_registration_survived = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
     private static async Task WaitForSocketAsync(Process daemon, string socketPath)
     {
         for (var attempt = 0; attempt < 1000; attempt++)
@@ -2687,6 +2933,85 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 "runtime deletion unexpectedly reached an online daemon");
             completion.TrySetException(error);
             return error;
+        }
+    }
+
+    private sealed class PoisonIntentRuntimeDeletionAuthority(
+        IRuntimeRegistrationAuthority inner,
+        string poisonRuntimeId,
+        IReadOnlyCollection<string> healthyRuntimeIds) : IRuntimeRegistrationAuthority
+    {
+        private readonly object sync = new();
+        private readonly HashSet<string> healthyRuntimeIds =
+            healthyRuntimeIds.ToHashSet(StringComparer.Ordinal);
+        private readonly HashSet<string> healthySuccesses = new(StringComparer.Ordinal);
+        private readonly TaskCompletionSource allHealthyIntentsSucceeded =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource poisonRetriedThreeTimes =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int poisonAttemptCount;
+
+        public bool Enabled => inner.Enabled;
+        public Task AllHealthyIntentsSucceeded => allHealthyIntentsSucceeded.Task;
+        public Task PoisonRetriedThreeTimes => poisonRetriedThreeTimes.Task;
+        public int PoisonAttemptCount => Volatile.Read(ref poisonAttemptCount);
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.RegisterAsync(
+                request,
+                runtimeId,
+                cancellationToken,
+                update,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.SubmitDiscoveryAsync(
+                runtimeId,
+                cancellationToken,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public async Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            var runtimeId = Assert.Single(runtimeIds);
+            if (string.Equals(runtimeId, poisonRuntimeId, StringComparison.Ordinal))
+            {
+                var attempt = Interlocked.Increment(ref poisonAttemptCount);
+                if (attempt >= 3)
+                {
+                    poisonRetriedThreeTimes.TrySetResult();
+                }
+                throw new InvalidOperationException(
+                    "test-only poison runtime deletion failure");
+            }
+
+            Assert.Contains(runtimeId, healthyRuntimeIds);
+            await inner.UnregisterAsync(runtimeIds, cancellationToken);
+            lock (sync)
+            {
+                healthySuccesses.Add(runtimeId);
+                if (healthySuccesses.SetEquals(healthyRuntimeIds))
+                {
+                    allHealthyIntentsSucceeded.TrySetResult();
+                }
+            }
         }
     }
 
