@@ -15,6 +15,13 @@ namespace Leserpent.SecurityTests;
 public sealed class DaemonRuntimeRegistrationAuthorityTests
 {
     private const string Token = "0123456789abcdef0123456789abcdef";
+    private const int RuntimeDeletionInterferenceRuntimeCount = 8;
+    private static readonly string[] RuntimeDeletionCrashPhases =
+    {
+        "intent_persisted",
+        "daemon_committed",
+        "local_cleanup_persisted",
+    };
 
     [Fact]
     public void ConfigurationIsExplicitAndFailClosed()
@@ -323,87 +330,24 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         Assert.True(File.Exists(harnessAssembly), $"crash harness was not built at {harnessAssembly}");
         var socketPath = TempSocket();
         var databasePath = socketPath + ".db";
-        var statePath = socketPath + ".state.json";
-        var markerPath = socketPath + ".commit";
-        const string runtimeId = "runtime-crash-boundary";
         using var daemon = StartDaemon(daemonBinary, databasePath, socketPath);
-        Process? harness = null;
-        int? harnessProcessId = null;
-        RuntimeDeletionRecoveryService? recovery = null;
         try
         {
             await WaitForSocketAsync(daemon, socketPath);
-            harness = StartCrashHarness(
-                harnessAssembly,
-                statePath,
-                socketPath,
-                markerPath,
-                runtimeId);
-            harnessProcessId = harness.Id;
-            await WaitForMarkerAsync(harness, markerPath);
-
             var authority = CreateAuthority(
                 ("LESERPENT_DAEMON_SOCKET", socketPath),
                 ("LESERPENT_DAEMON_TOKEN", Token),
                 ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
-            Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
-            Assert.False(harness.HasExited);
-
-            harness.Kill(entireProcessTree: true);
-            Assert.True(harness.WaitForExit(5000));
-            Assert.NotEqual(0, harness.ExitCode);
-
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["LESERPENT_STATE_PATH"] = statePath,
-                })
-                .Build();
-            var stateStore = new ControlPlaneStateStore(
-                configuration,
-                new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
-                NullLogger<ControlPlaneStateStore>.Instance);
-            var restarted = new RegistryService(
-                stateStore,
-                new InMemoryOrchestraRunStore());
-            Assert.Single(restarted.ListPendingRuntimeDeletions());
-            Assert.NotNull(restarted.GetRuntime(runtimeId));
-            Assert.Equal(
-                runtimeId,
-                restarted.CreateSession(new SessionCreateRequest(
-                    runtimeId,
-                    "diagnostic",
-                    "crash-recovery-test",
-                    Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
-
-            recovery = new RuntimeDeletionRecoveryService(
-                restarted,
+            await ExecuteRuntimeDeletionCrashScenarioAsync(
+                harnessAssembly,
+                socketPath,
                 authority,
-                NullLogger<RuntimeDeletionRecoveryService>.Instance);
-            await recovery.StartAsync(CancellationToken.None);
-            await WaitForDeletionRecoveryAsync(restarted, runtimeId);
-
-            Assert.Empty(restarted.ListPendingRuntimeDeletions());
-            Assert.Null(restarted.GetRuntime(runtimeId));
-            Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
+                "daemon_committed",
+                0);
             WriteCrashEvidenceIfRequested();
         }
         finally
         {
-            if (recovery is not null)
-            {
-                await recovery.StopAsync(CancellationToken.None);
-                recovery.Dispose();
-            }
-            if (harness is not null)
-            {
-                if (!harness.HasExited)
-                {
-                    harness.Kill(entireProcessTree: true);
-                    harness.WaitForExit(5000);
-                }
-                harness.Dispose();
-            }
             if (!daemon.HasExited)
             {
                 daemon.Kill(entireProcessTree: true);
@@ -416,10 +360,129 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 databasePath + "-journal",
                 databasePath + "-wal",
                 databasePath + "-shm",
-                statePath,
-                statePath + ".bak",
-                markerPath,
-                markerPath + $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionFaultCampaignRecoversAcrossEveryDurableTransition()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(File.Exists(harnessAssembly), $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable("LESERPENT_RUNTIME_DELETION_FAULT_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 20)
+            : 3;
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        using var daemon = StartDaemon(daemonBinary, databasePath, socketPath);
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            foreach (var phase in RuntimeDeletionCrashPhases)
+            {
+                for (var iteration = 0; iteration < iterations; iteration += 1)
+                {
+                    await ExecuteRuntimeDeletionCrashScenarioAsync(
+                        harnessAssembly,
+                        socketPath,
+                        authority,
+                        phase,
+                        iteration);
+                }
+            }
+            WriteFaultCampaignEvidenceIfRequested(iterations);
+        }
+        finally
+        {
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(5000);
+            }
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionFaultCampaignPreservesConcurrentRegistrationAndStateSaves()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(File.Exists(harnessAssembly), $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable("LESERPENT_RUNTIME_DELETION_FAULT_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 20)
+            : 3;
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        using var daemon = StartDaemon(daemonBinary, databasePath, socketPath);
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            foreach (var phase in RuntimeDeletionCrashPhases)
+            {
+                for (var iteration = 0; iteration < iterations; iteration += 1)
+                {
+                    await ExecuteRuntimeDeletionCrashScenarioAsync(
+                        harnessAssembly,
+                        socketPath,
+                        authority,
+                        phase,
+                        iteration,
+                        injectConcurrentTraffic: true);
+                }
+            }
+            WriteConcurrentFaultCampaignEvidenceIfRequested(iterations);
+        }
+        finally
+        {
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(5000);
+            }
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
             })
             {
                 TryDelete(path);
@@ -697,12 +760,224 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         return Process.Start(start) ?? throw new InvalidOperationException("failed to start leserpentd");
     }
 
+    private static async Task ExecuteRuntimeDeletionCrashScenarioAsync(
+        string harnessAssembly,
+        string socketPath,
+        DaemonRuntimeRegistrationAuthority authority,
+        string phase,
+        int iteration,
+        bool injectConcurrentTraffic = false)
+    {
+        var phaseSlug = phase.Replace('_', '-');
+        var runtimeId = $"runtime-crash-{phaseSlug}-{iteration}";
+        var statePath = $"{socketPath}.{phase}.{iteration}.state.json";
+        var markerPath = $"{socketPath}.{phase}.{iteration}.marker";
+        var interferenceRuntimeIds = new List<string>();
+        Process? harness = null;
+        int? harnessProcessId = null;
+        RuntimeDeletionRecoveryService? recovery = null;
+        try
+        {
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                runtimeId,
+                phase);
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            var daemonRuntime = await authority.InspectAsync(
+                runtimeId,
+                CancellationToken.None);
+            Assert.Equal(
+                string.Equals(phase, "intent_persisted", StringComparison.Ordinal),
+                daemonRuntime is not null);
+            Assert.False(harness.HasExited);
+
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+                .Build();
+            var stateStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            var restarted = new RegistryService(
+                stateStore,
+                new InMemoryOrchestraRunStore());
+            Assert.Single(restarted.ListPendingRuntimeDeletions());
+            var localRuntimeShouldExist = !string.Equals(
+                phase,
+                "local_cleanup_persisted",
+                StringComparison.Ordinal);
+            Assert.Equal(
+                localRuntimeShouldExist,
+                restarted.GetRuntime(runtimeId) is not null);
+            if (localRuntimeShouldExist)
+            {
+                Assert.Equal(
+                    runtimeId,
+                    restarted.CreateSession(new SessionCreateRequest(
+                        runtimeId,
+                        "diagnostic",
+                        "crash-recovery-test",
+                        Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+            }
+
+            var coordinatedAuthority = injectConcurrentTraffic
+                ? new CoordinatedRuntimeDeletionAuthority(authority)
+                : null;
+            IRuntimeRegistrationAuthority recoveryAuthority =
+                coordinatedAuthority is null ? authority : coordinatedAuthority;
+            recovery = new RuntimeDeletionRecoveryService(
+                restarted,
+                recoveryAuthority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            await recovery.StartAsync(CancellationToken.None);
+            if (coordinatedAuthority is not null)
+            {
+                interferenceRuntimeIds.AddRange(
+                    await DriveConcurrentRegistrationAndSaveTrafficAsync(
+                        restarted,
+                        authority,
+                        coordinatedAuthority,
+                        phaseSlug,
+                        iteration));
+            }
+            await WaitForDeletionRecoveryAsync(restarted, runtimeId);
+
+            Assert.Empty(restarted.ListPendingRuntimeDeletions());
+            Assert.Null(restarted.GetRuntime(runtimeId));
+            Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            if (interferenceRuntimeIds.Count > 0)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+                recovery = null;
+                restarted.SaveNow();
+                var diskReloaded = new RegistryService(
+                    new ControlPlaneStateStore(
+                        configuration,
+                        new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                        NullLogger<ControlPlaneStateStore>.Instance),
+                    new InMemoryOrchestraRunStore());
+                foreach (var interferenceRuntimeId in interferenceRuntimeIds)
+                {
+                    Assert.NotNull(restarted.GetRuntime(interferenceRuntimeId));
+                    Assert.NotNull(diskReloaded.GetRuntime(interferenceRuntimeId));
+                    Assert.NotNull(await authority.InspectAsync(
+                        interferenceRuntimeId,
+                        CancellationToken.None));
+                }
+            }
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            if (interferenceRuntimeIds.Count > 0)
+            {
+                try
+                {
+                    await authority.UnregisterAsync(
+                        interferenceRuntimeIds,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // The enclosing test tears down the isolated daemon database.
+                }
+            }
+            foreach (var path in new[]
+            {
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    private static async Task<IReadOnlyList<string>> DriveConcurrentRegistrationAndSaveTrafficAsync(
+        RegistryService registry,
+        DaemonRuntimeRegistrationAuthority authority,
+        CoordinatedRuntimeDeletionAuthority coordinatedAuthority,
+        string phaseSlug,
+        int iteration)
+    {
+        await coordinatedAuthority.UnregisterStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        var runtimeIds = Enumerable.Range(0, RuntimeDeletionInterferenceRuntimeCount)
+            .Select(index => $"runtime-traffic-{phaseSlug}-{iteration}-{index}")
+            .ToArray();
+
+        await RegisterInterferenceBatchAsync(
+            registry,
+            authority,
+            runtimeIds[..2]);
+        coordinatedAuthority.AllowDaemonCommit();
+        await coordinatedAuthority.DaemonCommitted.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await RegisterInterferenceBatchAsync(
+            registry,
+            authority,
+            runtimeIds[2..4]);
+        var racingRegistrations = RegisterInterferenceBatchAsync(
+            registry,
+            authority,
+            runtimeIds[4..]);
+        coordinatedAuthority.AllowLocalCleanup();
+        await racingRegistrations;
+        return runtimeIds;
+    }
+
+    private static Task RegisterInterferenceBatchAsync(
+        RegistryService registry,
+        DaemonRuntimeRegistrationAuthority authority,
+        IReadOnlyCollection<string> runtimeIds) =>
+        Task.WhenAll(runtimeIds.Select(runtimeId => Task.Run(async () =>
+        {
+            var request = new RuntimeRegistrationRequest(
+                $"Concurrent Traffic {runtimeId}",
+                $"https://{runtimeId}.example",
+                "test-only-pairing-token");
+            await authority.RegisterAsync(
+                request,
+                runtimeId,
+                CancellationToken.None);
+            registry.RegisterRuntime(request, runtimeId);
+            registry.SaveNow();
+        })));
+
     private static Process StartCrashHarness(
         string harnessAssembly,
         string statePath,
         string socketPath,
         string markerPath,
-        string runtimeId)
+        string runtimeId,
+        string phase)
     {
         var start = new ProcessStartInfo
         {
@@ -716,6 +991,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         start.ArgumentList.Add(socketPath);
         start.ArgumentList.Add(markerPath);
         start.ArgumentList.Add(runtimeId);
+        start.ArgumentList.Add(phase);
         start.Environment["LESERPENT_DAEMON_TOKEN"] = Token;
         return Process.Start(start) ?? throw new InvalidOperationException(
             "failed to start runtime deletion crash harness");
@@ -764,11 +1040,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             if (harness.HasExited)
             {
                 throw new InvalidOperationException(
-                    $"crash harness exited before the daemon commit boundary: {await harness.StandardError.ReadToEndAsync()}");
+                    $"crash harness exited before the requested durable boundary: {await harness.StandardError.ReadToEndAsync()}");
             }
             await Task.Delay(10);
         }
-        throw new TimeoutException("crash harness did not reach the daemon commit boundary");
+        throw new TimeoutException("crash harness did not reach the requested durable boundary");
     }
 
     private static async Task WaitForDeletionRecoveryAsync(
@@ -823,9 +1099,91 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 new JsonSerializerOptions { WriteIndented = true }) + "\n");
     }
 
+    private static void WriteFaultCampaignEvidenceIfRequested(int iterations)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_CAMPAIGN_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations_per_phase = iterations,
+            total_forced_terminations = iterations * RuntimeDeletionCrashPhases.Length,
+            phases = RuntimeDeletionCrashPhases,
+            checks = new
+            {
+                real_leserpentd = true,
+                every_durable_transition_covered = true,
+                every_host_process_force_killed = true,
+                every_intent_restored = true,
+                every_protected_runtime_rejected_new_work = true,
+                every_background_recovery_converged = true,
+                every_daemon_and_compatibility_state_absent = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private static void WriteConcurrentFaultCampaignEvidenceIfRequested(int iterations)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_CONCURRENCY_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var scenarioCount = iterations * RuntimeDeletionCrashPhases.Length;
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations_per_phase = iterations,
+            total_forced_terminations = scenarioCount,
+            phases = RuntimeDeletionCrashPhases,
+            interference_runtimes_per_scenario = RuntimeDeletionInterferenceRuntimeCount,
+            total_interference_registrations =
+                scenarioCount * RuntimeDeletionInterferenceRuntimeCount,
+            checks = new
+            {
+                real_leserpentd = true,
+                every_durable_transition_covered = true,
+                concurrent_registration_and_state_save_traffic = true,
+                traffic_before_and_after_daemon_commit = true,
+                local_cleanup_raced_with_normal_writes = true,
+                every_unrelated_runtime_survived_in_memory = true,
+                every_unrelated_runtime_survived_disk_reload = true,
+                every_unrelated_daemon_registration_survived = true,
+                every_deletion_recovery_converged = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
     private static async Task WaitForSocketAsync(Process daemon, string socketPath)
     {
-        for (var attempt = 0; attempt < 200; attempt++)
+        for (var attempt = 0; attempt < 1000; attempt++)
         {
             try
             {
@@ -1034,6 +1392,67 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         catch (FileNotFoundException)
         {
         }
+    }
+
+    private sealed class CoordinatedRuntimeDeletionAuthority(
+        IRuntimeRegistrationAuthority inner) : IRuntimeRegistrationAuthority
+    {
+        private readonly TaskCompletionSource unregisterStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allowDaemonCommit =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource daemonCommitted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allowLocalCleanup =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool Enabled => inner.Enabled;
+        public Task UnregisterStarted => unregisterStarted.Task;
+        public Task DaemonCommitted => daemonCommitted.Task;
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.RegisterAsync(
+                request,
+                runtimeId,
+                cancellationToken,
+                update,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.SubmitDiscoveryAsync(
+                runtimeId,
+                cancellationToken,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public async Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            unregisterStarted.TrySetResult();
+            await allowDaemonCommit.Task.WaitAsync(cancellationToken);
+            await inner.UnregisterAsync(runtimeIds, cancellationToken);
+            daemonCommitted.TrySetResult();
+            await allowLocalCleanup.Task.WaitAsync(cancellationToken);
+        }
+
+        public void AllowDaemonCommit() => allowDaemonCommit.TrySetResult();
+        public void AllowLocalCleanup() => allowLocalCleanup.TrySetResult();
     }
 
     private sealed class CrashTestEnvironment(string contentRootPath) : IHostEnvironment

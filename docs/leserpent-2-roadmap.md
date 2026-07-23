@@ -670,8 +670,28 @@ Its retained evidence is
 `scripts/validation/leserpent_runtime_deletion_crash.sh`. The same script has now
 passed on the physical Ubuntu x86_64 host, retained as
 `docs/fixtures/leserpent_runtime_deletion_crash_linux_x86_64_20260723.json`.
-The next evidence gate is a repeated Linux fault campaign across every durable
-deletion state transition.
+A repeated fault campaign now covers the intent-persisted, daemon-committed,
+and local-cleanup-persisted transitions. Each iteration starts the production
+Rust daemon with an independent C# host, force-kills that host at the selected
+boundary, reconstructs the formal registry from disk, and waits for background
+recovery to remove both daemon and compatibility state. Reproduce it with
+`scripts/validation/leserpent_runtime_deletion_fault_campaign.sh`; retained
+Arm64 Unix and physical Ubuntu x86_64 aggregates live in
+`docs/fixtures/leserpent_runtime_deletion_fault_campaign_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_fault_campaign_linux_x86_64_20260723.json`.
+The completed interference gate adds concurrent normal registration and
+state-save traffic while this repeated recovery campaign is running. It runs
+eight unrelated registrations per crash
+scenario: before daemon mutation, after daemon commit, and racing local cleanup.
+Every runtime must survive in the live compatibility registry, a fresh disk
+reload, and the production Rust daemon. Reproduce the platform aggregate with
+`scripts/validation/leserpent_runtime_deletion_concurrency_campaign.sh`.
+Retained Arm64 Unix and physical Ubuntu x86_64 evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_concurrency_campaign_20260723.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_concurrency_campaign_linux_x86_64_20260723.json`.
+The next gate repeats this campaign while force-restarting `leserpentd` between
+recovery attempts.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

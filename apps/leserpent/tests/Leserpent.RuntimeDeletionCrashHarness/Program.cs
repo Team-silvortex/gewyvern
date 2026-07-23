@@ -4,10 +4,10 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 
-if (args.Length != 4)
+if (args.Length != 5)
 {
     Console.Error.WriteLine(
-        "usage: Leserpent.RuntimeDeletionCrashHarness STATE_PATH SOCKET_PATH MARKER_PATH RUNTIME_ID");
+        "usage: Leserpent.RuntimeDeletionCrashHarness STATE_PATH SOCKET_PATH MARKER_PATH RUNTIME_ID PHASE");
     return 64;
 }
 
@@ -15,6 +15,7 @@ var statePath = Path.GetFullPath(args[0]);
 var socketPath = Path.GetFullPath(args[1]);
 var markerPath = Path.GetFullPath(args[2]);
 var runtimeId = args[3];
+var phase = args[4];
 var token = Environment.GetEnvironmentVariable("LESERPENT_DAEMON_TOKEN")
     ?? throw new InvalidOperationException("LESERPENT_DAEMON_TOKEN is required");
 var configuration = new ConfigurationBuilder()
@@ -47,23 +48,47 @@ await authority.RegisterAsync(
     runtimeId,
     CancellationToken.None);
 using var reservation = registry.ReserveRuntimeDeletion(new[] { runtimeId });
-await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
-
-var markerBytes = System.Text.Encoding.UTF8.GetBytes($"{reservation.IntentId}\n");
-var markerTempPath = $"{markerPath}.{Environment.ProcessId}.tmp";
-using (var marker = new FileStream(
-    markerTempPath,
-    FileMode.CreateNew,
-    FileAccess.Write,
-    FileShare.None))
+switch (phase)
 {
-    await marker.WriteAsync(markerBytes);
-    marker.Flush(flushToDisk: true);
+    case "intent_persisted":
+        await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
+        break;
+    case "daemon_committed":
+        await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
+        await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
+        break;
+    case "local_cleanup_persisted":
+        await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
+        registry.DeleteRuntime(runtimeId);
+        await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
+        break;
+    default:
+        Console.Error.WriteLine($"unknown runtime deletion crash phase: {phase}");
+        return 64;
 }
-File.Move(markerTempPath, markerPath, overwrite: true);
 
-await Task.Delay(Timeout.InfiniteTimeSpan);
 return 0;
+
+static async Task PauseAtBoundaryAsync(
+    string markerPath,
+    string intentId,
+    string phase)
+{
+    var markerBytes = System.Text.Encoding.UTF8.GetBytes(
+        $"{phase} {intentId}\n");
+    var markerTempPath = $"{markerPath}.{Environment.ProcessId}.tmp";
+    using (var marker = new FileStream(
+        markerTempPath,
+        FileMode.CreateNew,
+        FileAccess.Write,
+        FileShare.None))
+    {
+        await marker.WriteAsync(markerBytes);
+        marker.Flush(flushToDisk: true);
+    }
+    File.Move(markerTempPath, markerPath, overwrite: true);
+    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
 
 internal sealed class HarnessEnvironment : IHostEnvironment
 {

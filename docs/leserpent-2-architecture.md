@@ -648,6 +648,24 @@ Registry/recovery path from the same state file. The retained Arm64 Unix result
 lives in `docs/fixtures/leserpent_runtime_deletion_crash_20260723.json`; the
 physical Ubuntu x86_64 replay is retained separately in
 `docs/fixtures/leserpent_runtime_deletion_crash_linux_x86_64_20260723.json`.
+The repeatable campaign extends that proof across all three durable transitions:
+intent persisted before daemon mutation, daemon mutation committed before local
+cleanup, and local cleanup persisted before intent release. Every phase is
+force-terminated repeatedly against the production Rust daemon and recovered
+through the same startup worker. Its Arm64 Unix and physical Ubuntu x86_64
+aggregates are retained in
+`docs/fixtures/leserpent_runtime_deletion_fault_campaign_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_fault_campaign_linux_x86_64_20260723.json`;
+`scripts/validation/leserpent_runtime_deletion_fault_campaign.sh` reproduces
+the platform-specific result.
+The concurrency extension coordinates only through a test authority wrapper,
+without production fault-injection switches. It holds recovery before and
+after the real daemon commit while unrelated registrations and explicit state
+saves execute, then releases a final batch to race local cleanup. Successful
+recovery must preserve every unrelated runtime in live compatibility state, a
+fresh disk reconstruction, and daemon authority. The platform aggregates are
+reproduced by
+`scripts/validation/leserpent_runtime_deletion_concurrency_campaign.sh`.
 
 ## Leselang Semantics
 

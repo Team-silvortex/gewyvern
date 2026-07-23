@@ -1257,6 +1257,29 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         ProtocolResponse::OrchestraDeleted(_) => Err(CliError::Protocol(
             "unexpected Orchestra delete response".into(),
         )),
+        ProtocolResponse::RuntimeUnregistered(result) => {
+            let runtimes = if result.removed.is_empty() {
+                "none".to_string()
+            } else {
+                result
+                    .removed
+                    .iter()
+                    .map(|target| safe_cell(target.runtime_id.as_str()))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
+            Ok(format!(
+                "command={} removed={} runtimes={} orchestra_runtimes={} orchestra_runs={} orchestra_events={} removed_at_unix_ms={} replayed={}",
+                safe_cell(result.command_id.as_str()),
+                result.removed.len(),
+                runtimes,
+                result.deleted_orchestra_runtime_count,
+                result.deleted_orchestra_run_count,
+                result.deleted_orchestra_event_count,
+                result.removed_at_unix_ms,
+                result.replayed,
+            ))
+        }
         ProtocolResponse::BootstrapHandoff(state) => Ok(format!(
             "bootstrap={} phase={} endpoint={} mutation_authorized={}",
             safe_cell(state.bootstrap_id.as_str()),
@@ -2358,6 +2381,42 @@ mod tests {
         );
 
         assert!(output.contains("capabilities_observed_for_revision=legacy-unknown"));
+    }
+
+    #[test]
+    fn runtime_unregistration_response_renders_auditable_cleanup_counts() {
+        let rendered = render_response(
+            &ResponseEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                response: ProtocolResponse::RuntimeUnregistered(
+                    leserpent_protocol::RuntimeUnregisterResponse {
+                        command_id: CommandId::new("runtime-unregister-command-a").unwrap(),
+                        removed: vec![
+                            leserpent_protocol::RuntimeUnregisterTarget {
+                                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                                expected_revision: Revision(4),
+                            },
+                            leserpent_protocol::RuntimeUnregisterTarget {
+                                runtime_id: RuntimeId::new("runtime-b").unwrap(),
+                                expected_revision: Revision(9),
+                            },
+                        ],
+                        deleted_orchestra_runtime_count: 2,
+                        deleted_orchestra_run_count: 5,
+                        deleted_orchestra_event_count: 13,
+                        removed_at_unix_ms: 1_721_720_000_000,
+                        replayed: true,
+                    },
+                ),
+            },
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            rendered,
+            "command=runtime-unregister-command-a removed=2 runtimes=runtime-a,runtime-b orchestra_runtimes=2 orchestra_runs=5 orchestra_events=13 removed_at_unix_ms=1721720000000 replayed=true"
+        );
     }
 
     #[test]

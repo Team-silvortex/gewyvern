@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T07:59:59.888099+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "iterations_per_phase": 3,
+  "total_forced_terminations": 9,
+  "phases": [
+    "intent_persisted",
+    "daemon_committed",
+    "local_cleanup_persisted"
+  ],
+  "interference_runtimes_per_scenario": 8,
+  "total_interference_registrations": 72,
+  "checks": {
+    "real_leserpentd": true,
+    "every_durable_transition_covered": true,
+    "concurrent_registration_and_state_save_traffic": true,
+    "traffic_before_and_after_daemon_commit": true,
+    "local_cleanup_raced_with_normal_writes": true,
+    "every_unrelated_runtime_survived_in_memory": true,
+    "every_unrelated_runtime_survived_disk_reload": true,
+    "every_unrelated_daemon_registration_survived": true,
+    "every_deletion_recovery_converged": true
+  }
+}

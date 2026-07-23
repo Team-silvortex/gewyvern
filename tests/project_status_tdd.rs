@@ -56,6 +56,30 @@ fn retained_runtime_deletion_crash_evidence_is_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_fault_campaigns_are_non_vacuous() {
+    assert_runtime_deletion_fault_campaign(
+        "docs/fixtures/leserpent_runtime_deletion_fault_campaign_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_fault_campaign(
+        "docs/fixtures/leserpent_runtime_deletion_fault_campaign_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_concurrency_campaigns_are_non_vacuous() {
+    assert_runtime_deletion_concurrency_campaign(
+        "docs/fixtures/leserpent_runtime_deletion_concurrency_campaign_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_concurrency_campaign(
+        "docs/fixtures/leserpent_runtime_deletion_concurrency_campaign_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -87,6 +111,110 @@ fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &st
         assert_eq!(
             evidence["checks"][check], true,
             "missing retained crash proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_fault_campaign(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion fault campaign evidence must exist"),
+    )
+    .expect("runtime deletion fault campaign evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert!(
+        evidence["observed_at"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+    assert!(
+        evidence["platform"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert!(
+        evidence["iterations_per_phase"]
+            .as_u64()
+            .is_some_and(|value| value >= 3)
+    );
+    assert_eq!(
+        evidence["total_forced_terminations"].as_u64(),
+        evidence["iterations_per_phase"]
+            .as_u64()
+            .map(|iterations| iterations * 3)
+    );
+    assert_eq!(
+        evidence["phases"],
+        serde_json::json!([
+            "intent_persisted",
+            "daemon_committed",
+            "local_cleanup_persisted"
+        ])
+    );
+    for check in [
+        "real_leserpentd",
+        "every_durable_transition_covered",
+        "every_host_process_force_killed",
+        "every_intent_restored",
+        "every_protected_runtime_rejected_new_work",
+        "every_background_recovery_converged",
+        "every_daemon_and_compatibility_state_absent",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained fault campaign proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_concurrency_campaign(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion concurrency campaign evidence must exist"),
+    )
+    .expect("runtime deletion concurrency campaign evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert!(
+        evidence["observed_at"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+    assert_eq!(evidence["architecture"], expected_architecture);
+    let iterations = evidence["iterations_per_phase"]
+        .as_u64()
+        .expect("concurrency campaign iteration count must be numeric");
+    assert!(iterations >= 3);
+    assert_eq!(evidence["total_forced_terminations"], iterations * 3);
+    assert_eq!(evidence["interference_runtimes_per_scenario"], 8);
+    assert_eq!(
+        evidence["total_interference_registrations"],
+        iterations * 3 * 8
+    );
+    assert_eq!(
+        evidence["phases"],
+        serde_json::json!([
+            "intent_persisted",
+            "daemon_committed",
+            "local_cleanup_persisted"
+        ])
+    );
+    for check in [
+        "real_leserpentd",
+        "every_durable_transition_covered",
+        "concurrent_registration_and_state_save_traffic",
+        "traffic_before_and_after_daemon_commit",
+        "local_cleanup_raced_with_normal_writes",
+        "every_unrelated_runtime_survived_in_memory",
+        "every_unrelated_runtime_survived_disk_reload",
+        "every_unrelated_daemon_registration_survived",
+        "every_deletion_recovery_converged",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained concurrency campaign proof {check}"
         );
     }
 }
@@ -301,6 +429,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "real-forced-termination-recovery-proof",
         "retained-crash-boundary-evidence",
         "physical-linux-x86-64-crash-recovery-proof",
+        "three-phase-runtime-deletion-fault-campaign",
+        "repeated-linux-crash-convergence",
+        "retained-fault-campaign-aggregate",
+        "concurrent-registration-delete-recovery",
+        "state-save-interference-proof",
+        "cross-authority-unrelated-runtime-preservation",
+        "physical-linux-concurrency-fault-proof",
     ] {
         assert!(
             compatibility_control
@@ -314,7 +449,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("every durable runtime-deletion state transition")
+            .contains("force-restarting leserpentd")
     );
 
     let bootstrap = catalog

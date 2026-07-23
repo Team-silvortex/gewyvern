@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T07:32:13.42558+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "iterations_per_phase": 3,
+  "total_forced_terminations": 9,
+  "phases": [
+    "intent_persisted",
+    "daemon_committed",
+    "local_cleanup_persisted"
+  ],
+  "checks": {
+    "real_leserpentd": true,
+    "every_durable_transition_covered": true,
+    "every_host_process_force_killed": true,
+    "every_intent_restored": true,
+    "every_protected_runtime_rejected_new_work": true,
+    "every_background_recovery_converged": true,
+    "every_daemon_and_compatibility_state_absent": true
+  }
+}

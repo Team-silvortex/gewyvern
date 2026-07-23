@@ -302,6 +302,8 @@ JSON state 默认路径：
 - 删除意图必须在 daemon mutation 前严格落盘，daemon 和本地 registry 都完成后才会清除；任一步失败都会保留意图并由后台循环重试
 - 服务重启后，待删 runtime 继续拒绝新 session 和 Orchestra run，直到幂等 daemon 注销及本地清理收敛；state import 不接受待执行删除意图
 - `scripts/validation/leserpent_runtime_deletion_crash.sh` 使用真实 Rust daemon 和独立 C# 子进程，在 daemon 提交后强杀宿主并验证重启收敛
+- `scripts/validation/leserpent_runtime_deletion_fault_campaign.sh` 重复覆盖意图落盘、daemon 提交和本地清理三个持久化边界，并为当前平台保留聚合证据
+- `scripts/validation/leserpent_runtime_deletion_concurrency_campaign.sh` 在同一故障战役中并发注册无关 runtime 和保存状态，验证删除恢复不会覆盖正常流量
 - guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
 - runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
 - control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件
