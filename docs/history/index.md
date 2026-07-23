@@ -92,7 +92,8 @@ background cleanup.
 | `v0.18.x` | Protocol breadth, packaged/runtime confidence, and physical-host validation | historical snapshot | [docs/history/v0.18.x.md](docs/history/v0.18.x.md) |
 | `v0.19.x` | Integrated debugger behavior, reliability hardening, and pre-seal convergence | historical snapshot | [docs/history/v0.19.x.md](docs/history/v0.19.x.md) |
 | `v0.20.x` | Final pre-`1.0` seal with repeatable release gates and frozen core surfaces | historical prelude | [docs/history/v0.20.x.md](docs/history/v0.20.x.md) |
-| `v1.0.0` | First sealed stable line with repeatable release gates, Linux proof, and frozen machine-facing shelves | active | [docs/history/v1.0.0.md](docs/history/v1.0.0.md) |
+| `v1.0.0` | First sealed stable line with repeatable release gates, Linux proof, and frozen machine-facing shelves | sealed baseline | [docs/history/v1.0.0.md](docs/history/v1.0.0.md) |
+| `v1.7.x` | Active reliability and Rust Leserpent/Leselang control-plane delivery line | active | [ROADMAP.md](../../ROADMAP.md) |
 | `v1.0.0 release` | Formal stable-release note for the first sealed mainline ship | release note | [docs/history/v1.0.0-release-notes.md](docs/history/v1.0.0-release-notes.md) |
 | `v0.15.x -> v1.0.0` | Forward roadmap through `v0.20.x` with `v1.0.0` as the intended direct successor | completed roadmap | [docs/history/v0.15-to-v1-roadmap.md](docs/history/v0.15-to-v1-roadmap.md) |
 

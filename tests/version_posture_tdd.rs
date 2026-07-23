@@ -145,16 +145,17 @@ fn macos_bundle_inherits_the_workspace_version_by_default() {
 }
 
 #[test]
-fn docs_describe_one_shared_mainline_version() {
+fn docs_describe_the_active_minor_line_without_component_versions() {
     let readme = read_repo_file("README.md");
     let monorepo = read_repo_file("docs/monorepo-stack.md");
     let leserpent_readme = read_repo_file("apps/leserpent/README.md");
     let root_manifest = read_repo_file("Cargo.toml");
     let workspace_version = section_version(&root_manifest, "workspace.package");
 
-    assert_eq!(workspace_version, "1.5.0");
-    assert!(readme.starts_with("# gewyvern v1.5.0\n"));
-    assert!(readme.contains("project version: `1.5.0`"));
+    assert!(!workspace_version.is_empty());
+    assert!(readme.starts_with("# gewyvern v1.7.x\n"));
+    assert!(readme.contains("project version: `1.7.x`"));
+    assert!(readme.contains("current release line: `v1.7.x`"));
 
     assert!(readme.contains("follows the root `gewyvern` version"));
     assert!(monorepo.contains("one shared mainline version"));
@@ -213,16 +214,14 @@ fn docs_catalog_anchor_matches_packaged_protocol_tree() {
 
 #[test]
 fn release_checklist_uses_version_template_for_package_artifacts() {
-    let root_manifest = read_repo_file("Cargo.toml");
     let checklist = read_repo_file("docs/release-checklist.md");
-    let workspace_version = section_version(&root_manifest, "workspace.package");
 
     assert!(checklist.contains("target/packages/gewyvern_<version>-1_<deb-arch>.deb"));
     assert!(checklist.contains("target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm"));
     assert!(checklist.contains("root `gewyvern` package metadata"));
-    assert!(checklist.contains(&format!("that resolves to `{workspace_version}`")));
-    assert!(checklist.contains(&format!("gewyvern_{workspace_version}-1_<deb-arch>.deb")));
-    assert!(checklist.contains(&format!("gewyvern-{workspace_version}-1.<rpm-arch>.rpm")));
+    assert!(checklist.contains("is never itself a package"));
+    assert!(!checklist.contains("gewyvern_1.7.x-1_"));
+    assert!(!checklist.contains("gewyvern-1.7.x-1."));
     assert!(!checklist.contains("target/packages/gewyvern_0.20.0-1_<arch>.deb"));
     assert!(!checklist.contains("target/packages/rpm/gewyvern-0.20.0-1.<arch>.rpm"));
 }

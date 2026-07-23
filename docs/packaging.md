@@ -112,9 +112,9 @@ artifact. It records:
 - `legacy_compat_root`
 - `upgrade_policy`
 
-The default current values are intentionally conservative:
+The current policy values are intentionally conservative:
 
-- `release_line = "v1.5.0"`
+- `release_line` matches the configured active minor line (`v1.7.x`)
 - `layout_version = 1`
 - `config_schema_version = 1`
 - `upgrade_policy = "copy-forward-without-overwrite"`
