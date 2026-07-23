@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T08:28:48.403427+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "owner_lease_duration_ms": 30000,
+  "total_forced_host_terminations": 3,
+  "total_sigkill_daemon_terminations": 3,
+  "observed_owner_lease_rejections": 3,
+  "phases": [
+    "intent_persisted",
+    "daemon_committed",
+    "local_cleanup_persisted"
+  ],
+  "interference_runtimes_per_scenario": 8,
+  "total_interference_registrations": 24,
+  "takeover_latencies_ms": [
+    30078,
+    30080,
+    30071
+  ],
+  "min_takeover_latency_ms": 30071,
+  "max_takeover_latency_ms": 30080,
+  "average_takeover_latency_ms": 30076.333333333332,
+  "checks": {
+    "real_leserpentd": true,
+    "every_durable_transition_covered": true,
+    "every_daemon_terminated_uncleanly": true,
+    "every_pre_expiry_start_rejected": true,
+    "every_takeover_waited_for_natural_owner_lease_expiry": true,
+    "same_daemon_database_reopened": true,
+    "every_failed_claim_was_released_for_retry": true,
+    "concurrent_registration_and_state_save_traffic": true,
+    "every_unrelated_runtime_survived_disk_reload": true,
+    "every_unrelated_daemon_registration_survived": true,
+    "every_post_takeover_recovery_converged": true
+  }
+}

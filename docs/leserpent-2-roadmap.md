@@ -690,8 +690,26 @@ Retained Arm64 Unix and physical Ubuntu x86_64 evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_concurrency_campaign_20260723.json`
 and
 `docs/fixtures/leserpent_runtime_deletion_concurrency_campaign_linux_x86_64_20260723.json`.
-The next gate repeats this campaign while force-restarting `leserpentd` between
-recovery attempts.
+The controlled daemon-restart gate now stops `leserpentd` with `SIGTERM`,
+observes one real offline recovery failure, reopens the same SQLite database,
+and requires the next claim to converge while the concurrency workload remains
+active. Reproduce it with
+`scripts/validation/leserpent_runtime_deletion_daemon_restart_campaign.sh`;
+the Arm64 Unix and physical Ubuntu x86_64 aggregates are retained in
+`docs/fixtures/leserpent_runtime_deletion_daemon_restart_campaign_20260723.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_daemon_restart_campaign_linux_x86_64_20260723.json`.
+The unclean daemon-takeover gate now `SIGKILL`s the production daemon at every
+durable deletion boundary, verifies that pre-expiry replacements are rejected,
+and waits for the fixed 30-second owner lease to expire naturally before
+reopening the same database. Recovery then converges under concurrent
+registration and state-save traffic. Reproduce it with
+`scripts/validation/leserpent_runtime_deletion_unclean_takeover.sh`; retained
+Arm64 Unix and physical Ubuntu x86_64 latency evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_unclean_takeover_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_unclean_takeover_linux_x86_64_20260723.json`.
+The next reliability gate covers multiple overlapping durable deletion intents
+across one unclean daemon takeover.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

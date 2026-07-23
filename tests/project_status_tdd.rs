@@ -80,6 +80,30 @@ fn retained_runtime_deletion_concurrency_campaigns_are_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_daemon_restart_campaigns_are_non_vacuous() {
+    assert_runtime_deletion_daemon_restart_campaign(
+        "docs/fixtures/leserpent_runtime_deletion_daemon_restart_campaign_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_daemon_restart_campaign(
+        "docs/fixtures/leserpent_runtime_deletion_daemon_restart_campaign_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_unclean_takeovers_are_non_vacuous() {
+    assert_runtime_deletion_unclean_takeover(
+        "docs/fixtures/leserpent_runtime_deletion_unclean_takeover_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_unclean_takeover(
+        "docs/fixtures/leserpent_runtime_deletion_unclean_takeover_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -215,6 +239,113 @@ fn assert_runtime_deletion_concurrency_campaign(path: &str, expected_architectur
         assert_eq!(
             evidence["checks"][check], true,
             "missing retained concurrency campaign proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_daemon_restart_campaign(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion daemon restart evidence must exist"),
+    )
+    .expect("runtime deletion daemon restart evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    let iterations = evidence["iterations_per_phase"]
+        .as_u64()
+        .expect("daemon restart iteration count must be numeric");
+    assert!(iterations >= 3);
+    let scenarios = iterations * 3;
+    assert_eq!(evidence["total_forced_host_terminations"], scenarios);
+    assert_eq!(evidence["total_controlled_daemon_restarts"], scenarios);
+    assert_eq!(evidence["observed_failed_recovery_attempts"], scenarios);
+    assert_eq!(evidence["total_interference_registrations"], scenarios * 8);
+    for check in [
+        "real_leserpentd",
+        "same_daemon_database_reopened",
+        "every_durable_transition_covered",
+        "every_daemon_stopped_with_sigterm",
+        "every_owner_lease_released_before_restart",
+        "every_offline_recovery_attempt_failed",
+        "every_failed_claim_was_released_for_retry",
+        "concurrent_registration_and_state_save_traffic",
+        "every_unrelated_runtime_survived_disk_reload",
+        "every_unrelated_daemon_registration_survived",
+        "every_post_restart_recovery_converged",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained daemon restart proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_unclean_takeover(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion unclean takeover evidence must exist"),
+    )
+    .expect("runtime deletion unclean takeover evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["owner_lease_duration_ms"], 30_000);
+    assert_eq!(evidence["total_forced_host_terminations"], 3);
+    assert_eq!(evidence["total_sigkill_daemon_terminations"], 3);
+    assert_eq!(evidence["observed_owner_lease_rejections"], 3);
+    assert_eq!(evidence["interference_runtimes_per_scenario"], 8);
+    assert_eq!(evidence["total_interference_registrations"], 24);
+    assert_eq!(
+        evidence["phases"],
+        serde_json::json!([
+            "intent_persisted",
+            "daemon_committed",
+            "local_cleanup_persisted"
+        ])
+    );
+    let latencies = evidence["takeover_latencies_ms"]
+        .as_array()
+        .expect("takeover latencies must be an array");
+    assert_eq!(latencies.len(), 3);
+    let latencies = latencies
+        .iter()
+        .map(|value| value.as_u64().expect("takeover latency must be numeric"))
+        .collect::<Vec<_>>();
+    assert!(
+        latencies
+            .iter()
+            .all(|latency| (20_000..=45_000).contains(latency))
+    );
+    assert_eq!(
+        evidence["min_takeover_latency_ms"],
+        *latencies.iter().min().expect("latencies must not be empty")
+    );
+    assert_eq!(
+        evidence["max_takeover_latency_ms"],
+        *latencies.iter().max().expect("latencies must not be empty")
+    );
+    let expected_average = latencies.iter().sum::<u64>() as f64 / latencies.len() as f64;
+    let retained_average = evidence["average_takeover_latency_ms"]
+        .as_f64()
+        .expect("average takeover latency must be numeric");
+    assert!((retained_average - expected_average).abs() < 0.001);
+    for check in [
+        "real_leserpentd",
+        "every_durable_transition_covered",
+        "every_daemon_terminated_uncleanly",
+        "every_pre_expiry_start_rejected",
+        "every_takeover_waited_for_natural_owner_lease_expiry",
+        "same_daemon_database_reopened",
+        "every_failed_claim_was_released_for_retry",
+        "concurrent_registration_and_state_save_traffic",
+        "every_unrelated_runtime_survived_disk_reload",
+        "every_unrelated_daemon_registration_survived",
+        "every_post_takeover_recovery_converged",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained unclean takeover proof {check}"
         );
     }
 }
@@ -436,6 +567,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "state-save-interference-proof",
         "cross-authority-unrelated-runtime-preservation",
         "physical-linux-concurrency-fault-proof",
+        "offline-recovery-retry-proof",
+        "same-database-daemon-restart",
+        "owner-lease-respecting-restart",
+        "physical-linux-daemon-restart-recovery",
+        "unclean-daemon-owner-lease-takeover",
+        "pre-expiry-double-owner-rejection",
+        "natural-lease-failover-latency-evidence",
+        "physical-linux-sigkill-recovery-proof",
     ] {
         assert!(
             compatibility_control
@@ -449,7 +588,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("force-restarting leserpentd")
+            .contains("multiple overlapping durable deletion intents")
     );
 
     let bootstrap = catalog

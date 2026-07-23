@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T08:19:16.708703+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "iterations_per_phase": 3,
+  "total_forced_host_terminations": 9,
+  "total_controlled_daemon_restarts": 9,
+  "observed_failed_recovery_attempts": 9,
+  "phases": [
+    "intent_persisted",
+    "daemon_committed",
+    "local_cleanup_persisted"
+  ],
+  "interference_runtimes_per_scenario": 8,
+  "total_interference_registrations": 72,
+  "checks": {
+    "real_leserpentd": true,
+    "same_daemon_database_reopened": true,
+    "every_durable_transition_covered": true,
+    "every_daemon_stopped_with_sigterm": true,
+    "every_owner_lease_released_before_restart": true,
+    "every_offline_recovery_attempt_failed": true,
+    "every_failed_claim_was_released_for_retry": true,
+    "concurrent_registration_and_state_save_traffic": true,
+    "every_unrelated_runtime_survived_disk_reload": true,
+    "every_unrelated_daemon_registration_survived": true,
+    "every_post_restart_recovery_converged": true
+  }
+}

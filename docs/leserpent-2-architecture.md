@@ -666,6 +666,18 @@ recovery must preserve every unrelated runtime in live compatibility state, a
 fresh disk reconstruction, and daemon authority. The platform aggregates are
 reproduced by
 `scripts/validation/leserpent_runtime_deletion_concurrency_campaign.sh`.
+The daemon-restart extension deliberately respects SQLite ownership fencing.
+`leserpentd` receives `SIGTERM`, exits through its signal loop, and drops the
+owner lease before the same database is reopened. Recovery must first attempt
+the command while daemon IPC is offline and release its deletion claim after
+that failure; the post-restart attempt then reclaims the intent and converges.
+The unclean-takeover extension force-kills `leserpentd` at every durable
+deletion boundary. Each replacement is rejected while the stale owner lease is
+live, then reopens the same database only after its natural 30-second expiry.
+Recovery, concurrent registration, disk reload, and daemon inspection must all
+converge without deleting unrelated runtimes. Retained Arm64 Unix and physical
+Ubuntu x86_64 evidence records the observed takeover latency rather than
+shortening or bypassing the production lease.
 
 ## Leselang Semantics
 
