@@ -45,6 +45,53 @@ fn project_status_catalog_is_protocolized_and_valid() {
 }
 
 #[test]
+fn retained_runtime_deletion_crash_evidence_is_non_vacuous() {
+    assert_runtime_deletion_crash_evidence(
+        "docs/fixtures/leserpent_runtime_deletion_crash_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_crash_evidence(
+        "docs/fixtures/leserpent_runtime_deletion_crash_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion crash evidence must exist"),
+    )
+    .expect("runtime deletion crash evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert!(
+        evidence["observed_at"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+    assert!(
+        evidence["platform"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+    assert_eq!(evidence["architecture"], expected_architecture);
+    for check in [
+        "real_leserpentd",
+        "daemon_unregistration_committed",
+        "host_process_force_killed",
+        "durable_intent_restored",
+        "protected_runtime_restored",
+        "background_recovery_converged",
+        "daemon_and_compatibility_state_absent",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained crash proof {check}"
+        );
+    }
+}
+
+#[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
     let etragon = catalog
@@ -228,7 +275,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.8.0");
+    assert_eq!(compatibility_control.contract.version, "1.9.0");
     for surface in [
         "daemon-authoritative-sidecar-endpoint",
         "daemon-authoritative-runtime-timestamps",
@@ -246,6 +293,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "daemon-first-runtime-unregistration",
         "runtime-deletion-reservation",
         "reserved-session-and-orchestra-rejection",
+        "durable-runtime-deletion-intent",
+        "strict-deletion-intent-persistence",
+        "schema-v2-control-state",
+        "deletion-intent-restart-recovery",
+        "background-delete-convergence",
+        "real-forced-termination-recovery-proof",
+        "retained-crash-boundary-evidence",
+        "physical-linux-x86-64-crash-recovery-proof",
     ] {
         assert!(
             compatibility_control
@@ -256,7 +311,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(compatibility_control.next_gate.contains("host crash"));
+    assert!(
+        compatibility_control
+            .next_gate
+            .contains("every durable runtime-deletion state transition")
+    );
 
     let bootstrap = catalog
         .cells

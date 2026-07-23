@@ -128,6 +128,11 @@ public sealed class ControlPlaneSecurityPolicy
 
     public async Task<string?> ValidateImportAsync(PersistedControlPlaneState state, CancellationToken cancellationToken)
     {
+        if ((state.PendingRuntimeDeletions?.Count ?? 0) > 0)
+        {
+            return "pending runtime deletion intents cannot be imported";
+        }
+
         foreach (var runtime in state.Runtimes)
         {
             var runtimeError = await ValidateEndpointUrlAsync(runtime.Endpoint, $"runtime endpoint for {runtime.Name}", cancellationToken);

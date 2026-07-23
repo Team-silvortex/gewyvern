@@ -5,6 +5,9 @@ using System.Text;
 using System.Text.Json;
 using Leserpent.ControlPlane;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Leserpent.SecurityTests;
@@ -308,6 +311,123 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionRecoversAfterHostIsKilledAtDaemonCommitBoundary()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(File.Exists(harnessAssembly), $"crash harness was not built at {harnessAssembly}");
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var statePath = socketPath + ".state.json";
+        var markerPath = socketPath + ".commit";
+        const string runtimeId = "runtime-crash-boundary";
+        using var daemon = StartDaemon(daemonBinary, databasePath, socketPath);
+        Process? harness = null;
+        int? harnessProcessId = null;
+        RuntimeDeletionRecoveryService? recovery = null;
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                runtimeId);
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            Assert.False(harness.HasExited);
+
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+                .Build();
+            var stateStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            var restarted = new RegistryService(
+                stateStore,
+                new InMemoryOrchestraRunStore());
+            Assert.Single(restarted.ListPendingRuntimeDeletions());
+            Assert.NotNull(restarted.GetRuntime(runtimeId));
+            Assert.Equal(
+                runtimeId,
+                restarted.CreateSession(new SessionCreateRequest(
+                    runtimeId,
+                    "diagnostic",
+                    "crash-recovery-test",
+                    Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+
+            recovery = new RuntimeDeletionRecoveryService(
+                restarted,
+                authority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            await recovery.StartAsync(CancellationToken.None);
+            await WaitForDeletionRecoveryAsync(restarted, runtimeId);
+
+            Assert.Empty(restarted.ListPendingRuntimeDeletions());
+            Assert.Null(restarted.GetRuntime(runtimeId));
+            Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            WriteCrashEvidenceIfRequested();
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(5000);
+            }
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ConfiguredAuthorityReadsStrictTypedRuntimeProjections()
     {
         if (OperatingSystem.IsWindows())
@@ -577,6 +697,132 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         return Process.Start(start) ?? throw new InvalidOperationException("failed to start leserpentd");
     }
 
+    private static Process StartCrashHarness(
+        string harnessAssembly,
+        string statePath,
+        string socketPath,
+        string markerPath,
+        string runtimeId)
+    {
+        var start = new ProcessStartInfo
+        {
+            FileName = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet",
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+        };
+        start.ArgumentList.Add(harnessAssembly);
+        start.ArgumentList.Add(statePath);
+        start.ArgumentList.Add(socketPath);
+        start.ArgumentList.Add(markerPath);
+        start.ArgumentList.Add(runtimeId);
+        start.Environment["LESERPENT_DAEMON_TOKEN"] = Token;
+        return Process.Start(start) ?? throw new InvalidOperationException(
+            "failed to start runtime deletion crash harness");
+    }
+
+    private static string FindCrashHarnessAssembly()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var configuration = new DirectoryInfo(
+            Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory))
+            .Parent?.Name ?? "Debug";
+        return Path.Combine(
+            repositoryRoot,
+            "apps",
+            "leserpent",
+            "tests",
+            "Leserpent.RuntimeDeletionCrashHarness",
+            "bin",
+            configuration,
+            "net10.0",
+            "Leserpent.RuntimeDeletionCrashHarness.dll");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Cargo.toml")))
+            {
+                return directory.FullName;
+            }
+        }
+        throw new DirectoryNotFoundException("could not locate the gewyvern repository root");
+    }
+
+    private static async Task WaitForMarkerAsync(Process harness, string markerPath)
+    {
+        for (var attempt = 0; attempt < 500; attempt++)
+        {
+            if (File.Exists(markerPath))
+            {
+                return;
+            }
+            if (harness.HasExited)
+            {
+                throw new InvalidOperationException(
+                    $"crash harness exited before the daemon commit boundary: {await harness.StandardError.ReadToEndAsync()}");
+            }
+            await Task.Delay(10);
+        }
+        throw new TimeoutException("crash harness did not reach the daemon commit boundary");
+    }
+
+    private static async Task WaitForDeletionRecoveryAsync(
+        RegistryService registry,
+        string runtimeId)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (registry.ListPendingRuntimeDeletions().Count == 0 &&
+                registry.GetRuntime(runtimeId) is null)
+            {
+                return;
+            }
+            await Task.Delay(10);
+        }
+        throw new TimeoutException("runtime deletion intent did not converge after restart");
+    }
+
+    private static void WriteCrashEvidenceIfRequested()
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_CRASH_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+            checks = new
+            {
+                real_leserpentd = true,
+                daemon_unregistration_committed = true,
+                host_process_force_killed = true,
+                durable_intent_restored = true,
+                protected_runtime_restored = true,
+                background_recovery_converged = true,
+                daemon_and_compatibility_state_absent = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
     private static async Task WaitForSocketAsync(Process daemon, string socketPath)
     {
         for (var attempt = 0; attempt < 200; attempt++)
@@ -788,5 +1034,13 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         catch (FileNotFoundException)
         {
         }
+    }
+
+    private sealed class CrashTestEnvironment(string contentRootPath) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = "Leserpent.SecurityTests";
+        public string ContentRootPath { get; set; } = contentRootPath;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

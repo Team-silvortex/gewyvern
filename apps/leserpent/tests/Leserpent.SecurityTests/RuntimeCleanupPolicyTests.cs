@@ -87,6 +87,30 @@ public sealed class RuntimeCleanupPolicyTests
         }
     }
 
+    [Fact]
+    public void ExactDeletionReservationRejectsPartialTargetSetBeforePersistingIntent()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var removed = Register(registry, "removed", "dev");
+            var retained = Register(registry, "retained", "dev");
+            registry.DeleteRuntime(removed.RuntimeId);
+
+            Assert.Throws<RuntimeCleanupPlanMismatchException>(() =>
+                registry.ReserveRuntimeDeletion(
+                    new[] { removed.RuntimeId, retained.RuntimeId },
+                    requireAllTargets: true));
+
+            Assert.Empty(registry.ListPendingRuntimeDeletions());
+            Assert.NotNull(registry.GetRuntime(retained.RuntimeId));
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
     private static RuntimeRegistrationResponse Register(RegistryService registry, string name, string environment) =>
         registry.RegisterRuntime(new RuntimeRegistrationRequest(
             name,

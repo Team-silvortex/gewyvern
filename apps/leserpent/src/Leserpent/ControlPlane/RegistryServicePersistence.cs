@@ -64,6 +64,58 @@ public sealed partial class RegistryService
         return (restoredRuntimeCount, restoredSessionCount);
     }
 
+    private void RestorePendingRuntimeDeletions(PersistedControlPlaneState? state)
+    {
+        var intents = state?.PendingRuntimeDeletions
+            ?? Array.Empty<PersistedRuntimeDeletionIntent>();
+        if (intents.Count > MaxPendingRuntimeDeletionIntents)
+        {
+            throw new InvalidDataException(
+                $"control-plane state contains more than {MaxPendingRuntimeDeletionIntents} pending runtime deletion intents");
+        }
+
+        var claimedRuntimeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var persisted in intents)
+        {
+            var intentId = persisted.IntentId?.Trim() ?? string.Empty;
+            var runtimeIds = (persisted.RuntimeIds ?? Array.Empty<string>())
+                .Select(static runtimeId => runtimeId?.Trim() ?? string.Empty)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static runtimeId => runtimeId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (!IsValidDeletionIdentifier(intentId) ||
+                runtimeIds.Length is < 1 or > 128 ||
+                runtimeIds.Any(static runtimeId => !IsValidDeletionIdentifier(runtimeId)) ||
+                runtimeIds.Any(runtimeId => !claimedRuntimeIds.Add(runtimeId)) ||
+                persisted.PreparedAt == default ||
+                persisted.PreparedAt > DateTimeOffset.UtcNow.AddMinutes(5))
+            {
+                throw new InvalidDataException(
+                    $"control-plane state contains an invalid pending runtime deletion intent '{intentId}'");
+            }
+
+            var intent = new PersistedRuntimeDeletionIntent(
+                intentId,
+                Array.AsReadOnly(runtimeIds),
+                persisted.PreparedAt);
+            if (!pendingRuntimeDeletions.TryAdd(intent.IntentId, intent))
+            {
+                throw new InvalidDataException(
+                    $"control-plane state contains duplicate runtime deletion intent '{intent.IntentId}'");
+            }
+            foreach (var runtimeId in runtimeIds)
+            {
+                deletingRuntimes.Add(runtimeId);
+            }
+        }
+    }
+
+    private static bool IsValidDeletionIdentifier(string value) =>
+        value.Length is > 0 and <= 128 &&
+        value.All(static character =>
+            char.IsAsciiLetterOrDigit(character) ||
+            character is '.' or '-' or '_');
+
     private void RestoreOrMigrateOrchestraRuns()
     {
         var databaseRuns = orchestraRunStore.LoadAll();
@@ -179,7 +231,27 @@ public sealed partial class RegistryService
 
     private void PersistState()
     {
-        var state = ExportState();
-        stateStore.Save(state.Runtimes, state.Sessions, state.OrchestraRuns);
+        lock (persistenceSync)
+        {
+            var state = ExportState();
+            stateStore.Save(
+                state.Runtimes,
+                state.Sessions,
+                state.OrchestraRuns,
+                state.PendingRuntimeDeletions);
+        }
+    }
+
+    private void PersistStateStrict()
+    {
+        lock (persistenceSync)
+        {
+            var state = ExportState();
+            stateStore.SaveStrict(
+                state.Runtimes,
+                state.Sessions,
+                state.OrchestraRuns,
+                state.PendingRuntimeDeletions);
+        }
     }
 }

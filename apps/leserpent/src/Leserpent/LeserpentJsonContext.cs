@@ -20,6 +20,7 @@ namespace Leserpent;
 [JsonSerializable(typeof(OrchestraRetryRequest))]
 [JsonSerializable(typeof(OrchestraSessionHandoffRequest))]
 [JsonSerializable(typeof(PersistedControlPlaneState))]
+[JsonSerializable(typeof(PersistedRuntimeDeletionIntent))]
 [JsonSerializable(typeof(ServiceCapabilities))]
 [JsonSerializable(typeof(PersistenceSaveResponse))]
 [JsonSerializable(typeof(PersistenceImportResponse))]

@@ -63,6 +63,13 @@ public partial class Program
                     LeserpentJsonContext.Default.ApiErrorResponse,
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
+            catch (RuntimeDeletionInProgressException ex)
+            {
+                return Results.Conflict(new ApiErrorResponse(
+                    "persistence_import_runtime_delete_in_progress",
+                    "control-plane state cannot be imported while runtime deletion is pending",
+                    RuntimeId: ex.RuntimeIds.FirstOrDefault()));
+            }
         });
     }
 }

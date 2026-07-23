@@ -298,6 +298,10 @@ JSON state 默认路径：
 - `GET /v1/orchestra/runtimes/{id}/runs/{runId}/events` 按顺序返回单次运行的审计时间线；旧数据在首次新状态转换前可能没有事件
 - Orchestra 状态转换只有在 SQLite 快照与事件同时提交后才会发布到内存；数据库拒写时不会启动自动执行
 - state import 的 Orchestra 批量替换失败会返回 `503 persistence_import_unavailable` 并恢复导入前的内存 registry
+- control-plane JSON schema v2 保存待完成的 runtime 删除意图；schema v1 在读取时自动升级为空意图集合
+- 删除意图必须在 daemon mutation 前严格落盘，daemon 和本地 registry 都完成后才会清除；任一步失败都会保留意图并由后台循环重试
+- 服务重启后，待删 runtime 继续拒绝新 session 和 Orchestra run，直到幂等 daemon 注销及本地清理收敛；state import 不接受待执行删除意图
+- `scripts/validation/leserpent_runtime_deletion_crash.sh` 使用真实 Rust daemon 和独立 C# 子进程，在 daemon 提交后强杀宿主并验证重启收敛
 - guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
 - runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
 - control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件

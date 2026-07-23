@@ -7,6 +7,7 @@ public sealed partial class RegistryService
 {
     private const int MaxRecoveryActivitiesPerRuntime = 8;
     private const int MaxOrchestraRunsPerRuntime = 32;
+    private const int MaxPendingRuntimeDeletionIntents = 256;
     private static readonly TimeSpan GenericFailedRecoveryCooldown = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan AuthFailedRecoveryCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan NetworkFailedRecoveryCooldown = TimeSpan.FromSeconds(20);
@@ -15,9 +16,12 @@ public sealed partial class RegistryService
     private readonly ConcurrentDictionary<string, SessionRecord> sessions = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<RuntimeRecoveryActivity>> recoveryActivities = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<OrchestraRunSummary>> orchestraRuns = new();
+    private readonly ConcurrentDictionary<string, PersistedRuntimeDeletionIntent> pendingRuntimeDeletions = new(StringComparer.Ordinal);
     private readonly HashSet<string> deletingRuntimes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> activeRuntimeDeletionClaims = new(StringComparer.Ordinal);
     private readonly object orchestraRunSync = new();
     private readonly object runtimeRegistrationSync = new();
+    private readonly object persistenceSync = new();
     private readonly ControlPlaneStateStore stateStore;
     private readonly IOrchestraRunStore orchestraRunStore;
     private readonly DateTimeOffset? restoredFromSavedAt;
@@ -38,6 +42,7 @@ public sealed partial class RegistryService
         var loaded = stateStore.Load();
         restoredFromSavedAt = loaded?.SavedAt;
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
+        RestorePendingRuntimeDeletions(loaded);
         RestoreOrMigrateOrchestraRuns();
     }
 
@@ -141,12 +146,27 @@ public sealed partial class RegistryService
         return action.Targets.Select(target => target.RuntimeId).ToArray();
     }
 
-    public RuntimeDeletionReservation ReserveRuntimeDeletion(IReadOnlyCollection<string> runtimeIds)
+    public RuntimeDeletionReservation ReserveRuntimeDeletion(
+        IReadOnlyCollection<string> runtimeIds,
+        bool requireAllTargets = false)
     {
-        var targets = runtimeIds
+        var requestedTargets = runtimeIds
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static runtimeId => runtimeId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var targets = requestedTargets
             .Where(runtimes.ContainsKey)
             .ToArray();
+        if (requireAllTargets && targets.Length != requestedTargets.Length)
+        {
+            throw new RuntimeCleanupPlanMismatchException(
+                "runtime cleanup targets changed before deletion reservation");
+        }
+        if (targets.Length == 0)
+        {
+            return new RuntimeDeletionReservation(this, string.Empty, string.Empty, targets);
+        }
+
         lock (orchestraRunSync)
         {
             var activeRuns = FindActiveOrchestraRuns(targets);
@@ -154,25 +174,162 @@ public sealed partial class RegistryService
             {
                 throw new OrchestraRuntimeBusyException(activeRuns);
             }
-            if (targets.Any(deletingRuntimes.Contains))
+
+            var targetSet = targets.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var overlappingIntent = pendingRuntimeDeletions.Values.FirstOrDefault(intent =>
+                intent.RuntimeIds.Any(targetSet.Contains));
+            if (overlappingIntent is not null)
+            {
+                var exactMatch = targetSet.SetEquals(overlappingIntent.RuntimeIds);
+                if (!exactMatch ||
+                    activeRuntimeDeletionClaims.ContainsKey(overlappingIntent.IntentId))
+                {
+                    throw new RuntimeDeletionInProgressException(targets);
+                }
+
+                var claimId = Guid.NewGuid().ToString("n");
+                activeRuntimeDeletionClaims[overlappingIntent.IntentId] = claimId;
+                return new RuntimeDeletionReservation(
+                    this,
+                    overlappingIntent.IntentId,
+                    claimId,
+                    overlappingIntent.RuntimeIds);
+            }
+
+            if (pendingRuntimeDeletions.Count >= MaxPendingRuntimeDeletionIntents ||
+                targets.Any(deletingRuntimes.Contains))
             {
                 throw new RuntimeDeletionInProgressException(targets);
             }
-            foreach (var runtimeId in targets)
+
+            lock (persistenceSync)
             {
-                deletingRuntimes.Add(runtimeId);
+                var createdIntent = new PersistedRuntimeDeletionIntent(
+                    $"rdel_{Guid.NewGuid():N}",
+                    Array.AsReadOnly(targets),
+                    DateTimeOffset.UtcNow);
+                pendingRuntimeDeletions[createdIntent.IntentId] = createdIntent;
+                var claimId = Guid.NewGuid().ToString("n");
+                activeRuntimeDeletionClaims[createdIntent.IntentId] = claimId;
+                foreach (var runtimeId in createdIntent.RuntimeIds)
+                {
+                    deletingRuntimes.Add(runtimeId);
+                }
+                var reservation = new RuntimeDeletionReservation(
+                    this,
+                    createdIntent.IntentId,
+                    claimId,
+                    createdIntent.RuntimeIds);
+                try
+                {
+                    PersistStateStrict();
+                    return reservation;
+                }
+                catch (ControlPlaneStatePersistenceException ex)
+                {
+                    pendingRuntimeDeletions.TryRemove(createdIntent.IntentId, out _);
+                    activeRuntimeDeletionClaims.Remove(createdIntent.IntentId);
+                    foreach (var runtimeId in createdIntent.RuntimeIds)
+                    {
+                        deletingRuntimes.Remove(runtimeId);
+                    }
+                    reservation.Dispose();
+                    throw new OrchestraPersistenceException(
+                        "failed to persist runtime deletion intent",
+                        ex);
+                }
             }
         }
-        return new RuntimeDeletionReservation(this, targets);
     }
 
-    internal void ReleaseRuntimeDeletion(IReadOnlyCollection<string> runtimeIds)
+    internal void ReleaseRuntimeDeletionClaim(string intentId, string claimId)
     {
         lock (orchestraRunSync)
         {
-            foreach (var runtimeId in runtimeIds)
+            if (activeRuntimeDeletionClaims.TryGetValue(intentId, out var activeClaimId) &&
+                string.Equals(activeClaimId, claimId, StringComparison.Ordinal))
             {
-                deletingRuntimes.Remove(runtimeId);
+                activeRuntimeDeletionClaims.Remove(intentId);
+            }
+        }
+    }
+
+    public IReadOnlyList<RuntimeDeletionReservation> ClaimPendingRuntimeDeletions()
+    {
+        lock (orchestraRunSync)
+        {
+            var reservations = new List<RuntimeDeletionReservation>();
+            foreach (var intent in pendingRuntimeDeletions.Values
+                .OrderBy(static intent => intent.PreparedAt)
+                .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal))
+            {
+                if (activeRuntimeDeletionClaims.ContainsKey(intent.IntentId))
+                {
+                    continue;
+                }
+
+                var claimId = Guid.NewGuid().ToString("n");
+                activeRuntimeDeletionClaims[intent.IntentId] = claimId;
+                reservations.Add(new RuntimeDeletionReservation(
+                    this,
+                    intent.IntentId,
+                    claimId,
+                    intent.RuntimeIds));
+            }
+            return reservations;
+        }
+    }
+
+    public IReadOnlyList<PersistedRuntimeDeletionIntent> ListPendingRuntimeDeletions() =>
+        pendingRuntimeDeletions.Values
+            .OrderBy(static intent => intent.PreparedAt)
+            .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal)
+            .Select(static intent => intent with
+            {
+                RuntimeIds = intent.RuntimeIds.ToArray(),
+            })
+            .ToArray();
+
+    public void CompleteRuntimeDeletion(RuntimeDeletionReservation reservation)
+    {
+        lock (orchestraRunSync)
+        {
+            PersistedRuntimeDeletionIntent intent;
+            if (!pendingRuntimeDeletions.TryGetValue(reservation.IntentId, out intent!) ||
+                !activeRuntimeDeletionClaims.TryGetValue(
+                    reservation.IntentId,
+                    out var activeClaimId) ||
+                !string.Equals(activeClaimId, reservation.ClaimId, StringComparison.Ordinal) ||
+                !reservation.RuntimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                    .SetEquals(intent.RuntimeIds))
+            {
+                throw new InvalidOperationException("runtime deletion intent is no longer pending");
+            }
+
+            lock (persistenceSync)
+            {
+                pendingRuntimeDeletions.TryRemove(intent.IntentId, out _);
+                foreach (var runtimeId in intent.RuntimeIds)
+                {
+                    deletingRuntimes.Remove(runtimeId);
+                }
+
+                try
+                {
+                    PersistStateStrict();
+                    activeRuntimeDeletionClaims.Remove(intent.IntentId);
+                }
+                catch (ControlPlaneStatePersistenceException ex)
+                {
+                    pendingRuntimeDeletions[intent.IntentId] = intent;
+                    foreach (var runtimeId in intent.RuntimeIds)
+                    {
+                        deletingRuntimes.Add(runtimeId);
+                    }
+                    throw new OrchestraPersistenceException(
+                        "failed to complete runtime deletion intent",
+                        ex);
+                }
             }
         }
     }
@@ -324,6 +481,10 @@ public sealed partial class RegistryService
             orchestraRuns.Values
                 .SelectMany(static queue => queue)
                 .OrderByDescending(static run => run.ExecutedAt)
+                .ToArray(),
+            pendingRuntimeDeletions.Values
+                .OrderBy(static intent => intent.PreparedAt)
+                .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal)
                 .ToArray());
 
     public PersistenceImportResponse ImportState(PersistedControlPlaneState state)
@@ -333,27 +494,43 @@ public sealed partial class RegistryService
             throw new InvalidOperationException(
                 $"imported state schema {state.SchemaVersion} is not compatible with schema {stateStore.SchemaVersion}");
         }
-
-        var previousState = ExportState();
-        runtimes.Clear();
-        sessions.Clear();
-        orchestraRuns.Clear();
-        var (runtimeCount, sessionCount) = RestorePersistedState(state);
-        if (!orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray()))
+        if ((state.PendingRuntimeDeletions?.Count ?? 0) > 0)
         {
+            throw new InvalidOperationException(
+                "pending runtime deletion intents cannot be imported");
+        }
+
+        lock (orchestraRunSync)
+        {
+            if (!pendingRuntimeDeletions.IsEmpty)
+            {
+                throw new RuntimeDeletionInProgressException(
+                    pendingRuntimeDeletions.Values
+                        .SelectMany(static intent => intent.RuntimeIds)
+                        .ToArray());
+            }
+
+            var previousState = ExportState();
             runtimes.Clear();
             sessions.Clear();
             orchestraRuns.Clear();
-            RestorePersistedState(previousState);
-            throw new OrchestraPersistenceException("failed to replace Orchestra database during state import");
+            var (runtimeCount, sessionCount) = RestorePersistedState(state);
+            if (!orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray()))
+            {
+                runtimes.Clear();
+                sessions.Clear();
+                orchestraRuns.Clear();
+                RestorePersistedState(previousState);
+                throw new OrchestraPersistenceException("failed to replace Orchestra database during state import");
+            }
+            PersistState();
+            return new PersistenceImportResponse(
+                true,
+                runtimeCount,
+                sessionCount,
+                stateStore.LastSavedAt ?? DateTimeOffset.UtcNow,
+                state.SavedAt);
         }
-        PersistState();
-        return new PersistenceImportResponse(
-            true,
-            runtimeCount,
-            sessionCount,
-            stateStore.LastSavedAt ?? DateTimeOffset.UtcNow,
-            state.SavedAt);
     }
 
     public RuntimeCapabilityRefreshResponse? RefreshRuntimeCapabilities(string runtimeId, CapabilityDiscoveryResult discovery)

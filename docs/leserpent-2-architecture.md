@@ -635,7 +635,19 @@ daemon revision-fences every target and atomically journals their removal,
 deletes Orchestra history, and stores an idempotent replay record in schema
 v14. The compatibility service reserves the selected runtimes across the
 daemon call, preventing new sessions or Orchestra runs before it removes local
-compatibility state.
+compatibility state. Its control-plane state schema v2 durably records the
+deletion intent before daemon mutation and clears it only after local cleanup is
+strictly persisted. On restart, targets in pending intents remain unavailable
+for sessions and Orchestra; a background recovery worker replays the idempotent
+daemon command and local cleanup until both authorities converge. Schema v1
+snapshots migrate with no pending intent, and state import rejects destructive
+intent payloads. The cross-process crash harness proves this boundary without a
+production fault-injection switch: it pauses only after the real Rust daemon
+commits, is force-killed by the parent test, and then restarts the formal
+Registry/recovery path from the same state file. The retained Arm64 Unix result
+lives in `docs/fixtures/leserpent_runtime_deletion_crash_20260723.json`; the
+physical Ubuntu x86_64 replay is retained separately in
+`docs/fixtures/leserpent_runtime_deletion_crash_linux_x86_64_20260723.json`.
 
 ## Leselang Semantics
 

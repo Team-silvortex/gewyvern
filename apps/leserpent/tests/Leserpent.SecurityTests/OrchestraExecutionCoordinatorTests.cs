@@ -273,7 +273,7 @@ public sealed class OrchestraExecutionCoordinatorTests
     }
 
     [Fact]
-    public void RuntimeDeletionReservationBlocksNewOrchestraRunsAndIsReleased()
+    public void RuntimeDeletionIntentSurvivesRestartAndBlocksNewWorkUntilCompleted()
     {
         var (registry, statePath) = CreateRegistry();
         var runtime = RegisterRuntime(registry);
@@ -297,12 +297,96 @@ public sealed class OrchestraExecutionCoordinatorTests
                     Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
         }
 
-        var run = registry.StartOrchestraRun(
-            "orun-after-reservation",
+        Assert.Single(registry.ListPendingRuntimeDeletions());
+        Assert.Throws<InvalidOperationException>(() =>
+            registry.StartOrchestraRun(
+                "orun-after-reservation",
+                runtime.RuntimeId,
+                "runtime_triage"));
+
+        var restarted = CreateRegistry(statePath);
+        Assert.Single(restarted.ListPendingRuntimeDeletions());
+        Assert.NotNull(restarted.GetRuntime(runtime.RuntimeId));
+        Assert.Equal(
             runtime.RuntimeId,
-            "runtime_triage");
-        Assert.Equal("queued", run.Outcome);
+            restarted.CreateSession(new SessionCreateRequest(
+                runtime.RuntimeId,
+                "diagnostic",
+                "operator",
+                Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+
+        using (var recovered = Assert.Single(restarted.ClaimPendingRuntimeDeletions()))
+        {
+            var deleted = restarted.DeleteRuntimesById(recovered.RuntimeIds);
+            Assert.Equal(1, deleted.RemovedRuntimeCount);
+            restarted.CompleteRuntimeDeletion(recovered);
+        }
+
+        var converged = CreateRegistry(statePath);
+        Assert.Null(converged.GetRuntime(runtime.RuntimeId));
+        Assert.Empty(converged.ListPendingRuntimeDeletions());
         DeleteStateFiles(statePath);
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionRecoveryServiceConvergesPendingIntent()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+        registry.ReserveRuntimeDeletion(new[] { runtime.RuntimeId }).Dispose();
+        var authority = new RecordingRegistrationAuthority();
+        var service = new RuntimeDeletionRecoveryService(
+            registry,
+            authority,
+            NullLogger<RuntimeDeletionRecoveryService>.Instance);
+
+        try
+        {
+            await service.StartAsync(CancellationToken.None);
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+            while (registry.ListPendingRuntimeDeletions().Count > 0 &&
+                   DateTimeOffset.UtcNow < deadline)
+            {
+                await Task.Delay(10);
+            }
+
+            Assert.Empty(registry.ListPendingRuntimeDeletions());
+            Assert.Null(registry.GetRuntime(runtime.RuntimeId));
+            Assert.Equal(new[] { runtime.RuntimeId }, authority.UnregisteredRuntimeIds);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+            service.Dispose();
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public void RuntimeDeletionReservationRollsBackWhenIntentCannotBePersisted()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var backupPath = $"{statePath}.bak";
+        var runtime = RegisterRuntime(registry);
+        Directory.CreateDirectory(backupPath);
+
+        try
+        {
+            Assert.Throws<OrchestraPersistenceException>(() =>
+                registry.ReserveRuntimeDeletion(new[] { runtime.RuntimeId }));
+
+            Assert.Empty(registry.ListPendingRuntimeDeletions());
+            Assert.NotNull(registry.CreateSession(new SessionCreateRequest(
+                runtime.RuntimeId,
+                "diagnostic",
+                "operator",
+                Array.Empty<SessionCapabilityRequirement>())).Session);
+        }
+        finally
+        {
+            Directory.Delete(backupPath);
+            DeleteStateFiles(statePath);
+        }
     }
 
     private static async Task<OrchestraRunSummary> WaitForTerminalRunAsync(
@@ -326,6 +410,11 @@ public sealed class OrchestraExecutionCoordinatorTests
     private static (RegistryService Registry, string StatePath) CreateRegistry(IOrchestraRunStore? runStore = null)
     {
         var statePath = Path.Combine(Path.GetTempPath(), $"leserpent-orchestra-test-{Guid.NewGuid():N}.json");
+        return (CreateRegistry(statePath, runStore), statePath);
+    }
+
+    private static RegistryService CreateRegistry(string statePath, IOrchestraRunStore? runStore = null)
+    {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["LESERPENT_STATE_PATH"] = statePath })
             .Build();
@@ -334,7 +423,7 @@ public sealed class OrchestraExecutionCoordinatorTests
             configuration,
             environment,
             NullLogger<ControlPlaneStateStore>.Instance);
-        return (new RegistryService(store, runStore ?? new InMemoryOrchestraRunStore()), statePath);
+        return new RegistryService(store, runStore ?? new InMemoryOrchestraRunStore());
     }
 
     private static RuntimeSummary RegisterRuntime(RegistryService registry)
@@ -392,6 +481,38 @@ public sealed class OrchestraExecutionCoordinatorTests
             {
                 new OrchestraExecutionStepResult("execute", "ok", "completed"),
             });
+        }
+    }
+
+    private sealed class RecordingRegistrationAuthority : IRuntimeRegistrationAuthority
+    {
+        public bool Enabled => true;
+        public IReadOnlyList<string> UnregisteredRuntimeIds { get; private set; } = Array.Empty<string>();
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.FromResult(runtimeId);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.CompletedTask;
+
+        public Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            UnregisteredRuntimeIds = runtimeIds.ToArray();
+            return Task.CompletedTask;
         }
     }
 

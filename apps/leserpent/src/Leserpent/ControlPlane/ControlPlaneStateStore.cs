@@ -4,7 +4,8 @@ namespace Leserpent.ControlPlane;
 
 public sealed class ControlPlaneStateStore
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
+    private const int OldestSupportedSchemaVersion = 1;
 
     private readonly string statePath;
     private readonly string backupStatePath;
@@ -54,7 +55,7 @@ public sealed class ControlPlaneStateStore
                 return TryLoadBackupState();
             }
 
-            if (state.SchemaVersion != CurrentSchemaVersion)
+            if (!IsCompatible(state))
             {
                 IsDirty = false;
                 LastSaveError = null;
@@ -66,6 +67,7 @@ public sealed class ControlPlaneStateStore
                 return TryLoadBackupState();
             }
 
+            state = UpgradeState(state);
             LastSavedAt = state.SavedAt;
             IsDirty = false;
             LastSaveError = null;
@@ -83,26 +85,49 @@ public sealed class ControlPlaneStateStore
     public PersistedControlPlaneState CreateState(
         IReadOnlyList<PersistedRuntimeState> runtimes,
         IReadOnlyList<PersistedSessionState> sessions,
-        IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null) =>
+        IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
+        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null) =>
         new(
             CurrentSchemaVersion,
             DateTimeOffset.UtcNow,
             runtimes,
             sessions,
-            orchestraRuns ?? Array.Empty<OrchestraRunSummary>());
+            orchestraRuns ?? Array.Empty<OrchestraRunSummary>(),
+            pendingRuntimeDeletions ?? Array.Empty<PersistedRuntimeDeletionIntent>());
 
     public bool IsCompatible(PersistedControlPlaneState? state) =>
-        state is not null && state.SchemaVersion == CurrentSchemaVersion;
+        state is not null &&
+        state.SchemaVersion is >= OldestSupportedSchemaVersion and <= CurrentSchemaVersion;
 
     public void Save(
         IReadOnlyList<PersistedRuntimeState> runtimes,
         IReadOnlyList<PersistedSessionState> sessions,
-        IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null)
+        IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
+        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null) =>
+        SaveCore(runtimes, sessions, orchestraRuns, pendingRuntimeDeletions, throwOnFailure: false);
+
+    public void SaveStrict(
+        IReadOnlyList<PersistedRuntimeState> runtimes,
+        IReadOnlyList<PersistedSessionState> sessions,
+        IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
+        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null) =>
+        SaveCore(runtimes, sessions, orchestraRuns, pendingRuntimeDeletions, throwOnFailure: true);
+
+    private void SaveCore(
+        IReadOnlyList<PersistedRuntimeState> runtimes,
+        IReadOnlyList<PersistedSessionState> sessions,
+        IReadOnlyList<OrchestraRunSummary>? orchestraRuns,
+        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions,
+        bool throwOnFailure)
     {
         lock (saveSync)
         {
             IsDirty = true;
-            var state = CreateState(runtimes, sessions, orchestraRuns);
+            var state = CreateState(
+                runtimes,
+                sessions,
+                orchestraRuns,
+                pendingRuntimeDeletions);
             var tempPath = $"{statePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
 
             try
@@ -137,6 +162,12 @@ public sealed class ControlPlaneStateStore
             {
                 LastSaveError = ex.Message;
                 logger.LogError(ex, "Failed to persist control-plane state to {StatePath}.", statePath);
+                if (throwOnFailure)
+                {
+                    throw new ControlPlaneStatePersistenceException(
+                        "failed to persist control-plane state",
+                        ex);
+                }
             }
             finally
             {
@@ -163,7 +194,7 @@ public sealed class ControlPlaneStateStore
         {
             using var stream = File.OpenRead(backupStatePath);
             var state = JsonSerializer.Deserialize(stream, jsonContext.PersistedControlPlaneState);
-            if (state is null || state.SchemaVersion != CurrentSchemaVersion)
+            if (state is null || !IsCompatible(state))
             {
                 logger.LogWarning(
                     "Backup control-plane state file at {BackupStatePath} was empty or used an incompatible schema; starting from an empty registry.",
@@ -171,6 +202,7 @@ public sealed class ControlPlaneStateStore
                 return null;
             }
 
+            state = UpgradeState(state);
             LastSavedAt = state.SavedAt;
             LastSaveError = null;
             logger.LogWarning("Recovered control-plane state from backup file at {BackupStatePath}.", backupStatePath);
@@ -184,6 +216,16 @@ public sealed class ControlPlaneStateStore
         }
     }
 
+    private static PersistedControlPlaneState UpgradeState(PersistedControlPlaneState state) =>
+        state.SchemaVersion == CurrentSchemaVersion && state.PendingRuntimeDeletions is not null
+            ? state
+            : state with
+            {
+                SchemaVersion = CurrentSchemaVersion,
+                PendingRuntimeDeletions =
+                    state.PendingRuntimeDeletions ?? Array.Empty<PersistedRuntimeDeletionIntent>(),
+            };
+
     private static string DefaultStatePath(IHostEnvironment environment)
     {
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -195,3 +237,6 @@ public sealed class ControlPlaneStateStore
         return Path.Combine(environment.ContentRootPath, ".leserpent-state", "control-plane-state.json");
     }
 }
+
+public sealed class ControlPlaneStatePersistenceException(string message, Exception innerException)
+    : IOException(message, innerException);

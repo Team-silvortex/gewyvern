@@ -1,6 +1,17 @@
 namespace Leserpent.ControlPlane;
 
-public sealed class OrchestraPersistenceException(string message) : InvalidOperationException(message);
+public sealed class OrchestraPersistenceException : InvalidOperationException
+{
+    public OrchestraPersistenceException(string message)
+        : base(message)
+    {
+    }
+
+    public OrchestraPersistenceException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
 
 public sealed record OrchestraActiveRunConflict(string RuntimeId, string RunId, string Outcome);
 

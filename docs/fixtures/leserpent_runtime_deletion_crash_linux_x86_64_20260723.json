@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T07:13:05.2367019+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "checks": {
+    "real_leserpentd": true,
+    "daemon_unregistration_committed": true,
+    "host_process_force_killed": true,
+    "durable_intent_restored": true,
+    "protected_runtime_restored": true,
+    "background_recovery_converged": true,
+    "daemon_and_compatibility_state_absent": true
+  }
+}

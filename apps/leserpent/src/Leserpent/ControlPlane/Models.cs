@@ -584,10 +584,17 @@ public sealed record PersistedSessionState(
     IReadOnlyList<SessionCapabilityRequirement> Requirements
 );
 
+public sealed record PersistedRuntimeDeletionIntent(
+    string IntentId,
+    IReadOnlyList<string> RuntimeIds,
+    DateTimeOffset PreparedAt
+);
+
 public sealed record PersistedControlPlaneState(
     int SchemaVersion,
     DateTimeOffset SavedAt,
     IReadOnlyList<PersistedRuntimeState> Runtimes,
     IReadOnlyList<PersistedSessionState> Sessions,
-    IReadOnlyList<OrchestraRunSummary>? OrchestraRuns = null
+    IReadOnlyList<OrchestraRunSummary>? OrchestraRuns = null,
+    IReadOnlyList<PersistedRuntimeDeletionIntent>? PendingRuntimeDeletions = null
 );

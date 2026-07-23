@@ -657,9 +657,21 @@ target revisions, journals removal, deletes Orchestra history, and retains
 idempotent operation results. The Web bridge holds a deletion reservation while
 the daemon-first mutation and local compatibility cleanup run, so new sessions
 and Orchestra runs cannot cross the deletion boundary. Token-presence remains
-inside the local secret boundary. The remaining hardening gate is durable host
-recovery if the process stops after daemon commit but before local compatibility
-cleanup.
+inside the local secret boundary. Control-plane state schema v2 persists that
+deletion intent before daemon mutation. A restart restores the protected target
+set, rejects new sessions and Orchestra runs, and a bounded background worker
+replays daemon unregistration plus local cleanup until the intent converges.
+Schema v1 state upgrades in memory with an empty intent set. Imported snapshots
+cannot inject pending destructive work. A real Arm64 Unix run now starts the
+production Rust daemon and a separate C# harness, waits until daemon
+unregistration commits, force-kills the harness, and proves restart convergence.
+Its retained evidence is
+`docs/fixtures/leserpent_runtime_deletion_crash_20260723.json`; reproduce it with
+`scripts/validation/leserpent_runtime_deletion_crash.sh`. The same script has now
+passed on the physical Ubuntu x86_64 host, retained as
+`docs/fixtures/leserpent_runtime_deletion_crash_linux_x86_64_20260723.json`.
+The next evidence gate is a repeated Linux fault campaign across every durable
+deletion state transition.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Leserpent;
 using Leserpent.ControlPlane;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
@@ -248,6 +250,40 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void ControlPlaneStateStoreMigratesSchemaOneState()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var schemaOne = new PersistedControlPlaneState(
+                1,
+                DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                Array.Empty<OrchestraRunSummary>());
+            File.WriteAllText(
+                statePath,
+                JsonSerializer.Serialize(
+                    schemaOne,
+                    new LeserpentJsonContext(new JsonSerializerOptions())
+                        .PersistedControlPlaneState));
+
+            var store = CreateStateStore(statePath);
+            var loaded = store.Load();
+            Assert.True(loaded is not null, store.LastSaveError);
+            var restored = Assert.IsType<PersistedControlPlaneState>(loaded);
+
+            Assert.Equal(2, restored.SchemaVersion);
+            Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<PersistedRuntimeDeletionIntent>>(
+                restored.PendingRuntimeDeletions));
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
     public void ControlPlaneStateStorePreservesSnapshotAndCleansTempAfterBackupFailure()
     {
         var statePath = TemporaryPath("json");
@@ -263,10 +299,11 @@ public sealed class SqliteOrchestraRunStoreTests
                 new[] { original });
             Directory.CreateDirectory(backupPath);
 
-            store.Save(
-                Array.Empty<PersistedRuntimeState>(),
-                Array.Empty<PersistedSessionState>(),
-                new[] { CreateRun("replacement-run", "replacement-request", "succeeded") });
+            Assert.Throws<ControlPlaneStatePersistenceException>(() =>
+                store.SaveStrict(
+                    Array.Empty<PersistedRuntimeState>(),
+                    Array.Empty<PersistedSessionState>(),
+                    new[] { CreateRun("replacement-run", "replacement-request", "succeeded") }));
 
             Assert.True(store.IsDirty);
             Assert.NotNull(store.LastSaveError);

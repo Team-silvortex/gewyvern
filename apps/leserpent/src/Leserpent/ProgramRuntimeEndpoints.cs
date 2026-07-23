@@ -596,6 +596,16 @@ public partial class Program
                     "runtime_delete_in_progress",
                     RuntimeId: id));
             }
+            catch (OrchestraPersistenceException ex)
+            {
+                return Results.Json(
+                    new ApiErrorResponse(
+                        "runtime_delete_persistence_unavailable",
+                        ex.Message,
+                        RuntimeId: id),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
             using (reservation)
             {
                 if (reservation.RuntimeIds.Count == 0)
@@ -609,6 +619,7 @@ public partial class Program
                         reservation.RuntimeIds,
                         cancellationToken);
                     deleted = registry.DeleteRuntime(id);
+                    registry.CompleteRuntimeDeletion(reservation);
                 }
                 catch (DaemonRuntimeRegistrationException ex)
                 {
@@ -695,14 +706,12 @@ public partial class Program
         try
         {
             var targetIds = registry.GetPlannedRuntimeCleanupTargetIds(kind, filter, request);
-            using var reservation = registry.ReserveRuntimeDeletion(targetIds);
-            if (reservation.RuntimeIds.Count != targetIds.Count)
-            {
-                throw new RuntimeCleanupPlanMismatchException(
-                    "runtime cleanup targets changed before deletion reservation");
-            }
+            using var reservation = registry.ReserveRuntimeDeletion(
+                targetIds,
+                requireAllTargets: true);
             await registrationAuthority.UnregisterAsync(reservation.RuntimeIds, cancellationToken);
             var deleted = registry.DeleteRuntimesById(reservation.RuntimeIds);
+            registry.CompleteRuntimeDeletion(reservation);
             return Results.Ok(new RuntimeBulkDeleteResponse(
                 true,
                 filter,

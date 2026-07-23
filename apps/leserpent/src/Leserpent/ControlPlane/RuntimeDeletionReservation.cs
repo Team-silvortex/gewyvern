@@ -4,17 +4,25 @@ public sealed class RuntimeDeletionReservation : IDisposable
 {
     private RegistryService? owner;
 
-    internal RuntimeDeletionReservation(RegistryService owner, IReadOnlyList<string> runtimeIds)
+    internal RuntimeDeletionReservation(
+        RegistryService owner,
+        string intentId,
+        string claimId,
+        IReadOnlyList<string> runtimeIds)
     {
         this.owner = owner;
+        IntentId = intentId;
+        ClaimId = claimId;
         RuntimeIds = runtimeIds;
     }
 
+    public string IntentId { get; }
+    internal string ClaimId { get; }
     public IReadOnlyList<string> RuntimeIds { get; }
 
     public void Dispose()
     {
-        Interlocked.Exchange(ref owner, null)?.ReleaseRuntimeDeletion(RuntimeIds);
+        Interlocked.Exchange(ref owner, null)?.ReleaseRuntimeDeletionClaim(IntentId, ClaimId);
     }
 }
 
