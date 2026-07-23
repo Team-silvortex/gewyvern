@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T12:43:37.363541+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "iterations_per_phase": 3,
+  "phases": [
+    "retry_acknowledged",
+    "retry_daemon_committed"
+  ],
+  "total_forced_terminations": 6,
+  "daemon_committed_before_termination_count": 3,
+  "recovery_authority_call_count": 6,
+  "checks": {
+    "real_leserpentd": true,
+    "retry_acknowledgement_boundary_covered": true,
+    "retry_daemon_commit_boundary_covered": true,
+    "every_host_process_force_killed": true,
+    "every_revision_and_audit_restored": true,
+    "every_pending_runtime_remained_protected": true,
+    "committed_mutation_replayed_idempotently": true,
+    "exactly_one_recovery_authority_call_per_scenario": true,
+    "every_retry_request_replayed_after_convergence": true,
+    "every_daemon_and_compatibility_state_converged": true,
+    "every_audit_survived_convergence_and_reload": true
+  }
+}

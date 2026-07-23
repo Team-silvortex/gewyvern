@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -1016,6 +1017,245 @@ public sealed class OrchestraExecutionCoordinatorTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionRetryAuditRetentionRollsOverWithoutStarvation()
+    {
+        const int auditEntryCount = 272;
+        const int auditRetentionLimit = 256;
+        const int waveSize = 128;
+        var (registry, statePath) = CreateRegistry();
+        var authority = new RuntimeDeletionRetryRetentionAuthority();
+        var signal = new RuntimeDeletionRecoverySignal();
+        RuntimeDeletionRecoveryService? recovery = null;
+        var acceptedAudits =
+            new List<PersistedRuntimeDeletionRetryAudit>(auditEntryCount);
+        var timer = Stopwatch.StartNew();
+        try
+        {
+            recovery = new RuntimeDeletionRecoveryService(
+                registry,
+                authority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance,
+                signal);
+            await recovery.StartAsync(CancellationToken.None);
+
+            for (var waveStart = 0;
+                 waveStart < auditEntryCount;
+                 waveStart += waveSize)
+            {
+                var waveCount = Math.Min(
+                    waveSize,
+                    auditEntryCount - waveStart);
+                var commands =
+                    new List<RuntimeDeletionRetryRolloverCommand>(
+                        waveCount);
+                for (var offset = 0; offset < waveCount; offset += 1)
+                {
+                    var index = waveStart + offset;
+                    var runtimeId =
+                        $"runtime-retry-rollover-{index:D3}";
+                    registry.RegisterRuntime(
+                        new RuntimeRegistrationRequest(
+                            $"Runtime retry rollover {index:D3}",
+                            $"https://retry-rollover-{index:D3}.example",
+                            "pairing-token"),
+                        runtimeId);
+                    using (var reservation =
+                        registry.ReserveRuntimeDeletion(
+                            new[] { runtimeId }))
+                    {
+                        registry.RecordRuntimeDeletionFailures(
+                            new[]
+                            {
+                                new RuntimeDeletionFailure(
+                                    reservation,
+                                    RuntimeDeletionFailureCodes
+                                        .AuthorityUnavailable,
+                                    DateTimeOffset.UtcNow.AddMinutes(4)),
+                            });
+                    }
+                    var intent = registry.ListPendingRuntimeDeletions()
+                        .Single(candidate =>
+                            candidate.RuntimeIds.Contains(
+                                runtimeId,
+                                StringComparer.Ordinal));
+                    commands.Add(
+                        new RuntimeDeletionRetryRolloverCommand(
+                            intent,
+                            $"retry-rollover-{index:D3}"));
+                }
+
+                var responses = await Task.WhenAll(
+                    commands.Select(command => Task.Run(() =>
+                    {
+                        var response =
+                            registry.RetryRuntimeDeletionNow(
+                                command.Intent.IntentId,
+                                new RuntimeDeletionRetryNowRequest(
+                                    command.Intent.Revision,
+                                    command.RequestId,
+                                    "rollover-operator"));
+                        signal.Pulse();
+                        return response;
+                    })));
+                Assert.All(responses, response =>
+                {
+                    Assert.True(response.Accepted);
+                    Assert.False(response.Replayed);
+                });
+                acceptedAudits.AddRange(
+                    responses.Select(static response => response.Audit));
+                await WaitForPendingDeletionCountAsync(registry, 0);
+            }
+
+            await recovery.StopAsync(CancellationToken.None);
+            recovery.Dispose();
+            recovery = null;
+            timer.Stop();
+
+            Assert.Equal(auditEntryCount, authority.CallCount);
+            Assert.InRange(authority.MaxConcurrentCalls, 2, 8);
+            Assert.All(
+                Enumerable.Range(0, auditEntryCount),
+                index => Assert.Equal(
+                    1,
+                    authority.AttemptCountFor(
+                        $"runtime-retry-rollover-{index:D3}")));
+            var chronologicalAudits = acceptedAudits
+                .OrderBy(static audit => audit.RequestedAt)
+                .ToArray();
+            Assert.True(
+                chronologicalAudits
+                    .Select(static audit => audit.RequestedAt)
+                    .Zip(
+                        chronologicalAudits
+                            .Skip(1)
+                            .Select(static audit => audit.RequestedAt))
+                    .All(static pair => pair.First < pair.Second));
+            var expectedRetained = chronologicalAudits
+                .TakeLast(auditRetentionLimit)
+                .ToArray();
+            var retained = registry.ListRuntimeDeletionRetryAudit();
+            Assert.Equal(auditRetentionLimit, retained.Count);
+            Assert.Equal(
+                expectedRetained
+                    .Reverse()
+                    .Select(static audit => audit.RequestId),
+                retained.Select(static audit => audit.RequestId));
+
+            var diskReloaded = CreateRegistry(statePath);
+            Assert.Equal(
+                retained.Select(static audit => audit.RequestId),
+                diskReloaded
+                    .ListRuntimeDeletionRetryAudit()
+                    .Select(static audit => audit.RequestId));
+            var retainedReplayAudit = expectedRetained[0];
+            var retainedReplay =
+                diskReloaded.RetryRuntimeDeletionNow(
+                    retainedReplayAudit.IntentId,
+                    new RuntimeDeletionRetryNowRequest(
+                        retainedReplayAudit.ExpectedRevision,
+                        retainedReplayAudit.RequestId,
+                        retainedReplayAudit.RequestedBy));
+            Assert.True(retainedReplay.Replayed);
+            Assert.Null(retainedReplay.PendingIntent);
+
+            var evictedAudit = chronologicalAudits[0];
+            var outsideHorizon = Assert.Throws<
+                RuntimeDeletionRetryException>(() =>
+                diskReloaded.RetryRuntimeDeletionNow(
+                    evictedAudit.IntentId,
+                    new RuntimeDeletionRetryNowRequest(
+                        evictedAudit.ExpectedRevision,
+                        evictedAudit.RequestId,
+                        evictedAudit.RequestedBy)));
+            Assert.Equal(
+                "runtime_deletion_intent_not_found",
+                outsideHorizon.Code);
+
+            const string reuseRuntimeId =
+                "runtime-retry-rollover-reuse";
+            diskReloaded.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Runtime retry rollover reuse",
+                    "https://retry-rollover-reuse.example",
+                    "pairing-token"),
+                reuseRuntimeId);
+            using (var reservation =
+                diskReloaded.ReserveRuntimeDeletion(
+                    new[] { reuseRuntimeId }))
+            {
+                diskReloaded.RecordRuntimeDeletionFailures(
+                    new[]
+                    {
+                        new RuntimeDeletionFailure(
+                            reservation,
+                            RuntimeDeletionFailureCodes
+                                .AuthorityUnavailable,
+                            DateTimeOffset.UtcNow.AddMinutes(4)),
+                    });
+            }
+            var reuseIntent = Assert.Single(
+                diskReloaded.ListPendingRuntimeDeletions());
+            var reusedRequest =
+                diskReloaded.RetryRuntimeDeletionNow(
+                    reuseIntent.IntentId,
+                    new RuntimeDeletionRetryNowRequest(
+                        reuseIntent.Revision,
+                        evictedAudit.RequestId,
+                        evictedAudit.RequestedBy));
+            Assert.False(reusedRequest.Replayed);
+
+            var reuseSignal = new RuntimeDeletionRecoverySignal();
+            recovery = new RuntimeDeletionRecoveryService(
+                diskReloaded,
+                authority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance,
+                reuseSignal);
+            await recovery.StartAsync(CancellationToken.None);
+            reuseSignal.Pulse();
+            await WaitForPendingDeletionCountAsync(diskReloaded, 0);
+            await recovery.StopAsync(CancellationToken.None);
+            recovery.Dispose();
+            recovery = null;
+
+            Assert.Equal(auditEntryCount + 1, authority.CallCount);
+            Assert.Equal(1, authority.AttemptCountFor(reuseRuntimeId));
+            var finalAudit =
+                diskReloaded.ListRuntimeDeletionRetryAudit();
+            Assert.Equal(auditRetentionLimit, finalAudit.Count);
+            Assert.Equal(evictedAudit.RequestId, finalAudit[0].RequestId);
+            Assert.DoesNotContain(
+                finalAudit,
+                audit =>
+                    audit.RequestId ==
+                    retainedReplayAudit.RequestId);
+
+            var convergedReload = CreateRegistry(statePath);
+            Assert.Empty(
+                convergedReload.ListPendingRuntimeDeletions());
+            Assert.Equal(
+                finalAudit.Select(static audit => audit.RequestId),
+                convergedReload
+                    .ListRuntimeDeletionRetryAudit()
+                    .Select(static audit => audit.RequestId));
+            WriteRuntimeDeletionRetryRolloverEvidenceIfRequested(
+                auditEntryCount,
+                auditRetentionLimit,
+                authority,
+                timer.ElapsedMilliseconds);
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public void RuntimeDeletionRetryMetadataRejectsUntrustedFailureCode()
     {
         var statePath = Path.Combine(
@@ -1580,6 +1820,64 @@ public sealed class OrchestraExecutionCoordinatorTests
         }
     }
 
+    private static void WriteRuntimeDeletionRetryRolloverEvidenceIfRequested(
+        int auditEntryCount,
+        int auditRetentionLimit,
+        RuntimeDeletionRetryRetentionAuthority authority,
+        long elapsedMilliseconds)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_RETRY_ROLLOVER_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            audit_entry_count = auditEntryCount,
+            audit_retention_limit = auditRetentionLimit,
+            initial_evicted_entry_count =
+                auditEntryCount - auditRetentionLimit,
+            wave_sizes = new[] { 128, 128, 16 },
+            recovery_batch_size = 32,
+            max_concurrent_authority_mutations = 8,
+            observed_max_concurrency = authority.MaxConcurrentCalls,
+            authority_call_count = authority.CallCount,
+            elapsed_ms = elapsedMilliseconds,
+            checks = new
+            {
+                concurrent_operator_worker_campaign = true,
+                full_pending_waves_converged = true,
+                audit_timestamps_followed_linearization_order = true,
+                retention_bound_was_exact = true,
+                oldest_entries_were_evicted_first = true,
+                retained_request_replayed_after_convergence = true,
+                evicted_request_was_outside_replay_horizon = true,
+                evicted_request_id_was_reusable = true,
+                reuse_evicted_the_next_oldest_record = true,
+                every_runtime_received_one_authority_mutation = true,
+                no_pending_intent_starved_or_was_lost = true,
+                rollover_state_survived_disk_reload = true,
+                bounded_authority_concurrency =
+                    authority.MaxConcurrentCalls is >= 2 and <= 8,
+                campaign_completed_under_30000_ms =
+                    elapsedMilliseconds < 30_000,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
     private static void WriteRuntimeDeletionRetryClaimRaceEvidenceIfRequested(
         IReadOnlyList<RuntimeDeletionRetryClaimRaceResult> results)
     {
@@ -1935,6 +2233,82 @@ public sealed class OrchestraExecutionCoordinatorTests
         public void Release() => release.TrySetResult();
     }
 
+    private sealed class RuntimeDeletionRetryRetentionAuthority :
+        IRuntimeRegistrationAuthority
+    {
+        private readonly ConcurrentDictionary<string, int> attemptCounts =
+            new(StringComparer.Ordinal);
+        private int activeCalls;
+        private int callCount;
+        private int maxConcurrentCalls;
+
+        public bool Enabled => true;
+        public int CallCount => Volatile.Read(ref callCount);
+        public int MaxConcurrentCalls =>
+            Volatile.Read(ref maxConcurrentCalls);
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.FromResult(runtimeId);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.CompletedTask;
+
+        public async Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            var runtimeId = Assert.Single(runtimeIds);
+            attemptCounts.AddOrUpdate(
+                runtimeId,
+                1,
+                static (_, count) => count + 1);
+            Interlocked.Increment(ref callCount);
+            var active = Interlocked.Increment(ref activeCalls);
+            UpdateMaxConcurrency(active);
+            try
+            {
+                await Task.Delay(4, cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref activeCalls);
+            }
+        }
+
+        public int AttemptCountFor(string runtimeId) =>
+            attemptCounts.TryGetValue(runtimeId, out var count)
+                ? count
+                : 0;
+
+        private void UpdateMaxConcurrency(int observed)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref maxConcurrentCalls);
+                if (observed <= current ||
+                    Interlocked.CompareExchange(
+                        ref maxConcurrentCalls,
+                        observed,
+                        current) == current)
+                {
+                    return;
+                }
+            }
+        }
+    }
+
     private enum RuntimeDeletionRetryClaimRaceMode
     {
         WorkerFirst,
@@ -1951,6 +2325,10 @@ public sealed class OrchestraExecutionCoordinatorTests
         int AuthorityCallCount,
         int RetainedAuditCount,
         int ConvergedRuntimeCount);
+
+    private sealed record RuntimeDeletionRetryRolloverCommand(
+        PersistedRuntimeDeletionIntent Intent,
+        string RequestId);
 
     private sealed class CancellationBlockingAuthority : IRuntimeRegistrationAuthority
     {

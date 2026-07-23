@@ -87,6 +87,64 @@ else if (string.Equals(phase, "high_cardinality", StringComparison.Ordinal))
         string.Join(',', reservations.Select(static reservation => reservation.IntentId)),
         phase);
 }
+else if (
+    string.Equals(phase, "retry_acknowledged", StringComparison.Ordinal) ||
+    string.Equals(phase, "retry_daemon_committed", StringComparison.Ordinal))
+{
+    var request = CrashBoundaryRequest(runtimeId);
+    registry.RegisterRuntime(request, runtimeId);
+    await authority.RegisterAsync(
+        request,
+        runtimeId,
+        CancellationToken.None);
+    using (registry.ReserveRuntimeDeletion(new[] { runtimeId }))
+    {
+    }
+
+    var failingAuthority = new FailingUnregisterAuthority(authority);
+    var failureRecovery = new RuntimeDeletionRecoveryService(
+        registry,
+        failingAuthority,
+        NullLogger<RuntimeDeletionRecoveryService>.Instance);
+    await failureRecovery.StartAsync(CancellationToken.None);
+    var deferredIntent = await WaitForDeferredIntentAsync(registry);
+    await failureRecovery.StopAsync(CancellationToken.None);
+    failureRecovery.Dispose();
+
+    var retryResponse = registry.RetryRuntimeDeletionNow(
+        deferredIntent.IntentId,
+        new RuntimeDeletionRetryNowRequest(
+            deferredIntent.Revision,
+            $"retry-crash-{runtimeId}",
+            "crash-harness"));
+    if (retryResponse.Replayed ||
+        retryResponse.PendingIntent?.Revision != deferredIntent.Revision + 1)
+    {
+        throw new InvalidOperationException(
+            "retry-now acknowledgement did not advance the durable intent");
+    }
+
+    if (string.Equals(phase, "retry_acknowledged", StringComparison.Ordinal))
+    {
+        await PauseAtBoundaryAsync(
+            markerPath,
+            deferredIntent.IntentId,
+            phase);
+    }
+    else
+    {
+        using var recoveryReservation = registry
+            .ClaimPendingRuntimeDeletions(1)
+            .Single();
+        await authority.UnregisterAsync(
+            recoveryReservation.RuntimeIds,
+            CancellationToken.None);
+        await PauseAtBoundaryAsync(
+            markerPath,
+            deferredIntent.IntentId,
+            phase);
+    }
+}
 else
 {
     var request = CrashBoundaryRequest(runtimeId);
@@ -145,10 +203,71 @@ static async Task PauseAtBoundaryAsync(
     await Task.Delay(Timeout.InfiniteTimeSpan);
 }
 
+static async Task<PersistedRuntimeDeletionIntent> WaitForDeferredIntentAsync(
+    RegistryService registry)
+{
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        var intent = registry.ListPendingRuntimeDeletions().Single();
+        if (intent.AttemptCount == 1 &&
+            intent.NextAttemptAt is not null &&
+            intent.LastFailureCode == "authority_unavailable")
+        {
+            return intent;
+        }
+        await Task.Delay(10);
+    }
+    throw new TimeoutException(
+        "runtime deletion failure metadata did not become durable");
+}
+
 internal sealed class HarnessEnvironment : IHostEnvironment
 {
     public string EnvironmentName { get; set; } = Environments.Development;
     public string ApplicationName { get; set; } = "Leserpent.RuntimeDeletionCrashHarness";
     public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
     public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+}
+
+internal sealed class FailingUnregisterAuthority(
+    IRuntimeRegistrationAuthority inner) : IRuntimeRegistrationAuthority
+{
+    public bool Enabled => inner.Enabled;
+
+    public Task<string> RegisterAsync(
+        RuntimeRegistrationRequest request,
+        string runtimeId,
+        CancellationToken cancellationToken,
+        bool update = false,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+        inner.RegisterAsync(
+            request,
+            runtimeId,
+            cancellationToken,
+            update,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+
+    public Task SubmitDiscoveryAsync(
+        string runtimeId,
+        CancellationToken cancellationToken,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+        inner.SubmitDiscoveryAsync(
+            runtimeId,
+            cancellationToken,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+
+    public Task UnregisterAsync(
+        IReadOnlyCollection<string> runtimeIds,
+        CancellationToken cancellationToken) =>
+        throw new IOException(
+            "test authority is unavailable before retry acknowledgement");
 }

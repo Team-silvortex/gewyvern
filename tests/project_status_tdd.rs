@@ -188,6 +188,30 @@ fn retained_runtime_deletion_retry_claim_races_are_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_retry_crashes_are_non_vacuous() {
+    assert_runtime_deletion_retry_crash(
+        "docs/fixtures/leserpent_runtime_deletion_retry_crash_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_retry_crash(
+        "docs/fixtures/leserpent_runtime_deletion_retry_crash_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_retry_rollovers_are_non_vacuous() {
+    assert_runtime_deletion_retry_rollover(
+        "docs/fixtures/leserpent_runtime_deletion_retry_rollover_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_retry_rollover(
+        "docs/fixtures/leserpent_runtime_deletion_retry_rollover_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -871,6 +895,88 @@ fn assert_runtime_deletion_retry_claim_race(path: &str, expected_architecture: &
     }
 }
 
+fn assert_runtime_deletion_retry_crash(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion retry crash evidence must exist"),
+    )
+    .expect("runtime deletion retry crash evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["iterations_per_phase"], 3);
+    assert_eq!(
+        evidence["phases"],
+        serde_json::json!(["retry_acknowledged", "retry_daemon_committed"])
+    );
+    assert_eq!(evidence["total_forced_terminations"], 6);
+    assert_eq!(evidence["daemon_committed_before_termination_count"], 3);
+    assert_eq!(evidence["recovery_authority_call_count"], 6);
+    for check in [
+        "real_leserpentd",
+        "retry_acknowledgement_boundary_covered",
+        "retry_daemon_commit_boundary_covered",
+        "every_host_process_force_killed",
+        "every_revision_and_audit_restored",
+        "every_pending_runtime_remained_protected",
+        "committed_mutation_replayed_idempotently",
+        "exactly_one_recovery_authority_call_per_scenario",
+        "every_retry_request_replayed_after_convergence",
+        "every_daemon_and_compatibility_state_converged",
+        "every_audit_survived_convergence_and_reload",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained retry crash proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_retry_rollover(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion retry rollover evidence must exist"),
+    )
+    .expect("runtime deletion retry rollover evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["audit_entry_count"], 272);
+    assert_eq!(evidence["audit_retention_limit"], 256);
+    assert_eq!(evidence["initial_evicted_entry_count"], 16);
+    assert_eq!(evidence["wave_sizes"], serde_json::json!([128, 128, 16]));
+    assert_eq!(evidence["recovery_batch_size"], 32);
+    assert_eq!(evidence["max_concurrent_authority_mutations"], 8);
+    assert_eq!(evidence["observed_max_concurrency"], 8);
+    assert_eq!(evidence["authority_call_count"], 273);
+    assert!(
+        evidence["elapsed_ms"]
+            .as_u64()
+            .is_some_and(|elapsed| elapsed < 30_000)
+    );
+    for check in [
+        "concurrent_operator_worker_campaign",
+        "full_pending_waves_converged",
+        "audit_timestamps_followed_linearization_order",
+        "retention_bound_was_exact",
+        "oldest_entries_were_evicted_first",
+        "retained_request_replayed_after_convergence",
+        "evicted_request_was_outside_replay_horizon",
+        "evicted_request_id_was_reusable",
+        "reuse_evicted_the_next_oldest_record",
+        "every_runtime_received_one_authority_mutation",
+        "no_pending_intent_starved_or_was_lost",
+        "rollover_state_survived_disk_reload",
+        "bounded_authority_concurrency",
+        "campaign_completed_under_30000_ms",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained retry rollover proof {check}"
+        );
+    }
+}
+
 #[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
@@ -1145,6 +1251,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "deterministic-retry-claim-conflicts",
         "single-authority-mutation-under-retry-race",
         "cross-platform-retry-claim-race-proof",
+        "retry-acknowledgement-crash-recovery",
+        "post-daemon-commit-retry-replay",
+        "cross-platform-retry-crash-proof",
+        "monotonic-retry-audit-linearization",
+        "deterministic-oldest-first-audit-eviction",
+        "explicit-retry-replay-horizon",
+        "cross-platform-retry-rollover-proof",
     ] {
         assert!(
             compatibility_control
@@ -1155,7 +1268,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(compatibility_control.next_gate.contains("acknowledgement"));
+    assert!(
+        compatibility_control
+            .next_gate
+            .contains("atomic rollover persistence")
+    );
 
     let bootstrap = catalog
         .cells

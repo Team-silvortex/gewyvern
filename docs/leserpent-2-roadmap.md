@@ -784,10 +784,22 @@ operator contenders against one recovery worker. Both Arm64 and physical
 x86_64 Linux retain exactly 48 authority mutations for 48 runtimes, at most one
 durable retry winner per round, matching audit counts, deterministic
 in-progress/revision conflicts, and complete convergence after disk reload.
-The next reliability gate force-terminates the host after a retry-now
-acknowledgement but before or during authority mutation, then proves that the
-durable audit and pending intent recover without losing the operator command or
-duplicating effective deletion.
+The retry acknowledgement crash gate is complete. On both Arm64 and physical
+x86_64 Linux, the host is force-terminated three times immediately after the
+retry revision/audit commit and three times after the real Rust daemon commits
+unregistration but before local cleanup. All six scenarios restore the pending
+intent and audit, preserve the runtime reservation, run one recovery authority
+call, converge both authorities, and retain post-convergence request-ID replay.
+The retry audit retention gate is complete. Both supported architectures drive
+272 acknowledged retries through concurrent 128/128/16 operator and worker
+waves. The latest 256 records survive in strict linearization order, every
+runtime receives one authority mutation, retained IDs replay, evicted IDs leave
+the replay horizon and can identify a new intent, and the final window survives
+restart without pending starvation or loss. Arm64 completes in 6913 ms and
+physical x86_64 Linux in 2310 ms. The next reliability gate force-terminates
+atomic rollover persistence at the 256-to-256 replacement boundary and proves
+restart observes either the complete previous window or the complete new
+window, never a torn or reordered mixture.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

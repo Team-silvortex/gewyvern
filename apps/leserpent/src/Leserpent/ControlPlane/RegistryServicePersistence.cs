@@ -202,12 +202,9 @@ public sealed partial class RegistryService
                 persisted.RequestedAt));
         }
 
-        return normalized
-            .OrderBy(static audit => audit.RequestedAt)
-            .ThenBy(static audit => audit.RequestId, StringComparer.Ordinal)
-            .Aggregate(
-                ImmutableQueue<PersistedRuntimeDeletionRetryAudit>.Empty,
-                static (queue, audit) => queue.Enqueue(audit));
+        return normalized.Aggregate(
+            ImmutableQueue<PersistedRuntimeDeletionRetryAudit>.Empty,
+            static (queue, audit) => queue.Enqueue(audit));
     }
 
     private static bool IsValidRuntimeDeletionRetryActor(string value) =>

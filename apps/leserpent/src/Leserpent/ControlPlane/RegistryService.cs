@@ -567,7 +567,6 @@ public sealed partial class RegistryService
                 "runtime deletion retry request is invalid");
         }
 
-        var effectiveRequestedAt = requestedAt ?? DateTimeOffset.UtcNow;
         lock (orchestraRunSync)
         {
             var replayedAudit = runtimeDeletionRetryAudit.FirstOrDefault(audit =>
@@ -627,6 +626,18 @@ public sealed partial class RegistryService
                 throw new RuntimeDeletionRetryException(
                     "runtime_deletion_retry_revision_exhausted",
                     "runtime deletion intent revision is exhausted");
+            }
+            var effectiveRequestedAt = requestedAt ?? DateTimeOffset.UtcNow;
+            if (requestedAt is null)
+            {
+                var lastRequestedAt = runtimeDeletionRetryAudit
+                    .LastOrDefault()
+                    ?.RequestedAt;
+                if (lastRequestedAt >= effectiveRequestedAt)
+                {
+                    effectiveRequestedAt =
+                        lastRequestedAt.Value.AddTicks(1);
+                }
             }
             if (intent.AttemptCount == 0 ||
                 intent.NextAttemptAt is null ||

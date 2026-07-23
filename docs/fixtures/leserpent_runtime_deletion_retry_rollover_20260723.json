@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T12:56:34.58759+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "audit_entry_count": 272,
+  "audit_retention_limit": 256,
+  "initial_evicted_entry_count": 16,
+  "wave_sizes": [
+    128,
+    128,
+    16
+  ],
+  "recovery_batch_size": 32,
+  "max_concurrent_authority_mutations": 8,
+  "observed_max_concurrency": 8,
+  "authority_call_count": 273,
+  "elapsed_ms": 6913,
+  "checks": {
+    "concurrent_operator_worker_campaign": true,
+    "full_pending_waves_converged": true,
+    "audit_timestamps_followed_linearization_order": true,
+    "retention_bound_was_exact": true,
+    "oldest_entries_were_evicted_first": true,
+    "retained_request_replayed_after_convergence": true,
+    "evicted_request_was_outside_replay_horizon": true,
+    "evicted_request_id_was_reusable": true,
+    "reuse_evicted_the_next_oldest_record": true,
+    "every_runtime_received_one_authority_mutation": true,
+    "no_pending_intent_starved_or_was_lost": true,
+    "rollover_state_survived_disk_reload": true,
+    "bounded_authority_concurrency": true,
+    "campaign_completed_under_30000_ms": true
+  }
+}

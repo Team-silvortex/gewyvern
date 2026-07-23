@@ -305,7 +305,7 @@ JSON state 默认路径：
 - 删除意图必须在 daemon mutation 前严格落盘，daemon 和本地 registry 都完成后才会清除；失败使用 1/2/4/8/16/30 秒封顶退避，且只持久化固定安全失败码
 - `GET /v1/persistence/runtime-deletions` 提供只读运维视图；尚未到期的 poison 不占用已到期健康意图的领取名额
 - `POST /v1/persistence/runtime-deletions/{intentId}/retry-now` 要求当前 revision、唯一 requestId 和操作者；成功后立即唤醒恢复 worker，陈旧 revision 或复用冲突返回 `409`
-- retry-now 审计最多保留 256 条，严格落盘且在删除收敛后继续存在；`GET /v1/persistence/runtime-deletion-retry-audit` 提供只读查询
+- retry-now 审计最多按线性化顺序保留最新 256 条，严格落盘且在删除收敛后继续存在；窗口内 request ID 可幂等 replay，oldest-first 淘汰后旧操作不再可 replay 且该 ID 可用于新的 intent；`GET /v1/persistence/runtime-deletion-retry-audit` 提供只读查询
 - 服务重启后，待删 runtime 继续拒绝新 session 和 Orchestra run，直到幂等 daemon 注销及本地清理收敛；state import 不接受待执行删除意图
 - `scripts/validation/leserpent_runtime_deletion_crash.sh` 使用真实 Rust daemon 和独立 C# 子进程，在 daemon 提交后强杀宿主并验证重启收敛
 - `scripts/validation/leserpent_runtime_deletion_fault_campaign.sh` 重复覆盖意图落盘、daemon 提交和本地清理三个持久化边界，并为当前平台保留聚合证据
@@ -319,6 +319,8 @@ JSON state 默认路径：
 - `scripts/validation/leserpent_runtime_deletion_batch_persistence.sh` 在真实 daemon 注销成功后破坏本地严格批保存，验证全部内存投影回滚、预约继续受保护，并由下一轮幂等重放自动收敛
 - `scripts/validation/leserpent_runtime_deletion_saturated_queue.sh` 填满 128-intent 队列，在 8 个阻塞槽下验证可取消停机，再以慢目标和 8 个 poison 验证四批健康收敛、逐意图持久退避、revision-fenced retry-now、跨收敛审计及修复收敛
 - `scripts/validation/leserpent_runtime_deletion_retry_claim_race.sh` 以 worker-first、operator-first 和 32 轮同时起跑竞态验证 retry-now/claim 线性化、确定性冲突、持久审计及每个 runtime 仅一次权威删除
+- `scripts/validation/leserpent_runtime_deletion_retry_crash.sh` 在 retry-now 严格落盘后以及真实 daemon 注销已提交后分别强杀宿主，验证 revision、审计和 pending intent 重启恢复、幂等 authority replay 及收敛后 request-ID replay
+- `scripts/validation/leserpent_runtime_deletion_retry_rollover.sh` 以 `128/128/16` 三波并发 operator/worker 流量生成 272 条 retry 审计，验证 256 条 oldest-first 保留、单调线性化时间、明确 replay horizon、淘汰 ID 复用和无 pending 饥饿
 - guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
 - runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
 - control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件

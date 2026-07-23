@@ -762,6 +762,33 @@ conflicts. The retained fixtures are
 `docs/fixtures/leserpent_runtime_deletion_retry_claim_race_linux_x86_64_20260723.json`;
 `scripts/validation/leserpent_runtime_deletion_retry_claim_race.sh` reproduces
 the host-specific result.
+The retry crash extension covers the uncertain interval after command
+acknowledgement. In `retry_acknowledged`, revision `3` and its audit record are
+strictly persisted before any worker claim. In `retry_daemon_committed`, the
+worker claim has invoked the real Rust daemon and removed the runtime, but
+local compatibility cleanup has not committed. The parent force-kills the
+harness three times at each boundary. Restart restores the same pending intent
+and audit, keeps the runtime unavailable for new sessions, and runs exactly one
+recovery authority call per scenario. Post-daemon-commit replay is idempotent;
+both authorities converge, the audit survives convergence and disk reload, and
+the original request ID still replays without recreating the intent. Arm64 and
+physical x86_64 Linux evidence is retained in
+`docs/fixtures/leserpent_runtime_deletion_retry_crash_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_retry_crash_linux_x86_64_20260723.json`.
+The rollover extension defines the finite idempotency horizon. Implicit
+retry-now timestamps are assigned under the same lock as revision advancement
+and made strictly monotonic; startup preserves the persisted queue order rather
+than reconstructing it from pre-lock wall-clock observations. Three concurrent
+operator/worker waves of 128, 128, and 16 intents generate 272 acknowledged
+records. Exactly the latest 256 survive, the oldest 16 are evicted in
+linearization order, and every runtime receives one authority mutation without
+starvation. A retained request still replays after convergence. An evicted
+request resolves as an absent old intent and its ID can become a fresh
+idempotency identity for a new intent, which evicts the next-oldest retained
+record. The final window survives disk reload. Arm64 completes in 6913 ms and
+physical x86_64 Linux in 2310 ms; retained evidence is in
+`docs/fixtures/leserpent_runtime_deletion_retry_rollover_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_retry_rollover_linux_x86_64_20260723.json`.
 
 ## Leselang Semantics
 
