@@ -711,6 +711,15 @@ convergence with one strict state save. A target-scoped failure remains isolated
 from the other reservations. The same evidence now measures 158 ms on Arm64 and
 248 ms on physical x86_64 Linux while retaining poison isolation, retry pacing,
 disk reconstruction, and unrelated concurrent traffic.
+The strict-batch failure extension commits both daemon unregistrations before
+making the local state backup path unwritable. The failed save restores runtime,
+session, Orchestra, recovery-activity, deletion-intent, and reservation
+projections in memory; the previous durable state independently reconstructs
+the protected pending work. Recovery does not attempt to roll back daemon
+authority. Instead, its next paced pass repeats daemon unregistration and
+Orchestra cleanup idempotently before committing local convergence. Retained
+Arm64 and physical x86_64 Linux evidence converges in 1271 ms and 1289 ms,
+respectively, with exactly two authority attempts per intent.
 
 ## Leselang Semantics
 

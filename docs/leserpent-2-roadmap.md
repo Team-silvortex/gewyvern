@@ -749,9 +749,17 @@ now bounded to 32 claimed intents, eight concurrent authority mutations, and 64
 daemon IPC connections per worker tick; successful local convergence is
 committed with one strict batch save. The optimized first-pass measurements are
 158 ms and 248 ms, with every isolation and durability check retained. The next
-gate injects failure into that strict local batch save after daemon mutations
-succeed, then proves complete in-memory rollback and idempotent convergence on
-the next recovery pass.
+gate is also complete: `scripts/validation/leserpent_runtime_deletion_batch_persistence.sh`
+commits two real daemon mutations, forces the strict local batch save to fail,
+and proves complete in-memory rollback, durable reservation protection, paced
+idempotent daemon and Orchestra cleanup replay, and next-pass convergence.
+Retained Arm64 Unix and physical Ubuntu x86_64 evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_batch_persistence_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_batch_persistence_linux_x86_64_20260723.json`.
+Both platforms replay each intent exactly once and converge in 1271 ms and
+1289 ms. The next reliability gate saturates the 128-intent durable queue and
+proves fair multi-batch progress plus bounded cancellation and shutdown latency
+under mixed slow and failing authority operations.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

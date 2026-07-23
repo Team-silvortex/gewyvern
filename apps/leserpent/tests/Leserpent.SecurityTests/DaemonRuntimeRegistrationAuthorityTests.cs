@@ -1389,6 +1389,225 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionBatchPersistenceFailureRollsBackAndReplaysAgainstRealDaemon()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var statePath = socketPath + ".batch-persistence.state.json";
+        var backupPath = statePath + ".bak";
+        var runtimeIds = new[]
+        {
+            "runtime-batch-persistence-a",
+            "runtime-batch-persistence-b",
+        };
+        var sessionIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        var runIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        RuntimeDeletionRecoveryService? recovery = null;
+        DaemonRuntimeRegistrationAuthority? authority = null;
+        using var daemon = new RestartableTestDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await daemon.StartAsync();
+            authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+                .Build();
+            var stateStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            var runStore = new ReplayCountingRunStore();
+            var registry = new RegistryService(stateStore, runStore);
+            foreach (var runtimeId in runtimeIds)
+            {
+                var request = InterferenceRequest(runtimeId);
+                await authority.RegisterAsync(
+                    request,
+                    runtimeId,
+                    CancellationToken.None);
+                registry.RegisterRuntime(request, runtimeId);
+                sessionIds[runtimeId] = registry.CreateSession(new SessionCreateRequest(
+                    runtimeId,
+                    "diagnostic",
+                    "batch-persistence-test",
+                    Array.Empty<SessionCapabilityRequirement>())).Session!.SessionId;
+                runIds[runtimeId] = registry.RecordOrchestraRun(
+                    runtimeId,
+                    "session_preparation",
+                    "ok",
+                    Array.Empty<OrchestraExecutionStepResult>()).RunId;
+                registry.RecordRecoveryActivity(
+                    runtimeId,
+                    "refresh_status",
+                    "network_failed",
+                    "retained real-daemon rollback marker");
+                registry.ReserveRuntimeDeletion(new[] { runtimeId }).Dispose();
+            }
+
+            File.Delete(backupPath);
+            Directory.CreateDirectory(backupPath);
+            var replayAuthority = new ReplayGatedRuntimeDeletionAuthority(
+                authority,
+                runtimeIds);
+            recovery = new RuntimeDeletionRecoveryService(
+                registry,
+                replayAuthority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            var timer = Stopwatch.StartNew();
+            await recovery.StartAsync(CancellationToken.None);
+            await replayAuthority.FirstPassCompleted.WaitAsync(
+                TimeSpan.FromSeconds(5));
+            await WaitForStatePersistenceRollbackAsync(
+                stateStore,
+                registry,
+                runtimeIds);
+            var firstFailureLatencyMs = timer.ElapsedMilliseconds;
+
+            Assert.True(stateStore.IsDirty);
+            Assert.NotNull(stateStore.LastSaveError);
+            Assert.Equal(1, runStore.DeleteCount);
+            Assert.Empty(runStore.LoadAll());
+            foreach (var runtimeId in runtimeIds)
+            {
+                Assert.Null(await authority.InspectAsync(
+                    runtimeId,
+                    CancellationToken.None));
+                Assert.NotNull(registry.GetRuntime(runtimeId));
+                Assert.NotNull(registry.GetSession(sessionIds[runtimeId]));
+                Assert.NotNull(registry.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+                Assert.Contains(
+                    registry.GetRuntimeAttention(runtimeId)!.RecentRecoveryActivities,
+                    activity =>
+                        activity.Summary == "retained real-daemon rollback marker");
+                Assert.Equal(
+                    runtimeId,
+                    registry.CreateSession(new SessionCreateRequest(
+                        runtimeId,
+                        "diagnostic",
+                        "batch-persistence-test",
+                        Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+            }
+
+            var failedPassReload = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            Assert.Equal(runtimeIds.Length, failedPassReload.ListPendingRuntimeDeletions().Count);
+            foreach (var runtimeId in runtimeIds)
+            {
+                Assert.NotNull(failedPassReload.GetRuntime(runtimeId));
+                Assert.NotNull(failedPassReload.GetSession(sessionIds[runtimeId]));
+                Assert.NotNull(failedPassReload.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+            }
+
+            await replayAuthority.ReplayStarted.WaitAsync(TimeSpan.FromSeconds(3));
+            var replayStartLatencyMs = timer.ElapsedMilliseconds;
+            Assert.True(replayStartLatencyMs >= firstFailureLatencyMs + 750);
+            Directory.Delete(backupPath);
+            replayAuthority.AllowReplay();
+            await replayAuthority.EveryRuntimeReplayed.WaitAsync(
+                TimeSpan.FromSeconds(5));
+            await WaitForDeletionRecoveryAsync(registry, runtimeIds);
+            var convergenceLatencyMs = timer.ElapsedMilliseconds;
+            await recovery.StopAsync(CancellationToken.None);
+            recovery.Dispose();
+            recovery = null;
+
+            Assert.False(stateStore.IsDirty);
+            Assert.Null(stateStore.LastSaveError);
+            Assert.Equal(2, runStore.DeleteCount);
+            Assert.Equal(
+                Enumerable.Repeat(2, runtimeIds.Length),
+                replayAuthority.AttemptCounts);
+            foreach (var runtimeId in runtimeIds)
+            {
+                Assert.Null(registry.GetRuntime(runtimeId));
+                Assert.Null(registry.GetSession(sessionIds[runtimeId]));
+                Assert.Null(registry.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+                Assert.Null(await authority.InspectAsync(
+                    runtimeId,
+                    CancellationToken.None));
+            }
+
+            var convergedReload = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            Assert.Empty(convergedReload.ListPendingRuntimeDeletions());
+            foreach (var runtimeId in runtimeIds)
+            {
+                Assert.Null(convergedReload.GetRuntime(runtimeId));
+                Assert.Null(convergedReload.GetSession(sessionIds[runtimeId]));
+                Assert.Null(convergedReload.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+            }
+            WriteBatchPersistenceFailureEvidenceIfRequested(
+                runtimeIds.Length,
+                replayAuthority.AttemptCounts,
+                firstFailureLatencyMs,
+                replayStartLatencyMs,
+                convergenceLatencyMs);
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            if (Directory.Exists(backupPath))
+            {
+                Directory.Delete(backupPath);
+            }
+            if (authority is not null)
+            {
+                try
+                {
+                    await authority.UnregisterAsync(
+                        runtimeIds,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // The isolated daemon database is removed below.
+                }
+            }
+            daemon.Stop();
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                statePath,
+                backupPath,
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ConfiguredAuthorityReadsStrictTypedRuntimeProjections()
     {
         if (OperatingSystem.IsWindows())
@@ -2129,6 +2348,27 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             $"runtime deletion intent count did not converge to {expectedCount}");
     }
 
+    private static async Task WaitForStatePersistenceRollbackAsync(
+        ControlPlaneStateStore stateStore,
+        RegistryService registry,
+        IReadOnlyCollection<string> runtimeIds)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (stateStore.IsDirty &&
+                stateStore.LastSaveError is not null &&
+                registry.ListPendingRuntimeDeletions().Count == runtimeIds.Count &&
+                runtimeIds.All(runtimeId => registry.GetRuntime(runtimeId) is not null))
+            {
+                return;
+            }
+            await Task.Delay(10);
+        }
+        throw new TimeoutException(
+            "runtime deletion batch did not restore local state after strict persistence failure");
+    }
+
     private static void WriteCrashEvidenceIfRequested()
     {
         var evidencePath = Environment.GetEnvironmentVariable(
@@ -2577,6 +2817,63 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 new JsonSerializerOptions { WriteIndented = true }) + "\n");
     }
 
+    private static void WriteBatchPersistenceFailureEvidenceIfRequested(
+        int runtimeIntentCount,
+        IReadOnlyList<int> attemptCounts,
+        long firstFailureLatencyMs,
+        long replayStartLatencyMs,
+        long convergenceLatencyMs)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_BATCH_PERSISTENCE_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        Assert.Equal(runtimeIntentCount, attemptCounts.Count);
+        Assert.All(attemptCounts, attemptCount => Assert.Equal(2, attemptCount));
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var retryDelayMs = replayStartLatencyMs - firstFailureLatencyMs;
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            runtime_intent_count = runtimeIntentCount,
+            authority_attempt_counts = attemptCounts,
+            orchestra_delete_batch_count = 2,
+            first_failure_latency_ms = firstFailureLatencyMs,
+            retry_delay_ms = retryDelayMs,
+            convergence_latency_ms = convergenceLatencyMs,
+            checks = new
+            {
+                real_leserpentd = true,
+                daemon_mutations_committed_before_local_failure = true,
+                strict_local_batch_save_failed = true,
+                runtime_projection_rolled_back = true,
+                session_projection_rolled_back = true,
+                orchestra_projection_rolled_back = true,
+                recovery_activity_projection_rolled_back = true,
+                deletion_intents_rolled_back = true,
+                deleting_reservations_remained_protected = true,
+                failed_pass_state_survived_disk_reload = true,
+                retries_were_paced = retryDelayMs >= 750,
+                daemon_unregistration_replayed_idempotently = true,
+                orchestra_cleanup_replayed_idempotently = true,
+                next_pass_converged = true,
+                converged_state_survived_disk_reload = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
     private static async Task WaitForSocketAsync(Process daemon, string socketPath)
     {
         for (var attempt = 0; attempt < 1000; attempt++)
@@ -2795,6 +3092,142 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     private sealed record UncleanDaemonTakeoverResult(
         IReadOnlyList<string> RuntimeIds,
         long TakeoverLatencyMs);
+
+    private sealed class ReplayCountingRunStore : IOrchestraRunStore
+    {
+        private readonly InMemoryOrchestraRunStore inner = new();
+
+        public int DeleteCount { get; private set; }
+        public string Provider => "replay-counting-test";
+        public string Location => "test";
+        public int SchemaVersion => 0;
+        public string? LastError => null;
+        public IReadOnlyList<OrchestraRunSummary> LoadAll() => inner.LoadAll();
+        public IReadOnlyList<OrchestraRunEvent> LoadEvents(
+            string runtimeId,
+            string runId) =>
+            inner.LoadEvents(runtimeId, runId);
+        public bool Upsert(
+            OrchestraRunSummary run,
+            OrchestraRunEvent? eventRecord = null) =>
+            inner.Upsert(run, eventRecord);
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) =>
+            inner.ReplaceAll(runs);
+
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds)
+        {
+            DeleteCount += 1;
+            return inner.DeleteRuntimes(runtimeIds);
+        }
+    }
+
+    private sealed class ReplayGatedRuntimeDeletionAuthority(
+        IRuntimeRegistrationAuthority inner,
+        IReadOnlyCollection<string> expectedRuntimeIds) : IRuntimeRegistrationAuthority
+    {
+        private readonly object sync = new();
+        private readonly string[] expectedRuntimeIds =
+            expectedRuntimeIds.OrderBy(static runtimeId => runtimeId, StringComparer.Ordinal).ToArray();
+        private readonly Dictionary<string, int> attemptCounts =
+            expectedRuntimeIds.ToDictionary(
+                static runtimeId => runtimeId,
+                static _ => 0,
+                StringComparer.Ordinal);
+        private readonly TaskCompletionSource firstPassCompleted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource replayStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource everyRuntimeReplayed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allowReplay =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool Enabled => inner.Enabled;
+        public Task FirstPassCompleted => firstPassCompleted.Task;
+        public Task ReplayStarted => replayStarted.Task;
+        public Task EveryRuntimeReplayed => everyRuntimeReplayed.Task;
+        public IReadOnlyList<int> AttemptCounts
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return expectedRuntimeIds
+                        .Select(runtimeId => attemptCounts[runtimeId])
+                        .ToArray();
+                }
+            }
+        }
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.RegisterAsync(
+                request,
+                runtimeId,
+                cancellationToken,
+                update,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.SubmitDiscoveryAsync(
+                runtimeId,
+                cancellationToken,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public async Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            var runtimeId = Assert.Single(runtimeIds);
+            Assert.Contains(runtimeId, expectedRuntimeIds);
+            int attempt;
+            lock (sync)
+            {
+                attemptCounts[runtimeId] += 1;
+                attempt = attemptCounts[runtimeId];
+                if (attempt == 2)
+                {
+                    replayStarted.TrySetResult();
+                }
+            }
+            if (attempt > 1)
+            {
+                await allowReplay.Task.WaitAsync(cancellationToken);
+            }
+
+            await inner.UnregisterAsync(runtimeIds, cancellationToken);
+            lock (sync)
+            {
+                if (attempt == 1 &&
+                    attemptCounts.Values.All(static count => count >= 1))
+                {
+                    firstPassCompleted.TrySetResult();
+                }
+                if (attempt == 2 &&
+                    attemptCounts.Values.All(static count => count >= 2))
+                {
+                    everyRuntimeReplayed.TrySetResult();
+                }
+            }
+        }
+
+        public void AllowReplay() => allowReplay.TrySetResult();
+    }
 
     private sealed class CoordinatedRuntimeDeletionAuthority(
         IRuntimeRegistrationAuthority inner) : IRuntimeRegistrationAuthority

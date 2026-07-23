@@ -152,6 +152,18 @@ fn retained_runtime_deletion_high_cardinality_evidence_is_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_batch_persistence_evidence_is_non_vacuous() {
+    assert_runtime_deletion_batch_persistence(
+        "docs/fixtures/leserpent_runtime_deletion_batch_persistence_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_batch_persistence(
+        "docs/fixtures/leserpent_runtime_deletion_batch_persistence_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -625,6 +637,58 @@ fn assert_runtime_deletion_high_cardinality(path: &str, expected_architecture: &
     }
 }
 
+fn assert_runtime_deletion_batch_persistence(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion batch-persistence evidence must exist"),
+    )
+    .expect("runtime deletion batch-persistence evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["runtime_intent_count"], 2);
+    assert_eq!(
+        evidence["authority_attempt_counts"],
+        serde_json::json!([2, 2])
+    );
+    assert_eq!(evidence["orchestra_delete_batch_count"], 2);
+    let first_failure_latency = evidence["first_failure_latency_ms"]
+        .as_u64()
+        .expect("first failure latency must be numeric");
+    let retry_delay = evidence["retry_delay_ms"]
+        .as_u64()
+        .expect("retry delay must be numeric");
+    let convergence_latency = evidence["convergence_latency_ms"]
+        .as_u64()
+        .expect("convergence latency must be numeric");
+    assert!(first_failure_latency < 1_000);
+    assert!((750..=2_000).contains(&retry_delay));
+    assert!(convergence_latency >= first_failure_latency + retry_delay);
+    assert!(convergence_latency < 5_000);
+    for check in [
+        "real_leserpentd",
+        "daemon_mutations_committed_before_local_failure",
+        "strict_local_batch_save_failed",
+        "runtime_projection_rolled_back",
+        "session_projection_rolled_back",
+        "orchestra_projection_rolled_back",
+        "recovery_activity_projection_rolled_back",
+        "deletion_intents_rolled_back",
+        "deleting_reservations_remained_protected",
+        "failed_pass_state_survived_disk_reload",
+        "retries_were_paced",
+        "daemon_unregistration_replayed_idempotently",
+        "orchestra_cleanup_replayed_idempotently",
+        "next_pass_converged",
+        "converged_state_survived_disk_reload",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained batch-persistence proof {check}"
+        );
+    }
+}
+
 #[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
@@ -872,6 +936,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "bounded-daemon-ipc-drain",
         "atomic-successful-deletion-batch",
         "cross-platform-sub-3000ms-recovery-proof",
+        "strict-batch-persistence-rollback",
+        "idempotent-daemon-unregistration-replay",
+        "idempotent-orchestra-cleanup-replay",
+        "cross-platform-batch-persistence-fault-proof",
     ] {
         assert!(
             compatibility_control
@@ -882,11 +950,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(
-        compatibility_control
-            .next_gate
-            .contains("strict local batch persistence failure")
-    );
+    assert!(compatibility_control.next_gate.contains("128-intent"));
 
     let bootstrap = catalog
         .cells

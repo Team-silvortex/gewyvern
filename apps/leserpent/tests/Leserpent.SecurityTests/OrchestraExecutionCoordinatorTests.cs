@@ -428,6 +428,119 @@ public sealed class OrchestraExecutionCoordinatorTests
     }
 
     [Fact]
+    public void RecoveredRuntimeDeletionBatchRollsBackEveryProjectionAndReplays()
+    {
+        var runStore = new CountingDeleteRunStore();
+        var (registry, statePath) = CreateRegistry(runStore);
+        var backupPath = $"{statePath}.bak";
+        var runtimeIds = new[] { "runtime-batch-rollback-a", "runtime-batch-rollback-b" };
+        var sessionIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        var runIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var runtimeId in runtimeIds)
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    $"Runtime {runtimeId}",
+                    $"https://{runtimeId}.example",
+                    "pairing-token"),
+                runtimeId);
+            sessionIds[runtimeId] = registry.CreateSession(new SessionCreateRequest(
+                runtimeId,
+                "diagnostic",
+                "rollback-test",
+                Array.Empty<SessionCapabilityRequirement>())).Session!.SessionId;
+            runIds[runtimeId] = registry.RecordOrchestraRun(
+                runtimeId,
+                "session_preparation",
+                "ok",
+                Array.Empty<OrchestraExecutionStepResult>()).RunId;
+            registry.RecordRecoveryActivity(
+                runtimeId,
+                "refresh_status",
+                "network_failed",
+                "retained rollback marker");
+            registry.ReserveRuntimeDeletion(new[] { runtimeId }).Dispose();
+        }
+
+        var reservations = registry.ClaimPendingRuntimeDeletions();
+        File.Delete(backupPath);
+        Directory.CreateDirectory(backupPath);
+        try
+        {
+            Assert.Throws<OrchestraPersistenceException>(() =>
+                registry.CompleteRecoveredRuntimeDeletions(reservations));
+
+            Assert.Equal(1, runStore.DeleteCount);
+            Assert.Empty(runStore.LoadAll());
+            Assert.Equal(2, registry.ListPendingRuntimeDeletions().Count);
+            foreach (var runtimeId in runtimeIds)
+            {
+                Assert.NotNull(registry.GetRuntime(runtimeId));
+                Assert.NotNull(registry.GetSession(sessionIds[runtimeId]));
+                Assert.NotNull(registry.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+                Assert.Contains(
+                    registry.GetRuntimeAttention(runtimeId)!.RecentRecoveryActivities,
+                    activity => activity.Summary == "retained rollback marker");
+                Assert.Equal(
+                    runtimeId,
+                    registry.CreateSession(new SessionCreateRequest(
+                        runtimeId,
+                        "diagnostic",
+                        "rollback-test",
+                        Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+            }
+
+            var diskReloaded = CreateRegistry(statePath);
+            Assert.Equal(2, diskReloaded.ListPendingRuntimeDeletions().Count);
+            foreach (var runtimeId in runtimeIds)
+            {
+                Assert.NotNull(diskReloaded.GetRuntime(runtimeId));
+                Assert.NotNull(diskReloaded.GetSession(sessionIds[runtimeId]));
+                Assert.NotNull(diskReloaded.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+            }
+        }
+        finally
+        {
+            foreach (var reservation in reservations)
+            {
+                reservation.Dispose();
+            }
+            Directory.Delete(backupPath);
+        }
+
+        var replayReservations = registry.ClaimPendingRuntimeDeletions();
+        try
+        {
+            registry.CompleteRecoveredRuntimeDeletions(replayReservations);
+        }
+        finally
+        {
+            foreach (var reservation in replayReservations)
+            {
+                reservation.Dispose();
+            }
+        }
+
+        Assert.Equal(2, runStore.DeleteCount);
+        Assert.Empty(registry.ListPendingRuntimeDeletions());
+        foreach (var runtimeId in runtimeIds)
+        {
+            Assert.Null(registry.GetRuntime(runtimeId));
+            Assert.Null(registry.GetSession(sessionIds[runtimeId]));
+            Assert.Null(registry.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+        }
+        var convergedReload = CreateRegistry(statePath);
+        Assert.Empty(convergedReload.ListPendingRuntimeDeletions());
+        foreach (var runtimeId in runtimeIds)
+        {
+            Assert.Null(convergedReload.GetRuntime(runtimeId));
+            Assert.Null(convergedReload.GetSession(sessionIds[runtimeId]));
+            Assert.Null(convergedReload.GetOrchestraRun(runtimeId, runIds[runtimeId]));
+        }
+        DeleteStateFiles(statePath);
+    }
+
+    [Fact]
     public void RuntimeDeletionReservationRollsBackWhenIntentCannotBePersisted()
     {
         var (registry, statePath) = CreateRegistry();

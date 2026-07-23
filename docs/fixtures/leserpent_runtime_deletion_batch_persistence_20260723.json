@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T11:11:30.273273+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "runtime_intent_count": 2,
+  "authority_attempt_counts": [
+    2,
+    2
+  ],
+  "orchestra_delete_batch_count": 2,
+  "first_failure_latency_ms": 208,
+  "retry_delay_ms": 999,
+  "convergence_latency_ms": 1271,
+  "checks": {
+    "real_leserpentd": true,
+    "daemon_mutations_committed_before_local_failure": true,
+    "strict_local_batch_save_failed": true,
+    "runtime_projection_rolled_back": true,
+    "session_projection_rolled_back": true,
+    "orchestra_projection_rolled_back": true,
+    "recovery_activity_projection_rolled_back": true,
+    "deletion_intents_rolled_back": true,
+    "deleting_reservations_remained_protected": true,
+    "failed_pass_state_survived_disk_reload": true,
+    "retries_were_paced": true,
+    "daemon_unregistration_replayed_idempotently": true,
+    "orchestra_cleanup_replayed_idempotently": true,
+    "next_pass_converged": true,
+    "converged_state_survived_disk_reload": true
+  }
+}
