@@ -584,7 +584,12 @@ exit codes, and a negative proof that adapter failure preserves registration.
 The Avalonia Hub now provides the matching confirmed control with strict
 provisioning/runtime/target identity fencing, locked fields, bounded replay,
 credential-free status, and explicit failure-preserves-registration guidance.
-The remaining work is a physical Linux stop/remove proof.
+The physical Linux stop/remove gate is complete. The retained native SSH test
+provisions and health-checks an isolated systemd-user runtime, rejects a forged
+provisioning identity, completes the corrected retirement, replays it
+idempotently, and proves zero service, process, port, runtime-root, descriptor,
+or staging residue. Its redacted evidence is
+`docs/fixtures/leserpent_real_ssh_retirement_20260723.json`.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path
@@ -621,22 +626,31 @@ The configured 1.x Web route now preserves the original Gewyvern capability
 document as a typed, bounded authority snapshot while continuing to derive its
 legacy presentation list. It queries the daemon revision before update, creates
 missing legacy runtimes as an explicit reconcile step, submits registration and
-successful discovery observations through private authenticated IPC, and only
-then commits the managed compatibility projection. Pairing/admin tokens and raw
-error payloads never enter the Rust command. An unconfigured development host
-retains the managed fallback.
+typed discovery observations through private authenticated IPC, and only then
+commits the managed compatibility projection. Sidecar discovery failures are
+reduced to `sidecar_fetch_failed`; pairing/admin tokens and raw error payloads
+never enter the Rust command. An unconfigured development host retains the
+managed fallback.
 
 The first Web read cutover now routes runtime list, runtime detail, and runtime
 status through strict typed daemon `runtime_list` / `runtime_inspect` queries
 when IPC is configured. Daemon name, endpoint, tags, status, and observed
-capabilities override managed copies; legacy timestamps, sidecar metadata, and
-token-presence flags remain a compatibility overlay. Managed-only runtimes stay
+capabilities and the secret-free sidecar endpoint override managed copies.
+Journal-derived registration/update timestamps now override managed copies when
+present, survive restart, and do not advance on idempotent replay. Sidecar
+status and its bounded memory summary now share the revision-fenced durable
+projection; registration, individual refresh, recovery, and fleet refresh write
+daemon authority before the compatibility copy. Legacy snapshots without
+authority timestamps or sidecar status retain per-field managed fallbacks,
+while token-presence flags intentionally stay local to the secret boundary.
+Managed-only runtimes stay
 visible until their next registration reconcile, while a daemon-only runtime
 fails closed because the adapter cannot safely invent the missing 1.x metadata.
 Unknown projection fields, including secret-shaped fields, are rejected. The
-current slice now moves attention, protocol-reading, and recovery reads onto this
-shared projection. The next slice will give durable timestamps and sidecar metadata
-an authority home before the overlay can be removed.
+current slice now moves attention, protocol-reading, recovery, and sidecar reads
+onto this shared projection. The next slice will remove remaining managed-only
+refresh and cleanup mutations without moving token-presence out of the local
+secret boundary.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

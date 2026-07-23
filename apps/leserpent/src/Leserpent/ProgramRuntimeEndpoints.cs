@@ -220,7 +220,8 @@ public partial class Program
                             cancellationToken,
                             update: plan.Action == RuntimeRegistrationPolicy.UpdateAction,
                             capabilityDiscovery: capabilityDiscovery,
-                            statusDiscovery: statusDiscovery);
+                            statusDiscovery: statusDiscovery,
+                            sidecarDiscovery: sidecarDiscovery);
                     }
                     var registered = registry.RegisterRuntimeFromDiscovery(request, capabilityDiscovery, statusDiscovery, sidecarDiscovery, runtimeId);
                     registry.RecordRecoveryActivity(
@@ -414,8 +415,17 @@ public partial class Program
             CapabilityDiscoveryService discovery,
             RuntimeReadProjectionService runtimeReads,
             ICompatibilityBridge compatibilityBridge,
+            IRuntimeRegistrationAuthority registrationAuthority,
             CancellationToken cancellationToken) =>
-            ExecuteRuntimeRecoveryAsync(id, request, runtimeReads, registry, discovery, compatibilityBridge, cancellationToken));
+            ExecuteRuntimeRecoveryAsync(
+                id,
+                request,
+                runtimeReads,
+                registry,
+                discovery,
+                compatibilityBridge,
+                registrationAuthority,
+                cancellationToken));
 
         app.MapPost("/v1/runtimes/{id}/refresh-status", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
         {
@@ -466,7 +476,12 @@ public partial class Program
                 : Results.Ok(refreshed);
         });
 
-        app.MapPost("/v1/runtimes/{id}/refresh-sidecar", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/{id}/refresh-sidecar", async (
+            string id,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
@@ -480,13 +495,26 @@ public partial class Program
                 return Results.BadRequest(new ApiErrorResponse("runtime_has_no_sidecar_endpoint", RuntimeId: id));
             }
 
-            var refreshed = registry.RefreshRuntimeSidecar(
-                id,
-                await discovery.DiscoverSidecarStatusAsync(
-                    sidecarAccess.SidecarEndpoint,
-                    null,
-                    sidecarAccess.SidecarAdminToken,
-                    cancellationToken));
+            var sidecarDiscovery = await discovery.DiscoverSidecarStatusAsync(
+                sidecarAccess.SidecarEndpoint,
+                null,
+                sidecarAccess.SidecarAdminToken,
+                cancellationToken);
+            try
+            {
+                if (sidecarDiscovery.SidecarStatus is not null)
+                {
+                    await registrationAuthority.SubmitSidecarStatusAsync(
+                        id,
+                        sidecarDiscovery.SidecarStatus,
+                        cancellationToken);
+                }
+            }
+            catch (DaemonRuntimeRegistrationException ex)
+            {
+                return RuntimeRegistrationAuthorityFailure(ex, id);
+            }
+            var refreshed = registry.RefreshRuntimeSidecar(id, sidecarDiscovery);
             if (refreshed is not null)
             {
                 registry.RecordRecoveryActivity(
@@ -640,6 +668,7 @@ public partial class Program
         RegistryService registry,
         CapabilityDiscoveryService discovery,
         ICompatibilityBridge compatibilityBridge,
+        IRuntimeRegistrationAuthority registrationAuthority,
         CancellationToken cancellationToken)
     {
         var kind = request.Kind?.Trim().ToLowerInvariant();
@@ -744,6 +773,20 @@ public partial class Program
         }
         if (sidecarDiscovery is not null)
         {
+            try
+            {
+                if (sidecarDiscovery.SidecarStatus is not null)
+                {
+                    await registrationAuthority.SubmitSidecarStatusAsync(
+                        runtimeId,
+                        sidecarDiscovery.SidecarStatus,
+                        cancellationToken);
+                }
+            }
+            catch (DaemonRuntimeRegistrationException ex)
+            {
+                return RuntimeRegistrationAuthorityFailure(ex, runtimeId);
+            }
             var refreshed = registry.RefreshRuntimeSidecar(runtimeId, sidecarDiscovery);
             if (refreshed is null)
             {

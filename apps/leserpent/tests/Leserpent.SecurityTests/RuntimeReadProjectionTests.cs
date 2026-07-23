@@ -37,8 +37,16 @@ public sealed class RuntimeReadProjectionTests
             Assert.Equal("daemon", inspected.Tags.Environment);
             Assert.Equal("gewyvern-api", inspected.Status.StatusSource);
             Assert.Equal("gewyvern-api", inspected.CapabilitySource);
+            Assert.Equal("etragon-api", inspected.SidecarStatus?.StatusSource);
+            Assert.Equal("ready", inspected.SidecarStatus?.DaemonStatus);
             Assert.Contains(inspected.Capabilities, item => item.Key == "api.latest_snapshot" && item.Support == "fully_supported");
-            Assert.Equal("https://sidecar.invalid", inspected.SidecarEndpoint);
+            Assert.Equal("https://daemon-sidecar.invalid", inspected.SidecarEndpoint);
+            Assert.Equal(
+                DateTimeOffset.Parse("2026-07-21T08:00:00Z"),
+                inspected.RegisteredAt);
+            Assert.Equal(
+                DateTimeOffset.Parse("2026-07-21T09:30:00Z"),
+                inspected.UpdatedAt);
             Assert.True(inspected.HasSidecarAdminToken);
             Assert.True(inspected.HasRuntimeAdminToken);
 
@@ -138,6 +146,42 @@ public sealed class RuntimeReadProjectionTests
     }
 
     [Fact]
+    public async Task LegacyDaemonProjectionRetainsManagedAuthorityTimestamps()
+    {
+        var (registry, statePath) = CreateRegistry();
+        try
+        {
+            var registered = registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Managed",
+                    "https://managed.invalid",
+                    "secret"),
+                "runtime-legacy-time");
+            var reads = new RuntimeReadProjectionService(
+                registry,
+                new FakeDaemonReader(true, new[]
+                {
+                    Projection("runtime-legacy-time") with
+                    {
+                        RegisteredAt = null,
+                        UpdatedAt = null
+                    }
+                }));
+
+            var projected = Assert.IsType<RuntimeSummary>(
+                await reads.InspectAsync("runtime-legacy-time", CancellationToken.None));
+            Assert.Equal(registered.RegisteredAt, projected.RegisteredAt);
+            Assert.Equal(
+                registry.GetRuntime("runtime-legacy-time")?.UpdatedAt,
+                projected.UpdatedAt);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public async Task DaemonOnlyRuntimeFailsClosedWithoutCompatibilityMetadata()
     {
         var (registry, statePath) = CreateRegistry();
@@ -161,6 +205,9 @@ public sealed class RuntimeReadProjectionTests
             runtimeId,
             "Daemon Name",
             "https://daemon.invalid",
+            "https://daemon-sidecar.invalid",
+            DateTimeOffset.Parse("2026-07-21T08:00:00Z"),
+            DateTimeOffset.Parse("2026-07-21T09:30:00Z"),
             7,
             new RuntimeTags("daemon", "east", "edge"),
             new RuntimeStatusSnapshot(
@@ -191,7 +238,18 @@ public sealed class RuntimeReadProjectionTests
                 "percent-encoding",
                 "A-Z a-z 0-9 . _ ~ :",
                 new[] { "/v1/capabilities", "/v1/deployments" },
-                new Dictionary<string, bool>()));
+                new Dictionary<string, bool>()),
+            new RuntimeSidecarStatusSnapshot(
+                "etragon-api",
+                DateTimeOffset.Parse("2026-07-21T09:25:00Z"),
+                null,
+                true,
+                "ready",
+                2,
+                false,
+                4,
+                true,
+                false));
 
     private static (RegistryService Registry, string StatePath) CreateRegistry()
     {

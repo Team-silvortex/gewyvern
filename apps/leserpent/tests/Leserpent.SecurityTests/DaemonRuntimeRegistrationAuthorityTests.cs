@@ -38,7 +38,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         using var listener = BindPrivateSocket(socketPath);
         var requests = new List<JsonElement>();
         var runtimeId = "runtime-1a2b3c4d";
-        var commandId = BuildCommandId(runtimeId, "Runtime A", "https://runtime.example");
+        var commandId = BuildCommandId(
+            runtimeId,
+            "Runtime A",
+            "https://runtime.example",
+            "https://sidecar.example");
         var server = ServeAsync(
             listener,
             requests,
@@ -52,7 +56,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 "Runtime A",
                 "https://runtime.example",
                 "pairing-token",
-                Tags: new RuntimeTags("prod", "eu", "edge")),
+                Tags: new RuntimeTags("prod", "eu", "edge"),
+                SidecarEndpoint: "https://sidecar.example"),
             runtimeId,
             CancellationToken.None);
 
@@ -70,6 +75,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         Assert.Equal(commandId, payload.GetProperty("idempotency_key").GetString());
         Assert.Equal("confirmed", payload.GetProperty("confirmation").GetString());
         Assert.Equal(runtimeId, payload.GetProperty("command").GetProperty("runtime_id").GetString());
+        Assert.Equal(
+            "https://sidecar.example",
+            payload.GetProperty("command").GetProperty("sidecar_endpoint").GetString());
         Assert.Equal("prod", payload.GetProperty("command").GetProperty("tags").GetProperty("environment").GetString());
         Assert.Equal("eu", payload.GetProperty("command").GetProperty("tags").GetProperty("cluster").GetString());
         Assert.Equal("edge", payload.GetProperty("command").GetProperty("tags").GetProperty("role").GetString());
@@ -103,6 +111,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             ("LESERPENT_DAEMON_SOCKET", socketPath),
             ("LESERPENT_DAEMON_TOKEN", Token));
         var discovery = AuthorityDiscovery();
+        var sidecarDiscovery = RuntimeSidecarDiscoveryResult.Failed(
+            "https://sidecar.example/v1/status",
+            "raw upstream failure with secret-token");
         var registeredId = await authority.RegisterAsync(
             new RuntimeRegistrationRequest(
                 "Runtime A",
@@ -112,7 +123,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             runtimeId,
             CancellationToken.None,
             update: true,
-            capabilityDiscovery: discovery);
+            capabilityDiscovery: discovery,
+            sidecarDiscovery: sidecarDiscovery);
 
         await server;
         Assert.Equal(runtimeId, registeredId);
@@ -125,7 +137,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         Assert.Equal(5, intake.GetProperty("expected_revision").GetInt64());
         Assert.Equal("runtime_discovery_intake", intake.GetProperty("command").GetProperty("kind").GetString());
         Assert.Equal("1.2.0", intake.GetProperty("command").GetProperty("capabilities").GetProperty("version").GetString());
+        Assert.Equal(
+            "sidecar_fetch_failed",
+            intake.GetProperty("command").GetProperty("sidecar_status").GetProperty("status_fetch_error").GetString());
         Assert.DoesNotContain("pairing-token", requests.Select(request => request.GetRawText()));
+        Assert.DoesNotContain("secret-token", requests.Select(request => request.GetRawText()));
 
         TryDelete(socketPath);
     }
@@ -162,11 +178,13 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 new RuntimeRegistrationRequest(
                     "Runtime Updated",
                     "https://runtime.example/v2",
-                    "pairing-token"),
+                    "pairing-token",
+                    SidecarEndpoint: "https://sidecar.example/v2"),
                 runtimeId,
                 CancellationToken.None,
                 update: true,
-                capabilityDiscovery: discovery);
+                capabilityDiscovery: discovery,
+                sidecarDiscovery: AuthoritySidecarDiscovery());
 
             using var response = await InspectAsync(socketPath, runtimeId);
             var runtime = response.RootElement
@@ -175,9 +193,22 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 .GetProperty("runtime");
             Assert.Equal("Runtime Updated", runtime.GetProperty("name").GetString());
             Assert.Equal("https://runtime.example/v2", runtime.GetProperty("endpoint").GetString());
+            Assert.Equal(
+                "https://sidecar.example/v2",
+                runtime.GetProperty("sidecar_endpoint").GetString());
+            Assert.True(runtime.GetProperty("registered_at_unix_ms").GetInt64() > 0);
+            Assert.True(
+                runtime.GetProperty("updated_at_unix_ms").GetInt64()
+                    >= runtime.GetProperty("registered_at_unix_ms").GetInt64());
             Assert.Equal(4, runtime.GetProperty("revision").GetInt64());
             Assert.Equal("1.2.0", runtime.GetProperty("capabilities").GetProperty("version").GetString());
             Assert.Equal(3, runtime.GetProperty("capabilities_observed_for_revision").GetInt64());
+            Assert.Equal(
+                "etragon-api",
+                runtime.GetProperty("sidecar_status").GetProperty("status_source").GetString());
+            Assert.Equal(
+                "slot-a",
+                runtime.GetProperty("sidecar_status").GetProperty("memory").GetProperty("latest_slot").GetString());
 
             var typedList = await authority.ListAsync(
                 new RuntimeListFilter(null, null, null),
@@ -185,7 +216,12 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             var typedInspect = await authority.InspectAsync(runtimeId, CancellationToken.None);
             Assert.Equal("Runtime Updated", Assert.Single(typedList).Name);
             Assert.Equal((ulong)4, typedInspect?.Revision);
+            Assert.Equal("https://sidecar.example/v2", typedInspect?.SidecarEndpoint);
+            Assert.NotNull(typedInspect?.RegisteredAt);
+            Assert.NotNull(typedInspect?.UpdatedAt);
             Assert.Equal("1.2.0", typedInspect?.Capabilities?.Version);
+            Assert.Equal("ready", typedInspect?.SidecarStatus?.DaemonStatus);
+            Assert.Equal("slot-a", typedInspect?.SidecarStatus?.Memory?.LatestSlot);
         }
         finally
         {
@@ -230,8 +266,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var runtime = Assert.Single(listed);
         Assert.Equal("runtime-a", runtime.RuntimeId);
         Assert.Equal("Daemon Runtime", runtime.Name);
+        Assert.Equal("https://daemon-sidecar.invalid", runtime.SidecarEndpoint);
         Assert.Equal("1.2.0", runtime.Capabilities?.Version);
         Assert.Equal("gewyvern-api", runtime.Status.StatusSource);
+        Assert.Equal("etragon-api", runtime.SidecarStatus?.StatusSource);
+        Assert.Equal("slot-a", runtime.SidecarStatus?.Memory?.LatestSlot);
         Assert.Equal(runtime.RuntimeId, inspected?.RuntimeId);
         Assert.Equal(runtime.Revision, inspected?.Revision);
         Assert.Equal(runtime.Status, inspected?.Status);
@@ -275,6 +314,88 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             authority.InspectAsync("runtime-a", CancellationToken.None));
         await server;
         Assert.Equal("daemon_projection_invalid", error.Code);
+
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task ConfiguredAuthorityRejectsReversedAuthorityTimestamps()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        var response = RuntimeInspectResponse().Replace(
+            "\"updated_at_unix_ms\":1784626200000",
+            "\"updated_at_unix_ms\":1784620000000",
+            StringComparison.Ordinal);
+        var server = ServeSequenceAsync(listener, requests, (_, _) => response, 1);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var error = await Assert.ThrowsAsync<DaemonRuntimeProjectionException>(() =>
+            authority.InspectAsync("runtime-a", CancellationToken.None));
+        await server;
+        Assert.Equal("daemon_projection_invalid", error.Code);
+
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task ConfiguredAuthorityAcceptsLegacyProjectionWithoutAuthorityTimestamps()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        var response = RuntimeInspectResponse().Replace(
+            "\"registered_at_unix_ms\":1784620800000,\"updated_at_unix_ms\":1784626200000,",
+            string.Empty,
+            StringComparison.Ordinal);
+        var server = ServeSequenceAsync(listener, requests, (_, _) => response, 1);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var projection = await authority.InspectAsync("runtime-a", CancellationToken.None);
+        await server;
+        Assert.NotNull(projection);
+        Assert.Null(projection!.RegisteredAt);
+        Assert.Null(projection.UpdatedAt);
+
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task ConfiguredAuthorityAcceptsLegacyProjectionWithoutSidecarStatus()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        var server = ServeSequenceAsync(
+            listener,
+            requests,
+            (_, _) => RuntimeInspectResponse(includeSidecarStatus: false),
+            1);
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+
+        var projection = await authority.InspectAsync("runtime-a", CancellationToken.None);
+        await server;
+        Assert.NotNull(projection);
+        Assert.Null(projection!.SidecarStatus);
 
         TryDelete(socketPath);
     }
@@ -457,6 +578,40 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 new[] { "/v1/capabilities", "/v1/deployments" },
                 new Dictionary<string, bool> { ["protocol_catalog"] = true }));
 
+    private static RuntimeSidecarDiscoveryResult AuthoritySidecarDiscovery() =>
+        RuntimeSidecarDiscoveryResult.Succeeded(
+            "https://sidecar.example/v1/status",
+            new RuntimeSidecarStatusSnapshot(
+                "etragon-api",
+                DateTimeOffset.Parse("2026-07-20T12:01:00Z"),
+                null,
+                true,
+                "ready",
+                2,
+                false,
+                4,
+                true,
+                false,
+                null,
+                new RuntimeSidecarMemorySnapshot(
+                    true,
+                    1,
+                    2,
+                    "slot-a",
+                    "baseline",
+                    "manual",
+                    new[]
+                    {
+                        new RuntimeSidecarMemorySlotSummary(
+                            "slot-a",
+                            "baseline",
+                            null,
+                            "manual",
+                            DateTimeOffset.Parse("2026-07-20T11:00:00Z"),
+                            3,
+                            2),
+                    })));
+
     private static string CommandResponse(string runtimeId, string commandId, int revision = 1) =>
         "{" +
         "\"schema_version\":1," +
@@ -482,16 +637,18 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         "\"payload\":{\"kind\":\"runtime_list\",\"revision\":2,\"runtimes\":[" +
         RuntimeProjectionJson() + "]}}}";
 
-    private static string RuntimeInspectResponse() =>
+    private static string RuntimeInspectResponse(bool includeSidecarStatus = true) =>
         "{" +
         "\"schema_version\":1," +
         "\"response\":{\"kind\":\"query\"," +
         "\"payload\":{\"kind\":\"runtime_inspect\",\"revision\":2,\"runtime\":" +
-        RuntimeProjectionJson() + "}}}";
+        RuntimeProjectionJson(includeSidecarStatus) + "}}}";
 
-    private static string RuntimeProjectionJson() =>
+    private static string RuntimeProjectionJson(bool includeSidecarStatus = true) =>
         "{" +
         "\"id\":\"runtime-a\",\"name\":\"Daemon Runtime\",\"endpoint\":\"https://daemon.invalid\"," +
+        "\"sidecar_endpoint\":\"https://daemon-sidecar.invalid\"," +
+        "\"registered_at_unix_ms\":1784620800000,\"updated_at_unix_ms\":1784626200000," +
         "\"revision\":2,\"refresh_count\":0,\"refresh_status\":\"ready\"," +
         "\"tags\":{\"environment\":\"prod\",\"cluster\":null,\"role\":\"edge\"}," +
         "\"status\":{\"status_source\":\"gewyvern-api\",\"status_fetched_at\":\"2026-07-20T12:00:00Z\",\"status_fetch_error\":null," +
@@ -501,15 +658,29 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         "\"has_external_sidecar_context\":true,\"has_external_evidence_chain_enrichment\":false,\"has_external_diagnostic_opinion\":false," +
         "\"resilience_degraded\":false,\"resilience_status\":null,\"resilience_summary\":null,\"socket_service_status\":null," +
         "\"socket_consecutive_idle_timeouts\":null,\"socket_total_idle_timeouts\":null}," +
+        (includeSidecarStatus
+            ? "\"sidecar_status\":{\"status_source\":\"etragon-api\",\"status_fetched_at\":\"2026-07-20T12:01:00Z\",\"status_fetch_error\":null," +
+                "\"healthy\":true,\"daemon_status\":\"ready\",\"target_count\":2,\"learning_active\":false,\"learned_routes\":4," +
+                "\"has_evidence_chain_enrichment\":true,\"has_diagnostic_opinion\":false,\"last_error\":null," +
+                "\"memory\":{\"versions_supported\":true,\"slot_count\":1,\"history_count\":2,\"latest_slot\":\"slot-a\"," +
+                "\"latest_label\":\"baseline\",\"latest_source\":\"manual\",\"slots\":[{\"slot\":\"slot-a\",\"label\":\"baseline\"," +
+                "\"note\":null,\"source\":\"manual\",\"saved_at\":\"2026-07-20T11:00:00Z\",\"pattern_count\":3,\"label_count\":2}]," +
+                "\"fetch_error\":null}},"
+            : string.Empty) +
         "\"capabilities\":{\"source\":\"gewyvern-api\",\"service\":\"gewyvern-api\",\"version\":\"1.2.0\"," +
         "\"latest_snapshot\":true,\"authenticated_deployment\":true,\"serve_required\":true,\"external_sidecar_context\":true," +
         "\"target_path_segment_encoding\":\"percent-encoding\",\"target_direct_path_chars\":\"A-Z a-z 0-9 . _ ~ :\"," +
         "\"endpoints\":[\"/v1/capabilities\",\"/v1/deployments\"],\"extensions\":{}}," +
         "\"capabilities_observed_for_revision\":1}";
 
-    private static string BuildCommandId(string runtimeId, string name, string endpoint)
+    private static string BuildCommandId(
+        string runtimeId,
+        string name,
+        string endpoint,
+        string? sidecarEndpoint = null)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{runtimeId}|{name.Trim()}|{endpoint.Trim()}"));
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{runtimeId}|{name.Trim()}|{endpoint.Trim()}|{sidecarEndpoint?.Trim() ?? string.Empty}"));
         return Convert.ToHexString(bytes).ToLowerInvariant()[..32];
     }
 

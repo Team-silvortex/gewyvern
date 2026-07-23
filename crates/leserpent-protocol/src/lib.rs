@@ -101,6 +101,8 @@ pub struct RequestEnvelope {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
+// Preserve the v1 Rust and wire response shape until the v2 schema seal.
+#[allow(clippy::large_enum_variant)]
 pub enum ProtocolResponse {
     Command(Box<CommandResult>),
     Query(QueryResult),
@@ -377,7 +379,7 @@ mod tests {
         CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
         CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
         CommandOrigin, Confirmation, IdempotencyKey, Principal, Query, QueryEnvelope, RuntimeId,
-        RuntimeListFilter, RuntimeTags,
+        RuntimeListFilter, RuntimeSidecarStatusSnapshot, RuntimeTags,
     };
 
     use super::*;
@@ -421,12 +423,30 @@ mod tests {
                     runtime_id: RuntimeId::new("runtime-new").unwrap(),
                     name: "Runtime New".into(),
                     endpoint: "https://127.0.0.1:9443".into(),
+                    sidecar_endpoint: Some("https://127.0.0.1:9444".into()),
                     tags: RuntimeTags::default(),
                 },
             }),
         };
         let bytes = encode_request(&request).unwrap();
         assert_eq!(decode_request(&bytes).unwrap(), request);
+
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["request"]["payload"]["command"]
+            .as_object_mut()
+            .unwrap()
+            .remove("sidecar_endpoint");
+        let legacy = decode_request(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(matches!(
+            legacy.request,
+            ProtocolRequest::Command(CommandEnvelope {
+                command: Command::RuntimeRegister {
+                    sidecar_endpoint: None,
+                    ..
+                },
+                ..
+            })
+        ));
 
         let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         value["request"]["payload"]["command"]["pairing_token"] =
@@ -457,6 +477,7 @@ mod tests {
                     runtime_id: RuntimeId::new("runtime-existing").unwrap(),
                     name: "Runtime Updated".into(),
                     endpoint: "https://127.0.0.1:9553".into(),
+                    sidecar_endpoint: None,
                     tags: RuntimeTags::default(),
                 },
             }),
@@ -505,6 +526,20 @@ mod tests {
                         extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
                     })),
                     status: None,
+                    sidecar_status: Some(Box::new(RuntimeSidecarStatusSnapshot {
+                        status_source: "fetch_failed".into(),
+                        status_fetched_at: None,
+                        status_fetch_error: Some("sidecar_fetch_failed".into()),
+                        healthy: false,
+                        daemon_status: "fetch_failed".into(),
+                        target_count: None,
+                        learning_active: false,
+                        learned_routes: 0,
+                        has_evidence_chain_enrichment: false,
+                        has_diagnostic_opinion: false,
+                        last_error: Some("sidecar_fetch_failed".into()),
+                        memory: None,
+                    })),
                 },
             }),
         };

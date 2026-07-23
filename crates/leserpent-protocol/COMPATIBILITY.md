@@ -180,6 +180,10 @@ terminal retirement failure, and wait exhaustion remain distinguishable.
 The Avalonia client consumes the same envelope over HTTPS with strict identity
 validation, explicit confirmation, bounded exact-request replay, and
 credential-free status projection; no desktop-only wire variant exists.
+The first physical Linux proof retains the same wire-v1 identities across real
+host-key-pinned SSH provisioning, forged-authority rejection, retirement, and
+idempotent replay. Its redacted fixture is
+`docs/fixtures/leserpent_real_ssh_retirement_20260723.json`.
 
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure
@@ -293,9 +297,10 @@ results, schedules no external effect, and restores the updated projection
 after restart. Canonical endpoint identity normalizes scheme/host case and
 default HTTP(S) ports while retaining path/query identity. A conflict returns
 `runtime_endpoint_conflict` with only the owning runtime ID. Discovery intake is
-a distinct strict variant, requires the current revision, rejects an empty or
-failed/raw observation, atomically applies validated capability and status
-snapshots, and schedules no external effect.
+a distinct strict variant, requires the current revision, rejects an empty
+observation, atomically applies validated capability, status, and sidecar
+snapshots, and schedules no external effect. A sidecar failure is accepted only
+as the stable `sidecar_fetch_failed` posture; raw failure text is rejected.
 
 When daemon IPC is configured, the 1.x Web registration route now inspects the
 daemon revision, reconciles managed-only legacy registrations through create,
@@ -305,14 +310,21 @@ succeed. The adapter preserves boolean Gewyvern extensions from the source
 document rather than attempting to reconstruct them from the lossy legacy
 capability list. Pairing/admin tokens and discovery error strings are never
 written into these commands. Without daemon configuration, the existing managed
-registration path remains the explicit development fallback.
+registration path remains the explicit development fallback. Configured
+individual, recovery, and fleet sidecar refreshes also commit the same daemon
+intake before updating their managed compatibility responses.
 
 Configured runtime list, detail, and status reads now consume the existing
 typed `runtime_list` and `runtime_inspect` query results over the same private
 IPC boundary. The C# decoder rejects unknown and incomplete fields recursively.
-Daemon name, endpoint, tags, status, and observed capabilities are authoritative;
-managed timestamps, sidecar metadata, and token-presence flags are overlaid only
-for the legacy response contract. Managed-only runtimes remain visible during
+Daemon name, endpoint, secret-free sidecar endpoint, tags, status, and observed
+capabilities are authoritative. Journal-derived registration/update timestamps
+are also authoritative when present. Sidecar status and its bounded memory-slot
+summary are authoritative when present and survive journal replay. Legacy
+projections without timestamps or sidecar status retain per-field managed
+fallbacks, while token-presence flags intentionally remain local to the secret
+boundary.
+Managed-only runtimes remain visible during
 reconciliation. A daemon-only runtime returns a typed 502 instead of receiving
 invented compatibility metadata. Other Web operations continue to use managed
 lookups until their attention/recovery contracts are migrated deliberately.

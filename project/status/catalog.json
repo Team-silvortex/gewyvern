@@ -771,9 +771,9 @@
       "independence": "standalone-service",
       "contract": {
         "id": "leserpent-control-api",
-        "version": "1.4.8",
+        "version": "1.6.0",
         "stability": "evolving",
-        "surfaces": ["fleet-api", "orchestra-api", "deployment-api", "runtime-cleanup-plan", "stale-cleanup-rejection", "runtime-registration-plan", "canonical-endpoint-identity", "stale-registration-rejection", "server-orchestrated-runtime-recovery", "typed-recovery-step-outcomes", "sqlite-history", "serialized-durable-state-save", "non-vacuous-dotnet-test-discovery", "strict-rust-compatibility-bridge", "pre-effect-deployment-parity", "append-only-deployment-fixture", "source-generated-payload-shape-proof", "atomic-orchestra-run-event-envelope", "append-only-orchestra-persistence-fixture", "cross-record-identity-fence", "async-bridge-transaction-boundary", "rust-authoritative-deployment-normalization", "canonical-bridge-response-payload", "adapter-audit-canonical-intent", "real-cross-process-authority-proof", "typed-deployment-receipt", "command-request-identity-fence", "persisted-daemon-outcome", "configured-csharp-ipc-authority", "owner-private-socket-fence", "idempotent-target-registration", "daemon-bundle-packaging", "rust-orchestra-persistence-primitive", "orchestra-write-capability", "atomic-orchestra-readback", "typed-orchestra-history-pagination", "canonical-orchestra-event-sequence", "typed-orchestra-delete", "request-id-uniqueness", "bounded-runtime-run-retention", "daemon-backed-csharp-store", "no-configured-dual-write", "real-orchestra-authority-proof", "lossless-capability-authority-snapshot", "revision-inspected-registration-update", "legacy-registration-reconcile", "daemon-first-registration-commit", "managed-registration-fallback", "real-registration-authority-proof", "daemon-backed-runtime-list", "daemon-backed-runtime-inspect", "strict-daemon-projection-decode", "transitional-managed-metadata-overlay", "managed-only-read-fallback", "daemon-only-read-fail-closed", "daemon-authoritative-runtime-status"]
+        "surfaces": ["fleet-api", "orchestra-api", "deployment-api", "runtime-cleanup-plan", "stale-cleanup-rejection", "runtime-registration-plan", "canonical-endpoint-identity", "stale-registration-rejection", "server-orchestrated-runtime-recovery", "typed-recovery-step-outcomes", "sqlite-history", "serialized-durable-state-save", "non-vacuous-dotnet-test-discovery", "strict-rust-compatibility-bridge", "pre-effect-deployment-parity", "append-only-deployment-fixture", "source-generated-payload-shape-proof", "atomic-orchestra-run-event-envelope", "append-only-orchestra-persistence-fixture", "cross-record-identity-fence", "async-bridge-transaction-boundary", "rust-authoritative-deployment-normalization", "canonical-bridge-response-payload", "adapter-audit-canonical-intent", "real-cross-process-authority-proof", "typed-deployment-receipt", "command-request-identity-fence", "persisted-daemon-outcome", "configured-csharp-ipc-authority", "owner-private-socket-fence", "idempotent-target-registration", "daemon-bundle-packaging", "rust-orchestra-persistence-primitive", "orchestra-write-capability", "atomic-orchestra-readback", "typed-orchestra-history-pagination", "canonical-orchestra-event-sequence", "typed-orchestra-delete", "request-id-uniqueness", "bounded-runtime-run-retention", "daemon-backed-csharp-store", "no-configured-dual-write", "real-orchestra-authority-proof", "lossless-capability-authority-snapshot", "revision-inspected-registration-update", "legacy-registration-reconcile", "daemon-first-registration-commit", "managed-registration-fallback", "real-registration-authority-proof", "daemon-backed-runtime-list", "daemon-backed-runtime-inspect", "strict-daemon-projection-decode", "transitional-managed-metadata-overlay", "managed-only-read-fallback", "daemon-only-read-fail-closed", "daemon-authoritative-runtime-status", "daemon-authoritative-sidecar-endpoint", "daemon-authoritative-runtime-timestamps", "legacy-timestamp-field-fallback", "reversed-timestamp-rejection", "daemon-authoritative-sidecar-status", "legacy-sidecar-status-fallback", "sanitized-sidecar-failure-intake", "daemon-first-sidecar-refresh"]
       },
       "depends_on": ["gewyvern-core/runtime-evidence/evidence-reconstruction"],
       "blockers": [],
@@ -792,7 +792,7 @@
         { "kind": "documentation", "path": "crates/leserpent-protocol/COMPATIBILITY.md", "state": "present" },
         { "kind": "documentation", "path": "apps/leserpent/docs/runtime-posture.md", "state": "present" }
       ],
-      "next_gate": "Move attention and recovery reads onto the shared daemon projection, then assign durable timestamp and sidecar metadata authority before removing the managed overlay."
+      "next_gate": "Route remaining managed-only refresh and cleanup mutations through shared authority while retaining token-presence facts at the local secret boundary."
     },
     {
       "id": "leserpent-1x/web-console/browser-operations",
@@ -1150,9 +1150,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-runtime-contract",
-        "version": "1.5.0",
+        "version": "1.8.0",
         "stability": "stable",
-        "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "durable-registration-command", "registration-restart-replay", "registration-no-effect-materialization", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "panic-free-snapshot-recovery", "all-generations-invalid-error", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "owner-heartbeat", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "sqlite-v7-semantic-fence", "sqlite-v8-runtime-logs", "sqlite-v9-capability-observation", "strict-v9-migration-history", "sqlite-v10-orchestra-atomic-persistence", "strict-v10-migration-history", "orchestra-event-idempotency", "orchestra-event-drift-rollback", "typed-orchestra-readback", "typed-orchestra-history-pagination", "canonical-orchestra-event-sequence", "indexed-runtime-log-query", "per-runtime-log-retention", "initial-newest-log-window", "cursor-log-increment", "journal-kind-validation", "effect-schema-validation", "idempotent-effect-enqueue", "atomic-batch-enqueue", "bounded-enqueue-batch", "batch-conflict-rollback", "capacity-atomicity", "full-capacity-idempotent-replay", "transactional-effect-claim", "kind-excluding-batch-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "synchronous-worker-step", "public-effect-settlement", "complete-retry-reject", "durable-event-effect-materialization", "restart-outbox-repair", "typed-status-observation", "typed-capability-observation", "shared-capability-refresh-command", "shared-deployment-command", "confirmed-deployment-materialization", "envelope-derived-deployment-identity", "revision-fenced-discovery-materialization", "revision-bound-capability-projection", "atomic-effect-projection-completion", "status-replay-validation", "capability-replay-validation", "effect-queue-state-counters", "active-capacity-saturation", "bounded-terminal-retention", "active-task-preservation", "transactions", "policy"]
+        "surfaces": ["command-plan-dispatch", "query-result", "command-result", "plan-validation", "in-memory-projections", "domain-idempotency", "durable-registration-command", "registration-restart-replay", "registration-no-effect-materialization", "durable-sidecar-endpoint", "atomic-sidecar-registration-update", "secret-free-sidecar-projection", "typed-sidecar-status-observation", "sanitized-sidecar-failure-posture", "durable-sidecar-status", "sidecar-status-replay", "journal-authority-timestamps", "snapshot-persisted-authority-timestamps", "replay-stable-authority-timestamps", "idempotent-timestamp-preservation", "legacy-optional-authority-timestamps", "timestamp-free-command-outcomes", "sqlite-journal", "transactional-schema-migration", "migration-history", "schema-shape-validation", "ordered-registration-command-replay", "pending-command-recovery", "terminal-failure-record", "replay-consistency-check", "bounded-journal", "private-nofollow-storage", "sqlite-v4-snapshot", "snapshot-integrity", "incremental-replay", "dual-generation-fallback", "panic-free-snapshot-recovery", "all-generations-invalid-error", "bounded-terminal-prefix-compaction", "sqlite-v5-owner-lease", "owner-heartbeat", "stale-reader-fencing", "stale-writer-fencing", "sqlite-v6-effect-scheduler", "sqlite-v7-semantic-fence", "sqlite-v8-runtime-logs", "sqlite-v9-capability-observation", "strict-v9-migration-history", "sqlite-v10-orchestra-atomic-persistence", "strict-v10-migration-history", "orchestra-event-idempotency", "orchestra-event-drift-rollback", "typed-orchestra-readback", "typed-orchestra-history-pagination", "canonical-orchestra-event-sequence", "indexed-runtime-log-query", "per-runtime-log-retention", "initial-newest-log-window", "cursor-log-increment", "journal-kind-validation", "effect-schema-validation", "idempotent-effect-enqueue", "atomic-batch-enqueue", "bounded-enqueue-batch", "batch-conflict-rollback", "capacity-atomicity", "full-capacity-idempotent-replay", "transactional-effect-claim", "kind-excluding-batch-claim", "attempt-fencing", "lease-renewal", "crash-redelivery", "bounded-attempts", "synchronous-worker-step", "public-effect-settlement", "complete-retry-reject", "durable-event-effect-materialization", "restart-outbox-repair", "typed-status-observation", "typed-capability-observation", "shared-capability-refresh-command", "shared-deployment-command", "confirmed-deployment-materialization", "envelope-derived-deployment-identity", "revision-fenced-discovery-materialization", "revision-bound-capability-projection", "atomic-effect-projection-completion", "status-replay-validation", "capability-replay-validation", "effect-queue-state-counters", "active-capacity-saturation", "bounded-terminal-retention", "active-task-preservation", "transactions", "policy"]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel"],
       "blockers": [],
@@ -1162,6 +1162,8 @@
         { "kind": "source", "path": "crates/leserpent-runtime", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-runtime/src/persistence.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-runtime/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/DaemonRuntimeRegistrationAuthorityTests.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeReadProjectionTests.cs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/examples/linux_stress.rs", "state": "present" },
         { "kind": "test", "path": "scripts/validation/leserpentd_linux_stress.sh", "state": "present" }
       ],
@@ -1367,10 +1369,6 @@
         {
           "id": "cross-platform-bootstrap-installation-incomplete",
           "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and cross-platform product uninstall/retirement proof remain."
-        },
-        {
-          "id": "post-bind-gewyvern-retirement-evidence-incomplete",
-          "summary": "The Rust CLI and Avalonia Hub expose authenticated daemon bootstrap, handoff inspection, confirmed binding, locally verified connection promotion, and authority-scoped Gewyvern provisioning and retirement controls. Post-bind retirement has durable authority, authenticated IPC/HTTPS, native CLI and Avalonia clients, and native target transport; only physical Linux stop/remove evidence remains."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1408,9 +1406,11 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteBootstrapClient.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapPromotion.cs", "state": "present" },
-        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" }
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Retain a physical Linux stop/remove proof for the completed post-bind runtime retirement controls."
+      "next_gate": "Preserve the completed post-bind retirement contract while future bootstrap transports add their own platform-specific uninstall evidence."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
@@ -1418,14 +1418,14 @@
       "module": "deployment-bootstrap",
       "feature": "gewyvern-provisioning",
       "lifecycle": "target",
-      "maturity": "developing",
-      "completion": 99,
+      "maturity": "mature",
+      "completion": 100,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-gewyvern-provisioning-contract",
-        "version": "0.17.0",
-        "stability": "draft",
+        "version": "1.0.0",
+        "stability": "stable",
         "surfaces": [
           "runtime-provision-capability",
           "explicit-provisioning-confirmation",
@@ -1546,7 +1546,11 @@
           "identity-locked-avalonia-retirement-progress",
           "bounded-avalonia-retirement-poll",
           "credential-free-avalonia-retirement-status",
-          "retirement-failure-registration-guidance"
+          "retirement-failure-registration-guidance",
+          "physical-linux-native-ssh-retirement",
+          "forged-provisioning-retirement-rejection",
+          "idempotent-physical-retirement-replay",
+          "zero-residue-systemd-user-retirement"
         ]
       },
       "depends_on": [
@@ -1554,12 +1558,7 @@
         "leserpent-2/domain-model/command-query-kernel",
         "leserpent-2/transport-protocol/wire-compatibility"
       ],
-      "blockers": [
-        {
-          "id": "gewyvern-provisioning-compensation-missing",
-          "summary": "The independent runtime.retire domain, strict wire contracts, durable runtime authority, adapter-gated daemon worker, authenticated IPC/HTTPS routes, native CLI and Avalonia clients, host-key-pinned native SSH transport, and manifest-bound target entrypoint require proven service retirement before atomic runtime unregistration. The target uses a private two-phase recovery marker and deletes only the bound runtime; external failure, lost leases, forged receipts, identity drift, relaxed authority permissions, and an absent production adapter preserve registration. Only a physical Linux retirement proof remains; runtime.deploy continues to mean pipeline submission only."
-        }
-      ],
+      "blockers": [],
       "consumers": ["leserpentd", "leserpent-cli", "avalonia-client", "model-automation"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-architecture.md", "state": "present" },
@@ -1608,9 +1607,11 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteRetirementClient.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernRetirementWindow.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
-        { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" }
+        { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
+        { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Prove the stop/remove path on a physical Linux host before declaring the retirement slice complete."
+      "next_gate": "Preserve the stable provisioning and retirement identities while future target platforms add independent native transport proofs."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

@@ -20,10 +20,14 @@ public sealed record DaemonRuntimeProjection(
     string RuntimeId,
     string Name,
     string Endpoint,
+    string? SidecarEndpoint,
+    DateTimeOffset? RegisteredAt,
+    DateTimeOffset? UpdatedAt,
     ulong Revision,
     RuntimeTags Tags,
     RuntimeStatusSnapshot Status,
-    RuntimeCapabilityAuthoritySnapshot? Capabilities);
+    RuntimeCapabilityAuthoritySnapshot? Capabilities,
+    RuntimeSidecarStatusSnapshot? SidecarStatus);
 
 public sealed class RuntimeReadProjectionService(
     RegistryService registry,
@@ -101,6 +105,9 @@ public sealed class RuntimeReadProjectionService(
         {
             Name = authoritative.Name,
             Endpoint = authoritative.Endpoint,
+            SidecarEndpoint = authoritative.SidecarEndpoint,
+            RegisteredAt = authoritative.RegisteredAt ?? compatibility.RegisteredAt,
+            UpdatedAt = authoritative.UpdatedAt ?? compatibility.UpdatedAt,
             Tags = authoritative.Tags,
             Status = authoritative.Status,
             Capabilities = observedCapabilities
@@ -109,6 +116,7 @@ public sealed class RuntimeReadProjectionService(
             CapabilitySource = observedCapabilities
                 ? authoritative.Capabilities!.Source
                 : compatibility.CapabilitySource,
+            SidecarStatus = authoritative.SidecarStatus ?? compatibility.SidecarStatus,
         };
     }
 
@@ -358,7 +366,12 @@ public sealed partial class DaemonRuntimeRegistrationAuthority
             || runtime.Status is null
             || runtime.Capabilities is null
             || runtime.Capabilities.Endpoints is null
-            || runtime.Capabilities.Extensions is null)
+            || runtime.Capabilities.Extensions is null
+            || (runtime.SidecarStatus is not null && !runtime.SidecarStatus.IsValid())
+            || !ValidOptionalProjectionValue(runtime.SidecarEndpoint)
+            || !ValidAuthorityTimestamps(
+                runtime.RegisteredAtUnixMs,
+                runtime.UpdatedAtUnixMs))
         {
             throw new InvalidOperationException("leserpentd runtime projection is incomplete");
         }
@@ -380,10 +393,14 @@ public sealed partial class DaemonRuntimeRegistrationAuthority
             runtime.Id,
             runtime.Name,
             runtime.Endpoint,
+            runtime.SidecarEndpoint,
+            ToDateTimeOffset(runtime.RegisteredAtUnixMs),
+            ToDateTimeOffset(runtime.UpdatedAtUnixMs),
             runtime.Revision,
             new RuntimeTags(runtime.Tags.Environment, runtime.Tags.Cluster, runtime.Tags.Role),
             runtime.Status.ToLegacy(),
-            capabilities);
+            capabilities,
+            runtime.SidecarStatus?.ToLegacy());
     }
 
     private static bool ValidProjectionRuntimeId(string? value) =>
@@ -392,6 +409,23 @@ public sealed partial class DaemonRuntimeRegistrationAuthority
             && value.All(character =>
                 char.IsAsciiLetterOrDigit(character)
                     || character is '-' or '_' or ':' or '.');
+
+    private static bool ValidOptionalProjectionValue(string? value) =>
+        value is null
+            || (!string.IsNullOrWhiteSpace(value)
+                && value.Length <= 2048
+                && value == value.Trim()
+                && !value.Any(char.IsControl));
+
+    private static bool ValidAuthorityTimestamps(ulong? registeredAt, ulong? updatedAt) =>
+        (registeredAt is null or > 0)
+            && (updatedAt is null or > 0)
+            && (registeredAt is null || updatedAt is null || registeredAt <= updatedAt)
+            && (registeredAt is null or <= 253_402_300_799_999)
+            && (updatedAt is null or <= 253_402_300_799_999);
+
+    private static DateTimeOffset? ToDateTimeOffset(ulong? value) =>
+        value is null ? null : DateTimeOffset.FromUnixTimeMilliseconds((long)value.Value);
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -411,11 +445,15 @@ internal sealed record DaemonRuntimeProjectionPayload(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("endpoint")] string Endpoint,
+    [property: JsonPropertyName("sidecar_endpoint")] string? SidecarEndpoint,
+    [property: JsonPropertyName("registered_at_unix_ms")] ulong? RegisteredAtUnixMs,
+    [property: JsonPropertyName("updated_at_unix_ms")] ulong? UpdatedAtUnixMs,
     [property: JsonPropertyName("revision")] ulong Revision,
     [property: JsonPropertyName("refresh_count")] ulong RefreshCount,
     [property: JsonPropertyName("refresh_status")] string RefreshStatus,
     [property: JsonPropertyName("tags")] DaemonRuntimeTagsPayload Tags,
     [property: JsonPropertyName("status")] DaemonRuntimeStatusPayload Status,
+    [property: JsonPropertyName("sidecar_status")] DaemonRuntimeSidecarStatusPayload? SidecarStatus,
     [property: JsonPropertyName("capabilities")] DaemonRuntimeCapabilityPayload Capabilities,
     [property: JsonPropertyName("capabilities_observed_for_revision")] ulong? CapabilitiesObservedForRevision);
 
@@ -488,6 +526,147 @@ internal sealed record DaemonRuntimeStatusPayload(
             SocketServiceStatus,
             SocketConsecutiveIdleTimeouts is null ? null : checked((int)SocketConsecutiveIdleTimeouts.Value),
             SocketTotalIdleTimeouts is null ? null : checked((int)SocketTotalIdleTimeouts.Value));
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DaemonRuntimeSidecarMemorySlotPayload(
+    [property: JsonPropertyName("slot")] string Slot,
+    [property: JsonPropertyName("label")] string? Label,
+    [property: JsonPropertyName("note")] string? Note,
+    [property: JsonPropertyName("source")] string Source,
+    [property: JsonPropertyName("saved_at")] DateTimeOffset? SavedAt,
+    [property: JsonPropertyName("pattern_count")] ulong PatternCount,
+    [property: JsonPropertyName("label_count")] ulong LabelCount)
+{
+    public bool IsValid() =>
+        ValidValue(Slot, 128)
+            && ValidOptionalValue(Label, 256)
+            && ValidOptionalValue(Note, 1024)
+            && ValidValue(Source, 128)
+            && PatternCount <= 10_000_000
+            && LabelCount <= 10_000_000;
+
+    public RuntimeSidecarMemorySlotSummary ToLegacy() =>
+        new(
+            Slot,
+            Label,
+            Note,
+            Source,
+            SavedAt,
+            checked((int)PatternCount),
+            checked((int)LabelCount));
+
+    private static bool ValidValue(string? value, int maximum) =>
+        value is not null
+            && value.Length is > 0
+            && value.Length <= maximum
+            && value == value.Trim()
+            && !value.Any(char.IsControl);
+
+    private static bool ValidOptionalValue(string? value, int maximum) =>
+        value is null || ValidValue(value, maximum);
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DaemonRuntimeSidecarMemoryPayload(
+    [property: JsonPropertyName("versions_supported")] bool VersionsSupported,
+    [property: JsonPropertyName("slot_count")] ulong SlotCount,
+    [property: JsonPropertyName("history_count")] ulong HistoryCount,
+    [property: JsonPropertyName("latest_slot")] string? LatestSlot,
+    [property: JsonPropertyName("latest_label")] string? LatestLabel,
+    [property: JsonPropertyName("latest_source")] string? LatestSource,
+    [property: JsonPropertyName("slots")] DaemonRuntimeSidecarMemorySlotPayload[] Slots,
+    [property: JsonPropertyName("fetch_error")] string? FetchError)
+{
+    public bool IsValid() =>
+        SlotCount <= 10_000
+            && HistoryCount <= 1_000_000
+            && Slots is not null
+            && Slots.Length <= 128
+            && ValidOptionalValue(LatestSlot, 128)
+            && ValidOptionalValue(LatestLabel, 256)
+            && ValidOptionalValue(LatestSource, 128)
+            && FetchError is null or "sidecar_memory_fetch_failed"
+            && Slots.All(slot => slot is not null && slot.IsValid());
+
+    public RuntimeSidecarMemorySnapshot ToLegacy() =>
+        new(
+            VersionsSupported,
+            checked((int)SlotCount),
+            checked((int)HistoryCount),
+            LatestSlot,
+            LatestLabel,
+            LatestSource,
+            Slots.Select(slot => slot.ToLegacy()).ToArray(),
+            FetchError);
+
+    private static bool ValidOptionalValue(string? value, int maximum) =>
+        value is null
+            || (value.Length is > 0
+                && value.Length <= maximum
+                && value == value.Trim()
+                && !value.Any(char.IsControl));
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DaemonRuntimeSidecarStatusPayload(
+    [property: JsonPropertyName("status_source")] string StatusSource,
+    [property: JsonPropertyName("status_fetched_at")] DateTimeOffset? StatusFetchedAt,
+    [property: JsonPropertyName("status_fetch_error")] string? StatusFetchError,
+    [property: JsonPropertyName("healthy")] bool Healthy,
+    [property: JsonPropertyName("daemon_status")] string DaemonStatus,
+    [property: JsonPropertyName("target_count")] ulong? TargetCount,
+    [property: JsonPropertyName("learning_active")] bool LearningActive,
+    [property: JsonPropertyName("learned_routes")] ulong LearnedRoutes,
+    [property: JsonPropertyName("has_evidence_chain_enrichment")] bool HasEvidenceChainEnrichment,
+    [property: JsonPropertyName("has_diagnostic_opinion")] bool HasDiagnosticOpinion,
+    [property: JsonPropertyName("last_error")] string? LastError,
+    [property: JsonPropertyName("memory")] DaemonRuntimeSidecarMemoryPayload? Memory)
+{
+    public bool IsValid()
+    {
+        var posture = StatusSource == "etragon-api"
+            ? StatusFetchedAt is not null
+                && StatusFetchError is null
+                && (LastError is null or "sidecar_reported_error")
+            : StatusSource == "fetch_failed"
+                && StatusFetchedAt is null
+                && StatusFetchError == "sidecar_fetch_failed"
+                && (LastError is null or "sidecar_fetch_failed")
+                && !Healthy;
+        return posture
+            && ValidValue(DaemonStatus, 128)
+            && ValidOptionalValue(StatusFetchError, 128)
+            && ValidOptionalValue(LastError, 128)
+            && TargetCount is null or <= 10_000_000
+            && LearnedRoutes <= 10_000_000
+            && (Memory is null || Memory.IsValid());
+    }
+
+    public RuntimeSidecarStatusSnapshot ToLegacy() =>
+        new(
+            StatusSource,
+            StatusFetchedAt,
+            StatusFetchError,
+            Healthy,
+            DaemonStatus,
+            TargetCount is null ? null : checked((int)TargetCount.Value),
+            LearningActive,
+            checked((int)LearnedRoutes),
+            HasEvidenceChainEnrichment,
+            HasDiagnosticOpinion,
+            LastError,
+            Memory?.ToLegacy());
+
+    private static bool ValidValue(string? value, int maximum) =>
+        value is not null
+            && value.Length is > 0
+            && value.Length <= maximum
+            && value == value.Trim()
+            && !value.Any(char.IsControl);
+
+    private static bool ValidOptionalValue(string? value, int maximum) =>
+        value is null || ValidValue(value, maximum);
 }
 
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]

@@ -318,7 +318,14 @@ failed retirement preserves an inspectable runtime registration. The Avalonia
 Hub now exposes the same provisioning-bound identity through an explicitly
 confirmed destructive workspace. Its strict 64 KiB client, locked fields,
 bounded replay, credential-free status, and failure guidance preserve the same
-state invariants. Physical Linux retirement evidence is the remaining gate.
+state invariants. The physical Linux proof now runs the real pinned-host-key
+native SSH transport against an isolated systemd-user runtime: a forged
+provisioning identity is rejected without preventing the corrected request,
+the bound service is stopped and disabled, its descriptor and runtime root are
+removed, the API port and staging area are clear, and an identical retirement
+replay succeeds. The private final marker remains `0600` in `retired` phase;
+the redacted evidence is retained in
+`docs/fixtures/leserpent_real_ssh_retirement_20260723.json`.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrated schema-11 `bootstrap_handoffs` rows into the
@@ -584,30 +591,40 @@ conflict reports only the owning runtime ID.
 
 `RuntimeDiscoveryIntake` is a separate revision-fenced command rather than an
 additive field on either stable registration variant. It accepts validated
-successful capability and/or status observations, rejects an empty intake,
-updates both projections atomically, records the capability observation's input
-revision, and emits a typed event without scheduling network effects. The 1.x
+successful capability/status observations and a typed sidecar posture, rejects
+an empty intake, updates the supplied projections atomically, records the
+capability observation's input revision, and emits a typed event without
+scheduling network effects. Sidecar failures use only the stable
+`sidecar_fetch_failed` posture; raw transport errors are rejected. The 1.x
 adapter retains arbitrary boolean capability extensions from the original
 Gewyvern document, derives its legacy display capabilities separately, inspects
 the daemon revision before update, reconciles a managed-only runtime through
 create, and commits managed compatibility state only after the daemon accepts
-registration plus discovery. Pairing tokens, admin tokens, discovery errors,
-and raw adapter payloads do not cross the authority boundary. The managed path
-remains only when daemon configuration is absent; daemon-backed read projection
-migration is the next compatibility step.
+registration plus discovery. Pairing tokens, admin tokens, raw discovery
+errors, and raw adapter payloads do not cross the authority boundary. The
+managed path remains only when daemon configuration is absent.
 
 That migration now covers the public runtime list, detail, and status reads.
 The compatibility adapter strictly decodes daemon projections and rejects
 unknown or incomplete nested fields. For reconciled runtimes, daemon identity,
-endpoint, tags, status, and observed capability facts replace their managed
-copies. Managed timestamps, sidecar metadata, and token-presence booleans remain
-an explicit overlay because the Rust projection does not yet own those fields.
+endpoint, sidecar endpoint, tags, status, and observed capability facts replace
+their managed copies. The optional sidecar endpoint now travels as secret-free
+registration metadata through the typed create/update commands, durable replay,
+and strict Web read projection. Runtime registration and update timestamps now
+come from the journal record that durably represents each accepted mutation. They
+survive snapshots and replay, remain unchanged on idempotent replay, and never
+enter frozen command outcomes. Legacy snapshots without authority timestamps
+retain a per-field managed fallback instead of inventing epoch history.
 Managed-only legacy entries remain readable; daemon-only entries fail closed
 rather than receiving fabricated compatibility metadata. Attention, cleanup,
 protocol-reading, and recovery reads now use the shared read projection for
-authoritative identity, endpoint, tags, status, and capabilities. Managed token
-and sidecar metadata remains an explicit overlay until those facts move to an
-authoritative durable source. Cleanup remains managed.
+authoritative identity, endpoints, timestamps, tags, status, and capabilities.
+Sidecar status, including its bounded memory-slot summary, now follows the same
+revision-fenced journal and strict read projection. Registration, individual
+sidecar refresh, recovery, and fleet sidecar refresh all commit daemon authority
+before updating the managed compatibility response. Legacy projections without
+sidecar status retain the managed fallback. Local token-presence facts
+intentionally remain at the secret boundary; cleanup remains managed.
 
 ## Leselang Semantics
 

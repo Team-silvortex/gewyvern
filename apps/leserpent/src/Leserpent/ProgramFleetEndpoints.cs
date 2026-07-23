@@ -22,7 +22,14 @@ public partial class Program
                 new RuntimeListFilter(environmentTag, cluster, role),
                 registry.GetFleetAttentionSummary(new RuntimeListFilter(environmentTag, cluster, role)))));
 
-        app.MapPost("/v1/fleet/refresh-all", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-all", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetRefreshAllItem>();
@@ -39,15 +46,32 @@ public partial class Program
                 if (capabilityResult is not null && statusResult is not null)
                 {
                     var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
-                    var sidecarResult = sidecarAccess is null
-                        ? null
-                        : registry.RefreshRuntimeSidecar(
+                    RuntimeSidecarRefreshResponse? sidecarResult = null;
+                    if (sidecarAccess is not null)
+                    {
+                        var sidecarDiscovery = await discovery.DiscoverSidecarStatusAsync(
+                            sidecarAccess.SidecarEndpoint,
+                            null,
+                            sidecarAccess.SidecarAdminToken,
+                            cancellationToken);
+                        try
+                        {
+                            if (sidecarDiscovery.SidecarStatus is not null)
+                            {
+                                await registrationAuthority.SubmitSidecarStatusAsync(
+                                    runtime.RuntimeId,
+                                    sidecarDiscovery.SidecarStatus,
+                                    cancellationToken);
+                            }
+                        }
+                        catch (DaemonRuntimeRegistrationException ex)
+                        {
+                            return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
+                        }
+                        sidecarResult = registry.RefreshRuntimeSidecar(
                             runtime.RuntimeId,
-                            await discovery.DiscoverSidecarStatusAsync(
-                                sidecarAccess.SidecarEndpoint,
-                                null,
-                                sidecarAccess.SidecarAdminToken,
-                                cancellationToken));
+                            sidecarDiscovery);
+                    }
 
                     registry.RecordRecoveryActivity(
                         runtime.RuntimeId,
@@ -112,7 +136,14 @@ public partial class Program
                 new FleetCapabilityRefreshResponse(refreshed.Count, refreshed)));
         });
 
-        app.MapPost("/v1/fleet/refresh-sidecars", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-sidecars", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetSidecarRefreshItem>();
@@ -124,13 +155,26 @@ public partial class Program
                     continue;
                 }
 
-                var result = registry.RefreshRuntimeSidecar(
-                    runtime.RuntimeId,
-                    await discovery.DiscoverSidecarStatusAsync(
-                        sidecarAccess.SidecarEndpoint,
-                        null,
-                        sidecarAccess.SidecarAdminToken,
-                        cancellationToken));
+                var sidecarDiscovery = await discovery.DiscoverSidecarStatusAsync(
+                    sidecarAccess.SidecarEndpoint,
+                    null,
+                    sidecarAccess.SidecarAdminToken,
+                    cancellationToken);
+                try
+                {
+                    if (sidecarDiscovery.SidecarStatus is not null)
+                    {
+                        await registrationAuthority.SubmitSidecarStatusAsync(
+                            runtime.RuntimeId,
+                            sidecarDiscovery.SidecarStatus,
+                            cancellationToken);
+                    }
+                }
+                catch (DaemonRuntimeRegistrationException ex)
+                {
+                    return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
+                }
+                var result = registry.RefreshRuntimeSidecar(runtime.RuntimeId, sidecarDiscovery);
                 if (result is not null)
                 {
                     registry.RecordRecoveryActivity(

@@ -73,18 +73,24 @@ pub enum Command {
         runtime_id: RuntimeId,
         name: String,
         endpoint: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sidecar_endpoint: Option<String>,
         tags: RuntimeTags,
     },
     RuntimeRegistrationUpdate {
         runtime_id: RuntimeId,
         name: String,
         endpoint: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sidecar_endpoint: Option<String>,
         tags: RuntimeTags,
     },
     RuntimeDiscoveryIntake {
         runtime_id: RuntimeId,
         capabilities: Option<Box<RuntimeCapabilitySnapshot>>,
         status: Option<Box<RuntimeStatusSnapshot>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sidecar_status: Option<Box<RuntimeSidecarStatusSnapshot>>,
     },
     RuntimeRefresh {
         runtime_id: RuntimeId,
@@ -181,6 +187,48 @@ pub struct RuntimeStatusSnapshot {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct RuntimeSidecarMemorySlotSnapshot {
+    pub slot: String,
+    pub label: Option<String>,
+    pub note: Option<String>,
+    pub source: String,
+    pub saved_at: Option<String>,
+    pub pattern_count: u64,
+    pub label_count: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeSidecarMemorySnapshot {
+    pub versions_supported: bool,
+    pub slot_count: u64,
+    pub history_count: u64,
+    pub latest_slot: Option<String>,
+    pub latest_label: Option<String>,
+    pub latest_source: Option<String>,
+    pub slots: Vec<RuntimeSidecarMemorySlotSnapshot>,
+    pub fetch_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeSidecarStatusSnapshot {
+    pub status_source: String,
+    pub status_fetched_at: Option<String>,
+    pub status_fetch_error: Option<String>,
+    pub healthy: bool,
+    pub daemon_status: String,
+    pub target_count: Option<u64>,
+    pub learning_active: bool,
+    pub learned_routes: u64,
+    pub has_evidence_chain_enrichment: bool,
+    pub has_diagnostic_opinion: bool,
+    pub last_error: Option<String>,
+    pub memory: Option<RuntimeSidecarMemorySnapshot>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeStatusObservation {
     pub runtime_id: String,
     pub expected_revision: Revision,
@@ -255,6 +303,12 @@ impl RuntimeCapabilitySnapshot {
     }
 }
 
+fn command_result_projection(mut runtime: RuntimeProjection) -> RuntimeProjection {
+    runtime.registered_at_unix_ms = None;
+    runtime.updated_at_unix_ms = None;
+    runtime
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct CommandEnvelope {
     pub schema_version: u32,
@@ -310,11 +364,19 @@ pub struct RuntimeProjection {
     pub id: RuntimeId,
     pub name: String,
     pub endpoint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidecar_endpoint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registered_at_unix_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at_unix_ms: Option<u64>,
     pub revision: Revision,
     pub refresh_count: u64,
     pub refresh_status: RefreshStatus,
     pub tags: RuntimeTags,
     pub status: RuntimeStatusSnapshot,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidecar_status: Option<RuntimeSidecarStatusSnapshot>,
     #[serde(default)]
     pub capabilities: RuntimeCapabilitySnapshot,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -566,10 +628,11 @@ impl CommandPlan {
                 Command::RuntimeRegister {
                     name,
                     endpoint,
+                    sidecar_endpoint,
                     tags,
                     ..
                 } => {
-                    validate_registration_intent(name, endpoint, tags)
+                    validate_registration_intent(name, endpoint, sidecar_endpoint.as_deref(), tags)
                         .map_err(|_| CommandPlanError::InvalidRegistrationIntent)?;
                     if envelope.expected_revision.is_some() {
                         return Err(CommandPlanError::InvalidRegistrationIntent);
@@ -586,10 +649,11 @@ impl CommandPlan {
                 Command::RuntimeRegistrationUpdate {
                     name,
                     endpoint,
+                    sidecar_endpoint,
                     tags,
                     ..
                 } => {
-                    validate_registration_intent(name, endpoint, tags)
+                    validate_registration_intent(name, endpoint, sidecar_endpoint.as_deref(), tags)
                         .map_err(|_| CommandPlanError::InvalidRegistrationIntent)?;
                     if envelope.expected_revision.is_none() {
                         return Err(CommandPlanError::InvalidRegistrationIntent);
@@ -606,10 +670,15 @@ impl CommandPlan {
                 Command::RuntimeDiscoveryIntake {
                     capabilities,
                     status,
+                    sidecar_status,
                     ..
                 } => {
-                    validate_discovery_intake(capabilities.as_deref(), status.as_deref())
-                        .map_err(|_| CommandPlanError::InvalidRegistrationIntent)?;
+                    validate_discovery_intake(
+                        capabilities.as_deref(),
+                        status.as_deref(),
+                        sidecar_status.as_deref(),
+                    )
+                    .map_err(|_| CommandPlanError::InvalidRegistrationIntent)?;
                     if envelope.expected_revision.is_none() {
                         return Err(CommandPlanError::InvalidRegistrationIntent);
                     }
@@ -761,6 +830,33 @@ impl InMemoryControlPlane {
         self.runtimes.get(runtime_id)
     }
 
+    pub fn stamp_runtime_authority_time(
+        &mut self,
+        runtime_id: &RuntimeId,
+        registered: bool,
+        timestamp_unix_ms: u64,
+    ) -> Result<RuntimeProjection, DomainError> {
+        let runtime =
+            self.runtimes
+                .get_mut(runtime_id)
+                .ok_or_else(|| DomainError::RuntimeNotFound {
+                    runtime_id: runtime_id.as_str().to_string(),
+                })?;
+        if timestamp_unix_ms == 0 {
+            return Ok(runtime.clone());
+        }
+        if registered && runtime.registered_at_unix_ms.is_none() {
+            runtime.registered_at_unix_ms = Some(timestamp_unix_ms);
+        }
+        runtime.updated_at_unix_ms = Some(
+            runtime
+                .updated_at_unix_ms
+                .unwrap_or_default()
+                .max(timestamp_unix_ms),
+        );
+        Ok(runtime.clone())
+    }
+
     pub fn snapshot(&self) -> DomainSnapshot {
         DomainSnapshot {
             schema_version: DOMAIN_SNAPSHOT_SCHEMA_VERSION,
@@ -836,11 +932,15 @@ impl InMemoryControlPlane {
             id: id.clone(),
             name: name.into(),
             endpoint: endpoint.into(),
+            sidecar_endpoint: None,
+            registered_at_unix_ms: None,
+            updated_at_unix_ms: None,
             revision: Revision(self.revision),
             refresh_count: 0,
             refresh_status: RefreshStatus::NeverRequested,
             tags,
             status,
+            sidecar_status: None,
             capabilities: RuntimeCapabilitySnapshot::default(),
             capabilities_observed_for_revision: None,
         };
@@ -948,11 +1048,12 @@ impl InMemoryControlPlane {
             Command::RuntimeRegister {
                 name,
                 endpoint,
+                sidecar_endpoint,
                 tags,
                 ..
             } => {
                 require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_REGISTER)?;
-                validate_registration_intent(name, endpoint, tags)?;
+                validate_registration_intent(name, endpoint, sidecar_endpoint.as_deref(), tags)?;
                 if envelope.expected_revision.is_some() {
                     return Err(DomainError::InvalidQuery {
                         reason: "runtime registration does not accept a runtime revision",
@@ -965,11 +1066,12 @@ impl InMemoryControlPlane {
             Command::RuntimeRegistrationUpdate {
                 name,
                 endpoint,
+                sidecar_endpoint,
                 tags,
                 ..
             } => {
                 require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_REGISTER)?;
-                validate_registration_intent(name, endpoint, tags)?;
+                validate_registration_intent(name, endpoint, sidecar_endpoint.as_deref(), tags)?;
                 if envelope.expected_revision.is_none() {
                     return Err(DomainError::InvalidQuery {
                         reason: "runtime registration update requires a runtime revision",
@@ -982,10 +1084,15 @@ impl InMemoryControlPlane {
             Command::RuntimeDiscoveryIntake {
                 capabilities,
                 status,
+                sidecar_status,
                 ..
             } => {
                 require_capability(&envelope.capabilities, CAPABILITY_RUNTIME_REGISTER)?;
-                validate_discovery_intake(capabilities.as_deref(), status.as_deref())?;
+                validate_discovery_intake(
+                    capabilities.as_deref(),
+                    status.as_deref(),
+                    sidecar_status.as_deref(),
+                )?;
                 if envelope.expected_revision.is_none() {
                     return Err(DomainError::InvalidQuery {
                         reason: "runtime discovery intake requires a runtime revision",
@@ -1036,6 +1143,7 @@ impl InMemoryControlPlane {
                 runtime_id,
                 name,
                 endpoint,
+                sidecar_endpoint,
                 tags,
             } => {
                 if self.runtimes.contains_key(&runtime_id) {
@@ -1053,11 +1161,15 @@ impl InMemoryControlPlane {
                     id: runtime_id.clone(),
                     name,
                     endpoint,
+                    sidecar_endpoint,
+                    registered_at_unix_ms: None,
+                    updated_at_unix_ms: None,
                     revision: next_revision,
                     refresh_count: 0,
                     refresh_status: RefreshStatus::NeverRequested,
                     tags,
                     status: RuntimeStatusSnapshot::default(),
+                    sidecar_status: None,
                     capabilities: RuntimeCapabilitySnapshot::default(),
                     capabilities_observed_for_revision: None,
                 };
@@ -1068,7 +1180,7 @@ impl InMemoryControlPlane {
                     } else {
                         CommandStatus::Applied
                     },
-                    runtime: runtime.clone(),
+                    runtime: command_result_projection(runtime.clone()),
                     events: vec![DomainEvent::RuntimeRegistered {
                         runtime_id: runtime_id.clone(),
                         revision: next_revision,
@@ -1093,6 +1205,7 @@ impl InMemoryControlPlane {
                 runtime_id,
                 name,
                 endpoint,
+                sidecar_endpoint,
                 tags,
             } => {
                 let current = self.runtimes.get(&runtime_id).cloned().ok_or_else(|| {
@@ -1118,6 +1231,7 @@ impl InMemoryControlPlane {
                 let mut next = current;
                 next.name = name;
                 next.endpoint = endpoint;
+                next.sidecar_endpoint = sidecar_endpoint;
                 next.tags = tags;
                 next.revision = Revision(self.revision + 1);
                 let result = CommandResult {
@@ -1127,7 +1241,7 @@ impl InMemoryControlPlane {
                     } else {
                         CommandStatus::Applied
                     },
-                    runtime: next.clone(),
+                    runtime: command_result_projection(next.clone()),
                     events: vec![DomainEvent::RuntimeRegistrationUpdated {
                         runtime_id: runtime_id.clone(),
                         revision: next.revision,
@@ -1152,6 +1266,7 @@ impl InMemoryControlPlane {
                 runtime_id,
                 capabilities,
                 status,
+                sidecar_status,
             } => {
                 let current = self.runtimes.get(&runtime_id).cloned().ok_or_else(|| {
                     DomainError::RuntimeNotFound {
@@ -1182,6 +1297,9 @@ impl InMemoryControlPlane {
                     next.capabilities = *capabilities;
                     next.capabilities_observed_for_revision = Some(expected);
                 }
+                if let Some(sidecar_status) = sidecar_status {
+                    next.sidecar_status = Some(*sidecar_status);
+                }
                 let result = CommandResult {
                     command_id: envelope.command_id.clone(),
                     status: if envelope.dry_run {
@@ -1189,7 +1307,7 @@ impl InMemoryControlPlane {
                     } else {
                         CommandStatus::Applied
                     },
-                    runtime: next.clone(),
+                    runtime: command_result_projection(next.clone()),
                     events: vec![DomainEvent::RuntimeDiscoveryIntakeApplied {
                         runtime_id: runtime_id.clone(),
                         revision: next.revision,
@@ -1241,7 +1359,7 @@ impl InMemoryControlPlane {
                     } else {
                         CommandStatus::Applied
                     },
-                    runtime: next.clone(),
+                    runtime: command_result_projection(next.clone()),
                     events: vec![event],
                 };
 
@@ -1287,7 +1405,7 @@ impl InMemoryControlPlane {
                     } else {
                         CommandStatus::Applied
                     },
-                    runtime: next.clone(),
+                    runtime: command_result_projection(next.clone()),
                     events: vec![event],
                 };
 
@@ -1341,7 +1459,7 @@ impl InMemoryControlPlane {
                     } else {
                         CommandStatus::Applied
                     },
-                    runtime: next.clone(),
+                    runtime: command_result_projection(next.clone()),
                     events: vec![event],
                 };
 
@@ -1461,6 +1579,20 @@ impl DomainSnapshot {
                     reason: "runtime revision exceeds snapshot revision",
                 });
             }
+            if runtime.registered_at_unix_ms == Some(0)
+                || runtime.updated_at_unix_ms == Some(0)
+                || matches!(
+                    (
+                        runtime.registered_at_unix_ms,
+                        runtime.updated_at_unix_ms
+                    ),
+                    (Some(registered), Some(updated)) if registered > updated
+                )
+            {
+                return Err(DomainSnapshotError::Invalid {
+                    reason: "runtime authority timestamps are invalid",
+                });
+            }
             if !runtime_ids.insert(runtime.id.clone()) {
                 return Err(DomainSnapshotError::Invalid {
                     reason: "duplicate runtime identifier",
@@ -1470,6 +1602,13 @@ impl DomainSnapshot {
                 validate_runtime_capabilities(&runtime.capabilities).map_err(|_| {
                     DomainSnapshotError::Invalid {
                         reason: "invalid runtime capabilities",
+                    }
+                })?;
+            }
+            if let Some(sidecar_status) = &runtime.sidecar_status {
+                validate_runtime_sidecar_status(sidecar_status).map_err(|_| {
+                    DomainSnapshotError::Invalid {
+                        reason: "invalid runtime sidecar status",
                     }
                 })?;
             }
@@ -1620,6 +1759,7 @@ pub fn validate_deployment_intent(
 pub fn validate_registration_intent(
     name: &str,
     endpoint: &str,
+    sidecar_endpoint: Option<&str>,
     tags: &RuntimeTags,
 ) -> Result<(), DomainError> {
     let name_valid = !name.is_empty()
@@ -1630,6 +1770,12 @@ pub fn validate_registration_intent(
         && endpoint.len() <= 2048
         && endpoint == endpoint.trim()
         && !endpoint.chars().any(char::is_control);
+    let sidecar_endpoint_valid = sidecar_endpoint.is_none_or(|value| {
+        !value.is_empty()
+            && value.len() <= 2048
+            && value == value.trim()
+            && !value.chars().any(char::is_control)
+    });
     let tags_valid = [
         tags.environment.as_deref(),
         tags.cluster.as_deref(),
@@ -1648,6 +1794,11 @@ pub fn validate_registration_intent(
     }
     if !endpoint_valid {
         return Err(DomainError::InvalidIdentifier { field: "endpoint" });
+    }
+    if !sidecar_endpoint_valid {
+        return Err(DomainError::InvalidIdentifier {
+            field: "sidecar_endpoint",
+        });
     }
     if !tags_valid {
         return Err(DomainError::InvalidIdentifier { field: "tags" });
@@ -1750,8 +1901,9 @@ fn validate_runtime_capabilities(
 fn validate_discovery_intake(
     capabilities: Option<&RuntimeCapabilitySnapshot>,
     status: Option<&RuntimeStatusSnapshot>,
+    sidecar_status: Option<&RuntimeSidecarStatusSnapshot>,
 ) -> Result<(), DomainError> {
-    if capabilities.is_none() && status.is_none() {
+    if capabilities.is_none() && status.is_none() && sidecar_status.is_none() {
         return Err(DomainError::InvalidQuery {
             reason: "runtime discovery intake is empty",
         });
@@ -1782,7 +1934,72 @@ fn validate_discovery_intake(
             });
         }
     }
+    if let Some(sidecar_status) = sidecar_status {
+        validate_runtime_sidecar_status(sidecar_status)?;
+    }
     Ok(())
+}
+
+fn validate_runtime_sidecar_status(
+    status: &RuntimeSidecarStatusSnapshot,
+) -> Result<(), DomainError> {
+    let bounded = |value: Option<&str>, maximum: usize| {
+        value.is_none_or(|value| {
+            !value.is_empty()
+                && value.len() <= maximum
+                && value == value.trim()
+                && !value.chars().any(char::is_control)
+        })
+    };
+    let common = bounded(status.status_fetched_at.as_deref(), 64)
+        && bounded(status.status_fetch_error.as_deref(), 128)
+        && bounded(Some(status.daemon_status.as_str()), 128)
+        && bounded(status.last_error.as_deref(), 128)
+        && status.learned_routes <= 10_000_000
+        && status.target_count.is_none_or(|count| count <= 10_000_000);
+    let posture = (status.status_source == "etragon-api"
+        && status.status_fetched_at.is_some()
+        && status.status_fetch_error.is_none()
+        && status
+            .last_error
+            .as_deref()
+            .is_none_or(|error| error == "sidecar_reported_error"))
+        || (status.status_source == "fetch_failed"
+            && status.status_fetched_at.is_none()
+            && status.status_fetch_error.as_deref() == Some("sidecar_fetch_failed")
+            && status
+                .last_error
+                .as_deref()
+                .is_none_or(|error| error == "sidecar_fetch_failed")
+            && !status.healthy);
+    let memory_valid = status.memory.as_ref().is_none_or(|memory| {
+        memory.slot_count <= 10_000
+            && memory.history_count <= 1_000_000
+            && memory.slots.len() <= 128
+            && bounded(memory.latest_slot.as_deref(), 128)
+            && bounded(memory.latest_label.as_deref(), 256)
+            && bounded(memory.latest_source.as_deref(), 128)
+            && memory
+                .fetch_error
+                .as_deref()
+                .is_none_or(|error| error == "sidecar_memory_fetch_failed")
+            && memory.slots.iter().all(|slot| {
+                bounded(Some(slot.slot.as_str()), 128)
+                    && bounded(slot.label.as_deref(), 256)
+                    && bounded(slot.note.as_deref(), 1024)
+                    && bounded(Some(slot.source.as_str()), 128)
+                    && bounded(slot.saved_at.as_deref(), 64)
+                    && slot.pattern_count <= 10_000_000
+                    && slot.label_count <= 10_000_000
+            })
+    });
+    if common && posture && memory_valid {
+        Ok(())
+    } else {
+        Err(DomainError::InvalidQuery {
+            reason: "runtime sidecar observation is invalid",
+        })
+    }
 }
 
 fn valid_capability_endpoint(value: &str) -> bool {
@@ -1875,6 +2092,7 @@ mod tests {
                 runtime_id: RuntimeId::new("runtime-new").unwrap(),
                 name: "New Runtime".to_string(),
                 endpoint: "https://127.0.0.1:9443".to_string(),
+                sidecar_endpoint: Some("https://127.0.0.1:9444".to_string()),
                 tags: RuntimeTags {
                     environment: Some("production".to_string()),
                     cluster: Some("east".to_string()),
@@ -1906,6 +2124,7 @@ mod tests {
                 runtime_id,
                 name: "Updated Runtime".to_string(),
                 endpoint: "https://127.0.0.1:9553".to_string(),
+                sidecar_endpoint: Some("https://127.0.0.1:9554".to_string()),
                 tags: RuntimeTags {
                     environment: Some("staging".to_string()),
                     cluster: Some("west".to_string()),
@@ -1939,6 +2158,40 @@ mod tests {
             snapshot_kind: Some("capture".into()),
             target_count: Some(3),
             ..RuntimeStatusSnapshot::default()
+        }
+    }
+
+    fn discovery_sidecar_status() -> RuntimeSidecarStatusSnapshot {
+        RuntimeSidecarStatusSnapshot {
+            status_source: "etragon-api".into(),
+            status_fetched_at: Some("2026-07-20T12:01:00.0000000+08:00".into()),
+            status_fetch_error: None,
+            healthy: true,
+            daemon_status: "ready".into(),
+            target_count: Some(2),
+            learning_active: false,
+            learned_routes: 4,
+            has_evidence_chain_enrichment: true,
+            has_diagnostic_opinion: false,
+            last_error: None,
+            memory: Some(RuntimeSidecarMemorySnapshot {
+                versions_supported: true,
+                slot_count: 1,
+                history_count: 2,
+                latest_slot: Some("slot-a".into()),
+                latest_label: Some("baseline".into()),
+                latest_source: Some("manual".into()),
+                slots: vec![RuntimeSidecarMemorySlotSnapshot {
+                    slot: "slot-a".into(),
+                    label: Some("baseline".into()),
+                    note: None,
+                    source: "manual".into(),
+                    saved_at: Some("2026-07-20T11:00:00.0000000+08:00".into()),
+                    pattern_count: 3,
+                    label_count: 2,
+                }],
+                fetch_error: None,
+            }),
         }
     }
 
@@ -2013,11 +2266,35 @@ mod tests {
         let first = control.execute(envelope.clone()).unwrap();
         assert_eq!(first.status, CommandStatus::Applied);
         assert_eq!(first.runtime.revision, Revision(1));
+        assert_eq!(
+            first.runtime.sidecar_endpoint.as_deref(),
+            Some("https://127.0.0.1:9444")
+        );
         assert_eq!(control.execute(envelope.clone()).unwrap(), first);
+        let stamped = control
+            .stamp_runtime_authority_time(&first.runtime.id, true, 1_721_234_567_890)
+            .unwrap();
+        assert_eq!(stamped.registered_at_unix_ms, Some(1_721_234_567_890));
+        assert_eq!(stamped.updated_at_unix_ms, Some(1_721_234_567_890));
+        let restamped = control
+            .stamp_runtime_authority_time(&first.runtime.id, false, 1_721_234_567_000)
+            .unwrap();
+        assert_eq!(
+            restamped.registered_at_unix_ms,
+            stamped.registered_at_unix_ms
+        );
+        assert_eq!(restamped.updated_at_unix_ms, stamped.updated_at_unix_ms);
 
         let snapshot = control.snapshot();
         snapshot.validate().unwrap();
         let mut restored = InMemoryControlPlane::from_snapshot(snapshot).unwrap();
+        assert_eq!(
+            restored
+                .runtime_projection(&first.runtime.id)
+                .unwrap()
+                .updated_at_unix_ms,
+            Some(1_721_234_567_890)
+        );
         assert_eq!(restored.execute(envelope).unwrap(), first);
     }
 
@@ -2034,6 +2311,21 @@ mod tests {
         assert_eq!(
             control.execute(invalid),
             Err(DomainError::InvalidIdentifier { field: "name" })
+        );
+
+        let mut invalid_sidecar = envelope.clone();
+        let Command::RuntimeRegister {
+            sidecar_endpoint, ..
+        } = &mut invalid_sidecar.command
+        else {
+            unreachable!();
+        };
+        *sidecar_endpoint = Some(" padded ".to_string());
+        assert_eq!(
+            control.execute(invalid_sidecar),
+            Err(DomainError::InvalidIdentifier {
+                field: "sidecar_endpoint"
+            })
         );
 
         control.execute(envelope.clone()).unwrap();
@@ -2157,6 +2449,10 @@ mod tests {
         assert_eq!(applied.runtime.revision, Revision(2));
         assert_eq!(applied.runtime.name, "Updated Runtime");
         assert_eq!(applied.runtime.endpoint, "https://127.0.0.1:9553");
+        assert_eq!(
+            applied.runtime.sidecar_endpoint.as_deref(),
+            Some("https://127.0.0.1:9554")
+        );
         assert!(matches!(
             applied.events.as_slice(),
             [DomainEvent::RuntimeRegistrationUpdated {
@@ -2220,6 +2516,7 @@ mod tests {
             .unwrap();
         let capabilities = discovery_capabilities();
         let status = discovery_status();
+        let sidecar_status = discovery_sidecar_status();
         let intake = CommandEnvelope {
             schema_version: DOMAIN_SCHEMA_VERSION,
             command_id: CommandId::new("discovery-command").unwrap(),
@@ -2236,6 +2533,7 @@ mod tests {
                 runtime_id: registered.runtime.id.clone(),
                 capabilities: Some(Box::new(capabilities.clone())),
                 status: Some(Box::new(status.clone())),
+                sidecar_status: Some(Box::new(sidecar_status.clone())),
             },
         };
         let applied = control.execute(intake.clone()).unwrap();
@@ -2243,6 +2541,7 @@ mod tests {
         assert_eq!(applied.runtime.revision, Revision(2));
         assert_eq!(applied.runtime.capabilities, capabilities);
         assert_eq!(applied.runtime.status, status);
+        assert_eq!(applied.runtime.sidecar_status, Some(sidecar_status));
         assert_eq!(
             applied.runtime.capabilities_observed_for_revision,
             Some(Revision(1))
@@ -2255,11 +2554,56 @@ mod tests {
             }]
         ));
 
+        let mut invalid_sidecar = CommandEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            command_id: CommandId::new("invalid-sidecar-command").unwrap(),
+            idempotency_key: IdempotencyKey::new("invalid-sidecar-key").unwrap(),
+            expected_revision: Some(Revision(2)),
+            principal: Principal {
+                id: "web-bridge".into(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+            origin: CommandOrigin::CompatibilityAdapter,
+            confirmation: Confirmation::Confirmed,
+            dry_run: false,
+            command: Command::RuntimeDiscoveryIntake {
+                runtime_id: registered.runtime.id.clone(),
+                capabilities: None,
+                status: None,
+                sidecar_status: Some(Box::new(RuntimeSidecarStatusSnapshot {
+                    status_source: "fetch_failed".into(),
+                    status_fetched_at: None,
+                    status_fetch_error: Some("raw upstream secret".into()),
+                    healthy: false,
+                    daemon_status: "fetch_failed".into(),
+                    target_count: None,
+                    learning_active: false,
+                    learned_routes: 0,
+                    has_evidence_chain_enrichment: false,
+                    has_diagnostic_opinion: false,
+                    last_error: None,
+                    memory: None,
+                })),
+            },
+        };
+        assert!(matches!(
+            control.execute(invalid_sidecar.clone()),
+            Err(DomainError::InvalidQuery {
+                reason: "runtime sidecar observation is invalid"
+            })
+        ));
+        if let Command::RuntimeDiscoveryIntake { sidecar_status, .. } = &mut invalid_sidecar.command
+        {
+            sidecar_status.as_mut().unwrap().status_fetch_error =
+                Some("sidecar_fetch_failed".into());
+        }
+        assert!(control.execute(invalid_sidecar).is_ok());
+
         let mut stale = CommandEnvelope {
             schema_version: DOMAIN_SCHEMA_VERSION,
             command_id: CommandId::new("stale-discovery-command").unwrap(),
             idempotency_key: IdempotencyKey::new("stale-discovery-key").unwrap(),
-            expected_revision: Some(Revision(1)),
+            expected_revision: Some(Revision(2)),
             principal: Principal {
                 id: "operator".into(),
             },
@@ -2271,13 +2615,14 @@ mod tests {
                 runtime_id: registered.runtime.id,
                 capabilities: Some(Box::new(discovery_capabilities())),
                 status: None,
+                sidecar_status: None,
             },
         };
         assert!(matches!(
             control.execute(stale.clone()),
             Err(DomainError::RevisionConflict { .. })
         ));
-        stale.expected_revision = Some(Revision(2));
+        stale.expected_revision = Some(Revision(3));
         if let Command::RuntimeDiscoveryIntake {
             capabilities,
             status,
@@ -2398,6 +2743,32 @@ mod tests {
         let mut restored = InMemoryControlPlane::from_snapshot(snapshot).unwrap();
         assert_eq!(restored.execute(envelope).unwrap(), first);
         assert_eq!(restored.snapshot(), control.snapshot());
+    }
+
+    #[test]
+    fn snapshot_rejects_zero_or_reversed_authority_timestamps() {
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        let mut control = InMemoryControlPlane::default();
+        control.register_runtime(runtime_id, "A", "http://a");
+
+        let mut zero = control.snapshot();
+        zero.runtimes[0].registered_at_unix_ms = Some(0);
+        assert!(matches!(
+            zero.validate(),
+            Err(DomainSnapshotError::Invalid {
+                reason: "runtime authority timestamps are invalid"
+            })
+        ));
+
+        let mut reversed = control.snapshot();
+        reversed.runtimes[0].registered_at_unix_ms = Some(20);
+        reversed.runtimes[0].updated_at_unix_ms = Some(10);
+        assert!(matches!(
+            reversed.validate(),
+            Err(DomainSnapshotError::Invalid {
+                reason: "runtime authority timestamps are invalid"
+            })
+        ));
     }
 
     #[test]

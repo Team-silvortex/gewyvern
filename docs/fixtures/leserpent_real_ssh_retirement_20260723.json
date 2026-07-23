@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-07-23",
+  "release_line": "1.7.x",
+  "target": {
+    "os": "Ubuntu 24.04",
+    "kernel": "7.0.0-28-generic",
+    "arch": "x86_64",
+    "host_id_sha256": "4b650dcd40407c878a2c23bdf8efd208c451335e550b03744492270429c2b8fe",
+    "ssh_host_key_sha256": "SHA256:1Avwm67cEqHvgz83C/mTUKQjl3vrEI+bX/wzbsoy0kg",
+    "service_manager": "systemd-user"
+  },
+  "artifact": {
+    "format": "elf-pie",
+    "sha256": "8d603dc6770addd8f6364d7c3cfeb0b53b1bce0c6a498b5669ccbac07de8f304",
+    "bytes": 8280560
+  },
+  "transport": {
+    "implementation": "NativeSshGewyvernRetirementTransport",
+    "shell_entrypoint": false,
+    "host_key_pinned": true,
+    "sftp_upload_readback": true,
+    "credential_handle_only_above_transport": true,
+    "staging_mode": "0700"
+  },
+  "workflow": {
+    "native_ssh_provisioning_service_ready": true,
+    "tls_token_health_verified": true,
+    "forged_provisioning_identity_rejected": true,
+    "forged_identity_preserved_service_for_corrected_attempt": true,
+    "service_retired_receipt_bound": true,
+    "identical_retirement_replay_succeeded": true,
+    "test_elapsed_seconds": 21.15
+  },
+  "postconditions": {
+    "service_active": false,
+    "service_enabled": false,
+    "service_processes": 0,
+    "runtime_root_present": false,
+    "service_descriptor_present": false,
+    "api_port_listening": false,
+    "staging_files": 0,
+    "retirement_marker_phase": "retired",
+    "retirement_marker_mode": "0600",
+    "retirement_marker_sha256": "927f22e5108cde250b042657bc1cb66b0aece9907c64abbee3f4dbc07b737624",
+    "controller_trust_root_mode": "0700",
+    "controller_trust_record_mode": "0600"
+  },
+  "composed_authority": {
+    "atomic_runtime_unregistration_test": "crates/leserpentd/src/lib.rs",
+    "failed_retirement_registration_preservation_test": "crates/leserpent-cli/tests/ipc_vertical.rs"
+  },
+  "secrets_retained": false
+}

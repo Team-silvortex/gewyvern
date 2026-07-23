@@ -95,6 +95,9 @@ fn fleet_result(revision: Revision, changed: bool) -> Result<QueryResult, String
                     .map_err(|error| error.to_string())?,
                 name: format!("Runtime {index:04}"),
                 endpoint: format!("http://127.0.0.1:{}", 10_000 + index),
+                sidecar_endpoint: None,
+                registered_at_unix_ms: None,
+                updated_at_unix_ms: None,
                 revision,
                 refresh_count: u64::from(changed && index == 0),
                 refresh_status: if changed && index == 0 {
@@ -104,6 +107,7 @@ fn fleet_result(revision: Revision, changed: bool) -> Result<QueryResult, String
                 },
                 tags: RuntimeTags::default(),
                 status: RuntimeStatusSnapshot::default(),
+                sidecar_status: None,
                 capabilities: Default::default(),
                 capabilities_observed_for_revision: None,
             })

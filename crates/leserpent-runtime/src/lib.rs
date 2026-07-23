@@ -12,10 +12,10 @@ use leserpent_domain::retirement::{
     RuntimeRetirementSnapshot,
 };
 use leserpent_domain::{
-    CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
-    DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
-    MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES, PlannedOperation, Query,
-    QueryEnvelope, QueryResult, RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
+    Command, CommandPlan, CommandPlanError, CommandResult, CommandStatus,
+    DOMAIN_SNAPSHOT_SCHEMA_VERSION, DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError,
+    InMemoryControlPlane, MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES,
+    PlannedOperation, Query, QueryEnvelope, QueryResult, RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
     RUNTIME_DEPLOYMENT_EFFECT_KIND, RUNTIME_STATUS_REFRESH_EFFECT_KIND, Revision,
     RuntimeCapabilityObservation, RuntimeCapabilityRefreshRequest, RuntimeDeploymentOutcome,
     RuntimeDeploymentRequest, RuntimeId, RuntimeLogLevel, RuntimeLogRecord, RuntimeProjection,
@@ -37,6 +37,55 @@ use persistence::{EffectRecord, Journal, JournalEntryKind};
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
 pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: usize = 4_096;
+
+fn command_runtime_id(command: &Command) -> Option<&RuntimeId> {
+    match command {
+        Command::RuntimeRegister { runtime_id, .. }
+        | Command::RuntimeRegistrationUpdate { runtime_id, .. }
+        | Command::RuntimeDiscoveryIntake { runtime_id, .. }
+        | Command::RuntimeRefresh { runtime_id }
+        | Command::RuntimeCapabilitiesRefresh { runtime_id }
+        | Command::RuntimeDeploy { runtime_id, .. } => Some(runtime_id),
+        Command::DebuggerCancel { .. } => None,
+    }
+}
+
+fn stamp_runtime(
+    control: &mut InMemoryControlPlane,
+    runtime_id: &RuntimeId,
+    registered: bool,
+    timestamp_unix_ms: i64,
+) -> Result<RuntimeProjection, RuntimeError> {
+    let timestamp_unix_ms = u64::try_from(timestamp_unix_ms)
+        .map_err(|_| RuntimeError::Storage("runtime authority timestamp is negative".into()))?;
+    control
+        .stamp_runtime_authority_time(runtime_id, registered, timestamp_unix_ms)
+        .map_err(RuntimeError::Domain)
+}
+
+fn stamp_result_if_mutated(
+    control: &mut InMemoryControlPlane,
+    result: &CommandResult,
+    prior_revision: Option<Revision>,
+    timestamp_unix_ms: i64,
+) -> Result<(), RuntimeError> {
+    if result.status == CommandStatus::Applied && prior_revision != Some(result.runtime.revision) {
+        stamp_runtime(
+            control,
+            &result.runtime.id,
+            prior_revision.is_none(),
+            timestamp_unix_ms,
+        )?;
+    }
+    Ok(())
+}
+
+fn unstamped_runtime_projection(runtime: &RuntimeProjection) -> RuntimeProjection {
+    let mut runtime = runtime.clone();
+    runtime.registered_at_unix_ms = None;
+    runtime.updated_at_unix_ms = None;
+    runtime
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EffectEnqueue {
@@ -254,11 +303,19 @@ impl ControlRuntime {
                 JournalEntryKind::RuntimeRegistration => {
                     let registration: RuntimeRegistration = serde_json::from_slice(&entry.payload)
                         .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+                    let runtime_id =
+                        RuntimeId::new(registration.runtime_id).map_err(RuntimeError::Domain)?;
                     runtime.control.register_runtime(
-                        RuntimeId::new(registration.runtime_id).map_err(RuntimeError::Domain)?,
+                        runtime_id.clone(),
                         registration.name,
                         registration.endpoint,
                     );
+                    stamp_runtime(
+                        &mut runtime.control,
+                        &runtime_id,
+                        true,
+                        entry.created_at_unix_ms,
+                    )?;
                 }
                 JournalEntryKind::RuntimeUnregistration => {
                     let unregistration: RuntimeUnregistration =
@@ -284,6 +341,16 @@ impl ControlRuntime {
                             "journal contains a non-mutating command-plan entry".into(),
                         ));
                     };
+                    let prior_revision = runtime
+                        .control
+                        .runtime_projection(command_runtime_id(&command.command).ok_or_else(
+                            || {
+                                RuntimeError::Storage(
+                                    "journal contains an unsupported debugger command".into(),
+                                )
+                            },
+                        )?)
+                        .map(|projection| projection.revision);
                     let result = match runtime.control.execute(command) {
                         Ok(result) => result,
                         Err(error) if entry.outcome.is_none() => {
@@ -311,6 +378,12 @@ impl ControlRuntime {
                             .complete(entry.sequence, &encoded)
                             .map_err(RuntimeError::Storage)?;
                     }
+                    stamp_result_if_mutated(
+                        &mut runtime.control,
+                        &result,
+                        prior_revision,
+                        entry.created_at_unix_ms,
+                    )?;
                 }
                 JournalEntryKind::RuntimeStatusObservation => {
                     let observation: RuntimeStatusObservation =
@@ -326,13 +399,19 @@ impl ControlRuntime {
                             observation.status,
                         )
                         .map_err(RuntimeError::Domain)?;
-                    let encoded = serde_json::to_vec(&projection)
+                    let encoded = serde_json::to_vec(&unstamped_runtime_projection(&projection))
                         .map_err(|error| RuntimeError::Storage(error.to_string()))?;
                     if entry.outcome.as_deref() != Some(encoded.as_slice()) {
                         return Err(RuntimeError::ReplayMismatch {
                             sequence: entry.sequence,
                         });
                     }
+                    stamp_runtime(
+                        &mut runtime.control,
+                        &runtime_id,
+                        false,
+                        entry.created_at_unix_ms,
+                    )?;
                 }
                 JournalEntryKind::RuntimeCapabilityObservation => {
                     let observation: RuntimeCapabilityObservation =
@@ -348,7 +427,7 @@ impl ControlRuntime {
                             observation.capabilities,
                         )
                         .map_err(RuntimeError::Domain)?;
-                    let encoded = serde_json::to_vec(&projection)
+                    let encoded = serde_json::to_vec(&unstamped_runtime_projection(&projection))
                         .map_err(|error| RuntimeError::Storage(error.to_string()))?;
                     if entry.outcome.as_deref() != Some(encoded.as_slice()) {
                         let mut legacy: RuntimeProjection = entry
@@ -362,12 +441,18 @@ impl ControlRuntime {
                             legacy.capabilities_observed_for_revision =
                                 Some(observation.expected_revision);
                         }
-                        if legacy != projection {
+                        if legacy != unstamped_runtime_projection(&projection) {
                             return Err(RuntimeError::ReplayMismatch {
                                 sequence: entry.sequence,
                             });
                         }
                     }
+                    stamp_runtime(
+                        &mut runtime.control,
+                        &runtime_id,
+                        false,
+                        entry.created_at_unix_ms,
+                    )?;
                 }
             }
         }
@@ -979,7 +1064,7 @@ impl ControlRuntime {
                 "runtime provisioning requires persistent storage".into(),
             ));
         };
-        journal
+        let timestamp = journal
             .commit_provisioning_registration(
                 leased_effect,
                 registration_payload.as_deref(),
@@ -989,6 +1074,9 @@ impl ControlRuntime {
                 &checkpoint_payload,
             )
             .map_err(RuntimeError::Storage)?;
+        if registration.is_some() {
+            stamp_runtime(&mut staged, &runtime_id, true, timestamp)?;
+        }
         self.control = staged;
         Ok(state)
     }
@@ -1300,14 +1388,14 @@ impl ControlRuntime {
             .map_err(RuntimeError::Domain)?;
         let payload = serde_json::to_vec(&observation)
             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-        let projection = serde_json::to_vec(&projection)
+        let projection = serde_json::to_vec(&unstamped_runtime_projection(&projection))
             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
         let Some(journal) = &mut self.journal else {
             return Err(RuntimeError::Storage(
                 "status effect completion requires persistent storage".into(),
             ));
         };
-        journal
+        let timestamp = journal
             .complete_effect_with_journal(
                 lease,
                 JournalEntryKind::RuntimeStatusObservation,
@@ -1316,6 +1404,7 @@ impl ControlRuntime {
                 outcome,
             )
             .map_err(RuntimeError::Storage)?;
+        stamp_runtime(&mut staged, &runtime_id, false, timestamp)?;
         self.control = staged;
         Ok(())
     }
@@ -1339,14 +1428,14 @@ impl ControlRuntime {
             .map_err(RuntimeError::Domain)?;
         let payload = serde_json::to_vec(&observation)
             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-        let projection = serde_json::to_vec(&projection)
+        let projection = serde_json::to_vec(&unstamped_runtime_projection(&projection))
             .map_err(|error| RuntimeError::Storage(error.to_string()))?;
         let Some(journal) = &mut self.journal else {
             return Err(RuntimeError::Storage(
                 "capability effect completion requires persistent storage".into(),
             ));
         };
-        journal
+        let timestamp = journal
             .complete_effect_with_journal(
                 lease,
                 JournalEntryKind::RuntimeCapabilityObservation,
@@ -1355,6 +1444,7 @@ impl ControlRuntime {
                 outcome,
             )
             .map_err(RuntimeError::Storage)?;
+        stamp_runtime(&mut staged, &runtime_id, false, timestamp)?;
         self.control = staged;
         Ok(())
     }
@@ -1370,16 +1460,19 @@ impl ControlRuntime {
             name: name.into(),
             endpoint: endpoint.into(),
         };
-        if let Some(journal) = &mut self.journal {
+        let timestamp = if let Some(journal) = &mut self.journal {
             let payload = serde_json::to_vec(&registration)
                 .map_err(|error| RuntimeError::Storage(error.to_string()))?;
             journal
-                .append(JournalEntryKind::RuntimeRegistration, &payload)
-                .map_err(RuntimeError::Storage)?;
-        }
-        Ok(self
-            .control
-            .register_runtime(id, registration.name, registration.endpoint))
+                .append_stamped(JournalEntryKind::RuntimeRegistration, &payload)
+                .map_err(RuntimeError::Storage)?
+                .created_at_unix_ms
+        } else {
+            persistence::unix_time_ms().map_err(RuntimeError::Storage)?
+        };
+        self.control
+            .register_runtime(id.clone(), registration.name, registration.endpoint);
+        stamp_runtime(&mut self.control, &id, true, timestamp)
     }
 
     pub fn ensure_runtime_registered(
@@ -1478,32 +1571,46 @@ impl ControlRuntime {
                     operation: PlannedOperation::Command(command.clone()),
                 })
                 .map_err(|error| RuntimeError::Storage(error.to_string()))?;
-                let sequence = match &mut self.journal {
+                let append = match &mut self.journal {
                     Some(journal) => Some(
                         journal
-                            .append(JournalEntryKind::CommandPlan, &payload)
+                            .append_stamped(JournalEntryKind::CommandPlan, &payload)
                             .map_err(RuntimeError::Storage)?,
                     ),
                     None => None,
                 };
+                let prior_revision = self
+                    .control
+                    .runtime_projection(command_runtime_id(&command.command).ok_or(
+                        RuntimeError::Domain(DomainError::InvalidQuery {
+                            reason: "debugger commands require the Leselang VM authority",
+                        }),
+                    )?)
+                    .map(|projection| projection.revision);
                 let result = match self.control.execute(command) {
                     Ok(result) => result,
                     Err(error) => {
-                        if let (Some(journal), Some(sequence)) = (&mut self.journal, sequence) {
+                        if let (Some(journal), Some(append)) = (&mut self.journal, &append) {
                             journal
-                                .fail(sequence, &error.to_string())
+                                .fail(append.sequence, &error.to_string())
                                 .map_err(RuntimeError::Storage)?;
                         }
                         return Err(RuntimeError::Domain(error));
                     }
                 };
-                if let (Some(journal), Some(sequence)) = (&mut self.journal, sequence) {
+                if let (Some(journal), Some(append)) = (&mut self.journal, &append) {
                     let outcome = serde_json::to_vec(&result)
                         .map_err(|error| RuntimeError::Storage(error.to_string()))?;
                     journal
-                        .complete(sequence, &outcome)
+                        .complete(append.sequence, &outcome)
                         .map_err(RuntimeError::Storage)?;
                 }
+                let timestamp = append
+                    .map(|entry| entry.created_at_unix_ms)
+                    .map(Ok)
+                    .unwrap_or_else(persistence::unix_time_ms)
+                    .map_err(RuntimeError::Storage)?;
+                stamp_result_if_mutated(&mut self.control, &result, prior_revision, timestamp)?;
                 self.schedule_command_effects(&result)?;
                 Ok(PlanResult::Command(result))
             }
@@ -1765,9 +1872,10 @@ mod tests {
     use leselang_syntax::parse;
     use leserpent_domain::{
         CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
-        CapabilitySet, CommandId, CommandOrigin, Confirmation, IdempotencyKey, Principal,
-        QueryResult, RefreshStatus, Revision, RuntimeCapabilityObservation,
-        RuntimeCapabilitySnapshot, RuntimeStatusObservation, RuntimeStatusSnapshot,
+        CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
+        CommandOrigin, Confirmation, IdempotencyKey, Principal, QueryResult, RefreshStatus,
+        Revision, RuntimeCapabilityObservation, RuntimeCapabilitySnapshot,
+        RuntimeSidecarStatusSnapshot, RuntimeStatusObservation, RuntimeStatusSnapshot,
     };
     use rusqlite::Connection;
     use std::collections::VecDeque;
@@ -2099,6 +2207,8 @@ mod tests {
     #[test]
     fn sqlite_journal_rebuilds_registration_and_completed_command() {
         let path = temp_journal("completed-replay");
+        let registered_at;
+        let updated_at;
         {
             let mut runtime = ControlRuntime::open(&path).unwrap();
             let projection = runtime
@@ -2108,9 +2218,31 @@ mod tests {
                     "https://runtime-a.invalid",
                 )
                 .unwrap();
-            runtime
-                .execute_plan(refresh_plan(projection.revision))
-                .unwrap();
+            registered_at = projection
+                .registered_at_unix_ms
+                .expect("persistent registration must receive an authority timestamp");
+            assert_eq!(projection.updated_at_unix_ms, Some(registered_at));
+            std::thread::sleep(Duration::from_millis(2));
+            let refresh = refresh_plan(projection.revision);
+            runtime.execute_plan(refresh.clone()).unwrap();
+            let refreshed = runtime
+                .runtime_projection(&RuntimeId::new("runtime-a").unwrap())
+                .unwrap()
+                .clone();
+            updated_at = refreshed
+                .updated_at_unix_ms
+                .expect("persistent mutation must advance the authority timestamp");
+            assert!(updated_at >= registered_at);
+            std::thread::sleep(Duration::from_millis(2));
+            runtime.execute_plan(refresh).unwrap();
+            assert_eq!(
+                runtime
+                    .runtime_projection(&RuntimeId::new("runtime-a").unwrap())
+                    .unwrap()
+                    .updated_at_unix_ms,
+                Some(updated_at),
+                "idempotent replay must not refresh the authority timestamp"
+            );
         }
 
         let mut recovered = ControlRuntime::open(&path).unwrap();
@@ -2121,6 +2253,8 @@ mod tests {
         };
         assert_eq!(runtimes.len(), 1);
         assert_eq!(runtimes[0].refresh_count, 1);
+        assert_eq!(runtimes[0].registered_at_unix_ms, Some(registered_at));
+        assert_eq!(runtimes[0].updated_at_unix_ms, Some(updated_at));
         fs::remove_file(path).unwrap();
     }
 
@@ -3205,6 +3339,87 @@ mod tests {
             .unwrap();
         assert_eq!(registrations, 1);
         drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn sidecar_discovery_intake_is_durable_and_restart_safe() {
+        let path = temp_journal("sidecar-discovery-replay");
+        let runtime_id = RuntimeId::new("runtime-sidecar").unwrap();
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let registered = runtime
+                .register_runtime(
+                    runtime_id.clone(),
+                    "Runtime Sidecar",
+                    "https://runtime.invalid",
+                )
+                .unwrap();
+            let result = runtime
+                .execute_plan(CommandPlan {
+                    schema_version: leserpent_domain::COMMAND_PLAN_SCHEMA_VERSION,
+                    required_capability: CAPABILITY_RUNTIME_REGISTER.into(),
+                    operation: PlannedOperation::Command(CommandEnvelope {
+                        schema_version: leserpent_domain::DOMAIN_SCHEMA_VERSION,
+                        command_id: CommandId::new("sidecar-discovery-command").unwrap(),
+                        idempotency_key: IdempotencyKey::new("sidecar-discovery-key").unwrap(),
+                        expected_revision: Some(registered.revision),
+                        principal: Principal {
+                            id: "web-bridge".into(),
+                        },
+                        capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                        origin: CommandOrigin::CompatibilityAdapter,
+                        confirmation: Confirmation::Confirmed,
+                        dry_run: false,
+                        command: Command::RuntimeDiscoveryIntake {
+                            runtime_id: runtime_id.clone(),
+                            capabilities: None,
+                            status: None,
+                            sidecar_status: Some(Box::new(RuntimeSidecarStatusSnapshot {
+                                status_source: "fetch_failed".into(),
+                                status_fetched_at: None,
+                                status_fetch_error: Some("sidecar_fetch_failed".into()),
+                                healthy: false,
+                                daemon_status: "fetch_failed".into(),
+                                target_count: None,
+                                learning_active: false,
+                                learned_routes: 0,
+                                has_evidence_chain_enrichment: false,
+                                has_diagnostic_opinion: false,
+                                last_error: Some("sidecar_fetch_failed".into()),
+                                memory: None,
+                            })),
+                        },
+                    }),
+                })
+                .unwrap();
+            let PlanResult::Command(result) = result else {
+                panic!("sidecar discovery must return a command result");
+            };
+            assert_eq!(
+                result
+                    .runtime
+                    .sidecar_status
+                    .as_ref()
+                    .unwrap()
+                    .status_source,
+                "fetch_failed"
+            );
+        }
+
+        let recovered = ControlRuntime::open(&path).unwrap();
+        let projection = recovered.runtime_projection(&runtime_id).unwrap();
+        assert_eq!(
+            projection
+                .sidecar_status
+                .as_ref()
+                .unwrap()
+                .status_fetch_error
+                .as_deref(),
+            Some("sidecar_fetch_failed")
+        );
+        assert!(projection.updated_at_unix_ms.is_some());
+        drop(recovered);
         fs::remove_file(path).unwrap();
     }
 

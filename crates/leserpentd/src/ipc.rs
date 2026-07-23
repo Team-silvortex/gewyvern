@@ -648,6 +648,7 @@ mod tests {
                     runtime_id: RuntimeId::new("runtime-new").unwrap(),
                     name: "Runtime New".into(),
                     endpoint: "https://127.0.0.1:9443".into(),
+                    sidecar_endpoint: Some("https://127.0.0.1:9444".into()),
                     tags: RuntimeTags {
                         environment: Some("production".into()),
                         cluster: Some("east".into()),
@@ -685,6 +686,7 @@ mod tests {
                     runtime_id: RuntimeId::new("runtime-new").unwrap(),
                     name: "Runtime Updated".into(),
                     endpoint: "https://127.0.0.1:9553".into(),
+                    sidecar_endpoint: Some("https://127.0.0.1:9554".into()),
                     tags: RuntimeTags {
                         environment: Some("staging".into()),
                         cluster: Some("west".into()),
@@ -734,6 +736,7 @@ mod tests {
                         extensions: BTreeMap::from([("protocol_catalog".into(), true)]),
                     })),
                     status: None,
+                    sidecar_status: None,
                 },
             }),
         };

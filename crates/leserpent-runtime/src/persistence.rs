@@ -67,6 +67,12 @@ pub struct JournalEntry {
     pub payload: Vec<u8>,
     pub outcome: Option<Vec<u8>>,
     pub terminal_error: Option<String>,
+    pub created_at_unix_ms: i64,
+}
+
+pub struct JournalAppend {
+    pub sequence: i64,
+    pub created_at_unix_ms: i64,
 }
 
 pub struct JournalSnapshot {
@@ -201,7 +207,11 @@ impl Journal {
         })
     }
 
-    pub fn append(&mut self, kind: JournalEntryKind, payload: &[u8]) -> Result<i64, String> {
+    pub fn append_stamped(
+        &mut self,
+        kind: JournalEntryKind,
+        payload: &[u8],
+    ) -> Result<JournalAppend, String> {
         self.ensure_owner()?;
         validate_blob("payload", payload)?;
         let count: i64 = self
@@ -213,13 +223,17 @@ impl Journal {
                 "runtime journal record limit {MAX_JOURNAL_RECORDS} reached"
             ));
         }
+        let created_at_unix_ms = unix_time_ms()?;
         self.connection
             .execute(
                 "INSERT INTO runtime_journal (kind, payload, created_at_unix_ms) VALUES (?1, ?2, ?3)",
-                params![kind.as_str(), payload, unix_time_ms()?],
+                params![kind.as_str(), payload, created_at_unix_ms],
             )
             .map_err(|error| error.to_string())?;
-        Ok(self.connection.last_insert_rowid())
+        Ok(JournalAppend {
+            sequence: self.connection.last_insert_rowid(),
+            created_at_unix_ms,
+        })
     }
 
     pub fn complete(&mut self, sequence: i64, outcome: &[u8]) -> Result<(), String> {
@@ -264,7 +278,7 @@ impl Journal {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT sequence, kind, payload, outcome, terminal_error
+                "SELECT sequence, kind, payload, outcome, terminal_error, created_at_unix_ms
                  FROM runtime_journal
                  WHERE sequence > ?1
                  ORDER BY sequence ASC
@@ -279,12 +293,13 @@ impl Journal {
                     row.get::<_, Vec<u8>>(2)?,
                     row.get::<_, Option<Vec<u8>>>(3)?,
                     row.get::<_, Option<String>>(4)?,
+                    row.get::<_, i64>(5)?,
                 ))
             })
             .map_err(|error| error.to_string())?;
         let mut entries = Vec::new();
         for row in rows {
-            let (sequence, kind, payload, outcome, terminal_error) =
+            let (sequence, kind, payload, outcome, terminal_error, created_at_unix_ms) =
                 row.map_err(|error| error.to_string())?;
             if entries.len() as i64 >= MAX_JOURNAL_RECORDS {
                 return Err(format!(
@@ -301,6 +316,7 @@ impl Journal {
                 payload,
                 outcome,
                 terminal_error,
+                created_at_unix_ms,
             });
         }
         Ok(entries)
@@ -1390,7 +1406,7 @@ impl Journal {
         expected_revision: u64,
         final_revision: u64,
         checkpoint: &[u8],
-    ) -> Result<(), String> {
+    ) -> Result<i64, String> {
         self.ensure_owner()?;
         validate_scheduler_id("authority operation_id", operation_id)?;
         validate_blob("provisioning checkpoint", checkpoint)?;
@@ -1472,7 +1488,8 @@ impl Journal {
         if let Some((lease, outcome)) = leased_effect {
             complete_leased_effect(&transaction, lease, outcome, now)?;
         }
-        transaction.commit().map_err(|error| error.to_string())
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(now)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1638,7 +1655,7 @@ impl Journal {
         payload: &[u8],
         journal_outcome: &[u8],
         effect_outcome: &[u8],
-    ) -> Result<(), String> {
+    ) -> Result<i64, String> {
         self.ensure_owner()?;
         validate_blob("payload", payload)?;
         validate_blob("journal outcome", journal_outcome)?;
@@ -1682,7 +1699,8 @@ impl Journal {
         if changed != 1 {
             return Err("effect lease was lost or expired".into());
         }
-        transaction.commit().map_err(|error| error.to_string())
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(now)
     }
 
     pub fn fail_effect(
@@ -2614,7 +2632,7 @@ fn validate_lease_duration(duration: Duration) -> Result<i64, String> {
     Ok(millis)
 }
 
-fn unix_time_ms() -> Result<i64, String> {
+pub(crate) fn unix_time_ms() -> Result<i64, String> {
     let millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| error.to_string())?

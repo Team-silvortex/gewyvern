@@ -15,7 +15,13 @@ public interface IRuntimeRegistrationAuthority
         CancellationToken cancellationToken,
         bool update = false,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
-        RuntimeStatusDiscoveryResult? statusDiscovery = null);
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null);
+
+    Task SubmitSidecarStatusAsync(
+        string runtimeId,
+        RuntimeSidecarStatusSnapshot status,
+        CancellationToken cancellationToken);
 }
 
 public sealed partial class DaemonRuntimeRegistrationAuthority :
@@ -71,7 +77,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         CancellationToken cancellationToken,
         bool update = false,
         CapabilityDiscoveryResult? capabilityDiscovery = null,
-        RuntimeStatusDiscoveryResult? statusDiscovery = null)
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
     {
         if (!Enabled)
         {
@@ -98,7 +105,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 && statusDiscovery.Status.StatusFetchError is null
                     ? statusDiscovery.Status
                     : null;
-            if (capabilitySnapshot is not null || statusSnapshot is not null)
+            var sidecarSnapshot = SanitizeSidecarStatus(sidecarDiscovery?.SidecarStatus);
+            if (capabilitySnapshot is not null || statusSnapshot is not null || sidecarSnapshot is not null)
             {
                 var intakeRevision = await InspectRevisionAsync(runtimeId, deadline.Token)
                     ?? throw new InvalidOperationException("leserpentd lost the registered runtime before discovery intake");
@@ -106,7 +114,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                     runtimeId,
                     intakeRevision,
                     capabilitySnapshot,
-                    statusSnapshot);
+                    statusSnapshot,
+                    sidecarSnapshot);
                 using var intakeResponse = await ExchangeAsync(intake, deadline.Token);
                 _ = ParseCommandResult(intakeResponse.RootElement, runtimeId);
             }
@@ -128,6 +137,50 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             throw new DaemonRuntimeRegistrationException(
                 "daemon_protocol_invalid",
                 "leserpentd returned an invalid registration protocol response",
+                error);
+        }
+    }
+
+    public async Task SubmitSidecarStatusAsync(
+        string runtimeId,
+        RuntimeSidecarStatusSnapshot status,
+        CancellationToken cancellationToken)
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+        try
+        {
+            var revision = await InspectRevisionAsync(runtimeId, deadline.Token)
+                ?? throw new InvalidOperationException("leserpentd lost the runtime before sidecar intake");
+            var command = BuildDiscoveryIntakeCommand(
+                runtimeId,
+                revision,
+                null,
+                null,
+                SanitizeSidecarStatus(status));
+            using var response = await ExchangeAsync(command, deadline.Token);
+            _ = ParseCommandResult(response.RootElement, runtimeId);
+        }
+        catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new DaemonRuntimeRegistrationException(
+                "daemon_registration_timeout",
+                "leserpentd sidecar status intake timed out",
+                error);
+        }
+        catch (Exception error) when (
+            error is KeyNotFoundException
+                or InvalidOperationException
+                or FormatException
+                or OverflowException)
+        {
+            throw new DaemonRuntimeRegistrationException(
+                "daemon_protocol_invalid",
+                "leserpentd returned an invalid sidecar status intake response",
                 error);
         }
     }
@@ -237,6 +290,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             runtimeId,
             request.Name,
             request.Endpoint,
+            request.SidecarEndpoint,
             expectedRevision is not null);
         return BuildFrame(writer =>
         {
@@ -271,6 +325,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             writer.WriteString("runtime_id", runtimeId);
             writer.WriteString("name", request.Name.Trim());
             writer.WriteString("endpoint", request.Endpoint.Trim());
+            WriteOptionalString(writer, "sidecar_endpoint", request.SidecarEndpoint?.Trim());
             writer.WritePropertyName("tags");
             writer.WriteStartObject();
             WriteOptionalString(writer, "environment", tags.Environment?.Trim());
@@ -352,9 +407,15 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         string runtimeId,
         long expectedRevision,
         RuntimeCapabilityAuthoritySnapshot? capabilities,
-        RuntimeStatusSnapshot? status)
+        RuntimeStatusSnapshot? status,
+        RuntimeSidecarStatusSnapshot? sidecarStatus)
     {
-        var commandId = BuildDiscoveryCommandId(runtimeId, expectedRevision, capabilities, status);
+        var commandId = BuildDiscoveryCommandId(
+            runtimeId,
+            expectedRevision,
+            capabilities,
+            status,
+            sidecarStatus);
         return BuildFrame(writer =>
         {
             writer.WriteStartObject();
@@ -379,6 +440,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             writer.WriteString("runtime_id", runtimeId);
             WriteCapabilitySnapshot(writer, capabilities);
             WriteStatusSnapshot(writer, status);
+            WriteSidecarStatusSnapshot(writer, sidecarStatus);
             writer.WriteEndObject();
             writer.WriteEndObject();
             writer.WriteEndObject();
@@ -455,6 +517,101 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         WriteOptionalNumber(writer, "socket_consecutive_idle_timeouts", status.SocketConsecutiveIdleTimeouts);
         WriteOptionalNumber(writer, "socket_total_idle_timeouts", status.SocketTotalIdleTimeouts);
         writer.WriteEndObject();
+    }
+
+    private static void WriteSidecarStatusSnapshot(
+        Utf8JsonWriter writer,
+        RuntimeSidecarStatusSnapshot? status)
+    {
+        if (status is null)
+        {
+            writer.WriteNull("sidecar_status");
+            return;
+        }
+        writer.WritePropertyName("sidecar_status");
+        writer.WriteStartObject();
+        writer.WriteString("status_source", status.StatusSource);
+        WriteOptionalString(writer, "status_fetched_at", status.StatusFetchedAt?.ToString("O"));
+        WriteOptionalString(writer, "status_fetch_error", status.StatusFetchError);
+        writer.WriteBoolean("healthy", status.Healthy);
+        writer.WriteString("daemon_status", status.DaemonStatus);
+        WriteOptionalNumber(writer, "target_count", status.TargetCount);
+        writer.WriteBoolean("learning_active", status.LearningActive);
+        writer.WriteNumber("learned_routes", status.LearnedRoutes);
+        writer.WriteBoolean("has_evidence_chain_enrichment", status.HasEvidenceChainEnrichment);
+        writer.WriteBoolean("has_diagnostic_opinion", status.HasDiagnosticOpinion);
+        WriteOptionalString(writer, "last_error", status.LastError);
+        WriteSidecarMemorySnapshot(writer, status.Memory);
+        writer.WriteEndObject();
+    }
+
+    private static void WriteSidecarMemorySnapshot(
+        Utf8JsonWriter writer,
+        RuntimeSidecarMemorySnapshot? memory)
+    {
+        if (memory is null)
+        {
+            writer.WriteNull("memory");
+            return;
+        }
+        writer.WritePropertyName("memory");
+        writer.WriteStartObject();
+        writer.WriteBoolean("versions_supported", memory.VersionsSupported);
+        writer.WriteNumber("slot_count", memory.SlotCount);
+        writer.WriteNumber("history_count", memory.HistoryCount);
+        WriteOptionalString(writer, "latest_slot", memory.LatestSlot);
+        WriteOptionalString(writer, "latest_label", memory.LatestLabel);
+        WriteOptionalString(writer, "latest_source", memory.LatestSource);
+        writer.WritePropertyName("slots");
+        writer.WriteStartArray();
+        foreach (var slot in memory.Slots.Take(128))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("slot", slot.Slot);
+            WriteOptionalString(writer, "label", slot.Label);
+            WriteOptionalString(writer, "note", slot.Note);
+            writer.WriteString("source", slot.Source);
+            WriteOptionalString(writer, "saved_at", slot.SavedAt?.ToString("O"));
+            writer.WriteNumber("pattern_count", slot.PatternCount);
+            writer.WriteNumber("label_count", slot.LabelCount);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
+        WriteOptionalString(
+            writer,
+            "fetch_error",
+            memory.FetchError is null ? null : "sidecar_memory_fetch_failed");
+        writer.WriteEndObject();
+    }
+
+    private static RuntimeSidecarStatusSnapshot? SanitizeSidecarStatus(
+        RuntimeSidecarStatusSnapshot? status)
+    {
+        if (status is null)
+        {
+            return null;
+        }
+        if (status.StatusSource == "etragon-api" && status.StatusFetchError is null)
+        {
+            return status with
+            {
+                LastError = string.IsNullOrWhiteSpace(status.LastError)
+                    ? null
+                    : "sidecar_reported_error"
+            };
+        }
+        return new RuntimeSidecarStatusSnapshot(
+            "fetch_failed",
+            null,
+            "sidecar_fetch_failed",
+            false,
+            "fetch_failed",
+            null,
+            false,
+            0,
+            false,
+            false,
+            "sidecar_fetch_failed");
     }
 
     private byte[] BuildFrame(Action<Utf8JsonWriter> writeRequest)
@@ -567,12 +724,15 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         string runtimeId,
         string name,
         string endpoint,
+        string? sidecarEndpoint,
         bool update)
     {
         var normalizedName = name.Trim();
         var normalizedEndpoint = endpoint.Trim();
+        var normalizedSidecarEndpoint = sidecarEndpoint?.Trim() ?? string.Empty;
         var prefix = update ? "update|" : string.Empty;
-        var bytes = HashData($"{prefix}{runtimeId}|{normalizedName}|{normalizedEndpoint}");
+        var bytes = HashData(
+            $"{prefix}{runtimeId}|{normalizedName}|{normalizedEndpoint}|{normalizedSidecarEndpoint}");
         return Convert.ToHexString(bytes).ToLowerInvariant().Substring(0, 32);
     }
 
@@ -580,7 +740,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         string runtimeId,
         long expectedRevision,
         RuntimeCapabilityAuthoritySnapshot? capabilities,
-        RuntimeStatusSnapshot? status)
+        RuntimeStatusSnapshot? status,
+        RuntimeSidecarStatusSnapshot? sidecarStatus)
     {
         var endpoints = capabilities is null
             ? string.Empty
@@ -598,8 +759,25 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             extensions,
             status?.StatusFetchedAt?.ToString("O") ?? string.Empty,
             status?.SnapshotKind ?? string.Empty,
-            status?.TargetCount?.ToString() ?? string.Empty);
+            status?.TargetCount?.ToString() ?? string.Empty,
+            BuildSidecarStatusDigest(sidecarStatus));
         return Convert.ToHexString(HashData(value)).ToLowerInvariant()[..32];
+    }
+
+    private static string BuildSidecarStatusDigest(RuntimeSidecarStatusSnapshot? status)
+    {
+        if (status is null)
+        {
+            return string.Empty;
+        }
+        using var output = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(output))
+        {
+            writer.WriteStartObject();
+            WriteSidecarStatusSnapshot(writer, status);
+            writer.WriteEndObject();
+        }
+        return Convert.ToHexString(SHA256.HashData(output.ToArray())).ToLowerInvariant();
     }
 
     private static byte[] HashData(string value)

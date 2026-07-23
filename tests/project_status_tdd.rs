@@ -189,7 +189,63 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
+    assert_eq!(runtime.contract.version, "1.8.0");
+    for surface in [
+        "durable-sidecar-endpoint",
+        "atomic-sidecar-registration-update",
+        "secret-free-sidecar-projection",
+        "journal-authority-timestamps",
+        "snapshot-persisted-authority-timestamps",
+        "replay-stable-authority-timestamps",
+        "idempotent-timestamp-preservation",
+        "legacy-optional-authority-timestamps",
+        "timestamp-free-command-outcomes",
+        "typed-sidecar-status-observation",
+        "sanitized-sidecar-failure-posture",
+        "durable-sidecar-status",
+        "sidecar-status-replay",
+    ] {
+        assert!(
+            runtime
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing durable sidecar authority surface {surface}"
+        );
+    }
     assert!(runtime.blockers.is_empty());
+
+    let compatibility_control = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
+        .expect("Leserpent compatibility control-plane cell must exist");
+    assert_eq!(compatibility_control.contract.version, "1.6.0");
+    for surface in [
+        "daemon-authoritative-sidecar-endpoint",
+        "daemon-authoritative-runtime-timestamps",
+        "legacy-timestamp-field-fallback",
+        "reversed-timestamp-rejection",
+        "daemon-authoritative-sidecar-status",
+        "legacy-sidecar-status-fallback",
+        "sanitized-sidecar-failure-intake",
+        "daemon-first-sidecar-refresh",
+    ] {
+        assert!(
+            compatibility_control
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing compatibility authority surface {surface}"
+        );
+    }
+    assert!(
+        compatibility_control
+            .next_gate
+            .contains("remaining managed-only refresh and cleanup mutations")
+    );
 
     let bootstrap = catalog
         .cells
@@ -246,15 +302,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|blocker| blocker.id == "bootstrap-production-entry-missing")
     );
-    assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "post-bind-gewyvern-retirement-evidence-incomplete"
-            && blocker.summary.contains("authenticated IPC/HTTPS")
-            && blocker.summary.contains("native CLI")
-            && blocker.summary.contains("Avalonia client")
-            && blocker
-                .summary
-                .contains("physical Linux stop/remove evidence")
-    }));
+    assert!(
+        !bootstrap
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id.contains("gewyvern-retirement"))
+    );
     assert!(
         !bootstrap
             .blockers
@@ -272,10 +325,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/gewyvern-provisioning")
         .expect("Gewyvern provisioning must be tracked independently from pipeline deployment");
-    assert_eq!(provisioning.maturity, Maturity::Developing);
-    assert_eq!(provisioning.completion, 99);
-    assert_eq!(provisioning.contract.stability, ContractStability::Draft);
-    assert_eq!(provisioning.contract.version, "0.17.0");
+    assert_eq!(provisioning.maturity, Maturity::Mature);
+    assert_eq!(provisioning.completion, 100);
+    assert_eq!(provisioning.contract.stability, ContractStability::Stable);
+    assert_eq!(provisioning.contract.version, "1.0.0");
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
             surface == "planned-installing-service-ready-runtime-registered-state"
@@ -462,6 +515,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "bounded-avalonia-retirement-poll",
         "credential-free-avalonia-retirement-status",
         "retirement-failure-registration-guidance",
+        "physical-linux-native-ssh-retirement",
+        "forged-provisioning-retirement-rejection",
+        "idempotent-physical-retirement-replay",
+        "zero-residue-systemd-user-retirement",
     ] {
         assert!(
             provisioning
@@ -472,12 +529,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing provisioning client surface {surface}"
         );
     }
-    assert!(provisioning.blockers.iter().any(|blocker| {
-        blocker.id == "gewyvern-provisioning-compensation-missing"
-            && blocker.summary.contains("physical Linux retirement proof")
-            && blocker.summary.contains("native CLI and Avalonia clients")
-            && !blocker.summary.contains("Avalonia controls")
-            && !blocker.summary.contains("Authenticated IPC/HTTPS")
+    assert!(provisioning.blockers.is_empty());
+    assert!(provisioning.evidence.iter().any(|evidence| {
+        evidence.path == "docs/fixtures/leserpent_real_ssh_retirement_20260723.json"
+            && evidence.state == EvidenceState::Present
     }));
     assert!(
         !provisioning
