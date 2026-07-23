@@ -818,9 +818,11 @@ invalid generation. Runtime/session graph validation is complete as well:
 runtime and session identities are stable and case-insensitively unique, every
 session references a registered runtime, generated saves self-check, and
 explicit imports fail before replacing the live projection. The next
-reliability gate extends graph validation to legacy Orchestra run identity and
-runtime references so malformed historical runs cannot be silently filtered or
-collapsed during restoration.
+reliability gate for legacy Orchestra identity and runtime references is also
+complete. Duplicate run IDs are rejected before SQLite `ON CONFLICT` migration,
+and orphan runs are rejected instead of disappearing through restoration
+filtering. The next gate validates per-runtime request-ID uniqueness and retry
+lineage invariants before legacy history reaches SQLite.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

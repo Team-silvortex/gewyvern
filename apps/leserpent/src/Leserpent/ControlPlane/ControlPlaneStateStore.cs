@@ -188,7 +188,7 @@ public sealed class ControlPlaneStateStore
 
             try
             {
-                ControlPlaneStateValidator.ValidateRuntimeSessionGraph(state);
+                ControlPlaneStateValidator.ValidateProjectionGraph(state);
                 var directory = Path.GetDirectoryName(statePath);
                 if (!string.IsNullOrWhiteSpace(directory))
                 {

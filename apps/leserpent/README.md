@@ -330,7 +330,7 @@ JSON state 默认路径：
 - control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件
 - control-plane 备份刷新同样使用独立临时文件、完整复制、刷盘和原子替换；刷新期间强杀且随后主文件损坏时，加载器仍只恢复完整上一代状态
 - 从备份恢复后，首次保存会跳过旧主文件的备份刷新并直接原子安装新主文件；只有成功提交的主 generation 才能在后续保存中晋升为备份
-- StateStore 和 Registry 共用状态语义验证器；除删除意图/retry 审计约束外，runtime/session ID 必须稳定且大小写不敏感唯一，每个 session 必须引用已注册 runtime；磁盘恢复、保存和显式导入都在任何投影替换或 generation 晋升前 fail closed，并通过 `semantic_invalid` 暴露固定失败原因
+- StateStore 和 Registry 共用状态语义验证器；除删除意图/retry 审计约束外，runtime/session 及 legacy Orchestra run ID 必须稳定且大小写不敏感唯一，每个 session 和 run 必须引用已注册 runtime；磁盘恢复、保存和显式导入都在任何投影替换、SQLite 迁移或 generation 晋升前 fail closed，并通过 `semantic_invalid` 暴露固定失败原因
 - `/health` 和 `/v1/capabilities` 的 `persistence.load` 使用固定枚举报告 `empty|primary|backup|none` 来源、`empty|clean|recovered|failed` 结果及无路径失败码；成功备份恢复保持 persistence ready，同时明确标记为 degraded but operable
 - runtime 存在 `queued`/`running` Orchestra run 时，单删和批量删除会返回 `409 runtime_delete_orchestra_active` 及 `activeRuns`；批量操作不会部分删除其他 idle runtime
 - 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。

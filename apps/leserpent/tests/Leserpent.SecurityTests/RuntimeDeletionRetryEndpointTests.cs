@@ -22,69 +22,83 @@ public sealed class RuntimeDeletionRetryEndpointTests
         var statePath = Path.Combine(
             Path.GetTempPath(),
             $"leserpent-retry-endpoint-{Guid.NewGuid():N}.json");
-        var registry = CreateRegistry(statePath);
-        const string runtimeId = "runtime-retry-endpoint";
-        registry.RegisterRuntime(
-            new RuntimeRegistrationRequest(
-                "Retry endpoint runtime",
-                "https://retry-endpoint.example",
-                "pairing-token"),
-            runtimeId);
-        registry.ReserveRuntimeDeletion(new[] { runtimeId }).Dispose();
-        var attemptedAt = DateTimeOffset.UtcNow;
-        using (var reservation = Assert.Single(
-            registry.ClaimPendingRuntimeDeletions(1, attemptedAt)))
+        try
         {
-            registry.RecordRuntimeDeletionFailures(
-                new[]
-                {
-                    new RuntimeDeletionFailure(
-                        reservation,
-                        RuntimeDeletionFailureCodes.AuthorityUnavailable,
-                        attemptedAt),
-                });
+            var registry = CreateRegistry(statePath);
+            const string runtimeId = "runtime-retry-endpoint";
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "Retry endpoint runtime",
+                    "https://retry-endpoint.example",
+                    "pairing-token"),
+                runtimeId);
+            registry.ReserveRuntimeDeletion(new[] { runtimeId }).Dispose();
+            var preparedIntent = Assert.Single(
+                registry.ListPendingRuntimeDeletions());
+
+            await using var app = await BuildTestAppAsync(registry);
+            var client = app.GetTestClient();
+            var path =
+                $"/v1/persistence/runtime-deletions/{preparedIntent.IntentId}/retry-now";
+            var rejected = await client.PostAsJsonAsync(
+                path,
+                new RuntimeDeletionRetryNowRequest(
+                    preparedIntent.Revision,
+                    "retry-endpoint-rejected",
+                    "operator-a"));
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+
+            var attemptedAt = DateTimeOffset.UtcNow;
+            using (var reservation = Assert.Single(
+                registry.ClaimPendingRuntimeDeletions(1, attemptedAt)))
+            {
+                registry.RecordRuntimeDeletionFailures(
+                    new[]
+                    {
+                        new RuntimeDeletionFailure(
+                            reservation,
+                            RuntimeDeletionFailureCodes.AuthorityUnavailable,
+                            attemptedAt),
+                    });
+            }
+            var intent = Assert.Single(
+                registry.ListPendingRuntimeDeletions());
+            var request = new RuntimeDeletionRetryNowRequest(
+                intent.Revision,
+                "retry-endpoint-request",
+                "operator-a");
+
+            var acceptedRequest = new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = JsonContent.Create(request),
+            };
+            acceptedRequest.Headers.Add(
+                ControlPlaneSecurityPolicy.IntentHeader,
+                ControlPlaneSecurityPolicy.MutateIntent);
+            var accepted = await client.SendAsync(acceptedRequest);
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            var response = await accepted.Content.ReadFromJsonAsync(
+                LeserpentJsonContext.Default.RuntimeDeletionRetryNowResponse);
+            Assert.NotNull(response);
+            Assert.False(response.Replayed);
+            Assert.Equal(
+                intent.Revision + 1,
+                response.PendingIntent!.Revision);
+
+            var auditResponse = await client.GetAsync(
+                "/v1/persistence/runtime-deletion-retry-audit");
+            Assert.Equal(HttpStatusCode.OK, auditResponse.StatusCode);
+            var audit = await auditResponse.Content.ReadFromJsonAsync(
+                LeserpentJsonContext.Default
+                    .PersistedRuntimeDeletionRetryAuditArray);
+            Assert.Single(audit!);
+            Assert.Equal(request.RequestId, audit![0].RequestId);
         }
-        var intent = Assert.Single(
-            registry.ListPendingRuntimeDeletions());
-
-        await using var app = await BuildTestAppAsync(registry);
-        var client = app.GetTestClient();
-        var path =
-            $"/v1/persistence/runtime-deletions/{intent.IntentId}/retry-now";
-        var request = new RuntimeDeletionRetryNowRequest(
-            intent.Revision,
-            "retry-endpoint-request",
-            "operator-a");
-
-        var rejected = await client.PostAsJsonAsync(path, request);
-        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
-
-        var acceptedRequest = new HttpRequestMessage(HttpMethod.Post, path)
+        finally
         {
-            Content = JsonContent.Create(request),
-        };
-        acceptedRequest.Headers.Add(
-            ControlPlaneSecurityPolicy.IntentHeader,
-            ControlPlaneSecurityPolicy.MutateIntent);
-        var accepted = await client.SendAsync(acceptedRequest);
-        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
-        var response = await accepted.Content.ReadFromJsonAsync(
-            LeserpentJsonContext.Default.RuntimeDeletionRetryNowResponse);
-        Assert.NotNull(response);
-        Assert.False(response.Replayed);
-        Assert.Equal(intent.Revision + 1, response.PendingIntent!.Revision);
-
-        var auditResponse = await client.GetAsync(
-            "/v1/persistence/runtime-deletion-retry-audit");
-        Assert.Equal(HttpStatusCode.OK, auditResponse.StatusCode);
-        var audit = await auditResponse.Content.ReadFromJsonAsync(
-            LeserpentJsonContext.Default
-                .PersistedRuntimeDeletionRetryAuditArray);
-        Assert.Single(audit!);
-        Assert.Equal(request.RequestId, audit![0].RequestId);
-
-        File.Delete(statePath);
-        File.Delete($"{statePath}.bak");
+            File.Delete(statePath);
+            File.Delete($"{statePath}.bak");
+        }
     }
 
     private static RegistryService CreateRegistry(string statePath)

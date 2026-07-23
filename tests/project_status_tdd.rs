@@ -1475,6 +1475,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "case-insensitive-topology-collision-fence",
         "session-runtime-referential-integrity",
         "pre-projection-import-validation",
+        "legacy-orchestra-run-identity-uniqueness",
+        "legacy-orchestra-runtime-referential-integrity",
+        "pre-migration-orchestra-generation-fence",
+        "no-silent-legacy-run-filtering",
     ] {
         assert!(
             compatibility_control
@@ -1488,7 +1492,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("Orchestra run identity")
+            .contains("request-ID uniqueness")
     );
 
     let bootstrap = catalog

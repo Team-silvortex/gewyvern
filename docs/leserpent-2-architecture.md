@@ -858,6 +858,12 @@ case-insensitively unique, and every session must reference a registered
 runtime. Disk load, local save, and explicit state import all use this same
 gate; duplicate or orphan records fail with `semantic_invalid`, while import
 validation runs before the current registry is cleared.
+Legacy JSON Orchestra history participates in the same projection graph.
+Run identifiers are stable and case-insensitively unique across the generation,
+and each run uses the canonical identifier of a registered runtime. Validation
+therefore precedes both the old in-memory restoration filter and SQLite
+`ON CONFLICT` migration, so orphan history cannot disappear and duplicate runs
+cannot collapse into one record without an explicit failure.
 
 ## Leselang Semantics
 

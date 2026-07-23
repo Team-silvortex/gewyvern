@@ -23,9 +23,16 @@ internal static class ControlPlaneStateValidator
                 "control-plane state metadata is invalid");
         }
 
-        ValidateRuntimeSessionGraph(state);
+        ValidateProjectionGraph(state);
         _ = NormalizePendingRuntimeDeletions(state, observedAt);
         _ = NormalizeRuntimeDeletionRetryAudit(state, observedAt);
+    }
+
+    internal static void ValidateProjectionGraph(
+        PersistedControlPlaneState state)
+    {
+        ValidateRuntimeSessionGraph(state);
+        ValidateLegacyOrchestraRunGraph(state);
     }
 
     internal static void ValidateRuntimeSessionGraph(
@@ -63,6 +70,33 @@ internal static class ControlPlaneStateValidator
             {
                 throw new InvalidDataException(
                     "control-plane state contains a session without a registered runtime");
+            }
+        }
+    }
+
+    internal static void ValidateLegacyOrchestraRunGraph(
+        PersistedControlPlaneState state)
+    {
+        var canonicalRuntimeIds = state.Runtimes
+            .Select(static runtime => runtime.RuntimeId)
+            .ToHashSet(StringComparer.Ordinal);
+        var runIds = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var run in state.OrchestraRuns ??
+            Array.Empty<OrchestraRunSummary>())
+        {
+            if (run is null ||
+                !IsStableIdentity(run.RunId) ||
+                !runIds.Add(run.RunId))
+            {
+                throw new InvalidDataException(
+                    "control-plane state contains an invalid or duplicate Orchestra run identity");
+            }
+            if (!IsStableIdentity(run.RuntimeId) ||
+                !canonicalRuntimeIds.Contains(run.RuntimeId))
+            {
+                throw new InvalidDataException(
+                    "control-plane state contains an Orchestra run without a registered runtime");
             }
         }
     }

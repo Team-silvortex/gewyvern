@@ -223,6 +223,7 @@ public sealed class SqliteOrchestraRunStoreTests
     {
         var statePath = TemporaryPath("json");
         var store = CreateStateStore(statePath);
+        var runtimes = new[] { CreateRuntimeState() };
         var candidates = Enumerable.Range(0, 32)
             .Select(index => CreateRun(
                 $"concurrent-run-{index}",
@@ -232,7 +233,7 @@ public sealed class SqliteOrchestraRunStoreTests
 
         await Task.WhenAll(candidates.Select(run => Task.Run(() =>
             store.Save(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { run }))));
 
@@ -457,12 +458,13 @@ public sealed class SqliteOrchestraRunStoreTests
         try
         {
             var writer = CreateStateStore(statePath);
+            var runtimes = new[] { CreateRuntimeState() };
             writer.SaveStrict(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
             writer.SaveStrict(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
             var knownGoodBackup = File.ReadAllBytes(backupPath);
@@ -474,7 +476,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 ControlPlaneStateLoadSource.Backup,
                 recovered.LoadProvenance.Source);
             recovered.SaveStrict(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { CreateRun("repaired-run", "repaired-request", "succeeded") });
 
@@ -504,12 +506,13 @@ public sealed class SqliteOrchestraRunStoreTests
         try
         {
             var writer = CreateStateStore(statePath);
+            var runtimes = new[] { CreateRuntimeState() };
             writer.SaveStrict(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
             writer.SaveStrict(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
             var knownGoodBackup = File.ReadAllBytes(backupPath);
@@ -531,7 +534,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 recovered.LoadProvenance);
 
             recovered.SaveStrict(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { CreateRun("repaired-run", "repaired-request", "succeeded") });
             Assert.Equal(knownGoodBackup, File.ReadAllBytes(backupPath));
@@ -699,24 +702,112 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void ControlPlaneStateStoreRejectsDuplicateLegacyOrchestraRunIdentities()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var run = Assert.Single(valid.OrchestraRuns!);
+            var duplicateRuns = valid.OrchestraRuns!
+                .Append(run with
+                {
+                    RunId = run.RunId.ToUpperInvariant(),
+                })
+                .ToArray();
+            WriteState($"{statePath}.bak", valid);
+            var knownGoodBackup = File.ReadAllBytes($"{statePath}.bak");
+            WriteState(
+                statePath,
+                valid with
+                {
+                    OrchestraRuns = duplicateRuns,
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.OrchestraRuns!);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+            Assert.Throws<ControlPlaneStatePersistenceException>(() =>
+                store.SaveStrict(
+                    valid.Runtimes,
+                    valid.Sessions,
+                    duplicateRuns));
+            Assert.Equal(
+                knownGoodBackup,
+                File.ReadAllBytes($"{statePath}.bak"));
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void RegistryImportRejectsOrphanLegacyOrchestraRunBeforeReplacingProjection()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var registry = new RegistryService(CreateStateStore(statePath));
+            var runtime = registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "existing-runtime",
+                    "http://127.0.0.1:49154",
+                    "pairing-token"),
+                "runtime-existing");
+            var imported = CreateRuntimeSessionState();
+            imported = imported with
+            {
+                OrchestraRuns = new[]
+                {
+                    Assert.Single(imported.OrchestraRuns!) with
+                    {
+                        RuntimeId = "runtime-missing",
+                    },
+                },
+            };
+
+            Assert.Throws<InvalidDataException>(() =>
+                registry.ImportState(imported));
+            Assert.Equal(
+                "existing-runtime",
+                registry.GetRuntime(runtime.RuntimeId)?.Name);
+            Assert.Single(registry.ListRuntimes());
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
     public void ControlPlaneStateStorePreservesSnapshotAndCleansTempAfterBackupFailure()
     {
         var statePath = TemporaryPath("json");
         var backupPath = $"{statePath}.bak";
         var store = CreateStateStore(statePath);
+        var runtimes = new[] { CreateRuntimeState() };
         var original = CreateRun("original-run", "original-request", "succeeded");
 
         try
         {
             store.Save(
-                Array.Empty<PersistedRuntimeState>(),
+                runtimes,
                 Array.Empty<PersistedSessionState>(),
                 new[] { original });
             Directory.CreateDirectory(backupPath);
 
             Assert.Throws<ControlPlaneStatePersistenceException>(() =>
                 store.SaveStrict(
-                    Array.Empty<PersistedRuntimeState>(),
+                    runtimes,
                     Array.Empty<PersistedSessionState>(),
                     new[] { CreateRun("replacement-run", "replacement-request", "succeeded") }));
 
@@ -790,7 +881,36 @@ public sealed class SqliteOrchestraRunStoreTests
                     runtime.RuntimeId,
                     "diagnostic",
                     "operator")).Session);
+            registry.RecordOrchestraRun(
+                runtime.RuntimeId,
+                "runtime_triage",
+                "succeeded",
+                Array.Empty<OrchestraExecutionStepResult>(),
+                "operator",
+                "topology validation",
+                "revision-1",
+                "request-topology-validation");
             return registry.ExportState();
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    private static PersistedRuntimeState CreateRuntimeState()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var registry = new RegistryService(CreateStateStore(statePath));
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "runtime",
+                    "http://127.0.0.1:49155",
+                    "pairing-token"),
+                "runtime-1");
+            return Assert.Single(registry.ExportState().Runtimes);
         }
         finally
         {
