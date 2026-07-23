@@ -1366,11 +1366,11 @@
       "blockers": [
         {
           "id": "cross-platform-bootstrap-installation-incomplete",
-          "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and a product uninstall/retirement flow remain."
+          "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and cross-platform product uninstall/retirement proof remain."
         },
         {
-          "id": "post-bind-gewyvern-retirement-missing",
-          "summary": "The Rust CLI and Avalonia Hub now expose authenticated daemon bootstrap, handoff inspection, confirmed binding, locally verified connection promotion, and authority-scoped Gewyvern confirmation, progress, and retry guidance. Remote compensation or retirement for an already registered service remains."
+          "id": "post-bind-gewyvern-retirement-controls-incomplete",
+          "summary": "The Rust CLI and Avalonia Hub now expose authenticated daemon bootstrap, handoff inspection, confirmed binding, locally verified connection promotion, and authority-scoped Gewyvern provisioning confirmation, progress, and retry guidance. Post-bind runtime retirement now has durable authority, authenticated IPC/HTTPS, and native target transport, while matching CLI/Avalonia controls and physical Linux evidence remain."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1410,7 +1410,7 @@
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapPromotion.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" }
       ],
-      "next_gate": "Define remote compensation or retirement after a post-bind Gewyvern service has been registered."
+      "next_gate": "Complete CLI/Avalonia post-bind runtime retirement controls and retain a physical Linux stop/remove proof."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
@@ -1424,7 +1424,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-gewyvern-provisioning-contract",
-        "version": "0.13.0",
+        "version": "0.15.0",
         "stability": "draft",
         "surfaces": [
           "runtime-provision-capability",
@@ -1521,7 +1521,20 @@
           "retirement-predispatch-registration-fence",
           "terminal-retirement-outcome-validation",
           "atomic-daemon-retirement-settlement",
-          "forged-retirement-receipt-rejection"
+          "forged-retirement-receipt-rejection",
+          "strict-gewyvern-retirement-wire-v1",
+          "native-gewyvern-retire-v1-entrypoint",
+          "manifest-bound-target-retirement",
+          "two-phase-retirement-recovery-marker",
+          "runtime-scoped-retirement-deletion",
+          "private-retirement-authority-permissions",
+          "host-key-pinned-retirement-ssh",
+          "shared-gewyvern-origin-retirement-policy",
+          "production-retirement-adapter-registration",
+          "explicit-retirement-ipc-route",
+          "authenticated-retirement-https-route",
+          "bounded-retirement-route-payload",
+          "adapter-registration-retirement-route-gate"
         ]
       },
       "depends_on": [
@@ -1532,7 +1545,7 @@
       "blockers": [
         {
           "id": "gewyvern-provisioning-compensation-missing",
-          "summary": "The independent runtime.retire domain, strict wire-v1 contract, durable runtime authority, adapter-gated daemon submission, and worker settlement now require service retirement before an atomic effect/checkpoint/runtime-unregistration transaction. Runtime unregistration is journaled and restart-replayable; external failure, lost leases, and forged receipts preserve the registration. The native SSH retirement transport and target entrypoint plus authenticated IPC/HTTPS, CLI, and Avalonia controls remain; runtime.deploy continues to mean pipeline submission only."
+          "summary": "The independent runtime.retire domain, strict wire contracts, durable runtime authority, adapter-gated daemon worker, authenticated IPC/HTTPS routes, host-key-pinned native SSH transport, and manifest-bound target entrypoint now require proven service retirement before atomic runtime unregistration. The target uses a private two-phase recovery marker and deletes only the bound runtime; external failure, lost leases, forged receipts, identity drift, relaxed authority permissions, and an absent production adapter preserve registration. CLI/Avalonia controls and a physical Linux retirement proof remain; runtime.deploy continues to mean pipeline submission only."
         }
       ],
       "consumers": ["leserpentd", "leserpent-cli", "avalonia-client", "model-automation"],
@@ -1554,6 +1567,11 @@
         { "kind": "test", "path": "crates/leserpent-adapters/src/retirement.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/retirement_submission.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol/src/gewyvern_retirement.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/src/gewyvern_retirement.rs", "state": "present" },
+        { "kind": "source", "path": "src/gewyvern_install.rs", "state": "present" },
+        { "kind": "test", "path": "src/gewyvern_install.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd/src/gewyvern_origin.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters/src/provisioning.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-adapters/src/provisioning.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/provisioning_submission.rs", "state": "present" },
@@ -1578,7 +1596,7 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Implement the native SSH Gewyvern retirement transport and target stop/remove entrypoint, then enable authenticated IPC/HTTPS and matching CLI/Avalonia controls."
+      "next_gate": "Add matching CLI/Avalonia runtime.retire controls and prove the stop/remove path on a physical Linux host before declaring the retirement slice complete."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

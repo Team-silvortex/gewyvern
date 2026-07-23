@@ -567,9 +567,18 @@ journals replayable runtime unregistration, and commits revision-3
 registration. Adapter-gated daemon submission and worker settlement now enforce
 the same identity and terminal-phase checks, while transport secrets are
 resolved only at the adapter boundary. Forged receipts leave the revision-1
-checkpoint and runtime registration intact. The remaining work is the native
-target/SSH transport and authenticated IPC/HTTPS plus matching CLI/Avalonia
-controls.
+checkpoint and runtime registration intact. The native target/SSH path is now
+present: the shared origin registers provisioning and retirement adapters,
+uploads the validated artifact over pinned SSH, invokes the strict
+`gewyvern-retire-v1` wire, and accepts only a fully bound receipt. The target
+verifies its private manifest and descriptor, persists a two-phase recovery
+marker, stops/disables the service, and removes only that runtime root. The
+daemon now exposes the same typed request through authenticated
+`retirement_v1` Unix IPC and `POST /v1/retirement` HTTPS routes. Each route keeps
+the independent 64 KiB limit and remains disabled unless the production
+retirement adapter is registered; a real TLS proof commits only a provisioning-
+bound revision-1 checkpoint. The remaining work is matching CLI/Avalonia
+controls and a physical Linux proof.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

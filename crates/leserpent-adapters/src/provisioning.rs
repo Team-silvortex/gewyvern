@@ -74,24 +74,21 @@ impl GewyvernArtifact {
     }
 
     #[cfg(feature = "native-ssh")]
-    fn staging_path(
-        &self,
-        provisioning_id: &leserpent_domain::provisioning::ProvisioningId,
-    ) -> String {
-        format!("{}-{}.stage", self.staging_prefix, provisioning_id.as_str())
+    pub(crate) fn staging_path_for(&self, operation_id: &str) -> String {
+        format!("{}-{operation_id}.stage", self.staging_prefix)
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SshGewyvernHostPolicy {
-    target: BootstrapTarget,
-    runtime_id: RuntimeId,
-    username: String,
-    host_key_sha256: String,
+    pub(crate) target: BootstrapTarget,
+    pub(crate) runtime_id: RuntimeId,
+    pub(crate) username: String,
+    pub(crate) host_key_sha256: String,
     endpoint: String,
     api_credential_handle: CredentialHandle,
     trust_credential_handle: CredentialHandle,
-    install_profile: String,
+    pub(crate) install_profile: String,
 }
 
 impl SshGewyvernHostPolicy {
@@ -260,7 +257,9 @@ impl GewyvernProvisioningTransport for NativeSshGewyvernProvisioningTransport {
         .map_err(|_| GewyvernProvisioningTransportError::InstallerRejected)?;
         let payload = encode_gewyvern_installer_request(&request)
             .map_err(|_| GewyvernProvisioningTransportError::InstallerRejected)?;
-        let staging_path = self.artifact.staging_path(&intent.provisioning_id);
+        let staging_path = self
+            .artifact
+            .staging_path_for(intent.provisioning_id.as_str());
         let command = format!("{staging_path} gewyvern-activate-v1");
         let stdout = self
             .client
@@ -458,7 +457,7 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 #[cfg(feature = "native-ssh")]
-fn gewyvern_target_key(target: &BootstrapTarget, runtime_id: &RuntimeId) -> String {
+pub(crate) fn gewyvern_target_key(target: &BootstrapTarget, runtime_id: &RuntimeId) -> String {
     format!("{}#{}", target_key(target), runtime_id.as_str())
 }
 

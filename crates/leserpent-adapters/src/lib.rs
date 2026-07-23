@@ -46,6 +46,8 @@ pub use provisioning::{
     GewyvernProvisioningJob, GewyvernProvisioningTransport, GewyvernProvisioningTransportError,
     MAX_GEWYVERN_ARTIFACT_BYTES, SshGewyvernHostPolicy,
 };
+#[cfg(feature = "native-ssh")]
+pub use retirement::NativeSshGewyvernRetirementTransport;
 pub use retirement::{
     GEWYVERN_RETIREMENT_EFFECT_KIND, GewyvernRetirementAdapter, GewyvernRetirementJob,
     GewyvernRetirementTransport, GewyvernRetirementTransportError,

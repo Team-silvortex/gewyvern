@@ -109,6 +109,17 @@ fn main() {
         }
         return;
     }
+    if args.first().map(String::as_str) == Some("gewyvern-retire-v1") {
+        if args.len() != 1 {
+            eprintln!("gewyvern: gewyvern-retire-v1 accepts no command-line arguments");
+            std::process::exit(1);
+        }
+        if let Err(error) = gewyvern_install::run_gewyvern_retire_stdio() {
+            eprintln!("gewyvern: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if args.first().map(String::as_str) == Some("gewyvern-service-v1") {
         if args.len() != 1 {
             eprintln!("gewyvern: gewyvern-service-v1 accepts no command-line arguments");

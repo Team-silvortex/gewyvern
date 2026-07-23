@@ -10,7 +10,9 @@ use leserpent_adapters::{
     GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore,
     SecretKey, SecretStore,
 };
-use leserpent_adapters::{GEWYVERN_PROVISIONING_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND};
+use leserpent_adapters::{
+    GEWYVERN_PROVISIONING_EFFECT_KIND, GEWYVERN_RETIREMENT_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND,
+};
 use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
 #[cfg(unix)]
@@ -345,7 +347,9 @@ fn run() -> Result<(), String> {
             )
             .map_err(|error| format!("cannot open Gewyvern trust store: {error:?}"))?,
         );
-        registry.register(origin.into_native_adapter(secrets, trust)?)?;
+        let (provisioning, retirement) = origin.into_native_adapters(secrets, trust)?;
+        registry.register(provisioning)?;
+        registry.register(retirement)?;
     }
     let bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>> = bootstrap_trust_root
         .map(|trust_root| {
@@ -361,6 +365,7 @@ fn run() -> Result<(), String> {
         .transpose()?;
     let bootstrap_submission_enabled = registry.contains_kind(HOST_BOOTSTRAP_EFFECT_KIND);
     let provisioning_submission_enabled = registry.contains_kind(GEWYVERN_PROVISIONING_EFFECT_KIND);
+    let retirement_submission_enabled = registry.contains_kind(GEWYVERN_RETIREMENT_EFFECT_KIND);
     let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default())?;
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(SIGINT, Arc::clone(&stop)).map_err(|error| error.to_string())?;
@@ -380,8 +385,13 @@ fn run() -> Result<(), String> {
             } else {
                 server
             };
-            Some(if provisioning_submission_enabled {
+            let server = if provisioning_submission_enabled {
                 server.with_provisioning_submission()
+            } else {
+                server
+            };
+            Some(if retirement_submission_enabled {
+                server.with_retirement_submission()
             } else {
                 server
             })
@@ -422,8 +432,13 @@ fn run() -> Result<(), String> {
             } else {
                 server
             };
-            Some(if provisioning_submission_enabled {
+            let server = if provisioning_submission_enabled {
                 server.with_provisioning_submission()
+            } else {
+                server
+            };
+            Some(if retirement_submission_enabled {
+                server.with_retirement_submission()
             } else {
                 server
             })

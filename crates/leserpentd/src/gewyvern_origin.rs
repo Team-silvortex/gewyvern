@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use leserpent_adapters::{
-    BootstrapTrustStore, GewyvernArtifact, GewyvernProvisioningAdapter,
-    MAX_GEWYVERN_ARTIFACT_BYTES, NativeSshGewyvernProvisioningTransport, SecretStore,
-    SshGewyvernHostPolicy,
+    BootstrapTrustStore, GewyvernArtifact, GewyvernProvisioningAdapter, GewyvernRetirementAdapter,
+    MAX_GEWYVERN_ARTIFACT_BYTES, NativeSshGewyvernProvisioningTransport,
+    NativeSshGewyvernRetirementTransport, SecretStore, SshGewyvernHostPolicy,
 };
 use leserpent_domain::RuntimeId;
 use leserpent_domain::bootstrap::{BootstrapTarget, BootstrapTransport, CredentialHandle};
@@ -47,6 +47,10 @@ struct ValidatedGewyvernOrigin {
     policies: Vec<SshGewyvernHostPolicy>,
 }
 
+type NativeProvisioningAdapter =
+    GewyvernProvisioningAdapter<NativeSshGewyvernProvisioningTransport>;
+type NativeRetirementAdapter = GewyvernRetirementAdapter<NativeSshGewyvernRetirementTransport>;
+
 impl GewyvernOriginConfig {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
         let bytes = read_private_origin_config(
@@ -63,19 +67,26 @@ impl GewyvernOriginConfig {
         &self.secret_service
     }
 
-    pub fn into_native_adapter(
+    pub fn into_native_adapters(
         self,
         secrets: Arc<dyn SecretStore>,
         trust: Arc<dyn BootstrapTrustStore>,
-    ) -> Result<GewyvernProvisioningAdapter<NativeSshGewyvernProvisioningTransport>, String> {
+    ) -> Result<(NativeProvisioningAdapter, NativeRetirementAdapter), String> {
         let validated = self.validate_and_load()?;
+        let retirement_transport = NativeSshGewyvernRetirementTransport::new(
+            validated.policies.clone(),
+            validated.artifact.clone(),
+        )?;
         let transport = NativeSshGewyvernProvisioningTransport::new(
             validated.policies,
             secrets.clone(),
             trust,
             validated.artifact,
         )?;
-        Ok(GewyvernProvisioningAdapter::new(secrets, transport))
+        Ok((
+            GewyvernProvisioningAdapter::new(secrets.clone(), transport),
+            GewyvernRetirementAdapter::new(secrets, retirement_transport),
+        ))
     }
 
     fn validate_shape(&self) -> Result<(), String> {
@@ -201,10 +212,14 @@ mod tests {
         let loaded = GewyvernOriginConfig::load(&config).unwrap();
         assert_eq!(loaded.secret_service(), "org.gewyvern.leserpent.adapters");
         let trust = Arc::new(FileBootstrapTrustStore::new(temp_path("trust")).unwrap());
-        let adapter = loaded
-            .into_native_adapter(Arc::new(EmptySecretStore), trust)
+        let (provisioning, retirement) = loaded
+            .into_native_adapters(Arc::new(EmptySecretStore), trust)
             .unwrap();
-        assert_eq!(adapter.kind(), GEWYVERN_PROVISIONING_EFFECT_KIND);
+        assert_eq!(provisioning.kind(), GEWYVERN_PROVISIONING_EFFECT_KIND);
+        assert_eq!(
+            retirement.kind(),
+            leserpent_adapters::GEWYVERN_RETIREMENT_EFFECT_KIND
+        );
 
         let with_token = config_json(&artifact).replacen(
             "\"username\": \"deployer\"",

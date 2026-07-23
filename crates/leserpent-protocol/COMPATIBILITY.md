@@ -166,8 +166,14 @@ schema 13 durably checkpoints this authority and atomically completes a leased
 effect, journals replayable unregistration, and commits `runtime_unregistered`;
 lost leases preserve the registration. Adapter-gated daemon submission and
 worker settlement now enforce live-registration preflight and reject forged or
-non-terminal outcomes. No IPC/HTTPS route is advertised until the native target
-adapter is implemented and registered.
+non-terminal outcomes. The strict internal `gewyvern-retire-v1` request binds
+retirement/provisioning/runtime/profile; its host-key-pinned SSH adapter accepts
+only the matching service-retired receipt. Authenticated daemon submission uses
+only `POST /v1/retirement` over HTTPS or the explicit `retirement_v1` Unix IPC
+route. Both preserve the independent 64 KiB retirement bound and typed response,
+authenticate before submission, and remain disabled unless the daemon registry
+owns `gewyvern.runtime.retire`. An unavailable route creates no retirement
+checkpoint. CLI and Avalonia controls remain outside this protocol slice.
 
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure

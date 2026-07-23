@@ -230,10 +230,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|blocker| blocker.id == "bootstrap-production-entry-missing")
     );
     assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "post-bind-gewyvern-retirement-missing"
-            && blocker
-                .summary
-                .contains("Remote compensation or retirement")
+        blocker.id == "post-bind-gewyvern-retirement-controls-incomplete"
+            && blocker.summary.contains("authenticated IPC/HTTPS")
+            && blocker.summary.contains("CLI/Avalonia controls")
     }));
     assert!(
         !bootstrap
@@ -255,6 +254,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(provisioning.maturity, Maturity::Developing);
     assert_eq!(provisioning.completion, 99);
     assert_eq!(provisioning.contract.stability, ContractStability::Draft);
+    assert_eq!(provisioning.contract.version, "0.15.0");
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
             surface == "planned-installing-service-ready-runtime-registered-state"
@@ -416,6 +416,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "terminal-retirement-outcome-validation",
         "atomic-daemon-retirement-settlement",
         "forged-retirement-receipt-rejection",
+        "strict-gewyvern-retirement-wire-v1",
+        "native-gewyvern-retire-v1-entrypoint",
+        "manifest-bound-target-retirement",
+        "two-phase-retirement-recovery-marker",
+        "runtime-scoped-retirement-deletion",
+        "private-retirement-authority-permissions",
+        "host-key-pinned-retirement-ssh",
+        "shared-gewyvern-origin-retirement-policy",
+        "production-retirement-adapter-registration",
+        "explicit-retirement-ipc-route",
+        "authenticated-retirement-https-route",
+        "bounded-retirement-route-payload",
+        "adapter-registration-retirement-route-gate",
     ] {
         assert!(
             provisioning
@@ -428,7 +441,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(provisioning.blockers.iter().any(|blocker| {
         blocker.id == "gewyvern-provisioning-compensation-missing"
-            && blocker.summary.contains("native SSH retirement transport")
+            && blocker.summary.contains("CLI/Avalonia controls")
+            && blocker.summary.contains("physical Linux retirement proof")
+            && !blocker.summary.contains("Authenticated IPC/HTTPS")
     }));
     assert!(
         !provisioning

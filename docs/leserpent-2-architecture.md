@@ -295,8 +295,22 @@ now accepts retirement only when its adapter registry owns the dedicated effect
 kind, rechecks live registration before dispatch, and rejects malformed,
 non-terminal, or identity-confused adapter output before invoking that
 transaction. The adapter resolves the opaque SSH handle only at its transport
-boundary and emits no secret material. Native SSH target execution and operator
-controls remain the next implementation slice; no public route is enabled yet.
+boundary and emits no secret material. The production origin now registers a
+second host-key-pinned native SSH adapter using the same runtime-scoped policy
+and validated artifact. Its strict internal wire invokes
+`gewyvern-retire-v1`, whose manifest check binds provisioning/runtime/profile
+before mutation. A private `retiring -> service_retired -> retired` marker makes
+power-loss recovery identity-fenced; stop/disable precedes descriptor and
+runtime-root removal, neighboring runtimes are untouched, and relaxed authority
+permissions fail before service mutation. Authenticated operator routes now
+begin at an explicit `retirement_v1` Unix IPC route and authenticated
+`POST /v1/retirement`. Both retain the retirement protocol's independent 64 KiB
+bound and typed error envelope; bad authentication is rejected before
+submission, and a daemon without the production retirement effect adapter
+returns `retirement_unavailable` without creating a checkpoint. The main process
+enables these submission gates only after registry ownership of
+`gewyvern.runtime.retire` is established. CLI/Avalonia controls and physical
+Linux retirement evidence remain the next implementation slice.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrated schema-11 `bootstrap_handoffs` rows into the

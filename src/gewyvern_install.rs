@@ -15,6 +15,11 @@ use leserpent_protocol::gewyvern_installer::{
     GewyvernInstallerServiceState, MAX_GEWYVERN_INSTALLER_BYTES, decode_gewyvern_installer_request,
     encode_gewyvern_installer_response,
 };
+use leserpent_protocol::gewyvern_retirement::{
+    GEWYVERN_RETIREMENT_SCHEMA_VERSION, GewyvernRetirementRequest, GewyvernRetirementResponse,
+    MAX_GEWYVERN_RETIREMENT_BYTES, decode_gewyvern_retirement_request,
+    encode_gewyvern_retirement_response,
+};
 use leserpent_protocol::transport_safety::{
     MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
 };
@@ -34,6 +39,7 @@ const TLS_PRIVATE_KEY_NAME: &str = "server.key";
 const MANIFEST_NAME: &str = "install.json";
 const SERVICE_PLAN_NAME: &str = "service-plan.json";
 const CURRENT_NAME: &str = "current";
+const RETIREMENT_MARKER_SCHEMA_VERSION: u32 = 1;
 #[cfg(target_os = "macos")]
 const SERVICE_DESCRIPTOR_NAME: &str = "service.plist";
 #[cfg(target_os = "linux")]
@@ -98,7 +104,11 @@ impl GewyvernInstallLayout {
     }
 
     fn runtime_root(&self, request: &GewyvernInstallerRequest) -> PathBuf {
-        self.root.join("runtimes").join(request.runtime_id.as_str())
+        self.runtime_root_for(request.runtime_id.as_str())
+    }
+
+    fn runtime_root_for(&self, runtime_id: &str) -> PathBuf {
+        self.root.join("runtimes").join(runtime_id)
     }
 }
 
@@ -129,6 +139,25 @@ struct ServicePlan {
     tls_private_key_file: String,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum RetirementMarkerPhase {
+    Retiring,
+    ServiceRetired,
+    Retired,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RetirementMarker {
+    schema_version: u32,
+    retirement_id: String,
+    provisioning_id: String,
+    runtime_id: String,
+    install_profile: String,
+    phase: RetirementMarkerPhase,
+}
+
 pub fn run_gewyvern_install_stdio() -> Result<(), GewyvernInstallError> {
     let request = read_stdio_request(std::io::stdin().lock())?;
     let layout = platform_layout(&request.install_profile)?;
@@ -143,6 +172,20 @@ pub fn run_gewyvern_activate_stdio() -> Result<(), GewyvernInstallError> {
     let source = env::current_exe().map_err(|_| GewyvernInstallError::InvalidArtifact)?;
     let response = activate_gewyvern_artifact(&source, &request, &layout)?;
     write_stdio_response(&response)
+}
+
+pub fn run_gewyvern_retire_stdio() -> Result<(), GewyvernInstallError> {
+    let request = read_retirement_stdio_request(std::io::stdin().lock())?;
+    let layout = platform_layout(&request.install_profile)?;
+    let response = retire_gewyvern(&request, &layout)?;
+    let encoded = encode_gewyvern_retirement_response(&response)
+        .map_err(|_| GewyvernInstallError::InvalidRequest)?;
+    let mut stdout = std::io::stdout().lock();
+    stdout
+        .write_all(&encoded)
+        .and_then(|()| stdout.write_all(b"\n"))
+        .and_then(|()| stdout.flush())
+        .map_err(|_| GewyvernInstallError::Storage)
 }
 
 pub fn run_gewyvern_service() -> Result<(), GewyvernInstallError> {
@@ -284,6 +327,186 @@ fn activate_gewyvern_artifact_with(
     Ok(response)
 }
 
+fn retire_gewyvern(
+    request: &GewyvernRetirementRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<GewyvernRetirementResponse, GewyvernInstallError> {
+    retire_gewyvern_with(request, layout, || {
+        execute_service_commands(service_retirement_commands(
+            request.runtime_id.as_str(),
+            layout,
+        )?)
+    })
+}
+
+fn retire_gewyvern_with(
+    request: &GewyvernRetirementRequest,
+    layout: &GewyvernInstallLayout,
+    retire_service: impl FnOnce() -> Result<(), GewyvernInstallError>,
+) -> Result<GewyvernRetirementResponse, GewyvernInstallError> {
+    request
+        .validate()
+        .map_err(|_| GewyvernInstallError::InvalidRequest)?;
+    if layout.profile != request.install_profile {
+        return Err(GewyvernInstallError::InvalidRequest);
+    }
+    validate_root(&layout.root)?;
+    validate_root(&layout.service_directory)?;
+    let retirements = layout.root.join("retirements");
+    let marker_path = retirements.join(format!("{}.json", request.runtime_id.as_str()));
+    let expected = retirement_marker(request, RetirementMarkerPhase::Retiring);
+    let existing = read_retirement_marker(&marker_path)?;
+    let replayed = existing.is_some();
+    let phase = match existing {
+        Some(marker) if !same_retirement_identity(&marker, &expected) => {
+            return Err(GewyvernInstallError::GenerationConflict);
+        }
+        Some(marker) if marker.phase == RetirementMarkerPhase::Retired => {
+            return Ok(retirement_response(request, true));
+        }
+        Some(marker) => marker.phase,
+        None => {
+            verify_retirement_authority(request, layout)?;
+            create_private_dir(&layout.root)?;
+            create_private_dir(&retirements)?;
+            let encoded =
+                serde_json::to_vec(&expected).map_err(|_| GewyvernInstallError::Storage)?;
+            restore_private_file(&marker_path, Some(&encoded))?;
+            RetirementMarkerPhase::Retiring
+        }
+    };
+
+    let descriptor = published_service_path_for(request.runtime_id.as_str(), layout);
+    if phase == RetirementMarkerPhase::Retiring {
+        if !descriptor.exists() {
+            return Err(GewyvernInstallError::GenerationConflict);
+        }
+        retire_service()?;
+        let stopped = retirement_marker(request, RetirementMarkerPhase::ServiceRetired);
+        let encoded = serde_json::to_vec(&stopped).map_err(|_| GewyvernInstallError::Storage)?;
+        restore_private_file(&marker_path, Some(&encoded))?;
+    }
+    if descriptor.exists() {
+        restore_private_file(&descriptor, None)?;
+    }
+    let runtime_root = layout.runtime_root_for(request.runtime_id.as_str());
+    match fs::symlink_metadata(&runtime_root) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            fs::remove_dir_all(&runtime_root).map_err(|_| GewyvernInstallError::Storage)?;
+            sync_dir(
+                runtime_root
+                    .parent()
+                    .ok_or(GewyvernInstallError::InvalidLayout)?,
+            )?;
+        }
+        Ok(_) => return Err(GewyvernInstallError::InvalidLayout),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err(GewyvernInstallError::Storage),
+    }
+    let retired = retirement_marker(request, RetirementMarkerPhase::Retired);
+    let encoded = serde_json::to_vec(&retired).map_err(|_| GewyvernInstallError::Storage)?;
+    restore_private_file(&marker_path, Some(&encoded))?;
+    Ok(retirement_response(request, replayed))
+}
+
+fn verify_retirement_authority(
+    request: &GewyvernRetirementRequest,
+    layout: &GewyvernInstallLayout,
+) -> Result<(), GewyvernInstallError> {
+    let runtime_root = layout.runtime_root_for(request.runtime_id.as_str());
+    let metadata =
+        fs::symlink_metadata(&runtime_root).map_err(|_| GewyvernInstallError::Storage)?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(GewyvernInstallError::InvalidLayout);
+    }
+    require_directory_mode(&runtime_root, 0o700)?;
+    require_directory_mode(&runtime_root.join("generations"), 0o700)?;
+    let current = read_private_text(&runtime_root.join(CURRENT_NAME), 128)?;
+    require_mode(&runtime_root.join(CURRENT_NAME), 0o600)?;
+    let generation_name = current
+        .strip_suffix('\n')
+        .filter(|value| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        })
+        .ok_or(GewyvernInstallError::GenerationConflict)?;
+    let generation = runtime_root.join("generations").join(generation_name);
+    require_directory_mode(&generation, 0o700)?;
+    let manifest = serde_json::from_slice::<InstallManifest>(&read_private_file(
+        &generation.join(MANIFEST_NAME),
+        64 * 1024,
+    )?)
+    .map_err(|_| GewyvernInstallError::GenerationConflict)?;
+    require_mode(&generation.join(MANIFEST_NAME), 0o600)?;
+    if manifest.schema_version != INSTALL_MANIFEST_SCHEMA_VERSION
+        || manifest.provisioning_id != request.provisioning_id.as_str()
+        || manifest.runtime_id != request.runtime_id.as_str()
+        || manifest.install_profile != request.install_profile
+    {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    let retained = read_private_file(&generation.join(SERVICE_DESCRIPTOR_NAME), 64 * 1024)?;
+    require_mode(&generation.join(SERVICE_DESCRIPTOR_NAME), 0o600)?;
+    let published_path = published_service_path_for(request.runtime_id.as_str(), layout);
+    let published = read_private_file(&published_path, 64 * 1024)?;
+    require_mode(&published_path, 0o600)?;
+    if retained != published {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    Ok(())
+}
+
+fn retirement_marker(
+    request: &GewyvernRetirementRequest,
+    phase: RetirementMarkerPhase,
+) -> RetirementMarker {
+    RetirementMarker {
+        schema_version: RETIREMENT_MARKER_SCHEMA_VERSION,
+        retirement_id: request.retirement_id.as_str().into(),
+        provisioning_id: request.provisioning_id.as_str().into(),
+        runtime_id: request.runtime_id.as_str().into(),
+        install_profile: request.install_profile.clone(),
+        phase,
+    }
+}
+
+fn read_retirement_marker(path: &Path) -> Result<Option<RetirementMarker>, GewyvernInstallError> {
+    let Some(bytes) = read_optional_private_file(path, 64 * 1024)? else {
+        return Ok(None);
+    };
+    require_mode(path, 0o600)?;
+    let marker = serde_json::from_slice::<RetirementMarker>(&bytes)
+        .map_err(|_| GewyvernInstallError::GenerationConflict)?;
+    if marker.schema_version != RETIREMENT_MARKER_SCHEMA_VERSION {
+        return Err(GewyvernInstallError::GenerationConflict);
+    }
+    Ok(Some(marker))
+}
+
+fn same_retirement_identity(left: &RetirementMarker, right: &RetirementMarker) -> bool {
+    left.schema_version == right.schema_version
+        && left.retirement_id == right.retirement_id
+        && left.provisioning_id == right.provisioning_id
+        && left.runtime_id == right.runtime_id
+        && left.install_profile == right.install_profile
+}
+
+fn retirement_response(
+    request: &GewyvernRetirementRequest,
+    replayed: bool,
+) -> GewyvernRetirementResponse {
+    GewyvernRetirementResponse {
+        schema_version: GEWYVERN_RETIREMENT_SCHEMA_VERSION,
+        retirement_id: request.retirement_id.clone(),
+        provisioning_id: request.provisioning_id.clone(),
+        runtime_id: request.runtime_id.clone(),
+        service_retired: true,
+        replayed,
+    }
+}
+
 struct ActivationRollback {
     previous_current: Option<Vec<u8>>,
     previous_descriptor: Option<Vec<u8>>,
@@ -394,24 +617,43 @@ fn published_service_path(
     request: &GewyvernInstallerRequest,
     layout: &GewyvernInstallLayout,
 ) -> PathBuf {
+    published_service_path_for(request.runtime_id.as_str(), layout)
+}
+
+fn published_service_path_for(runtime_id: &str, layout: &GewyvernInstallLayout) -> PathBuf {
     layout
         .service_directory
-        .join(service_descriptor_file_name(request))
+        .join(service_descriptor_file_name_for(runtime_id))
 }
 
 #[cfg(target_os = "macos")]
 fn service_descriptor_file_name(request: &GewyvernInstallerRequest) -> String {
-    format!("org.gewyvern.runtime.{}.plist", request.runtime_id.as_str())
+    service_descriptor_file_name_for(request.runtime_id.as_str())
+}
+
+#[cfg(target_os = "macos")]
+fn service_descriptor_file_name_for(runtime_id: &str) -> String {
+    format!("org.gewyvern.runtime.{runtime_id}.plist")
 }
 
 #[cfg(target_os = "linux")]
 fn service_descriptor_file_name(request: &GewyvernInstallerRequest) -> String {
-    format!("gewyvern-{}.service", request.runtime_id.as_str())
+    service_descriptor_file_name_for(request.runtime_id.as_str())
+}
+
+#[cfg(target_os = "linux")]
+fn service_descriptor_file_name_for(runtime_id: &str) -> String {
+    format!("gewyvern-{runtime_id}.service")
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn service_descriptor_file_name(request: &GewyvernInstallerRequest) -> String {
-    format!("gewyvern-{}.conf", request.runtime_id.as_str())
+    service_descriptor_file_name_for(request.runtime_id.as_str())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_descriptor_file_name_for(runtime_id: &str) -> String {
+    format!("gewyvern-{runtime_id}.conf")
 }
 
 struct ServiceManagerCommand {
@@ -562,6 +804,31 @@ fn service_rollback_commands(
     Ok(commands)
 }
 
+#[cfg(target_os = "macos")]
+fn service_retirement_commands(
+    runtime_id: &str,
+    layout: &GewyvernInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let domain = match layout.profile.as_str() {
+        "system" => "system".to_string(),
+        "user" => format!(
+            "gui/{}",
+            fs::metadata(&layout.service_directory)
+                .map_err(|_| GewyvernInstallError::ServiceActivation)?
+                .uid()
+        ),
+        _ => return Err(GewyvernInstallError::ServiceActivation),
+    };
+    let label = format!("org.gewyvern.runtime.{runtime_id}");
+    Ok(vec![ServiceManagerCommand {
+        program: PathBuf::from("/bin/launchctl"),
+        arguments: vec!["bootout".into(), format!("{domain}/{label}").into()],
+        tolerate_failure: false,
+    }])
+}
+
 #[cfg(target_os = "linux")]
 fn service_activation_commands(
     request: &GewyvernInstallerRequest,
@@ -625,6 +892,32 @@ fn service_rollback_commands(
 }
 
 #[cfg(target_os = "linux")]
+fn service_retirement_commands(
+    runtime_id: &str,
+    layout: &GewyvernInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    let (program, prefix) = systemctl(layout)?;
+    let unit = service_descriptor_file_name_for(runtime_id);
+    let command = |verb: &str, include_unit: bool, tolerate_failure: bool| {
+        let mut arguments = prefix.clone();
+        arguments.push(verb.into());
+        if include_unit {
+            arguments.push(unit.clone().into());
+        }
+        ServiceManagerCommand {
+            program: program.clone(),
+            arguments,
+            tolerate_failure,
+        }
+    };
+    Ok(vec![
+        command("stop", true, false),
+        command("disable", true, true),
+        command("daemon-reload", false, false),
+    ])
+}
+
+#[cfg(target_os = "linux")]
 fn systemctl(
     layout: &GewyvernInstallLayout,
 ) -> Result<(PathBuf, Vec<OsString>), GewyvernInstallError> {
@@ -644,6 +937,14 @@ fn systemctl(
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn service_activation_commands(
     _request: &GewyvernInstallerRequest,
+    _layout: &GewyvernInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
+    Err(GewyvernInstallError::ServiceActivation)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_retirement_commands(
+    _runtime_id: &str,
     _layout: &GewyvernInstallLayout,
 ) -> Result<Vec<ServiceManagerCommand>, GewyvernInstallError> {
     Err(GewyvernInstallError::ServiceActivation)
@@ -873,6 +1174,18 @@ fn read_stdio_request(
         .read_to_end(&mut bytes)
         .map_err(|_| GewyvernInstallError::InvalidRequest)?;
     decode_gewyvern_installer_request(&bytes).map_err(|_| GewyvernInstallError::InvalidRequest)
+}
+
+fn read_retirement_stdio_request(
+    mut reader: impl Read,
+) -> Result<GewyvernRetirementRequest, GewyvernInstallError> {
+    let mut bytes = Zeroizing::new(Vec::new());
+    reader
+        .by_ref()
+        .take((MAX_GEWYVERN_RETIREMENT_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|_| GewyvernInstallError::InvalidRequest)?;
+    decode_gewyvern_retirement_request(&bytes).map_err(|_| GewyvernInstallError::InvalidRequest)
 }
 
 fn platform_layout(profile: &str) -> Result<GewyvernInstallLayout, GewyvernInstallError> {
@@ -1496,6 +1809,7 @@ mod tests {
     use leserpent_domain::RuntimeId;
     use leserpent_domain::bootstrap::CredentialHandle;
     use leserpent_domain::provisioning::ProvisioningId;
+    use leserpent_domain::retirement::RetirementId;
 
     use super::*;
 
@@ -1544,6 +1858,171 @@ mod tests {
         .unwrap();
         let layout = GewyvernInstallLayout::test(temp.0.join("install"));
         (temp, source, request, layout)
+    }
+
+    fn retirement_fixture() -> (TempDir, GewyvernRetirementRequest, GewyvernInstallLayout) {
+        let temp = TempDir::new("retirement");
+        let source = temp.0.join("gewyvern-source");
+        fs::write(&source, b"native-gewyvern-artifact").unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&source, fs::Permissions::from_mode(0o700)).unwrap();
+        let artifact_sha256 = hex(digest(&SHA256, b"native-gewyvern-artifact").as_ref());
+        let install = GewyvernInstallerRequest::new(
+            ProvisioningId::new("provision-retire-1").unwrap(),
+            RuntimeId::new("runtime-retire-1").unwrap(),
+            "https://runtime.example:9443",
+            "user",
+            artifact_sha256,
+            CredentialHandle::new("vault:gewyvern:runtime-api").unwrap(),
+            CredentialHandle::new("vault:gewyvern-ca:runtime-ca").unwrap(),
+            "0123456789abcdef0123456789abcdef",
+        )
+        .unwrap();
+        let layout = GewyvernInstallLayout {
+            root: temp.0.join("install"),
+            service_directory: temp.0.join("services"),
+            profile: "user".into(),
+        };
+        let response = install_gewyvern_artifact(&source, &install, &layout).unwrap();
+        let generation = layout
+            .runtime_root(&install)
+            .join("generations")
+            .join(response.generation);
+        publish_service_descriptor(&generation, &install, &layout).unwrap();
+        let retirement = GewyvernRetirementRequest {
+            schema_version: GEWYVERN_RETIREMENT_SCHEMA_VERSION,
+            retirement_id: RetirementId::new("retire-1").unwrap(),
+            provisioning_id: install.provisioning_id.clone(),
+            runtime_id: install.runtime_id.clone(),
+            install_profile: "user".into(),
+        };
+        (temp, retirement, layout)
+    }
+
+    #[test]
+    fn retirement_is_identity_bound_private_idempotent_and_runtime_scoped() {
+        let (_temp, request, layout) = retirement_fixture();
+        let other_runtime = layout.root.join("runtimes/runtime-other");
+        create_private_dir(&other_runtime).unwrap();
+        let calls = std::cell::Cell::new(0_u32);
+        let first = retire_gewyvern_with(&request, &layout, || {
+            calls.set(calls.get() + 1);
+            Ok(())
+        })
+        .unwrap();
+        assert!(first.service_retired);
+        assert!(!first.replayed);
+        assert_eq!(calls.get(), 1);
+        assert!(
+            !layout
+                .runtime_root_for(request.runtime_id.as_str())
+                .exists()
+        );
+        assert!(other_runtime.exists());
+        assert!(!published_service_path_for(request.runtime_id.as_str(), &layout).exists());
+        let marker = read_retirement_marker(
+            &layout
+                .root
+                .join("retirements")
+                .join(format!("{}.json", request.runtime_id.as_str())),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(marker.phase, RetirementMarkerPhase::Retired);
+
+        let replay = retire_gewyvern_with(&request, &layout, || {
+            calls.set(calls.get() + 1);
+            Ok(())
+        })
+        .unwrap();
+        assert!(replay.replayed);
+        assert_eq!(calls.get(), 1);
+    }
+
+    #[test]
+    fn retirement_failure_is_restart_safe_and_identity_confusion_is_rejected() {
+        let (_temp, request, layout) = retirement_fixture();
+        let mut confused = request.clone();
+        confused.provisioning_id = ProvisioningId::new("provision-other").unwrap();
+        assert_eq!(
+            retire_gewyvern_with(&confused, &layout, || Ok(())).unwrap_err(),
+            GewyvernInstallError::GenerationConflict
+        );
+        assert!(
+            layout
+                .runtime_root_for(request.runtime_id.as_str())
+                .exists()
+        );
+
+        assert_eq!(
+            retire_gewyvern_with(&request, &layout, || {
+                Err(GewyvernInstallError::ServiceActivation)
+            })
+            .unwrap_err(),
+            GewyvernInstallError::ServiceActivation
+        );
+        assert!(
+            layout
+                .runtime_root_for(request.runtime_id.as_str())
+                .exists()
+        );
+        assert!(published_service_path_for(request.runtime_id.as_str(), &layout).exists());
+        let marker_path = layout
+            .root
+            .join("retirements")
+            .join(format!("{}.json", request.runtime_id.as_str()));
+        assert_eq!(
+            read_retirement_marker(&marker_path).unwrap().unwrap().phase,
+            RetirementMarkerPhase::Retiring
+        );
+
+        let resumed = retire_gewyvern_with(&request, &layout, || Ok(())).unwrap();
+        assert!(resumed.replayed);
+        assert!(
+            !layout
+                .runtime_root_for(request.runtime_id.as_str())
+                .exists()
+        );
+        assert_eq!(
+            read_retirement_marker(&marker_path).unwrap().unwrap().phase,
+            RetirementMarkerPhase::Retired
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retirement_rejects_relaxed_authority_files_before_stopping_service() {
+        let (_temp, request, layout) = retirement_fixture();
+        let runtime_root = layout.runtime_root_for(request.runtime_id.as_str());
+        let generation = fs::read_to_string(runtime_root.join(CURRENT_NAME))
+            .unwrap()
+            .trim()
+            .to_string();
+        fs::set_permissions(
+            runtime_root
+                .join("generations")
+                .join(generation)
+                .join(MANIFEST_NAME),
+            fs::Permissions::from_mode(0o644),
+        )
+        .unwrap();
+        let called = std::cell::Cell::new(false);
+        assert_eq!(
+            retire_gewyvern_with(&request, &layout, || {
+                called.set(true);
+                Ok(())
+            })
+            .unwrap_err(),
+            GewyvernInstallError::GenerationConflict
+        );
+        assert!(!called.get());
+        assert!(
+            !layout
+                .root
+                .join("retirements")
+                .join(format!("{}.json", request.runtime_id.as_str()))
+                .exists()
+        );
     }
 
     #[test]

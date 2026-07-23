@@ -1,8 +1,16 @@
 use std::sync::Arc;
+#[cfg(feature = "native-ssh")]
+use std::{collections::BTreeMap, time::Duration};
 
 use leserpent_domain::bootstrap::BootstrapTransport;
 use leserpent_domain::retirement::{
     GewyvernRetirementReceipt, RuntimeRetirement, RuntimeRetirementSnapshot,
+};
+#[cfg(feature = "native-ssh")]
+use leserpent_protocol::gewyvern_retirement::{
+    GEWYVERN_RETIREMENT_SCHEMA_VERSION, GewyvernRetirementRequest, MAX_GEWYVERN_RETIREMENT_BYTES,
+    decode_gewyvern_retirement_response, encode_gewyvern_retirement_request,
+    validate_gewyvern_retirement_response_binding,
 };
 use leserpent_protocol::retirement::{
     RETIREMENT_PROTOCOL_SCHEMA_VERSION, RetirementRequestEnvelope, RetirementResponse,
@@ -10,7 +18,13 @@ use leserpent_protocol::retirement::{
 };
 use leserpent_runtime::EffectExecution;
 
+#[cfg(feature = "native-ssh")]
+use crate::native_ssh::{NativeSshClient, NativeSshError, NativeSshJob};
+#[cfg(feature = "native-ssh")]
+use crate::provisioning::gewyvern_target_key;
 use crate::{EffectAdapter, SecretKey, SecretStore, SecretValue};
+#[cfg(feature = "native-ssh")]
+use crate::{GewyvernArtifact, SshGewyvernHostPolicy};
 
 pub const GEWYVERN_RETIREMENT_EFFECT_KIND: &str = "gewyvern.runtime.retire";
 
@@ -33,6 +47,111 @@ pub trait GewyvernRetirementTransport: Send {
         &mut self,
         job: GewyvernRetirementJob<'_>,
     ) -> Result<GewyvernRetirementReceipt, GewyvernRetirementTransportError>;
+}
+
+#[cfg(feature = "native-ssh")]
+pub struct NativeSshGewyvernRetirementTransport {
+    policies: BTreeMap<String, SshGewyvernHostPolicy>,
+    artifact: GewyvernArtifact,
+    client: NativeSshClient,
+}
+
+#[cfg(feature = "native-ssh")]
+impl NativeSshGewyvernRetirementTransport {
+    pub fn new(
+        policies: impl IntoIterator<Item = SshGewyvernHostPolicy>,
+        artifact: GewyvernArtifact,
+    ) -> Result<Self, String> {
+        let mut normalized = BTreeMap::new();
+        for policy in policies {
+            let key = gewyvern_target_key(&policy.target, &policy.runtime_id);
+            if normalized.insert(key, policy).is_some() {
+                return Err("duplicate SSH Gewyvern retirement policy".into());
+            }
+        }
+        if normalized.is_empty() {
+            return Err("at least one SSH Gewyvern retirement policy is required".into());
+        }
+        Ok(Self {
+            policies: normalized,
+            artifact,
+            client: NativeSshClient::default(),
+        })
+    }
+
+    pub fn with_timeout(mut self, timeout: Duration) -> Result<Self, String> {
+        self.client = NativeSshClient::with_timeout(timeout)?;
+        Ok(self)
+    }
+}
+
+#[cfg(feature = "native-ssh")]
+impl GewyvernRetirementTransport for NativeSshGewyvernRetirementTransport {
+    fn retire(
+        &mut self,
+        job: GewyvernRetirementJob<'_>,
+    ) -> Result<GewyvernRetirementReceipt, GewyvernRetirementTransportError> {
+        let intent = &job.request.request.intent;
+        let policy = self
+            .policies
+            .get(&gewyvern_target_key(&intent.target, &intent.runtime_id))
+            .ok_or(GewyvernRetirementTransportError::ServiceRejected)?;
+        if policy.target != intent.target || policy.runtime_id != intent.runtime_id {
+            return Err(GewyvernRetirementTransportError::ServiceRejected);
+        }
+        let request = GewyvernRetirementRequest {
+            schema_version: GEWYVERN_RETIREMENT_SCHEMA_VERSION,
+            retirement_id: intent.retirement_id.clone(),
+            provisioning_id: intent.provisioning_id.clone(),
+            runtime_id: intent.runtime_id.clone(),
+            install_profile: policy.install_profile.clone(),
+        };
+        let payload = encode_gewyvern_retirement_request(&request)
+            .map_err(|_| GewyvernRetirementTransportError::ServiceRejected)?;
+        let staging_path = self
+            .artifact
+            .staging_path_for(intent.retirement_id.as_str());
+        let command = format!("{staging_path} gewyvern-retire-v1");
+        let stdout = self
+            .client
+            .execute(NativeSshJob {
+                host: &intent.target.host,
+                port: intent.target.port,
+                username: &policy.username,
+                host_key_sha256: &policy.host_key_sha256,
+                password: job.retirement_credential.expose_secret(),
+                staging_path: &staging_path,
+                artifact: self.artifact.bytes(),
+                artifact_sha256: self.artifact.sha256_hex(),
+                command: &command,
+                stdin: &payload,
+                max_stdout_bytes: MAX_GEWYVERN_RETIREMENT_BYTES,
+            })
+            .map_err(map_native_ssh_error)?;
+        let response = decode_gewyvern_retirement_response(&stdout)
+            .map_err(|_| GewyvernRetirementTransportError::InvalidResponse)?;
+        validate_gewyvern_retirement_response_binding(&request, &response)
+            .map_err(|_| GewyvernRetirementTransportError::InvalidResponse)?;
+        Ok(GewyvernRetirementReceipt {
+            retirement_id: response.retirement_id,
+            provisioning_id: response.provisioning_id,
+            runtime_id: response.runtime_id,
+            service_retired: response.service_retired,
+        })
+    }
+}
+
+#[cfg(feature = "native-ssh")]
+fn map_native_ssh_error(error: NativeSshError) -> GewyvernRetirementTransportError {
+    match error {
+        NativeSshError::Authentication => GewyvernRetirementTransportError::Authentication,
+        NativeSshError::HostKeyRejected => GewyvernRetirementTransportError::HostKeyRejected,
+        NativeSshError::Transport | NativeSshError::UploadRejected => {
+            GewyvernRetirementTransportError::Transport
+        }
+        NativeSshError::CommandRejected => GewyvernRetirementTransportError::ServiceRejected,
+        NativeSshError::InvalidResponse => GewyvernRetirementTransportError::InvalidResponse,
+    }
 }
 
 pub struct GewyvernRetirementAdapter<T> {

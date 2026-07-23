@@ -10,6 +10,7 @@ pub mod bootstrap;
 pub mod bootstrap_installer;
 pub mod compatibility_v1;
 pub mod gewyvern_installer;
+pub mod gewyvern_retirement;
 pub mod provisioning;
 pub mod retirement;
 pub mod transport_safety;

@@ -132,6 +132,7 @@ fn native_installer_entrypoints_reject_extra_arguments_before_mutation() {
     for entrypoint in [
         "gewyvern-install-v1",
         "gewyvern-activate-v1",
+        "gewyvern-retire-v1",
         "gewyvern-service-v1",
     ] {
         let output = Command::new(binary)

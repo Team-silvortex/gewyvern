@@ -10,6 +10,7 @@ use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, encode_bootstr
 use leserpent_protocol::provisioning::{
     MAX_PROVISIONING_PROTOCOL_BYTES, encode_provisioning_response,
 };
+use leserpent_protocol::retirement::{MAX_RETIREMENT_PROTOCOL_BYTES, encode_retirement_response};
 use leserpent_protocol::transport_safety::{
     BoundedFile, MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
 };
@@ -23,6 +24,9 @@ use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
 use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
 use crate::provisioning_submission::{
     decode_and_submit as decode_and_submit_provisioning, error as provisioning_error,
+};
+use crate::retirement_submission::{
+    decode_and_submit as decode_and_submit_retirement, error as retirement_error,
 };
 use crate::wire::{
     BootstrapSessionVerifier, constant_time_equals, error_response, execute_request,
@@ -92,6 +96,7 @@ pub struct RemoteServer {
     bootstrap_verifier: Option<Arc<dyn BootstrapSessionVerifier>>,
     bootstrap_submission_enabled: bool,
     provisioning_submission_enabled: bool,
+    retirement_submission_enabled: bool,
 }
 
 impl RemoteServer {
@@ -143,6 +148,7 @@ impl RemoteServer {
             bootstrap_verifier: None,
             bootstrap_submission_enabled: false,
             provisioning_submission_enabled: false,
+            retirement_submission_enabled: false,
         })
     }
 
@@ -158,6 +164,11 @@ impl RemoteServer {
 
     pub fn with_provisioning_submission(mut self) -> Self {
         self.provisioning_submission_enabled = true;
+        self
+    }
+
+    pub fn with_retirement_submission(mut self) -> Self {
+        self.retirement_submission_enabled = true;
         self
     }
 
@@ -232,6 +243,7 @@ impl RemoteServer {
         }
         let bootstrap_route = prefix.starts_with(b"POST /v1/bootstrap HTTP/1.1\r\n");
         let provisioning_route = prefix.starts_with(b"POST /v1/provisioning HTTP/1.1\r\n");
+        let retirement_route = prefix.starts_with(b"POST /v1/retirement HTTP/1.1\r\n");
         let mut stream = PrefixedStream::new(prefix, stream);
         let (status, body) = match read_http_request(&mut stream, &self.token) {
             Ok(HttpRequest {
@@ -273,6 +285,20 @@ impl RemoteServer {
                     encode_provisioning_response(&response).map_err(|error| error.to_string())?,
                 )
             }
+            Ok(HttpRequest {
+                route: HttpRoute::Retirement,
+                body,
+            }) => {
+                let response = decode_and_submit_retirement(
+                    runtime,
+                    &body,
+                    self.retirement_submission_enabled,
+                );
+                (
+                    HttpStatus::Ok,
+                    encode_retirement_response(&response).map_err(|error| error.to_string())?,
+                )
+            }
             Err(error) => {
                 let body = if bootstrap_route {
                     encode_bootstrap_response(&bootstrap_error(None, error.code, error.message))
@@ -284,6 +310,9 @@ impl RemoteServer {
                         error.message,
                     ))
                     .map_err(|error| error.to_string())?
+                } else if retirement_route {
+                    encode_retirement_response(&retirement_error(None, error.code, error.message))
+                        .map_err(|error| error.to_string())?
                 } else {
                     encode_response(&error_response(error.code, error.message))
                         .map_err(|error| error.to_string())?
@@ -366,6 +395,7 @@ enum HttpRoute {
     Wire,
     Bootstrap,
     Provisioning,
+    Retirement,
 }
 
 #[derive(Debug)]
@@ -476,6 +506,7 @@ fn read_http_request(
         "/v1/wire" => HttpRoute::Wire,
         "/v1/bootstrap" => HttpRoute::Bootstrap,
         "/v1/provisioning" => HttpRoute::Provisioning,
+        "/v1/retirement" => HttpRoute::Retirement,
         _ => {
             return Err(HttpError {
                 status: HttpStatus::NotFound,
@@ -504,6 +535,7 @@ fn read_http_request(
         HttpRoute::Wire => MAX_PROTOCOL_MESSAGE_BYTES,
         HttpRoute::Bootstrap => MAX_BOOTSTRAP_PROTOCOL_BYTES,
         HttpRoute::Provisioning => MAX_PROVISIONING_PROTOCOL_BYTES,
+        HttpRoute::Retirement => MAX_RETIREMENT_PROTOCOL_BYTES,
     };
     if content_length > limit {
         return Err(HttpError {
@@ -651,6 +683,31 @@ mod tests {
         .unwrap()
     }
 
+    fn retirement_body(retirement_id: &str, runtime_id: &str) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1,
+            "request": {
+                "principal": { "id": "operator-a" },
+                "capabilities": ["runtime.retire"],
+                "intent": {
+                    "schema_version": 1,
+                    "retirement_id": retirement_id,
+                    "provisioning_id": "provision-remote-1",
+                    "runtime_id": runtime_id,
+                    "target": {
+                        "transport": "ssh",
+                        "host": "runtime.example",
+                        "port": 22
+                    },
+                    "retirement_credential_handle": "vault:ssh:runtime-example",
+                    "requested_by": "operator-a",
+                    "confirmed": true
+                }
+            }
+        }))
+        .unwrap()
+    }
+
     fn request(token: &str, body: &[u8]) -> Vec<u8> {
         request_at(token, "/v1/wire", body)
     }
@@ -685,6 +742,33 @@ mod tests {
         stream.read_exact(&mut body).unwrap();
         response.extend_from_slice(&body);
         response
+    }
+
+    fn tls_post_client(
+        address: SocketAddr,
+        certificate: rustls::pki_types::CertificateDer<'static>,
+        path: &'static str,
+        body: Vec<u8>,
+    ) -> thread::JoinHandle<Vec<u8>> {
+        thread::spawn(move || {
+            let mut roots = RootCertStore::empty();
+            roots.add(certificate).unwrap();
+            let provider = Arc::new(rustls::crypto::ring::default_provider());
+            let mut config = ClientConfig::builder_with_provider(provider)
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            let connection =
+                ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
+                    .unwrap();
+            let socket = TcpStream::connect(address).unwrap();
+            socket.set_read_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
+            let mut stream = StreamOwned::new(connection, socket);
+            stream.write_all(&request_at(TOKEN, path, &body)).unwrap();
+            read_response(&mut stream)
+        })
     }
 
     #[test]
@@ -775,6 +859,13 @@ mod tests {
         .unwrap();
         assert_eq!(provisioning.route, HttpRoute::Provisioning);
         assert_eq!(provisioning.body, b"{}");
+        let retirement = read_http_request(
+            &mut Cursor::new(request_at(TOKEN, "/v1/retirement", b"{}")),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(retirement.route, HttpRoute::Retirement);
+        assert_eq!(retirement.body, b"{}");
 
         let wrong_token = read_http_request(
             &mut Cursor::new(request("fedcba9876543210fedcba9876543210", &health_body())),
@@ -851,6 +942,19 @@ mod tests {
             .status,
             HttpStatus::PayloadTooLarge
         ));
+        let oversized_retirement = format!(
+            "POST /v1/retirement HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            MAX_RETIREMENT_PROTOCOL_BYTES + 1
+        );
+        assert!(matches!(
+            read_http_request(
+                &mut Cursor::new(oversized_retirement.into_bytes()),
+                TOKEN.as_bytes()
+            )
+            .unwrap_err()
+            .status,
+            HttpStatus::PayloadTooLarge
+        ));
     }
 
     #[test]
@@ -910,6 +1014,111 @@ mod tests {
             leserpent_protocol::ProtocolResponse::Health(ref health)
                 if health.status == "ready" && health.authority_owned
         ));
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
+    }
+
+    #[test]
+    fn authenticated_retirement_commits_planned_checkpoint_over_real_tls() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("retirement", "crt");
+        let key_path = temp_path("retirement", "key");
+        let database_path = temp_path("retirement", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap();
+        let address = server.local_addr().unwrap();
+        let certificate = cert.der().clone();
+        let body = retirement_body("retire-remote-1", "runtime-remote-retire");
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        crate::retirement_submission::seed_registered_runtime(
+            &mut runtime,
+            "provision-remote-1",
+            "runtime-remote-retire",
+        );
+        let client = tls_post_client(address, certificate, "/v1/retirement", body.clone());
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let response = client.join().unwrap();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let body_start = find_header_end(&response).unwrap();
+        let decoded =
+            leserpent_protocol::retirement::decode_retirement_response(&response[body_start..])
+                .unwrap();
+        assert!(matches!(
+            decoded.response,
+            leserpent_protocol::retirement::RetirementResponse::Error(ref error)
+                if error.code == "retirement_unavailable"
+        ));
+        let retirement_id =
+            leserpent_domain::retirement::RetirementId::new("retire-remote-1").unwrap();
+        assert!(
+            runtime
+                .retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .is_none()
+        );
+        drop(server);
+
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap()
+        .with_retirement_submission();
+        let client = tls_post_client(
+            server.local_addr().unwrap(),
+            cert.der().clone(),
+            "/v1/retirement",
+            body,
+        );
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let response = client.join().unwrap();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let body_start = find_header_end(&response).unwrap();
+        let decoded =
+            leserpent_protocol::retirement::decode_retirement_response(&response[body_start..])
+                .unwrap();
+        assert!(
+            matches!(
+                decoded.response,
+                leserpent_protocol::retirement::RetirementResponse::State(ref state)
+                    if state.phase == leserpent_domain::retirement::RetirementPhase::Planned
+            ),
+            "unexpected retirement response: {decoded:?}"
+        );
+        assert_eq!(
+            runtime
+                .retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
 
         drop(runtime);
         fs::remove_file(certificate_path).unwrap();
