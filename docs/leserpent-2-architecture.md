@@ -789,6 +789,75 @@ record. The final window survives disk reload. Arm64 completes in 6913 ms and
 physical x86_64 Linux in 2310 ms; retained evidence is in
 `docs/fixtures/leserpent_runtime_deletion_retry_rollover_20260723.json` and
 `docs/fixtures/leserpent_runtime_deletion_retry_rollover_linux_x86_64_20260723.json`.
+The atomic rollover extension enlarges each of the 256 retained audit records
+to 128 runtime IDs, then coordinates a separate host process around the real
+state-store write. The parent force-terminates three runs before the trigger,
+three immediately after a `FileSystemWatcher` observes the unique production
+temporary file, and three after the committed marker. Every restart compares
+all 256 request IDs. Arm64 observes four complete previous windows and five
+complete replacement windows; physical x86_64 Linux observes three and six.
+Neither platform produces a missing, duplicated, torn, or reordered mixture.
+The repeatable proof is
+`scripts/validation/leserpent_runtime_deletion_retry_atomic_rollover.sh`, with
+fixtures in
+`docs/fixtures/leserpent_runtime_deletion_retry_atomic_rollover_20260723.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_retry_atomic_rollover_linux_x86_64_20260723.json`.
+Backup refresh follows the same atomic discipline instead of overwriting
+`.bak` directly: the current primary is copied to a unique backup temporary
+file, flushed to disk, and atomically moved over the prior backup before the
+new primary is installed. The backup crash extension force-terminates before
+write, after observing the real `.bak.*.tmp`, and after commit, three times
+each. It then deliberately corrupts the primary JSON. All 18 Arm64 and physical
+x86_64 Linux restarts fall back to exactly the complete 256-record previous
+window; no truncated or mixed backup is accepted. Reproduce this with
+`scripts/validation/leserpent_runtime_deletion_retry_atomic_backup.sh`; retained
+fixtures are
+`docs/fixtures/leserpent_runtime_deletion_retry_atomic_backup_20260723.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_retry_atomic_backup_linux_x86_64_20260723.json`.
+Startup load provenance is now a typed health contract shared by `/health` and
+`/v1/capabilities`. It reports one of `empty`, `primary`, `backup`, or `none`
+as the source; one of `empty`, `clean`, `recovered`, or `failed` as the
+outcome; and only bounded failure codes such as `invalid_json`. Paths,
+exception messages, and state contents never enter this nested provenance.
+A successful backup fallback remains persistence-ready but is explicitly
+degraded and operable. The Arm64 and physical x86_64 Linux fault campaigns each
+observe this exact `backup/recovered/invalid_json` result in all nine forced
+termination cases.
+The first write after backup recovery treats the existing primary as
+untrusted. It writes and flushes a new primary temporary file, preserves the
+known-good backup unchanged, and only marks the primary generation trusted
+after the atomic replacement succeeds. A subsequent normal save may then
+rotate that validated primary into the backup slot. The post-recovery crash
+campaign force-terminates before write, after observing the real primary
+temporary file, and after commit, three times each. Arm64 restores four old and
+five new active windows; physical x86_64 Linux restores three old and six new.
+All 18 backups retain the complete prior 256-record window, no backup temporary
+file is created, and no restart observes a torn generation. Evidence is in
+`docs/fixtures/leserpent_runtime_deletion_retry_post_recovery_write_20260723.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_retry_post_recovery_write_linux_x86_64_20260723.json`.
+Generation trust now also requires semantic validation of the durable runtime
+deletion and retry-audit slices. StateStore and Registry share one validator
+for queue bounds, unique identifiers, retry attempt state, bounded timestamps,
+sanitized failure codes, audit actors, and revision transitions. A
+schema-compatible primary that violates these rules receives the fixed
+`semantic_invalid` code and falls back before any projection is restored or the
+generation is marked trusted. The semantic-generation crash campaign repeats
+the same nine write boundaries per platform. Arm64 restores five old and four
+new active windows; physical x86_64 Linux restores three old and six new. All
+18 known-good backups remain complete and the invalid primary is never
+promoted. Evidence is in
+`docs/fixtures/leserpent_runtime_deletion_retry_semantic_generation_20260723.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_retry_semantic_generation_linux_x86_64_20260723.json`.
+The shared validator also closes the runtime/session identity graph before any
+state reaches a projection. Runtime and session identifiers must be stable and
+case-insensitively unique, and every session must reference a registered
+runtime. Disk load, local save, and explicit state import all use this same
+gate; duplicate or orphan records fail with `semantic_invalid`, while import
+validation runs before the current registry is cleared.
 
 ## Leselang Semantics
 

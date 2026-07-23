@@ -212,6 +212,58 @@ fn retained_runtime_deletion_retry_rollovers_are_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_retry_atomic_rollovers_are_non_vacuous() {
+    assert_runtime_deletion_retry_atomic_rollover(
+        "docs/fixtures/leserpent_runtime_deletion_retry_atomic_rollover_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_retry_atomic_rollover(
+        "docs/fixtures/leserpent_runtime_deletion_retry_atomic_rollover_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_retry_atomic_backups_are_non_vacuous() {
+    assert_runtime_deletion_retry_atomic_backup(
+        "docs/fixtures/leserpent_runtime_deletion_retry_atomic_backup_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_retry_atomic_backup(
+        "docs/fixtures/leserpent_runtime_deletion_retry_atomic_backup_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_retry_post_recovery_writes_are_non_vacuous() {
+    assert_runtime_deletion_retry_post_recovery_write(
+        "docs/fixtures/leserpent_runtime_deletion_retry_post_recovery_write_20260723.json",
+        "Arm64",
+        "invalid_json",
+    );
+    assert_runtime_deletion_retry_post_recovery_write(
+        "docs/fixtures/leserpent_runtime_deletion_retry_post_recovery_write_linux_x86_64_20260723.json",
+        "X64",
+        "invalid_json",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_retry_semantic_generations_are_non_vacuous() {
+    assert_runtime_deletion_retry_post_recovery_write(
+        "docs/fixtures/leserpent_runtime_deletion_retry_semantic_generation_20260723.json",
+        "Arm64",
+        "semantic_invalid",
+    );
+    assert_runtime_deletion_retry_post_recovery_write(
+        "docs/fixtures/leserpent_runtime_deletion_retry_semantic_generation_linux_x86_64_20260723.json",
+        "X64",
+        "semantic_invalid",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -977,6 +1029,147 @@ fn assert_runtime_deletion_retry_rollover(path: &str, expected_architecture: &st
     }
 }
 
+fn assert_runtime_deletion_retry_atomic_rollover(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion retry atomic-rollover evidence must exist"),
+    )
+    .expect("runtime deletion retry atomic-rollover evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["iterations_per_strategy"], 3);
+    assert_eq!(
+        evidence["strategies"],
+        serde_json::json!(["BeforeWrite", "DuringTempWrite", "AfterCommit"])
+    );
+    assert_eq!(evidence["total_forced_terminations"], 9);
+    assert_eq!(evidence["audit_retention_limit"], 256);
+    assert_eq!(evidence["runtime_ids_per_audit_record"], 128);
+    assert_eq!(evidence["temp_artifact_observed_count"], 3);
+    let previous = evidence["previous_window_count"]
+        .as_u64()
+        .expect("previous window count must be numeric");
+    let replacement = evidence["replacement_window_count"]
+        .as_u64()
+        .expect("replacement window count must be numeric");
+    assert_eq!(previous + replacement, 9);
+    assert!(previous > 0);
+    assert!(replacement > 0);
+    for check in [
+        "before_write_restored_complete_previous_window",
+        "every_temp_write_was_observed",
+        "after_commit_restored_complete_replacement_window",
+        "every_restart_loaded_exactly_256_records",
+        "every_restart_observed_old_or_new_window",
+        "no_torn_or_reordered_window",
+        "both_atomic_outcomes_were_exercised",
+        "every_host_process_force_killed",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained atomic-rollover proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_retry_atomic_backup(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion retry atomic-backup evidence must exist"),
+    )
+    .expect("runtime deletion retry atomic-backup evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["iterations_per_strategy"], 3);
+    assert_eq!(
+        evidence["strategies"],
+        serde_json::json!(["BeforeWrite", "DuringBackupTempWrite", "AfterCommit"])
+    );
+    assert_eq!(evidence["total_forced_terminations"], 9);
+    assert_eq!(evidence["audit_retention_limit"], 256);
+    assert_eq!(evidence["runtime_ids_per_audit_record"], 128);
+    assert_eq!(evidence["deliberately_corrupted_primary_count"], 9);
+    assert_eq!(evidence["complete_previous_window_recovery_count"], 9);
+    assert_eq!(evidence["typed_backup_recovery_provenance_count"], 9);
+    assert_eq!(evidence["backup_temp_artifact_observed_count"], 3);
+    for check in [
+        "backup_refresh_used_unique_temp_file",
+        "every_backup_temp_write_was_observed",
+        "every_primary_was_deliberately_corrupted",
+        "every_fallback_loaded_exactly_256_records",
+        "every_fallback_restored_complete_previous_window",
+        "every_fallback_reported_backup_source",
+        "every_fallback_reported_recovered_outcome",
+        "every_primary_failure_reported_invalid_json",
+        "no_backup_failure_was_reported",
+        "recovery_provenance_was_secret_free",
+        "no_truncated_or_mixed_backup_window",
+        "every_host_process_force_killed",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained atomic-backup proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_retry_post_recovery_write(
+    path: &str,
+    expected_architecture: &str,
+    expected_failure_code: &str,
+) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion retry post-recovery-write evidence must exist"),
+    )
+    .expect("runtime deletion retry post-recovery-write evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["iterations_per_strategy"], 3);
+    assert_eq!(
+        evidence["strategies"],
+        serde_json::json!(["BeforeWrite", "DuringPrimaryTempWrite", "AfterCommit"])
+    );
+    assert_eq!(evidence["total_forced_terminations"], 9);
+    assert_eq!(evidence["audit_retention_limit"], 256);
+    assert_eq!(evidence["runtime_ids_per_audit_record"], 128);
+    assert_eq!(evidence["primary_failure_code"], expected_failure_code);
+    assert_eq!(
+        evidence["active_previous_window_count"]
+            .as_u64()
+            .expect("previous window count must be numeric")
+            + evidence["active_replacement_window_count"]
+                .as_u64()
+                .expect("replacement window count must be numeric"),
+        9
+    );
+    assert_eq!(evidence["known_good_backup_preserved_count"], 9);
+    assert_eq!(evidence["backup_temp_artifact_absent_count"], 9);
+    assert_eq!(evidence["primary_temp_artifact_observed_count"], 3);
+    for check in [
+        "recovery_started_from_corrupted_primary",
+        "first_post_recovery_write_skipped_backup_refresh",
+        "every_primary_temp_write_was_observed",
+        "every_restart_loaded_exactly_256_records",
+        "every_backup_retained_exactly_256_records",
+        "every_backup_preserved_complete_previous_window",
+        "precommit_restart_reported_backup_recovery",
+        "postcommit_restart_reported_clean_primary",
+        "every_precommit_failure_reported_expected_code",
+        "every_restart_observed_complete_old_or_new_window",
+        "no_corrupted_primary_was_copied_into_backup",
+        "every_host_process_force_killed",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained post-recovery-write proof {check}"
+        );
+    }
+}
+
 #[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
@@ -1258,6 +1451,30 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "deterministic-oldest-first-audit-eviction",
         "explicit-retry-replay-horizon",
         "cross-platform-retry-rollover-proof",
+        "atomic-retry-audit-rollover-persistence",
+        "old-or-new-audit-window-recovery",
+        "observed-temp-file-host-termination",
+        "cross-platform-atomic-rollover-proof",
+        "atomic-control-state-backup-refresh",
+        "corrupted-primary-backup-recovery",
+        "complete-prior-audit-window-fallback",
+        "cross-platform-atomic-backup-proof",
+        "typed-control-state-load-provenance",
+        "secret-free-primary-load-failure-code",
+        "health-degraded-backup-recovery",
+        "cross-platform-recovery-provenance-proof",
+        "post-recovery-known-good-backup-preservation",
+        "corrupted-primary-backup-refresh-fence",
+        "old-or-new-post-recovery-write",
+        "cross-platform-post-recovery-write-proof",
+        "shared-control-state-semantic-validator",
+        "semantic-invalid-generation-fallback",
+        "semantic-generation-promotion-fence",
+        "cross-platform-semantic-generation-proof",
+        "runtime-session-identity-uniqueness",
+        "case-insensitive-topology-collision-fence",
+        "session-runtime-referential-integrity",
+        "pre-projection-import-validation",
     ] {
         assert!(
             compatibility_control
@@ -1271,7 +1488,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("atomic rollover persistence")
+            .contains("Orchestra run identity")
     );
 
     let bootstrap = catalog

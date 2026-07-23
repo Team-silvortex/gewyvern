@@ -336,6 +336,7 @@ public sealed record ServicePersistenceCapabilities(
     int RestoredRuntimeCount = 0,
     int RestoredSessionCount = 0,
     DateTimeOffset? RestoredFromSavedAt = null,
+    ControlPlaneStateLoadProvenance? Load = null,
     string? OrchestraStoreProvider = null,
     string? OrchestraStoreLocation = null,
     string? OrchestraStoreLastError = null,

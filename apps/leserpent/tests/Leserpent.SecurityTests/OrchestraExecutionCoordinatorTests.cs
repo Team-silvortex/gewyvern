@@ -1287,8 +1287,21 @@ public sealed class OrchestraExecutionCoordinatorTests
                     .PersistedControlPlaneState));
         try
         {
-            Assert.Throws<InvalidDataException>(() =>
-                CreateRegistry(statePath));
+            var store = CreateStateStore(statePath);
+            var registry = new RegistryService(
+                store,
+                new InMemoryOrchestraRunStore());
+            Assert.Empty(registry.ListPendingRuntimeDeletions());
+            Assert.Equal(
+                ControlPlaneStateLoadOutcome.Failed,
+                store.LoadProvenance.Outcome);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.DoesNotContain(
+                "credential",
+                store.LastSaveError ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -1343,8 +1356,18 @@ public sealed class OrchestraExecutionCoordinatorTests
                         .PersistedControlPlaneState));
             try
             {
-                Assert.Throws<InvalidDataException>(() =>
-                    CreateRegistry(statePath));
+                var store = CreateStateStore(statePath);
+                var registry = new RegistryService(
+                    store,
+                    new InMemoryOrchestraRunStore());
+                Assert.Empty(
+                    registry.ListRuntimeDeletionRetryAudit());
+                Assert.Equal(
+                    ControlPlaneStateLoadOutcome.Failed,
+                    store.LoadProvenance.Outcome);
+                Assert.Equal(
+                    ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                    store.LoadProvenance.PrimaryFailureCode);
             }
             finally
             {
@@ -2088,6 +2111,15 @@ public sealed class OrchestraExecutionCoordinatorTests
 
     private static RegistryService CreateRegistry(string statePath, IOrchestraRunStore? runStore = null)
     {
+        var store = CreateStateStore(statePath);
+        return new RegistryService(
+            store,
+            runStore ?? new InMemoryOrchestraRunStore());
+    }
+
+    private static ControlPlaneStateStore CreateStateStore(
+        string statePath)
+    {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["LESERPENT_STATE_PATH"] = statePath })
             .Build();
@@ -2096,7 +2128,7 @@ public sealed class OrchestraExecutionCoordinatorTests
             configuration,
             environment,
             NullLogger<ControlPlaneStateStore>.Instance);
-        return new RegistryService(store, runStore ?? new InMemoryOrchestraRunStore());
+        return store;
     }
 
     private static RuntimeSummary RegisterRuntime(RegistryService registry)

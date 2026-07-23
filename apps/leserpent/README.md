@@ -321,9 +321,17 @@ JSON state 默认路径：
 - `scripts/validation/leserpent_runtime_deletion_retry_claim_race.sh` 以 worker-first、operator-first 和 32 轮同时起跑竞态验证 retry-now/claim 线性化、确定性冲突、持久审计及每个 runtime 仅一次权威删除
 - `scripts/validation/leserpent_runtime_deletion_retry_crash.sh` 在 retry-now 严格落盘后以及真实 daemon 注销已提交后分别强杀宿主，验证 revision、审计和 pending intent 重启恢复、幂等 authority replay 及收敛后 request-ID replay
 - `scripts/validation/leserpent_runtime_deletion_retry_rollover.sh` 以 `128/128/16` 三波并发 operator/worker 流量生成 272 条 retry 审计，验证 256 条 oldest-first 保留、单调线性化时间、明确 replay horizon、淘汰 ID 复用和无 pending 饥饿
+- `scripts/validation/leserpent_runtime_deletion_retry_atomic_rollover.sh` 在 256 条满载审计的 rollover 写入前、真实临时文件创建后和原子提交后分别强杀宿主，逐条证明重启只能恢复完整旧窗口或完整新窗口
+- `scripts/validation/leserpent_runtime_deletion_retry_atomic_backup.sh` 在备份刷新前、真实 `.bak.*.tmp` 创建后和主提交后分别强杀，再主动破坏主文件，验证回退始终恢复完整 256 条上一代审计
+- `scripts/validation/leserpent_runtime_deletion_retry_post_recovery_write.sh` 从损坏主文件和完整备份启动，在首次修复写入前、主临时文件出现后及提交后分别强杀，验证活动状态只恢复完整旧/新窗口且良好备份从不被损坏主文件覆盖
+- `scripts/validation/leserpent_runtime_deletion_retry_semantic_generation.sh` 使用 schema 兼容但包含非法持久失败码的主 generation 重复相同强杀矩阵，证明语义非法状态会回退到备份且永远不能晋升
 - guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
 - runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
 - control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件
+- control-plane 备份刷新同样使用独立临时文件、完整复制、刷盘和原子替换；刷新期间强杀且随后主文件损坏时，加载器仍只恢复完整上一代状态
+- 从备份恢复后，首次保存会跳过旧主文件的备份刷新并直接原子安装新主文件；只有成功提交的主 generation 才能在后续保存中晋升为备份
+- StateStore 和 Registry 共用状态语义验证器；除删除意图/retry 审计约束外，runtime/session ID 必须稳定且大小写不敏感唯一，每个 session 必须引用已注册 runtime；磁盘恢复、保存和显式导入都在任何投影替换或 generation 晋升前 fail closed，并通过 `semantic_invalid` 暴露固定失败原因
+- `/health` 和 `/v1/capabilities` 的 `persistence.load` 使用固定枚举报告 `empty|primary|backup|none` 来源、`empty|clean|recovered|failed` 结果及无路径失败码；成功备份恢复保持 persistence ready，同时明确标记为 degraded but operable
 - runtime 存在 `queued`/`running` Orchestra run 时，单删和批量删除会返回 `409 runtime_delete_orchestra_active` 及 `activeRuns`；批量操作不会部分删除其他 idle runtime
 - 仓库只保留 `src/Leserpent/data/control-plane-state.sample.json`，真实运行态 state 不应该提交。
 

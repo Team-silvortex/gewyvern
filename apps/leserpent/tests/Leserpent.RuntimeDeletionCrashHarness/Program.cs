@@ -38,7 +38,48 @@ var stateStore = new ControlPlaneStateStore(
 var registry = new RegistryService(stateStore, new InMemoryOrchestraRunStore());
 var authority = new DaemonRuntimeRegistrationAuthority(configuration);
 
-if (string.Equals(phase, "mixed_overlapping", StringComparison.Ordinal))
+if (string.Equals(
+    phase,
+    "retry_rollover_persist",
+    StringComparison.Ordinal))
+{
+    var state = registry.ExportState();
+    var audit = state.RuntimeDeletionRetryAudit?.ToArray()
+        ?? Array.Empty<PersistedRuntimeDeletionRetryAudit>();
+    if (audit.Length != 256)
+    {
+        throw new InvalidOperationException(
+            "retry rollover harness requires exactly 256 baseline audit records");
+    }
+    var newest = audit[^1];
+    var replacement = new PersistedRuntimeDeletionRetryAudit(
+        "retry-atomic-rollover-256",
+        "rdel_atomic_rollover_256",
+        newest.RuntimeIds.ToArray(),
+        2,
+        3,
+        "atomic-rollover",
+        newest.RequestedAt.AddTicks(1));
+    var replacementAudit = audit
+        .Skip(1)
+        .Append(replacement)
+        .ToArray();
+    await WriteMarkerAsync(
+        markerPath,
+        $"retry_rollover_ready {audit[0].RequestId} {replacement.RequestId}\n");
+    await WaitForTriggerAsync($"{markerPath}.trigger");
+    stateStore.SaveStrict(
+        state.Runtimes,
+        state.Sessions,
+        state.OrchestraRuns,
+        state.PendingRuntimeDeletions,
+        replacementAudit);
+    await WriteMarkerAsync(
+        $"{markerPath}.committed",
+        $"retry_rollover_committed {replacement.RequestId}\n");
+    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
+else if (string.Equals(phase, "mixed_overlapping", StringComparison.Ordinal))
 {
     var phases = new[]
     {
@@ -187,8 +228,17 @@ static async Task PauseAtBoundaryAsync(
     string intentId,
     string phase)
 {
-    var markerBytes = System.Text.Encoding.UTF8.GetBytes(
+    await WriteMarkerAsync(
+        markerPath,
         $"{phase} {intentId}\n");
+    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
+
+static async Task WriteMarkerAsync(
+    string markerPath,
+    string content)
+{
+    var markerBytes = System.Text.Encoding.UTF8.GetBytes(content);
     var markerTempPath = $"{markerPath}.{Environment.ProcessId}.tmp";
     using (var marker = new FileStream(
         markerTempPath,
@@ -200,7 +250,14 @@ static async Task PauseAtBoundaryAsync(
         marker.Flush(flushToDisk: true);
     }
     File.Move(markerTempPath, markerPath, overwrite: true);
-    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
+
+static async Task WaitForTriggerAsync(string triggerPath)
+{
+    while (!File.Exists(triggerPath))
+    {
+        await Task.Delay(1);
+    }
 }
 
 static async Task<PersistedRuntimeDeletionIntent> WaitForDeferredIntentAsync(

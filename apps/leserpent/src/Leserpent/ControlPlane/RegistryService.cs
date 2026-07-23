@@ -7,12 +7,16 @@ public sealed partial class RegistryService
 {
     private const int MaxRecoveryActivitiesPerRuntime = 8;
     private const int MaxOrchestraRunsPerRuntime = 32;
-    private const int MaxPendingRuntimeDeletionIntents = 256;
-    private const int MaxRuntimeDeletionAttempts = 1_000_000;
-    private const int MaxRuntimeDeletionRetryAuditEntries = 256;
-    private const long MaxRuntimeDeletionRevision = 1_000_000_000;
+    private const int MaxPendingRuntimeDeletionIntents =
+        ControlPlaneStateValidator.MaxPendingRuntimeDeletionIntents;
+    private const int MaxRuntimeDeletionAttempts =
+        ControlPlaneStateValidator.MaxRuntimeDeletionAttempts;
+    private const int MaxRuntimeDeletionRetryAuditEntries =
+        ControlPlaneStateValidator.MaxRuntimeDeletionRetryAuditEntries;
+    private const long MaxRuntimeDeletionRevision =
+        ControlPlaneStateValidator.MaxRuntimeDeletionRevision;
     private static readonly TimeSpan MaxRuntimeDeletionRetryDelay =
-        TimeSpan.FromSeconds(30);
+        ControlPlaneStateValidator.MaxRuntimeDeletionRetryDelay;
     private static readonly TimeSpan GenericFailedRecoveryCooldown = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan AuthFailedRecoveryCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan NetworkFailedRecoveryCooldown = TimeSpan.FromSeconds(20);
@@ -920,6 +924,7 @@ public sealed partial class RegistryService
             throw new InvalidOperationException(
                 $"imported state schema {state.SchemaVersion} is not compatible with schema {stateStore.SchemaVersion}");
         }
+        ControlPlaneStateValidator.Validate(state);
         if ((state.PendingRuntimeDeletions?.Count ?? 0) > 0)
         {
             throw new InvalidOperationException(

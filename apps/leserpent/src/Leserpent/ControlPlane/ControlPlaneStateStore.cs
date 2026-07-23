@@ -16,6 +16,7 @@ public sealed class ControlPlaneStateStore
         WriteIndented = true,
     };
     private readonly LeserpentJsonContext jsonContext;
+    private bool primaryStateKnownGood;
 
     public ControlPlaneStateStore(IConfiguration configuration, IHostEnvironment environment, ILogger<ControlPlaneStateStore> logger)
     {
@@ -33,6 +34,13 @@ public sealed class ControlPlaneStateStore
     public DateTimeOffset? LastSavedAt { get; private set; }
     public bool IsDirty { get; private set; }
     public string? LastSaveError { get; private set; }
+    public ControlPlaneStateLoadProvenance LoadProvenance { get; private set; } =
+        new(
+            ControlPlaneStateLoadSource.None,
+            ControlPlaneStateLoadOutcome.NotAttempted,
+            Degraded: false,
+            PrimaryFailureCode: null,
+            BackupFailureCode: null);
 
     public PersistedControlPlaneState? Load()
     {
@@ -40,7 +48,8 @@ public sealed class ControlPlaneStateStore
         {
             IsDirty = false;
             LastSaveError = null;
-            return TryLoadBackupState();
+            return TryLoadBackupState(
+                ControlPlaneStateLoadFailureCode.NotFound);
         }
 
         try
@@ -52,7 +61,8 @@ public sealed class ControlPlaneStateStore
                 IsDirty = false;
                 LastSaveError = null;
                 logger.LogWarning("Control-plane state file at {StatePath} was empty or unreadable; starting from an empty registry.", statePath);
-                return TryLoadBackupState();
+                return TryLoadBackupState(
+                    ControlPlaneStateLoadFailureCode.Empty);
             }
 
             if (!IsCompatible(state))
@@ -64,21 +74,47 @@ public sealed class ControlPlaneStateStore
                     statePath,
                     state.SchemaVersion,
                     CurrentSchemaVersion);
-                return TryLoadBackupState();
+                return TryLoadBackupState(
+                    ControlPlaneStateLoadFailureCode.IncompatibleSchema);
             }
 
             state = UpgradeState(state);
+            ControlPlaneStateValidator.Validate(state);
             LastSavedAt = state.SavedAt;
             IsDirty = false;
             LastSaveError = null;
+            LoadProvenance = new(
+                ControlPlaneStateLoadSource.Primary,
+                ControlPlaneStateLoadOutcome.Clean,
+                Degraded: false,
+                PrimaryFailureCode: null,
+                BackupFailureCode: null);
+            primaryStateKnownGood = true;
             return state;
+        }
+        catch (JsonException ex)
+        {
+            IsDirty = false;
+            LastSaveError = "control_plane_state_load_failed";
+            logger.LogWarning(ex, "Failed to decode control-plane state from {StatePath}; attempting backup recovery.", statePath);
+            return TryLoadBackupState(
+                ControlPlaneStateLoadFailureCode.InvalidJson);
+        }
+        catch (InvalidDataException ex)
+        {
+            IsDirty = false;
+            LastSaveError = "control_plane_state_load_failed";
+            logger.LogWarning(ex, "Control-plane state at {StatePath} failed semantic validation; attempting backup recovery.", statePath);
+            return TryLoadBackupState(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid);
         }
         catch (Exception ex)
         {
             IsDirty = false;
-            LastSaveError = ex.Message;
-            logger.LogWarning(ex, "Failed to load control-plane state from {StatePath}; starting from an empty registry.", statePath);
-            return TryLoadBackupState();
+            LastSaveError = "control_plane_state_load_failed";
+            logger.LogWarning(ex, "Failed to load control-plane state from {StatePath}; attempting backup recovery.", statePath);
+            return TryLoadBackupState(
+                ControlPlaneStateLoadFailureCode.ReadFailed);
         }
     }
 
@@ -147,9 +183,12 @@ public sealed class ControlPlaneStateStore
                 pendingRuntimeDeletions,
                 runtimeDeletionRetryAudit);
             var tempPath = $"{statePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+            var backupTempPath =
+                $"{backupStatePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
 
             try
             {
+                ControlPlaneStateValidator.ValidateRuntimeSessionGraph(state);
                 var directory = Path.GetDirectoryName(statePath);
                 if (!string.IsNullOrWhiteSpace(directory))
                 {
@@ -166,12 +205,30 @@ public sealed class ControlPlaneStateStore
                     stream.Flush(flushToDisk: true);
                 }
 
-                if (File.Exists(statePath))
+                if (primaryStateKnownGood && File.Exists(statePath))
                 {
-                    File.Copy(statePath, backupStatePath, overwrite: true);
+                    using var source = new FileStream(
+                        statePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read);
+                    using (var backup = new FileStream(
+                        backupTempPath,
+                        FileMode.CreateNew,
+                        FileAccess.Write,
+                        FileShare.None))
+                    {
+                        source.CopyTo(backup);
+                        backup.Flush(flushToDisk: true);
+                    }
+                    File.Move(
+                        backupTempPath,
+                        backupStatePath,
+                        overwrite: true);
                 }
 
                 File.Move(tempPath, statePath, overwrite: true);
+                primaryStateKnownGood = true;
                 LastSavedAt = state.SavedAt;
                 IsDirty = false;
                 LastSaveError = null;
@@ -189,22 +246,46 @@ public sealed class ControlPlaneStateStore
             }
             finally
             {
-                try
+                foreach (var pendingTempPath in new[]
                 {
-                    File.Delete(tempPath);
-                }
-                catch (Exception ex)
+                    tempPath,
+                    backupTempPath,
+                })
                 {
-                    logger.LogWarning(ex, "Failed to clean temporary control-plane state file at {TempPath}.", tempPath);
+                    try
+                    {
+                        File.Delete(pendingTempPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(
+                            ex,
+                            "Failed to clean temporary control-plane state file at {TempPath}.",
+                            pendingTempPath);
+                    }
                 }
             }
         }
     }
 
-    private PersistedControlPlaneState? TryLoadBackupState()
+    private PersistedControlPlaneState? TryLoadBackupState(
+        ControlPlaneStateLoadFailureCode primaryFailureCode)
     {
+        primaryStateKnownGood = false;
         if (!File.Exists(backupStatePath))
         {
+            LoadProvenance = primaryFailureCode ==
+                ControlPlaneStateLoadFailureCode.NotFound
+                ? new(
+                    ControlPlaneStateLoadSource.Empty,
+                    ControlPlaneStateLoadOutcome.Empty,
+                    Degraded: false,
+                    PrimaryFailureCode: primaryFailureCode,
+                    BackupFailureCode:
+                        ControlPlaneStateLoadFailureCode.NotFound)
+                : FailedLoad(
+                    primaryFailureCode,
+                    ControlPlaneStateLoadFailureCode.NotFound);
             return null;
         }
 
@@ -214,6 +295,12 @@ public sealed class ControlPlaneStateStore
             var state = JsonSerializer.Deserialize(stream, jsonContext.PersistedControlPlaneState);
             if (state is null || !IsCompatible(state))
             {
+                var backupFailureCode = state is null
+                    ? ControlPlaneStateLoadFailureCode.Empty
+                    : ControlPlaneStateLoadFailureCode.IncompatibleSchema;
+                LoadProvenance = FailedLoad(
+                    primaryFailureCode,
+                    backupFailureCode);
                 logger.LogWarning(
                     "Backup control-plane state file at {BackupStatePath} was empty or used an incompatible schema; starting from an empty registry.",
                     backupStatePath);
@@ -221,18 +308,56 @@ public sealed class ControlPlaneStateStore
             }
 
             state = UpgradeState(state);
+            ControlPlaneStateValidator.Validate(state);
             LastSavedAt = state.SavedAt;
             LastSaveError = null;
+            LoadProvenance = new(
+                ControlPlaneStateLoadSource.Backup,
+                ControlPlaneStateLoadOutcome.Recovered,
+                Degraded: true,
+                PrimaryFailureCode: primaryFailureCode,
+                BackupFailureCode: null);
             logger.LogWarning("Recovered control-plane state from backup file at {BackupStatePath}.", backupStatePath);
             return state;
         }
+        catch (JsonException ex)
+        {
+            LastSaveError = "control_plane_state_backup_load_failed";
+            LoadProvenance = FailedLoad(
+                primaryFailureCode,
+                ControlPlaneStateLoadFailureCode.InvalidJson);
+            logger.LogWarning(ex, "Failed to decode backup control-plane state from {BackupStatePath}; starting from an empty registry.", backupStatePath);
+            return null;
+        }
+        catch (InvalidDataException ex)
+        {
+            LastSaveError = "control_plane_state_backup_load_failed";
+            LoadProvenance = FailedLoad(
+                primaryFailureCode,
+                ControlPlaneStateLoadFailureCode.SemanticInvalid);
+            logger.LogWarning(ex, "Backup control-plane state at {BackupStatePath} failed semantic validation; starting from an empty registry.", backupStatePath);
+            return null;
+        }
         catch (Exception ex)
         {
-            LastSaveError = ex.Message;
+            LastSaveError = "control_plane_state_backup_load_failed";
+            LoadProvenance = FailedLoad(
+                primaryFailureCode,
+                ControlPlaneStateLoadFailureCode.ReadFailed);
             logger.LogWarning(ex, "Failed to load backup control-plane state from {BackupStatePath}; starting from an empty registry.", backupStatePath);
             return null;
         }
     }
+
+    private static ControlPlaneStateLoadProvenance FailedLoad(
+        ControlPlaneStateLoadFailureCode primaryFailureCode,
+        ControlPlaneStateLoadFailureCode backupFailureCode) =>
+        new(
+            ControlPlaneStateLoadSource.None,
+            ControlPlaneStateLoadOutcome.Failed,
+            Degraded: true,
+            PrimaryFailureCode: primaryFailureCode,
+            BackupFailureCode: backupFailureCode);
 
     private static PersistedControlPlaneState UpgradeState(
         PersistedControlPlaneState state) =>

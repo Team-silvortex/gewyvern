@@ -330,6 +330,375 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void ControlPlaneStateStoreReportsTypedCleanAndEmptyLoadProvenance()
+    {
+        var emptyPath = TemporaryPath("json");
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var emptyStore = CreateStateStore(emptyPath);
+            Assert.Null(emptyStore.Load());
+            Assert.Equal(
+                new ControlPlaneStateLoadProvenance(
+                    ControlPlaneStateLoadSource.Empty,
+                    ControlPlaneStateLoadOutcome.Empty,
+                    Degraded: false,
+                    ControlPlaneStateLoadFailureCode.NotFound,
+                    ControlPlaneStateLoadFailureCode.NotFound),
+                emptyStore.LoadProvenance);
+
+            var writer = CreateStateStore(statePath);
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+            var reader = CreateStateStore(statePath);
+            Assert.NotNull(reader.Load());
+            Assert.Equal(
+                new ControlPlaneStateLoadProvenance(
+                    ControlPlaneStateLoadSource.Primary,
+                    ControlPlaneStateLoadOutcome.Clean,
+                    Degraded: false,
+                    PrimaryFailureCode: null,
+                    BackupFailureCode: null),
+                reader.LoadProvenance);
+        }
+        finally
+        {
+            DeleteState(emptyPath);
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreReportsSecretFreeBackupRecoveryProvenance()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var writer = CreateStateStore(statePath);
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>());
+            File.WriteAllText(statePath, "{");
+
+            var reader = CreateStateStore(statePath);
+            Assert.NotNull(reader.Load());
+            Assert.Equal(
+                new ControlPlaneStateLoadProvenance(
+                    ControlPlaneStateLoadSource.Backup,
+                    ControlPlaneStateLoadOutcome.Recovered,
+                    Degraded: true,
+                    ControlPlaneStateLoadFailureCode.InvalidJson,
+                    BackupFailureCode: null),
+                reader.LoadProvenance);
+            Assert.Null(reader.LastSaveError);
+            var serialized = JsonSerializer.Serialize(
+                reader.LoadProvenance,
+                LeserpentJsonContext.Default
+                    .ControlPlaneStateLoadProvenance);
+            Assert.Equal(
+                "{\"source\":\"backup\",\"outcome\":\"recovered\",\"degraded\":true,\"primaryFailureCode\":\"invalid_json\",\"backupFailureCode\":null}",
+                serialized);
+            Assert.DoesNotContain(statePath, serialized, StringComparison.Ordinal);
+            var configuration = new ConfigurationBuilder().Build();
+            var posture = Program.BuildRuntimePosture(
+                reader,
+                new InMemoryOrchestraRunStore(),
+                new RustCompatibilityBridge(
+                    configuration,
+                    NullLogger<RustCompatibilityBridge>.Instance),
+                new DaemonDeploymentAuthority(configuration));
+            Assert.True(posture.PersistenceReady);
+            Assert.True(posture.DegradedButOperable);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreReportsTypedFailureWhenBothGenerationsAreCorrupt()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            File.WriteAllText(statePath, "{");
+            File.WriteAllText($"{statePath}.bak", "{");
+
+            var reader = CreateStateStore(statePath);
+            Assert.Null(reader.Load());
+            Assert.Equal(
+                new ControlPlaneStateLoadProvenance(
+                    ControlPlaneStateLoadSource.None,
+                    ControlPlaneStateLoadOutcome.Failed,
+                    Degraded: true,
+                    ControlPlaneStateLoadFailureCode.InvalidJson,
+                    ControlPlaneStateLoadFailureCode.InvalidJson),
+                reader.LoadProvenance);
+            Assert.Equal(
+                "control_plane_state_backup_load_failed",
+                reader.LastSaveError);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreDoesNotPoisonGoodBackupOnFirstPostRecoverySave()
+    {
+        var statePath = TemporaryPath("json");
+        var backupPath = $"{statePath}.bak";
+        try
+        {
+            var writer = CreateStateStore(statePath);
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
+            var knownGoodBackup = File.ReadAllBytes(backupPath);
+            File.WriteAllText(statePath, "{");
+
+            var recovered = CreateStateStore(statePath);
+            Assert.NotNull(recovered.Load());
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                recovered.LoadProvenance.Source);
+            recovered.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { CreateRun("repaired-run", "repaired-request", "succeeded") });
+
+            Assert.Equal(knownGoodBackup, File.ReadAllBytes(backupPath));
+            var repaired = Assert.IsType<PersistedControlPlaneState>(
+                CreateStateStore(statePath).Load());
+            Assert.Equal(
+                "repaired-run",
+                Assert.Single(repaired.OrchestraRuns!).RunId);
+            var preserved = Assert.IsType<PersistedControlPlaneState>(
+                CreateStateStore(backupPath).Load());
+            Assert.Equal(
+                "baseline-run",
+                Assert.Single(preserved.OrchestraRuns!).RunId);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreRejectsSemanticInvalidPrimaryWithoutPromotingIt()
+    {
+        var statePath = TemporaryPath("json");
+        var backupPath = $"{statePath}.bak";
+        try
+        {
+            var writer = CreateStateStore(statePath);
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
+            writer.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { CreateRun("baseline-run", "baseline-request", "succeeded") });
+            var knownGoodBackup = File.ReadAllBytes(backupPath);
+            WriteSemanticInvalidState(statePath);
+
+            var recovered = CreateStateStore(statePath);
+            var loaded = Assert.IsType<PersistedControlPlaneState>(
+                recovered.Load());
+            Assert.Equal(
+                "baseline-run",
+                Assert.Single(loaded.OrchestraRuns!).RunId);
+            Assert.Equal(
+                new ControlPlaneStateLoadProvenance(
+                    ControlPlaneStateLoadSource.Backup,
+                    ControlPlaneStateLoadOutcome.Recovered,
+                    Degraded: true,
+                    ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                    BackupFailureCode: null),
+                recovered.LoadProvenance);
+
+            recovered.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                new[] { CreateRun("repaired-run", "repaired-request", "succeeded") });
+            Assert.Equal(knownGoodBackup, File.ReadAllBytes(backupPath));
+            var repaired = Assert.IsType<PersistedControlPlaneState>(
+                CreateStateStore(statePath).Load());
+            Assert.Equal(
+                "repaired-run",
+                Assert.Single(repaired.OrchestraRuns!).RunId);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreFailsWhenBothGenerationsAreSemanticInvalid()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            WriteSemanticInvalidState(statePath);
+            WriteSemanticInvalidState($"{statePath}.bak");
+
+            var reader = CreateStateStore(statePath);
+            Assert.Null(reader.Load());
+            Assert.Equal(
+                new ControlPlaneStateLoadProvenance(
+                    ControlPlaneStateLoadSource.None,
+                    ControlPlaneStateLoadOutcome.Failed,
+                    Degraded: true,
+                    ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                    ControlPlaneStateLoadFailureCode.SemanticInvalid),
+                reader.LoadProvenance);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreRejectsDuplicateRuntimeIdentities()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var duplicateRuntimes = valid.Runtimes
+                .Append(valid.Runtimes[0] with
+                {
+                    RuntimeId =
+                        valid.Runtimes[0].RuntimeId.ToUpperInvariant(),
+                })
+                .ToArray();
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    Runtimes = duplicateRuntimes,
+                });
+            var knownGoodBackup = File.ReadAllBytes($"{statePath}.bak");
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.Runtimes);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+            Assert.Throws<ControlPlaneStatePersistenceException>(() =>
+                store.SaveStrict(
+                    duplicateRuntimes,
+                    valid.Sessions));
+            Assert.Equal(
+                knownGoodBackup,
+                File.ReadAllBytes($"{statePath}.bak"));
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreRejectsDuplicateSessionIdentities()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    Sessions = valid.Sessions
+                        .Append(valid.Sessions[0] with
+                        {
+                            SessionId =
+                                valid.Sessions[0].SessionId.ToUpperInvariant(),
+                        })
+                        .ToArray(),
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.Sessions);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void RegistryImportRejectsOrphanSessionBeforeReplacingProjection()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var registry = new RegistryService(CreateStateStore(statePath));
+            var runtime = registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "existing-runtime",
+                    "http://127.0.0.1:49152",
+                    "pairing-token"),
+                "runtime-existing");
+            var imported = CreateRuntimeSessionState();
+            imported = imported with
+            {
+                Sessions = new[]
+                {
+                    imported.Sessions[0] with
+                    {
+                        RuntimeId = "runtime-missing",
+                    },
+                },
+            };
+
+            Assert.Throws<InvalidDataException>(() =>
+                registry.ImportState(imported));
+            Assert.Equal(
+                "existing-runtime",
+                registry.GetRuntime(runtime.RuntimeId)?.Name);
+            Assert.Single(registry.ListRuntimes());
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
     public void ControlPlaneStateStorePreservesSnapshotAndCleansTempAfterBackupFailure()
     {
         var statePath = TemporaryPath("json");
@@ -371,6 +740,75 @@ public sealed class SqliteOrchestraRunStoreTests
             }
             DeleteState(statePath);
         }
+    }
+
+    private static void WriteSemanticInvalidState(string path)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var state = new PersistedControlPlaneState(
+            3,
+            now,
+            Array.Empty<PersistedRuntimeState>(),
+            Array.Empty<PersistedSessionState>(),
+            Array.Empty<OrchestraRunSummary>(),
+            new[]
+            {
+                new PersistedRuntimeDeletionIntent(
+                    "rdel_semantic_invalid",
+                    new[] { "runtime-semantic-invalid" },
+                    now.AddSeconds(-2),
+                    AttemptCount: 1,
+                    LastAttemptAt: now.AddSeconds(-1),
+                    NextAttemptAt: now,
+                    LastFailureCode:
+                        "authority_failure\ncredential=secret",
+                    Revision: 2),
+            });
+        File.WriteAllText(
+            path,
+            JsonSerializer.Serialize(
+                state,
+                new LeserpentJsonContext(
+                    new JsonSerializerOptions())
+                    .PersistedControlPlaneState));
+    }
+
+    private static PersistedControlPlaneState CreateRuntimeSessionState()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var registry = new RegistryService(CreateStateStore(statePath));
+            var runtime = registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "runtime",
+                    "http://127.0.0.1:49153",
+                    "pairing-token"),
+                "runtime-primary");
+            Assert.NotNull(registry.CreateSession(
+                new SessionCreateRequest(
+                    runtime.RuntimeId,
+                    "diagnostic",
+                    "operator")).Session);
+            return registry.ExportState();
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    private static void WriteState(
+        string path,
+        PersistedControlPlaneState state)
+    {
+        File.WriteAllText(
+            path,
+            JsonSerializer.Serialize(
+                state,
+                new LeserpentJsonContext(
+                    new JsonSerializerOptions())
+                    .PersistedControlPlaneState));
     }
 
     private static OrchestraRunSummary CreateRun(

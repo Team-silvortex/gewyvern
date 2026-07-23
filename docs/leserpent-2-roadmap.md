@@ -796,10 +796,31 @@ waves. The latest 256 records survive in strict linearization order, every
 runtime receives one authority mutation, retained IDs replay, evicted IDs leave
 the replay horizon and can identify a new intent, and the final window survives
 restart without pending starvation or loss. Arm64 completes in 6913 ms and
-physical x86_64 Linux in 2310 ms. The next reliability gate force-terminates
-atomic rollover persistence at the 256-to-256 replacement boundary and proves
-restart observes either the complete previous window or the complete new
-window, never a torn or reordered mixture.
+physical x86_64 Linux in 2310 ms. The atomic rollover persistence gate is also
+complete on Arm64 and physical x86_64 Linux: each platform force-terminates
+three runs before write, three after observing the real temporary file, and
+three after commit. All 18 restarts contain exactly 256 ordered records and one
+complete previous or replacement window, never a torn or reordered mixture.
+The atomic backup refresh gate is complete: Arm64 and physical x86_64 Linux
+each force-terminate nine runs, deliberately corrupt all nine primary files,
+and recover all nine complete 256-record previous windows. Typed, secret-free
+load provenance is complete as well: every fallback reports
+`backup/recovered/invalid_json` through health, remains persistence-ready, and
+is explicitly degraded but operable. The first post-recovery write gate is
+complete too. Arm64 and physical x86_64 Linux each force-terminate nine repair
+writes; every active state is one complete old or new 256-record window, every
+known-good backup remains the complete prior window, and no corrupted primary
+is copied into backup. The safety-critical semantic-generation gate is now
+complete for runtime deletion intents and retry audit. Arm64 and physical
+x86_64 Linux each reject and recover nine schema-compatible but semantically
+invalid primaries, preserve all nine known-good backups, and never promote the
+invalid generation. Runtime/session graph validation is complete as well:
+runtime and session identities are stable and case-insensitively unique, every
+session references a registered runtime, generated saves self-check, and
+explicit imports fail before replacing the live projection. The next
+reliability gate extends graph validation to legacy Orchestra run identity and
+runtime references so malformed historical runs cannot be silently filtered or
+collapsed during restoration.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

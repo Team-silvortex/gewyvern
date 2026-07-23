@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T13:16:27.115087+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "iterations_per_strategy": 3,
+  "strategies": [
+    "BeforeWrite",
+    "DuringTempWrite",
+    "AfterCommit"
+  ],
+  "total_forced_terminations": 9,
+  "audit_retention_limit": 256,
+  "runtime_ids_per_audit_record": 128,
+  "previous_window_count": 3,
+  "replacement_window_count": 6,
+  "temp_artifact_observed_count": 3,
+  "checks": {
+    "before_write_restored_complete_previous_window": true,
+    "every_temp_write_was_observed": true,
+    "after_commit_restored_complete_replacement_window": true,
+    "every_restart_loaded_exactly_256_records": true,
+    "every_restart_observed_old_or_new_window": true,
+    "no_torn_or_reordered_window": true,
+    "both_atomic_outcomes_were_exercised": true,
+    "every_host_process_force_killed": true
+  }
+}

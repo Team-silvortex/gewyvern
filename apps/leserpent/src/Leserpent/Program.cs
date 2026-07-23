@@ -127,18 +127,25 @@ public partial class Program
         app.Run();
     }
 
-    private static ServiceRuntimePosture BuildRuntimePosture(
+    internal static ServiceRuntimePosture BuildRuntimePosture(
         ControlPlaneStateStore stateStore,
         IOrchestraRunStore orchestraRunStore,
         ICompatibilityBridge compatibilityBridge,
         IDeploymentAuthority deploymentAuthority)
     {
-        var persistenceReady = string.IsNullOrWhiteSpace(stateStore.LastSaveError)
+        var loadFailed = stateStore.LoadProvenance.Outcome ==
+            ControlPlaneStateLoadOutcome.Failed;
+        var persistenceReady = !loadFailed &&
+            string.IsNullOrWhiteSpace(stateStore.LastSaveError)
             && string.IsNullOrWhiteSpace(orchestraRunStore.LastError);
+        var persistenceDegraded =
+            stateStore.LoadProvenance.Degraded ||
+            !string.IsNullOrWhiteSpace(stateStore.LastSaveError) ||
+            !string.IsNullOrWhiteSpace(orchestraRunStore.LastError);
         return new ServiceRuntimePosture(
             CoreReady: true,
             PersistenceReady: persistenceReady,
-            DegradedButOperable: !persistenceReady,
+            DegradedButOperable: persistenceDegraded,
             OptionalAdapters: new[]
             {
                 new ServiceOptionalAdapter(

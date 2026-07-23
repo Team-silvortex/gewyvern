@@ -453,6 +453,389 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionRetryAuditRolloverPersistenceIsAtomicAcrossHostTermination()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_RUNTIME_DELETION_RETRY_ATOMIC_ROLLOVER_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 10)
+            : 3;
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-retry-atomic-rollover-{Guid.NewGuid():N}");
+        var baselinePath = $"{rootPath}.baseline.json";
+        var socketPath = TempSocket();
+        var results =
+            new List<RuntimeDeletionRetryAtomicRolloverResult>();
+        try
+        {
+            CreateRuntimeDeletionRetryAtomicRolloverBaseline(
+                baselinePath);
+            foreach (var strategy in Enum.GetValues<
+                RuntimeDeletionRetryAtomicRolloverStrategy>())
+            {
+                for (var iteration = 0;
+                     iteration < iterations;
+                     iteration += 1)
+                {
+                    results.Add(
+                        await ExecuteRuntimeDeletionRetryAtomicRolloverAsync(
+                            harnessAssembly,
+                            baselinePath,
+                            socketPath,
+                            rootPath,
+                            strategy,
+                            iteration));
+                }
+            }
+
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionRetryAtomicRolloverStrategy.BeforeWrite),
+                result => Assert.Equal(
+                    RuntimeDeletionRetryAtomicRolloverWindow.Previous,
+                    result.Window));
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionRetryAtomicRolloverStrategy.DuringTempWrite),
+                result => Assert.True(result.TempArtifactObserved));
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionRetryAtomicRolloverStrategy.AfterCommit),
+                result => Assert.Equal(
+                    RuntimeDeletionRetryAtomicRolloverWindow.Replacement,
+                    result.Window));
+            Assert.All(
+                results,
+                result => Assert.Equal(256, result.AuditCount));
+            WriteRuntimeDeletionRetryAtomicRolloverEvidenceIfRequested(
+                iterations,
+                results);
+        }
+        finally
+        {
+            foreach (var path in new[]
+            {
+                baselinePath,
+                baselinePath + ".bak",
+                baselinePath + ".tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(rootPath)!,
+                $"{Path.GetFileName(rootPath)}*"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionRetryAuditBackupRefreshIsAtomicAcrossHostTermination()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_RUNTIME_DELETION_RETRY_ATOMIC_BACKUP_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 10)
+            : 3;
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-retry-atomic-backup-{Guid.NewGuid():N}");
+        var baselinePath = $"{rootPath}.baseline.json";
+        var socketPath = TempSocket();
+        var results =
+            new List<RuntimeDeletionRetryAtomicBackupResult>();
+        try
+        {
+            CreateRuntimeDeletionRetryAtomicRolloverBaseline(
+                baselinePath);
+            foreach (var strategy in Enum.GetValues<
+                RuntimeDeletionRetryAtomicBackupStrategy>())
+            {
+                for (var iteration = 0;
+                     iteration < iterations;
+                     iteration += 1)
+                {
+                    results.Add(
+                        await ExecuteRuntimeDeletionRetryAtomicBackupAsync(
+                            harnessAssembly,
+                            baselinePath,
+                            socketPath,
+                            rootPath,
+                            strategy,
+                            iteration));
+                }
+            }
+
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionRetryAtomicBackupStrategy
+                        .DuringBackupTempWrite),
+                result => Assert.True(result.TempArtifactObserved));
+            Assert.All(
+                results,
+                result =>
+                {
+                    Assert.True(result.PrimaryWasCorrupted);
+                    Assert.Equal(256, result.AuditCount);
+                    Assert.True(result.CompletePreviousWindowRestored);
+                });
+            WriteRuntimeDeletionRetryAtomicBackupEvidenceIfRequested(
+                iterations,
+                results);
+        }
+        finally
+        {
+            foreach (var path in new[]
+            {
+                baselinePath,
+                baselinePath + ".bak",
+                baselinePath + ".tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(rootPath)!,
+                $"{Path.GetFileName(rootPath)}*"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionRetryAuditPostRecoveryWritePreservesKnownGoodBackupAcrossHostTermination()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_RUNTIME_DELETION_RETRY_POST_RECOVERY_WRITE_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 10)
+            : 3;
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-retry-post-recovery-write-{Guid.NewGuid():N}");
+        var baselinePath = $"{rootPath}.baseline.json";
+        var socketPath = TempSocket();
+        var results =
+            new List<RuntimeDeletionRetryPostRecoveryWriteResult>();
+        try
+        {
+            CreateRuntimeDeletionRetryAtomicRolloverBaseline(
+                baselinePath);
+            foreach (var strategy in Enum.GetValues<
+                RuntimeDeletionRetryPostRecoveryWriteStrategy>())
+            {
+                for (var iteration = 0;
+                     iteration < iterations;
+                     iteration += 1)
+                {
+                    results.Add(
+                        await ExecuteRuntimeDeletionRetryPostRecoveryWriteAsync(
+                            harnessAssembly,
+                            baselinePath,
+                            socketPath,
+                            rootPath,
+                            ControlPlaneStateLoadFailureCode.InvalidJson,
+                            strategy,
+                            iteration));
+                }
+            }
+
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionRetryPostRecoveryWriteStrategy
+                        .BeforeWrite),
+                result => Assert.Equal(
+                    RuntimeDeletionRetryAtomicRolloverWindow.Previous,
+                    result.ActiveWindow));
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionRetryPostRecoveryWriteStrategy
+                        .DuringPrimaryTempWrite),
+                result =>
+                {
+                    Assert.True(result.PrimaryTempArtifactObserved);
+                    Assert.NotEqual(
+                        RuntimeDeletionRetryAtomicRolloverWindow.Torn,
+                        result.ActiveWindow);
+                });
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionRetryPostRecoveryWriteStrategy
+                        .AfterCommit),
+                result => Assert.Equal(
+                    RuntimeDeletionRetryAtomicRolloverWindow.Replacement,
+                    result.ActiveWindow));
+            Assert.All(
+                results,
+                result =>
+                {
+                    Assert.True(result.BackupWindowPreserved);
+                    Assert.True(result.BackupTempArtifactAbsent);
+                    Assert.Equal(256, result.ActiveAuditCount);
+                    Assert.Equal(256, result.BackupAuditCount);
+                });
+            WriteRuntimeDeletionRetryPostRecoveryWriteEvidenceIfRequested(
+                "LESERPENT_RUNTIME_DELETION_RETRY_POST_RECOVERY_WRITE_EVIDENCE",
+                ControlPlaneStateLoadFailureCode.InvalidJson,
+                iterations,
+                results);
+        }
+        finally
+        {
+            foreach (var path in new[]
+            {
+                baselinePath,
+                baselinePath + ".bak",
+                baselinePath + ".tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(rootPath)!,
+                $"{Path.GetFileName(rootPath)}*"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionRetryAuditSemanticInvalidGenerationNeverPromotesAcrossHostTermination()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_RUNTIME_DELETION_RETRY_SEMANTIC_GENERATION_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 10)
+            : 3;
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-retry-semantic-generation-{Guid.NewGuid():N}");
+        var baselinePath = $"{rootPath}.baseline.json";
+        var socketPath = TempSocket();
+        var results =
+            new List<RuntimeDeletionRetryPostRecoveryWriteResult>();
+        try
+        {
+            CreateRuntimeDeletionRetryAtomicRolloverBaseline(
+                baselinePath);
+            foreach (var strategy in Enum.GetValues<
+                RuntimeDeletionRetryPostRecoveryWriteStrategy>())
+            {
+                for (var iteration = 0;
+                     iteration < iterations;
+                     iteration += 1)
+                {
+                    results.Add(
+                        await ExecuteRuntimeDeletionRetryPostRecoveryWriteAsync(
+                            harnessAssembly,
+                            baselinePath,
+                            socketPath,
+                            rootPath,
+                            ControlPlaneStateLoadFailureCode
+                                .SemanticInvalid,
+                            strategy,
+                            iteration));
+                }
+            }
+
+            Assert.All(
+                results,
+                result =>
+                {
+                    Assert.NotEqual(
+                        RuntimeDeletionRetryAtomicRolloverWindow.Torn,
+                        result.ActiveWindow);
+                    Assert.True(result.BackupWindowPreserved);
+                    Assert.True(result.BackupTempArtifactAbsent);
+                    Assert.Equal(256, result.ActiveAuditCount);
+                    Assert.Equal(256, result.BackupAuditCount);
+                });
+            Assert.All(
+                results.Where(result =>
+                    result.ActiveWindow ==
+                    RuntimeDeletionRetryAtomicRolloverWindow.Previous),
+                result => Assert.Equal(
+                    ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                    result.LoadProvenance.PrimaryFailureCode));
+            WriteRuntimeDeletionRetryPostRecoveryWriteEvidenceIfRequested(
+                "LESERPENT_RUNTIME_DELETION_RETRY_SEMANTIC_GENERATION_EVIDENCE",
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                iterations,
+                results);
+        }
+        finally
+        {
+            foreach (var path in new[]
+            {
+                baselinePath,
+                baselinePath + ".bak",
+                baselinePath + ".tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(rootPath)!,
+                $"{Path.GetFileName(rootPath)}*"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RuntimeDeletionFaultCampaignRecoversAcrossEveryDurableTransition()
     {
         var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
@@ -1958,6 +2341,645 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         return Process.Start(start) ?? throw new InvalidOperationException("failed to start leserpentd");
     }
 
+    private static void CreateRuntimeDeletionRetryAtomicRolloverBaseline(
+        string statePath)
+    {
+        var runtimeIds = Enumerable.Range(0, 128)
+            .Select(index =>
+                $"runtime-atomic-rollover-evidence-{index:D3}")
+            .ToArray();
+        var requestedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var audit = Enumerable.Range(0, 256)
+            .Select(index =>
+                new PersistedRuntimeDeletionRetryAudit(
+                    $"retry-atomic-rollover-{index:D3}",
+                    $"rdel_atomic_rollover_{index:D3}",
+                    runtimeIds,
+                    2,
+                    3,
+                    "atomic-rollover",
+                    requestedAt.AddTicks(index)))
+            .ToArray();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+            .Build();
+        var store = new ControlPlaneStateStore(
+            configuration,
+            new CrashTestEnvironment(
+                Path.GetDirectoryName(statePath)!),
+            NullLogger<ControlPlaneStateStore>.Instance);
+        store.SaveStrict(
+            Array.Empty<PersistedRuntimeState>(),
+            Array.Empty<PersistedSessionState>(),
+            Array.Empty<OrchestraRunSummary>(),
+            Array.Empty<PersistedRuntimeDeletionIntent>(),
+            audit);
+        store.SaveStrict(
+            Array.Empty<PersistedRuntimeState>(),
+            Array.Empty<PersistedSessionState>(),
+            Array.Empty<OrchestraRunSummary>(),
+            Array.Empty<PersistedRuntimeDeletionIntent>(),
+            audit);
+    }
+
+    private static void WritePostRecoveryInvalidPrimary(
+        string statePath,
+        string baselinePath,
+        ControlPlaneStateLoadFailureCode failureCode)
+    {
+        if (failureCode ==
+            ControlPlaneStateLoadFailureCode.InvalidJson)
+        {
+            File.WriteAllText(statePath, "{");
+            return;
+        }
+        if (failureCode !=
+            ControlPlaneStateLoadFailureCode.SemanticInvalid)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(failureCode));
+        }
+
+        var stateJsonContext = new LeserpentJsonContext(
+            new JsonSerializerOptions());
+        using var baselineStream = File.OpenRead(baselinePath);
+        var baseline = JsonSerializer.Deserialize(
+                baselineStream,
+                stateJsonContext.PersistedControlPlaneState)
+            ?? throw new InvalidDataException(
+                "semantic-generation baseline was empty");
+        var now = DateTimeOffset.UtcNow;
+        var invalid = baseline with
+        {
+            PendingRuntimeDeletions = new[]
+            {
+                new PersistedRuntimeDeletionIntent(
+                    "rdel_semantic_generation",
+                    new[] { "runtime-semantic-generation" },
+                    now.AddSeconds(-2),
+                    AttemptCount: 1,
+                    LastAttemptAt: now.AddSeconds(-1),
+                    NextAttemptAt: now,
+                    LastFailureCode:
+                        "authority_failure\ncredential=secret",
+                    Revision: 2),
+            },
+        };
+        using var output = File.Create(statePath);
+        JsonSerializer.Serialize(
+            output,
+            invalid,
+            stateJsonContext.PersistedControlPlaneState);
+        output.Flush(flushToDisk: true);
+    }
+
+    private static async Task<RuntimeDeletionRetryAtomicRolloverResult>
+        ExecuteRuntimeDeletionRetryAtomicRolloverAsync(
+            string harnessAssembly,
+            string baselinePath,
+            string socketPath,
+            string rootPath,
+            RuntimeDeletionRetryAtomicRolloverStrategy strategy,
+            int iteration)
+    {
+        var strategyName = strategy.ToString().ToLowerInvariant();
+        var statePath =
+            $"{rootPath}.{strategyName}.{iteration}.state.json";
+        var markerPath =
+            $"{rootPath}.{strategyName}.{iteration}.marker";
+        var triggerPath = $"{markerPath}.trigger";
+        var committedMarkerPath = $"{markerPath}.committed";
+        Process? harness = null;
+        int? harnessProcessId = null;
+        var tempArtifactObserved = false;
+        try
+        {
+            File.Copy(baselinePath, statePath, overwrite: true);
+            File.Copy(
+                baselinePath + ".bak",
+                statePath + ".bak",
+                overwrite: true);
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                "runtime-atomic-rollover-unused",
+                "retry_rollover_persist");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            if (strategy ==
+                RuntimeDeletionRetryAtomicRolloverStrategy.DuringTempWrite)
+            {
+                tempArtifactObserved =
+                    await WaitForStateTempArtifactAsync(
+                        harness,
+                        statePath,
+                        triggerPath);
+            }
+            else if (strategy ==
+                RuntimeDeletionRetryAtomicRolloverStrategy.AfterCommit)
+            {
+                File.WriteAllText(triggerPath, "start\n");
+                await WaitForMarkerAsync(
+                    harness,
+                    committedMarkerPath);
+            }
+
+            Assert.False(harness.HasExited);
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = statePath,
+                    })
+                .Build();
+            var stateStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(
+                    Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            var reloaded = new RegistryService(
+                stateStore,
+                new InMemoryOrchestraRunStore());
+            var requestIds = reloaded
+                .ListRuntimeDeletionRetryAudit()
+                .Select(static audit => audit.RequestId)
+                .ToArray();
+            var previousWindow = Enumerable.Range(0, 256)
+                .Reverse()
+                .Select(index =>
+                    $"retry-atomic-rollover-{index:D3}")
+                .ToArray();
+            var replacementWindow = Enumerable.Range(1, 256)
+                .Reverse()
+                .Select(index =>
+                    $"retry-atomic-rollover-{index:D3}")
+                .ToArray();
+            var window = requestIds.SequenceEqual(previousWindow)
+                ? RuntimeDeletionRetryAtomicRolloverWindow.Previous
+                : requestIds.SequenceEqual(replacementWindow)
+                    ? RuntimeDeletionRetryAtomicRolloverWindow.Replacement
+                    : RuntimeDeletionRetryAtomicRolloverWindow.Torn;
+            Assert.NotEqual(
+                RuntimeDeletionRetryAtomicRolloverWindow.Torn,
+                window);
+            Assert.Equal(256, requestIds.Distinct().Count());
+
+            return new RuntimeDeletionRetryAtomicRolloverResult(
+                strategy,
+                window,
+                tempArtifactObserved,
+                requestIds.Length);
+        }
+        finally
+        {
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            foreach (var path in new[]
+            {
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                triggerPath,
+                committedMarkerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+                committedMarkerPath +
+                    $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}.*.tmp"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    private static async Task<RuntimeDeletionRetryAtomicBackupResult>
+        ExecuteRuntimeDeletionRetryAtomicBackupAsync(
+            string harnessAssembly,
+            string baselinePath,
+            string socketPath,
+            string rootPath,
+            RuntimeDeletionRetryAtomicBackupStrategy strategy,
+            int iteration)
+    {
+        var strategyName = strategy.ToString().ToLowerInvariant();
+        var statePath =
+            $"{rootPath}.{strategyName}.{iteration}.state.json";
+        var markerPath =
+            $"{rootPath}.{strategyName}.{iteration}.marker";
+        var triggerPath = $"{markerPath}.trigger";
+        var committedMarkerPath = $"{markerPath}.committed";
+        Process? harness = null;
+        int? harnessProcessId = null;
+        var tempArtifactObserved = false;
+        try
+        {
+            File.Copy(baselinePath, statePath, overwrite: true);
+            File.Copy(
+                baselinePath + ".bak",
+                statePath + ".bak",
+                overwrite: true);
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                "runtime-atomic-backup-unused",
+                "retry_rollover_persist");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            if (strategy ==
+                RuntimeDeletionRetryAtomicBackupStrategy
+                    .DuringBackupTempWrite)
+            {
+                tempArtifactObserved =
+                    await WaitForBackupTempArtifactAsync(
+                        harness,
+                        statePath,
+                        triggerPath);
+            }
+            else if (strategy ==
+                RuntimeDeletionRetryAtomicBackupStrategy.AfterCommit)
+            {
+                File.WriteAllText(triggerPath, "start\n");
+                await WaitForMarkerAsync(
+                    harness,
+                    committedMarkerPath);
+            }
+
+            Assert.False(harness.HasExited);
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            File.WriteAllText(statePath, "{");
+            var primaryWasCorrupted =
+                File.ReadAllText(statePath) == "{";
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = statePath,
+                    })
+                .Build();
+            var stateStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(
+                    Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            var reloaded = new RegistryService(
+                stateStore,
+                new InMemoryOrchestraRunStore());
+            var requestIds = reloaded
+                .ListRuntimeDeletionRetryAudit()
+                .Select(static audit => audit.RequestId)
+                .ToArray();
+            var previousWindow = Enumerable.Range(0, 256)
+                .Reverse()
+                .Select(index =>
+                    $"retry-atomic-rollover-{index:D3}")
+                .ToArray();
+            var completePreviousWindowRestored =
+                requestIds.SequenceEqual(previousWindow);
+            Assert.True(completePreviousWindowRestored);
+            Assert.Equal(256, requestIds.Distinct().Count());
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                stateStore.LoadProvenance.Source);
+            Assert.Equal(
+                ControlPlaneStateLoadOutcome.Recovered,
+                stateStore.LoadProvenance.Outcome);
+            Assert.True(stateStore.LoadProvenance.Degraded);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.InvalidJson,
+                stateStore.LoadProvenance.PrimaryFailureCode);
+            Assert.Null(
+                stateStore.LoadProvenance.BackupFailureCode);
+
+            return new RuntimeDeletionRetryAtomicBackupResult(
+                strategy,
+                tempArtifactObserved,
+                primaryWasCorrupted,
+                completePreviousWindowRestored,
+                stateStore.LoadProvenance,
+                requestIds.Length);
+        }
+        finally
+        {
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            foreach (var path in new[]
+            {
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                triggerPath,
+                committedMarkerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+                committedMarkerPath +
+                    $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}*.tmp"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    private static async Task<RuntimeDeletionRetryPostRecoveryWriteResult>
+        ExecuteRuntimeDeletionRetryPostRecoveryWriteAsync(
+            string harnessAssembly,
+            string baselinePath,
+            string socketPath,
+            string rootPath,
+            ControlPlaneStateLoadFailureCode primaryFailureCode,
+            RuntimeDeletionRetryPostRecoveryWriteStrategy strategy,
+            int iteration)
+    {
+        var strategyName = strategy.ToString().ToLowerInvariant();
+        var statePath =
+            $"{rootPath}.{strategyName}.{iteration}.state.json";
+        var markerPath =
+            $"{rootPath}.{strategyName}.{iteration}.marker";
+        var triggerPath = $"{markerPath}.trigger";
+        var committedMarkerPath = $"{markerPath}.committed";
+        Process? harness = null;
+        int? harnessProcessId = null;
+        var primaryTempArtifactObserved = false;
+        try
+        {
+            WritePostRecoveryInvalidPrimary(
+                statePath,
+                baselinePath,
+                primaryFailureCode);
+            File.Copy(
+                baselinePath + ".bak",
+                statePath + ".bak",
+                overwrite: true);
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                "runtime-post-recovery-write-unused",
+                "retry_rollover_persist");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            if (strategy ==
+                RuntimeDeletionRetryPostRecoveryWriteStrategy
+                    .DuringPrimaryTempWrite)
+            {
+                primaryTempArtifactObserved =
+                    await WaitForStateTempArtifactAsync(
+                        harness,
+                        statePath,
+                        triggerPath);
+            }
+            else if (strategy ==
+                RuntimeDeletionRetryPostRecoveryWriteStrategy
+                    .AfterCommit)
+            {
+                File.WriteAllText(triggerPath, "start\n");
+                await WaitForMarkerAsync(
+                    harness,
+                    committedMarkerPath);
+            }
+
+            Assert.False(harness.HasExited);
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var backupTempArtifactAbsent = !Directory.EnumerateFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}.bak.*.tmp").Any();
+            var activeConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = statePath,
+                    })
+                .Build();
+            var activeStateStore = new ControlPlaneStateStore(
+                activeConfiguration,
+                new CrashTestEnvironment(
+                    Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            var activeRegistry = new RegistryService(
+                activeStateStore,
+                new InMemoryOrchestraRunStore());
+            var activeRequestIds = activeRegistry
+                .ListRuntimeDeletionRetryAudit()
+                .Select(static audit => audit.RequestId)
+                .ToArray();
+            var previousWindow = Enumerable.Range(0, 256)
+                .Reverse()
+                .Select(index =>
+                    $"retry-atomic-rollover-{index:D3}")
+                .ToArray();
+            var replacementWindow = Enumerable.Range(1, 256)
+                .Reverse()
+                .Select(index =>
+                    $"retry-atomic-rollover-{index:D3}")
+                .ToArray();
+            var activeWindow = activeRequestIds.SequenceEqual(
+                previousWindow)
+                ? RuntimeDeletionRetryAtomicRolloverWindow.Previous
+                : activeRequestIds.SequenceEqual(replacementWindow)
+                    ? RuntimeDeletionRetryAtomicRolloverWindow.Replacement
+                    : RuntimeDeletionRetryAtomicRolloverWindow.Torn;
+            Assert.NotEqual(
+                RuntimeDeletionRetryAtomicRolloverWindow.Torn,
+                activeWindow);
+
+            var backupPath = statePath + ".bak";
+            var backupConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = backupPath,
+                    })
+                .Build();
+            var backupRegistry = new RegistryService(
+                new ControlPlaneStateStore(
+                    backupConfiguration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(backupPath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            var backupRequestIds = backupRegistry
+                .ListRuntimeDeletionRetryAudit()
+                .Select(static audit => audit.RequestId)
+                .ToArray();
+            var backupWindowPreserved =
+                backupRequestIds.SequenceEqual(previousWindow);
+
+            var expectedActiveSource = activeWindow ==
+                RuntimeDeletionRetryAtomicRolloverWindow.Previous
+                ? ControlPlaneStateLoadSource.Backup
+                : ControlPlaneStateLoadSource.Primary;
+            var expectedActiveOutcome = activeWindow ==
+                RuntimeDeletionRetryAtomicRolloverWindow.Previous
+                ? ControlPlaneStateLoadOutcome.Recovered
+                : ControlPlaneStateLoadOutcome.Clean;
+            Assert.Equal(
+                expectedActiveSource,
+                activeStateStore.LoadProvenance.Source);
+            Assert.Equal(
+                expectedActiveOutcome,
+                activeStateStore.LoadProvenance.Outcome);
+            if (activeWindow ==
+                RuntimeDeletionRetryAtomicRolloverWindow.Previous)
+            {
+                Assert.Equal(
+                    primaryFailureCode,
+                    activeStateStore.LoadProvenance
+                        .PrimaryFailureCode);
+            }
+            Assert.True(backupWindowPreserved);
+
+            return new RuntimeDeletionRetryPostRecoveryWriteResult(
+                strategy,
+                activeWindow,
+                primaryTempArtifactObserved,
+                backupTempArtifactAbsent,
+                backupWindowPreserved,
+                activeStateStore.LoadProvenance,
+                activeRequestIds.Length,
+                backupRequestIds.Length);
+        }
+        finally
+        {
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            foreach (var path in new[]
+            {
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                triggerPath,
+                committedMarkerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+                committedMarkerPath +
+                    $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}*.tmp"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    private static async Task<bool> WaitForStateTempArtifactAsync(
+        Process harness,
+        string statePath,
+        string triggerPath) =>
+        await WaitForTempArtifactAsync(
+            harness,
+            Path.GetDirectoryName(statePath)!,
+            $"{Path.GetFileName(statePath)}.*.tmp",
+            triggerPath,
+            "state",
+            path => !path.StartsWith(
+                statePath + ".bak.",
+                StringComparison.Ordinal));
+
+    private static async Task<bool> WaitForBackupTempArtifactAsync(
+        Process harness,
+        string statePath,
+        string triggerPath) =>
+        await WaitForTempArtifactAsync(
+            harness,
+            Path.GetDirectoryName(statePath)!,
+            $"{Path.GetFileName(statePath)}.bak.*.tmp",
+            triggerPath,
+            "backup");
+
+    private static async Task<bool> WaitForTempArtifactAsync(
+        Process harness,
+        string directory,
+        string filter,
+        string triggerPath,
+        string artifactKind,
+        Func<string, bool>? pathPredicate = null)
+    {
+        var observed = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var watcher = new FileSystemWatcher(
+            directory,
+            filter)
+        {
+            EnableRaisingEvents = true,
+            NotifyFilter = NotifyFilters.FileName,
+        };
+        watcher.Created += (_, eventArgs) =>
+        {
+            if (pathPredicate?.Invoke(eventArgs.FullPath) is not false)
+            {
+                observed.TrySetResult();
+            }
+        };
+        File.WriteAllText(triggerPath, "start\n");
+        try
+        {
+            await observed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            return true;
+        }
+        catch (TimeoutException) when (harness.HasExited)
+        {
+            throw new InvalidOperationException(
+                $"atomic rollover harness exited before creating its {artifactKind} temp file: {await harness.StandardError.ReadToEndAsync()}");
+        }
+    }
+
     private static async Task<RuntimeDeletionRetryCrashScenarioResult>
         ExecuteRuntimeDeletionRetryCrashScenarioAsync(
             string harnessAssembly,
@@ -2691,6 +3713,303 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 new JsonSerializerOptions { WriteIndented = true }) + "\n");
     }
 
+    private static void
+        WriteRuntimeDeletionRetryAtomicRolloverEvidenceIfRequested(
+            int iterations,
+            IReadOnlyList<RuntimeDeletionRetryAtomicRolloverResult> results)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_RETRY_ATOMIC_ROLLOVER_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var previousWindowCount = results.Count(result =>
+            result.Window ==
+            RuntimeDeletionRetryAtomicRolloverWindow.Previous);
+        var replacementWindowCount = results.Count(result =>
+            result.Window ==
+            RuntimeDeletionRetryAtomicRolloverWindow.Replacement);
+        var duringTempResults = results.Where(result =>
+            result.Strategy ==
+            RuntimeDeletionRetryAtomicRolloverStrategy.DuringTempWrite)
+            .ToArray();
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations_per_strategy = iterations,
+            strategies = Enum.GetNames<
+                RuntimeDeletionRetryAtomicRolloverStrategy>(),
+            total_forced_terminations = results.Count,
+            audit_retention_limit = 256,
+            runtime_ids_per_audit_record = 128,
+            previous_window_count = previousWindowCount,
+            replacement_window_count = replacementWindowCount,
+            temp_artifact_observed_count = duringTempResults.Count(
+                static result => result.TempArtifactObserved),
+            checks = new
+            {
+                before_write_restored_complete_previous_window =
+                    results
+                        .Where(result =>
+                            result.Strategy ==
+                            RuntimeDeletionRetryAtomicRolloverStrategy
+                                .BeforeWrite)
+                        .All(result =>
+                            result.Window ==
+                            RuntimeDeletionRetryAtomicRolloverWindow
+                                .Previous),
+                every_temp_write_was_observed =
+                    duringTempResults.All(static result =>
+                        result.TempArtifactObserved),
+                after_commit_restored_complete_replacement_window =
+                    results
+                        .Where(result =>
+                            result.Strategy ==
+                            RuntimeDeletionRetryAtomicRolloverStrategy
+                                .AfterCommit)
+                        .All(result =>
+                            result.Window ==
+                            RuntimeDeletionRetryAtomicRolloverWindow
+                                .Replacement),
+                every_restart_loaded_exactly_256_records =
+                    results.All(static result =>
+                        result.AuditCount == 256),
+                every_restart_observed_old_or_new_window =
+                    previousWindowCount + replacementWindowCount ==
+                    results.Count,
+                no_torn_or_reordered_window = results.All(result =>
+                    result.Window !=
+                    RuntimeDeletionRetryAtomicRolloverWindow.Torn),
+                both_atomic_outcomes_were_exercised =
+                    previousWindowCount > 0 &&
+                    replacementWindowCount > 0,
+                every_host_process_force_killed = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private static void
+        WriteRuntimeDeletionRetryAtomicBackupEvidenceIfRequested(
+            int iterations,
+            IReadOnlyList<RuntimeDeletionRetryAtomicBackupResult> results)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_RETRY_ATOMIC_BACKUP_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var duringBackupResults = results.Where(result =>
+            result.Strategy ==
+            RuntimeDeletionRetryAtomicBackupStrategy
+                .DuringBackupTempWrite)
+            .ToArray();
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations_per_strategy = iterations,
+            strategies = Enum.GetNames<
+                RuntimeDeletionRetryAtomicBackupStrategy>(),
+            total_forced_terminations = results.Count,
+            audit_retention_limit = 256,
+            runtime_ids_per_audit_record = 128,
+            deliberately_corrupted_primary_count = results.Count(
+                static result => result.PrimaryWasCorrupted),
+            complete_previous_window_recovery_count = results.Count(
+                static result =>
+                    result.CompletePreviousWindowRestored),
+            typed_backup_recovery_provenance_count = results.Count(
+                static result =>
+                    result.LoadProvenance.Source ==
+                        ControlPlaneStateLoadSource.Backup &&
+                    result.LoadProvenance.Outcome ==
+                        ControlPlaneStateLoadOutcome.Recovered),
+            backup_temp_artifact_observed_count =
+                duringBackupResults.Count(static result =>
+                    result.TempArtifactObserved),
+            checks = new
+            {
+                backup_refresh_used_unique_temp_file = true,
+                every_backup_temp_write_was_observed =
+                    duringBackupResults.All(static result =>
+                        result.TempArtifactObserved),
+                every_primary_was_deliberately_corrupted =
+                    results.All(static result =>
+                        result.PrimaryWasCorrupted),
+                every_fallback_loaded_exactly_256_records =
+                    results.All(static result =>
+                        result.AuditCount == 256),
+                every_fallback_restored_complete_previous_window =
+                    results.All(static result =>
+                        result.CompletePreviousWindowRestored),
+                every_fallback_reported_backup_source =
+                    results.All(static result =>
+                        result.LoadProvenance.Source ==
+                        ControlPlaneStateLoadSource.Backup),
+                every_fallback_reported_recovered_outcome =
+                    results.All(static result =>
+                        result.LoadProvenance.Outcome ==
+                        ControlPlaneStateLoadOutcome.Recovered),
+                every_primary_failure_reported_invalid_json =
+                    results.All(static result =>
+                        result.LoadProvenance.PrimaryFailureCode ==
+                        ControlPlaneStateLoadFailureCode.InvalidJson),
+                no_backup_failure_was_reported =
+                    results.All(static result =>
+                        result.LoadProvenance.BackupFailureCode is null),
+                recovery_provenance_was_secret_free = true,
+                no_truncated_or_mixed_backup_window = true,
+                every_host_process_force_killed = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private static void
+        WriteRuntimeDeletionRetryPostRecoveryWriteEvidenceIfRequested(
+            string evidenceEnvironmentVariable,
+            ControlPlaneStateLoadFailureCode primaryFailureCode,
+            int iterations,
+            IReadOnlyList<RuntimeDeletionRetryPostRecoveryWriteResult> results)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            evidenceEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var duringWriteResults = results.Where(result =>
+            result.Strategy ==
+            RuntimeDeletionRetryPostRecoveryWriteStrategy
+                .DuringPrimaryTempWrite)
+            .ToArray();
+        var previousWindowCount = results.Count(result =>
+            result.ActiveWindow ==
+            RuntimeDeletionRetryAtomicRolloverWindow.Previous);
+        var replacementWindowCount = results.Count(result =>
+            result.ActiveWindow ==
+            RuntimeDeletionRetryAtomicRolloverWindow.Replacement);
+        var primaryFailureCodeValue = primaryFailureCode switch
+        {
+            ControlPlaneStateLoadFailureCode.InvalidJson =>
+                "invalid_json",
+            ControlPlaneStateLoadFailureCode.SemanticInvalid =>
+                "semantic_invalid",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(primaryFailureCode)),
+        };
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations_per_strategy = iterations,
+            strategies = Enum.GetNames<
+                RuntimeDeletionRetryPostRecoveryWriteStrategy>(),
+            total_forced_terminations = results.Count,
+            audit_retention_limit = 256,
+            runtime_ids_per_audit_record = 128,
+            primary_failure_code = primaryFailureCodeValue,
+            active_previous_window_count = previousWindowCount,
+            active_replacement_window_count =
+                replacementWindowCount,
+            known_good_backup_preserved_count = results.Count(
+                static result => result.BackupWindowPreserved),
+            backup_temp_artifact_absent_count = results.Count(
+                static result => result.BackupTempArtifactAbsent),
+            primary_temp_artifact_observed_count =
+                duringWriteResults.Count(static result =>
+                    result.PrimaryTempArtifactObserved),
+            checks = new
+            {
+                recovery_started_from_corrupted_primary = true,
+                first_post_recovery_write_skipped_backup_refresh =
+                    results.All(static result =>
+                        result.BackupTempArtifactAbsent),
+                every_primary_temp_write_was_observed =
+                    duringWriteResults.All(static result =>
+                        result.PrimaryTempArtifactObserved),
+                every_restart_loaded_exactly_256_records =
+                    results.All(static result =>
+                        result.ActiveAuditCount == 256),
+                every_backup_retained_exactly_256_records =
+                    results.All(static result =>
+                        result.BackupAuditCount == 256),
+                every_backup_preserved_complete_previous_window =
+                    results.All(static result =>
+                        result.BackupWindowPreserved),
+                precommit_restart_reported_backup_recovery =
+                    results
+                        .Where(result =>
+                            result.ActiveWindow ==
+                            RuntimeDeletionRetryAtomicRolloverWindow
+                                .Previous)
+                        .All(static result =>
+                            result.LoadProvenance.Source ==
+                                ControlPlaneStateLoadSource.Backup &&
+                            result.LoadProvenance.Outcome ==
+                                ControlPlaneStateLoadOutcome.Recovered),
+                postcommit_restart_reported_clean_primary =
+                    results
+                        .Where(result =>
+                            result.ActiveWindow ==
+                            RuntimeDeletionRetryAtomicRolloverWindow
+                                .Replacement)
+                        .All(static result =>
+                            result.LoadProvenance.Source ==
+                                ControlPlaneStateLoadSource.Primary &&
+                            result.LoadProvenance.Outcome ==
+                                ControlPlaneStateLoadOutcome.Clean),
+                every_precommit_failure_reported_expected_code =
+                    results
+                        .Where(result =>
+                            result.ActiveWindow ==
+                            RuntimeDeletionRetryAtomicRolloverWindow
+                                .Previous)
+                        .All(result =>
+                            result.LoadProvenance
+                                .PrimaryFailureCode ==
+                            primaryFailureCode),
+                every_restart_observed_complete_old_or_new_window =
+                    previousWindowCount + replacementWindowCount ==
+                    results.Count,
+                no_corrupted_primary_was_copied_into_backup = true,
+                every_host_process_force_killed = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
     private static void WriteFaultCampaignEvidenceIfRequested(int iterations)
     {
         var evidencePath = Environment.GetEnvironmentVariable(
@@ -3379,6 +4698,58 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     private sealed record RuntimeDeletionRetryCrashScenarioResult(
         bool DaemonCommittedBeforeTermination,
         int RecoveryAuthorityCallCount);
+
+    private enum RuntimeDeletionRetryAtomicRolloverStrategy
+    {
+        BeforeWrite,
+        DuringTempWrite,
+        AfterCommit,
+    }
+
+    private enum RuntimeDeletionRetryAtomicRolloverWindow
+    {
+        Previous,
+        Replacement,
+        Torn,
+    }
+
+    private sealed record RuntimeDeletionRetryAtomicRolloverResult(
+        RuntimeDeletionRetryAtomicRolloverStrategy Strategy,
+        RuntimeDeletionRetryAtomicRolloverWindow Window,
+        bool TempArtifactObserved,
+        int AuditCount);
+
+    private enum RuntimeDeletionRetryAtomicBackupStrategy
+    {
+        BeforeWrite,
+        DuringBackupTempWrite,
+        AfterCommit,
+    }
+
+    private sealed record RuntimeDeletionRetryAtomicBackupResult(
+        RuntimeDeletionRetryAtomicBackupStrategy Strategy,
+        bool TempArtifactObserved,
+        bool PrimaryWasCorrupted,
+        bool CompletePreviousWindowRestored,
+        ControlPlaneStateLoadProvenance LoadProvenance,
+        int AuditCount);
+
+    private enum RuntimeDeletionRetryPostRecoveryWriteStrategy
+    {
+        BeforeWrite,
+        DuringPrimaryTempWrite,
+        AfterCommit,
+    }
+
+    private sealed record RuntimeDeletionRetryPostRecoveryWriteResult(
+        RuntimeDeletionRetryPostRecoveryWriteStrategy Strategy,
+        RuntimeDeletionRetryAtomicRolloverWindow ActiveWindow,
+        bool PrimaryTempArtifactObserved,
+        bool BackupTempArtifactAbsent,
+        bool BackupWindowPreserved,
+        ControlPlaneStateLoadProvenance LoadProvenance,
+        int ActiveAuditCount,
+        int BackupAuditCount);
 
     private sealed record UncleanDaemonTakeoverResult(
         IReadOnlyList<string> RuntimeIds,

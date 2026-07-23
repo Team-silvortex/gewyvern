@@ -42,9 +42,62 @@ public sealed record HealthPersistenceResponse(
     int SchemaVersion,
     bool IsDirty,
     string? LastSaveError,
+    ControlPlaneStateLoadProvenance Load,
     int RestoredRuntimeCount,
     int RestoredSessionCount,
     DateTimeOffset? RestoredFromSavedAt);
+
+public sealed record ControlPlaneStateLoadProvenance(
+    ControlPlaneStateLoadSource Source,
+    ControlPlaneStateLoadOutcome Outcome,
+    bool Degraded,
+    ControlPlaneStateLoadFailureCode? PrimaryFailureCode,
+    ControlPlaneStateLoadFailureCode? BackupFailureCode);
+
+[JsonConverter(typeof(JsonStringEnumConverter<ControlPlaneStateLoadSource>))]
+public enum ControlPlaneStateLoadSource
+{
+    [JsonStringEnumMemberName("none")]
+    None,
+    [JsonStringEnumMemberName("empty")]
+    Empty,
+    [JsonStringEnumMemberName("primary")]
+    Primary,
+    [JsonStringEnumMemberName("backup")]
+    Backup,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ControlPlaneStateLoadOutcome>))]
+public enum ControlPlaneStateLoadOutcome
+{
+    [JsonStringEnumMemberName("not_attempted")]
+    NotAttempted,
+    [JsonStringEnumMemberName("empty")]
+    Empty,
+    [JsonStringEnumMemberName("clean")]
+    Clean,
+    [JsonStringEnumMemberName("recovered")]
+    Recovered,
+    [JsonStringEnumMemberName("failed")]
+    Failed,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ControlPlaneStateLoadFailureCode>))]
+public enum ControlPlaneStateLoadFailureCode
+{
+    [JsonStringEnumMemberName("not_found")]
+    NotFound,
+    [JsonStringEnumMemberName("empty")]
+    Empty,
+    [JsonStringEnumMemberName("incompatible_schema")]
+    IncompatibleSchema,
+    [JsonStringEnumMemberName("invalid_json")]
+    InvalidJson,
+    [JsonStringEnumMemberName("semantic_invalid")]
+    SemanticInvalid,
+    [JsonStringEnumMemberName("read_failed")]
+    ReadFailed,
+}
 
 public sealed record HealthOrchestraPersistenceResponse(
     string Provider,

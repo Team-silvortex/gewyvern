@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T14:21:36.728637+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "iterations_per_strategy": 3,
+  "strategies": [
+    "BeforeWrite",
+    "DuringPrimaryTempWrite",
+    "AfterCommit"
+  ],
+  "total_forced_terminations": 9,
+  "audit_retention_limit": 256,
+  "runtime_ids_per_audit_record": 128,
+  "primary_failure_code": "semantic_invalid",
+  "active_previous_window_count": 5,
+  "active_replacement_window_count": 4,
+  "known_good_backup_preserved_count": 9,
+  "backup_temp_artifact_absent_count": 9,
+  "primary_temp_artifact_observed_count": 3,
+  "checks": {
+    "recovery_started_from_corrupted_primary": true,
+    "first_post_recovery_write_skipped_backup_refresh": true,
+    "every_primary_temp_write_was_observed": true,
+    "every_restart_loaded_exactly_256_records": true,
+    "every_backup_retained_exactly_256_records": true,
+    "every_backup_preserved_complete_previous_window": true,
+    "precommit_restart_reported_backup_recovery": true,
+    "postcommit_restart_reported_clean_primary": true,
+    "every_precommit_failure_reported_expected_code": true,
+    "every_restart_observed_complete_old_or_new_window": true,
+    "no_corrupted_primary_was_copied_into_backup": true,
+    "every_host_process_force_killed": true
+  }
+}
