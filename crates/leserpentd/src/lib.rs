@@ -3,9 +3,12 @@ use std::thread;
 use std::time::Duration;
 
 pub use leserpent_adapters::{AdapterRegistry, EffectAdapter, EffectContext};
-use leserpent_adapters::{GEWYVERN_PROVISIONING_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND};
+use leserpent_adapters::{
+    GEWYVERN_PROVISIONING_EFFECT_KIND, GEWYVERN_RETIREMENT_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND,
+};
 use leserpent_domain::bootstrap::{BootstrapPhase, DeploymentBootstrapCheckpoint};
 use leserpent_domain::provisioning::{ProvisioningPhase, RuntimeProvisioningCheckpoint};
+use leserpent_domain::retirement::{RetirementPhase, RuntimeRetirementCheckpoint};
 use leserpent_protocol::bootstrap::{
     BootstrapRequestEnvelope, BootstrapResponse, decode_bootstrap_request,
     decode_bootstrap_response,
@@ -13,6 +16,10 @@ use leserpent_protocol::bootstrap::{
 use leserpent_protocol::provisioning::{
     ProvisioningRequestEnvelope, ProvisioningResponse, decode_provisioning_request,
     decode_provisioning_response,
+};
+use leserpent_protocol::retirement::{
+    RetirementRequestEnvelope, RetirementResponse, RetirementResponseEnvelope,
+    decode_retirement_request, decode_retirement_response,
 };
 use leserpent_runtime::{ControlRuntime, EffectExecution, EffectLease, RuntimeError, WorkerStep};
 
@@ -32,6 +39,7 @@ mod bootstrap_submission;
 #[cfg(unix)]
 mod ipc;
 mod provisioning_submission;
+mod retirement_submission;
 #[cfg(unix)]
 pub use ipc::IpcServer;
 mod remote;
@@ -219,23 +227,42 @@ impl DaemonHost {
     }
 
     fn preflight_execution(&self, lease: &EffectLease) -> Option<EffectExecution> {
-        if lease.kind != GEWYVERN_PROVISIONING_EFFECT_KIND {
-            return None;
-        }
-        let request = match decode_provisioning_request(&lease.payload) {
-            Ok(request) => request,
-            Err(_) => {
-                return Some(EffectExecution::Reject {
-                    error: "provisioning persisted request was rejected".into(),
-                });
+        match lease.kind.as_str() {
+            GEWYVERN_PROVISIONING_EFFECT_KIND => {
+                let request = match decode_provisioning_request(&lease.payload) {
+                    Ok(request) => request,
+                    Err(_) => {
+                        return Some(EffectExecution::Reject {
+                            error: "provisioning persisted request was rejected".into(),
+                        });
+                    }
+                };
+                self.runtime
+                    .runtime_projection(&request.request.intent.runtime_id)
+                    .is_some()
+                    .then(|| EffectExecution::Reject {
+                        error: "provisioning runtime identity became unavailable before dispatch"
+                            .into(),
+                    })
             }
-        };
-        self.runtime
-            .runtime_projection(&request.request.intent.runtime_id)
-            .is_some()
-            .then(|| EffectExecution::Reject {
-                error: "provisioning runtime identity became unavailable before dispatch".into(),
-            })
+            GEWYVERN_RETIREMENT_EFFECT_KIND => {
+                let request = match decode_retirement_request(&lease.payload) {
+                    Ok(request) => request,
+                    Err(_) => {
+                        return Some(EffectExecution::Reject {
+                            error: "retirement persisted request was rejected".into(),
+                        });
+                    }
+                };
+                self.runtime
+                    .runtime_projection(&request.request.intent.runtime_id)
+                    .is_none()
+                    .then(|| EffectExecution::Reject {
+                        error: "retirement runtime is no longer registered before dispatch".into(),
+                    })
+            }
+            _ => None,
+        }
     }
 
     pub fn run_steps(&mut self, steps: u64) -> Result<DaemonStats, RuntimeError> {
@@ -275,6 +302,11 @@ impl DaemonHost {
         self.stats
     }
 
+    pub fn submit_retirement(&mut self, bytes: &[u8]) -> RetirementResponseEnvelope {
+        let enabled = self.registry.contains_kind(GEWYVERN_RETIREMENT_EFFECT_KIND);
+        retirement_submission::decode_and_submit(&mut self.runtime, bytes, enabled)
+    }
+
     fn settle_execution(
         &mut self,
         lease: &EffectLease,
@@ -285,6 +317,9 @@ impl DaemonHost {
         };
         if lease.kind == GEWYVERN_PROVISIONING_EFFECT_KIND {
             return self.settle_provisioning_execution(lease, outcome);
+        }
+        if lease.kind == GEWYVERN_RETIREMENT_EFFECT_KIND {
+            return self.settle_retirement_execution(lease, outcome);
         }
         if lease.kind != HOST_BOOTSTRAP_EFFECT_KIND {
             return self
@@ -366,6 +401,52 @@ impl DaemonHost {
         } else {
             self.runtime
                 .complete_provisioning_effect(lease, &outcome, &checkpoint)?;
+        }
+        Ok(WorkerStep::Completed {
+            effect_id: lease.effect_id.clone(),
+            attempt: lease.attempt,
+        })
+    }
+
+    fn settle_retirement_execution(
+        &mut self,
+        lease: &EffectLease,
+        outcome: Vec<u8>,
+    ) -> Result<WorkerStep, RuntimeError> {
+        let request = match decode_retirement_request(&lease.payload) {
+            Ok(request) => request,
+            Err(_) => {
+                self.runtime
+                    .reject_effect(lease, "retirement persisted request was rejected")?;
+                return Ok(WorkerStep::Rejected {
+                    effect_id: lease.effect_id.clone(),
+                    attempt: lease.attempt,
+                });
+            }
+        };
+        let existing = self
+            .runtime
+            .retirement_checkpoint(&request.request.intent.retirement_id)?;
+        let checkpoint =
+            match checkpoint_from_retirement_effect(&request, &outcome, existing.as_ref()) {
+                Ok(checkpoint) => checkpoint,
+                Err(error) => {
+                    self.runtime.reject_effect(
+                        lease,
+                        &format!("retirement outcome was rejected: {error}"),
+                    )?;
+                    return Ok(WorkerStep::Rejected {
+                        effect_id: lease.effect_id.clone(),
+                        attempt: lease.attempt,
+                    });
+                }
+            };
+        if checkpoint.state.phase == RetirementPhase::ServiceRetired {
+            self.runtime
+                .complete_retirement_effect_and_unregister(lease, &outcome, &checkpoint)?;
+        } else {
+            self.runtime
+                .complete_retirement_effect(lease, &outcome, &checkpoint)?;
         }
         Ok(WorkerStep::Completed {
             effect_id: lease.effect_id.clone(),
@@ -475,6 +556,45 @@ fn checkpoint_from_provisioning_effect(
     RuntimeProvisioningCheckpoint::new(2, state, None).map_err(|error| error.to_string())
 }
 
+fn checkpoint_from_retirement_effect(
+    request: &RetirementRequestEnvelope,
+    outcome: &[u8],
+    existing: Option<&RuntimeRetirementCheckpoint>,
+) -> Result<RuntimeRetirementCheckpoint, String> {
+    let response = decode_retirement_response(outcome)
+        .map_err(|_| "invalid retirement response".to_string())?;
+    let RetirementResponse::State(state) = response.response else {
+        return Err("retirement adapter returned an error envelope as success".into());
+    };
+    if state.retirement_id != request.request.intent.retirement_id
+        || state.provisioning_id != request.request.intent.provisioning_id
+        || state.runtime_id != request.request.intent.runtime_id
+        || state.target != request.request.intent.target
+    {
+        return Err("retirement response identity does not match its request".into());
+    }
+    if !matches!(
+        state.phase,
+        RetirementPhase::ServiceRetired | RetirementPhase::Failed
+    ) {
+        return Err("retirement effect stopped before service retirement was terminal".into());
+    }
+    match existing {
+        Some(checkpoint)
+            if checkpoint.revision == 1
+                && checkpoint.state.phase == RetirementPhase::Planned
+                && checkpoint.state.retirement_id == request.request.intent.retirement_id
+                && checkpoint.state.provisioning_id == request.request.intent.provisioning_id
+                && checkpoint.state.runtime_id == request.request.intent.runtime_id
+                && checkpoint.state.target == request.request.intent.target
+                && checkpoint.retirement_credential_handle.as_ref()
+                    == Some(&request.request.intent.retirement_credential_handle) => {}
+        Some(_) => return Err("retirement planned checkpoint does not match its request".into()),
+        None => return Err("retirement planned checkpoint is missing".into()),
+    }
+    RuntimeRetirementCheckpoint::new(2, state, None).map_err(|error| error.to_string())
+}
+
 fn sleep_until_stop(duration: Duration, stop: &AtomicBool) {
     let slice = Duration::from_millis(25);
     let mut remaining = duration;
@@ -522,6 +642,10 @@ mod tests {
         CAPABILITY_RUNTIME_PROVISION, GewyvernServiceReceipt, PROVISIONING_DOMAIN_SCHEMA_VERSION,
         ProvisioningId, RuntimeProvisioning, RuntimeProvisioningIntent,
     };
+    use leserpent_domain::retirement::{
+        CAPABILITY_RUNTIME_RETIRE, GewyvernRetirementReceipt, RETIREMENT_DOMAIN_SCHEMA_VERSION,
+        RetirementId, RuntimeRetirement, RuntimeRetirementIntent,
+    };
     use leserpent_domain::{CapabilitySet, Principal};
     use leserpent_protocol::bootstrap::{
         BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
@@ -530,6 +654,10 @@ mod tests {
     use leserpent_protocol::provisioning::{
         PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningRequest, ProvisioningResponseEnvelope,
         encode_provisioning_request, encode_provisioning_response,
+    };
+    use leserpent_protocol::retirement::{
+        RETIREMENT_PROTOCOL_SCHEMA_VERSION, RetirementRequest, RetirementRequestEnvelope,
+        RetirementResponseEnvelope, encode_retirement_request, encode_retirement_response,
     };
     use leserpent_runtime::EffectExecution;
 
@@ -564,6 +692,10 @@ mod tests {
         outcome: Vec<u8>,
     }
 
+    struct FixedRetirementAdapter {
+        outcome: Vec<u8>,
+    }
+
     struct TrackingProvisioningAdapter {
         called: Arc<AtomicBool>,
     }
@@ -571,6 +703,16 @@ mod tests {
     impl EffectAdapter for FixedProvisioningAdapter {
         fn kind(&self) -> &str {
             GEWYVERN_PROVISIONING_EFFECT_KIND
+        }
+
+        fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
+            EffectExecution::Complete(self.outcome.clone())
+        }
+    }
+
+    impl EffectAdapter for FixedRetirementAdapter {
+        fn kind(&self) -> &str {
+            GEWYVERN_RETIREMENT_EFFECT_KIND
         }
 
         fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
@@ -698,6 +840,92 @@ mod tests {
         })
         .unwrap();
         (request, outcome, provisioning_id)
+    }
+
+    fn retirement_request_and_outcome(
+        receipt_runtime_id: &str,
+    ) -> (Vec<u8>, Vec<u8>, RetirementId) {
+        let retirement_id = RetirementId::new("retire-restart-1").unwrap();
+        let target = BootstrapTarget {
+            transport: BootstrapTransport::Ssh,
+            host: "runtime-host.example".into(),
+            port: 22,
+        };
+        let intent = RuntimeRetirementIntent {
+            schema_version: RETIREMENT_DOMAIN_SCHEMA_VERSION,
+            retirement_id: retirement_id.clone(),
+            provisioning_id: ProvisioningId::new("provision-restart-1").unwrap(),
+            runtime_id: leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap(),
+            target,
+            retirement_credential_handle: CredentialHandle::new("vault:ssh:runtime-retirement")
+                .unwrap(),
+            requested_by: "operator-a".into(),
+            confirmed: true,
+        };
+        let principal = Principal {
+            id: "operator-a".into(),
+        };
+        let capabilities = CapabilitySet::new([CAPABILITY_RUNTIME_RETIRE]);
+        let request = encode_retirement_request(&RetirementRequestEnvelope {
+            schema_version: RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+            request: RetirementRequest {
+                principal: principal.clone(),
+                capabilities: capabilities.clone(),
+                intent: intent.clone(),
+            },
+        })
+        .unwrap();
+        let mut retirement = RuntimeRetirement::plan(&principal, &capabilities, intent).unwrap();
+        retirement.begin().unwrap();
+        let mut state = retirement
+            .accept_service_retirement(GewyvernRetirementReceipt {
+                retirement_id: retirement_id.clone(),
+                provisioning_id: ProvisioningId::new("provision-restart-1").unwrap(),
+                runtime_id: leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap(),
+                service_retired: true,
+            })
+            .unwrap();
+        state.runtime_id = leserpent_domain::RuntimeId::new(receipt_runtime_id).unwrap();
+        let outcome = encode_retirement_response(&RetirementResponseEnvelope {
+            schema_version: RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+            response: RetirementResponse::State(state),
+        })
+        .unwrap();
+        (request, outcome, retirement_id)
+    }
+
+    fn host_with_registered_runtime(
+        path: &PathBuf,
+        retirement_outcome: Vec<u8>,
+    ) -> (DaemonHost, leserpent_domain::RuntimeId, ProvisioningId) {
+        let (request, provisioning_outcome, provisioning_id) = provisioning_request_and_outcome();
+        let runtime_id = leserpent_domain::RuntimeId::new("runtime-provisioned-1").unwrap();
+        let mut runtime = ControlRuntime::open(path).unwrap();
+        let submitted =
+            crate::provisioning_submission::decode_and_submit(&mut runtime, &request, true);
+        assert!(matches!(
+            submitted.response,
+            ProvisioningResponse::State(ref state)
+                if state.phase == ProvisioningPhase::Planned
+        ));
+        let mut registry = AdapterRegistry::default();
+        registry
+            .register(FixedProvisioningAdapter {
+                outcome: provisioning_outcome,
+            })
+            .unwrap();
+        registry
+            .register(FixedRetirementAdapter {
+                outcome: retirement_outcome,
+            })
+            .unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Completed { attempt: 1, .. }
+        ));
+        assert!(host.runtime_mut().runtime_projection(&runtime_id).is_some());
+        (host, runtime_id, provisioning_id)
     }
 
     struct BarrierAdapter {
@@ -1318,6 +1546,76 @@ mod tests {
                 if state.phase == ProvisioningPhase::RuntimeRegistered
         ));
         drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn retirement_submission_unregisters_runtime_atomically_and_survives_restart() {
+        let path = temp_database("retirement-runtime-unregistered-restart");
+        let (request, outcome, retirement_id) =
+            retirement_request_and_outcome("runtime-provisioned-1");
+        let (mut host, runtime_id, _) = host_with_registered_runtime(&path, outcome);
+
+        let submitted = host.submit_retirement(&request);
+        assert!(matches!(
+            submitted.response,
+            RetirementResponse::State(ref state)
+                if state.phase == RetirementPhase::Planned
+                    && state.retirement_id == retirement_id
+        ));
+        assert_eq!(host.submit_retirement(&request), submitted);
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Completed { attempt: 1, .. }
+        ));
+        assert!(host.runtime_mut().runtime_projection(&runtime_id).is_none());
+        let checkpoint = host
+            .runtime_mut()
+            .retirement_checkpoint(&retirement_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(checkpoint.revision, 3);
+        assert_eq!(checkpoint.state.phase, RetirementPhase::RuntimeUnregistered);
+        drop(host);
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        assert!(restarted.runtime_projection(&runtime_id).is_none());
+        assert_eq!(
+            restarted
+                .retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap(),
+            checkpoint
+        );
+        drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn retirement_worker_rejects_forged_receipt_without_unregistering_runtime() {
+        let path = temp_database("retirement-forged-receipt");
+        let (request, forged_outcome, retirement_id) =
+            retirement_request_and_outcome("runtime-forged");
+        let (mut host, runtime_id, _) = host_with_registered_runtime(&path, forged_outcome);
+
+        assert!(matches!(
+            host.submit_retirement(&request).response,
+            RetirementResponse::State(ref state) if state.phase == RetirementPhase::Planned
+        ));
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Rejected { attempt: 1, .. }
+        ));
+        assert!(host.runtime_mut().runtime_projection(&runtime_id).is_some());
+        let checkpoint = host
+            .runtime_mut()
+            .retirement_checkpoint(&retirement_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(checkpoint.revision, 1);
+        assert_eq!(checkpoint.state.phase, RetirementPhase::Planned);
+        assert_eq!(host.runtime_mut().effect_queue_stats().unwrap().failed, 1);
+        drop(host);
         fs::remove_file(path).unwrap();
     }
 

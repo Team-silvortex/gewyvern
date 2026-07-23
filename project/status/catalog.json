@@ -1424,7 +1424,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-gewyvern-provisioning-contract",
-        "version": "0.10.0",
+        "version": "0.13.0",
         "stability": "draft",
         "surfaces": [
           "runtime-provision-capability",
@@ -1445,7 +1445,7 @@
           "strict-provisioning-envelope-fields",
           "raw-provisioning-credential-field-rejection",
           "validated-provisioning-response-state",
-          "schema-12-shared-authority-checkpoint",
+          "schema-13-shared-authority-checkpoint",
           "atomic-provisioning-effect-checkpoint",
           "restart-safe-service-ready-checkpoint",
           "provisioning-registration-revision-cas",
@@ -1502,7 +1502,26 @@
           "identity-locked-avalonia-progress",
           "bounded-avalonia-provisioning-poll",
           "explicit-new-attempt-retry-guidance",
-          "optional-local-gewyvern-provisioning-origin"
+          "optional-local-gewyvern-provisioning-origin",
+          "independent-runtime-retirement-domain",
+          "runtime-retire-capability",
+          "service-retired-before-runtime-unregister",
+          "retirement-failure-preserves-registration",
+          "opaque-ssh-retirement-handle",
+          "strict-retirement-wire-v1",
+          "retirement-identity-binding",
+          "restart-safe-retirement-checkpoint",
+          "durable-retirement-authority",
+          "atomic-retirement-effect-unregistration",
+          "replayable-runtime-unregistration",
+          "schema-12-to-13-authority-migration",
+          "lost-retirement-lease-rollback",
+          "opaque-retirement-secret-resolution",
+          "adapter-gated-daemon-retirement-submission",
+          "retirement-predispatch-registration-fence",
+          "terminal-retirement-outcome-validation",
+          "atomic-daemon-retirement-settlement",
+          "forged-retirement-receipt-rejection"
         ]
       },
       "depends_on": [
@@ -1513,7 +1532,7 @@
       "blockers": [
         {
           "id": "gewyvern-provisioning-compensation-missing",
-          "summary": "Native CLI and Avalonia now expose confirmed runtime.provision submission, opaque SSH handles, stable idempotent provisioning IDs, authenticated transport, bounded phase observation, terminal state rendering, and explicit new-attempt retry guidance. Remote compensation or retirement for an already registered Gewyvern service remains; runtime.deploy continues to mean pipeline submission only."
+          "summary": "The independent runtime.retire domain, strict wire-v1 contract, durable runtime authority, adapter-gated daemon submission, and worker settlement now require service retirement before an atomic effect/checkpoint/runtime-unregistration transaction. Runtime unregistration is journaled and restart-replayable; external failure, lost leases, and forged receipts preserve the registration. The native SSH retirement transport and target entrypoint plus authenticated IPC/HTTPS, CLI, and Avalonia controls remain; runtime.deploy continues to mean pipeline submission only."
         }
       ],
       "consumers": ["leserpentd", "leserpent-cli", "avalonia-client", "model-automation"],
@@ -1524,8 +1543,17 @@
         { "kind": "test", "path": "crates/leserpent-domain/src/provisioning.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/provisioning.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/src/provisioning.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-domain/src/retirement.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-domain/src/retirement.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol/src/retirement.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-protocol/src/retirement.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-runtime/src/persistence.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-runtime/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-runtime/src/lib.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-adapters/src/retirement.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpent-adapters/src/retirement.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd/src/retirement_submission.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leserpentd/src/lib.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-adapters/src/provisioning.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-adapters/src/provisioning.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/provisioning_submission.rs", "state": "present" },
@@ -1550,7 +1578,7 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Add an explicit remote compensation/retirement contract for an already registered Gewyvern service without conflating runtime.provision with runtime.deploy."
+      "next_gate": "Implement the native SSH Gewyvern retirement transport and target stop/remove entrypoint, then enable authenticated IPC/HTTPS and matching CLI/Avalonia controls."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",

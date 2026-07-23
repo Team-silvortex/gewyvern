@@ -11,6 +11,7 @@ pub mod bootstrap_installer;
 pub mod compatibility_v1;
 pub mod gewyvern_installer;
 pub mod provisioning;
+pub mod retirement;
 pub mod transport_safety;
 
 pub const PROTOCOL_SCHEMA_VERSION: u32 = 1;

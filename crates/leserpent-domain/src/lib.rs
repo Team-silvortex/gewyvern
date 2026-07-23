@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod bootstrap;
 pub mod provisioning;
+pub mod retirement;
 
 pub const DOMAIN_SCHEMA_VERSION: u32 = 1;
 pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
@@ -845,6 +846,14 @@ impl InMemoryControlPlane {
         };
         self.runtimes.insert(id, projection.clone());
         projection
+    }
+
+    pub fn unregister_runtime(&mut self, runtime_id: &RuntimeId) -> bool {
+        let removed = self.runtimes.remove(runtime_id).is_some();
+        if removed {
+            self.revision += 1;
+        }
+        removed
     }
 
     pub fn query(&self, envelope: QueryEnvelope) -> Result<QueryResult, DomainError> {

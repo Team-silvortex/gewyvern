@@ -153,6 +153,22 @@ so a network retry cannot silently create another installation. Human progress
 omits credential handles, and terminal failure, protocol rejection, and polling
 exhaustion use distinct process outcomes. `runtime.deploy` remains unchanged.
 
+The draft retirement boundary is independent again. `runtime.retire` assigns a
+new retirement ID and binds it to the original provisioning ID, runtime ID, SSH
+target, principal, confirmation, and opaque `vault:ssh:*` handle. Its strict
+schema-v1 request/response envelope is capped at 64 KiB and rejects unknown or
+raw-secret fields. The ordered state is `planned`, `retiring_service`,
+`service_retired`, then `runtime_unregistered`; `failed` is terminal. A runtime
+cannot become unregistered before a matching receipt proves that the service was
+retired. External failure removes the retirement handle from retained state but
+keeps the runtime registered, avoiding an unmanaged still-live service. Runtime
+schema 13 durably checkpoints this authority and atomically completes a leased
+effect, journals replayable unregistration, and commits `runtime_unregistered`;
+lost leases preserve the registration. Adapter-gated daemon submission and
+worker settlement now enforce live-registration preflight and reject forged or
+non-terminal outcomes. No IPC/HTTPS route is advertised until the native target
+adapter is implemented and registered.
+
 The Linux physical-host proof additionally confirms that these draft bootstrap
 states preserve their wire-v1 meaning across real SSH deployment: trust failure
 and timeout return `failed` without authority handles, successful deployment

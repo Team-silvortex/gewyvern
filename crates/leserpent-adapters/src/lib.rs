@@ -13,6 +13,7 @@ mod gewyvern;
 #[cfg(feature = "native-ssh")]
 mod native_ssh;
 mod provisioning;
+mod retirement;
 mod secret;
 
 #[cfg(feature = "native-ssh")]
@@ -44,6 +45,10 @@ pub use provisioning::{
     GEWYVERN_PROVISIONING_EFFECT_KIND, GewyvernArtifact, GewyvernProvisioningAdapter,
     GewyvernProvisioningJob, GewyvernProvisioningTransport, GewyvernProvisioningTransportError,
     MAX_GEWYVERN_ARTIFACT_BYTES, SshGewyvernHostPolicy,
+};
+pub use retirement::{
+    GEWYVERN_RETIREMENT_EFFECT_KIND, GewyvernRetirementAdapter, GewyvernRetirementJob,
+    GewyvernRetirementTransport, GewyvernRetirementTransportError,
 };
 pub use secret::{
     ConfiguredSecretStore, EmptySecretStore, EnvironmentSecretStore, MAX_SECRET_BYTES,

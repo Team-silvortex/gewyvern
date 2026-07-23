@@ -14,9 +14,10 @@ use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
 use crate::{EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH};
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 12;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 13;
 pub const AUTHORITY_KIND_DAEMON_BOOTSTRAP: &str = "daemon_bootstrap";
 pub const AUTHORITY_KIND_GEWYVERN_PROVISIONING: &str = "gewyvern_provisioning";
+pub const AUTHORITY_KIND_GEWYVERN_RETIREMENT: &str = "gewyvern_retirement";
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
@@ -31,6 +32,7 @@ static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JournalEntryKind {
     RuntimeRegistration,
+    RuntimeUnregistration,
     CommandPlan,
     RuntimeStatusObservation,
     RuntimeCapabilityObservation,
@@ -40,6 +42,7 @@ impl JournalEntryKind {
     fn as_str(self) -> &'static str {
         match self {
             Self::RuntimeRegistration => "runtime_registration",
+            Self::RuntimeUnregistration => "runtime_unregistration",
             Self::CommandPlan => "command_plan",
             Self::RuntimeStatusObservation => "runtime_status_observation",
             Self::RuntimeCapabilityObservation => "runtime_capability_observation",
@@ -49,6 +52,7 @@ impl JournalEntryKind {
     fn parse(value: &str) -> Result<Self, String> {
         match value {
             "runtime_registration" => Ok(Self::RuntimeRegistration),
+            "runtime_unregistration" => Ok(Self::RuntimeUnregistration),
             "command_plan" => Ok(Self::CommandPlan),
             "runtime_status_observation" => Ok(Self::RuntimeStatusObservation),
             "runtime_capability_observation" => Ok(Self::RuntimeCapabilityObservation),
@@ -1471,6 +1475,89 @@ impl Journal {
         transaction.commit().map_err(|error| error.to_string())
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn commit_retirement_unregistration(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+        unregistration: &[u8],
+        operation_id: &str,
+        expected_revision: u64,
+        final_revision: u64,
+        checkpoint: &[u8],
+    ) -> Result<(), String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("authority operation_id", operation_id)?;
+        validate_blob("effect outcome", outcome)?;
+        validate_blob("runtime unregistration", unregistration)?;
+        validate_blob("retirement checkpoint", checkpoint)?;
+        if expected_revision != 1 || final_revision != 3 {
+            return Err("retirement unregistration must advance revision 1 to 3".into());
+        }
+        let expected_revision = i64::try_from(expected_revision)
+            .map_err(|_| "authority checkpoint revision is out of range".to_string())?;
+        let final_revision = i64::try_from(final_revision)
+            .map_err(|_| "authority checkpoint revision is out of range".to_string())?;
+        let now = unix_time_ms()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let stored: Option<(i64, String)> = transaction
+            .query_row(
+                "SELECT revision, phase FROM authority_checkpoints
+                 WHERE operation_kind = ?1 AND operation_id = ?2",
+                params![AUTHORITY_KIND_GEWYVERN_RETIREMENT, operation_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if stored != Some((expected_revision, "planned".to_string())) {
+            return Err("retirement checkpoint changed before unregistration".into());
+        }
+        let count: i64 = transaction
+            .query_row("SELECT COUNT(*) FROM runtime_journal", [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        if count >= MAX_JOURNAL_RECORDS {
+            return Err(format!(
+                "runtime journal record limit {MAX_JOURNAL_RECORDS} reached"
+            ));
+        }
+        transaction
+            .execute(
+                "INSERT INTO runtime_journal (kind, payload, created_at_unix_ms)
+                 VALUES (?1, ?2, ?3)",
+                params![
+                    JournalEntryKind::RuntimeUnregistration.as_str(),
+                    unregistration,
+                    now
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        let changed = transaction
+            .execute(
+                "UPDATE authority_checkpoints SET revision = ?1,
+                     phase = 'runtime_unregistered', checkpoint = ?2,
+                     updated_at_unix_ms = ?3
+                 WHERE operation_kind = ?4 AND operation_id = ?5
+                   AND revision = ?6 AND phase = 'planned'",
+                params![
+                    final_revision,
+                    checkpoint,
+                    now,
+                    AUTHORITY_KIND_GEWYVERN_RETIREMENT,
+                    operation_id,
+                    expected_revision
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        if changed != 1 {
+            return Err("retirement checkpoint changed during unregistration".into());
+        }
+        complete_leased_effect(&transaction, lease, outcome, now)?;
+        transaction.commit().map_err(|error| error.to_string())
+    }
+
     pub fn authority_checkpoint(
         &mut self,
         authority_kind: &str,
@@ -1760,6 +1847,10 @@ fn validate_authority_phase(operation_kind: &str, phase: &str) -> Result<(), Str
             phase,
             "planned" | "installing" | "service_ready" | "runtime_registered" | "failed"
         ),
+        AUTHORITY_KIND_GEWYVERN_RETIREMENT => matches!(
+            phase,
+            "planned" | "retiring_service" | "service_retired" | "runtime_unregistered" | "failed"
+        ),
         _ => false,
     };
     valid
@@ -1780,10 +1871,75 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         9 => migrate_schema_9_to_10(connection),
         10 => migrate_schema_10_to_11(connection),
         11 => migrate_schema_11_to_12(connection),
+        12 => migrate_schema_12_to_13(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_12_to_13(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "DROP INDEX authority_checkpoints_by_kind_phase;
+             CREATE TABLE authority_checkpoints_v13 (
+                 operation_kind TEXT NOT NULL CHECK (
+                     operation_kind IN (
+                         'daemon_bootstrap', 'gewyvern_provisioning', 'gewyvern_retirement'
+                     )
+                 ),
+                 operation_id TEXT NOT NULL,
+                 revision INTEGER NOT NULL CHECK (revision >= 1),
+                 phase TEXT NOT NULL,
+                 checkpoint BLOB NOT NULL CHECK (length(checkpoint) <= 65536),
+                 updated_at_unix_ms INTEGER NOT NULL CHECK (updated_at_unix_ms >= 0),
+                 PRIMARY KEY (operation_kind, operation_id),
+                 CHECK (
+                     (operation_kind = 'daemon_bootstrap' AND phase IN (
+                         'planned', 'deploying', 'bootstrapped', 'session_bound', 'failed'
+                     )) OR
+                     (operation_kind = 'gewyvern_provisioning' AND phase IN (
+                         'planned', 'installing', 'service_ready', 'runtime_registered', 'failed'
+                     )) OR
+                     (operation_kind = 'gewyvern_retirement' AND phase IN (
+                         'planned', 'retiring_service', 'service_retired',
+                         'runtime_unregistered', 'failed'
+                     ))
+                 )
+             ) STRICT;
+             INSERT INTO authority_checkpoints_v13
+                 (operation_kind, operation_id, revision, phase, checkpoint, updated_at_unix_ms)
+             SELECT operation_kind, operation_id, revision, phase, checkpoint,
+                    updated_at_unix_ms
+             FROM authority_checkpoints;
+             DROP TABLE authority_checkpoints;
+             ALTER TABLE authority_checkpoints_v13 RENAME TO authority_checkpoints;
+             CREATE INDEX authority_checkpoints_by_kind_phase
+                 ON authority_checkpoints
+                    (operation_kind, phase, updated_at_unix_ms DESC);",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (13, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 13 WHERE key = 'schema_version' AND value = 12",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(13)
 }
 
 fn migrate_schema_11_to_12(connection: &mut Connection) -> Result<i64, String> {
@@ -2222,9 +2378,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (12, 1, 12) {
-        return Err("invalid runtime journal schema 12 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (13, 1, 13) {
+        return Err("invalid runtime journal schema 13 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -2234,23 +2390,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 12 timestamp column".into());
+        return Err("invalid runtime journal schema 13 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -2262,9 +2418,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 12 effect columns".into());
+        return Err("invalid runtime journal schema 13 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -2274,23 +2430,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 12 effect claim index".into());
+        return Err("invalid runtime journal schema 13 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM runtime_journal
              WHERE kind NOT IN (
                  'runtime_registration', 'command_plan', 'runtime_status_observation',
-                 'runtime_capability_observation'
+                 'runtime_capability_observation', 'runtime_unregistration'
              )",
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 12 journal kind".into());
+        return Err("invalid runtime journal schema 13 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -2299,9 +2455,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 12 log columns".into());
+        return Err("invalid runtime journal schema 13 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -2311,9 +2467,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 12 log index".into());
+        return Err("invalid runtime journal schema 13 log index".into());
     }
     let orchestra_tables: i64 = connection
         .query_row(
@@ -2322,9 +2478,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if orchestra_tables != 2 {
-        return Err("invalid runtime journal schema 12 Orchestra tables".into());
+        return Err("invalid runtime journal schema 13 Orchestra tables".into());
     }
     let orchestra_indexes: i64 = connection
         .query_row(
@@ -2336,9 +2492,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if orchestra_indexes != 3 {
-        return Err("invalid runtime journal schema 12 Orchestra indexes".into());
+        return Err("invalid runtime journal schema 13 Orchestra indexes".into());
     }
     let authority_columns: i64 = connection
         .query_row(
@@ -2350,9 +2506,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if authority_columns != 6 {
-        return Err("invalid runtime journal schema 12 authority checkpoint columns".into());
+        return Err("invalid runtime journal schema 13 authority checkpoint columns".into());
     }
     let authority_index: i64 = connection
         .query_row(
@@ -2362,9 +2518,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 12: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
     if authority_index != 1 {
-        return Err("invalid runtime journal schema 12 authority checkpoint index".into());
+        return Err("invalid runtime journal schema 13 authority checkpoint index".into());
     }
     Ok(())
 }

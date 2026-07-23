@@ -278,7 +278,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .contract
             .surfaces
             .iter()
-            .any(|surface| { surface == "schema-12-shared-authority-checkpoint" })
+            .any(|surface| { surface == "schema-13-shared-authority-checkpoint" })
     );
     assert!(
         provisioning
@@ -397,6 +397,25 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "bounded-avalonia-provisioning-poll",
         "explicit-new-attempt-retry-guidance",
         "optional-local-gewyvern-provisioning-origin",
+        "independent-runtime-retirement-domain",
+        "runtime-retire-capability",
+        "service-retired-before-runtime-unregister",
+        "retirement-failure-preserves-registration",
+        "opaque-ssh-retirement-handle",
+        "strict-retirement-wire-v1",
+        "retirement-identity-binding",
+        "restart-safe-retirement-checkpoint",
+        "durable-retirement-authority",
+        "atomic-retirement-effect-unregistration",
+        "replayable-runtime-unregistration",
+        "schema-12-to-13-authority-migration",
+        "lost-retirement-lease-rollback",
+        "opaque-retirement-secret-resolution",
+        "adapter-gated-daemon-retirement-submission",
+        "retirement-predispatch-registration-fence",
+        "terminal-retirement-outcome-validation",
+        "atomic-daemon-retirement-settlement",
+        "forged-retirement-receipt-rejection",
     ] {
         assert!(
             provisioning
@@ -409,7 +428,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(provisioning.blockers.iter().any(|blocker| {
         blocker.id == "gewyvern-provisioning-compensation-missing"
-            && blocker.summary.contains("compensation")
+            && blocker.summary.contains("native SSH retirement transport")
     }));
     assert!(
         !provisioning

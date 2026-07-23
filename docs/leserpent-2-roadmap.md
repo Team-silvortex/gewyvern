@@ -506,7 +506,7 @@ installation, authenticated service readiness, installation-credential retiremen
 and identity-bound runtime registration. Its independent strict 64 KiB protocol
 rejects unknown fields and raw credentials. `runtime.deploy` remains only the
 debugging-pipeline submission operation for an already registered Gewyvern endpoint.
-Runtime SQLite schema 12 now provides shared, kind-scoped authority checkpoints.
+Runtime SQLite schema 13 now provides shared, kind-scoped authority checkpoints.
 It atomically queues provisioning with revision-1 `Planned`, settles installation
 to `ServiceReady` or `Failed`, restores both after restart, retires the installation
 credential at readiness, and revision-CAS gates `RuntimeRegistered`. Existing
@@ -555,8 +555,21 @@ manual refresh. Failed attempts remain immutable and the UI explicitly requires
 a new provisioning ID after remediation. A configured private
 `LESERPENT_GEWYVERN_PROVISIONING_CONFIG` also lets the managed Local Orchestra
 own this operation without weakening the remote authority contract. The next
-product slice adds remote
-compensation/retirement without changing `runtime.deploy` semantics.
+product slice implements the now-defined remote retirement contract without
+changing `runtime.deploy` semantics. The independent `runtime.retire` domain and
+strict 64 KiB wire bind a new retirement ID to the original provisioning/runtime
+identity and an explicitly confirmed opaque SSH handle. They require a proven
+`ServiceRetired` boundary before `RuntimeUnregistered`; any external retirement
+failure keeps the runtime registered instead of creating an unmanaged live
+service. The durable runtime slice now atomically completes the leased effect,
+journals replayable runtime unregistration, and commits revision-3
+`RuntimeUnregistered`; lost leases preserve both the planned checkpoint and live
+registration. Adapter-gated daemon submission and worker settlement now enforce
+the same identity and terminal-phase checks, while transport secrets are
+resolved only at the adapter boundary. Forged receipts leave the revision-1
+checkpoint and runtime registration intact. The remaining work is the native
+target/SSH transport and authenticated IPC/HTTPS plus matching CLI/Avalonia
+controls.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

@@ -274,10 +274,32 @@ Desktop Local Orchestra is offered as an owning authority only when the private
 `LESERPENT_GEWYVERN_PROVISIONING_CONFIG` path is present at app startup; otherwise
 only saved authenticated daemon authorities are listed.
 Remote compensation/retirement for an already registered service remains to be
-productized.
+productized. Its first independent contract now lives in
+`leserpent-domain::retirement` and `leserpent-protocol::retirement`; it does not
+extend `runtime.deploy` or reuse the provisioning ID as an operation identity.
+`runtime.retire` binds a new retirement ID to the original provisioning ID,
+runtime ID, SSH target, operator principal, explicit confirmation, and a newly
+supplied opaque `vault:ssh:*` handle. Its state machine is
+`Planned -> RetiringService -> ServiceRetired -> RuntimeUnregistered`, with a
+terminal `Failed` branch. Runtime unregistration is forbidden until a fully
+identity-bound receipt proves service retirement. External failure retires the
+submitted SSH handle but deliberately preserves the runtime registration,
+preventing a still-running service from becoming an untracked orphan. The strict
+64 KiB wire rejects unknown/raw-secret fields and validates this ordering on all
+responses. Runtime SQLite schema 13 now stores retirement authority alongside
+the other kind-scoped checkpoints. After `ServiceRetired`, one immediate
+transaction completes the leased effect, journals runtime unregistration, and
+commits revision-3 `RuntimeUnregistered`; restart replays the removal, while a
+lost lease rolls back all three and leaves the runtime registered. The daemon
+now accepts retirement only when its adapter registry owns the dedicated effect
+kind, rechecks live registration before dispatch, and rejects malformed,
+non-terminal, or identity-confused adapter output before invoking that
+transaction. The adapter resolves the opaque SSH handle only at its transport
+boundary and emits no secret material. Native SSH target execution and operator
+controls remain the next implementation slice; no public route is enabled yet.
 
 The runtime persistence layer now supplies that contract with shared durable
-ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the
+ground. Schema 12 migrated schema-11 `bootstrap_handoffs` rows into the
 kind-scoped `authority_checkpoints` table, where daemon bootstrap and Gewyvern
 provisioning reuse one transaction/CAS implementation without sharing identities
 or phase vocabularies. Provisioning submission atomically stores its revision-1
@@ -288,7 +310,8 @@ completion, runtime registration, and the revision-3 `RuntimeRegistered`
 checkpoint. Restart restores the resulting projection and never restores the
 retired installation credential. Legacy revision-2 Ready checkpoints are
 promoted through the same registration transaction. Schema-11 daemon checkpoints
-migrate losslessly.
+migrate losslessly. Schema 13 extends the same table and journal vocabulary for
+retirement without changing existing bootstrap or provisioning records.
 
 The first native contract now lives in `leserpent-domain::bootstrap` and
 `leserpent-protocol::bootstrap`. It models
@@ -392,7 +415,7 @@ remove the partial staging artifact.
 The controller-side handoff is now part of the production daemon/runtime path,
 not a test-only reconstruction. `DaemonHost` strictly decodes completed host
 bootstrap effects and rejects malformed, mismatched, or non-terminal outcomes.
-Runtime SQLite schema 12 then commits the scheduler outcome and a validated
+Runtime SQLite schema 13 then commits the scheduler outcome and a validated
 private authority checkpoint atomically under the existing owner
 lease. A restarted `ControlRuntime` restores `Bootstrapped` without mutation
 authority. Session promotion re-enters the domain state machine, compares the

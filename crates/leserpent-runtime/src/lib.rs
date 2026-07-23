@@ -7,6 +7,10 @@ use leserpent_domain::provisioning::{
     RuntimeProvisioning, RuntimeProvisioningCheckpoint, RuntimeProvisioningSnapshot,
     RuntimeRegistrationProof,
 };
+use leserpent_domain::retirement::{
+    RetirementError, RetirementId, RetirementPhase, RuntimeRetirement, RuntimeRetirementCheckpoint,
+    RuntimeRetirementSnapshot,
+};
 use leserpent_domain::{
     CommandPlan, CommandPlanError, CommandResult, CommandStatus, DOMAIN_SNAPSHOT_SCHEMA_VERSION,
     DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError, InMemoryControlPlane,
@@ -117,6 +121,7 @@ pub enum RuntimeError {
     Domain(DomainError),
     Bootstrap(BootstrapError),
     Provisioning(ProvisioningError),
+    Retirement(RetirementError),
     InvalidSnapshot(DomainSnapshotError),
     Storage(String),
     ReplayMismatch { sequence: i64 },
@@ -133,6 +138,9 @@ impl fmt::Display for RuntimeError {
             Self::Bootstrap(error) => write!(formatter, "bootstrap state failed: {error}"),
             Self::Provisioning(error) => {
                 write!(formatter, "runtime provisioning state failed: {error}")
+            }
+            Self::Retirement(error) => {
+                write!(formatter, "runtime retirement state failed: {error}")
             }
             Self::InvalidSnapshot(error) => write!(formatter, "invalid runtime snapshot: {error}"),
             Self::Storage(error) => write!(formatter, "runtime storage failed: {error}"),
@@ -153,6 +161,7 @@ impl std::error::Error for RuntimeError {
             Self::Domain(error) => Some(error),
             Self::Bootstrap(error) => Some(error),
             Self::Provisioning(error) => Some(error),
+            Self::Retirement(error) => Some(error),
             Self::InvalidSnapshot(error) => Some(error),
             Self::InvalidEffectOutcome(_) | Self::Storage(_) | Self::ReplayMismatch { .. } => None,
         }
@@ -182,6 +191,11 @@ struct RuntimeRegistration {
     runtime_id: String,
     name: String,
     endpoint: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+struct RuntimeUnregistration {
+    runtime_id: String,
 }
 
 impl ControlRuntime {
@@ -245,6 +259,18 @@ impl ControlRuntime {
                         registration.name,
                         registration.endpoint,
                     );
+                }
+                JournalEntryKind::RuntimeUnregistration => {
+                    let unregistration: RuntimeUnregistration =
+                        serde_json::from_slice(&entry.payload)
+                            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+                    let runtime_id =
+                        RuntimeId::new(unregistration.runtime_id).map_err(RuntimeError::Domain)?;
+                    if !runtime.control.unregister_runtime(&runtime_id) {
+                        return Err(RuntimeError::ReplayMismatch {
+                            sequence: entry.sequence,
+                        });
+                    }
                 }
                 JournalEntryKind::CommandPlan => {
                     if entry.terminal_error.is_some() {
@@ -967,6 +993,199 @@ impl ControlRuntime {
         Ok(state)
     }
 
+    pub fn enqueue_retirement_effect(
+        &mut self,
+        effect_id: &str,
+        kind: &str,
+        payload: &[u8],
+        max_attempts: u32,
+        checkpoint: &RuntimeRetirementCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint.validate().map_err(RuntimeError::Retirement)?;
+        if checkpoint.revision != 1 || checkpoint.state.phase != RetirementPhase::Planned {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "retirement submission must begin at planned revision 1",
+            ));
+        }
+        let registered_endpoint = self
+            .control
+            .runtime_projection(&checkpoint.state.runtime_id)
+            .ok_or(RuntimeError::InvalidEffectOutcome(
+                "retirement runtime is not registered",
+            ))?
+            .endpoint
+            .clone();
+        let provisioning = self
+            .provisioning_checkpoint(&checkpoint.state.provisioning_id)?
+            .ok_or(RuntimeError::InvalidEffectOutcome(
+                "retirement provisioning authority was not found",
+            ))?;
+        if provisioning.state.phase != ProvisioningPhase::RuntimeRegistered
+            || provisioning.state.runtime_id != checkpoint.state.runtime_id
+            || provisioning.state.target != checkpoint.state.target
+            || provisioning.state.endpoint.as_deref() != Some(registered_endpoint.as_str())
+        {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "retirement identity does not match registered provisioning authority",
+            ));
+        }
+        let checkpoint_payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime retirement requires persistent storage".into(),
+            ));
+        };
+        journal
+            .enqueue_effect_with_authority_checkpoint(
+                effect_id,
+                kind,
+                payload,
+                max_attempts,
+                persistence::AUTHORITY_KIND_GEWYVERN_RETIREMENT,
+                checkpoint.state.retirement_id.as_str(),
+                retirement_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &checkpoint_payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn retirement_checkpoint(
+        &mut self,
+        retirement_id: &RetirementId,
+    ) -> Result<Option<RuntimeRetirementCheckpoint>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime retirement requires persistent storage".into(),
+            ));
+        };
+        let Some(record) = journal
+            .authority_checkpoint(
+                persistence::AUTHORITY_KIND_GEWYVERN_RETIREMENT,
+                retirement_id.as_str(),
+            )
+            .map_err(RuntimeError::Storage)?
+        else {
+            return Ok(None);
+        };
+        let checkpoint: RuntimeRetirementCheckpoint = serde_json::from_slice(&record.payload)
+            .map_err(|_| RuntimeError::Storage("retirement checkpoint is invalid JSON".into()))?;
+        checkpoint.validate().map_err(|error| {
+            RuntimeError::Storage(format!("invalid retirement checkpoint: {error}"))
+        })?;
+        if checkpoint.revision != record.revision
+            || checkpoint.state.retirement_id != *retirement_id
+            || retirement_phase_label(checkpoint.state.phase) != record.phase
+        {
+            return Err(RuntimeError::Storage(
+                "retirement checkpoint identity or revision diverged".into(),
+            ));
+        }
+        Ok(Some(checkpoint))
+    }
+
+    pub fn complete_retirement_effect(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+        checkpoint: &RuntimeRetirementCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint.validate().map_err(RuntimeError::Retirement)?;
+        if checkpoint.revision != 2 || checkpoint.state.phase != RetirementPhase::Failed {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "retirement effect completion requires a revision-2 failed checkpoint",
+            ));
+        }
+        let payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime retirement requires persistent storage".into(),
+            ));
+        };
+        journal
+            .complete_effect_with_authority_checkpoint(
+                lease,
+                outcome,
+                persistence::AUTHORITY_KIND_GEWYVERN_RETIREMENT,
+                checkpoint.state.retirement_id.as_str(),
+                retirement_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn complete_retirement_effect_and_unregister(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+        service_retired: &RuntimeRetirementCheckpoint,
+    ) -> Result<RuntimeRetirementSnapshot, RuntimeError> {
+        service_retired
+            .validate()
+            .map_err(RuntimeError::Retirement)?;
+        if service_retired.revision != 2
+            || service_retired.state.phase != RetirementPhase::ServiceRetired
+        {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "runtime unregistration requires a revision-2 service-retired checkpoint",
+            ));
+        }
+        let current = self
+            .retirement_checkpoint(&service_retired.state.retirement_id)?
+            .ok_or_else(|| RuntimeError::Storage("retirement checkpoint was not found".into()))?;
+        if current.revision != 1
+            || current.state.phase != RetirementPhase::Planned
+            || current.state.retirement_id != service_retired.state.retirement_id
+            || current.state.provisioning_id != service_retired.state.provisioning_id
+            || current.state.runtime_id != service_retired.state.runtime_id
+            || current.state.target != service_retired.state.target
+        {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "planned retirement checkpoint does not bind the retired service",
+            ));
+        }
+        let mut retirement =
+            RuntimeRetirement::resume(service_retired).map_err(RuntimeError::Retirement)?;
+        let state = retirement
+            .accept_runtime_unregistration()
+            .map_err(RuntimeError::Retirement)?;
+        let unregistered = retirement.checkpoint(3).map_err(RuntimeError::Retirement)?;
+        let checkpoint_payload = serde_json::to_vec(&unregistered)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let unregistration = RuntimeUnregistration {
+            runtime_id: state.runtime_id.as_str().to_string(),
+        };
+        let unregistration_payload = serde_json::to_vec(&unregistration)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let mut staged = self.control.clone();
+        if !staged.unregister_runtime(&state.runtime_id) {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "retirement runtime is no longer registered",
+            ));
+        }
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime retirement requires persistent storage".into(),
+            ));
+        };
+        journal
+            .commit_retirement_unregistration(
+                lease,
+                outcome,
+                &unregistration_payload,
+                state.retirement_id.as_str(),
+                current.revision,
+                unregistered.revision,
+                &checkpoint_payload,
+            )
+            .map_err(RuntimeError::Storage)?;
+        self.control = staged;
+        Ok(state)
+    }
+
     pub fn fail_effect(
         &mut self,
         lease: &EffectLease,
@@ -1526,6 +1745,16 @@ fn provisioning_phase_label(phase: ProvisioningPhase) -> &'static str {
         ProvisioningPhase::ServiceReady => "service_ready",
         ProvisioningPhase::RuntimeRegistered => "runtime_registered",
         ProvisioningPhase::Failed => "failed",
+    }
+}
+
+fn retirement_phase_label(phase: RetirementPhase) -> &'static str {
+    match phase {
+        RetirementPhase::Planned => "planned",
+        RetirementPhase::RetiringService => "retiring_service",
+        RetirementPhase::ServiceRetired => "service_retired",
+        RetirementPhase::RuntimeUnregistered => "runtime_unregistered",
+        RetirementPhase::Failed => "failed",
     }
 }
 
@@ -2098,8 +2327,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 12);
-        assert_eq!(migration_count, 12);
+        assert_eq!(schema, 13);
+        assert_eq!(migration_count, 13);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2166,7 +2395,7 @@ mod tests {
                  FROM authority_checkpoints WHERE operation_kind = 'daemon_bootstrap';
                  DROP INDEX authority_checkpoints_by_kind_phase;
                  DROP TABLE authority_checkpoints;
-                 DELETE FROM runtime_schema_migrations WHERE version = 12;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -2194,14 +2423,14 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (12, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (13, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v12");
+        let path = temp_journal("incomplete-v13");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -2216,14 +2445,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 12);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 13);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 12")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 13")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2270,6 +2499,12 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 13",
+                [],
+            )
+            .unwrap();
+        connection
             .execute("DROP TABLE authority_checkpoints", [])
             .unwrap();
         connection
@@ -2301,7 +2536,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 12);
+        assert_eq!(schema, 13);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2322,7 +2557,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 12 journal kind")
+                if error.contains("invalid runtime journal schema 13 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2335,14 +2570,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (13, 0)",
+                 VALUES (14, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 12 migration history")
+                if error.contains("invalid runtime journal schema 13 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2648,7 +2883,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 12);
+        assert_eq!(schema, 13);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3159,7 +3394,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 12);
+        assert_eq!(schema, 13);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -4015,6 +4250,238 @@ mod tests {
                 .map(|runtime| runtime.id.as_str())
                 .collect::<Vec<_>>(),
             ["runtime-a", "runtime-b"]
+        );
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn retirement_unregistration_is_atomic_and_restart_safe() {
+        use leserpent_domain::bootstrap::CredentialHandle;
+        use leserpent_domain::provisioning::GewyvernServiceReceipt;
+        use leserpent_domain::retirement::{
+            CAPABILITY_RUNTIME_RETIRE, GewyvernRetirementReceipt, RETIREMENT_DOMAIN_SCHEMA_VERSION,
+            RuntimeRetirementIntent,
+        };
+
+        let path = temp_journal("retirement-unregistration");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let mut provisioning = planned_provisioning();
+        let planned = provisioning.checkpoint(1).unwrap();
+        runtime
+            .enqueue_provisioning_effect(
+                "provision-runtime-a-effect",
+                "gewyvern.runtime.provision",
+                b"provision-request",
+                3,
+                &planned,
+            )
+            .unwrap();
+        let provision_lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        provisioning.begin().unwrap();
+        provisioning
+            .accept_service(GewyvernServiceReceipt {
+                provisioning_id: planned.state.provisioning_id.clone(),
+                runtime_id: planned.state.runtime_id.clone(),
+                endpoint: "https://runtime-a.example:9411/".into(),
+                api_credential_handle: CredentialHandle::new("vault:gewyvern-api:runtime-a")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:gewyvern-ca:runtime-a")
+                    .unwrap(),
+            })
+            .unwrap();
+        runtime
+            .complete_provisioning_effect_and_register(
+                &provision_lease,
+                b"service-ready",
+                &provisioning.checkpoint(2).unwrap(),
+            )
+            .unwrap();
+
+        let retirement_id = RetirementId::new("retire-runtime-a").unwrap();
+        let mut retirement = RuntimeRetirement::plan(
+            &Principal {
+                id: "operator-a".into(),
+            },
+            &CapabilitySet::new([CAPABILITY_RUNTIME_RETIRE]),
+            RuntimeRetirementIntent {
+                schema_version: RETIREMENT_DOMAIN_SCHEMA_VERSION,
+                retirement_id: retirement_id.clone(),
+                provisioning_id: planned.state.provisioning_id.clone(),
+                runtime_id: planned.state.runtime_id.clone(),
+                target: planned.state.target.clone(),
+                retirement_credential_handle: CredentialHandle::new("vault:ssh:retire-runtime-a")
+                    .unwrap(),
+                requested_by: "operator-a".into(),
+                confirmed: true,
+            },
+        )
+        .unwrap();
+        let retirement_planned = retirement.checkpoint(1).unwrap();
+        runtime
+            .enqueue_retirement_effect(
+                "retire-runtime-a-effect",
+                "gewyvern.runtime.retire",
+                b"retirement-request",
+                3,
+                &retirement_planned,
+            )
+            .unwrap();
+        let retirement_lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        retirement.begin().unwrap();
+        retirement
+            .accept_service_retirement(GewyvernRetirementReceipt {
+                retirement_id: retirement_id.clone(),
+                provisioning_id: planned.state.provisioning_id,
+                runtime_id: planned.state.runtime_id.clone(),
+                service_retired: true,
+            })
+            .unwrap();
+        let state = runtime
+            .complete_retirement_effect_and_unregister(
+                &retirement_lease,
+                b"service-retired",
+                &retirement.checkpoint(2).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(state.phase, RetirementPhase::RuntimeUnregistered);
+        assert!(
+            runtime
+                .runtime_projection(&planned.state.runtime_id)
+                .is_none()
+        );
+        drop(runtime);
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        assert!(
+            restarted
+                .runtime_projection(&planned.state.runtime_id)
+                .is_none()
+        );
+        let checkpoint = restarted
+            .retirement_checkpoint(&retirement_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(checkpoint.revision, 3);
+        assert_eq!(checkpoint.state.phase, RetirementPhase::RuntimeUnregistered);
+        drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn lost_retirement_lease_preserves_registration_and_planned_checkpoint() {
+        use leserpent_domain::bootstrap::CredentialHandle;
+        use leserpent_domain::provisioning::GewyvernServiceReceipt;
+        use leserpent_domain::retirement::{
+            CAPABILITY_RUNTIME_RETIRE, GewyvernRetirementReceipt, RETIREMENT_DOMAIN_SCHEMA_VERSION,
+            RuntimeRetirementIntent,
+        };
+
+        let path = temp_journal("retirement-lease-rollback");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let mut provisioning = planned_provisioning();
+        let provision_planned = provisioning.checkpoint(1).unwrap();
+        runtime
+            .enqueue_provisioning_effect(
+                "provision-runtime-a-effect",
+                "gewyvern.runtime.provision",
+                b"provision-request",
+                3,
+                &provision_planned,
+            )
+            .unwrap();
+        let provision_lease = runtime
+            .claim_effect("worker-a", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        provisioning.begin().unwrap();
+        provisioning
+            .accept_service(GewyvernServiceReceipt {
+                provisioning_id: provision_planned.state.provisioning_id.clone(),
+                runtime_id: provision_planned.state.runtime_id.clone(),
+                endpoint: "https://runtime-a.example:9411/".into(),
+                api_credential_handle: CredentialHandle::new("vault:gewyvern-api:runtime-a")
+                    .unwrap(),
+                trust_credential_handle: CredentialHandle::new("vault:gewyvern-ca:runtime-a")
+                    .unwrap(),
+            })
+            .unwrap();
+        runtime
+            .complete_provisioning_effect_and_register(
+                &provision_lease,
+                b"service-ready",
+                &provisioning.checkpoint(2).unwrap(),
+            )
+            .unwrap();
+
+        let retirement_id = RetirementId::new("retire-runtime-a").unwrap();
+        let mut retirement = RuntimeRetirement::plan(
+            &Principal {
+                id: "operator-a".into(),
+            },
+            &CapabilitySet::new([CAPABILITY_RUNTIME_RETIRE]),
+            RuntimeRetirementIntent {
+                schema_version: RETIREMENT_DOMAIN_SCHEMA_VERSION,
+                retirement_id: retirement_id.clone(),
+                provisioning_id: provision_planned.state.provisioning_id.clone(),
+                runtime_id: provision_planned.state.runtime_id.clone(),
+                target: provision_planned.state.target.clone(),
+                retirement_credential_handle: CredentialHandle::new("vault:ssh:retire-runtime-a")
+                    .unwrap(),
+                requested_by: "operator-a".into(),
+                confirmed: true,
+            },
+        )
+        .unwrap();
+        let retirement_planned = retirement.checkpoint(1).unwrap();
+        runtime
+            .enqueue_retirement_effect(
+                "retire-runtime-a-effect",
+                "gewyvern.runtime.retire",
+                b"retirement-request",
+                3,
+                &retirement_planned,
+            )
+            .unwrap();
+        let lease = runtime
+            .claim_effect("worker-a", Duration::from_millis(1))
+            .unwrap()
+            .unwrap();
+        retirement.begin().unwrap();
+        retirement
+            .accept_service_retirement(GewyvernRetirementReceipt {
+                retirement_id: retirement_id.clone(),
+                provisioning_id: provision_planned.state.provisioning_id,
+                runtime_id: provision_planned.state.runtime_id.clone(),
+                service_retired: true,
+            })
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(matches!(
+            runtime.complete_retirement_effect_and_unregister(
+                &lease,
+                b"service-retired",
+                &retirement.checkpoint(2).unwrap()
+            ),
+            Err(RuntimeError::Storage(ref error)) if error.contains("lease was lost or expired")
+        ));
+        assert!(
+            runtime
+                .runtime_projection(&provision_planned.state.runtime_id)
+                .is_some()
+        );
+        assert_eq!(
+            runtime
+                .retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap(),
+            retirement_planned
         );
         drop(runtime);
         fs::remove_file(path).unwrap();
