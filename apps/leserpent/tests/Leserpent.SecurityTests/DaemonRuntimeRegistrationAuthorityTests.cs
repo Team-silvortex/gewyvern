@@ -114,6 +114,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var sidecarDiscovery = RuntimeSidecarDiscoveryResult.Failed(
             "https://sidecar.example/v1/status",
             "raw upstream failure with secret-token");
+        var statusDiscovery = RuntimeStatusDiscoveryResult.Failed(
+            "https://runtime.example/v1/latest/status",
+            "raw status failure with status-secret");
         var registeredId = await authority.RegisterAsync(
             new RuntimeRegistrationRequest(
                 "Runtime A",
@@ -124,6 +127,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             CancellationToken.None,
             update: true,
             capabilityDiscovery: discovery,
+            statusDiscovery: statusDiscovery,
             sidecarDiscovery: sidecarDiscovery);
 
         await server;
@@ -140,9 +144,58 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         Assert.Equal(
             "sidecar_fetch_failed",
             intake.GetProperty("command").GetProperty("sidecar_status").GetProperty("status_fetch_error").GetString());
+        Assert.Equal(
+            "runtime_status_fetch_failed",
+            intake.GetProperty("command").GetProperty("status").GetProperty("status_fetch_error").GetString());
         Assert.DoesNotContain("pairing-token", requests.Select(request => request.GetRawText()));
         Assert.DoesNotContain("secret-token", requests.Select(request => request.GetRawText()));
+        Assert.DoesNotContain("status-secret", requests.Select(request => request.GetRawText()));
 
+        TryDelete(socketPath);
+    }
+
+    [Fact]
+    public async Task ConfiguredAuthoritySubmitsRevisionFencedUnregistration()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        const string runtimeId = "runtime-delete-a";
+        var server = ServeSequenceAsync(listener, requests, (request, index) =>
+        {
+            if (index == 0)
+            {
+                return QueryResponse(runtimeId, 9);
+            }
+            var payload = request
+                .GetProperty("request")
+                .GetProperty("request")
+                .GetProperty("payload");
+            return RuntimeUnregisteredResponse(
+                payload.GetProperty("command_id").GetString()!,
+                runtimeId,
+                9);
+        }, 2);
+
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+        await authority.UnregisterAsync(new[] { runtimeId }, CancellationToken.None);
+
+        await server;
+        Assert.Equal(2, requests.Count);
+        var request = requests[1].GetProperty("request").GetProperty("request");
+        Assert.Equal("runtime_unregister", request.GetProperty("kind").GetString());
+        var payload = request.GetProperty("payload");
+        Assert.True(payload.GetProperty("confirmed").GetBoolean());
+        Assert.Equal("runtime.unregister", payload.GetProperty("capabilities")[0].GetString());
+        var target = Assert.Single(payload.GetProperty("targets").EnumerateArray());
+        Assert.Equal(runtimeId, target.GetProperty("runtime_id").GetString());
+        Assert.Equal(9, target.GetProperty("expected_revision").GetInt64());
         TryDelete(socketPath);
     }
 
@@ -185,6 +238,12 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 update: true,
                 capabilityDiscovery: discovery,
                 sidecarDiscovery: AuthoritySidecarDiscovery());
+            await authority.SubmitDiscoveryAsync(
+                runtimeId,
+                CancellationToken.None,
+                statusDiscovery: RuntimeStatusDiscoveryResult.Failed(
+                    "https://runtime.example/v1/latest/status",
+                    "raw daemon refresh failure"));
 
             using var response = await InspectAsync(socketPath, runtimeId);
             var runtime = response.RootElement
@@ -200,9 +259,12 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             Assert.True(
                 runtime.GetProperty("updated_at_unix_ms").GetInt64()
                     >= runtime.GetProperty("registered_at_unix_ms").GetInt64());
-            Assert.Equal(4, runtime.GetProperty("revision").GetInt64());
+            Assert.Equal(5, runtime.GetProperty("revision").GetInt64());
             Assert.Equal("1.2.0", runtime.GetProperty("capabilities").GetProperty("version").GetString());
             Assert.Equal(3, runtime.GetProperty("capabilities_observed_for_revision").GetInt64());
+            Assert.Equal(
+                "runtime_status_fetch_failed",
+                runtime.GetProperty("status").GetProperty("status_fetch_error").GetString());
             Assert.Equal(
                 "etragon-api",
                 runtime.GetProperty("sidecar_status").GetProperty("status_source").GetString());
@@ -215,13 +277,20 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 CancellationToken.None);
             var typedInspect = await authority.InspectAsync(runtimeId, CancellationToken.None);
             Assert.Equal("Runtime Updated", Assert.Single(typedList).Name);
-            Assert.Equal((ulong)4, typedInspect?.Revision);
+            Assert.Equal((ulong)5, typedInspect?.Revision);
             Assert.Equal("https://sidecar.example/v2", typedInspect?.SidecarEndpoint);
             Assert.NotNull(typedInspect?.RegisteredAt);
             Assert.NotNull(typedInspect?.UpdatedAt);
             Assert.Equal("1.2.0", typedInspect?.Capabilities?.Version);
+            Assert.Equal("runtime_status_fetch_failed", typedInspect?.Status.StatusFetchError);
             Assert.Equal("ready", typedInspect?.SidecarStatus?.DaemonStatus);
             Assert.Equal("slot-a", typedInspect?.SidecarStatus?.Memory?.LatestSlot);
+
+            await authority.UnregisterAsync(new[] { runtimeId }, CancellationToken.None);
+            Assert.Empty(await authority.ListAsync(
+                new RuntimeListFilter(null, null, null),
+                CancellationToken.None));
+            Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
         }
         finally
         {
@@ -629,6 +698,21 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         "\"response\":{\"kind\":\"query\"," +
         "\"payload\":{\"kind\":\"runtime_inspect\",\"revision\":" + revision + "," +
         "\"runtime\":{\"id\":\"" + runtimeId + "\",\"revision\":" + revision + "}}}}";
+
+    private static string RuntimeUnregisteredResponse(
+        string commandId,
+        string runtimeId,
+        int revision) =>
+        "{" +
+        "\"schema_version\":1," +
+        "\"response\":{\"kind\":\"runtime_unregistered\",\"payload\":{" +
+        "\"command_id\":\"" + commandId + "\"," +
+        "\"removed\":[{\"runtime_id\":\"" + runtimeId +
+        "\",\"expected_revision\":" + revision + "}]," +
+        "\"deleted_orchestra_runtime_count\":0," +
+        "\"deleted_orchestra_run_count\":0," +
+        "\"deleted_orchestra_event_count\":0," +
+        "\"removed_at_unix_ms\":1784620800000,\"replayed\":false}}}";
 
     private static string RuntimeListResponse() =>
         "{" +

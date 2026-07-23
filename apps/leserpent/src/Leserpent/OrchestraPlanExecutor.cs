@@ -12,7 +12,8 @@ public interface IOrchestraPlanExecutor
 
 public sealed class OrchestraPlanExecutor(
     RegistryService registry,
-    CapabilityDiscoveryService discovery) : IOrchestraPlanExecutor
+    CapabilityDiscoveryService discovery,
+    IRuntimeRegistrationAuthority registrationAuthority) : IOrchestraPlanExecutor
 {
     public async Task<IReadOnlyList<OrchestraExecutionStepResult>> ExecuteAsync(
         string planId,
@@ -23,9 +24,18 @@ public sealed class OrchestraPlanExecutor(
 
         if (string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase))
         {
+            var capabilityDiscovery = await discovery.DiscoverAsync(
+                runtime.Endpoint,
+                null,
+                cancellationToken,
+                registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
+            await registrationAuthority.SubmitDiscoveryAsync(
+                runtime.RuntimeId,
+                cancellationToken,
+                capabilityDiscovery: capabilityDiscovery);
             var capabilities = registry.RefreshRuntimeCapabilities(
                 runtime.RuntimeId,
-                await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
+                capabilityDiscovery);
             results.Add(new OrchestraExecutionStepResult(
                 "refresh_capabilities",
                 capabilities is not null && capabilities.CapabilityFetchError is null ? "ok" : "degraded",
@@ -35,9 +45,18 @@ public sealed class OrchestraPlanExecutor(
         if (string.Equals(planId, "runtime_triage", StringComparison.OrdinalIgnoreCase)
             || string.Equals(planId, "analysis_recovery", StringComparison.OrdinalIgnoreCase))
         {
+            var statusDiscovery = await discovery.DiscoverStatusAsync(
+                runtime.Endpoint,
+                null,
+                cancellationToken,
+                registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
+            await registrationAuthority.SubmitDiscoveryAsync(
+                runtime.RuntimeId,
+                cancellationToken,
+                statusDiscovery: statusDiscovery);
             var status = registry.RefreshRuntimeStatus(
                 runtime.RuntimeId,
-                await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
+                statusDiscovery);
             var error = status?.Status.StatusFetchError;
             var outcome = status is null
                 ? "degraded"
@@ -55,13 +74,18 @@ public sealed class OrchestraPlanExecutor(
             var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
             if (sidecarAccess is not null)
             {
+                var sidecarDiscovery = await discovery.DiscoverSidecarStatusAsync(
+                    sidecarAccess.SidecarEndpoint,
+                    null,
+                    sidecarAccess.SidecarAdminToken,
+                    cancellationToken);
+                await registrationAuthority.SubmitDiscoveryAsync(
+                    runtime.RuntimeId,
+                    cancellationToken,
+                    sidecarDiscovery: sidecarDiscovery);
                 var sidecar = registry.RefreshRuntimeSidecar(
                     runtime.RuntimeId,
-                    await discovery.DiscoverSidecarStatusAsync(
-                        sidecarAccess.SidecarEndpoint,
-                        null,
-                        sidecarAccess.SidecarAdminToken,
-                        cancellationToken));
+                    sidecarDiscovery);
                 var error = sidecar?.SidecarStatus?.StatusFetchError;
                 var outcome = sidecar is null
                     ? "degraded"

@@ -300,7 +300,10 @@ default HTTP(S) ports while retaining path/query identity. A conflict returns
 a distinct strict variant, requires the current revision, rejects an empty
 observation, atomically applies validated capability, status, and sidecar
 snapshots, and schedules no external effect. A sidecar failure is accepted only
-as the stable `sidecar_fetch_failed` posture; raw failure text is rejected.
+as the stable `sidecar_fetch_failed` posture. A runtime-status failure is
+accepted only as `runtime_status_fetch_failed` with all observed-fact fields
+cleared. Raw failure text is rejected, and the same status validator is used by
+direct intake and scheduler observation completion.
 
 When daemon IPC is configured, the 1.x Web registration route now inspects the
 daemon revision, reconciles managed-only legacy registrations through create,
@@ -311,8 +314,9 @@ document rather than attempting to reconstruct them from the lossy legacy
 capability list. Pairing/admin tokens and discovery error strings are never
 written into these commands. Without daemon configuration, the existing managed
 registration path remains the explicit development fallback. Configured
-individual, recovery, and fleet sidecar refreshes also commit the same daemon
-intake before updating their managed compatibility responses.
+individual, recovery, Fleet, and Orchestra refreshes compose available
+capability, runtime-status, and sidecar observations into the same daemon intake
+before updating their managed compatibility responses.
 
 Configured runtime list, detail, and status reads now consume the existing
 typed `runtime_list` and `runtime_inspect` query results over the same private
@@ -324,10 +328,22 @@ summary are authoritative when present and survive journal replay. Legacy
 projections without timestamps or sidecar status retain per-field managed
 fallbacks, while token-presence flags intentionally remain local to the secret
 boundary.
-Managed-only runtimes remain visible during
-reconciliation. A daemon-only runtime returns a typed 502 instead of receiving
-invented compatibility metadata. Other Web operations continue to use managed
-lookups until their attention/recovery contracts are migrated deliberately.
+Managed-only runtimes remain visible during reconciliation. A daemon-only
+runtime returns a typed 502 instead of receiving invented compatibility
+metadata.
+
+Wire-v1 now gives cleanup and generic deletion their own `runtime_unregister`
+mutation instead of abusing the projection-bearing command result. The request
+requires `runtime.unregister`, explicit confirmation, one command ID, and 1
+through 128 unique runtime/revision targets. Leserpentd validates every revision
+before mutation, then journals all removals, deletes their Orchestra history,
+and stores the replay record in one schema-v14 transaction. An exact retry
+returns the original counts with `replayed=true`; command-ID drift fails with an
+idempotency conflict. The configured Web adapter reserves the targets before
+the daemon call, blocking new sessions and Orchestra runs until daemon-first
+unregistration and managed compatibility cleanup finish. Without daemon
+configuration, the reservation still protects the existing development
+fallback.
 
 The daemon's typed deployment receipt is intentionally narrower than a generic
 effect-result query. It requires deployment capability, binds command ID and

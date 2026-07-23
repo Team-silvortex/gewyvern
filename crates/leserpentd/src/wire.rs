@@ -3,15 +3,19 @@ use leserpent_domain::bootstrap::{
 };
 use leserpent_domain::{
     CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-    CAPABILITY_RUNTIME_REFRESH, Command, CommandPlan, IdempotencyKey, PlannedOperation, Query,
+    CAPABILITY_RUNTIME_REFRESH, CAPABILITY_RUNTIME_UNREGISTER, Command, CommandPlan,
+    IdempotencyKey, PlannedOperation, Query,
 };
 use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
     OrchestraDeleteResponse, OrchestraHistoryResponse, OrchestraPersistenceResponse,
     PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-    ResponseEnvelope,
+    ResponseEnvelope, RuntimeUnregisterResponse,
 };
-use leserpent_runtime::{ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError};
+use leserpent_runtime::{
+    ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError,
+    RuntimeUnregisterTarget as RuntimeTarget,
+};
 
 pub(crate) const MAX_AUTH_TOKEN_BYTES: usize = 256;
 
@@ -217,6 +221,44 @@ pub(crate) fn execute_request(
                 }
             };
         }
+        ProtocolRequest::RuntimeUnregister(request) => {
+            if request.principal.id.trim().is_empty()
+                || !request.capabilities.contains(CAPABILITY_RUNTIME_UNREGISTER)
+                || !request.confirmed
+            {
+                return error_response(
+                    "runtime_unregister_rejected",
+                    "runtime unregistration requires explicit authority and confirmation",
+                );
+            }
+            let targets = request
+                .targets
+                .iter()
+                .map(|target| RuntimeTarget {
+                    runtime_id: target.runtime_id.clone(),
+                    expected_revision: target.expected_revision,
+                })
+                .collect();
+            return match runtime.unregister_runtimes(request.command_id.clone(), targets) {
+                Ok(result) => response(ProtocolResponse::RuntimeUnregistered(
+                    RuntimeUnregisterResponse {
+                        command_id: result.command_id,
+                        removed: request.targets,
+                        deleted_orchestra_runtime_count: result.deleted_orchestra_runtime_count,
+                        deleted_orchestra_run_count: result.deleted_orchestra_run_count,
+                        deleted_orchestra_event_count: result.deleted_orchestra_event_count,
+                        removed_at_unix_ms: result.removed_at_unix_ms,
+                        replayed: result.replayed,
+                    },
+                )),
+                Err(RuntimeError::Domain(error)) => {
+                    leserpent_protocol::domain_error_response(&error)
+                }
+                Err(_) => {
+                    error_response("runtime_unregister_failed", "runtime unregistration failed")
+                }
+            };
+        }
         ProtocolRequest::BootstrapHandoff(request) => {
             if request.principal.id.trim().is_empty()
                 || !request.capabilities.contains(CAPABILITY_HOST_BOOTSTRAP)
@@ -303,6 +345,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };
@@ -314,6 +357,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };

@@ -15,6 +15,7 @@ public sealed partial class RegistryService
     private readonly ConcurrentDictionary<string, SessionRecord> sessions = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<RuntimeRecoveryActivity>> recoveryActivities = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<OrchestraRunSummary>> orchestraRuns = new();
+    private readonly HashSet<string> deletingRuntimes = new(StringComparer.OrdinalIgnoreCase);
     private readonly object orchestraRunSync = new();
     private readonly object runtimeRegistrationSync = new();
     private readonly ControlPlaneStateStore stateStore;
@@ -110,6 +111,70 @@ public sealed partial class RegistryService
     {
         var effectiveFilter = filter ?? new RuntimeListFilter(null, null, null);
         return RuntimeCleanupPolicy.Build(effectiveFilter, ListRuntimes(effectiveFilter), ListSessions());
+    }
+
+    public IReadOnlyList<string> GetPlannedRuntimeCleanupTargetIds(
+        string kind,
+        RuntimeListFilter filter,
+        RuntimeCleanupRequest request)
+    {
+        var plan = GetRuntimeCleanupPlan(filter);
+        var action = kind switch
+        {
+            RuntimeCleanupPolicy.FailedKind => plan.Failed,
+            RuntimeCleanupPolicy.UnobservedKind => plan.Unobserved,
+            RuntimeCleanupPolicy.SliceKind => plan.Slice,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "unknown runtime cleanup kind"),
+        };
+        if (string.IsNullOrWhiteSpace(request.PlanToken) ||
+            !string.Equals(request.PlanToken, action.PlanToken, StringComparison.Ordinal))
+        {
+            throw new RuntimeCleanupPlanMismatchException(
+                "runtime cleanup plan changed; review the current targets before retrying");
+        }
+        if (action.Challenge is not null &&
+            !string.Equals(request.Challenge?.Trim(), action.Challenge, StringComparison.Ordinal))
+        {
+            throw new RuntimeCleanupPlanMismatchException(
+                "runtime cleanup challenge does not match the current plan");
+        }
+        return action.Targets.Select(target => target.RuntimeId).ToArray();
+    }
+
+    public RuntimeDeletionReservation ReserveRuntimeDeletion(IReadOnlyCollection<string> runtimeIds)
+    {
+        var targets = runtimeIds
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(runtimes.ContainsKey)
+            .ToArray();
+        lock (orchestraRunSync)
+        {
+            var activeRuns = FindActiveOrchestraRuns(targets);
+            if (activeRuns.Count > 0)
+            {
+                throw new OrchestraRuntimeBusyException(activeRuns);
+            }
+            if (targets.Any(deletingRuntimes.Contains))
+            {
+                throw new RuntimeDeletionInProgressException(targets);
+            }
+            foreach (var runtimeId in targets)
+            {
+                deletingRuntimes.Add(runtimeId);
+            }
+        }
+        return new RuntimeDeletionReservation(this, targets);
+    }
+
+    internal void ReleaseRuntimeDeletion(IReadOnlyCollection<string> runtimeIds)
+    {
+        lock (orchestraRunSync)
+        {
+            foreach (var runtimeId in runtimeIds)
+            {
+                deletingRuntimes.Remove(runtimeId);
+            }
+        }
     }
 
     public RuntimeRegistrationPlan GetRuntimeRegistrationPlan(RuntimeRegistrationPlanRequest request) =>
@@ -435,26 +500,15 @@ public sealed partial class RegistryService
     public (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames)
         DeletePlannedRuntimes(string kind, RuntimeListFilter filter, RuntimeCleanupRequest request)
     {
-        var plan = GetRuntimeCleanupPlan(filter);
-        var action = kind switch
-        {
-            RuntimeCleanupPolicy.FailedKind => plan.Failed,
-            RuntimeCleanupPolicy.UnobservedKind => plan.Unobserved,
-            RuntimeCleanupPolicy.SliceKind => plan.Slice,
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "unknown runtime cleanup kind"),
-        };
-        if (string.IsNullOrWhiteSpace(request.PlanToken) ||
-            !string.Equals(request.PlanToken, action.PlanToken, StringComparison.Ordinal))
-        {
-            throw new RuntimeCleanupPlanMismatchException("runtime cleanup plan changed; review the current targets before retrying");
-        }
-        if (action.Challenge is not null &&
-            !string.Equals(request.Challenge?.Trim(), action.Challenge, StringComparison.Ordinal))
-        {
-            throw new RuntimeCleanupPlanMismatchException("runtime cleanup challenge does not match the current plan");
-        }
+        var targetIds = GetPlannedRuntimeCleanupTargetIds(kind, filter, request)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return DeleteRuntimesWhere(runtime => targetIds.Contains(runtime.RuntimeId));
+    }
 
-        var targetIds = action.Targets.Select(target => target.RuntimeId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    internal (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames)
+        DeleteRuntimesById(IReadOnlyCollection<string> runtimeIds)
+    {
+        var targetIds = runtimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
         return DeleteRuntimesWhere(runtime => targetIds.Contains(runtime.RuntimeId));
     }
 
@@ -474,31 +528,35 @@ public sealed partial class RegistryService
     public (SessionSummary? Session, IReadOnlyList<CapabilityRejection> Rejections, string? RuntimeMissing)
         CreateSession(SessionCreateRequest request)
     {
-        if (!runtimes.TryGetValue(request.RuntimeId, out var runtime))
+        lock (orchestraRunSync)
         {
-            return (null, Array.Empty<CapabilityRejection>(), request.RuntimeId);
-        }
+            if (deletingRuntimes.Contains(request.RuntimeId) ||
+                !runtimes.TryGetValue(request.RuntimeId, out var runtime))
+            {
+                return (null, Array.Empty<CapabilityRejection>(), request.RuntimeId);
+            }
 
-        var normalizedRequirements = NormalizeRequirements(request.Requirements);
-        var rejections = EvaluateRequirements(runtime.Capabilities, normalizedRequirements);
-        if (rejections.Count > 0)
-        {
-            return (null, rejections, null);
-        }
+            var normalizedRequirements = NormalizeRequirements(request.Requirements);
+            var rejections = EvaluateRequirements(runtime.Capabilities, normalizedRequirements);
+            if (rejections.Count > 0)
+            {
+                return (null, rejections, null);
+            }
 
-        var now = DateTimeOffset.UtcNow;
-        var created = new SessionRecord(
-            Guid.NewGuid().ToString("n"),
-            runtime.RuntimeId,
-            request.PipelineKind.Trim(),
-            request.RequestedBy.Trim(),
-            "running",
-            now,
-            now,
-            normalizedRequirements);
-        sessions[created.SessionId] = created;
-        PersistState();
-        return (created.ToSummary(), Array.Empty<CapabilityRejection>(), null);
+            var now = DateTimeOffset.UtcNow;
+            var created = new SessionRecord(
+                Guid.NewGuid().ToString("n"),
+                runtime.RuntimeId,
+                request.PipelineKind.Trim(),
+                request.RequestedBy.Trim(),
+                "running",
+                now,
+                now,
+                normalizedRequirements);
+            sessions[created.SessionId] = created;
+            PersistState();
+            return (created.ToSummary(), Array.Empty<CapabilityRejection>(), null);
+        }
     }
 
     public IReadOnlyList<SessionSummary> ListSessions() =>

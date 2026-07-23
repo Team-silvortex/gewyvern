@@ -272,6 +272,39 @@ public sealed class OrchestraExecutionCoordinatorTests
         DeleteStateFiles(statePath);
     }
 
+    [Fact]
+    public void RuntimeDeletionReservationBlocksNewOrchestraRunsAndIsReleased()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+
+        using (var reservation = registry.ReserveRuntimeDeletion(new[] { runtime.RuntimeId }))
+        {
+            Assert.Equal(new[] { runtime.RuntimeId }, reservation.RuntimeIds);
+            Assert.Throws<InvalidOperationException>(() =>
+                registry.StartOrchestraRun(
+                    "orun-reserved",
+                    runtime.RuntimeId,
+                    "runtime_triage"));
+            Assert.Throws<RuntimeDeletionInProgressException>(() =>
+                registry.ReserveRuntimeDeletion(new[] { runtime.RuntimeId }));
+            Assert.Equal(
+                runtime.RuntimeId,
+                registry.CreateSession(new SessionCreateRequest(
+                    runtime.RuntimeId,
+                    "diagnostic",
+                    "operator",
+                    Array.Empty<SessionCapabilityRequirement>())).RuntimeMissing);
+        }
+
+        var run = registry.StartOrchestraRun(
+            "orun-after-reservation",
+            runtime.RuntimeId,
+            "runtime_triage");
+        Assert.Equal("queued", run.Outcome);
+        DeleteStateFiles(statePath);
+    }
+
     private static async Task<OrchestraRunSummary> WaitForTerminalRunAsync(
         RegistryService registry,
         string runtimeId,

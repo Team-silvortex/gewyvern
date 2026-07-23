@@ -14,11 +14,12 @@ use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
 use crate::{EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH};
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 13;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 14;
 pub const AUTHORITY_KIND_DAEMON_BOOTSTRAP: &str = "daemon_bootstrap";
 pub const AUTHORITY_KIND_GEWYVERN_PROVISIONING: &str = "gewyvern_provisioning";
 pub const AUTHORITY_KIND_GEWYVERN_RETIREMENT: &str = "gewyvern_retirement";
 const MAX_JOURNAL_RECORDS: i64 = 100_000;
+const MAX_RUNTIME_UNREGISTRATION_OPERATIONS: i64 = 100_000;
 const MAX_JOURNAL_PAYLOAD_BYTES: usize = 64 * 1024;
 const MAX_SNAPSHOT_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_COMPACTION_RECORDS: i64 = 1_000;
@@ -117,6 +118,14 @@ pub struct OrchestraDeleteRecord {
     pub deleted_runtime_count: u32,
     pub deleted_run_count: u64,
     pub deleted_event_count: u64,
+}
+
+pub struct RuntimeUnregistrationOperationRecord {
+    pub request: Vec<u8>,
+    pub deleted_runtime_count: u32,
+    pub deleted_run_count: u64,
+    pub deleted_event_count: u64,
+    pub removed_at_unix_ms: i64,
 }
 
 pub struct AuthorityCheckpointRecord {
@@ -984,45 +993,155 @@ impl Journal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| error.to_string())?;
-        let mut deleted_runtime_count = 0_u32;
-        let mut deleted_run_count = 0_u64;
-        let mut deleted_event_count = 0_u64;
-        for runtime_id in runtime_ids {
-            let run_count: i64 = transaction
-                .query_row(
-                    "SELECT COUNT(*) FROM orchestra_runs WHERE runtime_id = ?1",
-                    [runtime_id],
-                    |row| row.get(0),
-                )
-                .map_err(|error| error.to_string())?;
-            let event_count: i64 = transaction
-                .query_row(
-                    "SELECT COUNT(*) FROM orchestra_events WHERE runtime_id = ?1",
-                    [runtime_id],
-                    |row| row.get(0),
-                )
-                .map_err(|error| error.to_string())?;
-            if run_count > 0 {
-                deleted_runtime_count = deleted_runtime_count.saturating_add(1);
+        let deleted = delete_orchestra_runtimes_in_transaction(&transaction, runtime_ids)?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(deleted)
+    }
+
+    pub fn runtime_unregistration_operation(
+        &mut self,
+        operation_id: &str,
+    ) -> Result<Option<RuntimeUnregistrationOperationRecord>, String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("runtime unregistration operation_id", operation_id)?;
+        self.connection
+            .query_row(
+                "SELECT request, deleted_runtime_count, deleted_run_count,
+                        deleted_event_count, removed_at_unix_ms
+                 FROM runtime_unregistration_operations WHERE operation_id = ?1",
+                [operation_id],
+                |row| {
+                    let deleted_runtime_count = row.get::<_, i64>(1)?;
+                    let deleted_run_count = row.get::<_, i64>(2)?;
+                    let deleted_event_count = row.get::<_, i64>(3)?;
+                    Ok((
+                        row.get::<_, Vec<u8>>(0)?,
+                        deleted_runtime_count,
+                        deleted_run_count,
+                        deleted_event_count,
+                        row.get::<_, i64>(4)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .map(
+                |(
+                    request,
+                    deleted_runtime_count,
+                    deleted_run_count,
+                    deleted_event_count,
+                    removed_at_unix_ms,
+                )| {
+                    validate_blob("runtime unregistration request", &request)?;
+                    Ok(RuntimeUnregistrationOperationRecord {
+                        request,
+                        deleted_runtime_count: u32::try_from(deleted_runtime_count)
+                            .map_err(|_| "invalid deleted runtime count".to_string())?,
+                        deleted_run_count: u64::try_from(deleted_run_count)
+                            .map_err(|_| "invalid deleted run count".to_string())?,
+                        deleted_event_count: u64::try_from(deleted_event_count)
+                            .map_err(|_| "invalid deleted event count".to_string())?,
+                        removed_at_unix_ms,
+                    })
+                },
+            )
+            .transpose()
+    }
+
+    pub fn commit_runtime_unregistration_operation(
+        &mut self,
+        operation_id: &str,
+        request: &[u8],
+        runtime_ids: &[String],
+        unregistrations: &[Vec<u8>],
+    ) -> Result<RuntimeUnregistrationOperationRecord, String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("runtime unregistration operation_id", operation_id)?;
+        validate_blob("runtime unregistration request", request)?;
+        if runtime_ids.is_empty()
+            || runtime_ids.len() > 128
+            || runtime_ids.len() != unregistrations.len()
+        {
+            return Err(
+                "runtime unregistration must contain between 1 and 128 matching targets".into(),
+            );
+        }
+        let mut unique = BTreeSet::new();
+        for (runtime_id, payload) in runtime_ids.iter().zip(unregistrations) {
+            validate_scheduler_id("runtime_id", runtime_id)?;
+            validate_blob("runtime unregistration", payload)?;
+            if !unique.insert(runtime_id.as_str()) {
+                return Err("runtime unregistration contains a duplicate runtime ID".into());
             }
-            deleted_run_count = deleted_run_count
-                .checked_add(u64::try_from(run_count).map_err(|_| "invalid run count")?)
-                .ok_or_else(|| "Orchestra run count overflow".to_string())?;
-            deleted_event_count = deleted_event_count
-                .checked_add(u64::try_from(event_count).map_err(|_| "invalid event count")?)
-                .ok_or_else(|| "Orchestra event count overflow".to_string())?;
+        }
+        let removed_at_unix_ms = unix_time_ms()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let count: i64 = transaction
+            .query_row("SELECT COUNT(*) FROM runtime_journal", [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        let target_count = i64::try_from(runtime_ids.len())
+            .map_err(|_| "runtime unregistration target count is out of range".to_string())?;
+        if count.saturating_add(target_count) > MAX_JOURNAL_RECORDS {
+            return Err(format!(
+                "runtime journal record limit {MAX_JOURNAL_RECORDS} reached"
+            ));
+        }
+        let operation_count: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_unregistration_operations",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if operation_count >= MAX_RUNTIME_UNREGISTRATION_OPERATIONS {
+            return Err(format!(
+                "runtime unregistration operation limit \
+                 {MAX_RUNTIME_UNREGISTRATION_OPERATIONS} reached"
+            ));
+        }
+        for payload in unregistrations {
             transaction
                 .execute(
-                    "DELETE FROM orchestra_runs WHERE runtime_id = ?1",
-                    [runtime_id],
+                    "INSERT INTO runtime_journal
+                         (kind, payload, created_at_unix_ms) VALUES (?1, ?2, ?3)",
+                    params![
+                        JournalEntryKind::RuntimeUnregistration.as_str(),
+                        payload,
+                        removed_at_unix_ms
+                    ],
                 )
                 .map_err(|error| error.to_string())?;
         }
+        let deleted = delete_orchestra_runtimes_in_transaction(&transaction, runtime_ids)?;
+        transaction
+            .execute(
+                "INSERT INTO runtime_unregistration_operations
+                     (operation_id, request, deleted_runtime_count, deleted_run_count,
+                      deleted_event_count, removed_at_unix_ms)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    operation_id,
+                    request,
+                    i64::from(deleted.deleted_runtime_count),
+                    i64::try_from(deleted.deleted_run_count)
+                        .map_err(|_| "deleted run count is out of range".to_string())?,
+                    i64::try_from(deleted.deleted_event_count)
+                        .map_err(|_| "deleted event count is out of range".to_string())?,
+                    removed_at_unix_ms
+                ],
+            )
+            .map_err(|error| error.to_string())?;
         transaction.commit().map_err(|error| error.to_string())?;
-        Ok(OrchestraDeleteRecord {
-            deleted_runtime_count,
-            deleted_run_count,
-            deleted_event_count,
+        Ok(RuntimeUnregistrationOperationRecord {
+            request: request.to_vec(),
+            deleted_runtime_count: deleted.deleted_runtime_count,
+            deleted_run_count: deleted.deleted_run_count,
+            deleted_event_count: deleted.deleted_event_count,
+            removed_at_unix_ms,
         })
     }
 
@@ -1828,6 +1947,51 @@ impl Drop for Journal {
     }
 }
 
+fn delete_orchestra_runtimes_in_transaction(
+    transaction: &Transaction<'_>,
+    runtime_ids: &[String],
+) -> Result<OrchestraDeleteRecord, String> {
+    let mut deleted_runtime_count = 0_u32;
+    let mut deleted_run_count = 0_u64;
+    let mut deleted_event_count = 0_u64;
+    for runtime_id in runtime_ids {
+        let run_count: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM orchestra_runs WHERE runtime_id = ?1",
+                [runtime_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let event_count: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM orchestra_events WHERE runtime_id = ?1",
+                [runtime_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if run_count > 0 {
+            deleted_runtime_count = deleted_runtime_count.saturating_add(1);
+        }
+        deleted_run_count = deleted_run_count
+            .checked_add(u64::try_from(run_count).map_err(|_| "invalid run count")?)
+            .ok_or_else(|| "Orchestra run count overflow".to_string())?;
+        deleted_event_count = deleted_event_count
+            .checked_add(u64::try_from(event_count).map_err(|_| "invalid event count")?)
+            .ok_or_else(|| "Orchestra event count overflow".to_string())?;
+        transaction
+            .execute(
+                "DELETE FROM orchestra_runs WHERE runtime_id = ?1",
+                [runtime_id],
+            )
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(OrchestraDeleteRecord {
+        deleted_runtime_count,
+        deleted_run_count,
+        deleted_event_count,
+    })
+}
+
 fn complete_leased_effect(
     transaction: &Transaction<'_>,
     lease: &EffectLease,
@@ -1890,10 +2054,47 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         10 => migrate_schema_10_to_11(connection),
         11 => migrate_schema_11_to_12(connection),
         12 => migrate_schema_12_to_13(connection),
+        13 => migrate_schema_13_to_14(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_13_to_14(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE runtime_unregistration_operations (
+                 operation_id TEXT PRIMARY KEY,
+                 request BLOB NOT NULL CHECK (length(request) <= 65536),
+                 deleted_runtime_count INTEGER NOT NULL CHECK (deleted_runtime_count >= 0),
+                 deleted_run_count INTEGER NOT NULL CHECK (deleted_run_count >= 0),
+                 deleted_event_count INTEGER NOT NULL CHECK (deleted_event_count >= 0),
+                 removed_at_unix_ms INTEGER NOT NULL CHECK (removed_at_unix_ms >= 0)
+             ) STRICT;",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (14, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version' AND value = 13",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(14)
 }
 
 fn migrate_schema_12_to_13(connection: &mut Connection) -> Result<i64, String> {
@@ -2396,9 +2597,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (13, 1, 13) {
-        return Err("invalid runtime journal schema 13 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (14, 1, 14) {
+        return Err("invalid runtime journal schema 14 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -2408,23 +2609,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 13 timestamp column".into());
+        return Err("invalid runtime journal schema 14 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -2436,9 +2637,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 13 effect columns".into());
+        return Err("invalid runtime journal schema 14 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -2448,9 +2649,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 13 effect claim index".into());
+        return Err("invalid runtime journal schema 14 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
@@ -2462,9 +2663,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 13 journal kind".into());
+        return Err("invalid runtime journal schema 14 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -2473,9 +2674,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 13 log columns".into());
+        return Err("invalid runtime journal schema 14 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -2485,9 +2686,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 13 log index".into());
+        return Err("invalid runtime journal schema 14 log index".into());
     }
     let orchestra_tables: i64 = connection
         .query_row(
@@ -2496,9 +2697,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if orchestra_tables != 2 {
-        return Err("invalid runtime journal schema 13 Orchestra tables".into());
+        return Err("invalid runtime journal schema 14 Orchestra tables".into());
     }
     let orchestra_indexes: i64 = connection
         .query_row(
@@ -2510,9 +2711,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if orchestra_indexes != 3 {
-        return Err("invalid runtime journal schema 13 Orchestra indexes".into());
+        return Err("invalid runtime journal schema 14 Orchestra indexes".into());
     }
     let authority_columns: i64 = connection
         .query_row(
@@ -2524,9 +2725,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if authority_columns != 6 {
-        return Err("invalid runtime journal schema 13 authority checkpoint columns".into());
+        return Err("invalid runtime journal schema 14 authority checkpoint columns".into());
     }
     let authority_index: i64 = connection
         .query_row(
@@ -2536,9 +2737,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 13: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
     if authority_index != 1 {
-        return Err("invalid runtime journal schema 13 authority checkpoint index".into());
+        return Err("invalid runtime journal schema 14 authority checkpoint index".into());
+    }
+    let unregistration_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('runtime_unregistration_operations')
+             WHERE name IN (
+                 'operation_id', 'request', 'deleted_runtime_count', 'deleted_run_count',
+                 'deleted_event_count', 'removed_at_unix_ms'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 14: {error}"))?;
+    if unregistration_columns != 6 {
+        return Err("invalid runtime journal schema 14 unregistration columns".into());
     }
     Ok(())
 }

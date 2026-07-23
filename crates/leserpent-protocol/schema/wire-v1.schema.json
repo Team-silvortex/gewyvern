@@ -17,7 +17,20 @@
           "type": "object",
           "required": ["kind", "payload"],
           "properties": {
-            "kind": { "enum": ["command", "query", "health"] },
+            "kind": {
+              "enum": [
+                "command",
+                "query",
+                "health",
+                "deployment_receipt",
+                "orchestra_persist",
+                "orchestra_history",
+                "orchestra_delete",
+                "runtime_unregister",
+                "bootstrap_handoff",
+                "bootstrap_session_bind"
+              ]
+            },
             "payload": { "type": "object" }
           }
         }
@@ -33,7 +46,20 @@
           "type": "object",
           "required": ["kind", "payload"],
           "properties": {
-            "kind": { "enum": ["command", "query", "health", "error"] },
+            "kind": {
+              "enum": [
+                "command",
+                "query",
+                "health",
+                "deployment_receipt",
+                "orchestra_persisted",
+                "orchestra_history",
+                "orchestra_deleted",
+                "runtime_unregistered",
+                "bootstrap_handoff",
+                "error"
+              ]
+            },
             "payload": { "type": "object" }
           }
         }

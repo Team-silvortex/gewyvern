@@ -31,6 +31,7 @@ pub enum ProtocolRequest {
     OrchestraPersist(OrchestraPersistenceRequest),
     OrchestraHistory(OrchestraHistoryRequest),
     OrchestraDelete(OrchestraDeleteRequest),
+    RuntimeUnregister(RuntimeUnregisterRequest),
     BootstrapHandoff(BootstrapHandoffRequest),
     BootstrapSessionBind(BootstrapSessionBindRequest),
 }
@@ -77,6 +78,23 @@ pub struct OrchestraDeleteRequest {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct RuntimeUnregisterRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub command_id: CommandId,
+    pub targets: Vec<RuntimeUnregisterTarget>,
+    pub confirmed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeUnregisterTarget {
+    pub runtime_id: RuntimeId,
+    pub expected_revision: Revision,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct BootstrapHandoffRequest {
     pub principal: Principal,
     pub capabilities: CapabilitySet,
@@ -111,6 +129,7 @@ pub enum ProtocolResponse {
     OrchestraPersisted(OrchestraPersistenceResponse),
     OrchestraHistory(OrchestraHistoryResponse),
     OrchestraDeleted(OrchestraDeleteResponse),
+    RuntimeUnregistered(RuntimeUnregisterResponse),
     BootstrapHandoff(DeploymentBootstrapSnapshot),
     Error(ProtocolError),
 }
@@ -157,6 +176,18 @@ pub struct OrchestraDeleteResponse {
     pub deleted_runtime_count: u32,
     pub deleted_run_count: u64,
     pub deleted_event_count: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeUnregisterResponse {
+    pub command_id: CommandId,
+    pub removed: Vec<RuntimeUnregisterTarget>,
+    pub deleted_orchestra_runtime_count: u32,
+    pub deleted_orchestra_run_count: u64,
+    pub deleted_orchestra_event_count: u64,
+    pub removed_at_unix_ms: i64,
+    pub replayed: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -286,6 +317,7 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => DOMAIN_SCHEMA_VERSION,
     };
@@ -743,6 +775,25 @@ mod tests {
         assert_eq!(
             decode_request(&encode_request(&delete).unwrap()).unwrap(),
             delete
+        );
+        let unregister = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::RuntimeUnregister(RuntimeUnregisterRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([leserpent_domain::CAPABILITY_RUNTIME_UNREGISTER]),
+                command_id: CommandId::new("unregister-runtime-a").unwrap(),
+                targets: vec![RuntimeUnregisterTarget {
+                    runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                    expected_revision: Revision(7),
+                }],
+                confirmed: true,
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&unregister).unwrap()).unwrap(),
+            unregister
         );
     }
 

@@ -36,42 +36,49 @@ public partial class Program
             foreach (var runtime in registry.ListRuntimes(filter))
             {
                 var runtimeAdminToken = registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken;
+                var capabilityDiscovery = await discovery.DiscoverAsync(
+                    runtime.Endpoint,
+                    null,
+                    cancellationToken,
+                    runtimeAdminToken);
+                var statusDiscovery = await discovery.DiscoverStatusAsync(
+                    runtime.Endpoint,
+                    null,
+                    cancellationToken,
+                    runtimeAdminToken);
+                var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
+                var sidecarDiscovery = sidecarAccess is null
+                    ? null
+                    : await discovery.DiscoverSidecarStatusAsync(
+                        sidecarAccess.SidecarEndpoint,
+                        null,
+                        sidecarAccess.SidecarAdminToken,
+                        cancellationToken);
+                try
+                {
+                    await registrationAuthority.SubmitDiscoveryAsync(
+                        runtime.RuntimeId,
+                        cancellationToken,
+                        capabilityDiscovery,
+                        statusDiscovery,
+                        sidecarDiscovery);
+                }
+                catch (DaemonRuntimeRegistrationException ex)
+                {
+                    return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
+                }
+
                 var capabilityResult = registry.RefreshRuntimeCapabilities(
                     runtime.RuntimeId,
-                    await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, runtimeAdminToken));
+                    capabilityDiscovery);
                 var statusResult = registry.RefreshRuntimeStatus(
                     runtime.RuntimeId,
-                    await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, runtimeAdminToken));
-
+                    statusDiscovery);
                 if (capabilityResult is not null && statusResult is not null)
                 {
-                    var sidecarAccess = registry.GetRuntimeSidecarAccess(runtime.RuntimeId);
-                    RuntimeSidecarRefreshResponse? sidecarResult = null;
-                    if (sidecarAccess is not null)
-                    {
-                        var sidecarDiscovery = await discovery.DiscoverSidecarStatusAsync(
-                            sidecarAccess.SidecarEndpoint,
-                            null,
-                            sidecarAccess.SidecarAdminToken,
-                            cancellationToken);
-                        try
-                        {
-                            if (sidecarDiscovery.SidecarStatus is not null)
-                            {
-                                await registrationAuthority.SubmitSidecarStatusAsync(
-                                    runtime.RuntimeId,
-                                    sidecarDiscovery.SidecarStatus,
-                                    cancellationToken);
-                            }
-                        }
-                        catch (DaemonRuntimeRegistrationException ex)
-                        {
-                            return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
-                        }
-                        sidecarResult = registry.RefreshRuntimeSidecar(
-                            runtime.RuntimeId,
-                            sidecarDiscovery);
-                    }
+                    var sidecarResult = sidecarDiscovery is null
+                        ? null
+                        : registry.RefreshRuntimeSidecar(runtime.RuntimeId, sidecarDiscovery);
 
                     registry.RecordRecoveryActivity(
                         runtime.RuntimeId,
@@ -108,15 +115,38 @@ public partial class Program
                 new FleetRefreshAllResponse(refreshed.Count, refreshed)));
         });
 
-        app.MapPost("/v1/fleet/refresh-capabilities", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-capabilities", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetCapabilityRefreshItem>();
             foreach (var runtime in registry.ListRuntimes(filter))
             {
+                var capabilityDiscovery = await discovery.DiscoverAsync(
+                    runtime.Endpoint,
+                    null,
+                    cancellationToken,
+                    registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
+                try
+                {
+                    await registrationAuthority.SubmitDiscoveryAsync(
+                        runtime.RuntimeId,
+                        cancellationToken,
+                        capabilityDiscovery: capabilityDiscovery);
+                }
+                catch (DaemonRuntimeRegistrationException ex)
+                {
+                    return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
+                }
                 var result = registry.RefreshRuntimeCapabilities(
                     runtime.RuntimeId,
-                    await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
+                    capabilityDiscovery);
                 if (result is not null)
                 {
                     refreshed.Add(new FleetCapabilityRefreshItem(
@@ -164,10 +194,10 @@ public partial class Program
                 {
                     if (sidecarDiscovery.SidecarStatus is not null)
                     {
-                        await registrationAuthority.SubmitSidecarStatusAsync(
+                        await registrationAuthority.SubmitDiscoveryAsync(
                             runtime.RuntimeId,
-                            sidecarDiscovery.SidecarStatus,
-                            cancellationToken);
+                            cancellationToken,
+                            sidecarDiscovery: sidecarDiscovery);
                     }
                 }
                 catch (DaemonRuntimeRegistrationException ex)
@@ -205,15 +235,36 @@ public partial class Program
                 new FleetSidecarRefreshResponse(refreshed.Count, refreshed)));
         });
 
-        app.MapPost("/v1/fleet/refresh-status", async ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/fleet/refresh-status", async Task<IResult> (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
             var filter = new RuntimeListFilter(environmentTag, cluster, role);
             var refreshed = new List<FleetStatusRefreshItem>();
             foreach (var runtime in registry.ListRuntimes(filter))
             {
-                var result = registry.RefreshRuntimeStatus(
-                    runtime.RuntimeId,
-                    await discovery.DiscoverStatusAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken));
+                var statusDiscovery = await discovery.DiscoverStatusAsync(
+                    runtime.Endpoint,
+                    null,
+                    cancellationToken,
+                    registry.GetRuntimeControlAccess(runtime.RuntimeId)?.AdminToken);
+                try
+                {
+                    await registrationAuthority.SubmitDiscoveryAsync(
+                        runtime.RuntimeId,
+                        cancellationToken,
+                        statusDiscovery: statusDiscovery);
+                }
+                catch (DaemonRuntimeRegistrationException ex)
+                {
+                    return RuntimeRegistrationAuthorityFailure(ex, runtime.RuntimeId);
+                }
+                var result = registry.RefreshRuntimeStatus(runtime.RuntimeId, statusDiscovery);
                 if (result is not null)
                 {
                     registry.RecordRecoveryActivity(

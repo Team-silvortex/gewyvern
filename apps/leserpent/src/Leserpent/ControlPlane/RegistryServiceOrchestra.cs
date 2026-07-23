@@ -133,9 +133,9 @@ public sealed partial class RegistryService
             requestId);
         lock (orchestraRunSync)
         {
-            if (!runtimes.ContainsKey(runtimeId))
+            if (!runtimes.ContainsKey(runtimeId) || deletingRuntimes.Contains(runtimeId))
             {
-                throw new InvalidOperationException($"runtime {runtimeId} no longer exists");
+                throw new InvalidOperationException($"runtime {runtimeId} is unavailable for Orchestra");
             }
             if (!orchestraRunStore.Upsert(run, CreateRunEvent(
                 run,
@@ -158,9 +158,9 @@ public sealed partial class RegistryService
     {
         lock (orchestraRunSync)
         {
-            if (!runtimes.ContainsKey(runtimeId))
+            if (!runtimes.ContainsKey(runtimeId) || deletingRuntimes.Contains(runtimeId))
             {
-                throw new InvalidOperationException($"runtime {runtimeId} no longer exists");
+                throw new InvalidOperationException($"runtime {runtimeId} is unavailable for Orchestra");
             }
             if (!orchestraRunStore.Upsert(run, CreateRunEvent(
                 run,

@@ -392,7 +392,12 @@ public partial class Program
             }
         });
 
-        app.MapPost("/v1/runtimes/{id}/refresh-capabilities", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/{id}/refresh-capabilities", async (
+            string id,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
@@ -400,9 +405,23 @@ public partial class Program
                 return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
             }
 
-            var refreshed = registry.RefreshRuntimeCapabilities(
-                id,
-                await discovery.DiscoverAsync(runtime.Endpoint, null, cancellationToken, registry.GetRuntimeControlAccess(id)?.AdminToken));
+            var capabilityDiscovery = await discovery.DiscoverAsync(
+                runtime.Endpoint,
+                null,
+                cancellationToken,
+                registry.GetRuntimeControlAccess(id)?.AdminToken);
+            try
+            {
+                await registrationAuthority.SubmitDiscoveryAsync(
+                    id,
+                    cancellationToken,
+                    capabilityDiscovery: capabilityDiscovery);
+            }
+            catch (DaemonRuntimeRegistrationException ex)
+            {
+                return RuntimeRegistrationAuthorityFailure(ex, id);
+            }
+            var refreshed = registry.RefreshRuntimeCapabilities(id, capabilityDiscovery);
             return refreshed is null
                 ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
                 : Results.Ok(refreshed);
@@ -427,7 +446,13 @@ public partial class Program
                 registrationAuthority,
                 cancellationToken));
 
-        app.MapPost("/v1/runtimes/{id}/refresh-status", async (string id, RegistryService registry, CapabilityDiscoveryService discovery, ICompatibilityBridge compatibilityBridge, CancellationToken cancellationToken) =>
+        app.MapPost("/v1/runtimes/{id}/refresh-status", async (
+            string id,
+            RegistryService registry,
+            CapabilityDiscoveryService discovery,
+            ICompatibilityBridge compatibilityBridge,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
             var runtime = registry.GetRuntime(id);
             if (runtime is null)
@@ -453,6 +478,17 @@ public partial class Program
             catch (CompatibilityBridgeException ex)
             {
                 return CompatibilityBridgeFailure(ex);
+            }
+            try
+            {
+                await registrationAuthority.SubmitDiscoveryAsync(
+                    id,
+                    cancellationToken,
+                    statusDiscovery: statusDiscovery);
+            }
+            catch (DaemonRuntimeRegistrationException ex)
+            {
+                return RuntimeRegistrationAuthorityFailure(ex, id);
             }
             var refreshed = registry.RefreshRuntimeStatus(id, statusDiscovery);
             if (refreshed is not null)
@@ -504,10 +540,10 @@ public partial class Program
             {
                 if (sidecarDiscovery.SidecarStatus is not null)
                 {
-                    await registrationAuthority.SubmitSidecarStatusAsync(
+                    await registrationAuthority.SubmitDiscoveryAsync(
                         id,
-                        sidecarDiscovery.SidecarStatus,
-                        cancellationToken);
+                        cancellationToken,
+                        sidecarDiscovery: sidecarDiscovery);
                 }
             }
             catch (DaemonRuntimeRegistrationException ex)
@@ -536,12 +572,16 @@ public partial class Program
                 : Results.Ok(refreshed);
         });
 
-        app.MapPost("/v1/runtimes/{id}/delete", (string id, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/{id}/delete", async (
+            string id,
+            RegistryService registry,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
         {
-            (RuntimeSummary? RemovedRuntime, int RemovedSessionCount) deleted;
+            RuntimeDeletionReservation reservation;
             try
             {
-                deleted = registry.DeleteRuntime(id);
+                reservation = registry.ReserveRuntimeDeletion(new[] { id });
             }
             catch (OrchestraRuntimeBusyException ex)
             {
@@ -550,115 +590,153 @@ public partial class Program
                     RuntimeId: id,
                     ActiveRuns: ex.ActiveRuns));
             }
-            catch (OrchestraPersistenceException ex)
+            catch (RuntimeDeletionInProgressException)
             {
-                return Results.Json(
-                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message, RuntimeId: id),
-                    LeserpentJsonContext.Default.ApiErrorResponse,
-                    statusCode: StatusCodes.Status503ServiceUnavailable);
+                return Results.Conflict(new ApiErrorResponse(
+                    "runtime_delete_in_progress",
+                    RuntimeId: id));
             }
-            return deleted.RemovedRuntime is null
-                ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
-                : Results.Ok(new RuntimeDeleteResponse(
-                    true,
-                    deleted.RemovedRuntime.RuntimeId,
-                    deleted.RemovedRuntime.Name,
-                    deleted.RemovedRuntime.Endpoint,
-                    deleted.RemovedSessionCount));
+            using (reservation)
+            {
+                if (reservation.RuntimeIds.Count == 0)
+                {
+                    return Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id));
+                }
+                (RuntimeSummary? RemovedRuntime, int RemovedSessionCount) deleted;
+                try
+                {
+                    await registrationAuthority.UnregisterAsync(
+                        reservation.RuntimeIds,
+                        cancellationToken);
+                    deleted = registry.DeleteRuntime(id);
+                }
+                catch (DaemonRuntimeRegistrationException ex)
+                {
+                    return RuntimeUnregistrationAuthorityFailure(ex, id);
+                }
+                catch (OrchestraPersistenceException ex)
+                {
+                    return Results.Json(
+                        new ApiErrorResponse(
+                            "runtime_delete_persistence_unavailable",
+                            ex.Message,
+                            RuntimeId: id),
+                        LeserpentJsonContext.Default.ApiErrorResponse,
+                        statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
+                return deleted.RemovedRuntime is null
+                    ? Results.NotFound(new ApiErrorResponse("runtime_not_found", RuntimeId: id))
+                    : Results.Ok(new RuntimeDeleteResponse(
+                        true,
+                        deleted.RemovedRuntime.RuntimeId,
+                        deleted.RemovedRuntime.Name,
+                        deleted.RemovedRuntime.Endpoint,
+                        deleted.RemovedSessionCount));
+            }
         });
 
-        app.MapPost("/v1/runtimes/delete-failed", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RuntimeCleanupRequest request, RegistryService registry) =>
+        app.MapPost("/v1/runtimes/delete-failed", (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RuntimeCleanupRequest request,
+            RegistryService registry,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
+            ExecuteRuntimeCleanupAsync(
+                RuntimeCleanupPolicy.FailedKind,
+                new RuntimeListFilter(environmentTag, cluster, role),
+                request,
+                registry,
+                registrationAuthority,
+                cancellationToken));
+
+        app.MapPost("/v1/runtimes/delete-unobserved", (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RuntimeCleanupRequest request,
+            RegistryService registry,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
+            ExecuteRuntimeCleanupAsync(
+                RuntimeCleanupPolicy.UnobservedKind,
+                new RuntimeListFilter(environmentTag, cluster, role),
+                request,
+                registry,
+                registrationAuthority,
+                cancellationToken));
+
+        app.MapPost("/v1/runtimes/delete-slice", (
+            [FromQuery(Name = "environment")] string? environmentTag,
+            string? cluster,
+            string? role,
+            RuntimeCleanupRequest request,
+            RegistryService registry,
+            IRuntimeRegistrationAuthority registrationAuthority,
+            CancellationToken cancellationToken) =>
+            ExecuteRuntimeCleanupAsync(
+                RuntimeCleanupPolicy.SliceKind,
+                new RuntimeListFilter(environmentTag, cluster, role),
+                request,
+                registry,
+                registrationAuthority,
+                cancellationToken));
+    }
+
+    private static async Task<IResult> ExecuteRuntimeCleanupAsync(
+        string kind,
+        RuntimeListFilter filter,
+        RuntimeCleanupRequest request,
+        RegistryService registry,
+        IRuntimeRegistrationAuthority registrationAuthority,
+        CancellationToken cancellationToken)
+    {
+        try
         {
-            var filter = new RuntimeListFilter(environmentTag, cluster, role);
-            (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
-            try
+            var targetIds = registry.GetPlannedRuntimeCleanupTargetIds(kind, filter, request);
+            using var reservation = registry.ReserveRuntimeDeletion(targetIds);
+            if (reservation.RuntimeIds.Count != targetIds.Count)
             {
-                deleted = registry.DeletePlannedRuntimes(RuntimeCleanupPolicy.FailedKind, filter, request);
+                throw new RuntimeCleanupPlanMismatchException(
+                    "runtime cleanup targets changed before deletion reservation");
             }
-            catch (RuntimeCleanupPlanMismatchException ex)
-            {
-                return Results.Conflict(new ApiErrorResponse("runtime_cleanup_plan_changed", ex.Message));
-            }
-            catch (OrchestraRuntimeBusyException ex)
-            {
-                return Results.Conflict(new ApiErrorResponse("runtime_delete_orchestra_active", ActiveRuns: ex.ActiveRuns));
-            }
-            catch (OrchestraPersistenceException ex)
-            {
-                return Results.Json(
-                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message),
-                    LeserpentJsonContext.Default.ApiErrorResponse,
-                    statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
+            await registrationAuthority.UnregisterAsync(reservation.RuntimeIds, cancellationToken);
+            var deleted = registry.DeleteRuntimesById(reservation.RuntimeIds);
             return Results.Ok(new RuntimeBulkDeleteResponse(
                 true,
                 filter,
                 deleted.RemovedRuntimeCount,
                 deleted.RemovedSessionCount,
                 deleted.RemovedRuntimeNames));
-        });
-
-        app.MapPost("/v1/runtimes/delete-unobserved", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RuntimeCleanupRequest request, RegistryService registry) =>
+        }
+        catch (RuntimeCleanupPlanMismatchException ex)
         {
-            var filter = new RuntimeListFilter(environmentTag, cluster, role);
-            (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
-            try
-            {
-                deleted = registry.DeletePlannedRuntimes(RuntimeCleanupPolicy.UnobservedKind, filter, request);
-            }
-            catch (RuntimeCleanupPlanMismatchException ex)
-            {
-                return Results.Conflict(new ApiErrorResponse("runtime_cleanup_plan_changed", ex.Message));
-            }
-            catch (OrchestraRuntimeBusyException ex)
-            {
-                return Results.Conflict(new ApiErrorResponse("runtime_delete_orchestra_active", ActiveRuns: ex.ActiveRuns));
-            }
-            catch (OrchestraPersistenceException ex)
-            {
-                return Results.Json(
-                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message),
-                    LeserpentJsonContext.Default.ApiErrorResponse,
-                    statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
-            return Results.Ok(new RuntimeBulkDeleteResponse(
-                true,
-                filter,
-                deleted.RemovedRuntimeCount,
-                deleted.RemovedSessionCount,
-                deleted.RemovedRuntimeNames));
-        });
-
-        app.MapPost("/v1/runtimes/delete-slice", ([FromQuery(Name = "environment")] string? environmentTag, string? cluster, string? role, RuntimeCleanupRequest request, RegistryService registry) =>
+            return Results.Conflict(new ApiErrorResponse("runtime_cleanup_plan_changed", ex.Message));
+        }
+        catch (RuntimeDeletionInProgressException ex)
         {
-            var filter = new RuntimeListFilter(environmentTag, cluster, role);
-            (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames) deleted;
-            try
-            {
-                deleted = registry.DeletePlannedRuntimes(RuntimeCleanupPolicy.SliceKind, filter, request);
-            }
-            catch (RuntimeCleanupPlanMismatchException ex)
-            {
-                return Results.Conflict(new ApiErrorResponse("runtime_cleanup_plan_changed", ex.Message));
-            }
-            catch (OrchestraRuntimeBusyException ex)
-            {
-                return Results.Conflict(new ApiErrorResponse("runtime_delete_orchestra_active", ActiveRuns: ex.ActiveRuns));
-            }
-            catch (OrchestraPersistenceException ex)
-            {
-                return Results.Json(
-                    new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message),
-                    LeserpentJsonContext.Default.ApiErrorResponse,
-                    statusCode: StatusCodes.Status503ServiceUnavailable);
-            }
-            return Results.Ok(new RuntimeBulkDeleteResponse(
-                true,
-                filter,
-                deleted.RemovedRuntimeCount,
-                deleted.RemovedSessionCount,
-                deleted.RemovedRuntimeNames));
-        });
+            return Results.Conflict(new ApiErrorResponse(
+                "runtime_delete_in_progress",
+                RuntimeId: ex.RuntimeIds.FirstOrDefault()));
+        }
+        catch (OrchestraRuntimeBusyException ex)
+        {
+            return Results.Conflict(new ApiErrorResponse(
+                "runtime_delete_orchestra_active",
+                ActiveRuns: ex.ActiveRuns));
+        }
+        catch (OrchestraPersistenceException ex)
+        {
+            return Results.Json(
+                new ApiErrorResponse("runtime_delete_persistence_unavailable", ex.Message),
+                LeserpentJsonContext.Default.ApiErrorResponse,
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (DaemonRuntimeRegistrationException ex)
+        {
+            return RuntimeUnregistrationAuthorityFailure(ex, null);
+        }
     }
 
     private static async Task<IResult> ExecuteRuntimeRecoveryAsync(
@@ -742,6 +820,20 @@ public partial class Program
                 cancellationToken);
         }
 
+        try
+        {
+            await registrationAuthority.SubmitDiscoveryAsync(
+                runtimeId,
+                cancellationToken,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+        }
+        catch (DaemonRuntimeRegistrationException ex)
+        {
+            return RuntimeRegistrationAuthorityFailure(ex, runtimeId);
+        }
+
         var steps = new List<RuntimeRecoveryStepResult>();
         if (capabilityDiscovery is not null)
         {
@@ -773,20 +865,6 @@ public partial class Program
         }
         if (sidecarDiscovery is not null)
         {
-            try
-            {
-                if (sidecarDiscovery.SidecarStatus is not null)
-                {
-                    await registrationAuthority.SubmitSidecarStatusAsync(
-                        runtimeId,
-                        sidecarDiscovery.SidecarStatus,
-                        cancellationToken);
-                }
-            }
-            catch (DaemonRuntimeRegistrationException ex)
-            {
-                return RuntimeRegistrationAuthorityFailure(ex, runtimeId);
-            }
             var refreshed = registry.RefreshRuntimeSidecar(runtimeId, sidecarDiscovery);
             if (refreshed is null)
             {
@@ -891,6 +969,29 @@ public partial class Program
                 statusCode: StatusCodes.Status502BadGateway),
         };
     }
+
+    private static IResult RuntimeUnregistrationAuthorityFailure(
+        DaemonRuntimeRegistrationException error,
+        string? runtimeId) =>
+        error.Code switch
+        {
+            "idempotency_conflict" or "revision_conflict" => Results.Conflict(
+                new ApiErrorResponse(
+                    "runtime_delete_conflict",
+                    error.Message,
+                    RuntimeId: runtimeId)),
+            "runtime_not_found" => Results.NotFound(new ApiErrorResponse(
+                "runtime_not_found",
+                error.Message,
+                RuntimeId: runtimeId)),
+            _ => Results.Json(
+                new ApiErrorResponse(
+                    "runtime_delete_rejected",
+                    error.Message,
+                    RuntimeId: runtimeId),
+                LeserpentJsonContext.Default.ApiErrorResponse,
+                statusCode: StatusCodes.Status502BadGateway),
+        };
 
     private static IResult RuntimeProjectionFailure(
         DaemonRuntimeProjectionException exception,

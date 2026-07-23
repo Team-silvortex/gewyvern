@@ -621,10 +621,21 @@ protocol-reading, and recovery reads now use the shared read projection for
 authoritative identity, endpoints, timestamps, tags, status, and capabilities.
 Sidecar status, including its bounded memory-slot summary, now follows the same
 revision-fenced journal and strict read projection. Registration, individual
-sidecar refresh, recovery, and fleet sidecar refresh all commit daemon authority
-before updating the managed compatibility response. Legacy projections without
-sidecar status retain the managed fallback. Local token-presence facts
-intentionally remain at the secret boundary; cleanup remains managed.
+refresh, recovery, Fleet refresh, and Orchestra recovery all compose available
+capability, runtime-status, and sidecar observations into daemon discovery
+intake before updating the managed compatibility response. Runtime-status
+transport failures become only `runtime_status_fetch_failed`; sidecar failures
+become only `sidecar_fetch_failed`. The same runtime-status validator protects
+direct intake and scheduler effect completion. Legacy projections without
+sidecar status retain the managed fallback. Local token-presence and
+compatibility-only fetch telemetry intentionally remain at the local boundary.
+Cleanup and generic deletion now use a separate confirmed `runtime_unregister`
+result because successful deletion cannot carry a live runtime projection. The
+daemon revision-fences every target and atomically journals their removal,
+deletes Orchestra history, and stores an idempotent replay record in schema
+v14. The compatibility service reserves the selected runtimes across the
+daemon call, preventing new sessions or Orchestra runs before it removes local
+compatibility state.
 
 ## Leselang Semantics
 

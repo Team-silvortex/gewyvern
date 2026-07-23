@@ -12,7 +12,7 @@ use leserpent_domain::retirement::{
     RuntimeRetirementSnapshot,
 };
 use leserpent_domain::{
-    Command, CommandPlan, CommandPlanError, CommandResult, CommandStatus,
+    Command, CommandId, CommandPlan, CommandPlanError, CommandResult, CommandStatus,
     DOMAIN_SNAPSHOT_SCHEMA_VERSION, DomainError, DomainEvent, DomainSnapshot, DomainSnapshotError,
     InMemoryControlPlane, MAX_RUNTIME_LOG_MESSAGE_BYTES, MAX_RUNTIME_LOG_QUERY_ENTRIES,
     PlannedOperation, Query, QueryEnvelope, QueryResult, RUNTIME_CAPABILITY_DISCOVERY_EFFECT_KIND,
@@ -22,7 +22,7 @@ use leserpent_domain::{
     RuntimeStatusObservation, RuntimeStatusRefreshRequest,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 use std::path::Path;
 use std::time::Duration;
@@ -37,6 +37,23 @@ use persistence::{EffectRecord, Journal, JournalEntryKind};
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
 pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: usize = 4_096;
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RuntimeUnregisterTarget {
+    pub runtime_id: RuntimeId,
+    pub expected_revision: Revision,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeUnregisterResult {
+    pub command_id: CommandId,
+    pub removed: Vec<RuntimeUnregisterTarget>,
+    pub deleted_orchestra_runtime_count: u32,
+    pub deleted_orchestra_run_count: u64,
+    pub deleted_orchestra_event_count: u64,
+    pub removed_at_unix_ms: i64,
+    pub replayed: bool,
+}
 
 fn command_runtime_id(command: &Command) -> Option<&RuntimeId> {
     match command {
@@ -652,6 +669,102 @@ impl ControlRuntime {
         journal
             .delete_orchestra_runtimes(runtime_ids)
             .map_err(RuntimeError::Storage)
+    }
+
+    pub fn unregister_runtimes(
+        &mut self,
+        command_id: CommandId,
+        targets: Vec<RuntimeUnregisterTarget>,
+    ) -> Result<RuntimeUnregisterResult, RuntimeError> {
+        if targets.is_empty() || targets.len() > 128 {
+            return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                reason: "runtime unregistration requires between 1 and 128 targets",
+            }));
+        }
+        let mut unique = BTreeSet::new();
+        for target in &targets {
+            if !unique.insert(target.runtime_id.clone()) {
+                return Err(RuntimeError::Domain(DomainError::InvalidQuery {
+                    reason: "runtime unregistration targets must be unique",
+                }));
+            }
+        }
+        let request = serde_json::to_vec(&targets)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "runtime unregistration requires persistent storage".into(),
+            ));
+        };
+        if let Some(record) = journal
+            .runtime_unregistration_operation(command_id.as_str())
+            .map_err(RuntimeError::Storage)?
+        {
+            if record.request != request {
+                return Err(RuntimeError::Domain(DomainError::IdempotencyConflict {
+                    key: command_id.as_str().to_string(),
+                }));
+            }
+            return Ok(RuntimeUnregisterResult {
+                command_id,
+                removed: targets,
+                deleted_orchestra_runtime_count: record.deleted_runtime_count,
+                deleted_orchestra_run_count: record.deleted_run_count,
+                deleted_orchestra_event_count: record.deleted_event_count,
+                removed_at_unix_ms: record.removed_at_unix_ms,
+                replayed: true,
+            });
+        }
+
+        let mut staged = self.control.clone();
+        let mut runtime_ids = Vec::with_capacity(targets.len());
+        let mut unregistrations = Vec::with_capacity(targets.len());
+        for target in &targets {
+            let projection = staged
+                .runtime_projection(&target.runtime_id)
+                .ok_or_else(|| {
+                    RuntimeError::Domain(DomainError::RuntimeNotFound {
+                        runtime_id: target.runtime_id.as_str().to_string(),
+                    })
+                })?;
+            if projection.revision != target.expected_revision {
+                return Err(RuntimeError::Domain(DomainError::RevisionConflict {
+                    expected: target.expected_revision,
+                    actual: projection.revision,
+                }));
+            }
+            if !staged.unregister_runtime(&target.runtime_id) {
+                return Err(RuntimeError::ReplayMismatch { sequence: 0 });
+            }
+            runtime_ids.push(target.runtime_id.as_str().to_string());
+            unregistrations.push(
+                serde_json::to_vec(&RuntimeUnregistration {
+                    runtime_id: target.runtime_id.as_str().to_string(),
+                })
+                .map_err(|error| RuntimeError::Storage(error.to_string()))?,
+            );
+        }
+        let record = journal
+            .commit_runtime_unregistration_operation(
+                command_id.as_str(),
+                &request,
+                &runtime_ids,
+                &unregistrations,
+            )
+            .map_err(RuntimeError::Storage)?;
+        self.control = staged;
+        for target in &targets {
+            self.ephemeral_logs.remove(&target.runtime_id);
+        }
+        Ok(RuntimeUnregisterResult {
+            command_id,
+            removed: targets,
+            deleted_orchestra_runtime_count: record.deleted_runtime_count,
+            deleted_orchestra_run_count: record.deleted_run_count,
+            deleted_orchestra_event_count: record.deleted_event_count,
+            removed_at_unix_ms: record.removed_at_unix_ms,
+            replayed: false,
+        })
     }
 
     pub fn prune_terminal_effects(
@@ -2461,8 +2574,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 13);
-        assert_eq!(migration_count, 13);
+        assert_eq!(schema, 14);
+        assert_eq!(migration_count, 14);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2529,7 +2642,8 @@ mod tests {
                  FROM authority_checkpoints WHERE operation_kind = 'daemon_bootstrap';
                  DROP INDEX authority_checkpoints_by_kind_phase;
                  DROP TABLE authority_checkpoints;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13);
+                 DROP TABLE runtime_unregistration_operations;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13, 14);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -2557,14 +2671,14 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (13, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (14, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v13");
+        let path = temp_journal("incomplete-v14");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -2579,14 +2693,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 13);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 14);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 13")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 14")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2639,6 +2753,15 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 14",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE runtime_unregistration_operations", [])
+            .unwrap();
+        connection
             .execute("DROP TABLE authority_checkpoints", [])
             .unwrap();
         connection
@@ -2670,7 +2793,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 13);
+        assert_eq!(schema, 14);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2691,7 +2814,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 13 journal kind")
+                if error.contains("invalid runtime journal schema 14 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2704,14 +2827,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (14, 0)",
+                 VALUES (15, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 13 migration history")
+                if error.contains("invalid runtime journal schema 14 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2991,6 +3114,7 @@ mod tests {
                  DROP TABLE orchestra_events;
                  DROP TABLE orchestra_runs;
                  DROP TABLE authority_checkpoints;
+                 DROP TABLE runtime_unregistration_operations;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -3017,7 +3141,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 13);
+        assert_eq!(schema, 14);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3609,8 +3733,84 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 13);
+        assert_eq!(schema, 14);
         drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn runtime_unregistration_is_atomic_durable_and_replayable() {
+        let path = temp_journal("runtime-unregistration");
+        let runtime_id = RuntimeId::new("runtime-a").unwrap();
+        let command_id = CommandId::new("runtime-unregister-a").unwrap();
+        let target;
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let projection = runtime
+                .register_runtime(runtime_id.clone(), "Runtime A", "https://runtime-a.invalid")
+                .unwrap();
+            target = RuntimeUnregisterTarget {
+                runtime_id: runtime_id.clone(),
+                expected_revision: projection.revision,
+            };
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-unregister",
+                    runtime_id.as_str(),
+                    Some("request-unregister"),
+                    "run_queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    br#"{"runId":"orun-unregister","runtimeId":"runtime-a","outcome":"queued"}"#,
+                    br#"{"runId":"orun-unregister","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:00Z"}"#,
+                )
+                .unwrap();
+
+            let first = runtime
+                .unregister_runtimes(command_id.clone(), vec![target.clone()])
+                .unwrap();
+            assert!(!first.replayed);
+            assert_eq!(first.removed.as_slice(), std::slice::from_ref(&target));
+            assert_eq!(first.deleted_orchestra_runtime_count, 1);
+            assert_eq!(first.deleted_orchestra_run_count, 1);
+            assert_eq!(first.deleted_orchestra_event_count, 1);
+            assert!(runtime.runtime_projection(&runtime_id).is_none());
+            assert!(
+                runtime
+                    .load_orchestra_history(Some(runtime_id.as_str()), None, 0, 1)
+                    .unwrap()
+                    .runs
+                    .is_empty()
+            );
+
+            let replay = runtime
+                .unregister_runtimes(command_id.clone(), vec![target.clone()])
+                .unwrap();
+            assert!(replay.replayed);
+            assert_eq!(replay.removed_at_unix_ms, first.removed_at_unix_ms);
+            assert!(matches!(
+                runtime.unregister_runtimes(
+                    command_id.clone(),
+                    vec![RuntimeUnregisterTarget {
+                        runtime_id: runtime_id.clone(),
+                        expected_revision: Revision(target.expected_revision.0 + 1),
+                    }],
+                ),
+                Err(RuntimeError::Domain(
+                    DomainError::IdempotencyConflict { .. }
+                ))
+            ));
+        }
+
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        assert!(recovered.runtime_projection(&runtime_id).is_none());
+        assert!(
+            recovered
+                .unregister_runtimes(command_id, vec![target])
+                .unwrap()
+                .replayed
+        );
+        drop(recovered);
         fs::remove_file(path).unwrap();
     }
 

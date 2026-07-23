@@ -18,9 +18,15 @@ public interface IRuntimeRegistrationAuthority
         RuntimeStatusDiscoveryResult? statusDiscovery = null,
         RuntimeSidecarDiscoveryResult? sidecarDiscovery = null);
 
-    Task SubmitSidecarStatusAsync(
+    Task SubmitDiscoveryAsync(
         string runtimeId,
-        RuntimeSidecarStatusSnapshot status,
+        CancellationToken cancellationToken,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null);
+
+    Task UnregisterAsync(
+        IReadOnlyCollection<string> runtimeIds,
         CancellationToken cancellationToken);
 }
 
@@ -100,12 +106,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             using var response = await ExchangeAsync(command, deadline.Token);
             _ = ParseCommandResult(response.RootElement, runtimeId);
 
-            var capabilitySnapshot = capabilityDiscovery?.AuthoritySnapshot;
-            var statusSnapshot = statusDiscovery?.Status.StatusSource == "gewyvern-api"
-                && statusDiscovery.Status.StatusFetchError is null
-                    ? statusDiscovery.Status
-                    : null;
-            var sidecarSnapshot = SanitizeSidecarStatus(sidecarDiscovery?.SidecarStatus);
+            var (capabilitySnapshot, statusSnapshot, sidecarSnapshot) =
+                BuildDiscoverySnapshots(capabilityDiscovery, statusDiscovery, sidecarDiscovery);
             if (capabilitySnapshot is not null || statusSnapshot is not null || sidecarSnapshot is not null)
             {
                 var intakeRevision = await InspectRevisionAsync(runtimeId, deadline.Token)
@@ -141,12 +143,20 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         }
     }
 
-    public async Task SubmitSidecarStatusAsync(
+    public async Task SubmitDiscoveryAsync(
         string runtimeId,
-        RuntimeSidecarStatusSnapshot status,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null)
     {
         if (!Enabled)
+        {
+            return;
+        }
+        var (capabilitySnapshot, statusSnapshot, sidecarSnapshot) =
+            BuildDiscoverySnapshots(capabilityDiscovery, statusDiscovery, sidecarDiscovery);
+        if (capabilitySnapshot is null && statusSnapshot is null && sidecarSnapshot is null)
         {
             return;
         }
@@ -155,13 +165,13 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         try
         {
             var revision = await InspectRevisionAsync(runtimeId, deadline.Token)
-                ?? throw new InvalidOperationException("leserpentd lost the runtime before sidecar intake");
+                ?? throw new InvalidOperationException("leserpentd lost the runtime before discovery intake");
             var command = BuildDiscoveryIntakeCommand(
                 runtimeId,
                 revision,
-                null,
-                null,
-                SanitizeSidecarStatus(status));
+                capabilitySnapshot,
+                statusSnapshot,
+                sidecarSnapshot);
             using var response = await ExchangeAsync(command, deadline.Token);
             _ = ParseCommandResult(response.RootElement, runtimeId);
         }
@@ -169,7 +179,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         {
             throw new DaemonRuntimeRegistrationException(
                 "daemon_registration_timeout",
-                "leserpentd sidecar status intake timed out",
+                "leserpentd runtime discovery intake timed out",
                 error);
         }
         catch (Exception error) when (
@@ -180,10 +190,105 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         {
             throw new DaemonRuntimeRegistrationException(
                 "daemon_protocol_invalid",
-                "leserpentd returned an invalid sidecar status intake response",
+                "leserpentd returned an invalid runtime discovery intake response",
                 error);
         }
     }
+
+    public async Task UnregisterAsync(
+        IReadOnlyCollection<string> runtimeIds,
+        CancellationToken cancellationToken)
+    {
+        if (!Enabled || runtimeIds.Count == 0)
+        {
+            return;
+        }
+        var uniqueRuntimeIds = runtimeIds
+            .Select(runtimeId => runtimeId.Trim())
+            .Where(runtimeId => runtimeId.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (uniqueRuntimeIds.Length != runtimeIds.Count || uniqueRuntimeIds.Length > 128)
+        {
+            throw new ArgumentException(
+                "runtime unregistration requires between 1 and 128 unique runtime IDs",
+                nameof(runtimeIds));
+        }
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+        try
+        {
+            var targets = new List<(string RuntimeId, long Revision)>(uniqueRuntimeIds.Length);
+            foreach (var runtimeId in uniqueRuntimeIds)
+            {
+                var revision = await InspectRevisionAsync(runtimeId, deadline.Token);
+                if (revision is not null)
+                {
+                    targets.Add((runtimeId, revision.Value));
+                }
+            }
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var commandId = $"runtime-unregister-{Guid.NewGuid():N}";
+            using var response = await ExchangeAsync(
+                BuildUnregisterRequest(commandId, targets),
+                deadline.Token);
+            var payload = RequireResponse(response.RootElement, "runtime_unregistered");
+            if (!string.Equals(
+                    payload.GetProperty("command_id").GetString(),
+                    commandId,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "leserpentd returned a mismatched runtime unregistration result");
+            }
+            var removed = payload.GetProperty("removed")
+                .EnumerateArray()
+                .Select(target => target.GetProperty("runtime_id").GetString())
+                .ToArray();
+            if (removed.Length != targets.Count ||
+                !removed.SequenceEqual(targets.Select(target => target.RuntimeId), StringComparer.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "leserpentd returned mismatched runtime unregistration targets");
+            }
+        }
+        catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new DaemonRuntimeRegistrationException(
+                "daemon_unregistration_timeout",
+                "leserpentd runtime unregistration timed out",
+                error);
+        }
+        catch (Exception error) when (
+            error is KeyNotFoundException
+                or InvalidOperationException
+                or FormatException
+                or OverflowException)
+        {
+            throw new DaemonRuntimeRegistrationException(
+                "daemon_protocol_invalid",
+                "leserpentd returned an invalid runtime unregistration response",
+                error);
+        }
+    }
+
+    private static (
+        RuntimeCapabilityAuthoritySnapshot? Capabilities,
+        RuntimeStatusSnapshot? Status,
+        RuntimeSidecarStatusSnapshot? SidecarStatus) BuildDiscoverySnapshots(
+            CapabilityDiscoveryResult? capabilityDiscovery,
+            RuntimeStatusDiscoveryResult? statusDiscovery,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery) =>
+        (
+            capabilityDiscovery?.AuthoritySnapshot,
+            SanitizeRuntimeStatus(statusDiscovery?.Status),
+            SanitizeSidecarStatus(sidecarDiscovery?.SidecarStatus)
+        );
 
     private async Task<JsonDocument> ExchangeAsync(byte[] request, CancellationToken cancellationToken)
     {
@@ -448,6 +553,39 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         });
     }
 
+    private byte[] BuildUnregisterRequest(
+        string commandId,
+        IReadOnlyList<(string RuntimeId, long Revision)> targets)
+    {
+        return BuildFrame(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("schema_version", 1);
+            writer.WritePropertyName("request");
+            writer.WriteStartObject();
+            writer.WriteString("kind", "runtime_unregister");
+            writer.WritePropertyName("payload");
+            writer.WriteStartObject();
+            WritePrincipal(writer, "operator");
+            WriteCapabilities(writer, "runtime.unregister");
+            writer.WriteString("command_id", commandId);
+            writer.WritePropertyName("targets");
+            writer.WriteStartArray();
+            foreach (var target in targets)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("runtime_id", target.RuntimeId);
+                writer.WriteNumber("expected_revision", target.Revision);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteBoolean("confirmed", true);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
     private static void WriteCapabilitySnapshot(
         Utf8JsonWriter writer,
         RuntimeCapabilityAuthoritySnapshot? snapshot)
@@ -582,6 +720,37 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             "fetch_error",
             memory.FetchError is null ? null : "sidecar_memory_fetch_failed");
         writer.WriteEndObject();
+    }
+
+    private static RuntimeStatusSnapshot? SanitizeRuntimeStatus(RuntimeStatusSnapshot? status)
+    {
+        if (status is null)
+        {
+            return null;
+        }
+        if (status.StatusSource == "gewyvern-api"
+            && status.StatusFetchedAt is not null
+            && status.StatusFetchError is null)
+        {
+            return status;
+        }
+        return new RuntimeStatusSnapshot(
+            "fetch_failed",
+            null,
+            "runtime_status_fetch_failed",
+            false,
+            null,
+            null,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false);
     }
 
     private static RuntimeSidecarStatusSnapshot? SanitizeSidecarStatus(
@@ -743,30 +912,29 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         RuntimeStatusSnapshot? status,
         RuntimeSidecarStatusSnapshot? sidecarStatus)
     {
-        var endpoints = capabilities is null
-            ? string.Empty
-            : string.Join(',', capabilities.Endpoints);
-        var extensions = capabilities is null
-            ? string.Empty
-            : string.Join(',', capabilities.Extensions.OrderBy(item => item.Key, StringComparer.Ordinal)
-                .Select(item => $"{item.Key}={item.Value}"));
-        var value = string.Join('|',
+        var value = string.Join(
+            '|',
             "discovery",
             runtimeId,
             expectedRevision,
-            capabilities?.Version ?? string.Empty,
-            endpoints,
-            extensions,
-            status?.StatusFetchedAt?.ToString("O") ?? string.Empty,
-            status?.SnapshotKind ?? string.Empty,
-            status?.TargetCount?.ToString() ?? string.Empty,
-            BuildSidecarStatusDigest(sidecarStatus));
+            BuildSnapshotDigest(
+                capabilities,
+                static (writer, snapshot) => WriteCapabilitySnapshot(writer, snapshot)),
+            BuildSnapshotDigest(
+                status,
+                static (writer, snapshot) => WriteStatusSnapshot(writer, snapshot)),
+            BuildSnapshotDigest(
+                sidecarStatus,
+                static (writer, snapshot) => WriteSidecarStatusSnapshot(writer, snapshot)));
         return Convert.ToHexString(HashData(value)).ToLowerInvariant()[..32];
     }
 
-    private static string BuildSidecarStatusDigest(RuntimeSidecarStatusSnapshot? status)
+    private static string BuildSnapshotDigest<T>(
+        T? snapshot,
+        Action<Utf8JsonWriter, T?> writeSnapshot)
+        where T : class
     {
-        if (status is null)
+        if (snapshot is null)
         {
             return string.Empty;
         }
@@ -774,7 +942,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         using (var writer = new Utf8JsonWriter(output))
         {
             writer.WriteStartObject();
-            WriteSidecarStatusSnapshot(writer, status);
+            writeSnapshot(writer, snapshot);
             writer.WriteEndObject();
         }
         return Convert.ToHexString(SHA256.HashData(output.ToArray())).ToLowerInvariant();

@@ -628,9 +628,10 @@ legacy presentation list. It queries the daemon revision before update, creates
 missing legacy runtimes as an explicit reconcile step, submits registration and
 typed discovery observations through private authenticated IPC, and only then
 commits the managed compatibility projection. Sidecar discovery failures are
-reduced to `sidecar_fetch_failed`; pairing/admin tokens and raw error payloads
-never enter the Rust command. An unconfigured development host retains the
-managed fallback.
+reduced to `sidecar_fetch_failed`, and runtime-status failures become
+`runtime_status_fetch_failed`; pairing/admin tokens and raw error payloads never
+enter the Rust command. An unconfigured development host retains the managed
+fallback.
 
 The first Web read cutover now routes runtime list, runtime detail, and runtime
 status through strict typed daemon `runtime_list` / `runtime_inspect` queries
@@ -639,18 +640,26 @@ capabilities and the secret-free sidecar endpoint override managed copies.
 Journal-derived registration/update timestamps now override managed copies when
 present, survive restart, and do not advance on idempotent replay. Sidecar
 status and its bounded memory summary now share the revision-fenced durable
-projection; registration, individual refresh, recovery, and fleet refresh write
-daemon authority before the compatibility copy. Legacy snapshots without
-authority timestamps or sidecar status retain per-field managed fallbacks,
-while token-presence flags intentionally stay local to the secret boundary.
+projection. Registration, individual refresh, recovery, Fleet refresh, and
+Orchestra recovery compose their available observations into daemon authority
+before writing compatibility copies. The shared runtime-status validator covers
+both direct intake and scheduler completion. Legacy snapshots without authority
+timestamps or sidecar status retain per-field managed fallbacks, while
+token-presence and fetch-only compatibility telemetry stay local.
 Managed-only runtimes stay
 visible until their next registration reconcile, while a daemon-only runtime
 fails closed because the adapter cannot safely invent the missing 1.x metadata.
 Unknown projection fields, including secret-shaped fields, are rejected. The
 current slice now moves attention, protocol-reading, recovery, and sidecar reads
-onto this shared projection. The next slice will remove remaining managed-only
-refresh and cleanup mutations without moving token-presence out of the local
-secret boundary.
+onto this shared projection. Cleanup and generic unregistration now have an
+explicit confirmed result contract: a daemon schema-v14 transaction fences all
+target revisions, journals removal, deletes Orchestra history, and retains
+idempotent operation results. The Web bridge holds a deletion reservation while
+the daemon-first mutation and local compatibility cleanup run, so new sessions
+and Orchestra runs cannot cross the deletion boundary. Token-presence remains
+inside the local secret boundary. The remaining hardening gate is durable host
+recovery if the process stops after daemon commit but before local compatibility
+cleanup.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

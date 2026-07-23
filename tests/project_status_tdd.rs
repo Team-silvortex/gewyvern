@@ -189,7 +189,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
-    assert_eq!(runtime.contract.version, "1.8.0");
+    assert_eq!(runtime.contract.version, "1.10.0");
     for surface in [
         "durable-sidecar-endpoint",
         "atomic-sidecar-registration-update",
@@ -204,6 +204,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "sanitized-sidecar-failure-posture",
         "durable-sidecar-status",
         "sidecar-status-replay",
+        "validated-runtime-status-posture",
+        "sanitized-runtime-status-failure",
+        "shared-status-observation-validation",
+        "sqlite-v14-runtime-unregistration",
+        "atomic-unregistration-orchestra-cleanup",
+        "durable-unregistration-idempotency",
+        "restart-safe-unregistration-replay",
     ] {
         assert!(
             runtime
@@ -221,7 +228,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.6.0");
+    assert_eq!(compatibility_control.contract.version, "1.8.0");
     for surface in [
         "daemon-authoritative-sidecar-endpoint",
         "daemon-authoritative-runtime-timestamps",
@@ -231,6 +238,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "legacy-sidecar-status-fallback",
         "sanitized-sidecar-failure-intake",
         "daemon-first-sidecar-refresh",
+        "composed-daemon-discovery-intake",
+        "sanitized-runtime-status-failure-intake",
+        "daemon-first-runtime-refresh",
+        "daemon-first-fleet-refresh",
+        "daemon-first-orchestra-refresh",
+        "daemon-first-runtime-unregistration",
+        "runtime-deletion-reservation",
+        "reserved-session-and-orchestra-rejection",
     ] {
         assert!(
             compatibility_control
@@ -241,11 +256,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(
-        compatibility_control
-            .next_gate
-            .contains("remaining managed-only refresh and cleanup mutations")
-    );
+    assert!(compatibility_control.next_gate.contains("host crash"));
 
     let bootstrap = catalog
         .cells

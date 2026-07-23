@@ -13,6 +13,7 @@ pub const COMMAND_PLAN_SCHEMA_VERSION: u32 = 1;
 pub const DOMAIN_SNAPSHOT_SCHEMA_VERSION: u32 = 1;
 pub const CAPABILITY_RUNTIME_READ: &str = "runtime.read";
 pub const CAPABILITY_RUNTIME_REGISTER: &str = "runtime.register";
+pub const CAPABILITY_RUNTIME_UNREGISTER: &str = "runtime.unregister";
 pub const CAPABILITY_RUNTIME_REFRESH: &str = "runtime.refresh";
 pub const CAPABILITY_RUNTIME_DEPLOY: &str = "runtime.deploy";
 pub const CAPABILITY_ORCHESTRA_WRITE: &str = "orchestra.write";
@@ -1514,6 +1515,7 @@ impl InMemoryControlPlane {
                 actual: current.revision,
             });
         }
+        validate_runtime_status(&status)?;
 
         self.revision += 1;
         let mut next = current;
@@ -1912,32 +1914,68 @@ fn validate_discovery_intake(
         validate_runtime_capabilities(capabilities)?;
     }
     if let Some(status) = status {
-        let bounded = |value: Option<&str>, maximum: usize| {
-            value.is_none_or(|value| {
-                !value.is_empty()
-                    && value.len() <= maximum
-                    && value == value.trim()
-                    && !value.chars().any(char::is_control)
-            })
-        };
-        if status.status_source != "gewyvern-api"
-            || status.status_fetched_at.is_none()
-            || status.status_fetch_error.is_some()
-            || !bounded(status.status_fetched_at.as_deref(), 64)
-            || !bounded(status.snapshot_kind.as_deref(), 128)
-            || !bounded(status.resilience_status.as_deref(), 128)
-            || !bounded(status.resilience_summary.as_deref(), 1024)
-            || !bounded(status.socket_service_status.as_deref(), 128)
-        {
-            return Err(DomainError::InvalidQuery {
-                reason: "runtime status observation is invalid",
-            });
-        }
+        validate_runtime_status(status)?;
     }
     if let Some(sidecar_status) = sidecar_status {
         validate_runtime_sidecar_status(sidecar_status)?;
     }
     Ok(())
+}
+
+fn validate_runtime_status(status: &RuntimeStatusSnapshot) -> Result<(), DomainError> {
+    let bounded = |value: Option<&str>, maximum: usize| {
+        value.is_none_or(|value| {
+            !value.is_empty()
+                && value.len() <= maximum
+                && value == value.trim()
+                && !value.chars().any(char::is_control)
+        })
+    };
+    let common = bounded(status.status_fetched_at.as_deref(), 64)
+        && bounded(status.status_fetch_error.as_deref(), 128)
+        && bounded(status.snapshot_kind.as_deref(), 128)
+        && bounded(status.resilience_status.as_deref(), 128)
+        && bounded(status.resilience_summary.as_deref(), 1024)
+        && bounded(status.socket_service_status.as_deref(), 128)
+        && status.target_count.is_none_or(|count| count <= 10_000_000)
+        && status
+            .socket_consecutive_idle_timeouts
+            .is_none_or(|count| count <= 10_000_000)
+        && status
+            .socket_total_idle_timeouts
+            .is_none_or(|count| count <= 100_000_000);
+    let successful = status.status_source == "gewyvern-api"
+        && status.status_fetched_at.is_some()
+        && status.status_fetch_error.is_none();
+    let failed = status.status_source == "fetch_failed"
+        && status.status_fetched_at.is_none()
+        && status.status_fetch_error.as_deref() == Some("runtime_status_fetch_failed")
+        && !status.has_latest_snapshot
+        && status.snapshot_kind.is_none()
+        && status.target_count.is_none()
+        && !status.has_summary_json
+        && !status.has_analysis_json
+        && !status.has_training_example_json
+        && !status.has_training_dataset_manifest
+        && !status.has_export_json
+        && !status.has_report_json
+        && !status.has_report_html
+        && !status.has_external_sidecar_context
+        && !status.has_external_evidence_chain_enrichment
+        && !status.has_external_diagnostic_opinion
+        && !status.resilience_degraded
+        && status.resilience_status.is_none()
+        && status.resilience_summary.is_none()
+        && status.socket_service_status.is_none()
+        && status.socket_consecutive_idle_timeouts.is_none()
+        && status.socket_total_idle_timeouts.is_none();
+    if common && (successful || failed) {
+        Ok(())
+    } else {
+        Err(DomainError::InvalidQuery {
+            reason: "runtime status observation is invalid",
+        })
+    }
 }
 
 fn validate_runtime_sidecar_status(
@@ -2920,7 +2958,7 @@ mod tests {
 
         let failed_status = RuntimeStatusSnapshot {
             status_source: "fetch_failed".to_string(),
-            status_fetch_error: Some("connection refused".to_string()),
+            status_fetch_error: Some("runtime_status_fetch_failed".to_string()),
             ..RuntimeStatusSnapshot::default()
         };
         assert!(matches!(
@@ -2936,6 +2974,17 @@ mod tests {
             .unwrap();
         assert_eq!(completed.refresh_status, RefreshStatus::Failed);
         assert_eq!(completed.revision, Revision(3));
+        let raw_failure = RuntimeStatusSnapshot {
+            status_source: "fetch_failed".to_string(),
+            status_fetch_error: Some("connection refused".to_string()),
+            ..RuntimeStatusSnapshot::default()
+        };
+        assert!(matches!(
+            control.complete_runtime_status_refresh(&runtime_id, Revision(3), raw_failure),
+            Err(DomainError::InvalidQuery {
+                reason: "runtime status observation is invalid"
+            })
+        ));
     }
 
     #[test]

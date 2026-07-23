@@ -275,16 +275,18 @@ mod tests {
 
     use leserpent_domain::{
         CAPABILITY_ORCHESTRA_WRITE, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
-        CAPABILITY_RUNTIME_REGISTER, CapabilitySet, Command, CommandEnvelope, CommandId,
-        CommandOrigin, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
-        Principal, Query, QueryEnvelope, QueryResult, RUNTIME_DEPLOYMENT_EFFECT_KIND, Revision,
-        RuntimeCapabilitySnapshot, RuntimeDeploymentOutcome, RuntimeDeploymentRequest, RuntimeId,
-        RuntimeListFilter, RuntimeLogLevel, RuntimeTags,
+        CAPABILITY_RUNTIME_REGISTER, CAPABILITY_RUNTIME_UNREGISTER, CapabilitySet, Command,
+        CommandEnvelope, CommandId, CommandOrigin, CommandStatus, Confirmation,
+        DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, Query, QueryEnvelope, QueryResult,
+        RUNTIME_DEPLOYMENT_EFFECT_KIND, Revision, RuntimeCapabilitySnapshot,
+        RuntimeDeploymentOutcome, RuntimeDeploymentRequest, RuntimeId, RuntimeListFilter,
+        RuntimeLogLevel, RuntimeTags,
     };
     use leserpent_protocol::{
         DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, OrchestraDeleteRequest,
         OrchestraHistoryRequest, OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION,
-        ProtocolRequest, ProtocolResponse, RequestEnvelope, decode_response,
+        ProtocolRequest, ProtocolResponse, RequestEnvelope, RuntimeUnregisterRequest,
+        RuntimeUnregisterTarget, decode_response,
     };
 
     use super::*;
@@ -1030,6 +1032,66 @@ mod tests {
             ProtocolResponse::OrchestraHistory(ref history)
                 if history.runs.is_empty() && history.events.is_empty()
         ));
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authenticated_runtime_unregistration_requires_confirmation_and_replays() {
+        let database = temp_path("runtime-unregistration", "sqlite");
+        let socket = temp_path("runtime-unregistration", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let runtime_id = RuntimeId::new("runtime-unregister-a").unwrap();
+        let projection = runtime
+            .register_runtime(
+                runtime_id.clone(),
+                "Runtime Unregister A",
+                "https://runtime-unregister-a.invalid",
+            )
+            .unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let mut request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::RuntimeUnregister(RuntimeUnregisterRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_UNREGISTER]),
+                command_id: CommandId::new("runtime-unregister-command-a").unwrap(),
+                targets: vec![RuntimeUnregisterTarget {
+                    runtime_id: runtime_id.clone(),
+                    expected_revision: projection.revision,
+                }],
+                confirmed: false,
+            }),
+        };
+        let rejected = send(&server, &mut runtime, &socket, TOKEN, request.clone());
+        assert!(matches!(
+            rejected.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "runtime_unregister_rejected"
+        ));
+        assert!(runtime.runtime_projection(&runtime_id).is_some());
+
+        let ProtocolRequest::RuntimeUnregister(unregister) = &mut request.request else {
+            unreachable!();
+        };
+        unregister.confirmed = true;
+        let expected_targets = unregister.targets.clone();
+        let first = send(&server, &mut runtime, &socket, TOKEN, request.clone());
+        assert!(matches!(
+            first.response,
+            ProtocolResponse::RuntimeUnregistered(ref result)
+                if !result.replayed && result.removed == expected_targets
+        ));
+        assert!(runtime.runtime_projection(&runtime_id).is_none());
+        let replay = send(&server, &mut runtime, &socket, TOKEN, request);
+        assert!(matches!(
+            replay.response,
+            ProtocolResponse::RuntimeUnregistered(ref result) if result.replayed
+        ));
+
         drop(server);
         drop(runtime);
         fs::remove_file(database).unwrap();
