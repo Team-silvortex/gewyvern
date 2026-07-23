@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "observed_at": "2026-07-23T09:01:19.339446+00:00",
+  "observed_at": "2026-07-23T10:51:47.660058+00:00",
   "platform": "Unix",
   "architecture": "Arm64",
   "owner_lease_duration_ms": 30000,
@@ -17,8 +17,8 @@
   ],
   "interference_runtime_count": 8,
   "takeover_latencies_ms": [
-    30114,
-    30089
+    29999,
+    30074
   ],
   "checks": {
     "real_leserpentd": true,

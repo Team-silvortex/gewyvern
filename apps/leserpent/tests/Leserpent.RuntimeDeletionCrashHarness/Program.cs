@@ -70,6 +70,23 @@ if (string.Equals(phase, "mixed_overlapping", StringComparison.Ordinal))
         string.Join(',', reservations.Select(static reservation => reservation.IntentId)),
         phase);
 }
+else if (string.Equals(phase, "high_cardinality", StringComparison.Ordinal))
+{
+    var reservations = new List<RuntimeDeletionReservation>();
+    foreach (var index in Enumerable.Range(0, 32))
+    {
+        var targetId = $"{runtimeId}-queue-{index:D2}";
+        var request = CrashBoundaryRequest(targetId);
+        registry.RegisterRuntime(request, targetId);
+        await authority.RegisterAsync(request, targetId, CancellationToken.None);
+        reservations.Add(registry.ReserveRuntimeDeletion(new[] { targetId }));
+        await Task.Delay(2);
+    }
+    await PauseAtBoundaryAsync(
+        markerPath,
+        string.Join(',', reservations.Select(static reservation => reservation.IntentId)),
+        phase);
+}
 else
 {
     var request = CrashBoundaryRequest(runtimeId);

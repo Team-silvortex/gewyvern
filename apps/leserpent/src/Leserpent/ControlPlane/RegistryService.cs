@@ -254,14 +254,17 @@ public sealed partial class RegistryService
         }
     }
 
-    public IReadOnlyList<RuntimeDeletionReservation> ClaimPendingRuntimeDeletions()
+    public IReadOnlyList<RuntimeDeletionReservation> ClaimPendingRuntimeDeletions(
+        int maxCount = MaxPendingRuntimeDeletionIntents)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxCount, 1);
         lock (orchestraRunSync)
         {
             var reservations = new List<RuntimeDeletionReservation>();
             foreach (var intent in pendingRuntimeDeletions.Values
                 .OrderBy(static intent => intent.PreparedAt)
-                .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal))
+                .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal)
+                .Take(maxCount))
             {
                 if (activeRuntimeDeletionClaims.ContainsKey(intent.IntentId))
                 {
@@ -277,6 +280,145 @@ public sealed partial class RegistryService
                     intent.RuntimeIds));
             }
             return reservations;
+        }
+    }
+
+    internal void CompleteRecoveredRuntimeDeletions(
+        IReadOnlyCollection<RuntimeDeletionReservation> reservations)
+    {
+        if (reservations.Count == 0)
+        {
+            return;
+        }
+
+        lock (orchestraRunSync)
+        {
+            var intents = new List<PersistedRuntimeDeletionIntent>(reservations.Count);
+            var intentIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var reservation in reservations)
+            {
+                if (!intentIds.Add(reservation.IntentId) ||
+                    !pendingRuntimeDeletions.TryGetValue(
+                        reservation.IntentId,
+                        out var intent) ||
+                    !activeRuntimeDeletionClaims.TryGetValue(
+                        reservation.IntentId,
+                        out var activeClaimId) ||
+                    !string.Equals(
+                        activeClaimId,
+                        reservation.ClaimId,
+                        StringComparison.Ordinal) ||
+                    !reservation.RuntimeIds
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                        .SetEquals(intent.RuntimeIds))
+                {
+                    throw new InvalidOperationException(
+                        "runtime deletion intent is no longer pending");
+                }
+                intents.Add(intent);
+            }
+
+            var runtimeIds = intents
+                .SelectMany(static intent => intent.RuntimeIds)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var runtimeIdSet = runtimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var activeRuns = FindActiveOrchestraRuns(runtimeIds);
+            if (activeRuns.Count > 0)
+            {
+                throw new OrchestraRuntimeBusyException(activeRuns);
+            }
+
+            var removedRuntimes = runtimes.Values
+                .Where(runtime => runtimeIdSet.Contains(runtime.RuntimeId))
+                .ToArray();
+            var removedSessions = sessions.Values
+                .Where(session => runtimeIdSet.Contains(session.RuntimeId))
+                .ToArray();
+            var removedOrchestraRuns =
+                new Dictionary<string, ImmutableQueue<OrchestraRunSummary>>(
+                    StringComparer.OrdinalIgnoreCase);
+            var removedRecoveryActivities =
+                new Dictionary<string, ImmutableQueue<RuntimeRecoveryActivity>>(
+                    StringComparer.OrdinalIgnoreCase);
+            foreach (var runtimeId in runtimeIds)
+            {
+                if (orchestraRuns.TryGetValue(runtimeId, out var runs))
+                {
+                    removedOrchestraRuns[runtimeId] = runs;
+                }
+                if (recoveryActivities.TryGetValue(runtimeId, out var activities))
+                {
+                    removedRecoveryActivities[runtimeId] = activities;
+                }
+            }
+
+            lock (persistenceSync)
+            {
+                if (!orchestraRunStore.DeleteRuntimes(runtimeIds))
+                {
+                    throw new OrchestraPersistenceException(
+                        "failed to delete Orchestra history for recovered runtimes");
+                }
+
+                foreach (var runtimeId in runtimeIds)
+                {
+                    runtimes.TryRemove(runtimeId, out _);
+                    orchestraRuns.TryRemove(runtimeId, out _);
+                    recoveryActivities.TryRemove(runtimeId, out _);
+                }
+                foreach (var session in removedSessions)
+                {
+                    sessions.TryRemove(session.SessionId, out _);
+                }
+                foreach (var intent in intents)
+                {
+                    pendingRuntimeDeletions.TryRemove(intent.IntentId, out _);
+                    foreach (var runtimeId in intent.RuntimeIds)
+                    {
+                        deletingRuntimes.Remove(runtimeId);
+                    }
+                }
+
+                try
+                {
+                    PersistStateStrict();
+                    foreach (var intent in intents)
+                    {
+                        activeRuntimeDeletionClaims.Remove(intent.IntentId);
+                    }
+                }
+                catch (ControlPlaneStatePersistenceException ex)
+                {
+                    foreach (var runtime in removedRuntimes)
+                    {
+                        runtimes[runtime.RuntimeId] = runtime;
+                    }
+                    foreach (var session in removedSessions)
+                    {
+                        sessions[session.SessionId] = session;
+                    }
+                    foreach (var (runtimeId, runs) in removedOrchestraRuns)
+                    {
+                        orchestraRuns[runtimeId] = runs;
+                    }
+                    foreach (var (runtimeId, activities) in removedRecoveryActivities)
+                    {
+                        recoveryActivities[runtimeId] = activities;
+                    }
+                    foreach (var intent in intents)
+                    {
+                        pendingRuntimeDeletions[intent.IntentId] = intent;
+                        foreach (var runtimeId in intent.RuntimeIds)
+                        {
+                            deletingRuntimes.Add(runtimeId);
+                        }
+                    }
+                    throw new OrchestraPersistenceException(
+                        "failed to persist recovered runtime deletion batch",
+                        ex);
+                }
+            }
         }
     }
 

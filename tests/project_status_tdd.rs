@@ -140,6 +140,18 @@ fn retained_runtime_deletion_poison_isolation_is_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_high_cardinality_evidence_is_non_vacuous() {
+    assert_runtime_deletion_high_cardinality(
+        "docs/fixtures/leserpent_runtime_deletion_high_cardinality_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_high_cardinality(
+        "docs/fixtures/leserpent_runtime_deletion_high_cardinality_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -538,6 +550,81 @@ fn assert_runtime_deletion_poison_isolation(path: &str, expected_architecture: &
     }
 }
 
+fn assert_runtime_deletion_high_cardinality(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion high-cardinality evidence must exist"),
+    )
+    .expect("runtime deletion high-cardinality evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["queue_intent_count"], 32);
+    assert_eq!(evidence["poison_stride"], 8);
+    assert_eq!(evidence["poison_intent_count"], 4);
+    assert_eq!(evidence["healthy_intent_count"], 28);
+    assert_eq!(evidence["first_pass_converged_intent_count"], 28);
+    assert_eq!(evidence["first_pass_pending_intent_count"], 4);
+    assert_eq!(evidence["recovery_passes_observed"], 3);
+    assert_eq!(evidence["interference_runtime_count"], 8);
+    let poison_attempts = evidence["poison_attempt_counts"]
+        .as_array()
+        .expect("poison attempt counts must be an array");
+    assert_eq!(poison_attempts.len(), 4);
+    assert!(
+        poison_attempts
+            .iter()
+            .all(|attempts| attempts.as_u64().is_some_and(|attempts| attempts >= 3))
+    );
+    let first_pass_latency = evidence["first_pass_latency_ms"]
+        .as_u64()
+        .expect("first-pass latency must be numeric");
+    let authority_phase_latency = evidence["authority_phase_latency_ms"]
+        .as_u64()
+        .expect("authority-phase latency must be numeric");
+    let local_batch_latency = evidence["local_batch_latency_ms"]
+        .as_u64()
+        .expect("local-batch latency must be numeric");
+    let retry_window = evidence["poison_retry_window_ms"]
+        .as_u64()
+        .expect("poison retry window must be numeric");
+    assert_eq!(evidence["recovery_batch_size"], 32);
+    assert_eq!(evidence["max_concurrent_authority_mutations"], 8);
+    assert_eq!(evidence["max_ipc_connections_per_daemon_tick"], 64);
+    assert_eq!(
+        first_pass_latency,
+        authority_phase_latency + local_batch_latency
+    );
+    assert!(first_pass_latency < 3_000);
+    assert!(local_batch_latency <= 500);
+    assert!(retry_window >= first_pass_latency + 1_800);
+    assert!(retry_window <= first_pass_latency + 5_000);
+    for check in [
+        "real_leserpentd",
+        "bounded_recovery_claim_batch",
+        "bounded_concurrent_authority_mutations",
+        "bounded_daemon_ipc_drain",
+        "deterministic_durable_queue_order",
+        "sparse_poison_failures_were_target_scoped",
+        "first_pass_made_bounded_healthy_progress",
+        "every_healthy_intent_converged_in_first_pass",
+        "first_pass_latency_under_3000_ms",
+        "successful_local_convergence_used_one_strict_batch",
+        "every_poison_intent_retried_without_busy_loop",
+        "poison_reservations_survived_disk_reload",
+        "poison_runtimes_remained_protected_after_reload",
+        "repaired_authority_converged_every_poison_intent",
+        "concurrent_registration_and_state_save_traffic",
+        "every_unrelated_runtime_survived_disk_reload",
+        "every_unrelated_daemon_registration_survived",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained high-cardinality proof {check}"
+        );
+    }
+}
+
 #[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
@@ -776,6 +863,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "durable-poison-reservation",
         "post-repair-poison-convergence",
         "physical-linux-poison-isolation-proof",
+        "high-cardinality-recovery-queue",
+        "sparse-poison-progress",
+        "per-pass-recovery-evidence",
+        "cross-platform-serial-recovery-baseline",
+        "bounded-runtime-deletion-recovery-batch",
+        "bounded-authority-mutation-concurrency",
+        "bounded-daemon-ipc-drain",
+        "atomic-successful-deletion-batch",
+        "cross-platform-sub-3000ms-recovery-proof",
     ] {
         assert!(
             compatibility_control
@@ -789,7 +885,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("high-cardinality recovery queue")
+            .contains("strict local batch persistence failure")
     );
 
     let bootstrap = catalog

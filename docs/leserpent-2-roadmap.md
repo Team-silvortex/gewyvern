@@ -736,8 +736,22 @@ editing. Reproduce it with
 Arm64 Unix and physical Ubuntu x86_64 evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_poison_isolation_20260723.json` and
 `docs/fixtures/leserpent_runtime_deletion_poison_isolation_linux_x86_64_20260723.json`.
-The next reliability gate runs a bounded high-cardinality recovery queue with
-sparse poison intents and retains per-pass progress evidence.
+The high-cardinality gate now runs 32 independently durable intents with four
+evenly spaced poison targets. The first recovery pass converges all 28 healthy
+intents, retains only poison reservations, and records retry-window timing
+before reload and repair. Reproduce it with
+`scripts/validation/leserpent_runtime_deletion_high_cardinality.sh`; retained
+Arm64 Unix and physical Ubuntu x86_64 evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_high_cardinality_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_high_cardinality_linux_x86_64_20260723.json`.
+The original serial first-pass baselines were 6460 ms and 7628 ms. Recovery is
+now bounded to 32 claimed intents, eight concurrent authority mutations, and 64
+daemon IPC connections per worker tick; successful local convergence is
+committed with one strict batch save. The optimized first-pass measurements are
+158 ms and 248 ms, with every isolation and durability check retained. The next
+gate injects failure into that strict local batch save after daemon mutations
+succeed, then proves complete in-memory rollback and idempotent convergence on
+the next recovery pass.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

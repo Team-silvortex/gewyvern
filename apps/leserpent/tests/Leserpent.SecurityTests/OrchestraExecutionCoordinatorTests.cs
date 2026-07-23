@@ -363,6 +363,71 @@ public sealed class OrchestraExecutionCoordinatorTests
     }
 
     [Fact]
+    public void RuntimeDeletionRecoveryClaimsAndPersistsABoundedSuccessBatch()
+    {
+        var runStore = new CountingDeleteRunStore();
+        var (registry, statePath) = CreateRegistry(runStore);
+        var runtimeIds = Enumerable.Range(0, 3)
+            .Select(index => $"runtime-batch-{index}")
+            .ToArray();
+        foreach (var runtimeId in runtimeIds)
+        {
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    $"Runtime {runtimeId}",
+                    $"https://{runtimeId}.example",
+                    "pairing-token"),
+                runtimeId);
+            registry.ReserveRuntimeDeletion(new[] { runtimeId }).Dispose();
+        }
+
+        var reservations = registry.ClaimPendingRuntimeDeletions(2);
+        var claimedRuntimeIds = reservations
+            .SelectMany(reservation => reservation.RuntimeIds)
+            .OrderBy(static runtimeId => runtimeId, StringComparer.Ordinal)
+            .ToArray();
+        var remainingRuntimeId = Assert.Single(runtimeIds.Except(
+            claimedRuntimeIds,
+            StringComparer.Ordinal));
+        try
+        {
+            Assert.Equal(2, reservations.Count);
+            registry.CompleteRecoveredRuntimeDeletions(reservations);
+        }
+        finally
+        {
+            foreach (var reservation in reservations)
+            {
+                reservation.Dispose();
+            }
+        }
+
+        Assert.Equal(1, runStore.DeleteCount);
+        Assert.Equal(
+            claimedRuntimeIds,
+            runStore.LastDeletedRuntimeIds
+                .OrderBy(static runtimeId => runtimeId, StringComparer.Ordinal));
+        Assert.Equal(new[] { remainingRuntimeId }, registry
+            .ListPendingRuntimeDeletions()
+            .SelectMany(intent => intent.RuntimeIds));
+        foreach (var runtimeId in claimedRuntimeIds)
+        {
+            Assert.Null(registry.GetRuntime(runtimeId));
+        }
+        Assert.NotNull(registry.GetRuntime(remainingRuntimeId));
+        var reloaded = CreateRegistry(statePath);
+        Assert.Equal(new[] { remainingRuntimeId }, reloaded
+            .ListPendingRuntimeDeletions()
+            .SelectMany(intent => intent.RuntimeIds));
+        foreach (var runtimeId in claimedRuntimeIds)
+        {
+            Assert.Null(reloaded.GetRuntime(runtimeId));
+        }
+        Assert.NotNull(reloaded.GetRuntime(remainingRuntimeId));
+        DeleteStateFiles(statePath);
+    }
+
+    [Fact]
     public void RuntimeDeletionReservationRollsBackWhenIntentCannotBePersisted()
     {
         var (registry, statePath) = CreateRegistry();
@@ -559,6 +624,33 @@ public sealed class OrchestraExecutionCoordinatorTests
         public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) => inner.Upsert(run, eventRecord);
         public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) => inner.ReplaceAll(runs);
         public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => false;
+    }
+
+    private sealed class CountingDeleteRunStore : IOrchestraRunStore
+    {
+        private readonly InMemoryOrchestraRunStore inner = new();
+
+        public int DeleteCount { get; private set; }
+        public IReadOnlyList<string> LastDeletedRuntimeIds { get; private set; } =
+            Array.Empty<string>();
+        public string Provider => "counting-delete-test";
+        public string Location => "test";
+        public int SchemaVersion => 0;
+        public string? LastError => null;
+        public IReadOnlyList<OrchestraRunSummary> LoadAll() => inner.LoadAll();
+        public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) =>
+            inner.LoadEvents(runtimeId, runId);
+        public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) =>
+            inner.Upsert(run, eventRecord);
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) =>
+            inner.ReplaceAll(runs);
+
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds)
+        {
+            DeleteCount += 1;
+            LastDeletedRuntimeIds = runtimeIds.ToArray();
+            return inner.DeleteRuntimes(runtimeIds);
+        }
     }
 
     private sealed class TestHostEnvironment : IHostEnvironment

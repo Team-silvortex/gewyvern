@@ -133,6 +133,21 @@ impl IpcServer {
         Ok(true)
     }
 
+    pub fn poll_batch(
+        &self,
+        runtime: &mut ControlRuntime,
+        max_connections: usize,
+    ) -> Result<usize, String> {
+        if max_connections == 0 {
+            return Err("IPC batch size must be positive".into());
+        }
+        let mut handled = 0;
+        while handled < max_connections && self.poll_once(runtime)? {
+            handled += 1;
+        }
+        Ok(handled)
+    }
+
     fn handle(&self, mut stream: UnixStream, runtime: &mut ControlRuntime) -> Result<(), String> {
         stream
             .set_nonblocking(false)
@@ -270,6 +285,7 @@ impl Drop for IpcServer {
 mod tests {
     use std::collections::BTreeMap;
     use std::io::{Read, Write};
+    use std::net::Shutdown;
     use std::os::unix::fs::PermissionsExt;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -352,6 +368,45 @@ mod tests {
         assert!(matches!(response.response, ProtocolResponse::Query(_)));
         drop(server);
         assert!(!socket.exists());
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn queued_connections_are_drained_up_to_the_batch_limit() {
+        let database = temp_path("batch", "sqlite");
+        let socket = temp_path("batch", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let request = serde_json::json!({
+            "token": TOKEN,
+            "request": query_request(),
+        });
+        let mut encoded = serde_json::to_vec(&request).unwrap();
+        encoded.push(b'\n');
+        let mut clients = (0..3)
+            .map(|_| {
+                let mut client = UnixStream::connect(&socket).unwrap();
+                client.write_all(&encoded).unwrap();
+                client.shutdown(Shutdown::Write).unwrap();
+                client
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(server.poll_batch(&mut runtime, 2).unwrap(), 2);
+        assert_eq!(server.poll_batch(&mut runtime, 2).unwrap(), 1);
+        assert_eq!(server.poll_batch(&mut runtime, 2).unwrap(), 0);
+        assert!(server.poll_batch(&mut runtime, 0).is_err());
+        for client in &mut clients {
+            let mut response = Vec::new();
+            client.read_to_end(&mut response).unwrap();
+            assert!(matches!(
+                decode_response(&response).unwrap().response,
+                ProtocolResponse::Query(_)
+            ));
+        }
+
+        drop(server);
         drop(runtime);
         fs::remove_file(database).unwrap();
     }

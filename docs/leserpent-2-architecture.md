@@ -699,6 +699,18 @@ poison runtime remains reserved against new work and survives a fresh state
 reconstruction. Removing the scoped failure must then converge that original
 intent without manual state mutation. Recovery fairness therefore does not
 depend on every target being healthy.
+The high-cardinality extension expands this queue to 32 independently durable
+intents with four evenly spaced poison targets. The first pass must converge
+all 28 healthy intents in deterministic queue order, leave only the four poison
+reservations pending, and preserve them across reload before repair. Retained
+Arm64 and x86_64 timings first established serial baselines of 6460 ms and
+7628 ms. Production recovery now claims at most 32 intents per pass, runs at
+most eight independent authority mutations concurrently, drains at most 64
+queued daemon IPC connections per worker tick, and commits all successful local
+convergence with one strict state save. A target-scoped failure remains isolated
+from the other reservations. The same evidence now measures 158 ms on Arm64 and
+248 ms on physical x86_64 Linux while retaining poison isolation, retry pacing,
+disk reconstruction, and unrelated concurrent traffic.
 
 ## Leselang Semantics
 

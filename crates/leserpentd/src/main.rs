@@ -26,6 +26,8 @@ use leserpentd::{BootstrapOriginConfig, GewyvernOriginConfig};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use zeroize::Zeroizing;
 
+const MAX_IPC_CONNECTIONS_PER_TICK: usize = 64;
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("leserpentd: {error}");
@@ -460,7 +462,7 @@ fn run() -> Result<(), String> {
                 }
                 #[cfg(unix)]
                 if let Some(ipc) = &ipc {
-                    ipc.poll_once(host.runtime_mut())?;
+                    ipc.poll_batch(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK)?;
                 }
                 if let Some(remote) = &mut remote {
                     remote.poll_once(host.runtime_mut())?;
@@ -473,7 +475,7 @@ fn run() -> Result<(), String> {
             while !stop.load(Ordering::Acquire) {
                 #[cfg(unix)]
                 if let Some(ipc) = &ipc {
-                    ipc.poll_once(host.runtime_mut())?;
+                    ipc.poll_batch(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK)?;
                 }
                 if let Some(remote) = &mut remote {
                     remote.poll_once(host.runtime_mut())?;
