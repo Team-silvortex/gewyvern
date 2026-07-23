@@ -104,6 +104,30 @@ fn retained_runtime_deletion_unclean_takeovers_are_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_overlapping_takeovers_are_non_vacuous() {
+    assert_runtime_deletion_overlapping_takeover(
+        "docs/fixtures/leserpent_runtime_deletion_overlapping_takeover_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_overlapping_takeover(
+        "docs/fixtures/leserpent_runtime_deletion_overlapping_takeover_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_repeated_takeovers_are_non_vacuous() {
+    assert_runtime_deletion_repeated_takeover(
+        "docs/fixtures/leserpent_runtime_deletion_repeated_takeover_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_repeated_takeover(
+        "docs/fixtures/leserpent_runtime_deletion_repeated_takeover_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -350,6 +374,114 @@ fn assert_runtime_deletion_unclean_takeover(path: &str, expected_architecture: &
     }
 }
 
+fn assert_runtime_deletion_overlapping_takeover(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion overlapping takeover evidence must exist"),
+    )
+    .expect("runtime deletion overlapping takeover evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["owner_lease_duration_ms"], 30_000);
+    assert_eq!(evidence["forced_host_terminations"], 1);
+    assert_eq!(evidence["sigkill_daemon_terminations"], 1);
+    assert_eq!(evidence["overlapping_intent_count"], 3);
+    assert_eq!(evidence["interference_runtime_count"], 8);
+    assert!(
+        evidence["takeover_latency_ms"]
+            .as_u64()
+            .is_some_and(|latency| (20_000..=45_000).contains(&latency))
+    );
+    assert_eq!(
+        evidence["intent_boundaries"],
+        serde_json::json!([
+            "intent_persisted",
+            "daemon_committed",
+            "local_cleanup_persisted"
+        ])
+    );
+    for check in [
+        "real_leserpentd",
+        "mixed_durable_boundaries_shared_one_state",
+        "all_intents_restored_independently",
+        "all_initial_offline_attempts_failed",
+        "all_failed_claims_released_for_retry",
+        "pre_expiry_replacement_rejected",
+        "takeover_waited_for_natural_owner_lease_expiry",
+        "same_daemon_database_reopened",
+        "all_retries_succeeded",
+        "all_intents_converged",
+        "concurrent_registration_and_state_save_traffic",
+        "every_unrelated_runtime_survived_disk_reload",
+        "every_unrelated_daemon_registration_survived",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained overlapping takeover proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_repeated_takeover(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion repeated takeover evidence must exist"),
+    )
+    .expect("runtime deletion repeated takeover evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["owner_lease_duration_ms"], 30_000);
+    assert_eq!(evidence["forced_host_terminations"], 1);
+    assert_eq!(evidence["sigkill_daemon_terminations"], 2);
+    assert_eq!(evidence["owner_lease_takeovers"], 2);
+    assert_eq!(evidence["overlapping_intent_count"], 3);
+    assert_eq!(evidence["partially_converged_intent_count"], 1);
+    assert_eq!(evidence["pending_intents_after_second_termination"], 2);
+    assert_eq!(evidence["interference_runtime_count"], 8);
+    let latencies = evidence["takeover_latencies_ms"]
+        .as_array()
+        .expect("repeated takeover latencies must be an array");
+    assert_eq!(latencies.len(), 2);
+    assert!(latencies.iter().all(|latency| {
+        latency
+            .as_u64()
+            .is_some_and(|value| (20_000..=45_000).contains(&value))
+    }));
+    assert_eq!(
+        evidence["intent_boundaries"],
+        serde_json::json!([
+            "intent_persisted",
+            "daemon_committed",
+            "local_cleanup_persisted"
+        ])
+    );
+    for check in [
+        "real_leserpentd",
+        "mixed_durable_boundaries_shared_one_state",
+        "all_initial_offline_attempts_failed",
+        "first_retry_committed_before_second_sigkill",
+        "first_local_cleanup_completed_after_second_sigkill",
+        "partial_progress_remained_durable",
+        "remaining_attempts_observed_second_outage",
+        "all_failed_claims_released_for_retry",
+        "both_pre_expiry_replacements_rejected",
+        "both_takeovers_waited_for_natural_owner_lease_expiry",
+        "same_daemon_database_reopened_twice",
+        "remaining_retries_succeeded_after_second_takeover",
+        "all_intents_converged",
+        "concurrent_registration_and_state_save_traffic",
+        "every_unrelated_runtime_survived_disk_reload",
+        "every_unrelated_daemon_registration_survived",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained repeated takeover proof {check}"
+        );
+    }
+}
+
 #[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
@@ -575,6 +707,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "pre-expiry-double-owner-rejection",
         "natural-lease-failover-latency-evidence",
         "physical-linux-sigkill-recovery-proof",
+        "overlapping-durable-deletion-intents",
+        "mixed-boundary-single-takeover-proof",
+        "independent-intent-claim-retry",
+        "physical-linux-overlapping-intent-proof",
+        "repeated-unclean-daemon-takeover",
+        "partial-deletion-progress-preservation",
+        "second-outage-claim-release",
+        "physical-linux-repeated-takeover-proof",
     ] {
         assert!(
             compatibility_control
@@ -588,7 +728,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("multiple overlapping durable deletion intents")
+            .contains("permanently failing deletion intent")
     );
 
     let bootstrap = catalog

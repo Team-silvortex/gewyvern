@@ -37,37 +37,74 @@ var stateStore = new ControlPlaneStateStore(
     NullLogger<ControlPlaneStateStore>.Instance);
 var registry = new RegistryService(stateStore, new InMemoryOrchestraRunStore());
 var authority = new DaemonRuntimeRegistrationAuthority(configuration);
-var request = new RuntimeRegistrationRequest(
-    "Crash Boundary Runtime",
-    "https://runtime.example",
-    "test-only-pairing-token");
 
-registry.RegisterRuntime(request, runtimeId);
-await authority.RegisterAsync(
-    request,
-    runtimeId,
-    CancellationToken.None);
-using var reservation = registry.ReserveRuntimeDeletion(new[] { runtimeId });
-switch (phase)
+if (string.Equals(phase, "mixed_overlapping", StringComparison.Ordinal))
 {
-    case "intent_persisted":
-        await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
-        break;
-    case "daemon_committed":
-        await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
-        await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
-        break;
-    case "local_cleanup_persisted":
-        await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
-        registry.DeleteRuntime(runtimeId);
-        await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
-        break;
-    default:
-        Console.Error.WriteLine($"unknown runtime deletion crash phase: {phase}");
-        return 64;
+    var phases = new[]
+    {
+        "intent_persisted",
+        "daemon_committed",
+        "local_cleanup_persisted",
+    };
+    var reservations = new List<RuntimeDeletionReservation>();
+    foreach (var boundary in phases)
+    {
+        var targetId = $"{runtimeId}-{boundary.Replace('_', '-')}";
+        var request = CrashBoundaryRequest(targetId);
+        registry.RegisterRuntime(request, targetId);
+        await authority.RegisterAsync(request, targetId, CancellationToken.None);
+        var reservation = registry.ReserveRuntimeDeletion(new[] { targetId });
+        reservations.Add(reservation);
+        if (!string.Equals(boundary, "intent_persisted", StringComparison.Ordinal))
+        {
+            await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
+        }
+        if (string.Equals(boundary, "local_cleanup_persisted", StringComparison.Ordinal))
+        {
+            registry.DeleteRuntime(targetId);
+        }
+    }
+    await PauseAtBoundaryAsync(
+        markerPath,
+        string.Join(',', reservations.Select(static reservation => reservation.IntentId)),
+        phase);
+}
+else
+{
+    var request = CrashBoundaryRequest(runtimeId);
+    registry.RegisterRuntime(request, runtimeId);
+    await authority.RegisterAsync(
+        request,
+        runtimeId,
+        CancellationToken.None);
+    using var reservation = registry.ReserveRuntimeDeletion(new[] { runtimeId });
+    switch (phase)
+    {
+        case "intent_persisted":
+            await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
+            break;
+        case "daemon_committed":
+            await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
+            await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
+            break;
+        case "local_cleanup_persisted":
+            await authority.UnregisterAsync(reservation.RuntimeIds, CancellationToken.None);
+            registry.DeleteRuntime(runtimeId);
+            await PauseAtBoundaryAsync(markerPath, reservation.IntentId, phase);
+            break;
+        default:
+            Console.Error.WriteLine($"unknown runtime deletion crash phase: {phase}");
+            return 64;
+    }
 }
 
 return 0;
+
+static RuntimeRegistrationRequest CrashBoundaryRequest(string runtimeId) =>
+    new(
+        $"Crash Boundary Runtime {runtimeId}",
+        $"https://{runtimeId}.example",
+        "test-only-pairing-token");
 
 static async Task PauseAtBoundaryAsync(
     string markerPath,

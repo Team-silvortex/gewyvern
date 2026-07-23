@@ -678,6 +678,20 @@ Recovery, concurrent registration, disk reload, and daemon inspection must all
 converge without deleting unrelated runtimes. Retained Arm64 Unix and physical
 Ubuntu x86_64 evidence records the observed takeover latency rather than
 shortening or bypassing the production lease.
+The overlapping-intent extension leaves three independent deletion intents in
+one compatibility state image: intent-only, daemon-committed, and
+local-cleanup-persisted. A single host termination and unclean daemon takeover
+must restore all three, observe one real offline failure per intent, release
+each claim independently, and converge every retry after lease-safe takeover.
+Concurrent unrelated registrations must remain present in memory, a fresh
+state reconstruction, and daemon authority.
+The repeated-takeover extension interrupts that recovery after one intent has
+committed its daemon mutation but before its local cleanup. The replacement
+daemon is killed again, the first intent completes its local durable transition,
+and the remaining intents must observe the second outage and release their
+claims. A second natural owner-lease takeover then resumes only the remaining
+work. This proves partial progress is monotonic across repeated authority loss
+rather than restarting or rolling back the deletion batch.
 
 ## Leselang Semantics
 

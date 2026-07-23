@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T08:48:18.572517+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "owner_lease_duration_ms": 30000,
+  "forced_host_terminations": 1,
+  "sigkill_daemon_terminations": 1,
+  "overlapping_intent_count": 3,
+  "intent_boundaries": [
+    "intent_persisted",
+    "daemon_committed",
+    "local_cleanup_persisted"
+  ],
+  "interference_runtime_count": 8,
+  "takeover_latency_ms": 29830,
+  "checks": {
+    "real_leserpentd": true,
+    "mixed_durable_boundaries_shared_one_state": true,
+    "all_intents_restored_independently": true,
+    "all_initial_offline_attempts_failed": true,
+    "all_failed_claims_released_for_retry": true,
+    "pre_expiry_replacement_rejected": true,
+    "takeover_waited_for_natural_owner_lease_expiry": true,
+    "same_daemon_database_reopened": true,
+    "all_retries_succeeded": true,
+    "all_intents_converged": true,
+    "concurrent_registration_and_state_save_traffic": true,
+    "every_unrelated_runtime_survived_disk_reload": true,
+    "every_unrelated_daemon_registration_survived": true
+  }
+}

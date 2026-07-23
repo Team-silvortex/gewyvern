@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T09:05:37.4582284+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "owner_lease_duration_ms": 30000,
+  "forced_host_terminations": 1,
+  "sigkill_daemon_terminations": 2,
+  "owner_lease_takeovers": 2,
+  "overlapping_intent_count": 3,
+  "partially_converged_intent_count": 1,
+  "pending_intents_after_second_termination": 2,
+  "intent_boundaries": [
+    "intent_persisted",
+    "daemon_committed",
+    "local_cleanup_persisted"
+  ],
+  "interference_runtime_count": 8,
+  "takeover_latencies_ms": [
+    29829,
+    30113
+  ],
+  "checks": {
+    "real_leserpentd": true,
+    "mixed_durable_boundaries_shared_one_state": true,
+    "all_initial_offline_attempts_failed": true,
+    "first_retry_committed_before_second_sigkill": true,
+    "first_local_cleanup_completed_after_second_sigkill": true,
+    "partial_progress_remained_durable": true,
+    "remaining_attempts_observed_second_outage": true,
+    "all_failed_claims_released_for_retry": true,
+    "both_pre_expiry_replacements_rejected": true,
+    "both_takeovers_waited_for_natural_owner_lease_expiry": true,
+    "same_daemon_database_reopened_twice": true,
+    "remaining_retries_succeeded_after_second_takeover": true,
+    "all_intents_converged": true,
+    "concurrent_registration_and_state_save_traffic": true,
+    "every_unrelated_runtime_survived_disk_reload": true,
+    "every_unrelated_daemon_registration_survived": true
+  }
+}

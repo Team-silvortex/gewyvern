@@ -708,8 +708,27 @@ registration and state-save traffic. Reproduce it with
 Arm64 Unix and physical Ubuntu x86_64 latency evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_unclean_takeover_20260723.json` and
 `docs/fixtures/leserpent_runtime_deletion_unclean_takeover_linux_x86_64_20260723.json`.
-The next reliability gate covers multiple overlapping durable deletion intents
-across one unclean daemon takeover.
+The overlapping-intent gate now persists three independent intents at the
+intent-only, daemon-committed, and local-cleanup-persisted boundaries in one
+state image. One host termination and one unclean daemon takeover must release
+and retry every failed claim independently while preserving concurrent normal
+traffic. Reproduce it with
+`scripts/validation/leserpent_runtime_deletion_overlapping_takeover.sh`;
+retained Arm64 Unix and physical Ubuntu x86_64 evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_overlapping_takeover_20260723.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_overlapping_takeover_linux_x86_64_20260723.json`.
+The repeated-takeover gate now interrupts recovery after one intent commits its
+daemon mutation, kills the replacement daemon, and requires that intent to
+finish local cleanup while the other two observe a real second outage. The
+remaining claims must release and converge only after a second natural lease
+takeover. Reproduce it with
+`scripts/validation/leserpent_runtime_deletion_repeated_takeover.sh`; retained
+Arm64 Unix and physical Ubuntu x86_64 evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_repeated_takeover_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_repeated_takeover_linux_x86_64_20260723.json`.
+The next reliability gate proves that one permanently failing deletion intent
+cannot starve independent recoverable intents.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

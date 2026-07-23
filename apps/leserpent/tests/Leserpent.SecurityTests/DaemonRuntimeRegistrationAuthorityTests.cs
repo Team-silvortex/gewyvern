@@ -613,6 +613,358 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionRecoversOverlappingIntentsAfterSingleUncleanTakeover()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(File.Exists(harnessAssembly), $"crash harness was not built at {harnessAssembly}");
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var statePath = socketPath + ".overlapping.state.json";
+        var markerPath = socketPath + ".overlapping.marker";
+        const string runtimePrefix = "runtime-overlapping";
+        var targetRuntimeIds = RuntimeDeletionCrashPhases
+            .Select(phase => $"{runtimePrefix}-{phase.Replace('_', '-')}")
+            .ToArray();
+        var interferenceRuntimeIds = Enumerable.Range(0, RuntimeDeletionInterferenceRuntimeCount)
+            .Select(index => $"runtime-overlapping-traffic-{index}")
+            .ToArray();
+        Process? harness = null;
+        int? harnessProcessId = null;
+        RuntimeDeletionRecoveryService? recovery = null;
+        using var daemon = new RestartableTestDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await daemon.StartAsync();
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                runtimePrefix,
+                "mixed_overlapping");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            Assert.NotNull(await authority.InspectAsync(
+                targetRuntimeIds[0],
+                CancellationToken.None));
+            Assert.Null(await authority.InspectAsync(
+                targetRuntimeIds[1],
+                CancellationToken.None));
+            Assert.Null(await authority.InspectAsync(
+                targetRuntimeIds[2],
+                CancellationToken.None));
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+            daemon.Stop();
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+                .Build();
+            var restarted = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            Assert.Equal(3, restarted.ListPendingRuntimeDeletions().Count);
+            Assert.NotNull(restarted.GetRuntime(targetRuntimeIds[0]));
+            Assert.NotNull(restarted.GetRuntime(targetRuntimeIds[1]));
+            Assert.Null(restarted.GetRuntime(targetRuntimeIds[2]));
+
+            var coordinatedAuthority = new MultiIntentTakeoverRuntimeDeletionAuthority(
+                authority,
+                targetRuntimeIds);
+            recovery = new RuntimeDeletionRecoveryService(
+                restarted,
+                coordinatedAuthority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            await recovery.StartAsync(CancellationToken.None);
+            await coordinatedAuthority.AllInitialAttemptsFailed.WaitAsync(
+                TimeSpan.FromSeconds(5));
+
+            RegisterLocalInterferenceBatch(restarted, interferenceRuntimeIds[..2]);
+            var takeoverLatencyMs = await daemon.StartAfterOwnerLeaseExpiryAsync();
+            await RegisterDaemonInterferenceBatchAsync(
+                authority,
+                interferenceRuntimeIds[..2]);
+            var racingRegistrations = RegisterInterferenceBatchAsync(
+                restarted,
+                authority,
+                interferenceRuntimeIds[2..]);
+            coordinatedAuthority.AllowRetries();
+            await racingRegistrations;
+            await coordinatedAuthority.AllRetriesSucceeded.WaitAsync(
+                TimeSpan.FromSeconds(10));
+            await WaitForDeletionRecoveryAsync(restarted, targetRuntimeIds);
+
+            Assert.Empty(restarted.ListPendingRuntimeDeletions());
+            foreach (var runtimeId in targetRuntimeIds)
+            {
+                Assert.Null(restarted.GetRuntime(runtimeId));
+                Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            }
+
+            await recovery.StopAsync(CancellationToken.None);
+            recovery.Dispose();
+            recovery = null;
+            restarted.SaveNow();
+            var diskReloaded = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            foreach (var runtimeId in interferenceRuntimeIds)
+            {
+                Assert.NotNull(restarted.GetRuntime(runtimeId));
+                Assert.NotNull(diskReloaded.GetRuntime(runtimeId));
+                Assert.NotNull(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            }
+            WriteOverlappingIntentTakeoverEvidenceIfRequested(takeoverLatencyMs);
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            daemon.Stop();
+            try
+            {
+                var authority = CreateAuthority(
+                    ("LESERPENT_DAEMON_SOCKET", socketPath),
+                    ("LESERPENT_DAEMON_TOKEN", Token),
+                    ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+                await authority.UnregisterAsync(
+                    interferenceRuntimeIds,
+                    CancellationToken.None);
+            }
+            catch
+            {
+                // The isolated daemon database is removed below.
+            }
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionKeepsPartialProgressAcrossRepeatedUncleanTakeovers()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(File.Exists(harnessAssembly), $"crash harness was not built at {harnessAssembly}");
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var statePath = socketPath + ".repeated-takeover.state.json";
+        var markerPath = socketPath + ".repeated-takeover.marker";
+        const string runtimePrefix = "runtime-repeated-takeover";
+        var targetRuntimeIds = RuntimeDeletionCrashPhases
+            .Select(phase => $"{runtimePrefix}-{phase.Replace('_', '-')}")
+            .ToArray();
+        var interferenceRuntimeIds = Enumerable.Range(0, RuntimeDeletionInterferenceRuntimeCount)
+            .Select(index => $"runtime-repeated-takeover-traffic-{index}")
+            .ToArray();
+        Process? harness = null;
+        int? harnessProcessId = null;
+        RuntimeDeletionRecoveryService? recovery = null;
+        using var daemon = new RestartableTestDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await daemon.StartAsync();
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                runtimePrefix,
+                "mixed_overlapping");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+            daemon.Stop();
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+                .Build();
+            var restarted = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            Assert.Equal(3, restarted.ListPendingRuntimeDeletions().Count);
+
+            var coordinatedAuthority =
+                new InterruptedMultiIntentTakeoverRuntimeDeletionAuthority(
+                    authority,
+                    targetRuntimeIds);
+            recovery = new RuntimeDeletionRecoveryService(
+                restarted,
+                coordinatedAuthority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            await recovery.StartAsync(CancellationToken.None);
+            await coordinatedAuthority.AllInitialAttemptsFailed.WaitAsync(
+                TimeSpan.FromSeconds(5));
+
+            RegisterLocalInterferenceBatch(restarted, interferenceRuntimeIds[..2]);
+            var firstTakeoverLatencyMs = await daemon.StartAfterOwnerLeaseExpiryAsync();
+            await RegisterDaemonInterferenceBatchAsync(
+                authority,
+                interferenceRuntimeIds[..2]);
+            await RegisterInterferenceBatchAsync(
+                restarted,
+                authority,
+                interferenceRuntimeIds[2..4]);
+            coordinatedAuthority.AllowFirstRetry();
+            await coordinatedAuthority.FirstRetryDaemonCommitted.WaitAsync(
+                TimeSpan.FromSeconds(10));
+
+            daemon.Stop();
+            coordinatedAuthority.CompleteFirstRetryAfterSecondTermination();
+            RegisterLocalInterferenceBatch(restarted, interferenceRuntimeIds[4..6]);
+            await coordinatedAuthority.RemainingAttemptsFailedAfterSecondTermination.WaitAsync(
+                TimeSpan.FromSeconds(10));
+            await WaitForPendingDeletionCountAsync(restarted, 2);
+            var partiallyConvergedRuntimeId = coordinatedAuthority.FirstCommittedRuntimeId;
+            Assert.NotNull(partiallyConvergedRuntimeId);
+            Assert.Null(restarted.GetRuntime(partiallyConvergedRuntimeId));
+
+            var secondTakeoverLatencyMs = await daemon.StartAfterOwnerLeaseExpiryAsync();
+            await RegisterDaemonInterferenceBatchAsync(
+                authority,
+                interferenceRuntimeIds[4..6]);
+            var racingRegistrations = RegisterInterferenceBatchAsync(
+                restarted,
+                authority,
+                interferenceRuntimeIds[6..]);
+            coordinatedAuthority.AllowFinalRetries();
+            await racingRegistrations;
+            await coordinatedAuthority.AllFinalRetriesSucceeded.WaitAsync(
+                TimeSpan.FromSeconds(10));
+            await WaitForDeletionRecoveryAsync(restarted, targetRuntimeIds);
+
+            Assert.Empty(restarted.ListPendingRuntimeDeletions());
+            foreach (var runtimeId in targetRuntimeIds)
+            {
+                Assert.Null(restarted.GetRuntime(runtimeId));
+                Assert.Null(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            }
+
+            await recovery.StopAsync(CancellationToken.None);
+            recovery.Dispose();
+            recovery = null;
+            restarted.SaveNow();
+            var diskReloaded = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            foreach (var runtimeId in interferenceRuntimeIds)
+            {
+                Assert.NotNull(restarted.GetRuntime(runtimeId));
+                Assert.NotNull(diskReloaded.GetRuntime(runtimeId));
+                Assert.NotNull(await authority.InspectAsync(runtimeId, CancellationToken.None));
+            }
+            WriteRepeatedTakeoverEvidenceIfRequested(
+                firstTakeoverLatencyMs,
+                secondTakeoverLatencyMs);
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            daemon.Stop();
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ConfiguredAuthorityReadsStrictTypedRuntimeProjections()
     {
         if (OperatingSystem.IsWindows())
@@ -1316,19 +1668,41 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
 
     private static async Task WaitForDeletionRecoveryAsync(
         RegistryService registry,
-        string runtimeId)
+        string runtimeId) =>
+        await WaitForDeletionRecoveryAsync(registry, new[] { runtimeId });
+
+    private static async Task WaitForDeletionRecoveryAsync(
+        RegistryService registry,
+        IReadOnlyCollection<string> runtimeIds)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
         while (DateTimeOffset.UtcNow < deadline)
         {
             if (registry.ListPendingRuntimeDeletions().Count == 0 &&
-                registry.GetRuntime(runtimeId) is null)
+                runtimeIds.All(runtimeId => registry.GetRuntime(runtimeId) is null))
             {
                 return;
             }
             await Task.Delay(10);
         }
         throw new TimeoutException("runtime deletion intent did not converge after restart");
+    }
+
+    private static async Task WaitForPendingDeletionCountAsync(
+        RegistryService registry,
+        int expectedCount)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (registry.ListPendingRuntimeDeletions().Count == expectedCount)
+            {
+                return;
+            }
+            await Task.Delay(10);
+        }
+        throw new TimeoutException(
+            $"runtime deletion intent count did not converge to {expectedCount}");
     }
 
     private static void WriteCrashEvidenceIfRequested()
@@ -1541,6 +1915,116 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 every_unrelated_runtime_survived_disk_reload = true,
                 every_unrelated_daemon_registration_survived = true,
                 every_post_takeover_recovery_converged = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private static void WriteOverlappingIntentTakeoverEvidenceIfRequested(
+        long takeoverLatencyMs)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_OVERLAPPING_TAKEOVER_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+            owner_lease_duration_ms = 30_000,
+            forced_host_terminations = 1,
+            sigkill_daemon_terminations = 1,
+            overlapping_intent_count = RuntimeDeletionCrashPhases.Length,
+            intent_boundaries = RuntimeDeletionCrashPhases,
+            interference_runtime_count = RuntimeDeletionInterferenceRuntimeCount,
+            takeover_latency_ms = takeoverLatencyMs,
+            checks = new
+            {
+                real_leserpentd = true,
+                mixed_durable_boundaries_shared_one_state = true,
+                all_intents_restored_independently = true,
+                all_initial_offline_attempts_failed = true,
+                all_failed_claims_released_for_retry = true,
+                pre_expiry_replacement_rejected = true,
+                takeover_waited_for_natural_owner_lease_expiry = true,
+                same_daemon_database_reopened = true,
+                all_retries_succeeded = true,
+                all_intents_converged = true,
+                concurrent_registration_and_state_save_traffic = true,
+                every_unrelated_runtime_survived_disk_reload = true,
+                every_unrelated_daemon_registration_survived = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private static void WriteRepeatedTakeoverEvidenceIfRequested(
+        long firstTakeoverLatencyMs,
+        long secondTakeoverLatencyMs)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_REPEATED_TAKEOVER_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(evidencePath)!);
+        var takeoverLatenciesMs = new[]
+        {
+            firstTakeoverLatencyMs,
+            secondTakeoverLatencyMs,
+        };
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+            owner_lease_duration_ms = 30_000,
+            forced_host_terminations = 1,
+            sigkill_daemon_terminations = 2,
+            owner_lease_takeovers = 2,
+            overlapping_intent_count = RuntimeDeletionCrashPhases.Length,
+            partially_converged_intent_count = 1,
+            pending_intents_after_second_termination = 2,
+            intent_boundaries = RuntimeDeletionCrashPhases,
+            interference_runtime_count = RuntimeDeletionInterferenceRuntimeCount,
+            takeover_latencies_ms = takeoverLatenciesMs,
+            checks = new
+            {
+                real_leserpentd = true,
+                mixed_durable_boundaries_shared_one_state = true,
+                all_initial_offline_attempts_failed = true,
+                first_retry_committed_before_second_sigkill = true,
+                first_local_cleanup_completed_after_second_sigkill = true,
+                partial_progress_remained_durable = true,
+                remaining_attempts_observed_second_outage = true,
+                all_failed_claims_released_for_retry = true,
+                both_pre_expiry_replacements_rejected = true,
+                both_takeovers_waited_for_natural_owner_lease_expiry = true,
+                same_daemon_database_reopened_twice = true,
+                remaining_retries_succeeded_after_second_takeover = true,
+                all_intents_converged = true,
+                concurrent_registration_and_state_save_traffic = true,
+                every_unrelated_runtime_survived_disk_reload = true,
+                every_unrelated_daemon_registration_survived = true,
             },
         };
         File.WriteAllText(
@@ -1912,6 +2396,298 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
 
         public void AllowDaemonCommit() => allowDaemonCommit.TrySetResult();
         public void AllowLocalCleanup() => allowLocalCleanup.TrySetResult();
+    }
+
+    private sealed class MultiIntentTakeoverRuntimeDeletionAuthority(
+        IRuntimeRegistrationAuthority inner,
+        IReadOnlyCollection<string> expectedRuntimeIds) : IRuntimeRegistrationAuthority
+    {
+        private readonly object sync = new();
+        private readonly HashSet<string> expectedRuntimeIds =
+            expectedRuntimeIds.ToHashSet(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> attemptCounts = new(StringComparer.Ordinal);
+        private readonly HashSet<string> initialFailures = new(StringComparer.Ordinal);
+        private readonly HashSet<string> successfulRetries = new(StringComparer.Ordinal);
+        private readonly TaskCompletionSource allInitialAttemptsFailed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allRetriesSucceeded =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allowRetries =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool Enabled => inner.Enabled;
+        public Task AllInitialAttemptsFailed => allInitialAttemptsFailed.Task;
+        public Task AllRetriesSucceeded => allRetriesSucceeded.Task;
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.RegisterAsync(
+                request,
+                runtimeId,
+                cancellationToken,
+                update,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.SubmitDiscoveryAsync(
+                runtimeId,
+                cancellationToken,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public async Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            var runtimeId = Assert.Single(runtimeIds);
+            Assert.Contains(runtimeId, expectedRuntimeIds);
+            int attempt;
+            lock (sync)
+            {
+                attemptCounts.TryGetValue(runtimeId, out attempt);
+                attempt += 1;
+                attemptCounts[runtimeId] = attempt;
+            }
+
+            if (attempt == 1)
+            {
+                try
+                {
+                    await inner.UnregisterAsync(runtimeIds, cancellationToken);
+                }
+                catch
+                {
+                    lock (sync)
+                    {
+                        initialFailures.Add(runtimeId);
+                        if (initialFailures.SetEquals(expectedRuntimeIds))
+                        {
+                            allInitialAttemptsFailed.TrySetResult();
+                        }
+                    }
+                    throw;
+                }
+
+                var error = new InvalidOperationException(
+                    "runtime deletion unexpectedly reached an offline daemon");
+                allInitialAttemptsFailed.TrySetException(error);
+                throw error;
+            }
+
+            await allowRetries.Task.WaitAsync(cancellationToken);
+            await inner.UnregisterAsync(runtimeIds, cancellationToken);
+            lock (sync)
+            {
+                successfulRetries.Add(runtimeId);
+                if (successfulRetries.SetEquals(expectedRuntimeIds))
+                {
+                    allRetriesSucceeded.TrySetResult();
+                }
+            }
+        }
+
+        public void AllowRetries() => allowRetries.TrySetResult();
+    }
+
+    private sealed class InterruptedMultiIntentTakeoverRuntimeDeletionAuthority(
+        IRuntimeRegistrationAuthority inner,
+        IReadOnlyCollection<string> expectedRuntimeIds) : IRuntimeRegistrationAuthority
+    {
+        private readonly object sync = new();
+        private readonly HashSet<string> expectedRuntimeIds =
+            expectedRuntimeIds.ToHashSet(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> attemptCounts = new(StringComparer.Ordinal);
+        private readonly HashSet<string> initialFailures = new(StringComparer.Ordinal);
+        private readonly HashSet<string> failuresAfterSecondTermination =
+            new(StringComparer.Ordinal);
+        private readonly HashSet<string> finalSuccesses = new(StringComparer.Ordinal);
+        private readonly TaskCompletionSource allInitialAttemptsFailed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource firstRetryDaemonCommitted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource remainingAttemptsFailedAfterSecondTermination =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allFinalRetriesSucceeded =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allowFirstRetry =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource completeFirstRetry =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource allowFinalRetries =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private string? firstCommittedRuntimeId;
+
+        public bool Enabled => inner.Enabled;
+        public Task AllInitialAttemptsFailed => allInitialAttemptsFailed.Task;
+        public Task FirstRetryDaemonCommitted => firstRetryDaemonCommitted.Task;
+        public Task RemainingAttemptsFailedAfterSecondTermination =>
+            remainingAttemptsFailedAfterSecondTermination.Task;
+        public Task AllFinalRetriesSucceeded => allFinalRetriesSucceeded.Task;
+        public string? FirstCommittedRuntimeId
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return firstCommittedRuntimeId;
+                }
+            }
+        }
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.RegisterAsync(
+                request,
+                runtimeId,
+                cancellationToken,
+                update,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.SubmitDiscoveryAsync(
+                runtimeId,
+                cancellationToken,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public async Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            var runtimeId = Assert.Single(runtimeIds);
+            Assert.Contains(runtimeId, expectedRuntimeIds);
+            int attempt;
+            lock (sync)
+            {
+                attemptCounts.TryGetValue(runtimeId, out attempt);
+                attempt += 1;
+                attemptCounts[runtimeId] = attempt;
+            }
+
+            if (attempt == 1)
+            {
+                try
+                {
+                    await inner.UnregisterAsync(runtimeIds, cancellationToken);
+                }
+                catch
+                {
+                    lock (sync)
+                    {
+                        initialFailures.Add(runtimeId);
+                        if (initialFailures.SetEquals(expectedRuntimeIds))
+                        {
+                            allInitialAttemptsFailed.TrySetResult();
+                        }
+                    }
+                    throw;
+                }
+                throw UnexpectedOnlineDaemon(allInitialAttemptsFailed);
+            }
+
+            bool isFirstRetry;
+            lock (sync)
+            {
+                isFirstRetry = firstCommittedRuntimeId is null;
+                if (isFirstRetry)
+                {
+                    firstCommittedRuntimeId = runtimeId;
+                }
+            }
+            if (isFirstRetry)
+            {
+                await allowFirstRetry.Task.WaitAsync(cancellationToken);
+                await inner.UnregisterAsync(runtimeIds, cancellationToken);
+                firstRetryDaemonCommitted.TrySetResult();
+                await completeFirstRetry.Task.WaitAsync(cancellationToken);
+                return;
+            }
+
+            bool alreadyFailedAfterSecondTermination;
+            lock (sync)
+            {
+                alreadyFailedAfterSecondTermination =
+                    failuresAfterSecondTermination.Contains(runtimeId);
+            }
+            if (!alreadyFailedAfterSecondTermination)
+            {
+                await completeFirstRetry.Task.WaitAsync(cancellationToken);
+                try
+                {
+                    await inner.UnregisterAsync(runtimeIds, cancellationToken);
+                }
+                catch
+                {
+                    lock (sync)
+                    {
+                        failuresAfterSecondTermination.Add(runtimeId);
+                        if (failuresAfterSecondTermination.Count ==
+                            expectedRuntimeIds.Count - 1)
+                        {
+                            remainingAttemptsFailedAfterSecondTermination.TrySetResult();
+                        }
+                    }
+                    throw;
+                }
+                throw UnexpectedOnlineDaemon(
+                    remainingAttemptsFailedAfterSecondTermination);
+            }
+
+            await allowFinalRetries.Task.WaitAsync(cancellationToken);
+            await inner.UnregisterAsync(runtimeIds, cancellationToken);
+            lock (sync)
+            {
+                finalSuccesses.Add(runtimeId);
+                if (finalSuccesses.Count == expectedRuntimeIds.Count - 1)
+                {
+                    allFinalRetriesSucceeded.TrySetResult();
+                }
+            }
+        }
+
+        public void AllowFirstRetry() => allowFirstRetry.TrySetResult();
+
+        public void CompleteFirstRetryAfterSecondTermination() =>
+            completeFirstRetry.TrySetResult();
+
+        public void AllowFinalRetries() => allowFinalRetries.TrySetResult();
+
+        private static InvalidOperationException UnexpectedOnlineDaemon(
+            TaskCompletionSource completion)
+        {
+            var error = new InvalidOperationException(
+                "runtime deletion unexpectedly reached an online daemon");
+            completion.TrySetException(error);
+            return error;
+        }
     }
 
     private sealed class RestartableTestDaemon(
