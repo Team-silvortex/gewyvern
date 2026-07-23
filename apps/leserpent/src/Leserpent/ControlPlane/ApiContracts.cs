@@ -92,6 +92,16 @@ public sealed record RuntimeCleanupPlan(
     RuntimeCleanupActionPlan Unobserved,
     RuntimeCleanupActionPlan Slice);
 
+public sealed record RuntimeDeletionRetryNowRequest(
+    long ExpectedRevision,
+    string RequestId,
+    string RequestedBy);
+public sealed record RuntimeDeletionRetryNowResponse(
+    bool Accepted,
+    bool Replayed,
+    PersistedRuntimeDeletionIntent? PendingIntent,
+    PersistedRuntimeDeletionRetryAudit Audit);
+
 public sealed record RuntimeRegistrationPlanRequest(
     string Name,
     string Endpoint,

@@ -4,7 +4,7 @@ namespace Leserpent;
 
 public partial class Program
 {
-    private static void MapPersistenceEndpoints(WebApplication app)
+    internal static void MapPersistenceEndpoints(WebApplication app)
     {
         app.MapPost("/v1/persistence/save", (RegistryService registry) =>
             Results.Ok(new PersistenceSaveResponse(true, registry.SaveNow())));
@@ -16,6 +16,83 @@ public partial class Program
                 state,
                 $"leserpent-control-plane-state-{state.SavedAt:yyyyMMddHHmmss}.json");
         });
+
+        app.MapGet(
+            "/v1/persistence/runtime-deletions",
+            (RegistryService registry) =>
+                Results.Json(
+                    registry.ListPendingRuntimeDeletions().ToArray(),
+                    LeserpentJsonContext.Default
+                        .PersistedRuntimeDeletionIntentArray));
+
+        app.MapGet(
+            "/v1/persistence/runtime-deletion-retry-audit",
+            (RegistryService registry) =>
+                Results.Json(
+                    registry.ListRuntimeDeletionRetryAudit().ToArray(),
+                    LeserpentJsonContext.Default
+                        .PersistedRuntimeDeletionRetryAuditArray));
+
+        app.MapPost(
+            "/v1/persistence/runtime-deletions/{intentId}/retry-now",
+            (
+                string intentId,
+                RuntimeDeletionRetryNowRequest request,
+                RegistryService registry,
+                RuntimeDeletionRecoverySignal recoverySignal) =>
+            {
+                try
+                {
+                    var response = registry.RetryRuntimeDeletionNow(
+                        intentId,
+                        request);
+                    if (!response.Replayed &&
+                        response.PendingIntent is not null)
+                    {
+                        recoverySignal.Pulse();
+                    }
+                    return Results.Json(
+                        response,
+                        LeserpentJsonContext.Default
+                            .RuntimeDeletionRetryNowResponse);
+                }
+                catch (RuntimeDeletionRetryException ex) when (
+                    string.Equals(
+                        ex.Code,
+                        "invalid_runtime_deletion_retry",
+                        StringComparison.Ordinal))
+                {
+                    return Results.BadRequest(new ApiErrorResponse(
+                        ex.Code,
+                        ex.Message));
+                }
+                catch (RuntimeDeletionRetryException ex) when (
+                    string.Equals(
+                        ex.Code,
+                        "runtime_deletion_intent_not_found",
+                        StringComparison.Ordinal))
+                {
+                    return Results.NotFound(new ApiErrorResponse(
+                        ex.Code,
+                        ex.Message));
+                }
+                catch (RuntimeDeletionRetryException ex)
+                {
+                    return Results.Conflict(new ApiErrorResponse(
+                        ex.Code,
+                        ex.Message));
+                }
+                catch (OrchestraPersistenceException ex)
+                {
+                    return Results.Json(
+                        new ApiErrorResponse(
+                            "runtime_deletion_retry_persistence_unavailable",
+                            ex.Message),
+                        LeserpentJsonContext.Default.ApiErrorResponse,
+                        statusCode:
+                            StatusCodes.Status503ServiceUnavailable);
+                }
+            });
 
         app.MapPost("/v1/persistence/import", async (HttpRequest request, RegistryService registry, ControlPlaneStateStore stateStore, ControlPlaneSecurityPolicy security, CancellationToken cancellationToken) =>
         {
@@ -69,6 +146,12 @@ public partial class Program
                     "persistence_import_runtime_delete_in_progress",
                     "control-plane state cannot be imported while runtime deletion is pending",
                     RuntimeId: ex.RuntimeIds.FirstOrDefault()));
+            }
+            catch (InvalidDataException ex)
+            {
+                return Results.BadRequest(new ApiErrorResponse(
+                    "invalid_persistence_import",
+                    ex.Message));
             }
         });
     }

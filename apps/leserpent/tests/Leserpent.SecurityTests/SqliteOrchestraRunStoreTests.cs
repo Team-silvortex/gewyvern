@@ -273,9 +273,55 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.True(loaded is not null, store.LastSaveError);
             var restored = Assert.IsType<PersistedControlPlaneState>(loaded);
 
-            Assert.Equal(2, restored.SchemaVersion);
+            Assert.Equal(3, restored.SchemaVersion);
             Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<PersistedRuntimeDeletionIntent>>(
                 restored.PendingRuntimeDeletions));
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreMigratesSchemaTwoDeletionIntent()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var preparedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+            var schemaTwo = new PersistedControlPlaneState(
+                2,
+                preparedAt,
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                Array.Empty<OrchestraRunSummary>(),
+                new[]
+                {
+                    new PersistedRuntimeDeletionIntent(
+                        "rdel_schema_two",
+                        new[] { "runtime-schema-two" },
+                        preparedAt),
+                });
+            File.WriteAllText(
+                statePath,
+                JsonSerializer.Serialize(
+                    schemaTwo,
+                    new LeserpentJsonContext(new JsonSerializerOptions())
+                        .PersistedControlPlaneState));
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+            var intent = Assert.Single(restored.PendingRuntimeDeletions!);
+
+            Assert.Equal(3, restored.SchemaVersion);
+            Assert.Equal(0, intent.AttemptCount);
+            Assert.Null(intent.LastAttemptAt);
+            Assert.Null(intent.NextAttemptAt);
+            Assert.Null(intent.LastFailureCode);
+            Assert.Equal(1, intent.Revision);
+            Assert.Empty(restored.RuntimeDeletionRetryAudit!);
         }
         finally
         {

@@ -164,6 +164,30 @@ fn retained_runtime_deletion_batch_persistence_evidence_is_non_vacuous() {
     );
 }
 
+#[test]
+fn retained_runtime_deletion_saturated_queue_evidence_is_non_vacuous() {
+    assert_runtime_deletion_saturated_queue(
+        "docs/fixtures/leserpent_runtime_deletion_saturated_queue_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_saturated_queue(
+        "docs/fixtures/leserpent_runtime_deletion_saturated_queue_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_retry_claim_races_are_non_vacuous() {
+    assert_runtime_deletion_retry_claim_race(
+        "docs/fixtures/leserpent_runtime_deletion_retry_claim_race_20260723.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_retry_claim_race(
+        "docs/fixtures/leserpent_runtime_deletion_retry_claim_race_linux_x86_64_20260723.json",
+        "X64",
+    );
+}
+
 fn assert_runtime_deletion_crash_evidence(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -689,6 +713,164 @@ fn assert_runtime_deletion_batch_persistence(path: &str, expected_architecture: 
     }
 }
 
+fn assert_runtime_deletion_saturated_queue(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion saturated-queue evidence must exist"),
+    )
+    .expect("runtime deletion saturated-queue evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 3);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["queue_intent_count"], 128);
+    assert_eq!(evidence["recovery_batch_size"], 32);
+    assert_eq!(evidence["max_concurrent_authority_mutations"], 8);
+    assert_eq!(evidence["poison_stride"], 16);
+    assert_eq!(evidence["poison_intent_count"], 8);
+    assert_eq!(evidence["slow_intent_count"], 17);
+    assert_eq!(evidence["cancellation_started_call_count"], 8);
+    assert_eq!(evidence["cancellation_cancelled_call_count"], 8);
+    assert_eq!(evidence["observed_max_concurrency"], 8);
+    assert_eq!(evidence["orchestra_delete_batch_count"], 5);
+    assert_eq!(evidence["retry_backoff_seconds"], 1);
+    assert!(
+        evidence["cancellation_latency_ms"]
+            .as_u64()
+            .is_some_and(|latency| latency < 1_000)
+    );
+    assert_eq!(
+        evidence["pending_counts_after_pass"],
+        serde_json::json!([98, 68, 38, 8])
+    );
+    assert_eq!(
+        evidence["poison_attempt_counts"],
+        serde_json::json!([1, 1, 1, 1, 1, 1, 1, 1])
+    );
+    assert_eq!(
+        evidence["persisted_attempt_counts"],
+        serde_json::json!([1, 1, 1, 1, 1, 1, 1, 1])
+    );
+    assert_eq!(
+        evidence["persisted_failure_codes"],
+        serde_json::json!([
+            "authority_failure",
+            "authority_failure",
+            "authority_failure",
+            "authority_failure",
+            "authority_failure",
+            "authority_failure",
+            "authority_failure",
+            "authority_failure"
+        ])
+    );
+    assert_eq!(
+        evidence["retry_now_resulting_revisions"],
+        serde_json::json!([3, 3, 3, 3, 3, 3, 3, 3])
+    );
+    assert_eq!(evidence["retained_retry_audit_count"], 8);
+    assert_eq!(evidence["retry_now_replay_observed"], true);
+    assert!(
+        evidence["retry_now_repair_latency_ms"]
+            .as_u64()
+            .is_some_and(|latency| latency < 1_000)
+    );
+    let pass_latencies = evidence["pass_latencies_ms"]
+        .as_array()
+        .expect("pass latencies must be an array");
+    assert_eq!(pass_latencies.len(), 4);
+    let pass_latencies = pass_latencies
+        .iter()
+        .map(|latency| latency.as_u64().expect("pass latency must be numeric"))
+        .collect::<Vec<_>>();
+    assert!(pass_latencies.windows(2).all(|pair| pair[0] < pair[1]));
+    assert!(pass_latencies[3] < 5_000);
+    for check in [
+        "saturated_durable_queue",
+        "bounded_recovery_claim_batch",
+        "bounded_authority_concurrency",
+        "all_authority_slots_were_saturated",
+        "cooperative_cancellation_reached_every_blocked_call",
+        "shutdown_latency_under_1000_ms",
+        "cancelled_pass_preserved_every_intent",
+        "cancelled_pass_released_every_claim",
+        "deterministic_four_pass_progress",
+        "mixed_slow_and_failing_authority_operations",
+        "poison_failures_were_target_scoped",
+        "every_healthy_intent_converged",
+        "deferred_poison_did_not_consume_ready_claim_slots",
+        "retry_attempt_metadata_was_durable",
+        "persisted_failure_codes_were_safe",
+        "retry_deadline_blocked_premature_claim",
+        "stale_retry_revision_was_rejected",
+        "retry_now_revision_advanced",
+        "retry_now_audit_survived_convergence",
+        "retry_now_request_was_idempotent",
+        "retry_now_repair_latency_under_1000_ms",
+        "poison_reservations_survived_disk_reload",
+        "repaired_poison_intents_converged",
+        "converged_state_survived_disk_reload",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained saturated-queue proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_retry_claim_race(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion retry/claim race evidence must exist"),
+    )
+    .expect("runtime deletion retry/claim race evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["total_rounds"], 48);
+    assert_eq!(evidence["retry_contenders_per_round"], 8);
+    assert_eq!(evidence["forced_worker_first_rounds"], 8);
+    assert_eq!(evidence["forced_operator_first_rounds"], 8);
+    assert_eq!(evidence["simultaneous_start_rounds"], 32);
+    assert_eq!(evidence["authority_call_count"], 48);
+    assert_eq!(evidence["converged_runtime_count"], 48);
+    assert_eq!(evidence["unexpected_result_count"], 0);
+    assert_eq!(
+        evidence["retained_retry_audit_count"],
+        evidence["accepted_retry_count"]
+    );
+    assert!(
+        evidence["simultaneous_accepted_retry_count"]
+            .as_u64()
+            .is_some_and(|count| count <= 32)
+    );
+    let classified_results = evidence["accepted_retry_count"]
+        .as_u64()
+        .expect("accepted retry count must be numeric")
+        + evidence["in_progress_conflict_count"]
+            .as_u64()
+            .expect("in-progress conflict count must be numeric")
+        + evidence["revision_conflict_count"]
+            .as_u64()
+            .expect("revision conflict count must be numeric");
+    assert_eq!(classified_results, 48 * 8);
+    for check in [
+        "both_forced_interleavings_exercised",
+        "simultaneous_start_campaign_is_non_vacuous",
+        "at_most_one_retry_won_each_round",
+        "worker_claim_rejected_every_late_retry",
+        "revision_fence_rejected_every_losing_operator",
+        "accepted_retry_audit_was_durable",
+        "exactly_one_authority_mutation_per_runtime",
+        "every_runtime_converged_after_race",
+        "conflict_results_were_deterministic",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained retry/claim race proof {check}"
+        );
+    }
+}
+
 #[test]
 fn etragon_stays_downweighted_until_the_deep_learning_stack_is_proven() {
     let catalog = StatusCatalog::load(default_catalog_path()).expect("catalog must decode");
@@ -940,6 +1122,29 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "idempotent-daemon-unregistration-replay",
         "idempotent-orchestra-cleanup-replay",
         "cross-platform-batch-persistence-fault-proof",
+        "saturated-128-intent-recovery",
+        "cooperative-saturated-shutdown",
+        "deterministic-multi-batch-fairness",
+        "mixed-authority-pressure-proof",
+        "cross-platform-saturated-queue-proof",
+        "schema-v3-control-state",
+        "durable-per-intent-retry-metadata",
+        "bounded-exponential-delete-backoff",
+        "ready-intent-skip-ahead",
+        "sanitized-deletion-failure-code",
+        "operator-runtime-deletion-status-api",
+        "cross-platform-durable-backoff-proof",
+        "revision-fenced-runtime-deletion-retry",
+        "idempotent-retry-now-request",
+        "durable-retry-now-audit",
+        "post-convergence-retry-audit",
+        "signaled-recovery-wakeup",
+        "guarded-retry-now-api",
+        "cross-platform-retry-now-proof",
+        "linearizable-retry-claim-boundary",
+        "deterministic-retry-claim-conflicts",
+        "single-authority-mutation-under-retry-race",
+        "cross-platform-retry-claim-race-proof",
     ] {
         assert!(
             compatibility_control
@@ -950,7 +1155,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(compatibility_control.next_gate.contains("128-intent"));
+    assert!(compatibility_control.next_gate.contains("acknowledgement"));
 
     let bootstrap = catalog
         .cells

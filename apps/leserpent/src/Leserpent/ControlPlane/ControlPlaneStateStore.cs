@@ -4,7 +4,7 @@ namespace Leserpent.ControlPlane;
 
 public sealed class ControlPlaneStateStore
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private const int OldestSupportedSchemaVersion = 1;
 
     private readonly string statePath;
@@ -86,14 +86,16 @@ public sealed class ControlPlaneStateStore
         IReadOnlyList<PersistedRuntimeState> runtimes,
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
-        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null) =>
+        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null,
+        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null) =>
         new(
             CurrentSchemaVersion,
             DateTimeOffset.UtcNow,
             runtimes,
             sessions,
             orchestraRuns ?? Array.Empty<OrchestraRunSummary>(),
-            pendingRuntimeDeletions ?? Array.Empty<PersistedRuntimeDeletionIntent>());
+            pendingRuntimeDeletions ?? Array.Empty<PersistedRuntimeDeletionIntent>(),
+            runtimeDeletionRetryAudit ?? Array.Empty<PersistedRuntimeDeletionRetryAudit>());
 
     public bool IsCompatible(PersistedControlPlaneState? state) =>
         state is not null &&
@@ -103,21 +105,36 @@ public sealed class ControlPlaneStateStore
         IReadOnlyList<PersistedRuntimeState> runtimes,
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
-        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null) =>
-        SaveCore(runtimes, sessions, orchestraRuns, pendingRuntimeDeletions, throwOnFailure: false);
+        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null,
+        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null) =>
+        SaveCore(
+            runtimes,
+            sessions,
+            orchestraRuns,
+            pendingRuntimeDeletions,
+            runtimeDeletionRetryAudit,
+            throwOnFailure: false);
 
     public void SaveStrict(
         IReadOnlyList<PersistedRuntimeState> runtimes,
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
-        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null) =>
-        SaveCore(runtimes, sessions, orchestraRuns, pendingRuntimeDeletions, throwOnFailure: true);
+        IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null,
+        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null) =>
+        SaveCore(
+            runtimes,
+            sessions,
+            orchestraRuns,
+            pendingRuntimeDeletions,
+            runtimeDeletionRetryAudit,
+            throwOnFailure: true);
 
     private void SaveCore(
         IReadOnlyList<PersistedRuntimeState> runtimes,
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns,
         IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions,
+        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit,
         bool throwOnFailure)
     {
         lock (saveSync)
@@ -127,7 +144,8 @@ public sealed class ControlPlaneStateStore
                 runtimes,
                 sessions,
                 orchestraRuns,
-                pendingRuntimeDeletions);
+                pendingRuntimeDeletions,
+                runtimeDeletionRetryAudit);
             var tempPath = $"{statePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
 
             try
@@ -216,14 +234,24 @@ public sealed class ControlPlaneStateStore
         }
     }
 
-    private static PersistedControlPlaneState UpgradeState(PersistedControlPlaneState state) =>
-        state.SchemaVersion == CurrentSchemaVersion && state.PendingRuntimeDeletions is not null
-            ? state
-            : state with
+    private static PersistedControlPlaneState UpgradeState(
+        PersistedControlPlaneState state) =>
+            state with
             {
                 SchemaVersion = CurrentSchemaVersion,
                 PendingRuntimeDeletions =
-                    state.PendingRuntimeDeletions ?? Array.Empty<PersistedRuntimeDeletionIntent>(),
+                    (state.PendingRuntimeDeletions ??
+                        Array.Empty<PersistedRuntimeDeletionIntent>())
+                    .Select(static intent => intent with
+                    {
+                        Revision = Math.Max(
+                            intent.Revision,
+                            (long)intent.AttemptCount + 1),
+                    })
+                    .ToArray(),
+                RuntimeDeletionRetryAudit =
+                    state.RuntimeDeletionRetryAudit ??
+                        Array.Empty<PersistedRuntimeDeletionRetryAudit>(),
             };
 
     private static string DefaultStatePath(IHostEnvironment environment)

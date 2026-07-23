@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-23T12:28:53.477679+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "total_rounds": 48,
+  "retry_contenders_per_round": 8,
+  "forced_worker_first_rounds": 8,
+  "forced_operator_first_rounds": 8,
+  "simultaneous_start_rounds": 32,
+  "accepted_retry_count": 17,
+  "in_progress_conflict_count": 297,
+  "revision_conflict_count": 70,
+  "retained_retry_audit_count": 17,
+  "authority_call_count": 48,
+  "converged_runtime_count": 48,
+  "unexpected_result_count": 0,
+  "simultaneous_accepted_retry_count": 9,
+  "checks": {
+    "both_forced_interleavings_exercised": true,
+    "simultaneous_start_campaign_is_non_vacuous": true,
+    "at_most_one_retry_won_each_round": true,
+    "worker_claim_rejected_every_late_retry": true,
+    "revision_fence_rejected_every_losing_operator": true,
+    "accepted_retry_audit_was_durable": true,
+    "exactly_one_authority_mutation_per_runtime": true,
+    "every_runtime_converged_after_race": true,
+    "conflict_results_were_deterministic": true
+  }
+}

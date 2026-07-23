@@ -657,8 +657,10 @@ target revisions, journals removal, deletes Orchestra history, and retains
 idempotent operation results. The Web bridge holds a deletion reservation while
 the daemon-first mutation and local compatibility cleanup run, so new sessions
 and Orchestra runs cannot cross the deletion boundary. Token-presence remains
-inside the local secret boundary. Control-plane state schema v2 persists that
-deletion intent before daemon mutation. A restart restores the protected target
+inside the local secret boundary. Control-plane state schema v3 persists that
+deletion intent before daemon mutation and records only bounded per-intent
+attempt metadata plus a closed safe failure code. Schema v1/v2 snapshots
+upgrade without synthetic attempts. A restart restores the protected target
 set, rejects new sessions and Orchestra runs, and a bounded background worker
 replays daemon unregistration plus local cleanup until the intent converges.
 Schema v1 state upgrades in memory with an empty intent set. Imported snapshots
@@ -757,9 +759,35 @@ Retained Arm64 Unix and physical Ubuntu x86_64 evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_batch_persistence_20260723.json` and
 `docs/fixtures/leserpent_runtime_deletion_batch_persistence_linux_x86_64_20260723.json`.
 Both platforms replay each intent exactly once and converge in 1271 ms and
-1289 ms. The next reliability gate saturates the 128-intent durable queue and
-proves fair multi-batch progress plus bounded cancellation and shutdown latency
-under mixed slow and failing authority operations.
+1289 ms. The saturated-queue gate is now complete:
+`scripts/validation/leserpent_runtime_deletion_saturated_queue.sh` fills all 128
+durable slots, saturates all eight authority workers, and proves 1-2 ms
+cooperative shutdown without losing intents or claims. Under 17 slow targets
+and eight poison intents, deferred poison is filtered before the claim limit.
+Both platforms follow the same four-pass 98/68/38/8 pending trajectory while
+each poison spends one initial attempt. The 1/2/4/8/16/30-second capped
+schedule, safe failure code, and next-attempt deadline survive disk reload;
+the deadline rejects premature claims and repaired authority converges after
+it expires. Operators can inspect the same metadata, submit a guarded
+revision-fenced retry-now request, and inspect a bounded durable audit trail.
+Request-ID replay remains idempotent after convergence, while stale revisions
+and conflicting reuse fail closed. The recovery signal reduces post-command
+repair to 55 ms on Arm64 and 162 ms on physical x86_64 Linux. The APIs are
+`GET /v1/persistence/runtime-deletions`,
+`POST /v1/persistence/runtime-deletions/{intentId}/retry-now`, and
+`GET /v1/persistence/runtime-deletion-retry-audit`. Retained evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_saturated_queue_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_saturated_queue_linux_x86_64_20260723.json`.
+The retry/claim race gate is complete. Eight worker-first rounds, eight
+operator-first rounds, and 32 simultaneous-start rounds each submit eight
+operator contenders against one recovery worker. Both Arm64 and physical
+x86_64 Linux retain exactly 48 authority mutations for 48 runtimes, at most one
+durable retry winner per round, matching audit counts, deterministic
+in-progress/revision conflicts, and complete convergence after disk reload.
+The next reliability gate force-terminates the host after a retry-now
+acknowledgement but before or during authority mutation, then proves that the
+durable audit and pending intent recover without losing the operator command or
+duplicating effective deletion.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

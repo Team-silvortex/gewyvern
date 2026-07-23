@@ -8,6 +8,11 @@ public sealed partial class RegistryService
     private const int MaxRecoveryActivitiesPerRuntime = 8;
     private const int MaxOrchestraRunsPerRuntime = 32;
     private const int MaxPendingRuntimeDeletionIntents = 256;
+    private const int MaxRuntimeDeletionAttempts = 1_000_000;
+    private const int MaxRuntimeDeletionRetryAuditEntries = 256;
+    private const long MaxRuntimeDeletionRevision = 1_000_000_000;
+    private static readonly TimeSpan MaxRuntimeDeletionRetryDelay =
+        TimeSpan.FromSeconds(30);
     private static readonly TimeSpan GenericFailedRecoveryCooldown = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan AuthFailedRecoveryCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan NetworkFailedRecoveryCooldown = TimeSpan.FromSeconds(20);
@@ -17,6 +22,9 @@ public sealed partial class RegistryService
     private readonly ConcurrentDictionary<string, ImmutableQueue<RuntimeRecoveryActivity>> recoveryActivities = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<OrchestraRunSummary>> orchestraRuns = new();
     private readonly ConcurrentDictionary<string, PersistedRuntimeDeletionIntent> pendingRuntimeDeletions = new(StringComparer.Ordinal);
+    private ImmutableQueue<PersistedRuntimeDeletionRetryAudit>
+        runtimeDeletionRetryAudit =
+            ImmutableQueue<PersistedRuntimeDeletionRetryAudit>.Empty;
     private readonly HashSet<string> deletingRuntimes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> activeRuntimeDeletionClaims = new(StringComparer.Ordinal);
     private readonly object orchestraRunSync = new();
@@ -43,6 +51,7 @@ public sealed partial class RegistryService
         restoredFromSavedAt = loaded?.SavedAt;
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
         RestorePendingRuntimeDeletions(loaded);
+        runtimeDeletionRetryAudit = NormalizeRuntimeDeletionRetryAudit(loaded);
         RestoreOrMigrateOrchestraRuns();
     }
 
@@ -255,13 +264,18 @@ public sealed partial class RegistryService
     }
 
     public IReadOnlyList<RuntimeDeletionReservation> ClaimPendingRuntimeDeletions(
-        int maxCount = MaxPendingRuntimeDeletionIntents)
+        int maxCount = MaxPendingRuntimeDeletionIntents,
+        DateTimeOffset? eligibleAt = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxCount, 1);
+        var eligibilityBoundary = eligibleAt ?? DateTimeOffset.UtcNow;
         lock (orchestraRunSync)
         {
             var reservations = new List<RuntimeDeletionReservation>();
             foreach (var intent in pendingRuntimeDeletions.Values
+                .Where(intent =>
+                    intent.NextAttemptAt is null ||
+                    intent.NextAttemptAt <= eligibilityBoundary)
                 .OrderBy(static intent => intent.PreparedAt)
                 .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal)
                 .Take(maxCount))
@@ -280,6 +294,99 @@ public sealed partial class RegistryService
                     intent.RuntimeIds));
             }
             return reservations;
+        }
+    }
+
+    internal static TimeSpan CalculateRuntimeDeletionRetryDelay(
+        int attemptCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(attemptCount, 1);
+        var exponent = Math.Min(attemptCount - 1, 5);
+        return TimeSpan.FromSeconds(Math.Min(1 << exponent, 30));
+    }
+
+    internal void RecordRuntimeDeletionFailures(
+        IReadOnlyCollection<RuntimeDeletionFailure> failures)
+    {
+        if (failures.Count == 0)
+        {
+            return;
+        }
+
+        lock (orchestraRunSync)
+        {
+            var previousIntents =
+                new Dictionary<string, PersistedRuntimeDeletionIntent>(
+                    StringComparer.Ordinal);
+            var updatedIntents =
+                new Dictionary<string, PersistedRuntimeDeletionIntent>(
+                    StringComparer.Ordinal);
+            foreach (var failure in failures)
+            {
+                var reservation = failure.Reservation;
+                if (!RuntimeDeletionFailureCodes.IsValid(failure.FailureCode) ||
+                    !pendingRuntimeDeletions.TryGetValue(
+                        reservation.IntentId,
+                        out var intent) ||
+                    !previousIntents.TryAdd(reservation.IntentId, intent) ||
+                    !activeRuntimeDeletionClaims.TryGetValue(
+                        reservation.IntentId,
+                        out var activeClaimId) ||
+                    !string.Equals(
+                        activeClaimId,
+                        reservation.ClaimId,
+                        StringComparison.Ordinal) ||
+                    !reservation.RuntimeIds
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                        .SetEquals(intent.RuntimeIds))
+                {
+                    throw new InvalidOperationException(
+                        "runtime deletion failure does not match a pending claim");
+                }
+                if (failure.AttemptedAt == default ||
+                    failure.AttemptedAt < intent.PreparedAt ||
+                    failure.AttemptedAt > DateTimeOffset.UtcNow.AddMinutes(5) ||
+                    intent.Revision >= MaxRuntimeDeletionRevision)
+                {
+                    throw new InvalidOperationException(
+                        "runtime deletion failure has an invalid attempt timestamp");
+                }
+
+                var attemptCount = Math.Min(
+                    intent.AttemptCount + 1,
+                    MaxRuntimeDeletionAttempts);
+                updatedIntents[intent.IntentId] = intent with
+                {
+                    AttemptCount = attemptCount,
+                    LastAttemptAt = failure.AttemptedAt,
+                    NextAttemptAt = failure.AttemptedAt.Add(
+                        CalculateRuntimeDeletionRetryDelay(attemptCount)),
+                    LastFailureCode = failure.FailureCode,
+                    Revision = intent.Revision + 1,
+                };
+            }
+
+            lock (persistenceSync)
+            {
+                foreach (var updated in updatedIntents.Values)
+                {
+                    pendingRuntimeDeletions[updated.IntentId] = updated;
+                }
+                try
+                {
+                    PersistStateStrict();
+                }
+                catch (ControlPlaneStatePersistenceException ex)
+                {
+                    foreach (var previous in previousIntents.Values)
+                    {
+                        pendingRuntimeDeletions[previous.IntentId] = previous;
+                    }
+                    throw new OrchestraPersistenceException(
+                        "failed to persist runtime deletion retry metadata",
+                        ex);
+                }
+            }
         }
     }
 
@@ -431,6 +538,171 @@ public sealed partial class RegistryService
                 RuntimeIds = intent.RuntimeIds.ToArray(),
             })
             .ToArray();
+
+    public IReadOnlyList<PersistedRuntimeDeletionRetryAudit>
+        ListRuntimeDeletionRetryAudit() =>
+            runtimeDeletionRetryAudit
+                .Reverse()
+                .Select(static audit => audit with
+                {
+                    RuntimeIds = audit.RuntimeIds.ToArray(),
+                })
+                .ToArray();
+
+    public RuntimeDeletionRetryNowResponse RetryRuntimeDeletionNow(
+        string intentId,
+        RuntimeDeletionRetryNowRequest request,
+        DateTimeOffset? requestedAt = null)
+    {
+        var normalizedIntentId = intentId?.Trim() ?? string.Empty;
+        var normalizedRequestId = request.RequestId?.Trim() ?? string.Empty;
+        var normalizedRequestedBy = request.RequestedBy?.Trim() ?? string.Empty;
+        if (!IsValidDeletionIdentifier(normalizedIntentId) ||
+            !IsValidDeletionIdentifier(normalizedRequestId) ||
+            !IsValidRuntimeDeletionRetryActor(normalizedRequestedBy) ||
+            request.ExpectedRevision < 1)
+        {
+            throw new RuntimeDeletionRetryException(
+                "invalid_runtime_deletion_retry",
+                "runtime deletion retry request is invalid");
+        }
+
+        var effectiveRequestedAt = requestedAt ?? DateTimeOffset.UtcNow;
+        lock (orchestraRunSync)
+        {
+            var replayedAudit = runtimeDeletionRetryAudit.FirstOrDefault(audit =>
+                string.Equals(
+                    audit.RequestId,
+                    normalizedRequestId,
+                    StringComparison.Ordinal));
+            if (replayedAudit is not null)
+            {
+                if (!string.Equals(
+                        replayedAudit.IntentId,
+                        normalizedIntentId,
+                        StringComparison.Ordinal) ||
+                    replayedAudit.ExpectedRevision != request.ExpectedRevision ||
+                    !string.Equals(
+                        replayedAudit.RequestedBy,
+                        normalizedRequestedBy,
+                        StringComparison.Ordinal))
+                {
+                    throw new RuntimeDeletionRetryException(
+                        "runtime_deletion_retry_request_conflict",
+                        "retry requestId was already used for a different operation");
+                }
+
+                pendingRuntimeDeletions.TryGetValue(
+                    normalizedIntentId,
+                    out var replayedIntent);
+                return new RuntimeDeletionRetryNowResponse(
+                    true,
+                    true,
+                    CloneRuntimeDeletionIntent(replayedIntent),
+                    CloneRuntimeDeletionRetryAudit(replayedAudit));
+            }
+
+            if (!pendingRuntimeDeletions.TryGetValue(
+                    normalizedIntentId,
+                    out var intent))
+            {
+                throw new RuntimeDeletionRetryException(
+                    "runtime_deletion_intent_not_found",
+                    "runtime deletion intent was not found");
+            }
+            if (activeRuntimeDeletionClaims.ContainsKey(intent.IntentId))
+            {
+                throw new RuntimeDeletionRetryException(
+                    "runtime_deletion_retry_in_progress",
+                    "runtime deletion intent is currently being recovered");
+            }
+            if (intent.Revision != request.ExpectedRevision)
+            {
+                throw new RuntimeDeletionRetryException(
+                    "runtime_deletion_retry_revision_changed",
+                    "runtime deletion intent changed; inspect it before retrying");
+            }
+            if (intent.Revision >= MaxRuntimeDeletionRevision)
+            {
+                throw new RuntimeDeletionRetryException(
+                    "runtime_deletion_retry_revision_exhausted",
+                    "runtime deletion intent revision is exhausted");
+            }
+            if (intent.AttemptCount == 0 ||
+                intent.NextAttemptAt is null ||
+                intent.NextAttemptAt <= effectiveRequestedAt)
+            {
+                throw new RuntimeDeletionRetryException(
+                    "runtime_deletion_retry_not_deferred",
+                    "runtime deletion intent is already eligible for automatic recovery");
+            }
+            if (effectiveRequestedAt < intent.PreparedAt ||
+                effectiveRequestedAt > DateTimeOffset.UtcNow.AddMinutes(5))
+            {
+                throw new RuntimeDeletionRetryException(
+                    "invalid_runtime_deletion_retry",
+                    "runtime deletion retry timestamp is invalid");
+            }
+
+            var updatedIntent = intent with
+            {
+                NextAttemptAt = effectiveRequestedAt,
+                Revision = intent.Revision + 1,
+            };
+            var audit = new PersistedRuntimeDeletionRetryAudit(
+                normalizedRequestId,
+                intent.IntentId,
+                intent.RuntimeIds.ToArray(),
+                intent.Revision,
+                updatedIntent.Revision,
+                normalizedRequestedBy,
+                effectiveRequestedAt);
+            var previousAudit = runtimeDeletionRetryAudit;
+            pendingRuntimeDeletions[intent.IntentId] = updatedIntent;
+            runtimeDeletionRetryAudit = TrimRuntimeDeletionRetryAudit(
+                runtimeDeletionRetryAudit.Enqueue(audit));
+            try
+            {
+                PersistStateStrict();
+            }
+            catch (ControlPlaneStatePersistenceException ex)
+            {
+                pendingRuntimeDeletions[intent.IntentId] = intent;
+                runtimeDeletionRetryAudit = previousAudit;
+                throw new OrchestraPersistenceException(
+                    "failed to persist runtime deletion retry request",
+                    ex);
+            }
+
+            return new RuntimeDeletionRetryNowResponse(
+                true,
+                false,
+                CloneRuntimeDeletionIntent(updatedIntent),
+                CloneRuntimeDeletionRetryAudit(audit));
+        }
+    }
+
+    private static PersistedRuntimeDeletionIntent? CloneRuntimeDeletionIntent(
+        PersistedRuntimeDeletionIntent? intent) =>
+            intent is null
+                ? null
+                : intent with { RuntimeIds = intent.RuntimeIds.ToArray() };
+
+    private static PersistedRuntimeDeletionRetryAudit
+        CloneRuntimeDeletionRetryAudit(
+            PersistedRuntimeDeletionRetryAudit audit) =>
+                audit with { RuntimeIds = audit.RuntimeIds.ToArray() };
+
+    private static ImmutableQueue<PersistedRuntimeDeletionRetryAudit>
+        TrimRuntimeDeletionRetryAudit(
+            ImmutableQueue<PersistedRuntimeDeletionRetryAudit> audit)
+    {
+        while (audit.Count() > MaxRuntimeDeletionRetryAuditEntries)
+        {
+            audit = audit.Dequeue();
+        }
+        return audit;
+    }
 
     public void CompleteRuntimeDeletion(RuntimeDeletionReservation reservation)
     {
@@ -627,7 +899,8 @@ public sealed partial class RegistryService
             pendingRuntimeDeletions.Values
                 .OrderBy(static intent => intent.PreparedAt)
                 .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal)
-                .ToArray());
+                .ToArray(),
+            runtimeDeletionRetryAudit.ToArray());
 
     public PersistenceImportResponse ImportState(PersistedControlPlaneState state)
     {
@@ -641,6 +914,7 @@ public sealed partial class RegistryService
             throw new InvalidOperationException(
                 "pending runtime deletion intents cannot be imported");
         }
+        var importedRetryAudit = NormalizeRuntimeDeletionRetryAudit(state);
 
         lock (orchestraRunSync)
         {
@@ -656,6 +930,7 @@ public sealed partial class RegistryService
             runtimes.Clear();
             sessions.Clear();
             orchestraRuns.Clear();
+            runtimeDeletionRetryAudit = importedRetryAudit;
             var (runtimeCount, sessionCount) = RestorePersistedState(state);
             if (!orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray()))
             {
@@ -663,6 +938,8 @@ public sealed partial class RegistryService
                 sessions.Clear();
                 orchestraRuns.Clear();
                 RestorePersistedState(previousState);
+                runtimeDeletionRetryAudit =
+                    NormalizeRuntimeDeletionRetryAudit(previousState);
                 throw new OrchestraPersistenceException("failed to replace Orchestra database during state import");
             }
             PersistState();

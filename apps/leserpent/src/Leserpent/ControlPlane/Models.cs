@@ -587,7 +587,22 @@ public sealed record PersistedSessionState(
 public sealed record PersistedRuntimeDeletionIntent(
     string IntentId,
     IReadOnlyList<string> RuntimeIds,
-    DateTimeOffset PreparedAt
+    DateTimeOffset PreparedAt,
+    int AttemptCount = 0,
+    DateTimeOffset? LastAttemptAt = null,
+    DateTimeOffset? NextAttemptAt = null,
+    string? LastFailureCode = null,
+    long Revision = 1
+);
+
+public sealed record PersistedRuntimeDeletionRetryAudit(
+    string RequestId,
+    string IntentId,
+    IReadOnlyList<string> RuntimeIds,
+    long ExpectedRevision,
+    long ResultingRevision,
+    string RequestedBy,
+    DateTimeOffset RequestedAt
 );
 
 public sealed record PersistedControlPlaneState(
@@ -596,5 +611,13 @@ public sealed record PersistedControlPlaneState(
     IReadOnlyList<PersistedRuntimeState> Runtimes,
     IReadOnlyList<PersistedSessionState> Sessions,
     IReadOnlyList<OrchestraRunSummary>? OrchestraRuns = null,
-    IReadOnlyList<PersistedRuntimeDeletionIntent>? PendingRuntimeDeletions = null
+    IReadOnlyList<PersistedRuntimeDeletionIntent>? PendingRuntimeDeletions = null,
+    IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? RuntimeDeletionRetryAudit = null
 );
+
+public sealed class RuntimeDeletionRetryException(
+    string code,
+    string message) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+}

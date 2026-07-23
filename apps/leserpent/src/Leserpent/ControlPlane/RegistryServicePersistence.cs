@@ -88,7 +88,8 @@ public sealed partial class RegistryService
                 runtimeIds.Any(static runtimeId => !IsValidDeletionIdentifier(runtimeId)) ||
                 runtimeIds.Any(runtimeId => !claimedRuntimeIds.Add(runtimeId)) ||
                 persisted.PreparedAt == default ||
-                persisted.PreparedAt > DateTimeOffset.UtcNow.AddMinutes(5))
+                persisted.PreparedAt > DateTimeOffset.UtcNow.AddMinutes(5) ||
+                !IsValidRuntimeDeletionRetryState(persisted))
             {
                 throw new InvalidDataException(
                     $"control-plane state contains an invalid pending runtime deletion intent '{intentId}'");
@@ -97,7 +98,12 @@ public sealed partial class RegistryService
             var intent = new PersistedRuntimeDeletionIntent(
                 intentId,
                 Array.AsReadOnly(runtimeIds),
-                persisted.PreparedAt);
+                persisted.PreparedAt,
+                persisted.AttemptCount,
+                persisted.LastAttemptAt,
+                persisted.NextAttemptAt,
+                persisted.LastFailureCode,
+                persisted.Revision);
             if (!pendingRuntimeDeletions.TryAdd(intent.IntentId, intent))
             {
                 throw new InvalidDataException(
@@ -115,6 +121,100 @@ public sealed partial class RegistryService
         value.All(static character =>
             char.IsAsciiLetterOrDigit(character) ||
             character is '.' or '-' or '_');
+
+    private static bool IsValidRuntimeDeletionRetryState(
+        PersistedRuntimeDeletionIntent intent)
+    {
+        if (intent.AttemptCount == 0)
+        {
+            return intent.LastAttemptAt is null &&
+                intent.NextAttemptAt is null &&
+                intent.LastFailureCode is null &&
+                intent.Revision == 1;
+        }
+        if (intent.AttemptCount is < 0 or > MaxRuntimeDeletionAttempts ||
+            intent.Revision < (long)intent.AttemptCount + 1 ||
+            intent.Revision > MaxRuntimeDeletionRevision ||
+            intent.LastAttemptAt is null ||
+            intent.NextAttemptAt is null ||
+            !RuntimeDeletionFailureCodes.IsValid(intent.LastFailureCode))
+        {
+            return false;
+        }
+
+        return intent.LastAttemptAt >= intent.PreparedAt &&
+            intent.LastAttemptAt <= DateTimeOffset.UtcNow.AddMinutes(5) &&
+            intent.NextAttemptAt >= intent.LastAttemptAt &&
+            intent.NextAttemptAt <=
+                intent.LastAttemptAt.Value.Add(MaxRuntimeDeletionRetryDelay);
+    }
+
+    private static ImmutableQueue<PersistedRuntimeDeletionRetryAudit>
+        NormalizeRuntimeDeletionRetryAudit(PersistedControlPlaneState? state)
+    {
+        var persistedAudit = state?.RuntimeDeletionRetryAudit
+            ?? Array.Empty<PersistedRuntimeDeletionRetryAudit>();
+        if (persistedAudit.Count > MaxRuntimeDeletionRetryAuditEntries)
+        {
+            throw new InvalidDataException(
+                $"control-plane state contains more than {MaxRuntimeDeletionRetryAuditEntries} runtime deletion retry audit entries");
+        }
+
+        var requestIds = new HashSet<string>(StringComparer.Ordinal);
+        var normalized = new List<PersistedRuntimeDeletionRetryAudit>(
+            persistedAudit.Count);
+        foreach (var persisted in persistedAudit)
+        {
+            var requestId = persisted.RequestId?.Trim() ?? string.Empty;
+            var intentId = persisted.IntentId?.Trim() ?? string.Empty;
+            var requestedBy = persisted.RequestedBy?.Trim() ?? string.Empty;
+            var runtimeIds = (persisted.RuntimeIds ?? Array.Empty<string>())
+                .Select(static runtimeId => runtimeId?.Trim() ?? string.Empty)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static runtimeId => runtimeId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (!IsValidDeletionIdentifier(requestId) ||
+                !requestIds.Add(requestId) ||
+                !IsValidDeletionIdentifier(intentId) ||
+                runtimeIds.Length is < 1 or > 128 ||
+                runtimeIds.Any(static runtimeId =>
+                    !IsValidDeletionIdentifier(runtimeId)) ||
+                !IsValidRuntimeDeletionRetryActor(requestedBy) ||
+                persisted.ExpectedRevision < 1 ||
+                persisted.ExpectedRevision >= MaxRuntimeDeletionRevision ||
+                persisted.ResultingRevision !=
+                    persisted.ExpectedRevision + 1 ||
+                persisted.RequestedAt == default ||
+                persisted.RequestedAt >
+                    DateTimeOffset.UtcNow.AddMinutes(5))
+            {
+                throw new InvalidDataException(
+                    $"control-plane state contains an invalid runtime deletion retry audit entry '{requestId}'");
+            }
+
+            normalized.Add(new PersistedRuntimeDeletionRetryAudit(
+                requestId,
+                intentId,
+                Array.AsReadOnly(runtimeIds),
+                persisted.ExpectedRevision,
+                persisted.ResultingRevision,
+                requestedBy,
+                persisted.RequestedAt));
+        }
+
+        return normalized
+            .OrderBy(static audit => audit.RequestedAt)
+            .ThenBy(static audit => audit.RequestId, StringComparer.Ordinal)
+            .Aggregate(
+                ImmutableQueue<PersistedRuntimeDeletionRetryAudit>.Empty,
+                static (queue, audit) => queue.Enqueue(audit));
+    }
+
+    private static bool IsValidRuntimeDeletionRetryActor(string value) =>
+        value.Length is > 0 and <= 80 &&
+        value.All(static character =>
+            char.IsAsciiLetterOrDigit(character) ||
+            character is '.' or '-' or '_' or '@');
 
     private void RestoreOrMigrateOrchestraRuns()
     {
@@ -238,7 +338,8 @@ public sealed partial class RegistryService
                 state.Runtimes,
                 state.Sessions,
                 state.OrchestraRuns,
-                state.PendingRuntimeDeletions);
+                state.PendingRuntimeDeletions,
+                state.RuntimeDeletionRetryAudit);
         }
     }
 
@@ -251,7 +352,8 @@ public sealed partial class RegistryService
                 state.Runtimes,
                 state.Sessions,
                 state.OrchestraRuns,
-                state.PendingRuntimeDeletions);
+                state.PendingRuntimeDeletions,
+                state.RuntimeDeletionRetryAudit);
         }
     }
 }

@@ -257,6 +257,9 @@ runtime：
 - `POST /v1/runtimes/{id}/refresh-capabilities`
 - `POST /v1/runtimes/{id}/refresh-status`
 - `GET /v1/persistence/export`
+- `GET /v1/persistence/runtime-deletion-retry-audit`
+- `GET /v1/persistence/runtime-deletions`
+- `POST /v1/persistence/runtime-deletions/{intentId}/retry-now`
 - `POST /v1/persistence/import`
 - `POST /v1/persistence/save`
 - `GET /v1/sessions`
@@ -298,8 +301,11 @@ JSON state 默认路径：
 - `GET /v1/orchestra/runtimes/{id}/runs/{runId}/events` 按顺序返回单次运行的审计时间线；旧数据在首次新状态转换前可能没有事件
 - Orchestra 状态转换只有在 SQLite 快照与事件同时提交后才会发布到内存；数据库拒写时不会启动自动执行
 - state import 的 Orchestra 批量替换失败会返回 `503 persistence_import_unavailable` 并恢复导入前的内存 registry
-- control-plane JSON schema v2 保存待完成的 runtime 删除意图；schema v1 在读取时自动升级为空意图集合
-- 删除意图必须在 daemon mutation 前严格落盘，daemon 和本地 registry 都完成后才会清除；任一步失败都会保留意图并由后台循环重试
+- control-plane JSON schema v3 保存待完成的 runtime 删除意图及逐意图 `attemptCount`、`lastAttemptAt`、`nextAttemptAt`、`lastFailureCode`；schema v1/v2 在读取时自动升级
+- 删除意图必须在 daemon mutation 前严格落盘，daemon 和本地 registry 都完成后才会清除；失败使用 1/2/4/8/16/30 秒封顶退避，且只持久化固定安全失败码
+- `GET /v1/persistence/runtime-deletions` 提供只读运维视图；尚未到期的 poison 不占用已到期健康意图的领取名额
+- `POST /v1/persistence/runtime-deletions/{intentId}/retry-now` 要求当前 revision、唯一 requestId 和操作者；成功后立即唤醒恢复 worker，陈旧 revision 或复用冲突返回 `409`
+- retry-now 审计最多保留 256 条，严格落盘且在删除收敛后继续存在；`GET /v1/persistence/runtime-deletion-retry-audit` 提供只读查询
 - 服务重启后，待删 runtime 继续拒绝新 session 和 Orchestra run，直到幂等 daemon 注销及本地清理收敛；state import 不接受待执行删除意图
 - `scripts/validation/leserpent_runtime_deletion_crash.sh` 使用真实 Rust daemon 和独立 C# 子进程，在 daemon 提交后强杀宿主并验证重启收敛
 - `scripts/validation/leserpent_runtime_deletion_fault_campaign.sh` 重复覆盖意图落盘、daemon 提交和本地清理三个持久化边界，并为当前平台保留聚合证据
@@ -311,6 +317,8 @@ JSON state 默认路径：
 - `scripts/validation/leserpent_runtime_deletion_poison_isolation.sh` 让队首删除意图持续失败，验证健康意图不被饿死且毒化预约跨重载仍受保护
 - `scripts/validation/leserpent_runtime_deletion_high_cardinality.sh` 运行 32-intent/4-poison 队列；恢复循环每批最多领取 32 个意图、并发执行 8 个 daemon mutation、每个 daemon tick 最多处理 64 个 IPC 连接，再以一次严格本地保存提交成功项
 - `scripts/validation/leserpent_runtime_deletion_batch_persistence.sh` 在真实 daemon 注销成功后破坏本地严格批保存，验证全部内存投影回滚、预约继续受保护，并由下一轮幂等重放自动收敛
+- `scripts/validation/leserpent_runtime_deletion_saturated_queue.sh` 填满 128-intent 队列，在 8 个阻塞槽下验证可取消停机，再以慢目标和 8 个 poison 验证四批健康收敛、逐意图持久退避、revision-fenced retry-now、跨收敛审计及修复收敛
+- `scripts/validation/leserpent_runtime_deletion_retry_claim_race.sh` 以 worker-first、operator-first 和 32 轮同时起跑竞态验证 retry-now/claim 线性化、确定性冲突、持久审计及每个 runtime 仅一次权威删除
 - guided session 已创建但审计写入失败时返回 `503 orchestra_persistence_unavailable`，响应携带 `sessionId`，调用方不应盲目重试创建
 - runtime 单删和批量清理会先在一个 SQLite 事务中删除对应 run/event；失败时返回 `503 runtime_delete_persistence_unavailable`，registry 和 session 保持不变
 - control-plane JSON 状态保存会在进程内串行化，写入唯一临时文件并刷盘后再原子替换；并发请求不会共享或截断同一个 `.tmp` 文件
@@ -460,7 +468,9 @@ SQLite 不存储原始抓包、大型 eBPF 事件流或分析产物；这些内�
   - `persistence.orchestraStoreLastError`
   - `persistence.orchestraStoreSchemaVersion`
 - `GET /v1/persistence/export`
-  - downloads the current control-plane state as JSON
+- `GET /v1/persistence/runtime-deletion-retry-audit`
+- `GET /v1/persistence/runtime-deletions`
+- `POST /v1/persistence/runtime-deletions/{intentId}/retry-now`
 - `POST /v1/persistence/import`
   - imports a compatible control-plane state JSON document
   - immediately persists the imported state and refreshes the in-memory registry

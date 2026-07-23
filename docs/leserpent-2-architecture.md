@@ -635,9 +635,24 @@ daemon revision-fences every target and atomically journals their removal,
 deletes Orchestra history, and stores an idempotent replay record in schema
 v14. The compatibility service reserves the selected runtimes across the
 daemon call, preventing new sessions or Orchestra runs before it removes local
-compatibility state. Its control-plane state schema v2 durably records the
+compatibility state. Its control-plane state schema v3 durably records the
 deletion intent before daemon mutation and clears it only after local cleanup is
-strictly persisted. On restart, targets in pending intents remain unavailable
+strictly persisted. Control-plane schema v3 extends each intent with a bounded
+attempt counter, last/next attempt timestamps, and a closed safe failure-code
+set. Schema v1/v2 snapshots upgrade without inventing retry history. Failed
+authority calls use durable 1/2/4/8/16/30-second capped backoff; deferred
+intents are filtered before the 32-item claim limit, so a poison target cannot
+consume a ready target's slot. The loopback-or-token-fenced read-only
+`GET /v1/persistence/runtime-deletions` surface exposes this schedule without
+persisting exception messages or credentials. A guarded retry-now command
+requires the current intent revision, a request ID unique within the retained
+audit window, and a
+bounded identifier-safe operator identity. It atomically advances the revision,
+makes the intent eligible, appends one of at most 256 durable audit records,
+and signals the sleeping recovery worker. Matching request-ID replay is
+idempotent even after convergence; conflicting reuse and stale revisions fail
+closed. `GET /v1/persistence/runtime-deletion-retry-audit` retains the
+post-convergence trail. On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent
 daemon command and local cleanup until both authorities converge. Schema v1
 snapshots migrate with no pending intent, and state import rejects destructive
@@ -720,6 +735,33 @@ authority. Instead, its next paced pass repeats daemon unregistration and
 Orchestra cleanup idempotently before committing local convergence. Retained
 Arm64 and physical x86_64 Linux evidence converges in 1271 ms and 1289 ms,
 respectively, with exactly two authority attempts per intent.
+The saturated-queue extension fills all 128 durable intent slots, blocks all
+eight authority workers, then requests shutdown. Cooperative cancellation
+reaches every worker, preserves every intent, and releases all claims in 1 ms
+on Arm64 and 2 ms on physical x86_64 Linux. A second run mixes 17 slow targets
+with eight evenly spaced poison intents. Deferred poison is skipped before the
+claim limit, so pending counts fall through 98, 68, 38, and 8 across four
+bounded passes; all 120 healthy intents converge while every poison target
+spends exactly one initial attempt. Reload preserves attempt count, safe
+failure code, and retry deadline, rejects a premature claim, and a repaired
+authority receives eight revision-fenced retry-now requests. Revision `3`,
+eight audit records, and idempotent replay survive reload and convergence.
+Repair starts without waiting for the old deadline and completes in 55 ms on
+Arm64 and 162 ms on physical x86_64 Linux.
+The retry/claim race extension makes the shared claim lock a retained
+linearizability contract rather than an implementation assumption. It runs
+eight forced worker-first rounds, eight forced operator-first rounds, and 32
+simultaneous-start rounds with eight operator contenders each. A blocking
+authority keeps the winning claim active until every retry result is observed.
+Across Arm64 and physical x86_64 Linux, each of the 48 runtimes receives exactly
+one authority mutation and converges after disk reload. At most one retry
+request per round advances the revision and produces a durable audit record;
+all losing requests return only the closed in-progress or revision-changed
+conflicts. The retained fixtures are
+`docs/fixtures/leserpent_runtime_deletion_retry_claim_race_20260723.json` and
+`docs/fixtures/leserpent_runtime_deletion_retry_claim_race_linux_x86_64_20260723.json`;
+`scripts/validation/leserpent_runtime_deletion_retry_claim_race.sh` reproduces
+the host-specific result.
 
 ## Leselang Semantics
 

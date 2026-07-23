@@ -52,6 +52,7 @@ public partial class Program
             services.GetRequiredService<DaemonRuntimeRegistrationAuthority>());
         builder.Services.AddSingleton<IDaemonRuntimeProjectionReader>(services =>
             services.GetRequiredService<DaemonRuntimeRegistrationAuthority>());
+        builder.Services.AddSingleton<RuntimeDeletionRecoverySignal>();
         builder.Services.AddHostedService<RuntimeDeletionRecoveryService>();
         builder.Services.AddSingleton<RuntimeReadProjectionService>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
