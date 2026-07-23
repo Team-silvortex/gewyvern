@@ -55,6 +55,17 @@ internal sealed class RemoteWireTransport : IDisposable
             RemoteBootstrapClient.MaxMessageBytes,
             cancellationToken).ConfigureAwait(false);
 
+    public async Task<byte[]> PostProvisioningAsync(
+        ReadOnlyMemory<byte> payload,
+        string operation,
+        CancellationToken cancellationToken)
+        => await PostAsync(
+            payload,
+            operation,
+            "v1/provisioning",
+            RemoteProvisioningClient.MaxMessageBytes,
+            cancellationToken).ConfigureAwait(false);
+
     private async Task<byte[]> PostAsync(
         ReadOnlyMemory<byte> payload,
         string operation,

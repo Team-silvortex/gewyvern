@@ -230,11 +230,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|blocker| blocker.id == "bootstrap-production-entry-missing")
     );
     assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "post-bind-gewyvern-ui-missing"
+        blocker.id == "post-bind-gewyvern-retirement-missing"
             && blocker
                 .summary
-                .contains("daemon-derived atomic registration proof")
+                .contains("Remote compensation or retirement")
     }));
+    assert!(
+        !bootstrap
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id == "post-bind-gewyvern-ui-missing")
+    );
     assert!(bootstrap.blockers.iter().all(|blocker| {
         !blocker
             .summary
@@ -247,7 +253,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/gewyvern-provisioning")
         .expect("Gewyvern provisioning must be tracked independently from pipeline deployment");
     assert_eq!(provisioning.maturity, Maturity::Developing);
-    assert_eq!(provisioning.completion, 97);
+    assert_eq!(provisioning.completion, 99);
     assert_eq!(provisioning.contract.stability, ContractStability::Draft);
     assert!(
         provisioning.contract.surfaces.iter().any(|surface| {
@@ -385,6 +391,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "authenticated-cli-provisioning-ipc-https",
         "bounded-cli-provisioning-progress",
         "provisioning-terminal-exit-codes",
+        "avalonia-confirmed-runtime-provision",
+        "authority-scoped-avalonia-provisioning",
+        "identity-locked-avalonia-progress",
+        "bounded-avalonia-provisioning-poll",
+        "explicit-new-attempt-retry-guidance",
+        "optional-local-gewyvern-provisioning-origin",
     ] {
         assert!(
             provisioning
@@ -396,9 +408,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(provisioning.blockers.iter().any(|blocker| {
-        blocker.id == "gewyvern-provisioning-client-controls-incomplete"
-            && blocker.summary.contains("Avalonia controls")
+        blocker.id == "gewyvern-provisioning-compensation-missing"
+            && blocker.summary.contains("compensation")
     }));
+    assert!(
+        !provisioning
+            .blockers
+            .iter()
+            .any(|blocker| { blocker.id == "gewyvern-provisioning-client-controls-incomplete" })
+    );
     assert!(
         !provisioning
             .blockers

@@ -113,6 +113,24 @@ promotion currently requires the config's default secret service
 binding but cannot export their local trust or session stores into the desktop.
 Verify the transaction with `--verify-bootstrap-promotion`.
 
+`Provision gewyvern` opens the separate runtime-provisioning workspace for a
+saved authenticated daemon authority. It requires a stable provisioning ID,
+runtime ID, SSH target, opaque `vault:ssh:*` handle, and explicit confirmation
+before calling `POST /v1/provisioning`; it never calls the existing
+`runtime.deploy` debugging-pipeline operation. Submission locks the complete
+identity, then performs at most 30 automatic observations by replaying the exact
+request. Manual refresh observes that same attempt. A failed terminal state tells
+the operator to remediate and choose a new provisioning ID, while a registered
+state refreshes the Hub topology. Verify the strict codec with
+`--verify-provisioning-client` and the native control sequence with
+`--verify-provisioning-controls`.
+
+On macOS and Linux, `LESERPENT_GEWYVERN_PROVISIONING_CONFIG` may point to the
+absolute private `gewyvern-provisioning-config` file before app startup. Local
+Orchestra then receives that native daemon config and appears as a provisioning
+authority; without it, the Hub offers only saved daemon authorities and does not
+pretend the local service can install Gewyvern.
+
 Runtime children are direct workspace actions. Selecting one creates or reuses
 its owning daemon session, but the workspace is not opened from the Hub's query
 projection. The request remains bounded and pending until that daemon session

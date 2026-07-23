@@ -54,6 +54,12 @@ internal sealed class LeserpentApp : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            if (desktop.Args is ["--verify-provisioning-controls"])
+            {
+                ConfigureProvisioningControlVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (desktop.Args is ["--remote", ..])
             {
                 ConfigureRemoteWindow(desktop);
@@ -326,6 +332,7 @@ internal sealed class LeserpentApp : Application
             (_, _) => Task.FromResult(topology),
             () => { },
             () => { },
+            () => { },
             _ => { });
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
@@ -485,6 +492,78 @@ internal sealed class LeserpentApp : Application
         desktop.MainWindow = window;
     }
 
+    private static void ConfigureProvisioningControlVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var reconcileCount = 0;
+        RemoteProvisioningIntent? acceptedIntent = null;
+        var window = new GewyvernProvisioningWindow(
+            [new BootstrapAuthorityOption(
+                "daemon-verification",
+                "Verification authority",
+                "https://controller.example:9443",
+                false)],
+            new ProvisioningHubOperations((_, intent, _) =>
+            {
+                reconcileCount++;
+                acceptedIntent ??= intent;
+                if (acceptedIntent != intent)
+                {
+                    throw new InvalidDataException(
+                        "provisioning controls changed identity while observing progress");
+                }
+                return Task.FromResult(reconcileCount == 1
+                    ? new RemoteProvisioningSnapshot(
+                        intent.ProvisioningId,
+                        intent.RuntimeId,
+                        "planned",
+                        "ssh",
+                        intent.Host,
+                        intent.Port,
+                        true,
+                        null,
+                        null,
+                        null,
+                        null,
+                        false)
+                    : new RemoteProvisioningSnapshot(
+                        intent.ProvisioningId,
+                        intent.RuntimeId,
+                        "runtime_registered",
+                        "ssh",
+                        intent.Host,
+                        intent.Port,
+                        false,
+                        "https://runtime.example:9444",
+                        "vault:gewyvern:runtime-api",
+                        "vault:gewyvern-ca:runtime-ca",
+                        null,
+                        true));
+            }));
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += async (_, _) =>
+        {
+            window.VerifyAccessibility();
+            await window.ProbeConfirmationFenceAsync();
+            if (reconcileCount != 0)
+            {
+                throw new InvalidDataException(
+                    "provisioning controls submitted without explicit confirmation");
+            }
+            await window.ProbeWorkflowAsync();
+            if (reconcileCount != 2 || acceptedIntent is null)
+            {
+                throw new InvalidDataException(
+                    "provisioning controls did not preserve submit-observe identity");
+            }
+            Console.WriteLine(
+                "provisioning controls valid: controls=12, authority_scoped=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, terminal_state=true, retry_guidance=true, automation=true");
+            DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
     private static void ConfigureInteractiveDesktop(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -578,6 +657,7 @@ internal sealed class LeserpentApp : Application
                 connection,
                 cancellationToken),
             () => ShowBootstrapDeployment(desktop, catalogStore, certificateStore),
+            () => ShowGewyvernProvisioning(desktop, catalogStore, certificateStore),
             () => ShowConnectionManager(desktop, null),
             connection => ShowConnectionManager(desktop, connection));
         RegisterMainWindowLifecycle(desktop, hub);
@@ -917,6 +997,110 @@ internal sealed class LeserpentApp : Application
             connection);
         using var client = new RemoteBootstrapClient(plan.Options);
         return await operation(client, cancellationToken);
+    }
+
+    private static void ShowGewyvernProvisioning(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        try
+        {
+            var catalog = DesktopProductStartup.PrepareSavedCatalog(
+                catalogStore.Load(),
+                catalogStore,
+                certificateStore);
+            var authorities = catalog.Connections
+                .Select(connection => new BootstrapAuthorityOption(
+                    connection.DaemonId,
+                    connection.DisplayName,
+                    connection.Profile.Endpoint,
+                    false))
+                .ToList();
+            if (localOrchestraService is { GewyvernProvisioningEnabled: true })
+            {
+                authorities.Insert(0, new BootstrapAuthorityOption(
+                    "local-orchestra",
+                    "Local Orchestra",
+                    "Managed on this device",
+                    false));
+            }
+            if (authorities.Count == 0)
+            {
+                throw new InvalidDataException(
+                    "Add and authenticate a daemon authority before provisioning gewyvern.");
+            }
+            var operations = new ProvisioningHubOperations(
+                async (authorityId, intent, cancellationToken) =>
+                {
+                    var state = await ExecuteProvisioningAsync(
+                        catalogStore,
+                        certificateStore,
+                        authorityId,
+                        intent,
+                        cancellationToken);
+                    if (state.RuntimeRegistered)
+                    {
+                        RefreshHub(desktop);
+                    }
+                    return state;
+                });
+            var window = new GewyvernProvisioningWindow(authorities, operations);
+            if (desktop.MainWindow is { } owner)
+            {
+                window.Show(owner);
+            }
+            else
+            {
+                window.Show();
+            }
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            var description = StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+            new StartupErrorWindow(description).Show();
+        }
+    }
+
+    private static async Task<RemoteProvisioningSnapshot> ExecuteProvisioningAsync(
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore,
+        string authorityId,
+        RemoteProvisioningIntent intent,
+        CancellationToken cancellationToken)
+    {
+        if (authorityId == "local-orchestra")
+        {
+            if (localOrchestraService is not
+                { GewyvernProvisioningEnabled: true } localService)
+            {
+                throw new InvalidDataException(
+                    "local gewyvern provisioning authority is unavailable");
+            }
+            if (!localService.TryEnsureReady(
+                    certificateStore,
+                    out var localPlan,
+                    out var startupError)
+                || localPlan is null)
+            {
+                throw new InvalidDataException(
+                    startupError ?? "local gewyvern provisioning authority is unavailable");
+            }
+            using var localClient = new RemoteProvisioningClient(localPlan.Options);
+            return await localClient.ReconcileAsync(intent, cancellationToken);
+        }
+        var connection = catalogStore.Load().Connections.SingleOrDefault(
+            item => item.DaemonId == authorityId)
+            ?? throw new InvalidDataException(
+                "the provisioning authority changed; reopen the Hub before continuing");
+        var plan = ResolveRemoteConnectionPlan(
+            catalogStore,
+            certificateStore,
+            connection);
+        using var client = new RemoteProvisioningClient(plan.Options);
+        return await client.ReconcileAsync(intent, cancellationToken);
     }
 
     private static async Task PromoteBoundBootstrapAsync(

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 internal sealed class DesktopBootstrapPromotion(
     DesktopConnectionCatalogStore catalogStore,
@@ -100,12 +101,14 @@ internal sealed class DesktopBootstrapPromotion(
             var digest = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(caPem))).ToLowerInvariant();
             var recordPath = Path.Combine(trustRoot, "target.json");
-            File.WriteAllText(recordPath, JsonSerializer.Serialize(new
-            {
-                endpoint,
-                ca_pem = caPem,
-                ca_sha256 = digest,
-            }));
+            File.WriteAllText(recordPath, JsonSerializer.Serialize(
+                new BootstrapPromotionTrustFixture
+                {
+                    Endpoint = endpoint,
+                    CaPem = caPem,
+                    CaSha256 = digest,
+                },
+                BootstrapPromotionJsonContext.Default.BootstrapPromotionTrustFixture));
             SetPrivateFile(recordPath);
 
             var catalogPath = Path.Combine(root, "connections.json");
@@ -249,3 +252,14 @@ internal sealed class DesktopBootstrapPromotion(
             values.Remove(RemoteTokenResolver.Account(endpoint));
     }
 }
+
+internal sealed class BootstrapPromotionTrustFixture
+{
+    public required string Endpoint { get; set; }
+    public required string CaPem { get; set; }
+    public required string CaSha256 { get; set; }
+}
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
+[JsonSerializable(typeof(BootstrapPromotionTrustFixture))]
+internal partial class BootstrapPromotionJsonContext : JsonSerializerContext;

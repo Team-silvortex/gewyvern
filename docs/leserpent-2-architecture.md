@@ -264,8 +264,17 @@ provisioning IDs, authenticated IPC/HTTPS transport, bounded phase polling, and
 distinct protocol-failure, provisioning-failure, and wait-exhaustion exit codes.
 It never aliases this operation to `runtime.deploy`, and repeated polling reuses
 the exact provisioning identity rather than creating a second install attempt.
-Avalonia controls, explicit new-attempt retry guidance, and remote
-compensation/retirement remain to be productized.
+The Avalonia Hub exposes the same route through an authority-scoped native
+workspace. It requires explicit confirmation, accepts only a `vault:ssh:*`
+installation handle, locks provisioning/runtime/target identity after submit,
+and performs at most 30 automatic observations before yielding to an explicit
+same-attempt refresh. Terminal failure directs the operator to correct the cause
+and choose a new provisioning ID, preserving the failed identity for audit.
+Desktop Local Orchestra is offered as an owning authority only when the private
+`LESERPENT_GEWYVERN_PROVISIONING_CONFIG` path is present at app startup; otherwise
+only saved authenticated daemon authorities are listed.
+Remote compensation/retirement for an already registered service remains to be
+productized.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrates schema-11 `bootstrap_handoffs` rows into the

@@ -102,6 +102,36 @@ fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
 }
 
 #[test]
+fn gewyvern_provisioning_is_authority_scoped_identity_locked_and_bounded() {
+    let client = avalonia_source("Leserpent.RemoteClient/RemoteProvisioningClient.cs");
+    let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
+    let window = avalonia_source("Leserpent.Avalonia/GewyvernProvisioningWindow.cs");
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let promotion = avalonia_source("Leserpent.Avalonia/DesktopBootstrapPromotion.cs");
+
+    assert!(client.contains("public sealed class RemoteProvisioningClient"));
+    assert!(client.contains("Capability = \"runtime.provision\""));
+    assert!(client.contains("InstallCredentialHandle"));
+    assert!(client.contains("state.ProvisioningId != expected.ProvisioningId"));
+    assert!(client.contains("state.RuntimeId != expected.RuntimeId"));
+    assert!(!client.contains("Capability = \"runtime.deploy\""));
+    assert!(transport.contains("\"v1/provisioning\""));
+    assert!(window.contains("MaxAutomaticObservations = 30"));
+    assert!(window.contains("LockIdentityFields()"));
+    assert!(window.contains("new provisioning ID"));
+    assert!(window.contains("provisioning-credential-handle"));
+    assert!(window.contains("AutomationLiveSetting.Assertive"));
+    assert!(hub.contains("hub-provision-gewyvern"));
+    assert!(app.contains("ExecuteProvisioningAsync"));
+    assert!(app.contains("--verify-provisioning-controls"));
+    assert!(program.contains("--verify-provisioning-client"));
+    assert!(promotion.contains("BootstrapPromotionJsonContext.Default"));
+    assert!(!promotion.contains("JsonSerializer.Serialize(new\n"));
+}
+
+#[test]
 fn remote_window_observes_async_ui_operations_and_fences_shutdown_updates() {
     let source = remote_main_window_source();
 
@@ -402,6 +432,10 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(program.contains("private_files=true"));
     assert!(program.contains("minimal_child_environment=true"));
     assert!(program.contains("optional_bootstrap_origin=true"));
+    assert!(program.contains("optional_gewyvern_provisioning_origin=true"));
+    assert!(supervisor.contains("LESERPENT_GEWYVERN_PROVISIONING_CONFIG"));
+    assert!(supervisor.contains("--gewyvern-provisioning-config"));
+    assert!(app.contains("GewyvernProvisioningEnabled: true"));
     assert!(program.contains("package_local_daemon=true"));
     assert!(program.contains("symlink_rejection=true"));
     assert!(supervisor.contains("Directory.CreateSymbolicLink"));

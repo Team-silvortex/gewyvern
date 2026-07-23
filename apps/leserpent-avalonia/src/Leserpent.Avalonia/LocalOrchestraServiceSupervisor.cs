@@ -16,6 +16,8 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
     private const string CertFile = "orchestra-local-server.pem";
     private const string KeyFile = "orchestra-local-server-key.pem";
     private const string BootstrapConfigEnvironment = "LESERPENT_BOOTSTRAP_CONFIG";
+    private const string GewyvernProvisioningConfigEnvironment =
+        "LESERPENT_GEWYVERN_PROVISIONING_CONFIG";
     private const string BootstrapTrustDirectory = "bootstrap-trust-v1";
     private const int DaemonPortStart = 9443;
     private const int DaemonPortEnd = 9503;
@@ -32,6 +34,7 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
     private readonly string serverKeyPath;
     private readonly string bootstrapTrustRoot;
     private readonly string? bootstrapConfigPath;
+    private readonly string? gewyvernProvisioningConfigPath;
     private readonly string? configuredDaemonPath;
     private readonly string remoteToken;
     private Process? process;
@@ -43,12 +46,13 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
         : this(
             DefaultRootDirectory(),
             null,
-            Environment.GetEnvironmentVariable(BootstrapConfigEnvironment))
+            Environment.GetEnvironmentVariable(BootstrapConfigEnvironment),
+            Environment.GetEnvironmentVariable(GewyvernProvisioningConfigEnvironment))
     {
     }
 
     private LocalOrchestraServiceSupervisor(string rootDirectory, string? daemonPath)
-        : this(rootDirectory, daemonPath, null)
+        : this(rootDirectory, daemonPath, null, null)
     {
     }
 
@@ -56,12 +60,25 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
         string rootDirectory,
         string? daemonPath,
         string? bootstrapConfigPath)
+        : this(rootDirectory, daemonPath, bootstrapConfigPath, null)
+    {
+    }
+
+    private LocalOrchestraServiceSupervisor(
+        string rootDirectory,
+        string? daemonPath,
+        string? bootstrapConfigPath,
+        string? gewyvernProvisioningConfigPath)
     {
         this.rootDirectory = Path.GetFullPath(rootDirectory);
         configuredDaemonPath = daemonPath is null ? null : Path.GetFullPath(daemonPath);
         this.bootstrapConfigPath = string.IsNullOrWhiteSpace(bootstrapConfigPath)
             ? null
             : Path.GetFullPath(bootstrapConfigPath);
+        this.gewyvernProvisioningConfigPath =
+            string.IsNullOrWhiteSpace(gewyvernProvisioningConfigPath)
+                ? null
+                : Path.GetFullPath(gewyvernProvisioningConfigPath);
         EnsurePrivateRootDirectory(this.rootDirectory);
 
         databasePath = Path.Combine(this.rootDirectory, "orchestra.sqlite");
@@ -138,6 +155,8 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
 
     public string? BootstrapTrustRoot => BootstrapEnabled ? bootstrapTrustRoot : null;
 
+    public bool GewyvernProvisioningEnabled => gewyvernProvisioningConfigPath is not null;
+
     public void Dispose()
     {
         lock (lifecycleGate)
@@ -165,9 +184,20 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
         info.ArgumentList.Add(bootstrapTrustRoot);
     }
 
+    private void AppendGewyvernProvisioningArguments(ProcessStartInfo info)
+    {
+        if (gewyvernProvisioningConfigPath is null)
+        {
+            return;
+        }
+        info.ArgumentList.Add("--gewyvern-provisioning-config");
+        info.ArgumentList.Add(gewyvernProvisioningConfigPath);
+    }
+
     private void CopyBootstrapEnvironment(ProcessStartInfo info)
     {
-        if (bootstrapConfigPath is null || !OperatingSystem.IsLinux())
+        if ((bootstrapConfigPath is null && gewyvernProvisioningConfigPath is null)
+            || !OperatingSystem.IsLinux())
         {
             return;
         }
@@ -266,6 +296,7 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
         info.ArgumentList.Add("--remote-key");
         info.ArgumentList.Add(serverKeyPath);
         AppendBootstrapArguments(info);
+        AppendGewyvernProvisioningArguments(info);
         CopyBootstrapEnvironment(info);
         info.Environment["LESERPENT_REMOTE_TOKEN"] = remoteToken;
         var candidate = new Process { StartInfo = info };
@@ -566,6 +597,32 @@ internal sealed class LocalOrchestraServiceSupervisor : IDisposable
                 {
                     throw new InvalidDataException(
                         "local orchestra bootstrap origin arguments drifted");
+                }
+            }
+
+            var provisioningConfig = Path.Combine(root, "gewyvern-provisioning.json");
+            File.WriteAllText(provisioningConfig, "{}");
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(
+                    provisioningConfig,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            using (var provisioningSupervisor = new LocalOrchestraServiceSupervisor(
+                Path.Combine(root, "provisioning-state"),
+                daemonPath,
+                null,
+                provisioningConfig))
+            {
+                var arguments = new ProcessStartInfo();
+                provisioningSupervisor.AppendGewyvernProvisioningArguments(arguments);
+                if (!provisioningSupervisor.GewyvernProvisioningEnabled
+                    || arguments.ArgumentList.Count != 2
+                    || arguments.ArgumentList[0] != "--gewyvern-provisioning-config"
+                    || arguments.ArgumentList[1] != Path.GetFullPath(provisioningConfig))
+                {
+                    throw new InvalidDataException(
+                        "local orchestra gewyvern provisioning arguments drifted");
                 }
             }
 

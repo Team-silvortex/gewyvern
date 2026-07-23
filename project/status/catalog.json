@@ -1369,8 +1369,8 @@
           "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and a product uninstall/retirement flow remain."
         },
         {
-          "id": "post-bind-gewyvern-ui-missing",
-          "summary": "The Rust CLI and Avalonia Hub now expose authenticated daemon bootstrap, handoff inspection, confirmed binding, and locally verified connection promotion. Post-session Gewyvern provisioning now has native target preparation, host-key-pinned SSH transport, verified service activation, controller trust persistence, and daemon-derived atomic registration proof. Operator-facing CLI and Avalonia confirmation, progress, retry, and remote compensation or retirement controls remain."
+          "id": "post-bind-gewyvern-retirement-missing",
+          "summary": "The Rust CLI and Avalonia Hub now expose authenticated daemon bootstrap, handoff inspection, confirmed binding, locally verified connection promotion, and authority-scoped Gewyvern confirmation, progress, and retry guidance. Remote compensation or retirement for an already registered service remains."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1410,7 +1410,7 @@
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapPromotion.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" }
       ],
-      "next_gate": "Expose confirmed post-bind Gewyvern deployment controls through the newly promoted daemon authority."
+      "next_gate": "Define remote compensation or retirement after a post-bind Gewyvern service has been registered."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
@@ -1419,12 +1419,12 @@
       "feature": "gewyvern-provisioning",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 97,
+      "completion": 99,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-gewyvern-provisioning-contract",
-        "version": "0.9.0",
+        "version": "0.10.0",
         "stability": "draft",
         "surfaces": [
           "runtime-provision-capability",
@@ -1496,7 +1496,13 @@
           "explicit-provisioning-id-replay",
           "authenticated-cli-provisioning-ipc-https",
           "bounded-cli-provisioning-progress",
-          "provisioning-terminal-exit-codes"
+          "provisioning-terminal-exit-codes",
+          "avalonia-confirmed-runtime-provision",
+          "authority-scoped-avalonia-provisioning",
+          "identity-locked-avalonia-progress",
+          "bounded-avalonia-provisioning-poll",
+          "explicit-new-attempt-retry-guidance",
+          "optional-local-gewyvern-provisioning-origin"
         ]
       },
       "depends_on": [
@@ -1506,8 +1512,8 @@
       ],
       "blockers": [
         {
-          "id": "gewyvern-provisioning-client-controls-incomplete",
-          "summary": "The native CLI now exposes confirmed runtime.provision submission, opaque SSH handles, explicit idempotent provisioning IDs, authenticated IPC and HTTPS transport, bounded phase polling, and distinct failure or timeout exit codes. Avalonia controls, explicit new-attempt retry guidance, and remote compensation or retirement remain; runtime.deploy continues to mean pipeline submission only."
+          "id": "gewyvern-provisioning-compensation-missing",
+          "summary": "Native CLI and Avalonia now expose confirmed runtime.provision submission, opaque SSH handles, stable idempotent provisioning IDs, authenticated transport, bounded phase observation, terminal state rendering, and explicit new-attempt retry guidance. Remote compensation or retirement for an already registered Gewyvern service remains; runtime.deploy continues to mean pipeline submission only."
         }
       ],
       "consumers": ["leserpentd", "leserpent-cli", "avalonia-client", "model-automation"],
@@ -1538,9 +1544,13 @@
         { "kind": "test", "path": "crates/leserpentd/src/gewyvern_origin.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-cli/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/ipc_vertical.rs", "state": "present" },
-        { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" }
+        { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteProvisioningClient.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/GewyvernProvisioningWindow.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
+        { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Expose the confirmed provisioning and bounded progress contract through Avalonia, then add explicit new-attempt retry guidance and remote compensation/retirement without conflating runtime.provision with runtime.deploy."
+      "next_gate": "Add an explicit remote compensation/retirement contract for an already registered Gewyvern service without conflating runtime.provision with runtime.deploy."
     },
     {
       "id": "leserpent-2/native-cli/cli-parity",
@@ -1586,7 +1596,7 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-avalonia-contract",
-        "version": "1.33.0",
+        "version": "1.34.0",
         "stability": "stable",
         "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "runtime-capability-action-binding-validation", "capability-observation-mutation-fence", "heartbeat-resistant-unknown-mutation-fence", "mutation-fence-policy-probe", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "capability-workspace-conformance-fixture", "no-argument-product-launch", "hierarchical-daemon-topology-hub", "bounded-multi-daemon-connection-catalog", "stable-authenticated-authority-id", "atomic-legacy-single-profile-migration", "independent-daemon-session-windows", "authority-keyed-session-reuse", "independent-daemon-open-manage-actions", "set-based-multi-ca-retention", "local-authority-ca-retention", "hub-topology-control-probe", "typed-hub-runtime-list-query", "bounded-daemon-runtime-preview", "live-cached-topology-status", "renderer-neutral-topology-state", "parallel-health-runtime-list-query", "authority-proof-required-live-topology", "cache-health-nonfabrication", "visible-daemon-queue-pressure", "real-local-authority-topology-composition", "retained-stale-topology", "topology-revision-regression-fence", "bounded-periodic-topology-refresh", "same-card-refresh-exclusion", "four-way-topology-load-bound", "topology-load-cancellation", "endpoint-free-runtime-child-projection", "real-local-daemon-topology-query", "direct-hub-runtime-workspace-action", "daemon-owned-workspace-routing", "topology-revision-workspace-fence", "snapshot-revision-feed-binding", "heartbeat-resistant-workspace-launch", "bounded-pending-workspace-requests", "session-window-reuse-before-workspace", "removed-runtime-authoritative-rejection", "desktop-connection-window", "bounded-private-desktop-profile", "desktop-profile-contract-probe", "desktop-connect-accessibility-probe", "side-effect-free-connection-preflight-control", "connected-authority-health-control", "accessible-queue-pressure-status", "canonical-leselang-mutation-preview", "explicit-clipboard-export", "shared-connection-management", "native-menu-connection-settings", "renderer-connection-settings", "safe-session-replacement", "confirmed-endpoint-forget", "stale-profile-delete-fence", "connection-management-control-probe", "app-private-desktop-ca", "strict-single-ca-pem", "content-addressed-ca", "private-ca-permissions", "legacy-profile-ca-migration", "managed-ca-tamper-rejection", "bounded-ca-prune", "stale-ca-temp-cleanup", "keychain-only-product-startup", "in-app-platform-credential-onboarding", "secure-password-entry", "token-field-clearing", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "stable-node-focus-retention", "runtime-inspect-control", "runtime-capability-discovery-control", "capability-gated-deployment-control", "bounded-deployment-form", "deployment-form-automation-metadata", "parameterized-form-description", "renderer-neutral-submit-event", "generic-form-control-generation", "form-event-contract-probe", "independent-runtime-workspace-window", "single-window-per-runtime", "bounded-workspace-window-fanout", "live-revision-workspace-reload", "runtime-log-workspace-section", "bounded-local-workspace-log-filter", "accessible-workspace-log-filter-summary", "filtered-log-empty-state", "history-command-identity", "bounded-explicit-diagnostic-export", "responsive-diagnostic-toolbar", "explicit-live-log-refresh", "single-flight-workspace-refresh", "inactive-window-refresh-suspension", "bounded-live-refresh-backoff", "consecutive-failure-live-refresh-stop", "bounded-workspace-delta-summary", "visible-log-window-rollover", "workspace-revision-regression-fence", "runtime-capability-workspace-section", "manual-workspace-reload-control", "workspace-reload-f5", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "remote-snapshot-ui-projection", "strict-remote-capability-projection", "visible-remote-stale-state", "observed-async-ui-operations", "closed-window-state-fence", "idempotent-client-shutdown", "leserpent-brand-icon", "native-aot-publish-profile", "pinned-native-aot-toolchain", "isolated-development-and-aot-lock-graphs", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "macos-app-bundle", "native-rust-bundler", "strict-bundle-allowlist", "debug-symbol-exclusion", "checked-icns", "stable-info-plist", "macos-native-menu", "dock-reopen-lifecycle", "explicit-app-quit", "finder-launch-proof", "adhoc-signature-proof", "hardened-runtime-release-policy", "developer-id-only-signing", "inside-out-native-signing", "secure-signing-timestamp", "checked-empty-entitlements", "keychain-only-notary-profile", "explicit-notary-acceptance", "notary-ticket-staple", "gatekeeper-assessment", "local-adhoc-isolation", "adhoc-library-validation-boundary", "explicit-runtime-launch-claim", "shared-desktop-product-startup", "packaged-saved-profile-startup", "real-keychain-roundtrip-proof", "isolated-temporary-profile-proof", "existing-credential-preservation", "credential-cleanup-proof", "automation-metadata", "unique-automation-id-audit", "complete-automation-name-audit", "automation-help-text-audit", "explicit-action-label-audit", "wcag-aa-theme-contrast", "managed-macos-accessibility-proof", "physical-linux-accessibility-proof", "native-aot-accessibility-proof", "action-node-event", "control-smoke-mode", "severity-aware-workspace-delta", "assertive-new-error-signal", "initial-severity-realert-suppression", "independent-workspace-snapshot-validation", "strict-snapshot-log-chronology", "bounded-snapshot-index", "explicit-workspace-alert-acknowledgement", "retained-severity-alert", "nonrepeating-assertive-error-signal", "hybrid-live-log-refresh", "periodic-full-log-resync", "incremental-log-refresh-status", "successful-manual-query-backoff-reset", "skipped-live-query-backoff-neutrality", "manual-query-live-timer-ownership", "system-picker-diagnostic-file-export", "bounded-utf8-diagnostic-file", "safe-diagnostic-filename", "workspace-leselang-preview", "single-workspace-query-preview", "frontend-workspace-policy-consumer", "external-remote-ui-document-consumer", "zero-frontend-owned-remote-projection", "external-mutation-fence-consumer", "shared-remote-action-availability-consumer", "single-source-workspace-action-availability-consumer", "shared-authority-health-consumer", "parallel-proof-msbuild-isolation", "workspace-version-bound-bundle-release", "arm64-macho-payload-validation", "bundled-rust-daemon", "local-loopback-tls-authority", "ephemeral-local-process-credential", "sigterm-first-daemon-cleanup", "immediate-local-daemon-restart-proof"]
       },

@@ -547,8 +547,15 @@ provisioning ID, `vault:ssh:*` handle, authenticated IPC/HTTPS transport, and an
 optional bounded `--wait` phase loop. Reusing the same ID is an idempotent replay;
 new attempts require a new ID. Human and JSON progress surfaces omit installation
 secrets, while protocol failure, terminal provisioning failure, and observation
-exhaustion remain distinguishable to automation. The next product slice brings
-the same contract to Avalonia, then adds explicit retry guidance and remote
+exhaustion remain distinguishable to automation. Avalonia now provides the same
+confirmed authority-scoped operation from the Hub. Its native workspace locks
+the complete provisioning identity after submit, renders every bounded phase,
+caps automatic observation at 30 requests, and reuses only the exact request for
+manual refresh. Failed attempts remain immutable and the UI explicitly requires
+a new provisioning ID after remediation. A configured private
+`LESERPENT_GEWYVERN_PROVISIONING_CONFIG` also lets the managed Local Orchestra
+own this operation without weakening the remote authority contract. The next
+product slice adds remote
 compensation/retirement without changing `runtime.deploy` semantics.
 
 Exit: one positive and one negative proof case exists for each branch:
