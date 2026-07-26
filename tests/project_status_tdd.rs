@@ -1479,6 +1479,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "legacy-orchestra-runtime-referential-integrity",
         "pre-migration-orchestra-generation-fence",
         "no-silent-legacy-run-filtering",
+        "per-runtime-orchestra-request-identity-uniqueness",
+        "retained-orchestra-retry-lineage-validation",
+        "retention-aware-retry-parent-validation",
+        "pre-sqlite-lineage-fence",
+        "orchestra-lifecycle-outcome-validation",
+        "active-completion-consistency",
+        "monotonic-orchestra-completion-time",
+        "bounded-orchestra-step-payload",
+        "legacy-null-completion-compatibility",
+        "runtime-payload-required-field-validation",
+        "monotonic-runtime-persistence-timestamps",
+        "bounded-unique-runtime-capabilities",
+        "session-payload-required-field-validation",
+        "monotonic-session-persistence-timestamps",
+        "bounded-unique-session-requirements",
+        "validated-sidecar-memory-envelope",
+        "pre-projection-runtime-session-payload-fence",
     ] {
         assert!(
             compatibility_control
@@ -1489,11 +1506,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(
-        compatibility_control
-            .next_gate
-            .contains("request-ID uniqueness")
-    );
+    assert!(compatibility_control.next_gate.contains("diagnostic text"));
 
     let bootstrap = catalog
         .cells

@@ -223,15 +223,10 @@ public sealed partial class RegistryService
     }
 
     internal static bool IsTerminalOrchestraOutcome(string outcome) =>
-        string.Equals(outcome, "succeeded", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(outcome, "degraded", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(outcome, "failed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(outcome, "cancelled", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(outcome, "ok", StringComparison.OrdinalIgnoreCase);
+        ControlPlaneStateValidator.IsTerminalOrchestraOutcome(outcome);
 
     internal static bool IsActiveOrchestraOutcome(string outcome) =>
-        string.Equals(outcome, "queued", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(outcome, "running", StringComparison.OrdinalIgnoreCase);
+        ControlPlaneStateValidator.IsActiveOrchestraOutcome(outcome);
 
     internal static bool IsRetryableOrchestraRun(OrchestraRunSummary run) =>
         IsTerminalOrchestraOutcome(run.Outcome)

@@ -822,7 +822,23 @@ reliability gate for legacy Orchestra identity and runtime references is also
 complete. Duplicate run IDs are rejected before SQLite `ON CONFLICT` migration,
 and orphan runs are rejected instead of disappearing through restoration
 filtering. The next gate validates per-runtime request-ID uniqueness and retry
-lineage invariants before legacy history reaches SQLite.
+lineage invariants before legacy history reaches SQLite. That gate is complete:
+request IDs follow the runtime-scoped SQLite replay identity, retained parents
+prove terminal same-runtime/same-plan attempt succession, and retries whose
+parents crossed the 32-run retention boundary remain valid. The next gate
+validates legacy Orchestra lifecycle fields, completion timestamps, and step
+payloads before restoration. It is complete: known outcomes, active/completed
+consistency, monotonic bounded timestamps, stable plans, and a required
+256-entry step envelope are enforced while old terminal records without
+`completedAt` remain readable. The next gate extends semantic validation to
+runtime/session payload timestamps, required text, and nested collections
+before projection restoration. It is complete: runtime and session required
+fields are canonical and bounded, lifecycle timestamps are monotonic and
+non-future, capability and requirement keys are unique within 256-entry
+envelopes, and nested runtime status/sidecar memory counters and slot identities
+are validated before projection restoration. The next gate constrains nullable
+diagnostic text and proves status-source coherence without exposing untrusted
+failure details through persistence health or import errors.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

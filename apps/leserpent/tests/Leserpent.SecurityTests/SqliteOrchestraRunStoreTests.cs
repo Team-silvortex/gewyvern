@@ -789,6 +789,570 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void ControlPlaneStateStoreRejectsDuplicatePerRuntimeOrchestraRequestIds()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var run = Assert.Single(valid.OrchestraRuns!);
+            var duplicateRequests = valid.OrchestraRuns!
+                .Append(run with
+                {
+                    RunId = "orun_duplicate_request",
+                })
+                .ToArray();
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    OrchestraRuns = duplicateRequests,
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.OrchestraRuns!);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Throws<ControlPlaneStatePersistenceException>(() =>
+                store.SaveStrict(
+                    valid.Runtimes,
+                    valid.Sessions,
+                    duplicateRequests));
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreRejectsInvalidRetainedOrchestraRetryLineage()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var parent = Assert.Single(valid.OrchestraRuns!);
+            var invalidRetry = parent with
+            {
+                RunId = "orun_invalid_retry",
+                Attempt = 3,
+                RetriedFromRunId = parent.RunId,
+                RequestId = "request-invalid-retry",
+                ExecutedAt = parent.ExecutedAt.AddSeconds(1),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    OrchestraRuns = new[] { parent, invalidRetry },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.OrchestraRuns!);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreAllowsCrossRuntimeRequestReuseAndEvictedRetryParent()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var firstRuntime = Assert.Single(valid.Runtimes);
+            var firstRun = Assert.Single(valid.OrchestraRuns!);
+            var secondRuntime = firstRuntime with
+            {
+                RuntimeId = "runtime-secondary",
+                Name = "secondary runtime",
+                Endpoint = "http://127.0.0.1:49156",
+            };
+            var retainedRetry = firstRun with
+            {
+                RunId = "orun_retained_without_parent",
+                RuntimeId = secondRuntime.RuntimeId,
+                Attempt = 2,
+                RetriedFromRunId = "orun_evicted_parent",
+            };
+            var store = CreateStateStore(statePath);
+
+            store.SaveStrict(
+                new[] { firstRuntime, secondRuntime },
+                valid.Sessions,
+                new[] { firstRun, retainedRetry });
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                CreateStateStore(statePath).Load());
+
+            Assert.Equal(2, restored.OrchestraRuns!.Count);
+            Assert.Equal(
+                firstRun.RequestId,
+                restored.OrchestraRuns!
+                    .Single(run =>
+                        run.RuntimeId == secondRuntime.RuntimeId)
+                    .RequestId);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("unknown_outcome")]
+    [InlineData("active_completion")]
+    [InlineData("reversed_completion")]
+    [InlineData("future_execution")]
+    public void ControlPlaneStateStoreRejectsInvalidOrchestraLifecycleMetadata(
+        string invalidKind)
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var run = Assert.Single(valid.OrchestraRuns!);
+            var invalid = invalidKind switch
+            {
+                "unknown_outcome" => run with
+                {
+                    Outcome = "mystery",
+                },
+                "active_completion" => run with
+                {
+                    Outcome = "running",
+                },
+                "reversed_completion" => run with
+                {
+                    CompletedAt = run.ExecutedAt.AddSeconds(-1),
+                },
+                "future_execution" => run with
+                {
+                    ExecutedAt = DateTimeOffset.UtcNow.AddMinutes(6),
+                    CompletedAt = DateTimeOffset.UtcNow.AddMinutes(6),
+                },
+                _ => throw new InvalidOperationException(
+                    $"unknown invalid lifecycle kind {invalidKind}"),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    OrchestraRuns = new[] { invalid },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.OrchestraRuns!);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("null_steps")]
+    [InlineData("too_many_steps")]
+    [InlineData("invalid_step")]
+    public void ControlPlaneStateStoreRejectsInvalidOrchestraStepPayload(
+        string invalidKind)
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var run = Assert.Single(valid.OrchestraRuns!);
+            var invalid = invalidKind switch
+            {
+                "null_steps" => run with
+                {
+                    Steps = null!,
+                },
+                "too_many_steps" => run with
+                {
+                    Steps = Enumerable.Range(
+                            0,
+                            ControlPlaneStateValidator
+                                .MaxOrchestraRunSteps + 1)
+                        .Select(index =>
+                            new OrchestraExecutionStepResult(
+                                $"step-{index}",
+                                "ok",
+                                "bounded step"))
+                        .ToArray(),
+                },
+                "invalid_step" => run with
+                {
+                    Steps = new[]
+                    {
+                        new OrchestraExecutionStepResult(
+                            " invalid-step ",
+                            "ok",
+                            "invalid identity"),
+                    },
+                },
+                _ => throw new InvalidOperationException(
+                    $"unknown invalid step kind {invalidKind}"),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    OrchestraRuns = new[] { invalid },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.OrchestraRuns!);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreAllowsLegacyTerminalWithoutCompletionTimestamp()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var legacyRun = Assert.Single(valid.OrchestraRuns!) with
+            {
+                CompletedAt = null,
+            };
+            var store = CreateStateStore(statePath);
+
+            store.SaveStrict(
+                valid.Runtimes,
+                valid.Sessions,
+                new[] { legacyRun });
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                CreateStateStore(statePath).Load());
+
+            Assert.Null(Assert.Single(restored.OrchestraRuns!).CompletedAt);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("blank_name")]
+    [InlineData("reversed_timestamp")]
+    [InlineData("null_capabilities")]
+    [InlineData("too_many_capabilities")]
+    [InlineData("duplicate_capabilities")]
+    [InlineData("null_tags")]
+    [InlineData("null_status")]
+    [InlineData("negative_status_count")]
+    public void ControlPlaneStateStoreRejectsInvalidRuntimePayload(
+        string invalidKind)
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var runtime = Assert.Single(valid.Runtimes);
+            var capability = new RuntimeCapability(
+                "capture",
+                "fully_supported",
+                "capture traffic");
+            var invalid = invalidKind switch
+            {
+                "blank_name" => runtime with
+                {
+                    Name = " ",
+                },
+                "reversed_timestamp" => runtime with
+                {
+                    UpdatedAt = runtime.RegisteredAt.AddSeconds(-1),
+                },
+                "null_capabilities" => runtime with
+                {
+                    Capabilities = null!,
+                },
+                "too_many_capabilities" => runtime with
+                {
+                    Capabilities = Enumerable.Range(
+                            0,
+                            ControlPlaneStateValidator
+                                .MaxRuntimeCapabilities + 1)
+                        .Select(index =>
+                            capability with
+                            {
+                                Key = $"capability-{index}",
+                            })
+                        .ToArray(),
+                },
+                "duplicate_capabilities" => runtime with
+                {
+                    Capabilities = new[]
+                    {
+                        capability,
+                        capability with
+                        {
+                            Key = capability.Key.ToUpperInvariant(),
+                        },
+                    },
+                },
+                "null_tags" => runtime with
+                {
+                    Tags = null!,
+                },
+                "null_status" => runtime with
+                {
+                    Status = null!,
+                },
+                "negative_status_count" => runtime with
+                {
+                    Status = runtime.Status with
+                    {
+                        TargetCount = -1,
+                    },
+                },
+                _ => throw new InvalidOperationException(
+                    $"unknown invalid runtime payload kind {invalidKind}"),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    Runtimes = new[] { invalid },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.Runtimes);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("blank_pipeline")]
+    [InlineData("unknown_status")]
+    [InlineData("reversed_timestamp")]
+    [InlineData("null_requirements")]
+    [InlineData("too_many_requirements")]
+    [InlineData("duplicate_requirements")]
+    public void ControlPlaneStateStoreRejectsInvalidSessionPayload(
+        string invalidKind)
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var session = Assert.Single(valid.Sessions);
+            var requirement = new SessionCapabilityRequirement(
+                "capture",
+                "fully_supported");
+            var invalid = invalidKind switch
+            {
+                "blank_pipeline" => session with
+                {
+                    PipelineKind = " ",
+                },
+                "unknown_status" => session with
+                {
+                    Status = "unknown",
+                },
+                "reversed_timestamp" => session with
+                {
+                    UpdatedAt = session.CreatedAt.AddSeconds(-1),
+                },
+                "null_requirements" => session with
+                {
+                    Requirements = null!,
+                },
+                "too_many_requirements" => session with
+                {
+                    Requirements = Enumerable.Range(
+                            0,
+                            ControlPlaneStateValidator
+                                .MaxSessionRequirements + 1)
+                        .Select(index =>
+                            requirement with
+                            {
+                                Key = $"requirement-{index}",
+                            })
+                        .ToArray(),
+                },
+                "duplicate_requirements" => session with
+                {
+                    Requirements = new[]
+                    {
+                        requirement,
+                        requirement with
+                        {
+                            Key = requirement.Key.ToUpperInvariant(),
+                        },
+                    },
+                },
+                _ => throw new InvalidOperationException(
+                    $"unknown invalid session payload kind {invalidKind}"),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    Sessions = new[] { invalid },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.Sessions);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("null_slots")]
+    [InlineData("duplicate_slots")]
+    [InlineData("negative_counts")]
+    public void ControlPlaneStateStoreRejectsInvalidSidecarMemoryPayload(
+        string invalidKind)
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var runtime = Assert.Single(valid.Runtimes);
+            var slot = new RuntimeSidecarMemorySlotSummary(
+                "slot-a",
+                "baseline",
+                null,
+                "manual",
+                DateTimeOffset.UtcNow.AddMinutes(-1),
+                3,
+                2);
+            var memory = new RuntimeSidecarMemorySnapshot(
+                true,
+                1,
+                2,
+                slot.Slot,
+                slot.Label,
+                slot.Source,
+                new[] { slot });
+            var invalidMemory = invalidKind switch
+            {
+                "null_slots" => memory with
+                {
+                    Slots = null!,
+                },
+                "duplicate_slots" => memory with
+                {
+                    Slots = new[]
+                    {
+                        slot,
+                        slot with
+                        {
+                            Slot = slot.Slot.ToUpperInvariant(),
+                        },
+                    },
+                },
+                "negative_counts" => memory with
+                {
+                    HistoryCount = -1,
+                },
+                _ => throw new InvalidOperationException(
+                    $"unknown invalid sidecar payload kind {invalidKind}"),
+            };
+            var invalidRuntime = runtime with
+            {
+                SidecarStatus = new RuntimeSidecarStatusSnapshot(
+                    "etragon-api",
+                    DateTimeOffset.UtcNow,
+                    null,
+                    true,
+                    "ready",
+                    1,
+                    false,
+                    0,
+                    false,
+                    false,
+                    Memory: invalidMemory),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    Runtimes = new[] { invalidRuntime },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Null(Assert.Single(restored.Runtimes).SidecarStatus);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
     public void ControlPlaneStateStorePreservesSnapshotAndCleansTempAfterBackupFailure()
     {
         var statePath = TemporaryPath("json");

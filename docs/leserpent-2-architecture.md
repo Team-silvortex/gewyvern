@@ -864,6 +864,34 @@ and each run uses the canonical identifier of a registered runtime. Validation
 therefore precedes both the old in-memory restoration filter and SQLite
 `ON CONFLICT` migration, so orphan history cannot disappear and duplicate runs
 cannot collapse into one record without an explicit failure.
+Request identity and retry lineage are validated at that same boundary.
+Non-null request IDs are unique within each runtime, matching the SQLite
+index and API replay scope while allowing independent runtimes to reuse an
+operator token. A first attempt has no parent; a retry has a parent identity
+and an incremented attempt. When that parent remains in the retained window,
+the validator also proves matching runtime and plan, terminal parent state,
+exact attempt succession, and monotonic execution time. A parent omitted by
+the 32-run retention window remains legal, so bounded history does not become
+a false corruption signal.
+Lifecycle payloads are validated before either in-memory normalization or
+SQLite migration. Runs accept only known active or terminal outcomes, require
+stable plan identities and bounded execution time, reject completion before
+execution or in the future, and forbid active runs from carrying completion
+timestamps. Step arrays are required, limited to 256 entries, and each entry
+has stable step/outcome identities plus a non-null summary. Legacy terminal
+runs may omit `completedAt`, preserving the original 1.x wire default without
+weakening validation of timestamps that are present.
+Runtime and session payloads now cross the same semantic boundary before
+projection restoration. Required display, endpoint, pipeline, actor, source,
+and status fields must be canonical bounded text; registration, update, and
+creation timestamps must be non-future and monotonic. Runtime capabilities and
+session requirements are required, limited to 256 entries, use known support
+levels, and reject case-insensitive duplicate keys. Runtime tags and status
+snapshots are structurally required, while optional sidecar status and memory
+snapshots validate non-negative counters, bounded timestamps, and at most 256
+case-insensitively unique memory slots. This keeps schema-compatible malformed
+or oversized nested state out of both the managed projection and later
+authority migrations.
 
 ## Leselang Semantics
 
