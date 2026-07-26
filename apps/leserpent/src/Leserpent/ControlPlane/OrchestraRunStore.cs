@@ -48,30 +48,99 @@ public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
     public IReadOnlyList<OrchestraRunSummary> LoadAll() =>
         runs.Values.OrderByDescending(run => run.ExecutedAt).ToArray();
 
-    public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) =>
-        events.Where(item =>
+    public IReadOnlyList<OrchestraRunEvent> LoadEvents(
+        string runtimeId,
+        string runId)
+    {
+        var retained = events.Where(item =>
                 string.Equals(item.RuntimeId, runtimeId, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(item.RunId, runId, StringComparison.OrdinalIgnoreCase))
             .OrderBy(item => item.EventId)
             .ToArray();
+        ControlPlaneStateValidator.ValidateOrchestraEventSequence(
+            runs.GetValueOrDefault(runId),
+            retained,
+            runtimeId,
+            runId);
+        return retained;
+    }
 
     public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null)
     {
-        runs[run.RunId] = run;
+        try
+        {
+            ControlPlaneStateValidator.ValidateOrchestraStoreEnvelope(
+                run,
+                eventRecord);
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+
         if (eventRecord is not null)
         {
-            events.Add(eventRecord with { EventId = Interlocked.Increment(ref nextEventId) });
+            var persistedEvent = eventRecord with
+            {
+                EventId = Interlocked.Increment(
+                    ref nextEventId),
+            };
+            var retained = events
+                .Where(item => string.Equals(
+                    item.RunId,
+                    run.RunId,
+                    StringComparison.Ordinal))
+                .Append(persistedEvent)
+                .OrderBy(item => item.EventId)
+                .ToArray();
+            try
+            {
+                ControlPlaneStateValidator
+                    .ValidateOrchestraEventSequence(
+                        run,
+                        retained,
+                        run.RuntimeId,
+                        run.RunId);
+            }
+            catch (InvalidDataException)
+            {
+                return false;
+            }
+            events.Add(persistedEvent);
         }
+        runs[run.RunId] = run;
         return true;
     }
 
     public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> replacement)
     {
+        try
+        {
+            foreach (var run in replacement)
+            {
+                ControlPlaneStateValidator.ValidateOrchestraStoreEnvelope(
+                    run,
+                    null);
+            }
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+
         runs.Clear();
         events.Clear();
         foreach (var run in replacement)
         {
-            runs[run.RunId] = run;
+            if (!Upsert(
+                    run,
+                    ControlPlaneStateValidator
+                        .CreateLegacyOrchestraImportEvent(run)))
+            {
+                runs.Clear();
+                events.Clear();
+                return false;
+            }
         }
         return true;
     }

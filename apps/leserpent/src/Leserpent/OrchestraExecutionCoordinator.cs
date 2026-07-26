@@ -118,7 +118,13 @@ public sealed class OrchestraExecutionCoordinator(
                 runtime.RuntimeId,
                 run.RunId,
                 "failed",
-                new[] { new OrchestraExecutionStepResult("execute", "failed", ex.Message) });
+                new[]
+                {
+                    new OrchestraExecutionStepResult(
+                        "execute",
+                        "failed",
+                        "orchestra execution failed"),
+                });
         }
         finally
         {

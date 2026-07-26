@@ -95,7 +95,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     DateTimeOffset.UtcNow,
                     null,
                     payload.UpdatedUnixMs > 0 && !string.IsNullOrWhiteSpace(payload.Kind),
-                    string.IsNullOrWhiteSpace(payload.Kind) ? null : payload.Kind,
+                    NormalizeOptionalMetadata(payload.Kind, 128),
                     payload.TargetCount,
                     payload.HasSummaryJson,
                     payload.HasAnalysisJson,
@@ -108,9 +108,11 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     payload.HasExternalEvidenceChainEnrichment,
                     payload.HasExternalDiagnosticOpinion,
                     resilience?.Degraded ?? false,
-                    string.IsNullOrWhiteSpace(resilience?.Status) ? null : resilience!.Status!.Trim(),
-                    string.IsNullOrWhiteSpace(resilience?.Summary) ? null : resilience!.Summary!.Trim(),
-                    string.IsNullOrWhiteSpace(resilience?.SocketService?.Status) ? null : resilience!.SocketService!.Status!.Trim(),
+                    NormalizeOptionalMetadata(resilience?.Status, 128),
+                    NormalizeOptionalMetadata(resilience?.Summary, 1_024),
+                    NormalizeOptionalMetadata(
+                        resilience?.SocketService?.Status,
+                        128),
                     resilience?.SocketService?.ConsecutiveIdleTimeouts,
                     resilience?.SocketService?.TotalIdleTimeouts));
         }
@@ -209,7 +211,9 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     statusPayload.LearnedRoutes,
                     hasEnrichment,
                     hasOpinion,
-                    statusPayload.LastError,
+                    string.IsNullOrWhiteSpace(statusPayload.LastError)
+                        ? null
+                        : RuntimeDiagnosticCodes.SidecarReportedError,
                     memorySnapshot));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -454,7 +458,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                 using var response = await SendAsync(httpClient, plan.RequestUri, cancellationToken, sidecarAdminToken);
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), $"{(int)response.StatusCode} {response.ReasonPhrase}".Trim());
+                    return FailedSidecarMemorySnapshot();
                 }
 
                 var payload = await response.Content.ReadFromJsonAsync(
@@ -462,7 +466,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                     cancellationToken);
                 if (payload is null)
                 {
-                    return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), "failed to decode etragon memory-versions payload");
+                    return FailedSidecarMemorySnapshot();
                 }
 
                 return BuildMemorySnapshot(payload);
@@ -472,7 +476,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             using var pinnedResponse = await SendAsync(client, plan.RequestUri, cancellationToken, sidecarAdminToken);
             if (!pinnedResponse.IsSuccessStatusCode)
             {
-                return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), $"{(int)pinnedResponse.StatusCode} {pinnedResponse.ReasonPhrase}".Trim());
+                return FailedSidecarMemorySnapshot();
             }
 
             var pinnedPayload = await pinnedResponse.Content.ReadFromJsonAsync(
@@ -480,7 +484,7 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
                 cancellationToken);
             if (pinnedPayload is null)
             {
-                return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), "failed to decode etragon memory-versions payload");
+                return FailedSidecarMemorySnapshot();
             }
 
             return BuildMemorySnapshot(pinnedPayload);
@@ -489,9 +493,9 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         {
             throw;
         }
-        catch (Exception ex)
+        catch
         {
-            return new RuntimeSidecarMemorySnapshot(false, 0, 0, null, null, null, Array.Empty<RuntimeSidecarMemorySlotSummary>(), ex.Message);
+            return FailedSidecarMemorySnapshot();
         }
     }
 
@@ -676,8 +680,8 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
         var slots = (payload.Slots ?? Array.Empty<EtragonMemorySlotPayload>())
             .Select(slot => new RuntimeSidecarMemorySlotSummary(
                 slot.Slot ?? "unnamed",
-                slot.Label,
-                slot.Note,
+                NormalizeOptionalMetadata(slot.Label, 256),
+                NormalizeOptionalMetadata(slot.Note, 1_024),
                 string.IsNullOrWhiteSpace(slot.Source) ? "manual" : slot.Source.Trim(),
                 slot.SavedUnixMs is > 0
                     ? DateTimeOffset.FromUnixTimeMilliseconds(slot.SavedUnixMs.Value)
@@ -695,6 +699,34 @@ public sealed partial class CapabilityDiscoveryService(HttpClient httpClient, Co
             latest?.Source,
             slots,
             null);
+    }
+
+    private static RuntimeSidecarMemorySnapshot
+        FailedSidecarMemorySnapshot() =>
+        new(
+            false,
+            0,
+            0,
+            null,
+            null,
+            null,
+            Array.Empty<RuntimeSidecarMemorySlotSummary>(),
+            RuntimeDiagnosticCodes.SidecarMemoryFetchFailed);
+
+    private static string? NormalizeOptionalMetadata(
+        string? value,
+        int maximumLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length <= maximumLength &&
+            normalized.All(static character => !char.IsControl(character))
+                ? normalized
+                : null;
     }
 
 }

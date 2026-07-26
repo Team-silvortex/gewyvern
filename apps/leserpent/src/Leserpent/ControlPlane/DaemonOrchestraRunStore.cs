@@ -58,14 +58,44 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
         Execute("load Orchestra runs", () => LoadPages<OrchestraRunSummary>(null, null, "runs"))
         ?? Array.Empty<OrchestraRunSummary>();
 
-    public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) =>
+    public IReadOnlyList<OrchestraRunEvent> LoadEvents(
+        string runtimeId,
+        string runId) =>
         Execute(
             $"load Orchestra events for run {runId}",
-            () => LoadPages<OrchestraRunEvent>(runtimeId, runId, "events"))
+            () =>
+            {
+                var events = LoadPages<OrchestraRunEvent>(
+                    runtimeId,
+                    runId,
+                    "events");
+                ControlPlaneStateValidator
+                    .ValidateOrchestraEventSequence(
+                        null,
+                        events,
+                        runtimeId,
+                        runId);
+                return events;
+            })
         ?? Array.Empty<OrchestraRunEvent>();
 
     public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null)
     {
+        try
+        {
+            ControlPlaneStateValidator.ValidateOrchestraStoreEnvelope(
+                run,
+                eventRecord);
+        }
+        catch (InvalidDataException error)
+        {
+            LastError = "orchestra_store_operation_failed";
+            logger.LogError(
+                error,
+                "Rejected an invalid Orchestra persistence envelope");
+            return false;
+        }
+
         if (eventRecord is null)
         {
             var existing = LoadAll().FirstOrDefault(item =>
@@ -100,17 +130,27 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
 
     public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
     {
+        try
+        {
+            foreach (var run in runs)
+            {
+                ControlPlaneStateValidator
+                    .ValidateOrchestraStoreEnvelope(run, null);
+            }
+        }
+        catch (InvalidDataException error)
+        {
+            LastError = "orchestra_store_operation_failed";
+            logger.LogError(
+                error,
+                "Rejected invalid legacy Orchestra history");
+            return false;
+        }
+
         foreach (var run in runs.OrderBy(item => item.ExecutedAt))
         {
-            var imported = new OrchestraRunEvent(
-                0,
-                run.RunId,
-                run.RuntimeId,
-                "legacy_import",
-                null,
-                run.Outcome,
-                "Imported from Leserpent 1.x persistence",
-                run.CompletedAt ?? run.ExecutedAt);
+            var imported = ControlPlaneStateValidator
+                .CreateLegacyOrchestraImportEvent(run);
             if (!Upsert(run, imported))
             {
                 return false;
@@ -175,16 +215,34 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
         }
     }
 
-    private static T DeserializeRecord<T>(JsonElement element) => typeof(T) switch
+    private static T DeserializeRecord<T>(JsonElement element)
     {
-        var type when type == typeof(OrchestraRunSummary) =>
-            (T)(object)(element.Deserialize(global::Leserpent.LeserpentJsonContext.Default.OrchestraRunSummary)
-                ?? throw new InvalidDataException("leserpentd returned an empty Orchestra run")),
-        var type when type == typeof(OrchestraRunEvent) =>
-            (T)(object)(element.Deserialize(global::Leserpent.LeserpentJsonContext.Default.OrchestraRunEvent)
-                ?? throw new InvalidDataException("leserpentd returned an empty Orchestra event")),
-        _ => throw new InvalidOperationException("unsupported Orchestra history record type"),
-    };
+        if (typeof(T) == typeof(OrchestraRunSummary))
+        {
+            var run = element.Deserialize(
+                global::Leserpent.LeserpentJsonContext.Default
+                    .OrchestraRunSummary)
+                ?? throw new InvalidDataException(
+                    "leserpentd returned an empty Orchestra run");
+            ControlPlaneStateValidator.ValidateOrchestraStoreEnvelope(
+                run,
+                null);
+            return (T)(object)run;
+        }
+        if (typeof(T) == typeof(OrchestraRunEvent))
+        {
+            var eventRecord = element.Deserialize(
+                global::Leserpent.LeserpentJsonContext.Default
+                    .OrchestraRunEvent)
+                ?? throw new InvalidDataException(
+                    "leserpentd returned an empty Orchestra event");
+            ControlPlaneStateValidator.ValidateOrchestraEventPayload(
+                eventRecord);
+            return (T)(object)eventRecord;
+        }
+        throw new InvalidOperationException(
+            "unsupported Orchestra history record type");
+    }
 
     private static bool RunsEqual(OrchestraRunSummary left, OrchestraRunSummary right) =>
         JsonSerializer.SerializeToUtf8Bytes(
@@ -211,7 +269,7 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
             error is IOException or SocketException or JsonException or InvalidDataException
                 or OperationCanceledException or UnauthorizedAccessException)
         {
-            LastError = $"failed to {operation}";
+            LastError = "orchestra_store_operation_failed";
             logger.LogError(error, "Failed to {Operation} through leserpentd", operation);
             return default;
         }

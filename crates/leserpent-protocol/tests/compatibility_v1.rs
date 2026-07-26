@@ -175,4 +175,28 @@ fn legacy_orchestra_fixture_freezes_atomic_run_event_persistence() {
         decode_orchestra_persistence(&serde_json::to_vec(&mismatched).unwrap()),
         Err(CompatibilityError::InvalidOrchestra("consistency"))
     ));
+
+    let mut unsafe_summary: serde_json::Value = serde_json::from_slice(fixture).unwrap();
+    unsafe_summary["event"]["summary"] = serde_json::json!("secret\nheader");
+    assert!(matches!(
+        decode_orchestra_persistence(&serde_json::to_vec(&unsafe_summary).unwrap()),
+        Err(CompatibilityError::InvalidOrchestra("bounds"))
+    ));
+
+    let mut oversized_note: serde_json::Value = serde_json::from_slice(fixture).unwrap();
+    oversized_note["run"]["approvalNote"] = serde_json::json!("x".repeat(1025));
+    assert!(matches!(
+        decode_orchestra_persistence(&serde_json::to_vec(&oversized_note).unwrap()),
+        Err(CompatibilityError::InvalidOrchestra("bounds"))
+    ));
+
+    let step = persistence.run.steps[0].clone();
+    let mut maximum_steps: serde_json::Value = serde_json::from_slice(fixture).unwrap();
+    maximum_steps["run"]["steps"] = serde_json::to_value(vec![step.clone(); 256]).unwrap();
+    assert!(decode_orchestra_persistence(&serde_json::to_vec(&maximum_steps).unwrap()).is_ok());
+    maximum_steps["run"]["steps"] = serde_json::to_value(vec![step; 257]).unwrap();
+    assert!(matches!(
+        decode_orchestra_persistence(&serde_json::to_vec(&maximum_steps).unwrap()),
+        Err(CompatibilityError::InvalidOrchestra("consistency"))
+    ));
 }

@@ -235,7 +235,7 @@ public sealed class ControlPlaneStateStore
             }
             catch (Exception ex)
             {
-                LastSaveError = ex.Message;
+                LastSaveError = "control_plane_state_save_failed";
                 logger.LogError(ex, "Failed to persist control-plane state to {StatePath}.", statePath);
                 if (throwOnFailure)
                 {

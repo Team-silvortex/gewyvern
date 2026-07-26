@@ -163,6 +163,7 @@ fn persisted_machine_surfaces_match_live_api_for_runtime_and_capability_routes()
         .unwrap_or_else(|poison| poison.into_inner());
     let root = temp_dir("runtime");
     let state_root = root.join("state");
+    fs::create_dir_all(state_root.join("certificates")).unwrap();
     let _state = EnvGuard::set("GEWY_STATE_HOME", state_root.to_string_lossy());
 
     let (snapshot, latest_root) = persisted_single_snapshot(&state_root, "scan:http:request");

@@ -616,7 +616,9 @@ impl ControlRuntime {
         runtime_id: &str,
         request_id: Option<&str>,
         event_type: &str,
+        from_outcome: Option<&str>,
         to_outcome: &str,
+        run_outcome: &str,
         recorded_at: &str,
         run: &[u8],
         event: &[u8],
@@ -632,7 +634,9 @@ impl ControlRuntime {
                 runtime_id,
                 request_id,
                 event_type,
+                from_outcome,
                 to_outcome,
+                run_outcome,
                 recorded_at,
                 run,
                 event,
@@ -3551,14 +3555,16 @@ mod tests {
     fn orchestra_run_and_event_persist_atomically_with_idempotent_read_back() {
         let path = temp_journal("orchestra-atomic-persistence");
         let mut runtime = ControlRuntime::open(&path).unwrap();
-        let run = br#"{"runId":"orun-1","runtimeId":"runtime-a","outcome":"queued"}"#;
-        let event = br#"{"runId":"orun-1","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:00Z"}"#;
+        let run = br#"{"runId":"orun-1","runtimeId":"runtime-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-1"}"#;
+        let event = br#"{"eventId":0,"runId":"orun-1","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:00Z"}"#;
         let first = runtime
             .persist_orchestra_run_event(
                 "orun-1",
                 "runtime-a",
                 Some("request-1"),
                 "run_queued",
+                None,
+                "queued",
                 "queued",
                 "2026-01-01T00:00:00Z",
                 run,
@@ -3574,6 +3580,8 @@ mod tests {
                 "runtime-a",
                 Some("request-1"),
                 "run_queued",
+                None,
+                "queued",
                 "queued",
                 "2026-01-01T00:00:00Z",
                 run,
@@ -3582,8 +3590,8 @@ mod tests {
             .unwrap();
         assert_eq!(replay.event_count, 1);
 
-        let changed_run = br#"{"runId":"orun-1","runtimeId":"runtime-a","outcome":"running"}"#;
-        let changed_event = br#"{"runId":"orun-1","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:00Z","drift":true}"#;
+        let changed_run = br#"{"runId":"orun-1","runtimeId":"runtime-a","planId":"test","outcome":"running","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-1"}"#;
+        let changed_event = br#"{"eventId":0,"runId":"orun-1","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"drift","recordedAt":"2026-01-01T00:00:00Z"}"#;
         assert!(
             runtime
                 .persist_orchestra_run_event(
@@ -3591,6 +3599,8 @@ mod tests {
                     "runtime-a",
                     Some("request-1"),
                     "run_queued",
+                    None,
+                    "queued",
                     "queued",
                     "2026-01-01T00:00:00Z",
                     changed_run,
@@ -3605,6 +3615,8 @@ mod tests {
                     "runtime-a",
                     Some("request-1"),
                     "run_queued",
+                    None,
+                    "queued",
                     "queued",
                     "2026-01-01T00:00:00Z",
                     run,
@@ -3618,6 +3630,8 @@ mod tests {
                 "runtime-a",
                 Some("request-1"),
                 "run_queued",
+                None,
+                "queued",
                 "queued",
                 "2026-01-01T00:00:00Z",
                 run,
@@ -3644,9 +3658,8 @@ mod tests {
                 .is_err()
         );
         assert!(runtime.load_orchestra_history(None, None, 0, 65).is_err());
-        let duplicate_request_run =
-            br#"{"runId":"orun-2","runtimeId":"runtime-a","outcome":"queued"}"#;
-        let duplicate_request_event = br#"{"runId":"orun-2","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:01Z"}"#;
+        let duplicate_request_run = br#"{"runId":"orun-2","runtimeId":"runtime-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:01Z","completedAt":null,"requestId":"request-1"}"#;
+        let duplicate_request_event = br#"{"eventId":0,"runId":"orun-2","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:01Z"}"#;
         assert!(
             runtime
                 .persist_orchestra_run_event(
@@ -3654,6 +3667,8 @@ mod tests {
                     "runtime-a",
                     Some("request-1"),
                     "run_queued",
+                    None,
+                    "queued",
                     "queued",
                     "2026-01-01T00:00:01Z",
                     duplicate_request_run,
@@ -3668,6 +3683,8 @@ mod tests {
                     "runtime-b",
                     Some("request-1"),
                     "run_queued",
+                    None,
+                    "queued",
                     "queued",
                     "2026-01-01T00:00:00Z",
                     run,
@@ -3698,10 +3715,10 @@ mod tests {
             let request_id = format!("bounded-request-{index:02}");
             let recorded_at = format!("2026-01-01T00:01:{index:02}Z");
             let bounded_run = format!(
-                "{{\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"outcome\":\"queued\"}}"
+                "{{\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"planId\":\"test\",\"outcome\":\"queued\",\"executedAt\":\"{recorded_at}\",\"completedAt\":null,\"requestId\":\"{request_id}\"}}"
             );
             let bounded_event = format!(
-                "{{\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"eventType\":\"run_queued\",\"toOutcome\":\"queued\",\"recordedAt\":\"{recorded_at}\"}}"
+                "{{\"eventId\":0,\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"eventType\":\"run_queued\",\"fromOutcome\":null,\"toOutcome\":\"queued\",\"summary\":\"\",\"recordedAt\":\"{recorded_at}\"}}"
             );
             runtime
                 .persist_orchestra_run_event(
@@ -3709,6 +3726,8 @@ mod tests {
                     "runtime-a",
                     Some(&request_id),
                     "run_queued",
+                    None,
+                    "queued",
                     "queued",
                     &recorded_at,
                     bounded_run.as_bytes(),
@@ -3724,6 +3743,35 @@ mod tests {
             !run.windows(b"bounded-00".len())
                 .any(|value| value == b"bounded-00")
         }));
+        let connection = Connection::open(&path).unwrap();
+        let (lookahead_run_id, lookahead_envelope): (String, Vec<u8>) = connection
+            .query_row(
+                "SELECT run_id, envelope FROM orchestra_runs
+                 WHERE runtime_id = 'runtime-a'
+                 ORDER BY updated_at_unix_ms DESC, run_id ASC
+                 LIMIT 1 OFFSET 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let mut mismatched_run: serde_json::Value =
+            serde_json::from_slice(&lookahead_envelope).unwrap();
+        mismatched_run["outcome"] = serde_json::json!("succeeded");
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET envelope = ?1 WHERE run_id = ?2",
+                rusqlite::params![
+                    serde_json::to_vec(&mismatched_run).unwrap(),
+                    lookahead_run_id
+                ],
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .load_orchestra_history(Some("runtime-a"), None, 0, 1)
+                .is_err()
+        );
+        drop(connection);
         drop(runtime);
         let connection = Connection::open(&path).unwrap();
         let schema: i64 = connection
@@ -3735,6 +3783,468 @@ mod tests {
             .unwrap();
         assert_eq!(schema, 14);
         drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_append_rejects_mismatched_native_envelopes_before_commit() {
+        let path = temp_journal("orchestra-native-envelope-fence");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let canonical_run = serde_json::json!({
+            "runId": "orun-native",
+            "runtimeId": "runtime-a",
+            "planId": "test",
+            "outcome": "queued",
+            "executedAt": "2026-01-01T00:00:00Z",
+            "completedAt": null,
+            "requestId": "request-native"
+        });
+        let canonical_event = serde_json::json!({
+            "eventId": 0,
+            "runId": "orun-native",
+            "runtimeId": "runtime-a",
+            "eventType": "run_queued",
+            "fromOutcome": null,
+            "toOutcome": "queued",
+            "summary": "",
+            "recordedAt": "2026-01-01T00:00:00Z"
+        });
+        let mut malformed = Vec::new();
+        for (label, field, value) in [
+            ("run identity", "runId", serde_json::json!("orun-other")),
+            (
+                "run runtime identity",
+                "runtimeId",
+                serde_json::json!("runtime-b"),
+            ),
+            ("run request identity", "requestId", serde_json::Value::Null),
+            ("run outcome", "outcome", serde_json::json!("running")),
+            (
+                "run execution time",
+                "executedAt",
+                serde_json::json!("2026-01-01T00:00:01Z"),
+            ),
+        ] {
+            let mut run = canonical_run.clone();
+            run[field] = value;
+            malformed.push((label, run, canonical_event.clone()));
+        }
+        for (label, field, value) in [
+            ("event identity", "eventId", serde_json::json!(99)),
+            (
+                "event run identity",
+                "runId",
+                serde_json::json!("orun-other"),
+            ),
+            (
+                "event runtime identity",
+                "runtimeId",
+                serde_json::json!("runtime-b"),
+            ),
+            ("event type", "eventType", serde_json::json!("run_started")),
+            (
+                "event source outcome",
+                "fromOutcome",
+                serde_json::json!("queued"),
+            ),
+            (
+                "event target outcome",
+                "toOutcome",
+                serde_json::json!("running"),
+            ),
+            (
+                "event recording time",
+                "recordedAt",
+                serde_json::json!("2026-01-01T00:00:01Z"),
+            ),
+        ] {
+            let mut event = canonical_event.clone();
+            event[field] = value;
+            malformed.push((label, canonical_run.clone(), event));
+        }
+        for (label, run, event) in malformed {
+            let run = serde_json::to_vec(&run).unwrap();
+            let event = serde_json::to_vec(&event).unwrap();
+            assert!(
+                runtime
+                    .persist_orchestra_run_event(
+                        "orun-native",
+                        "runtime-a",
+                        Some("request-native"),
+                        "run_queued",
+                        None,
+                        "queued",
+                        "queued",
+                        "2026-01-01T00:00:00Z",
+                        &run,
+                        &event,
+                    )
+                    .is_err(),
+                "{label} drift must be rejected"
+            );
+        }
+
+        let connection = Connection::open(&path).unwrap();
+        let counts: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (0, 0));
+        drop(connection);
+
+        let run = serde_json::to_vec(&canonical_run).unwrap();
+        let event = serde_json::to_vec(&canonical_event).unwrap();
+        let stored = runtime
+            .persist_orchestra_run_event(
+                "orun-native",
+                "runtime-a",
+                Some("request-native"),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                &run,
+                &event,
+            )
+            .unwrap();
+        assert_eq!(stored.event_count, 1);
+        assert_eq!(stored.run, run);
+        assert_eq!(stored.event, event);
+
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_append_rejects_corrupted_retained_history_before_replay_or_extension() {
+        let path = temp_journal("orchestra-retained-append-fence");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let queued_run = br#"{"runId":"orun-retained","runtimeId":"runtime-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-retained"}"#;
+        let queued_event = br#"{"eventId":0,"runId":"orun-retained","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:00Z"}"#;
+        runtime
+            .persist_orchestra_run_event(
+                "orun-retained",
+                "runtime-a",
+                Some("request-retained"),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                queued_run,
+                queued_event,
+            )
+            .unwrap();
+
+        let connection = Connection::open(&path).unwrap();
+        let corrupted_origin = br#"{"eventId":0,"runId":"orun-retained","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":"failed","toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:00Z"}"#;
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = ?1 WHERE run_id = 'orun-retained'",
+                [corrupted_origin.as_slice()],
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-retained",
+                    "runtime-a",
+                    Some("request-retained"),
+                    "run_queued",
+                    Some("failed"),
+                    "queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    queued_run,
+                    corrupted_origin,
+                )
+                .is_err()
+        );
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = ?1 WHERE run_id = 'orun-retained'",
+                [queued_event.as_slice()],
+            )
+            .unwrap();
+
+        let drifted_run = br#"{"runId":"orun-retained","runtimeId":"runtime-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-other"}"#;
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET envelope = ?1 WHERE run_id = 'orun-retained'",
+                [drifted_run.as_slice()],
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-retained",
+                    "runtime-a",
+                    Some("request-other"),
+                    "run_queued",
+                    None,
+                    "queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    drifted_run,
+                    queued_event,
+                )
+                .is_err()
+        );
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET envelope = ?1 WHERE run_id = 'orun-retained'",
+                [queued_run.as_slice()],
+            )
+            .unwrap();
+
+        let mismatched_predecessor = br#"{"eventId":0,"runId":"orun-retained","runtimeId":"runtime-a","eventType":"corrupted","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:00Z"}"#;
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = ?1 WHERE run_id = 'orun-retained'",
+                [mismatched_predecessor.as_slice()],
+            )
+            .unwrap();
+        let running_run = br#"{"runId":"orun-retained","runtimeId":"runtime-a","planId":"test","outcome":"running","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-retained"}"#;
+        let running_event = br#"{"eventId":0,"runId":"orun-retained","runtimeId":"runtime-a","eventType":"run_started","fromOutcome":"queued","toOutcome":"running","summary":"","recordedAt":"2026-01-01T00:00:01Z"}"#;
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-retained",
+                    "runtime-a",
+                    Some("request-retained"),
+                    "run_started",
+                    Some("queued"),
+                    "running",
+                    "running",
+                    "2026-01-01T00:00:01Z",
+                    running_run,
+                    running_event,
+                )
+                .is_err()
+        );
+        let retained: (Vec<u8>, i64) = connection
+            .query_row(
+                "SELECT envelope,
+                        (SELECT COUNT(*) FROM orchestra_events WHERE run_id = 'orun-retained')
+                 FROM orchestra_runs WHERE run_id = 'orun-retained'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(retained, (queued_run.to_vec(), 1));
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = ?1 WHERE run_id = 'orun-retained'",
+                [queued_event.as_slice()],
+            )
+            .unwrap();
+        drop(connection);
+
+        let extended = runtime
+            .persist_orchestra_run_event(
+                "orun-retained",
+                "runtime-a",
+                Some("request-retained"),
+                "run_started",
+                Some("queued"),
+                "running",
+                "running",
+                "2026-01-01T00:00:01Z",
+                running_run,
+                running_event,
+            )
+            .unwrap();
+        assert_eq!(extended.event_count, 2);
+
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_event_sequence_is_fenced_inside_the_authority_transaction() {
+        let path = temp_journal("orchestra-sequence-fence");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let queued_run = br#"{"runId":"orun-sequence","runtimeId":"runtime-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:01Z","completedAt":null,"requestId":"request-sequence"}"#;
+        let queued_event = br#"{"eventId":0,"runId":"orun-sequence","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:01Z"}"#;
+        runtime
+            .persist_orchestra_run_event(
+                "orun-sequence",
+                "runtime-a",
+                Some("request-sequence"),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                "2026-01-01T00:00:01Z",
+                queued_run,
+                queued_event,
+            )
+            .unwrap();
+
+        let succeeded_run = br#"{"runId":"orun-sequence","runtimeId":"runtime-a","planId":"test","outcome":"succeeded","executedAt":"2026-01-01T00:00:01Z","completedAt":"2026-01-01T00:00:03Z","requestId":"request-sequence"}"#;
+        let skipped_event = br#"{"eventId":0,"runId":"orun-sequence","runtimeId":"runtime-a","eventType":"run_succeeded","fromOutcome":"queued","toOutcome":"succeeded","summary":"","recordedAt":"2026-01-01T00:00:03Z"}"#;
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-sequence",
+                    "runtime-a",
+                    Some("request-sequence"),
+                    "run_succeeded",
+                    Some("queued"),
+                    "succeeded",
+                    "succeeded",
+                    "2026-01-01T00:00:03Z",
+                    succeeded_run,
+                    skipped_event,
+                )
+                .is_err()
+        );
+
+        let running_run = br#"{"runId":"orun-sequence","runtimeId":"runtime-a","planId":"test","outcome":"running","executedAt":"2026-01-01T00:00:01Z","completedAt":null,"requestId":"request-sequence"}"#;
+        let running_event = br#"{"eventId":0,"runId":"orun-sequence","runtimeId":"runtime-a","eventType":"run_started","fromOutcome":"queued","toOutcome":"running","summary":"","recordedAt":"2026-01-01T00:00:02Z"}"#;
+        for (from_outcome, recorded_at) in [
+            (Some("failed"), "2026-01-01T00:00:02Z"),
+            (Some("queued"), "2026-01-01T00:00:00Z"),
+            (Some("queued"), "2026-01-01T01:00:00+02:00"),
+        ] {
+            let from_outcome_json = from_outcome
+                .map(|outcome| format!("\"{outcome}\""))
+                .unwrap_or_else(|| "null".into());
+            let rejected_event = format!(
+                "{{\"eventId\":0,\"runId\":\"orun-sequence\",\"runtimeId\":\"runtime-a\",\"eventType\":\"run_started\",\"fromOutcome\":{from_outcome_json},\"toOutcome\":\"running\",\"summary\":\"\",\"recordedAt\":\"{recorded_at}\"}}"
+            );
+            assert!(
+                runtime
+                    .persist_orchestra_run_event(
+                        "orun-sequence",
+                        "runtime-a",
+                        Some("request-sequence"),
+                        "run_started",
+                        from_outcome,
+                        "running",
+                        "running",
+                        recorded_at,
+                        running_run,
+                        rejected_event.as_bytes(),
+                    )
+                    .is_err()
+            );
+        }
+        let running = runtime
+            .persist_orchestra_run_event(
+                "orun-sequence",
+                "runtime-a",
+                Some("request-sequence"),
+                "run_started",
+                Some("queued"),
+                "running",
+                "running",
+                "2026-01-01T00:00:02Z",
+                running_run,
+                running_event,
+            )
+            .unwrap();
+        assert_eq!(running.event_count, 2);
+        let replay = runtime
+            .persist_orchestra_run_event(
+                "orun-sequence",
+                "runtime-a",
+                Some("request-sequence"),
+                "run_started",
+                Some("queued"),
+                "running",
+                "running",
+                "2026-01-01T00:00:02Z",
+                running_run,
+                running_event,
+            )
+            .unwrap();
+        assert_eq!(replay.event_count, 2);
+
+        let succeeded = runtime
+            .persist_orchestra_run_event(
+                "orun-sequence",
+                "runtime-a",
+                Some("request-sequence"),
+                "run_succeeded",
+                Some("running"),
+                "succeeded",
+                "succeeded",
+                "2026-01-01T00:00:03Z",
+                succeeded_run,
+                br#"{"eventId":0,"runId":"orun-sequence","runtimeId":"runtime-a","eventType":"run_succeeded","fromOutcome":"running","toOutcome":"succeeded","summary":"","recordedAt":"2026-01-01T00:00:03Z"}"#,
+            )
+            .unwrap();
+        assert_eq!(succeeded.event_count, 3);
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-sequence",
+                    "runtime-a",
+                    Some("request-sequence"),
+                    "run_failed_after_terminal",
+                    Some("succeeded"),
+                    "failed",
+                    "failed",
+                    "2026-01-01T00:00:04Z",
+                    br#"{"runId":"orun-sequence","runtimeId":"runtime-a","planId":"test","outcome":"failed","executedAt":"2026-01-01T00:00:01Z","completedAt":"2026-01-01T00:00:04Z","requestId":"request-sequence"}"#,
+                    br#"{"eventId":0,"runId":"orun-sequence","runtimeId":"runtime-a","eventType":"run_failed_after_terminal","fromOutcome":"succeeded","toOutcome":"failed","summary":"","recordedAt":"2026-01-01T00:00:04Z"}"#,
+                )
+                .is_err()
+        );
+        let history = runtime
+            .load_orchestra_history(Some("runtime-a"), Some("orun-sequence"), 0, 64)
+            .unwrap();
+        assert_eq!(history.events.len(), 3);
+        assert_eq!(
+            history
+                .events
+                .iter()
+                .map(|(event_id, _)| *event_id)
+                .collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+        let second_page = runtime
+            .load_orchestra_history(Some("runtime-a"), Some("orun-sequence"), 1, 1)
+            .unwrap();
+        assert_eq!(second_page.events.len(), 1);
+        assert_eq!(second_page.events[0].0, 2);
+        assert_eq!(second_page.next_offset, Some(2));
+
+        let connection = Connection::open(&path).unwrap();
+        let corrupted_origin = br#"{"eventId":0,"runId":"orun-sequence","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":"failed","toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:01Z"}"#;
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = ?1 WHERE event_id = 1",
+                [corrupted_origin.as_slice()],
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .load_orchestra_history(Some("runtime-a"), Some("orun-sequence"), 1, 1)
+                .is_err()
+        );
+
+        let mismatched_origin = br#"{"eventId":0,"runId":"orun-sequence","runtimeId":"runtime-a","eventType":"corrupted","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:01Z"}"#;
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = ?1 WHERE event_id = 1",
+                [mismatched_origin.as_slice()],
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .load_orchestra_history(Some("runtime-a"), Some("orun-sequence"), 0, 64)
+                .is_err()
+        );
+        drop(connection);
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 
@@ -3759,10 +4269,12 @@ mod tests {
                     runtime_id.as_str(),
                     Some("request-unregister"),
                     "run_queued",
+                    None,
+                    "queued",
                     "queued",
                     "2026-01-01T00:00:00Z",
-                    br#"{"runId":"orun-unregister","runtimeId":"runtime-a","outcome":"queued"}"#,
-                    br#"{"runId":"orun-unregister","runtimeId":"runtime-a","eventType":"run_queued","toOutcome":"queued","recordedAt":"2026-01-01T00:00:00Z"}"#,
+                    br#"{"runId":"orun-unregister","runtimeId":"runtime-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-unregister"}"#,
+                    br#"{"eventId":0,"runId":"orun-unregister","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:00Z"}"#,
                 )
                 .unwrap();
 

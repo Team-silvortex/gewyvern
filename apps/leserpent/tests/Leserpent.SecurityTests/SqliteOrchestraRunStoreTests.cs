@@ -20,9 +20,27 @@ public sealed class SqliteOrchestraRunStoreTests
         var queued = CreateRun("run-1", "request-unique-1", "queued");
 
         store.Upsert(queued, CreateEvent(queued, null, "queued"));
+        var running = queued with
+        {
+            Outcome = "running",
+        };
         store.Upsert(
-            queued with { Outcome = "succeeded", CompletedAt = DateTimeOffset.UtcNow },
-            CreateEvent(queued, "queued", "succeeded"));
+            running,
+            CreateEvent(
+                running,
+                "queued",
+                "running"));
+        var succeeded = queued with
+        {
+            Outcome = "succeeded",
+            CompletedAt = DateTimeOffset.UtcNow,
+        };
+        store.Upsert(
+            succeeded,
+            CreateEvent(
+                succeeded,
+                "running",
+                "succeeded"));
         store.Upsert(CreateRun("run-2", "request-unique-1", "queued"));
         var duplicateError = store.LastError;
 
@@ -30,12 +48,16 @@ public sealed class SqliteOrchestraRunStoreTests
         Assert.Single(loaded);
         Assert.Equal("succeeded", loaded[0].Outcome);
         var events = store.LoadEvents("runtime-1", "run-1");
-        Assert.Equal(2, events.Count);
+        Assert.Equal(3, events.Count);
         Assert.Equal("queued", events[0].ToOutcome);
         Assert.Equal("queued", events[1].FromOutcome);
-        Assert.Equal("succeeded", events[1].ToOutcome);
-        Assert.True(events[1].EventId > events[0].EventId);
-        Assert.NotNull(duplicateError);
+        Assert.Equal("running", events[1].ToOutcome);
+        Assert.Equal("running", events[2].FromOutcome);
+        Assert.Equal("succeeded", events[2].ToOutcome);
+        Assert.True(events[2].EventId > events[1].EventId);
+        Assert.Equal(
+            "orchestra_store_operation_failed",
+            duplicateError);
         DeleteDatabase(databasePath);
     }
 
@@ -75,9 +97,34 @@ public sealed class SqliteOrchestraRunStoreTests
         Assert.Equal(2, store.SchemaVersion);
         Assert.Equal("legacy-run", run.RunId);
 
-        store.Upsert(run with { Outcome = "succeeded", CompletedAt = DateTimeOffset.UtcNow },
-            CreateEvent(run, "queued", "succeeded"));
-        Assert.Single(store.LoadEvents("runtime-1", "legacy-run"));
+        store.Upsert(
+            run,
+            ControlPlaneStateValidator
+                .CreateLegacyOrchestraImportEvent(run));
+        var running = run with
+        {
+            Outcome = "running",
+        };
+        store.Upsert(
+            running,
+            CreateEvent(
+                running,
+                "queued",
+                "running"));
+        var succeeded = run with
+        {
+            Outcome = "succeeded",
+            CompletedAt = DateTimeOffset.UtcNow,
+        };
+        store.Upsert(
+            succeeded,
+            CreateEvent(
+                succeeded,
+                "running",
+                "succeeded"));
+        Assert.Equal(
+            3,
+            store.LoadEvents("runtime-1", "legacy-run").Count);
         DeleteDatabase(databasePath);
     }
 
@@ -976,6 +1023,8 @@ public sealed class SqliteOrchestraRunStoreTests
     [InlineData("null_steps")]
     [InlineData("too_many_steps")]
     [InlineData("invalid_step")]
+    [InlineData("oversized_summary")]
+    [InlineData("control_summary")]
     public void ControlPlaneStateStoreRejectsInvalidOrchestraStepPayload(
         string invalidKind)
     {
@@ -1013,6 +1062,26 @@ public sealed class SqliteOrchestraRunStoreTests
                             "invalid identity"),
                     },
                 },
+                "oversized_summary" => run with
+                {
+                    Steps = new[]
+                    {
+                        new OrchestraExecutionStepResult(
+                            "bounded-step",
+                            "ok",
+                            new string('x', 1_025)),
+                    },
+                },
+                "control_summary" => run with
+                {
+                    Steps = new[]
+                    {
+                        new OrchestraExecutionStepResult(
+                            "bounded-step",
+                            "ok",
+                            "header\ncredential=secret"),
+                    },
+                },
                 _ => throw new InvalidOperationException(
                     $"unknown invalid step kind {invalidKind}"),
             };
@@ -1037,6 +1106,329 @@ public sealed class SqliteOrchestraRunStoreTests
         {
             DeleteState(statePath);
         }
+    }
+
+    [Theory]
+    [InlineData("blank_approved_by")]
+    [InlineData("oversized_approval_note")]
+    [InlineData("invalid_plan_revision")]
+    [InlineData("excessive_attempt")]
+    public void ControlPlaneStateStoreRejectsInvalidOrchestraOperatorMetadata(
+        string invalidKind)
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var run = Assert.Single(valid.OrchestraRuns!);
+            var invalid = invalidKind switch
+            {
+                "blank_approved_by" => run with
+                {
+                    ApprovedBy = " ",
+                },
+                "oversized_approval_note" => run with
+                {
+                    ApprovalNote = new string('x', 1_025),
+                },
+                "invalid_plan_revision" => run with
+                {
+                    PlanRevision = " revision ",
+                },
+                "excessive_attempt" => run with
+                {
+                    Attempt =
+                        ControlPlaneStateValidator
+                            .MaxOrchestraRunAttempts + 1,
+                    RetriedFromRunId = "orun_evicted_parent",
+                },
+                _ => throw new InvalidOperationException(
+                    $"unknown invalid operator metadata kind {invalidKind}"),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    OrchestraRuns = new[] { invalid },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Single(restored.OrchestraRuns!);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("mismatched_runtime")]
+    [InlineData("mismatched_outcome")]
+    [InlineData("reversed_event_time")]
+    [InlineData("unsafe_event_summary")]
+    [InlineData("oversized_approval")]
+    public void OrchestraStoresRejectInvalidRunEventEnvelopesAtomically(
+        string invalidKind)
+    {
+        var databasePath = TemporaryPath("db");
+        try
+        {
+            var run = CreateRun(
+                "run-invalid-envelope",
+                "request-invalid-envelope",
+                "succeeded");
+            var eventRecord = CreateEvent(
+                run,
+                null,
+                "succeeded");
+            var invalidRun = invalidKind == "oversized_approval"
+                ? run with
+                {
+                    ApprovedBy = new string('x', 257),
+                }
+                : run;
+            var invalidEvent = invalidKind switch
+            {
+                "mismatched_runtime" => eventRecord with
+                {
+                    RuntimeId = "runtime-other",
+                },
+                "mismatched_outcome" => eventRecord with
+                {
+                    ToOutcome = "failed",
+                },
+                "reversed_event_time" => eventRecord with
+                {
+                    RecordedAt = run.ExecutedAt.AddSeconds(-1),
+                },
+                "unsafe_event_summary" => eventRecord with
+                {
+                    Summary = "header\ncredential=secret",
+                },
+                "oversized_approval" => eventRecord,
+                _ => throw new InvalidOperationException(
+                    $"unknown invalid envelope kind {invalidKind}"),
+            };
+            var sqlite = CreateSqliteStore(databasePath);
+            var memory = new InMemoryOrchestraRunStore();
+
+            Assert.False(sqlite.Upsert(invalidRun, invalidEvent));
+            Assert.Equal(
+                "orchestra_store_operation_failed",
+                sqlite.LastError);
+            Assert.Empty(sqlite.LoadAll());
+            Assert.False(memory.Upsert(invalidRun, invalidEvent));
+            Assert.Empty(memory.LoadAll());
+        }
+        finally
+        {
+            DeleteDatabase(databasePath);
+        }
+    }
+
+    [Fact]
+    public void RegistryFailsClosedBeforeMigratingWhenOrchestraReadFails()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            WriteState(statePath, CreateRuntimeSessionState());
+            var store = new FailingReadStore();
+
+            Assert.Throws<OrchestraPersistenceException>(() =>
+                new RegistryService(
+                    CreateStateStore(statePath),
+                    store));
+            Assert.False(store.ReplaceAttempted);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void RegistryBackfillsLegacyEventOriginBeforeRestartRecovery()
+    {
+        var statePath = TemporaryPath("json");
+        var databasePath = TemporaryPath("db");
+        try
+        {
+            var registry = new RegistryService(
+                CreateStateStore(statePath));
+            registry.RegisterRuntime(
+                new RuntimeRegistrationRequest(
+                    "runtime",
+                    "http://127.0.0.1:49157",
+                    "pairing-token"),
+                "runtime-1");
+            CreateVersionOneDatabase(databasePath);
+
+            var restored = new RegistryService(
+                CreateStateStore(statePath),
+                CreateSqliteStore(databasePath));
+            var run = Assert.Single(
+                restored.ListOrchestraRuns("runtime-1"));
+            var events = restored.ListOrchestraRunEvents(
+                "runtime-1",
+                run.RunId);
+
+            Assert.Equal("failed", run.Outcome);
+            Assert.Equal(2, events.Count);
+            Assert.Equal("legacy_import", events[0].EventType);
+            Assert.Null(events[0].FromOutcome);
+            Assert.Equal("queued", events[0].ToOutcome);
+            Assert.Equal(
+                "service_restart_recovery",
+                events[1].EventType);
+            Assert.Equal("queued", events[1].FromOutcome);
+            Assert.Equal("failed", events[1].ToOutcome);
+            Assert.True(
+                events[1].EventId > events[0].EventId);
+        }
+        finally
+        {
+            DeleteState(statePath);
+            DeleteDatabase(databasePath);
+        }
+    }
+
+    [Theory]
+    [InlineData("broken_from")]
+    [InlineData("reversed_time")]
+    [InlineData("non_monotonic_id")]
+    public void SqliteStoreRejectsCorruptedEventSequenceOnRead(
+        string invalidKind)
+    {
+        var databasePath = TemporaryPath("db");
+        try
+        {
+            var store = CreateSqliteStore(databasePath);
+            var queued = CreateRun(
+                "run-corrupt-sequence",
+                "request-corrupt-sequence",
+                "queued");
+            var running = queued with
+            {
+                Outcome = "running",
+            };
+            Assert.True(store.Upsert(
+                queued,
+                CreateEvent(queued, null, "queued")));
+            Assert.True(store.Upsert(
+                running,
+                CreateEvent(
+                    running,
+                    "queued",
+                    "running")));
+
+            using (var connection = new SqliteConnection(
+                $"Data Source={databasePath}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = invalidKind switch
+                {
+                    "broken_from" => """
+                        UPDATE orchestra_run_events
+                        SET from_outcome = 'failed'
+                        WHERE from_outcome = 'queued';
+                        """,
+                    "reversed_time" => """
+                        UPDATE orchestra_run_events
+                        SET recorded_at = '2020-01-01T00:00:00Z'
+                        WHERE from_outcome = 'queued';
+                        """,
+                    "non_monotonic_id" => """
+                        UPDATE orchestra_run_events
+                        SET event_id = 0
+                        WHERE from_outcome = 'queued';
+                        """,
+                    _ => throw new InvalidOperationException(
+                        $"unknown event corruption kind {invalidKind}"),
+                };
+                command.ExecuteNonQuery();
+            }
+
+            Assert.Empty(store.LoadEvents(
+                running.RuntimeId,
+                running.RunId));
+            Assert.Equal(
+                "orchestra_store_operation_failed",
+                store.LastError);
+        }
+        finally
+        {
+            DeleteDatabase(databasePath);
+        }
+    }
+
+    [Fact]
+    public void InMemoryStoreRejectsIllegalEventTransition()
+    {
+        var store = new InMemoryOrchestraRunStore();
+        var queued = CreateRun(
+            "run-memory-sequence",
+            "request-memory-sequence",
+            "queued");
+        var running = queued with
+        {
+            Outcome = "running",
+        };
+
+        Assert.True(store.Upsert(
+            queued,
+            CreateEvent(queued, null, "queued")));
+        Assert.False(store.Upsert(
+            running,
+            CreateEvent(
+                running,
+                "failed",
+                "running")));
+        Assert.Equal(
+            "queued",
+            Assert.Single(store.LoadAll()).Outcome);
+        Assert.Single(store.LoadEvents(
+            queued.RuntimeId,
+            queued.RunId));
+    }
+
+    [Fact]
+    public void EventSequenceRejectsTerminalRunMismatch()
+    {
+        var succeeded = CreateRun(
+            "run-terminal-mismatch",
+            "request-terminal-mismatch",
+            "succeeded");
+        var failed = succeeded with
+        {
+            Outcome = "failed",
+        };
+        var persistedEvent = CreateEvent(
+            succeeded,
+            null,
+            "succeeded") with
+        {
+            EventId = 1,
+        };
+
+        Assert.Throws<InvalidDataException>(() =>
+            ControlPlaneStateValidator
+                .ValidateOrchestraEventSequence(
+                    failed,
+                    new[] { persistedEvent },
+                    failed.RuntimeId,
+                    failed.RunId));
     }
 
     [Fact]
@@ -1353,6 +1745,184 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void DiscoveryFailuresExposeOnlyStableDiagnosticCodes()
+    {
+        const string secret =
+            "upstream failure credential=secret-token";
+
+        var capability = CapabilityDiscoveryResult.Failed(
+            "http://runtime.test/v1/capabilities",
+            secret);
+        var status = RuntimeStatusDiscoveryResult.Failed(
+            "http://runtime.test/v1/latest/meta",
+            secret);
+        var sidecar = RuntimeSidecarDiscoveryResult.Failed(
+            "http://sidecar.test/v1/latest/status",
+            secret);
+
+        Assert.Equal(
+            "capability_fetch_failed",
+            capability.CapabilityFetchError);
+        Assert.Equal(
+            "runtime_status_fetch_failed",
+            status.Status.StatusFetchError);
+        Assert.Equal(
+            "sidecar_fetch_failed",
+            sidecar.SidecarStatus?.StatusFetchError);
+        Assert.Equal(
+            "sidecar_fetch_failed",
+            sidecar.SidecarStatus?.LastError);
+        Assert.DoesNotContain(
+            "secret-token",
+            JsonSerializer.Serialize(
+                new
+                {
+                    capability,
+                    status,
+                    sidecar,
+                }),
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("raw_capability_error")]
+    [InlineData("incoherent_runtime_status")]
+    [InlineData("raw_runtime_status_error")]
+    [InlineData("raw_sidecar_error")]
+    [InlineData("incoherent_sidecar_status")]
+    [InlineData("raw_memory_error")]
+    [InlineData("oversized_resilience_summary")]
+    public void ControlPlaneStateStoreRejectsUnsafeRuntimeDiagnostics(
+        string invalidKind)
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var valid = CreateRuntimeSessionState();
+            var runtime = Assert.Single(valid.Runtimes);
+            var invalid = invalidKind switch
+            {
+                "raw_capability_error" => runtime with
+                {
+                    CapabilityFetchError =
+                        "credential=secret-token",
+                },
+                "incoherent_runtime_status" => runtime with
+                {
+                    Status = runtime.Status with
+                    {
+                        StatusSource = "gewyvern-api",
+                    },
+                },
+                "raw_runtime_status_error" => runtime with
+                {
+                    Status = runtime.Status with
+                    {
+                        StatusSource = "fetch_failed",
+                        StatusFetchError =
+                            "upstream status secret-token",
+                    },
+                },
+                "raw_sidecar_error" => runtime with
+                {
+                    SidecarStatus =
+                        new RuntimeSidecarStatusSnapshot(
+                            "fetch_failed",
+                            null,
+                            "upstream sidecar secret-token",
+                            false,
+                            "fetch_failed",
+                            null,
+                            false,
+                            0,
+                            false,
+                            false,
+                            "upstream sidecar secret-token"),
+                },
+                "incoherent_sidecar_status" => runtime with
+                {
+                    SidecarStatus =
+                        new RuntimeSidecarStatusSnapshot(
+                            "etragon-api",
+                            null,
+                            null,
+                            true,
+                            "ready",
+                            1,
+                            false,
+                            0,
+                            false,
+                            false),
+                },
+                "raw_memory_error" => runtime with
+                {
+                    SidecarStatus =
+                        new RuntimeSidecarStatusSnapshot(
+                            "etragon-api",
+                            DateTimeOffset.UtcNow,
+                            null,
+                            true,
+                            "ready",
+                            1,
+                            false,
+                            0,
+                            false,
+                            false,
+                            Memory:
+                                new RuntimeSidecarMemorySnapshot(
+                                    false,
+                                    0,
+                                    0,
+                                    null,
+                                    null,
+                                    null,
+                                    Array.Empty<
+                                        RuntimeSidecarMemorySlotSummary>(),
+                                    "memory secret-token")),
+                },
+                "oversized_resilience_summary" => runtime with
+                {
+                    Status = runtime.Status with
+                    {
+                        ResilienceSummary = new string('x', 1_025),
+                    },
+                },
+                _ => throw new InvalidOperationException(
+                    $"unknown unsafe diagnostic kind {invalidKind}"),
+            };
+            WriteState($"{statePath}.bak", valid);
+            WriteState(
+                statePath,
+                valid with
+                {
+                    Runtimes = new[] { invalid },
+                });
+
+            var store = CreateStateStore(statePath);
+            var restored = Assert.IsType<PersistedControlPlaneState>(
+                store.Load());
+
+            Assert.Null(
+                Assert.Single(restored.Runtimes)
+                    .CapabilityFetchError);
+            Assert.Equal(
+                ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                store.LoadProvenance.PrimaryFailureCode);
+            Assert.Equal(
+                ControlPlaneStateLoadSource.Backup,
+                store.LoadProvenance.Source);
+            Assert.DoesNotContain(
+                "secret-token",
+                store.LastSaveError ?? string.Empty,
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
     public void ControlPlaneStateStorePreservesSnapshotAndCleansTempAfterBackupFailure()
     {
         var statePath = TemporaryPath("json");
@@ -1376,7 +1946,9 @@ public sealed class SqliteOrchestraRunStoreTests
                     new[] { CreateRun("replacement-run", "replacement-request", "succeeded") }));
 
             Assert.True(store.IsDirty);
-            Assert.NotNull(store.LastSaveError);
+            Assert.Equal(
+                "control_plane_state_save_failed",
+                store.LastSaveError);
             Assert.Empty(Directory.EnumerateFiles(
                 Path.GetDirectoryName(statePath)!,
                 $"{Path.GetFileName(statePath)}.*.tmp"));
@@ -1606,14 +2178,20 @@ public sealed class SqliteOrchestraRunStoreTests
 
     private sealed class FailingMigrationStore : IOrchestraRunStore
     {
+        private string? lastError;
+
         public string Provider => "failure-injection";
         public string Location => "memory";
         public int SchemaVersion => 2;
-        public string? LastError => "injected migration write failure";
+        public string? LastError => lastError;
         public IReadOnlyList<OrchestraRunSummary> AttemptedRuns { get; private set; } =
             Array.Empty<OrchestraRunSummary>();
 
-        public IReadOnlyList<OrchestraRunSummary> LoadAll() => Array.Empty<OrchestraRunSummary>();
+        public IReadOnlyList<OrchestraRunSummary> LoadAll()
+        {
+            lastError = null;
+            return Array.Empty<OrchestraRunSummary>();
+        }
 
         public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) =>
             Array.Empty<OrchestraRunEvent>();
@@ -1623,9 +2201,42 @@ public sealed class SqliteOrchestraRunStoreTests
         public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
         {
             AttemptedRuns = runs.ToArray();
+            lastError = "orchestra_store_operation_failed";
             return false;
         }
 
         public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => false;
+    }
+
+    private sealed class FailingReadStore : IOrchestraRunStore
+    {
+        public string Provider => "failure-injection";
+        public string Location => "memory";
+        public int SchemaVersion => 2;
+        public string? LastError => "orchestra_store_operation_failed";
+        public bool ReplaceAttempted { get; private set; }
+
+        public IReadOnlyList<OrchestraRunSummary> LoadAll() =>
+            Array.Empty<OrchestraRunSummary>();
+
+        public IReadOnlyList<OrchestraRunEvent> LoadEvents(
+            string runtimeId,
+            string runId) =>
+            Array.Empty<OrchestraRunEvent>();
+
+        public bool Upsert(
+            OrchestraRunSummary run,
+            OrchestraRunEvent? eventRecord = null) =>
+            false;
+
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
+        {
+            ReplaceAttempted = true;
+            return false;
+        }
+
+        public bool DeleteRuntimes(
+            IReadOnlyCollection<string> runtimeIds) =>
+            false;
     }
 }

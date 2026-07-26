@@ -17,8 +17,27 @@ public sealed partial class RegistryService
         ListOrchestraRuns(runtimeId).FirstOrDefault(run =>
             string.Equals(run.RequestId, requestId, StringComparison.Ordinal));
 
-    public IReadOnlyList<OrchestraRunEvent> ListOrchestraRunEvents(string runtimeId, string runId) =>
-        orchestraRunStore.LoadEvents(runtimeId, runId);
+    public IReadOnlyList<OrchestraRunEvent> ListOrchestraRunEvents(
+        string runtimeId,
+        string runId)
+    {
+        var events = orchestraRunStore.LoadEvents(runtimeId, runId);
+        if (!string.IsNullOrWhiteSpace(
+                orchestraRunStore.LastError))
+        {
+            throw new OrchestraPersistenceException(
+                "failed to validate Orchestra event history");
+        }
+        var run = GetOrchestraRun(runtimeId, runId)
+            ?? throw new OrchestraPersistenceException(
+                "Orchestra event history has no retained run");
+        ControlPlaneStateValidator.ValidateOrchestraEventSequence(
+            run,
+            events,
+            runtimeId,
+            runId);
+        return events;
+    }
 
     public OrchestraFleetBoardResponse GetOrchestraFleetBoard()
     {
@@ -233,23 +252,9 @@ public sealed partial class RegistryService
         && !string.Equals(run.PlanId, "session_preparation", StringComparison.OrdinalIgnoreCase);
 
     internal static bool CanTransitionOrchestraOutcome(string current, string next)
-    {
-        if (string.Equals(current, next, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-        if (string.Equals(current, "queued", StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Equals(next, "running", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(next, "cancelled", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(next, "failed", StringComparison.OrdinalIgnoreCase);
-        }
-        if (string.Equals(current, "running", StringComparison.OrdinalIgnoreCase))
-        {
-            return IsTerminalOrchestraOutcome(next);
-        }
-        return false;
-    }
+        => ControlPlaneStateValidator.IsValidOrchestraTransition(
+            current,
+            next);
 
     internal static OrchestraRunSummary NormalizeRestoredOrchestraRun(OrchestraRunSummary run)
     {

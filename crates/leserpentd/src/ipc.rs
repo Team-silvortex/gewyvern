@@ -304,6 +304,7 @@ mod tests {
         ProtocolRequest, ProtocolResponse, RequestEnvelope, RuntimeUnregisterRequest,
         RuntimeUnregisterTarget, decode_response,
     };
+    use rusqlite::Connection;
 
     use super::*;
 
@@ -991,11 +992,15 @@ mod tests {
         let socket = temp_path("orchestra-persistence", "sock");
         let mut runtime = ControlRuntime::open(&database).unwrap();
         let server = IpcServer::bind(&socket, TOKEN).unwrap();
-        let envelope =
+        let mut envelope =
             leserpent_protocol::compatibility_v1::decode_orchestra_persistence(include_bytes!(
                 "../../leserpent-protocol/tests/fixtures/legacy-orchestra-persistence-v1.json"
             ))
             .unwrap();
+        envelope.run.outcome = "queued".into();
+        envelope.run.completed_at = None;
+        envelope.event.event_type = "run_queued".into();
+        envelope.event.to_outcome = "queued".into();
         let request = RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
             request: ProtocolRequest::OrchestraPersist(OrchestraPersistenceRequest {
@@ -1039,6 +1044,49 @@ mod tests {
                     && history.next_offset.is_none()
         ));
 
+        let mut illegal_transition = request.clone();
+        let ProtocolRequest::OrchestraPersist(persistence) = &mut illegal_transition.request else {
+            unreachable!();
+        };
+        persistence.envelope.run.outcome = "succeeded".into();
+        persistence.envelope.run.completed_at = Some("2026-01-01T00:00:01+00:00".into());
+        persistence.envelope.event.event_type = "run_succeeded".into();
+        persistence.envelope.event.from_outcome = Some("queued".into());
+        persistence.envelope.event.to_outcome = "succeeded".into();
+        persistence.envelope.event.recorded_at = "2026-01-01T00:00:01+00:00".into();
+        let response = send(&server, &mut runtime, &socket, TOKEN, illegal_transition);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_persistence_failed"
+        ));
+        let history_after_rejection = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraHistory(OrchestraHistoryRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_id: Some(envelope.run.runtime_id.clone()),
+                run_id: Some(envelope.run.run_id.clone()),
+                offset: 0,
+                limit: 64,
+            }),
+        };
+        let response = send(
+            &server,
+            &mut runtime,
+            &socket,
+            TOKEN,
+            history_after_rejection,
+        );
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::OrchestraHistory(ref history)
+                if history.events.len() == 1
+                    && history.events[0].event_id == 1
+        ));
+
         let mut drifted = request;
         let ProtocolRequest::OrchestraPersist(persistence) = &mut drifted.request else {
             unreachable!();
@@ -1049,6 +1097,78 @@ mod tests {
             response.response,
             ProtocolResponse::Error(ref error)
                 if error.code == "orchestra_persistence_failed"
+        ));
+        let mut corrupted_event = envelope.event.clone();
+        corrupted_event.from_outcome = Some("failed".into());
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = ?1 WHERE run_id = ?2",
+                rusqlite::params![
+                    serde_json::to_vec(&corrupted_event).unwrap(),
+                    envelope.run.run_id
+                ],
+            )
+            .unwrap();
+        drop(connection);
+        let mut corrupted_replay_envelope = envelope.clone();
+        corrupted_replay_envelope.event = corrupted_event;
+        let corrupted_replay = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraPersist(OrchestraPersistenceRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                envelope: corrupted_replay_envelope,
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, corrupted_replay);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_persistence_failed"
+                    && error.message == "Orchestra persistence transaction failed"
+        ));
+        let corrupted_history = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraHistory(OrchestraHistoryRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_id: Some(envelope.run.runtime_id.clone()),
+                run_id: Some(envelope.run.run_id.clone()),
+                offset: 0,
+                limit: 64,
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, corrupted_history);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_history_failed"
+                    && error.message == "Orchestra history query failed"
+        ));
+        let corrupted_run_list = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraHistory(OrchestraHistoryRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_id: Some(envelope.run.runtime_id.clone()),
+                run_id: None,
+                offset: 0,
+                limit: 64,
+            }),
+        };
+        let response = send(&server, &mut runtime, &socket, TOKEN, corrupted_run_list);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_history_failed"
+                    && error.message == "Orchestra history query failed"
         ));
         let delete = RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,

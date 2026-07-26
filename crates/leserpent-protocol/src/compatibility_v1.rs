@@ -248,7 +248,7 @@ pub fn validate_orchestra_persistence(
     let run = &envelope.run;
     let event = &envelope.event;
     for value in [&run.run_id, &run.runtime_id, &run.plan_id] {
-        if value.is_empty() || value.len() > 128 || value.chars().any(char::is_control) {
+        if !valid_orchestra_text(value, 128, false) {
             return Err(CompatibilityError::InvalidOrchestra("identity"));
         }
     }
@@ -265,24 +265,58 @@ pub fn validate_orchestra_persistence(
         || event.to_outcome != run.outcome
         || event.run_id != run.run_id
         || event.runtime_id != run.runtime_id
-        || !(1..=32).contains(&run.attempt)
-        || run.steps.len() > 128
+        || !(1..=1_000_000).contains(&run.attempt)
+        || run.steps.len() > 256
     {
         return Err(CompatibilityError::InvalidOrchestra("consistency"));
     }
     if run.steps.iter().any(|step| {
-        step.step.is_empty()
-            || step.step.len() > 128
-            || step.outcome.is_empty()
-            || step.outcome.len() > 64
-            || step.summary.len() > 1024
-    }) || event.event_type.is_empty()
-        || event.event_type.len() > 128
-        || event.summary.len() > 1024
+        !valid_orchestra_text(&step.step, 128, false)
+            || !valid_orchestra_text(&step.outcome, 128, false)
+            || !valid_orchestra_text(&step.summary, 1024, true)
+    }) || !valid_orchestra_text(&event.event_type, 128, false)
+        || !valid_orchestra_text(&event.summary, 1024, true)
+        || !valid_orchestra_text(&run.executed_at, 64, false)
+        || !valid_orchestra_text(&event.recorded_at, 64, false)
+        || run
+            .completed_at
+            .as_deref()
+            .is_some_and(|value| !valid_orchestra_text(value, 64, false))
+        || run
+            .retried_from_run_id
+            .as_deref()
+            .is_some_and(|value| !valid_orchestra_text(value, 128, false))
+        || run
+            .approved_by
+            .as_deref()
+            .is_some_and(|value| !valid_orchestra_text(value, 256, false))
+        || run
+            .approval_note
+            .as_deref()
+            .is_some_and(|value| !valid_orchestra_text(value, 1024, false))
+        || run
+            .plan_revision
+            .as_deref()
+            .is_some_and(|value| !valid_orchestra_text(value, 128, false))
+        || run
+            .request_id
+            .as_deref()
+            .is_some_and(|value| !valid_orchestra_text(value, 128, false))
+        || event
+            .from_outcome
+            .as_deref()
+            .is_some_and(|value| !outcomes.contains(&value))
     {
         return Err(CompatibilityError::InvalidOrchestra("bounds"));
     }
     Ok(())
+}
+
+fn valid_orchestra_text(value: &str, maximum: usize, allow_empty: bool) -> bool {
+    value.len() <= maximum
+        && (allow_empty || !value.is_empty())
+        && value == value.trim()
+        && !value.chars().any(char::is_control)
 }
 
 pub fn decode_api_error(bytes: &[u8]) -> Result<LegacyApiErrorResponse, CompatibilityError> {

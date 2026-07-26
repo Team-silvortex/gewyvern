@@ -6,6 +6,7 @@ internal static class ControlPlaneStateValidator
     internal const int MaxRuntimeDeletionAttempts = 1_000_000;
     internal const int MaxRuntimeDeletionRetryAuditEntries = 256;
     internal const int MaxOrchestraRunSteps = 256;
+    internal const int MaxOrchestraRunAttempts = 1_000_000;
     internal const int MaxRuntimeCapabilities = 256;
     internal const int MaxSessionRequirements = 256;
     internal const int MaxSidecarMemorySlots = 256;
@@ -95,11 +96,11 @@ internal static class ControlPlaneStateValidator
             runtime.RegisteredAt > observedAt.AddMinutes(5) ||
             runtime.UpdatedAt < runtime.RegisteredAt ||
             runtime.UpdatedAt > observedAt.AddMinutes(5) ||
-            !IsCanonicalText(runtime.CapabilitySource, 128) ||
             (runtime.CapabilityFetchedAt is not null &&
                 (runtime.CapabilityFetchedAt == default ||
                     runtime.CapabilityFetchedAt >
                         observedAt.AddMinutes(5))) ||
+            !IsValidCapabilityPosture(runtime) ||
             runtime.Capabilities is null ||
             runtime.Capabilities.Count > MaxRuntimeCapabilities ||
             runtime.Tags is null ||
@@ -117,7 +118,7 @@ internal static class ControlPlaneStateValidator
                 !IsCanonicalText(capability.Key, 128) ||
                 !capabilityKeys.Add(capability.Key) ||
                 !IsKnownCapabilitySupport(capability.Support) ||
-                capability.Description is null)
+                !IsCanonicalText(capability.Description, 1_024))
             {
                 throw new InvalidDataException(
                     "control-plane state contains an invalid runtime capability");
@@ -174,28 +175,77 @@ internal static class ControlPlaneStateValidator
 
     private static bool IsValidRuntimeStatus(
         RuntimeStatusSnapshot status,
-        DateTimeOffset observedAt) =>
-        IsCanonicalText(status.StatusSource, 128) &&
-        IsOptionalObservedTimestamp(
-            status.StatusFetchedAt,
-            observedAt) &&
-        IsOptionalCanonicalText(status.SnapshotKind, 128) &&
-        status.TargetCount is null or >= 0 &&
-        status.SocketConsecutiveIdleTimeouts is null or >= 0 &&
-        status.SocketTotalIdleTimeouts is null or >= 0;
+        DateTimeOffset observedAt)
+    {
+        var posture = status.StatusSource switch
+        {
+            "unobserved" =>
+                status.StatusFetchedAt is null &&
+                status.StatusFetchError is null &&
+                !status.HasLatestSnapshot,
+            "gewyvern-api" =>
+                status.StatusFetchedAt is not null &&
+                status.StatusFetchError is null,
+            "fetch_failed" =>
+                status.StatusFetchedAt is null &&
+                string.Equals(
+                    status.StatusFetchError,
+                    RuntimeDiagnosticCodes.RuntimeStatusFetchFailed,
+                    StringComparison.Ordinal) &&
+                !status.HasLatestSnapshot,
+            _ => false,
+        };
+        return posture &&
+            IsOptionalObservedTimestamp(
+                status.StatusFetchedAt,
+                observedAt) &&
+            IsOptionalCanonicalText(status.SnapshotKind, 128) &&
+            IsOptionalCanonicalText(status.ResilienceStatus, 128) &&
+            IsOptionalCanonicalText(status.ResilienceSummary, 1_024) &&
+            IsOptionalCanonicalText(status.SocketServiceStatus, 128) &&
+            status.TargetCount is null or >= 0 &&
+            status.SocketConsecutiveIdleTimeouts is null or >= 0 &&
+            status.SocketTotalIdleTimeouts is null or >= 0;
+    }
 
     private static bool IsValidRuntimeSidecarStatus(
         RuntimeSidecarStatusSnapshot status,
-        DateTimeOffset observedAt) =>
-        IsCanonicalText(status.StatusSource, 128) &&
-        IsCanonicalText(status.DaemonStatus, 128) &&
-        IsOptionalObservedTimestamp(
-            status.StatusFetchedAt,
-            observedAt) &&
-        status.TargetCount is null or >= 0 &&
-        status.LearnedRoutes >= 0 &&
-        (status.Memory is null ||
-            IsValidSidecarMemory(status.Memory, observedAt));
+        DateTimeOffset observedAt)
+    {
+        var posture = status.StatusSource switch
+        {
+            "etragon-api" =>
+                status.StatusFetchedAt is not null &&
+                status.StatusFetchError is null &&
+                (status.LastError is null ||
+                    string.Equals(
+                        status.LastError,
+                        RuntimeDiagnosticCodes.SidecarReportedError,
+                        StringComparison.Ordinal)),
+            "fetch_failed" =>
+                status.StatusFetchedAt is null &&
+                string.Equals(
+                    status.StatusFetchError,
+                    RuntimeDiagnosticCodes.SidecarFetchFailed,
+                    StringComparison.Ordinal) &&
+                (status.LastError is null ||
+                    string.Equals(
+                        status.LastError,
+                        RuntimeDiagnosticCodes.SidecarFetchFailed,
+                        StringComparison.Ordinal)) &&
+                !status.Healthy,
+            _ => false,
+        };
+        return posture &&
+            IsCanonicalText(status.DaemonStatus, 128) &&
+            IsOptionalObservedTimestamp(
+                status.StatusFetchedAt,
+                observedAt) &&
+            status.TargetCount is null or >= 0 &&
+            status.LearnedRoutes >= 0 &&
+            (status.Memory is null ||
+                IsValidSidecarMemory(status.Memory, observedAt));
+    }
 
     private static bool IsValidSidecarMemory(
         RuntimeSidecarMemorySnapshot memory,
@@ -204,7 +254,13 @@ internal static class ControlPlaneStateValidator
         if (memory.SlotCount < 0 ||
             memory.HistoryCount < 0 ||
             !IsOptionalCanonicalText(memory.LatestSlot, 128) ||
+            !IsOptionalCanonicalText(memory.LatestLabel, 256) ||
             !IsOptionalCanonicalText(memory.LatestSource, 128) ||
+            (memory.FetchError is not null &&
+                !string.Equals(
+                    memory.FetchError,
+                    RuntimeDiagnosticCodes.SidecarMemoryFetchFailed,
+                    StringComparison.Ordinal)) ||
             memory.Slots is null ||
             memory.Slots.Count > MaxSidecarMemorySlots)
         {
@@ -217,10 +273,34 @@ internal static class ControlPlaneStateValidator
             slot is not null &&
             IsCanonicalText(slot.Slot, 128) &&
             slotIds.Add(slot.Slot) &&
+            IsOptionalCanonicalText(slot.Label, 256) &&
+            IsOptionalCanonicalText(slot.Note, 1_024) &&
             IsCanonicalText(slot.Source, 128) &&
             IsOptionalObservedTimestamp(slot.SavedAt, observedAt) &&
             slot.PatternCount >= 0 &&
             slot.LabelCount >= 0);
+    }
+
+    private static bool IsValidCapabilityPosture(
+        PersistedRuntimeState runtime)
+    {
+        var failed = string.Equals(
+            runtime.CapabilityFetchError,
+            RuntimeDiagnosticCodes.CapabilityFetchFailed,
+            StringComparison.Ordinal);
+        return runtime.CapabilitySource switch
+        {
+            "manual" =>
+                runtime.CapabilityFetchedAt is null &&
+                (runtime.CapabilityFetchError is null || failed),
+            "gewyvern-api" =>
+                (runtime.CapabilityFetchedAt is not null &&
+                    runtime.CapabilityFetchError is null) ||
+                (runtime.CapabilityFetchedAt is null && failed),
+            "fetch_failed" =>
+                runtime.CapabilityFetchedAt is null && failed,
+            _ => false,
+        };
     }
 
     internal static void ValidateLegacyOrchestraRunGraph(
@@ -254,51 +334,9 @@ internal static class ControlPlaneStateValidator
                 throw new InvalidDataException(
                     "control-plane state contains an Orchestra run without a registered runtime");
             }
-            if (!IsStableIdentity(run.PlanId) ||
-                !IsKnownOrchestraOutcome(run.Outcome) ||
-                run.ExecutedAt == default ||
-                run.ExecutedAt > observedAt.AddMinutes(5) ||
-                (IsActiveOrchestraOutcome(run.Outcome) &&
-                    run.CompletedAt is not null) ||
-                (run.CompletedAt is not null &&
-                    (run.CompletedAt < run.ExecutedAt ||
-                        run.CompletedAt >
-                            observedAt.AddMinutes(5))))
-            {
-                throw new InvalidDataException(
-                    "control-plane state contains invalid Orchestra lifecycle metadata");
-            }
-            if (run.Steps is null ||
-                run.Steps.Count > MaxOrchestraRunSteps ||
-                run.Steps.Any(static step =>
-                    step is null ||
-                    !IsStableIdentity(step.Step) ||
-                    !IsStableIdentity(step.Outcome) ||
-                    step.Summary is null))
-            {
-                throw new InvalidDataException(
-                    "control-plane state contains an invalid Orchestra step payload");
-            }
-            if (run.Attempt < 1 ||
-                (run.RetriedFromRunId is null && run.Attempt != 1) ||
-                (run.RetriedFromRunId is not null &&
-                    (run.Attempt < 2 ||
-                        !IsStableIdentity(run.RetriedFromRunId) ||
-                        string.Equals(
-                            run.RunId,
-                            run.RetriedFromRunId,
-                            StringComparison.OrdinalIgnoreCase))))
-            {
-                throw new InvalidDataException(
-                    "control-plane state contains invalid Orchestra retry lineage");
-            }
+            ValidateOrchestraRunPayload(run, observedAt);
             if (run.RequestId is not null)
             {
-                if (!IsStableIdentity(run.RequestId))
-                {
-                    throw new InvalidDataException(
-                        "control-plane state contains a duplicate Orchestra request identity");
-                }
                 if (!requestIdsByRuntime.TryGetValue(
                         run.RuntimeId,
                         out var requestIds))
@@ -346,6 +384,242 @@ internal static class ControlPlaneStateValidator
                 throw new InvalidDataException(
                     "control-plane state contains invalid Orchestra retry lineage");
             }
+        }
+    }
+
+    internal static void ValidateOrchestraStoreEnvelope(
+        OrchestraRunSummary run,
+        OrchestraRunEvent? eventRecord,
+        DateTimeOffset? now = null)
+    {
+        var observedAt = now ?? DateTimeOffset.UtcNow;
+        ValidateOrchestraRunPayload(run, observedAt);
+        if (eventRecord is null)
+        {
+            return;
+        }
+
+        ValidateOrchestraEventPayload(eventRecord, observedAt);
+        if (!string.Equals(
+                eventRecord.RunId,
+                run.RunId,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                eventRecord.RuntimeId,
+                run.RuntimeId,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                eventRecord.ToOutcome,
+                run.Outcome,
+                StringComparison.Ordinal) ||
+            eventRecord.RecordedAt < run.ExecutedAt ||
+            (run.CompletedAt is not null &&
+                eventRecord.RecordedAt < run.CompletedAt))
+        {
+            throw new InvalidDataException(
+                "Orchestra persistence event does not match its run");
+        }
+    }
+
+    internal static void ValidateOrchestraEventPayload(
+        OrchestraRunEvent eventRecord,
+        DateTimeOffset? now = null)
+    {
+        var observedAt = now ?? DateTimeOffset.UtcNow;
+        if (eventRecord is null ||
+            eventRecord.EventId < 0 ||
+            !IsStableIdentity(eventRecord.RunId) ||
+            !IsStableIdentity(eventRecord.RuntimeId) ||
+            !IsStableIdentity(eventRecord.EventType) ||
+            (eventRecord.FromOutcome is not null &&
+                !IsKnownOrchestraOutcome(
+                    eventRecord.FromOutcome)) ||
+            !IsKnownOrchestraOutcome(eventRecord.ToOutcome) ||
+            !IsBoundedCanonicalText(
+                eventRecord.Summary,
+                1_024,
+                allowEmpty: true) ||
+            eventRecord.RecordedAt == default ||
+            eventRecord.RecordedAt >
+                observedAt.AddMinutes(5))
+        {
+            throw new InvalidDataException(
+                "Orchestra persistence event payload is invalid");
+        }
+    }
+
+    internal static void ValidateOrchestraEventSequence(
+        OrchestraRunSummary? run,
+        IReadOnlyList<OrchestraRunEvent> events,
+        string runtimeId,
+        string runId,
+        DateTimeOffset? now = null)
+    {
+        if (events is null)
+        {
+            throw new InvalidDataException(
+                "Orchestra persistence event sequence is missing");
+        }
+
+        var observedAt = now ?? DateTimeOffset.UtcNow;
+        OrchestraRunEvent? previous = null;
+        foreach (var eventRecord in events)
+        {
+            ValidateOrchestraEventPayload(eventRecord, observedAt);
+            if (eventRecord.EventId < 1 ||
+                !string.Equals(
+                    eventRecord.RuntimeId,
+                    runtimeId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    eventRecord.RunId,
+                    runId,
+                    StringComparison.Ordinal) ||
+                (previous is null &&
+                    eventRecord.FromOutcome is not null) ||
+                (previous is not null &&
+                    (eventRecord.EventId <= previous.EventId ||
+                        eventRecord.RecordedAt < previous.RecordedAt ||
+                        !string.Equals(
+                            eventRecord.FromOutcome,
+                            previous.ToOutcome,
+                            StringComparison.Ordinal) ||
+                        !IsValidOrchestraTransition(
+                            previous.ToOutcome,
+                            eventRecord.ToOutcome))))
+            {
+                throw new InvalidDataException(
+                    "Orchestra persistence event sequence is invalid");
+            }
+            previous = eventRecord;
+        }
+
+        if (run is null)
+        {
+            return;
+        }
+
+        ValidateOrchestraRunPayload(run, observedAt);
+        if (!string.Equals(
+                run.RuntimeId,
+                runtimeId,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                run.RunId,
+                runId,
+                StringComparison.Ordinal) ||
+            previous is null ||
+            events[0].RecordedAt < run.ExecutedAt ||
+            !string.Equals(
+                previous.ToOutcome,
+                run.Outcome,
+                StringComparison.Ordinal) ||
+            (run.CompletedAt is not null &&
+                previous.RecordedAt < run.CompletedAt))
+        {
+            throw new InvalidDataException(
+                "Orchestra persistence event sequence does not match its run");
+        }
+    }
+
+    internal static OrchestraRunEvent CreateLegacyOrchestraImportEvent(
+        OrchestraRunSummary run) =>
+        new(
+            0,
+            run.RunId,
+            run.RuntimeId,
+            "legacy_import",
+            null,
+            run.Outcome,
+            "Imported from Leserpent 1.x persistence",
+            run.CompletedAt ?? run.ExecutedAt);
+
+    internal static bool IsValidOrchestraTransition(
+        string current,
+        string next)
+    {
+        if (string.Equals(
+                current,
+                next,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+        if (string.Equals(
+                current,
+                "queued",
+                StringComparison.Ordinal))
+        {
+            return string.Equals(
+                    next,
+                    "running",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    next,
+                    "cancelled",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    next,
+                    "failed",
+                    StringComparison.Ordinal);
+        }
+        return string.Equals(
+                current,
+                "running",
+                StringComparison.Ordinal) &&
+            IsTerminalOrchestraOutcome(next);
+    }
+
+    private static void ValidateOrchestraRunPayload(
+        OrchestraRunSummary run,
+        DateTimeOffset observedAt)
+    {
+        if (run is null ||
+            !IsStableIdentity(run.RunId) ||
+            !IsStableIdentity(run.RuntimeId) ||
+            !IsStableIdentity(run.PlanId) ||
+            !IsKnownOrchestraOutcome(run.Outcome) ||
+            run.ExecutedAt == default ||
+            run.ExecutedAt > observedAt.AddMinutes(5) ||
+            (IsActiveOrchestraOutcome(run.Outcome) &&
+                run.CompletedAt is not null) ||
+            (run.CompletedAt is not null &&
+                (run.CompletedAt < run.ExecutedAt ||
+                    run.CompletedAt >
+                        observedAt.AddMinutes(5))) ||
+            run.Attempt is < 1 or > MaxOrchestraRunAttempts ||
+            (run.RetriedFromRunId is null && run.Attempt != 1) ||
+            (run.RetriedFromRunId is not null &&
+                (run.Attempt < 2 ||
+                    !IsStableIdentity(run.RetriedFromRunId) ||
+                    string.Equals(
+                        run.RunId,
+                        run.RetriedFromRunId,
+                        StringComparison.OrdinalIgnoreCase))) ||
+            !IsOptionalCanonicalText(run.ApprovedBy, 256) ||
+            !IsOptionalCanonicalText(run.ApprovalNote, 1_024) ||
+            (run.PlanRevision is not null &&
+                !IsStableIdentity(run.PlanRevision)) ||
+            (run.RequestId is not null &&
+                !IsStableIdentity(run.RequestId)))
+        {
+            throw new InvalidDataException(
+                "Orchestra persistence run payload is invalid");
+        }
+
+        if (run.Steps is null ||
+            run.Steps.Count > MaxOrchestraRunSteps ||
+            run.Steps.Any(static step =>
+                step is null ||
+                !IsStableIdentity(step.Step) ||
+                !IsStableIdentity(step.Outcome) ||
+                !IsBoundedCanonicalText(
+                    step.Summary,
+                    1_024,
+                    allowEmpty: true)))
+        {
+            throw new InvalidDataException(
+                "Orchestra persistence step payload is invalid");
         }
     }
 
@@ -550,6 +824,19 @@ internal static class ControlPlaneStateValidator
         value is not null &&
         value.Length is > 0 &&
         value.Length <= maxLength &&
+        string.Equals(
+            value,
+            value.Trim(),
+            StringComparison.Ordinal) &&
+        value.All(static character => !char.IsControl(character));
+
+    private static bool IsBoundedCanonicalText(
+        string? value,
+        int maxLength,
+        bool allowEmpty) =>
+        value is not null &&
+        value.Length <= maxLength &&
+        (allowEmpty || value.Length > 0) &&
         string.Equals(
             value,
             value.Trim(),

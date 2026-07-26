@@ -56,7 +56,14 @@ public sealed class OrchestraExecutionCoordinatorTests
 
         var terminal = await WaitForTerminalRunAsync(registry, runtime.RuntimeId, started.Run.RunId);
         Assert.Equal("failed", terminal.Outcome);
-        Assert.Contains(terminal.Steps, step => step.Summary.Contains("executor failed", StringComparison.Ordinal));
+        Assert.Contains(
+            terminal.Steps,
+            step => step.Summary == "orchestra execution failed");
+        Assert.DoesNotContain(
+            terminal.Steps,
+            step => step.Summary.Contains(
+                "executor failed",
+                StringComparison.Ordinal));
 
         DeleteStateFiles(statePath);
     }
@@ -2515,15 +2522,33 @@ public sealed class OrchestraExecutionCoordinatorTests
 
     private sealed class FailingRunStore : IOrchestraRunStore
     {
+        private string? lastError;
+
         public string Provider => "failing-test";
         public string Location => "test";
         public int SchemaVersion => 0;
-        public string? LastError => "write failed";
-        public IReadOnlyList<OrchestraRunSummary> LoadAll() => Array.Empty<OrchestraRunSummary>();
+        public string? LastError => lastError;
+        public IReadOnlyList<OrchestraRunSummary> LoadAll()
+        {
+            lastError = null;
+            return Array.Empty<OrchestraRunSummary>();
+        }
         public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) => Array.Empty<OrchestraRunEvent>();
-        public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) => false;
-        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) => false;
-        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => false;
+        public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null)
+        {
+            lastError = "orchestra_store_operation_failed";
+            return false;
+        }
+        public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
+        {
+            lastError = "orchestra_store_operation_failed";
+            return false;
+        }
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds)
+        {
+            lastError = "orchestra_store_operation_failed";
+            return false;
+        }
     }
 
     private sealed class TransitionFailingRunStore : IOrchestraRunStore
@@ -2546,16 +2571,25 @@ public sealed class OrchestraExecutionCoordinatorTests
     private sealed class DeleteFailingRunStore : IOrchestraRunStore
     {
         private readonly InMemoryOrchestraRunStore inner = new();
+        private string? lastError;
 
         public string Provider => "delete-failing-test";
         public string Location => "test";
         public int SchemaVersion => 0;
-        public string? LastError => "delete failed";
-        public IReadOnlyList<OrchestraRunSummary> LoadAll() => inner.LoadAll();
+        public string? LastError => lastError;
+        public IReadOnlyList<OrchestraRunSummary> LoadAll()
+        {
+            lastError = null;
+            return inner.LoadAll();
+        }
         public IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId) => inner.LoadEvents(runtimeId, runId);
         public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null) => inner.Upsert(run, eventRecord);
         public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs) => inner.ReplaceAll(runs);
-        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds) => false;
+        public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds)
+        {
+            lastError = "orchestra_store_operation_failed";
+            return false;
+        }
     }
 
     private sealed class CountingDeleteRunStore : IOrchestraRunStore

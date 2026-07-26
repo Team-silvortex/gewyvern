@@ -892,6 +892,99 @@ snapshots validate non-negative counters, bounded timestamps, and at most 256
 case-insensitively unique memory slots. This keeps schema-compatible malformed
 or oversized nested state out of both the managed projection and later
 authority migrations.
+Persisted diagnostics use a closed, secret-free vocabulary. Managed discovery
+now collapses arbitrary transport exceptions and remote sidecar errors into
+`capability_fetch_failed`, `runtime_status_fetch_failed`,
+`sidecar_fetch_failed`, `sidecar_reported_error`, or
+`sidecar_memory_fetch_failed` before they can enter registry state. Runtime and
+sidecar status sources then prove a coherent posture: successful sources carry
+an observation time and no fetch error, `fetch_failed` carries the matching
+fixed code and no observation time, and `unobserved` carries neither. Optional
+resilience, memory label, and note text is canonical and bounded. State-save
+and Orchestra-store health fields likewise expose only stable failure codes;
+the logger retains the full local exception without reflecting it through
+health, capabilities, persistence import, or restored runtime projections.
+Orchestra persistence now has one envelope validator shared by the legacy JSON
+generation, the managed SQLite and in-memory stores, the daemon IPC adapter,
+and authority readback. Run operator, approval, revision, request, step, and
+event text is canonical and bounded; step history is capped at 256 entries and
+attempts at 1,000,000. An event must bind the exact run/runtime identity and
+outcome, use a known optional source outcome, and occur no earlier than run
+execution or terminal completion. Both C# and the Rust compatibility decoder
+enforce the same 256-step and metadata limits. A failed authority read aborts
+startup before legacy migration instead of treating a malformed database as
+empty, and executor exceptions remain in local logs while durable history uses
+a fixed non-disclosing summary.
+Retained event history is now a validated state-machine sequence rather than a
+bag of rows. The first event has no `fromOutcome`; every later event has a
+strictly increasing database EventId, non-decreasing record time, an exact
+link from the previous `toOutcome`, and a legal queued/running transition. The
+last event must match the retained run outcome and terminal completion time.
+Old SQLite runs created before atomic event migration are repaired
+deterministically with a `legacy_import` origin before any service-restart
+recovery event is appended. SQLite validates the candidate sequence inside the
+write transaction, all adapters validate history on read, and malformed
+history produces a stable unavailable response instead of an empty event list
+or reflected database error.
+New event admission now crosses the same state-machine boundary inside the
+Rust persistence authority's immediate SQLite transaction. The authority
+accepts only the minimal source, target, and run outcome fields alongside the
+opaque compatibility envelopes; it verifies their closed vocabulary and exact
+run/event correspondence without introducing a protocol dependency into the
+storage crate. Exact event replay is resolved before append validation, so a
+byte-identical retry remains idempotent. A genuinely new event reads the
+latest retained predecessor in the same transaction, requires an exact
+`fromOutcome` link, rejects illegal active or post-terminal transitions, and
+compares parsed RFC 3339 instants rather than timestamp strings. Rejection
+therefore rolls back both the run update and event insert. A real authenticated
+Unix-socket test proves that a protocol-valid `queued` to `succeeded` skip
+returns the stable persistence failure and leaves only the original event.
+Retained history now crosses an equivalent read fence inside the Rust
+persistence authority. A private minimal JSON projection validates run and
+event identities, outcomes, timestamps, bounded summaries, and exact
+SQLite-column/envelope correspondence without coupling the runtime crate to
+the compatibility protocol. Event history is read under one deferred
+transaction, capped by the three-state-transition envelope, and validated as
+a complete sequence before offset and limit are applied. Consequently,
+corruption in an earlier event cannot be hidden by requesting a later page.
+Malformed rows fail closed through the daemon's fixed
+`orchestra_history_failed` response; an authenticated Unix-socket regression
+test mutates the retained database directly and proves that no storage detail
+crosses the IPC boundary.
+Run-list reads now validate the same retained event truth without an N+1
+query. The authority reads at most 65 run rows including pagination lookahead,
+then issues one parameterized batch query for their event rows. The batch is
+capped at `65 * 3 + 1`, grouped by run identity, and checked with the same
+complete-sequence validator before any run envelope is returned. Missing
+events, excess cardinality, identity drift, and last-event/run-outcome
+disagreement therefore fail the entire snapshot. The lookahead row is also
+validated, so corruption immediately beyond the requested page cannot be
+hidden until the next request. Direct SQLite mutation and authenticated IPC
+tests cover that boundary while preserving the fixed non-disclosing error.
+Append admission now applies the same envelope-to-column truth before SQLite
+can retain new data. Once the immediate authority transaction is open, the
+runtime decodes the minimal run and event projections and compares every
+persisted identity-bearing column input with its envelope: run, runtime,
+request, run outcome, event type, source/target outcome, and recording time.
+The auto-incremented database EventId is represented by exactly zero in a new
+event envelope; any non-zero caller-selected value is rejected rather than
+creating a row that would fail a later history read. Run execution/completion
+and event recording instants are also checked at admission. This remains a
+runtime-local validator with no compatibility-protocol dependency. A native
+field-drift matrix confirms all malformed attempts leave both Orchestra
+tables empty and that a valid append can immediately follow those rollbacks.
+Replay and extension also require the retained side of the transaction to be
+healthy. The authority reads the existing run and its complete, three-event
+bounded history under the same immediate transaction, verifies the SQL
+request identity against the run envelope, and applies the full history
+sequence validator before looking up a replay or changing either table. The
+validated terminal event becomes the predecessor for extension admission, so
+there is no second, weaker last-row query that can ignore corruption in an
+earlier event. Direct SQLite fault injection proves an illegal origin cannot
+be acknowledged as a byte-identical replay, request-column drift cannot be
+replayed, and a column/envelope-mismatched predecessor cannot be extended.
+After repair, the same authority extends the run normally. Authenticated IPC
+returns only the stable persistence failure for the corrupted replay.
 
 ## Leselang Semantics
 

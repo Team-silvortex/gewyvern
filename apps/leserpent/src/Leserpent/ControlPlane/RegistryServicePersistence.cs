@@ -105,6 +105,11 @@ public sealed partial class RegistryService
     private void RestoreOrMigrateOrchestraRuns()
     {
         var databaseRuns = orchestraRunStore.LoadAll();
+        if (!string.IsNullOrWhiteSpace(orchestraRunStore.LastError))
+        {
+            throw new OrchestraPersistenceException(
+                "failed to validate persisted Orchestra history");
+        }
         if (databaseRuns.Count == 0)
         {
             var legacyRuns = orchestraRuns.Values.SelectMany(static queue => queue).ToArray();
@@ -135,9 +140,34 @@ public sealed partial class RegistryService
             {
                 var run = normalized[index];
                 var previous = restored[index];
-                var recoveryEvent = string.Equals(previous.Outcome, run.Outcome, StringComparison.OrdinalIgnoreCase)
-                    ? null
-                    : new OrchestraRunEvent(
+                var events = orchestraRunStore.LoadEvents(
+                    previous.RuntimeId,
+                    previous.RunId);
+                if (!string.IsNullOrWhiteSpace(
+                        orchestraRunStore.LastError))
+                {
+                    throw new OrchestraPersistenceException(
+                        "failed to validate persisted Orchestra event history");
+                }
+                if (events.Count == 0)
+                {
+                    if (!orchestraRunStore.Upsert(
+                            previous,
+                            ControlPlaneStateValidator
+                                .CreateLegacyOrchestraImportEvent(
+                                    previous)))
+                    {
+                        throw new OrchestraPersistenceException(
+                            $"failed to backfill Orchestra event history for run {run.RunId}");
+                    }
+                }
+
+                if (!string.Equals(
+                        previous.Outcome,
+                        run.Outcome,
+                        StringComparison.Ordinal))
+                {
+                    var recoveryEvent = new OrchestraRunEvent(
                         0,
                         run.RunId,
                         run.RuntimeId,
@@ -146,10 +176,30 @@ public sealed partial class RegistryService
                         run.Outcome,
                         "Service restart interrupted execution; retry explicitly if the plan is still applicable",
                         run.CompletedAt ?? DateTimeOffset.UtcNow);
-                if (!orchestraRunStore.Upsert(run, recoveryEvent))
-                {
-                    throw new OrchestraPersistenceException($"failed to persist restored Orchestra run {run.RunId}");
+                    if (!orchestraRunStore.Upsert(
+                            run,
+                            recoveryEvent))
+                    {
+                        throw new OrchestraPersistenceException(
+                            $"failed to persist restored Orchestra run {run.RunId}");
+                    }
                 }
+
+                events = orchestraRunStore.LoadEvents(
+                    run.RuntimeId,
+                    run.RunId);
+                if (!string.IsNullOrWhiteSpace(
+                        orchestraRunStore.LastError))
+                {
+                    throw new OrchestraPersistenceException(
+                        "failed to validate restored Orchestra event history");
+                }
+                ControlPlaneStateValidator
+                    .ValidateOrchestraEventSequence(
+                        run,
+                        events,
+                        run.RuntimeId,
+                        run.RunId);
             }
         }
     }

@@ -838,7 +838,65 @@ non-future, capability and requirement keys are unique within 256-entry
 envelopes, and nested runtime status/sidecar memory counters and slot identities
 are validated before projection restoration. The next gate constrains nullable
 diagnostic text and proves status-source coherence without exposing untrusted
-failure details through persistence health or import errors.
+failure details through persistence health or import errors. It is complete:
+managed discovery converts arbitrary upstream errors into fixed diagnostic
+codes before persistence, runtime and sidecar source/timestamp/error postures
+are validated as closed sets, optional diagnostic text is bounded, and
+control-plane/Orchestra health exposes stable failure codes while retaining
+full exceptions only in local logs. The next gate bounds legacy Orchestra
+operator, revision, summary, and event payload metadata before SQLite
+migration. It is complete: a shared validator protects JSON restoration,
+SQLite, daemon IPC, in-memory writes, and authority readback; operator and
+revision fields plus step/event summaries are bounded and canonical; event
+identity, outcome, and timestamps bind to their run; Rust and C# agree on the
+256-step envelope; and authority read failure aborts before legacy replacement.
+The next gate validates retained Orchestra event sequence continuity,
+transition legality, monotonic EventIds, and terminal-run correspondence during
+history reads. It is complete: legacy eventless runs receive a deterministic
+origin, SQLite and in-memory candidates are validated before publication,
+adapter reads reject broken identities, IDs, time, or transition links, and
+the terminal event must correspond to the run. The next gate moves append
+sequence validation into the Rust persistence authority transaction and proves
+cross-process rejection before commit. It is complete: exact replay remains
+idempotent, while new events validate the previous outcome, legal transition,
+run/event target agreement, and RFC 3339 instant monotonicity inside the same
+immediate SQLite transaction. Origin events cannot claim a predecessor,
+terminal runs cannot be appended to, and a real authenticated Unix-socket
+test proves an illegal transition is rejected without changing retained
+history. The next gate validates retained Orchestra history rows inside the
+Rust persistence authority and proves corrupted sequences fail closed across
+the IPC boundary. It is complete: run and event envelopes are decoded through
+a private minimal projection and checked against their SQLite columns; event
+cardinality is bounded by the state machine; one read transaction validates
+the complete sequence before pagination; and both direct corruption tests and
+an authenticated Unix-socket test prove malformed retained data returns only
+the stable history failure. The next gate validates each Rust-authority run
+list page against retained terminal-event correspondence in a bounded batch
+without N+1 queries. It is complete: each page and its lookahead row share one
+parameterized event query capped by the three-event state machine; every run
+is paired with a complete validated event sequence before publication; and
+direct mutation plus authenticated IPC tests prove hidden lookahead
+corruption fails closed. The next gate moves exact run/event
+envelope-to-column validation into the Rust append transaction so malformed
+native callers cannot persist poison rows. It is complete: the authority
+decodes both minimal envelopes after opening its immediate transaction and
+requires exact run, runtime, request, outcome, event type, source/target
+outcome, and timestamp correspondence before any replay lookup or SQL write.
+New event envelopes must carry the canonical zero EventId sentinel, and their
+time must be compatible with the run execution/completion interval. A
+field-by-field native regression proves every mismatch rolls back to zero run
+and event rows before a valid append succeeds. The next gate validates the
+existing retained run and complete event chain inside the append transaction
+before accepting an idempotent replay or extending that history. It is
+complete: the immediate transaction reads the retained run plus one bounded
+event batch, checks SQL request identity and the complete three-event
+state-machine sequence, and reuses the validated last event for transition
+admission instead of issuing a weaker predecessor query. Corrupted
+byte-identical replay, request-identity drift, and extension over a mismatched
+predecessor all fail without mutation; direct SQLite injection and an
+authenticated Unix-socket regression cover both native and cross-process
+boundaries. The next gate extends SQL request-id/envelope coherence to every
+run-history read, including pagination lookahead.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

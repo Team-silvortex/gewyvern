@@ -1,5 +1,19 @@
 namespace Leserpent.ControlPlane;
 
+internal static class RuntimeDiagnosticCodes
+{
+    internal const string CapabilityFetchFailed =
+        "capability_fetch_failed";
+    internal const string RuntimeStatusFetchFailed =
+        "runtime_status_fetch_failed";
+    internal const string SidecarFetchFailed =
+        "sidecar_fetch_failed";
+    internal const string SidecarReportedError =
+        "sidecar_reported_error";
+    internal const string SidecarMemoryFetchFailed =
+        "sidecar_memory_fetch_failed";
+}
+
 public sealed record CapabilityDiscoveryResult(
     string CapabilityEndpoint,
     IReadOnlyList<RuntimeCapability> Capabilities,
@@ -15,7 +29,13 @@ public sealed record CapabilityDiscoveryResult(
         new(capabilityEndpoint, capabilities, "gewyvern-api", DateTimeOffset.UtcNow, null, authoritySnapshot);
 
     public static CapabilityDiscoveryResult Failed(string capabilityEndpoint, string error) =>
-        new(capabilityEndpoint, Array.Empty<RuntimeCapability>(), "fetch_failed", null, error, null);
+        new(
+            capabilityEndpoint,
+            Array.Empty<RuntimeCapability>(),
+            "fetch_failed",
+            null,
+            RuntimeDiagnosticCodes.CapabilityFetchFailed,
+            null);
 }
 
 public sealed record RuntimeCapabilityAuthoritySnapshot(
@@ -42,7 +62,7 @@ public sealed record RuntimeStatusDiscoveryResult(
         new(statusEndpoint, new RuntimeStatusSnapshot(
             "fetch_failed",
             null,
-            error,
+            RuntimeDiagnosticCodes.RuntimeStatusFetchFailed,
             false,
             null,
             null,
@@ -69,7 +89,7 @@ public sealed record RuntimeSidecarDiscoveryResult(
         new(statusEndpoint, new RuntimeSidecarStatusSnapshot(
             "fetch_failed",
             null,
-            error,
+            RuntimeDiagnosticCodes.SidecarFetchFailed,
             false,
             "fetch_failed",
             null,
@@ -77,5 +97,5 @@ public sealed record RuntimeSidecarDiscoveryResult(
             0,
             false,
             false,
-            error));
+            RuntimeDiagnosticCodes.SidecarFetchFailed));
 }

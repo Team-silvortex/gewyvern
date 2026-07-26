@@ -58,10 +58,24 @@ public partial class Program
                 return Results.NotFound(new ApiErrorResponse("orchestra_run_not_found", RuntimeId: id, RunId: runId));
             }
 
-            return Results.Ok(new OrchestraRunEventsResponse(
-                id,
-                runId,
-                registry.ListOrchestraRunEvents(id, runId)));
+            try
+            {
+                return Results.Ok(new OrchestraRunEventsResponse(
+                    id,
+                    runId,
+                    registry.ListOrchestraRunEvents(id, runId)));
+            }
+            catch (OrchestraPersistenceException)
+            {
+                return Results.Json(
+                    new ApiErrorResponse(
+                        "orchestra_persistence_unavailable",
+                        RuntimeId: id,
+                        RunId: runId),
+                    LeserpentJsonContext.Default.ApiErrorResponse,
+                    statusCode:
+                        StatusCodes.Status503ServiceUnavailable);
+            }
         });
 
         app.MapGet("/v1/orchestra/runs", (RegistryService registry) =>

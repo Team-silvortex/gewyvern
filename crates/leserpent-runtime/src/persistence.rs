@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,6 +9,8 @@ use rusqlite::{
     Connection, MappedRows, OpenFlags, Row, Transaction, TransactionBehavior, params,
     params_from_iter,
 };
+use serde::Deserialize;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
@@ -27,6 +29,7 @@ const OWNER_LEASE_DURATION_MS: i64 = 30_000;
 const MAX_EFFECT_TASKS: i64 = EFFECT_QUEUE_CAPACITY as i64;
 const MAX_EFFECT_LEASE_MS: i64 = 5 * 60 * 1_000;
 const MAX_ORCHESTRA_ENVELOPE_BYTES: usize = 1024 * 1024;
+const MAX_ORCHESTRA_EVENTS_PER_RUN: usize = 3;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: i64 = 4_096;
 static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -118,6 +121,51 @@ pub struct OrchestraDeleteRecord {
     pub deleted_runtime_count: u32,
     pub deleted_run_count: u64,
     pub deleted_event_count: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredOrchestraRunEnvelope {
+    run_id: String,
+    runtime_id: String,
+    plan_id: String,
+    outcome: String,
+    executed_at: String,
+    completed_at: Option<String>,
+    #[serde(default)]
+    request_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredOrchestraEventEnvelope {
+    #[serde(default)]
+    event_id: u64,
+    run_id: String,
+    runtime_id: String,
+    event_type: String,
+    from_outcome: Option<String>,
+    to_outcome: String,
+    summary: String,
+    recorded_at: String,
+}
+
+struct ValidatedOrchestraRun {
+    outcome: String,
+    executed_at: OffsetDateTime,
+    completed_at: Option<OffsetDateTime>,
+    request_id: Option<String>,
+}
+
+struct ValidatedOrchestraEvent {
+    event_id: u64,
+    envelope_event_id: u64,
+    run_id: String,
+    runtime_id: String,
+    envelope: Vec<u8>,
+    from_outcome: Option<String>,
+    to_outcome: String,
+    recorded_at: OffsetDateTime,
 }
 
 pub struct RuntimeUnregistrationOperationRecord {
@@ -744,7 +792,9 @@ impl Journal {
         runtime_id: &str,
         request_id: Option<&str>,
         event_type: &str,
+        from_outcome: Option<&str>,
         to_outcome: &str,
+        run_outcome: &str,
         recorded_at: &str,
         run: &[u8],
         event: &[u8],
@@ -754,19 +804,21 @@ impl Journal {
             ("run_id", run_id),
             ("runtime_id", runtime_id),
             ("event_type", event_type),
-            ("to_outcome", to_outcome),
         ] {
             validate_scheduler_id(field, value)?;
+        }
+        validate_orchestra_outcome("to_outcome", to_outcome)?;
+        validate_orchestra_outcome("run_outcome", run_outcome)?;
+        if let Some(from_outcome) = from_outcome {
+            validate_orchestra_outcome("from_outcome", from_outcome)?;
+        }
+        if run_outcome != to_outcome {
+            return Err("Orchestra run outcome does not match its event".into());
         }
         if let Some(request_id) = request_id {
             validate_scheduler_id("request_id", request_id)?;
         }
-        if recorded_at.is_empty()
-            || recorded_at.len() > 64
-            || recorded_at.chars().any(char::is_control)
-        {
-            return Err("recorded_at is invalid".into());
-        }
+        let recorded_at_instant = validate_orchestra_recorded_at(recorded_at)?;
         validate_orchestra_blob("run envelope", run)?;
         validate_orchestra_blob("event envelope", event)?;
         let now = unix_time_ms()?;
@@ -774,19 +826,55 @@ impl Journal {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| error.to_string())?;
-        let existing_run: Option<(String, Vec<u8>)> = transaction
+        validate_orchestra_append_envelopes(
+            run_id,
+            runtime_id,
+            request_id,
+            event_type,
+            from_outcome,
+            to_outcome,
+            run_outcome,
+            recorded_at,
+            run,
+            event,
+        )?;
+        let existing_run: Option<(String, Option<String>, Vec<u8>)> = transaction
             .query_row(
-                "SELECT runtime_id, envelope FROM orchestra_runs WHERE run_id = ?1",
+                "SELECT runtime_id, request_id, envelope
+                 FROM orchestra_runs WHERE run_id = ?1",
                 [run_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(|error| error.to_string())?;
-        if existing_run
-            .as_ref()
-            .is_some_and(|(existing_runtime, _)| existing_runtime != runtime_id)
-        {
-            return Err("Orchestra run identity was reused for another runtime".into());
+        let mut event_batches = load_validated_orchestra_event_batches(&transaction, &[run_id])?;
+        let retained_events = event_batches
+            .remove(run_id)
+            .ok_or_else(|| "Orchestra retained event history is inconsistent".to_string())?;
+        if !event_batches.is_empty() {
+            return Err("Orchestra retained event history is inconsistent".into());
+        }
+        match &existing_run {
+            Some((existing_runtime, stored_request_id, stored_envelope)) => {
+                if existing_runtime != runtime_id {
+                    return Err("Orchestra run identity was reused for another runtime".into());
+                }
+                let retained_run =
+                    validate_orchestra_run_row(run_id, existing_runtime, stored_envelope)?;
+                if retained_run.request_id.as_deref() != stored_request_id.as_deref() {
+                    return Err("Orchestra retained run request identity is inconsistent".into());
+                }
+                validate_orchestra_event_history(
+                    &retained_run,
+                    &retained_events,
+                    existing_runtime,
+                    run_id,
+                )?;
+            }
+            None if !retained_events.is_empty() => {
+                return Err("Orchestra events exist without their retained run".into());
+            }
+            None => {}
         }
         let existing_event: Option<Vec<u8>> = transaction
             .query_row(
@@ -804,12 +892,37 @@ impl Journal {
             Some(_)
                 if existing_run
                     .as_ref()
-                    .is_some_and(|(_, stored)| stored != run) =>
+                    .is_some_and(|(_, _, stored)| stored != run) =>
             {
                 return Err("Orchestra event replay changed its run content".into());
             }
             Some(_) => {}
             None => {
+                match retained_events.last() {
+                    None if from_outcome.is_some() => {
+                        return Err("Orchestra origin event has a source outcome".into());
+                    }
+                    Some(_) if from_outcome.is_none() => {
+                        return Err("Orchestra appended event is missing its source outcome".into());
+                    }
+                    Some(previous) => {
+                        if from_outcome != Some(previous.to_outcome.as_str()) {
+                            return Err(
+                                "Orchestra appended event does not follow the previous outcome"
+                                    .into(),
+                            );
+                        }
+                        if recorded_at_instant < previous.recorded_at {
+                            return Err(
+                                "Orchestra appended event time precedes its predecessor".into()
+                            );
+                        }
+                        if !is_valid_orchestra_transition(&previous.to_outcome, to_outcome) {
+                            return Err("Orchestra appended event transition is invalid".into());
+                        }
+                    }
+                    None => {}
+                }
                 transaction
                     .execute(
                         "INSERT INTO orchestra_runs (
@@ -905,70 +1018,138 @@ impl Journal {
         }
         let fetch = i64::from(limit) + 1;
         let offset = i64::from(offset);
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Deferred)
+            .map_err(|error| error.to_string())?;
         if let Some(run_id) = run_id {
-            let mut statement = self
-                .connection
-                .prepare(
-                    "SELECT event_id, envelope FROM orchestra_events
-                     WHERE runtime_id = ?1 AND run_id = ?2
-                     ORDER BY event_id ASC LIMIT ?3 OFFSET ?4",
+            let stored_run: Option<(String, String, Vec<u8>)> = transaction
+                .query_row(
+                    "SELECT run_id, runtime_id, envelope
+                     FROM orchestra_runs WHERE run_id = ?1",
+                    [run_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
+                .optional()
                 .map_err(|error| error.to_string())?;
-            let raw_rows = statement
-                .query_map(
-                    params![runtime_id.unwrap_or_default(), run_id, fetch, offset],
-                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)),
-                )
-                .map_err(|error| error.to_string())?
-                .collect::<Result<Vec<(i64, Vec<u8>)>, _>>()
-                .map_err(|error| error.to_string())?;
-            let mut rows = raw_rows
-                .into_iter()
-                .map(|(event_id, envelope)| {
-                    u64::try_from(event_id)
-                        .map(|event_id| (event_id, envelope))
-                        .map_err(|_| "Orchestra event ID is invalid".to_string())
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let has_more = rows.len() > usize::from(limit);
-            rows.truncate(usize::from(limit));
+            let Some((stored_run_id, stored_runtime_id, run_envelope)) = stored_run else {
+                transaction.commit().map_err(|error| error.to_string())?;
+                return Ok(OrchestraHistoryRecord {
+                    runs: Vec::new(),
+                    events: Vec::new(),
+                    next_offset: None,
+                });
+            };
+            if stored_runtime_id != runtime_id.unwrap_or_default() {
+                return Err("Orchestra history runtime identity is inconsistent".into());
+            }
+            let validated_run =
+                validate_orchestra_run_row(&stored_run_id, &stored_runtime_id, &run_envelope)?;
+            let mut event_batches =
+                load_validated_orchestra_event_batches(&transaction, &[run_id])?;
+            let rows = event_batches
+                .remove(run_id)
+                .ok_or_else(|| "Orchestra event history identity is inconsistent".to_string())?;
+            validate_orchestra_event_history(
+                &validated_run,
+                &rows,
+                runtime_id.unwrap_or_default(),
+                run_id,
+            )?;
+            let offset = usize::try_from(offset)
+                .map_err(|_| "Orchestra history offset is invalid".to_string())?;
+            let limit = usize::from(limit);
+            let page_end = offset.saturating_add(limit).min(rows.len());
+            let events = if offset >= rows.len() {
+                Vec::new()
+            } else {
+                rows[offset..page_end]
+                    .iter()
+                    .map(|event| (event.event_id, event.envelope.clone()))
+                    .collect()
+            };
+            let has_more = page_end < rows.len();
+            transaction.commit().map_err(|error| error.to_string())?;
             return Ok(OrchestraHistoryRecord {
                 runs: Vec::new(),
-                events: rows,
-                next_offset: history_next_offset(has_more, offset, limit),
+                events,
+                next_offset: history_next_offset(
+                    has_more,
+                    i64::try_from(offset)
+                        .map_err(|_| "Orchestra history offset is invalid".to_string())?,
+                    u16::try_from(limit)
+                        .map_err(|_| "Orchestra history limit is invalid".to_string())?,
+                ),
             });
         }
-        let mut rows = if let Some(runtime_id) = runtime_id {
-            let mut statement = self
-                .connection
+        let rows = if let Some(runtime_id) = runtime_id {
+            let mut statement = transaction
                 .prepare(
-                    "SELECT envelope FROM orchestra_runs WHERE runtime_id = ?1
+                    "SELECT run_id, runtime_id, envelope FROM orchestra_runs
+                     WHERE runtime_id = ?1
                      ORDER BY updated_at_unix_ms DESC, run_id ASC LIMIT ?2 OFFSET ?3",
                 )
                 .map_err(|error| error.to_string())?;
             statement
-                .query_map(params![runtime_id, fetch, offset], |row| row.get(0))
+                .query_map(params![runtime_id, fetch, offset], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Vec<u8>>(2)?,
+                    ))
+                })
                 .map_err(|error| error.to_string())?
-                .collect::<Result<Vec<Vec<u8>>, _>>()
+                .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| error.to_string())?
         } else {
-            let mut statement = self
-                .connection
+            let mut statement = transaction
                 .prepare(
-                    "SELECT envelope FROM orchestra_runs
+                    "SELECT run_id, runtime_id, envelope FROM orchestra_runs
                      ORDER BY updated_at_unix_ms DESC, run_id ASC LIMIT ?1 OFFSET ?2",
                 )
                 .map_err(|error| error.to_string())?;
             statement
-                .query_map(params![fetch, offset], |row| row.get(0))
+                .query_map(params![fetch, offset], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Vec<u8>>(2)?,
+                    ))
+                })
                 .map_err(|error| error.to_string())?
-                .collect::<Result<Vec<Vec<u8>>, _>>()
+                .collect::<Result<Vec<_>, _>>()
                 .map_err(|error| error.to_string())?
         };
-        let has_more = rows.len() > usize::from(limit);
-        rows.truncate(usize::from(limit));
+        let mut validated_rows = rows
+            .into_iter()
+            .map(|(run_id, runtime_id, envelope)| {
+                let run = validate_orchestra_run_row(&run_id, &runtime_id, &envelope)?;
+                Ok((run_id, runtime_id, envelope, run))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let run_ids = validated_rows
+            .iter()
+            .map(|(run_id, _, _, _)| run_id.as_str())
+            .collect::<Vec<_>>();
+        let mut event_batches = load_validated_orchestra_event_batches(&transaction, &run_ids)?;
+        for (run_id, runtime_id, _, run) in &validated_rows {
+            let events = event_batches
+                .remove(run_id)
+                .ok_or_else(|| "Orchestra event history identity is inconsistent".to_string())?;
+            validate_orchestra_event_history(run, &events, runtime_id, run_id)?;
+        }
+        if !event_batches.is_empty() {
+            return Err("Orchestra event history identity is inconsistent".into());
+        }
+        let has_more = validated_rows.len() > usize::from(limit);
+        validated_rows.truncate(usize::from(limit));
+        let runs = validated_rows
+            .into_iter()
+            .map(|(_, _, envelope, _)| envelope)
+            .collect();
+        transaction.commit().map_err(|error| error.to_string())?;
         Ok(OrchestraHistoryRecord {
-            runs: rows,
+            runs,
             events: Vec::new(),
             next_offset: history_next_offset(has_more, offset, limit),
         })
@@ -2871,6 +3052,299 @@ fn validate_orchestra_blob(label: &str, bytes: &[u8]) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+fn load_validated_orchestra_event_batches(
+    transaction: &Transaction<'_>,
+    run_ids: &[&str],
+) -> Result<BTreeMap<String, Vec<ValidatedOrchestraEvent>>, String> {
+    if run_ids.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let mut batches = run_ids
+        .iter()
+        .map(|run_id| ((*run_id).to_string(), Vec::new()))
+        .collect::<BTreeMap<_, _>>();
+    if batches.len() != run_ids.len() {
+        return Err("Orchestra history contains duplicate run identities".into());
+    }
+    let expected_rows = run_ids
+        .len()
+        .checked_mul(MAX_ORCHESTRA_EVENTS_PER_RUN)
+        .ok_or_else(|| "Orchestra event batch bound is invalid".to_string())?;
+    let fetch_rows = expected_rows
+        .checked_add(1)
+        .ok_or_else(|| "Orchestra event batch bound is invalid".to_string())?;
+    let placeholders = (0..run_ids.len())
+        .map(|_| "?")
+        .collect::<Vec<_>>()
+        .join(", ");
+    let query = format!(
+        "SELECT event_id, run_id, runtime_id, event_type, to_outcome,
+                recorded_at, envelope
+         FROM orchestra_events
+         WHERE run_id IN ({placeholders})
+         ORDER BY run_id ASC, event_id ASC
+         LIMIT {fetch_rows}"
+    );
+    let mut statement = transaction
+        .prepare(&query)
+        .map_err(|error| error.to_string())?;
+    let raw_rows = statement
+        .query_map(params_from_iter(run_ids.iter().copied()), |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, Vec<u8>>(6)?,
+            ))
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    drop(statement);
+    if raw_rows.len() > expected_rows {
+        return Err("Orchestra event batch exceeds its state-machine bound".into());
+    }
+    for (event_id, event_run_id, event_runtime_id, event_type, to_outcome, recorded_at, envelope) in
+        raw_rows
+    {
+        let event = validate_orchestra_event_row(
+            event_id,
+            &event_run_id,
+            &event_runtime_id,
+            &event_type,
+            &to_outcome,
+            &recorded_at,
+            envelope,
+        )?;
+        let events = batches
+            .get_mut(&event.run_id)
+            .ok_or_else(|| "Orchestra event history identity is inconsistent".to_string())?;
+        if events.len() >= MAX_ORCHESTRA_EVENTS_PER_RUN {
+            return Err("Orchestra event history exceeds its state-machine bound".into());
+        }
+        events.push(event);
+    }
+    Ok(batches)
+}
+
+fn validate_orchestra_run_row(
+    run_id: &str,
+    runtime_id: &str,
+    envelope: &[u8],
+) -> Result<ValidatedOrchestraRun, String> {
+    validate_scheduler_id("run_id", run_id)?;
+    validate_scheduler_id("runtime_id", runtime_id)?;
+    validate_orchestra_blob("run envelope", envelope)?;
+    let decoded: StoredOrchestraRunEnvelope = serde_json::from_slice(envelope)
+        .map_err(|_| "Orchestra run envelope is invalid".to_string())?;
+    validate_scheduler_id("run plan_id", &decoded.plan_id)?;
+    validate_orchestra_outcome("run outcome", &decoded.outcome)?;
+    if let Some(request_id) = &decoded.request_id {
+        validate_scheduler_id("run request_id", request_id)?;
+    }
+    if decoded.run_id != run_id || decoded.runtime_id != runtime_id {
+        return Err("Orchestra run row does not match its envelope".into());
+    }
+    let executed_at = validate_orchestra_timestamp("run executed_at", &decoded.executed_at)?;
+    let completed_at = decoded
+        .completed_at
+        .as_deref()
+        .map(|value| validate_orchestra_timestamp("run completed_at", value))
+        .transpose()?;
+    if completed_at.is_some_and(|completed_at| completed_at < executed_at)
+        || is_active_orchestra_outcome(&decoded.outcome) && completed_at.is_some()
+    {
+        return Err("Orchestra run timestamps are inconsistent".into());
+    }
+    Ok(ValidatedOrchestraRun {
+        outcome: decoded.outcome,
+        executed_at,
+        completed_at,
+        request_id: decoded.request_id,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_orchestra_append_envelopes(
+    run_id: &str,
+    runtime_id: &str,
+    request_id: Option<&str>,
+    event_type: &str,
+    from_outcome: Option<&str>,
+    to_outcome: &str,
+    run_outcome: &str,
+    recorded_at: &str,
+    run_envelope: &[u8],
+    event_envelope: &[u8],
+) -> Result<(), String> {
+    let run = validate_orchestra_run_row(run_id, runtime_id, run_envelope)?;
+    if run.outcome != run_outcome || run.request_id.as_deref() != request_id {
+        return Err("Orchestra run append fields do not match its envelope".into());
+    }
+    let event = validate_orchestra_event_row(
+        1,
+        run_id,
+        runtime_id,
+        event_type,
+        to_outcome,
+        recorded_at,
+        event_envelope.to_vec(),
+    )?;
+    if event.envelope_event_id != 0 || event.from_outcome.as_deref() != from_outcome {
+        return Err("Orchestra event append fields do not match its envelope".into());
+    }
+    if event.recorded_at < run.executed_at
+        || run
+            .completed_at
+            .is_some_and(|completed_at| event.recorded_at < completed_at)
+    {
+        return Err("Orchestra append timestamps are inconsistent".into());
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_orchestra_event_row(
+    event_id: i64,
+    run_id: &str,
+    runtime_id: &str,
+    event_type: &str,
+    to_outcome: &str,
+    recorded_at: &str,
+    envelope: Vec<u8>,
+) -> Result<ValidatedOrchestraEvent, String> {
+    let event_id = u64::try_from(event_id)
+        .ok()
+        .filter(|event_id| *event_id > 0)
+        .ok_or_else(|| "Orchestra event ID is invalid".to_string())?;
+    validate_scheduler_id("event run_id", run_id)?;
+    validate_scheduler_id("event runtime_id", runtime_id)?;
+    validate_scheduler_id("event_type", event_type)?;
+    validate_orchestra_outcome("event to_outcome", to_outcome)?;
+    let recorded_at_instant = validate_orchestra_recorded_at(recorded_at)?;
+    validate_orchestra_blob("event envelope", &envelope)?;
+    let decoded: StoredOrchestraEventEnvelope = serde_json::from_slice(&envelope)
+        .map_err(|_| "Orchestra event envelope is invalid".to_string())?;
+    if decoded.event_id != 0 && decoded.event_id != event_id
+        || decoded.run_id != run_id
+        || decoded.runtime_id != runtime_id
+        || decoded.event_type != event_type
+        || decoded.to_outcome != to_outcome
+        || decoded.recorded_at != recorded_at
+    {
+        return Err("Orchestra event row does not match its envelope".into());
+    }
+    if decoded
+        .from_outcome
+        .as_deref()
+        .is_some_and(|outcome| !is_known_orchestra_outcome(outcome))
+        || decoded.summary.len() > 1_024
+        || decoded.summary != decoded.summary.trim()
+        || decoded.summary.chars().any(char::is_control)
+    {
+        return Err("Orchestra event envelope metadata is invalid".into());
+    }
+    Ok(ValidatedOrchestraEvent {
+        event_id,
+        envelope_event_id: decoded.event_id,
+        run_id: decoded.run_id,
+        runtime_id: decoded.runtime_id,
+        envelope,
+        from_outcome: decoded.from_outcome,
+        to_outcome: decoded.to_outcome,
+        recorded_at: recorded_at_instant,
+    })
+}
+
+fn validate_orchestra_event_history(
+    run: &ValidatedOrchestraRun,
+    events: &[ValidatedOrchestraEvent],
+    runtime_id: &str,
+    run_id: &str,
+) -> Result<(), String> {
+    if events.is_empty() {
+        return Err("Orchestra run is missing its event history".into());
+    }
+    let mut previous: Option<&ValidatedOrchestraEvent> = None;
+    for event in events {
+        if event.runtime_id != runtime_id || event.run_id != run_id {
+            return Err("Orchestra event history identity is inconsistent".into());
+        }
+        match previous {
+            None if event.from_outcome.is_some() => {
+                return Err("Orchestra origin event has a source outcome".into());
+            }
+            Some(previous)
+                if event.event_id <= previous.event_id
+                    || event.recorded_at < previous.recorded_at
+                    || event.from_outcome.as_deref() != Some(previous.to_outcome.as_str())
+                    || !is_valid_orchestra_transition(&previous.to_outcome, &event.to_outcome) =>
+            {
+                return Err("Orchestra event history sequence is invalid".into());
+            }
+            _ => {}
+        }
+        previous = Some(event);
+    }
+    let Some(first) = events.first() else {
+        return Err("Orchestra run is missing its event history".into());
+    };
+    let Some(last) = events.last() else {
+        return Err("Orchestra run is missing its event history".into());
+    };
+    if first.recorded_at < run.executed_at
+        || last.to_outcome != run.outcome
+        || run
+            .completed_at
+            .is_some_and(|completed_at| last.recorded_at < completed_at)
+    {
+        return Err("Orchestra event history does not match its run".into());
+    }
+    Ok(())
+}
+
+fn validate_orchestra_outcome(label: &str, value: &str) -> Result<(), String> {
+    is_known_orchestra_outcome(value)
+        .then_some(())
+        .ok_or_else(|| format!("invalid Orchestra {label}"))
+}
+
+fn validate_orchestra_recorded_at(value: &str) -> Result<OffsetDateTime, String> {
+    validate_orchestra_timestamp("recorded_at", value)
+}
+
+fn validate_orchestra_timestamp(label: &str, value: &str) -> Result<OffsetDateTime, String> {
+    if value.is_empty() || value.len() > 64 || value.chars().any(char::is_control) {
+        return Err(format!("Orchestra {label} is invalid"));
+    }
+    OffsetDateTime::parse(value, &Rfc3339).map_err(|_| format!("Orchestra {label} is invalid"))
+}
+
+fn is_known_orchestra_outcome(value: &str) -> bool {
+    matches!(
+        value,
+        "queued" | "running" | "succeeded" | "degraded" | "failed" | "cancelled" | "ok"
+    )
+}
+
+fn is_active_orchestra_outcome(value: &str) -> bool {
+    matches!(value, "queued" | "running")
+}
+
+fn is_valid_orchestra_transition(current: &str, next: &str) -> bool {
+    match current {
+        "queued" => matches!(next, "running" | "cancelled" | "failed"),
+        "running" => matches!(
+            next,
+            "succeeded" | "degraded" | "failed" | "cancelled" | "ok"
+        ),
+        _ => false,
+    }
 }
 
 fn history_next_offset(has_more: bool, offset: i64, limit: u16) -> Option<u32> {

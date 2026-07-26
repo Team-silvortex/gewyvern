@@ -54,7 +54,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             var runs = new List<OrchestraRunSummary>();
             while (reader.Read())
             {
-                runs.Add(ReadRun(reader));
+                var run = ReadRun(reader);
+                ControlPlaneStateValidator
+                    .ValidateOrchestraStoreEnvelope(run, null);
+                runs.Add(run);
             }
             LastError = null;
             return runs;
@@ -71,30 +74,17 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         try
         {
             using var connection = OpenConnection();
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                SELECT event_id, run_id, runtime_id, event_type, from_outcome,
-                       to_outcome, summary, recorded_at
-                FROM orchestra_run_events
-                WHERE runtime_id = $runtime_id AND run_id = $run_id
-                ORDER BY event_id;
-                """;
-            command.Parameters.AddWithValue("$runtime_id", runtimeId);
-            command.Parameters.AddWithValue("$run_id", runId);
-            using var reader = command.ExecuteReader();
-            var events = new List<OrchestraRunEvent>();
-            while (reader.Read())
-            {
-                events.Add(new OrchestraRunEvent(
-                    reader.GetInt64(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    reader.GetString(3),
-                    reader.IsDBNull(4) ? null : reader.GetString(4),
-                    reader.GetString(5),
-                    reader.GetString(6),
-                    DateTimeOffset.Parse(reader.GetString(7))));
-            }
+            var events = ReadEvents(
+                connection,
+                null,
+                runtimeId,
+                runId);
+            ControlPlaneStateValidator
+                .ValidateOrchestraEventSequence(
+                    null,
+                    events,
+                    runtimeId,
+                    runId);
             LastError = null;
             return events;
         }
@@ -109,12 +99,26 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     {
         try
         {
+            ControlPlaneStateValidator.ValidateOrchestraStoreEnvelope(
+                run,
+                eventRecord);
             using var connection = OpenConnection();
             using var transaction = connection.BeginTransaction();
             Upsert(connection, transaction, run);
             if (eventRecord is not null)
             {
                 InsertEvent(connection, transaction, eventRecord);
+                var events = ReadEvents(
+                    connection,
+                    transaction,
+                    run.RuntimeId,
+                    run.RunId);
+                ControlPlaneStateValidator
+                    .ValidateOrchestraEventSequence(
+                        run,
+                        events,
+                        run.RuntimeId,
+                        run.RunId);
             }
             TrimRuntime(connection, transaction, run.RuntimeId);
             transaction.Commit();
@@ -132,6 +136,11 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     {
         try
         {
+            foreach (var run in runs)
+            {
+                ControlPlaneStateValidator
+                    .ValidateOrchestraStoreEnvelope(run, null);
+            }
             using var connection = OpenConnection();
             using var transaction = connection.BeginTransaction();
             using (var delete = connection.CreateCommand())
@@ -143,6 +152,11 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             foreach (var run in runs.OrderBy(run => run.ExecutedAt))
             {
                 Upsert(connection, transaction, run);
+                InsertEvent(
+                    connection,
+                    transaction,
+                    ControlPlaneStateValidator
+                        .CreateLegacyOrchestraImportEvent(run));
             }
             transaction.Commit();
             LastError = null;
@@ -318,6 +332,42 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         command.ExecuteNonQuery();
     }
 
+    private static IReadOnlyList<OrchestraRunEvent> ReadEvents(
+        SqliteConnection connection,
+        SqliteTransaction? transaction,
+        string runtimeId,
+        string runId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT event_id, run_id, runtime_id, event_type, from_outcome,
+                   to_outcome, summary, recorded_at
+            FROM orchestra_run_events
+            WHERE runtime_id = $runtime_id AND run_id = $run_id
+            ORDER BY event_id;
+            """;
+        command.Parameters.AddWithValue("$runtime_id", runtimeId);
+        command.Parameters.AddWithValue("$run_id", runId);
+        using var reader = command.ExecuteReader();
+        var events = new List<OrchestraRunEvent>();
+        while (reader.Read())
+        {
+            events.Add(new OrchestraRunEvent(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.IsDBNull(4)
+                    ? null
+                    : reader.GetString(4),
+                reader.GetString(5),
+                reader.GetString(6),
+                DateTimeOffset.Parse(reader.GetString(7))));
+        }
+        return events;
+    }
+
     private static void TrimRuntime(SqliteConnection connection, SqliteTransaction transaction, string runtimeId)
     {
         using var command = connection.CreateCommand();
@@ -370,7 +420,7 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 
     private void RecordError(Exception exception, string operation)
     {
-        LastError = exception.Message;
+        LastError = "orchestra_store_operation_failed";
         logger.LogError(exception, "Failed to {Operation} in SQLite database {DatabasePath}", operation, Location);
     }
 

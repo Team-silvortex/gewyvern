@@ -1496,6 +1496,58 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "bounded-unique-session-requirements",
         "validated-sidecar-memory-envelope",
         "pre-projection-runtime-session-payload-fence",
+        "fixed-discovery-diagnostic-codes",
+        "runtime-status-source-coherence",
+        "sidecar-status-source-coherence",
+        "bounded-persisted-diagnostic-text",
+        "secret-free-persistence-health-errors",
+        "pre-projection-diagnostic-fence",
+        "shared-orchestra-envelope-validator",
+        "bounded-orchestra-operator-metadata",
+        "bounded-secret-free-step-and-event-summaries",
+        "run-event-identity-outcome-coherence",
+        "monotonic-orchestra-event-time",
+        "fail-closed-orchestra-authority-read",
+        "cross-language-orchestra-envelope-parity",
+        "pre-sqlite-orchestra-metadata-fence",
+        "deterministic-legacy-event-origin-backfill",
+        "strict-monotonic-orchestra-event-id",
+        "monotonic-orchestra-event-recording-time",
+        "legal-orchestra-event-transition-chain",
+        "terminal-run-event-correspondence",
+        "corrupted-event-read-fail-closed",
+        "atomic-sqlite-event-sequence-validation",
+        "secret-free-event-history-unavailable-response",
+        "rust-authority-event-append-sequence-validation",
+        "transactional-previous-outcome-fence",
+        "transactional-rfc3339-event-time-monotonicity",
+        "idempotent-event-replay-before-sequence-check",
+        "terminal-event-append-rejection",
+        "cross-process-illegal-event-rejection",
+        "rust-authority-history-row-validation",
+        "transactional-history-read-snapshot",
+        "complete-event-sequence-before-pagination",
+        "sqlite-column-envelope-coherence",
+        "bounded-orchestra-event-cardinality",
+        "cross-process-corrupted-history-rejection",
+        "batched-run-list-event-validation",
+        "single-batch-event-query",
+        "bounded-run-list-event-lookahead",
+        "run-list-terminal-event-correspondence",
+        "pagination-lookahead-corruption-fence",
+        "cross-process-corrupted-run-list-rejection",
+        "no-n-plus-one-history-validation",
+        "transactional-append-envelope-column-coherence",
+        "native-caller-poison-write-rejection",
+        "canonical-zero-event-id-admission",
+        "request-id-envelope-correspondence",
+        "atomic-malformed-append-rollback",
+        "transactional-retained-history-admission",
+        "replay-on-corruption-rejection",
+        "extension-on-corruption-rejection",
+        "retained-request-id-column-coherence",
+        "cross-process-corrupted-replay-rejection",
+        "validated-predecessor-reuse",
     ] {
         assert!(
             compatibility_control
@@ -1506,7 +1558,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(compatibility_control.next_gate.contains("diagnostic text"));
+    assert!(
+        compatibility_control
+            .next_gate
+            .contains("request-id and run-envelope coherence validation")
+    );
 
     let bootstrap = catalog
         .cells

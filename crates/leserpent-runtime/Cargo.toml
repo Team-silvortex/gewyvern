@@ -10,6 +10,7 @@ leserpent-domain = { path = "../leserpent-domain" }
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+time.workspace = true
 
 [dev-dependencies]
 leselang-command = { path = "../leselang-command" }
