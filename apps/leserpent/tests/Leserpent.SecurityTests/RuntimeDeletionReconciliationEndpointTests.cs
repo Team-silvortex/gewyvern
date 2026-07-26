@@ -72,6 +72,13 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
                 Assert.Equal(
                     request.RequestId,
                     response.Audit.RequestId);
+                Assert.StartsWith(
+                    "orchestra-cleanup-",
+                    response.Audit.OrchestraCleanupCommandId,
+                    StringComparison.Ordinal);
+                Assert.Equal(
+                    1UL,
+                    response.Audit.OrchestraCleanupGeneration);
             }
 
             Assert.Null(registry.GetRuntime(
@@ -89,6 +96,13 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
                 restarted
                     .ListRuntimeDeletionReconciliationAudit());
             Assert.Equal(request.RequestId, restoredAudit.RequestId);
+            Assert.StartsWith(
+                "orchestra-cleanup-",
+                restoredAudit.OrchestraCleanupCommandId,
+                StringComparison.Ordinal);
+            Assert.Equal(
+                1UL,
+                restoredAudit.OrchestraCleanupGeneration);
 
             await using var replayApp = await BuildTestAppAsync(
                 restarted,
@@ -546,6 +560,9 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
         public bool DeleteRuntimes(
             IReadOnlyCollection<string> runtimeIds) =>
             !FailDeletes && inner.DeleteRuntimes(runtimeIds);
+        public OrchestraDeleteReceipt? DeleteRuntimes(
+            OrchestraDeleteCommand command) =>
+            FailDeletes ? null : inner.DeleteRuntimes(command);
     }
 
     private sealed class TestHostEnvironment : IHostEnvironment

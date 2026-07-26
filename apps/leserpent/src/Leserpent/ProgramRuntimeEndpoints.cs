@@ -1031,5 +1031,6 @@ public partial class Program
         string? runtimeId = null) =>
         Results.Json(
             new ApiErrorResponse(exception.Code, exception.Message, RuntimeId: runtimeId),
+            LeserpentJsonContext.Default.ApiErrorResponse,
             statusCode: StatusCodes.Status502BadGateway);
 }

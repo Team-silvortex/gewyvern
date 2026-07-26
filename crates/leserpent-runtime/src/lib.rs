@@ -68,6 +68,18 @@ pub struct RuntimeUnregisterResult {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OrchestraDeleteCommandResult {
+    pub command_id: CommandId,
+    pub operation_generation: u64,
+    pub runtime_ids: Vec<String>,
+    pub deleted_runtime_count: u32,
+    pub deleted_run_count: u64,
+    pub deleted_event_count: u64,
+    pub committed_at_unix_ms: i64,
+    pub replayed: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RuntimeUnregistrationReceipt {
     pub operation_generation: u64,
     pub removed: Vec<RuntimeUnregisterTarget>,
@@ -774,6 +786,41 @@ impl ControlRuntime {
         journal
             .delete_orchestra_runtimes(runtime_ids)
             .map_err(RuntimeError::Storage)
+    }
+
+    pub fn delete_orchestra_runtimes_idempotent(
+        &mut self,
+        command_id: CommandId,
+        runtime_ids: &[String],
+    ) -> Result<OrchestraDeleteCommandResult, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "idempotent Orchestra delete requires persistent storage".into(),
+            ));
+        };
+        let (record, replayed) = journal
+            .delete_orchestra_runtimes_idempotent(command_id.as_str(), runtime_ids)
+            .map_err(|error| {
+                if error == "Orchestra delete operation idempotency conflict" {
+                    RuntimeError::Domain(DomainError::IdempotencyConflict {
+                        key: command_id.as_str().to_string(),
+                    })
+                } else {
+                    RuntimeError::Storage(error)
+                }
+            })?;
+        let runtime_ids: Vec<String> = serde_json::from_slice(&record.request)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        Ok(OrchestraDeleteCommandResult {
+            command_id,
+            operation_generation: record.generation,
+            runtime_ids,
+            deleted_runtime_count: record.deleted_runtime_count,
+            deleted_run_count: record.deleted_run_count,
+            deleted_event_count: record.deleted_event_count,
+            committed_at_unix_ms: record.committed_at_unix_ms,
+            replayed,
+        })
     }
 
     pub fn unregister_runtimes(
@@ -2715,8 +2762,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 15);
-        assert_eq!(migration_count, 15);
+        assert_eq!(schema, 16);
+        assert_eq!(migration_count, 16);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2785,7 +2832,9 @@ mod tests {
                  DROP TABLE authority_checkpoints;
                  DROP TABLE runtime_unregistration_replay_horizon;
                  DROP TABLE runtime_unregistration_operations;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13, 14, 15);
+                 DROP TABLE orchestra_delete_generation;
+                 DROP TABLE orchestra_delete_operations;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13, 14, 15, 16);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -2813,7 +2862,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (15, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (16, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -2864,6 +2913,9 @@ mod tests {
                  FROM runtime_unregistration_operations_v15 ORDER BY generation ASC;
                  DROP TABLE runtime_unregistration_operations_v15;
                  DROP TABLE runtime_unregistration_replay_horizon;
+                 DROP TABLE orchestra_delete_generation;
+                 DROP TABLE orchestra_delete_operations;
+                 DELETE FROM runtime_schema_migrations WHERE version = 16;
                  DELETE FROM runtime_schema_migrations WHERE version = 15;
                  UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
             )
@@ -2905,8 +2957,45 @@ mod tests {
     }
 
     #[test]
+    fn schema_15_gains_durable_orchestra_delete_receipts() {
+        let path = temp_journal("v15-orchestra-delete-receipt-migration");
+        drop(ControlRuntime::open(&path).unwrap());
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "DROP TABLE orchestra_delete_generation;
+                 DROP TABLE orchestra_delete_operations;
+                 DELETE FROM runtime_schema_migrations WHERE version = 16;
+                 UPDATE runtime_metadata SET value = 15
+                 WHERE key = 'schema_version';",
+            )
+            .unwrap();
+        drop(connection);
+
+        drop(ControlRuntime::open(&path).unwrap());
+        let connection = Connection::open(&path).unwrap();
+        let state: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT value FROM runtime_metadata
+                      WHERE key = 'schema_version'),
+                     (SELECT COUNT(*) FROM runtime_schema_migrations
+                      WHERE version = 16),
+                     (SELECT COUNT(*) FROM orchestra_delete_operations),
+                     (SELECT next_generation FROM orchestra_delete_generation
+                      WHERE id = 1)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (16, 1, 0, 1));
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v15");
+        let path = temp_journal("incomplete-v16");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -2921,14 +3010,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 15);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 16);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 15")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 16")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2993,6 +3082,18 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 16",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE orchestra_delete_generation", [])
+            .unwrap();
+        connection
+            .execute("DROP TABLE orchestra_delete_operations", [])
+            .unwrap();
+        connection
             .execute("DROP TABLE runtime_unregistration_replay_horizon", [])
             .unwrap();
         connection
@@ -3030,7 +3131,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 15);
+        assert_eq!(schema, 16);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3051,7 +3152,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 15 journal kind")
+                if error.contains("invalid runtime journal schema 16 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3064,14 +3165,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (16, 0)",
+                 VALUES (17, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 15 migration history")
+                if error.contains("invalid runtime journal schema 16 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3353,6 +3454,8 @@ mod tests {
                  DROP TABLE authority_checkpoints;
                  DROP TABLE runtime_unregistration_replay_horizon;
                  DROP TABLE runtime_unregistration_operations;
+                 DROP TABLE orchestra_delete_generation;
+                 DROP TABLE orchestra_delete_operations;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -3379,7 +3482,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 15);
+        assert_eq!(schema, 16);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -4135,7 +4238,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 15);
+        assert_eq!(schema, 16);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -4418,6 +4521,88 @@ mod tests {
         assert_eq!(replay.deleted_run_count, 0);
         assert_eq!(replay.deleted_event_count, 0);
         drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn idempotent_orchestra_delete_receipt_survives_restart_and_conflicts_fail_closed() {
+        let path = temp_journal("orchestra-delete-command");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        persist_queued_orchestra_run(&mut runtime, "runtime-delete-command", "command");
+        persist_queued_orchestra_run(&mut runtime, "runtime-delete-keep", "command-keep");
+        let targets = vec!["runtime-delete-command".to_string()];
+        let command_id = CommandId::new("orchestra-delete-command-a").unwrap();
+
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER ignore_orchestra_delete_command
+                 BEFORE DELETE ON orchestra_runs
+                 WHEN OLD.runtime_id = 'runtime-delete-command'
+                 BEGIN
+                     SELECT RAISE(IGNORE);
+                 END;",
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .delete_orchestra_runtimes_idempotent(command_id.clone(), &targets)
+                .is_err()
+        );
+        let rollback_counts: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs
+                      WHERE runtime_id = 'runtime-delete-command'),
+                     (SELECT COUNT(*) FROM orchestra_delete_operations)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rollback_counts, (1, 0));
+        connection
+            .execute_batch("DROP TRIGGER ignore_orchestra_delete_command;")
+            .unwrap();
+        drop(connection);
+
+        let first = runtime
+            .delete_orchestra_runtimes_idempotent(command_id.clone(), &targets)
+            .unwrap();
+        assert_eq!(first.operation_generation, 1);
+        assert_eq!(first.runtime_ids, targets);
+        assert_eq!(first.deleted_runtime_count, 1);
+        assert_eq!(first.deleted_run_count, 1);
+        assert_eq!(first.deleted_event_count, 1);
+        assert!(!first.replayed);
+        drop(runtime);
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        let replay = restarted
+            .delete_orchestra_runtimes_idempotent(command_id.clone(), &targets)
+            .unwrap();
+        assert_eq!(replay.operation_generation, first.operation_generation);
+        assert_eq!(replay.deleted_runtime_count, first.deleted_runtime_count);
+        assert_eq!(replay.deleted_run_count, first.deleted_run_count);
+        assert_eq!(replay.deleted_event_count, first.deleted_event_count);
+        assert_eq!(replay.committed_at_unix_ms, first.committed_at_unix_ms);
+        assert!(replay.replayed);
+        assert!(matches!(
+            restarted
+                .delete_orchestra_runtimes_idempotent(command_id, &["runtime-delete-keep".into()]),
+            Err(RuntimeError::Domain(
+                DomainError::IdempotencyConflict { .. }
+            ))
+        ));
+        let second = restarted
+            .delete_orchestra_runtimes_idempotent(
+                CommandId::new("orchestra-delete-command-b").unwrap(),
+                &["runtime-delete-keep".into()],
+            )
+            .unwrap();
+        assert_eq!(second.operation_generation, 2);
+        assert!(!second.replayed);
+
+        drop(restarted);
         fs::remove_file(path).unwrap();
     }
 

@@ -515,12 +515,23 @@ public sealed partial class RegistryService
         }
     }
 
-    internal void CompleteRecoveredRuntimeDeletions(
-        IReadOnlyCollection<RuntimeDeletionReservation> reservations)
+    internal OrchestraDeleteReceipt? CompleteRecoveredRuntimeDeletions(
+        IReadOnlyCollection<RuntimeDeletionReservation> reservations,
+        OrchestraDeleteCommand? cleanupCommand = null,
+        Func<OrchestraDeleteReceipt,
+            PersistedRuntimeDeletionReconciliationAudit>?
+            reconciliationAuditFactory = null)
     {
         if (reservations.Count == 0)
         {
-            return;
+            return null;
+        }
+        if ((cleanupCommand is null) !=
+                (reconciliationAuditFactory is null) ||
+            (cleanupCommand is not null && reservations.Count != 1))
+        {
+            throw new InvalidOperationException(
+                "typed Orchestra cleanup must bind exactly one reconciliation intent");
         }
 
         lock (orchestraRunSync)
@@ -595,10 +606,34 @@ public sealed partial class RegistryService
 
             lock (persistenceSync)
             {
-                if (!orchestraRunStore.DeleteRuntimes(runtimeIds))
+                OrchestraDeleteReceipt? cleanupReceipt = null;
+                var previousReconciliationAudit =
+                    runtimeDeletionReconciliationAudit;
+                if (cleanupCommand is null)
                 {
-                    throw new OrchestraPersistenceException(
-                        "failed to delete Orchestra history for recovered runtimes");
+                    if (!orchestraRunStore.DeleteRuntimes(runtimeIds))
+                    {
+                        throw new OrchestraPersistenceException(
+                            "failed to delete Orchestra history for recovered runtimes");
+                    }
+                }
+                else
+                {
+                    cleanupReceipt =
+                        orchestraRunStore.DeleteRuntimes(cleanupCommand);
+                    if (cleanupReceipt is null)
+                    {
+                        throw new OrchestraPersistenceException(
+                            "failed to obtain a durable Orchestra cleanup receipt");
+                    }
+                    ValidateOrchestraDeleteReceipt(
+                        cleanupCommand,
+                        cleanupReceipt);
+                    runtimeDeletionReconciliationAudit =
+                        TrimRuntimeDeletionReconciliationAudit(
+                            runtimeDeletionReconciliationAudit.Enqueue(
+                                reconciliationAuditFactory!(
+                                    cleanupReceipt)));
                 }
 
                 foreach (var runtimeId in runtimeIds)
@@ -630,6 +665,8 @@ public sealed partial class RegistryService
                 }
                 catch (ControlPlaneStatePersistenceException ex)
                 {
+                    runtimeDeletionReconciliationAudit =
+                        previousReconciliationAudit;
                     foreach (var runtime in removedRuntimes)
                     {
                         runtimes[runtime.RuntimeId] = runtime;
@@ -658,6 +695,7 @@ public sealed partial class RegistryService
                         "failed to persist recovered runtime deletion batch",
                         ex);
                 }
+                return cleanupReceipt;
             }
         }
     }
@@ -874,34 +912,40 @@ public sealed partial class RegistryService
                     "runtime deletion reconciliation timestamp is invalid");
             }
 
-            var audit =
-                new PersistedRuntimeDeletionReconciliationAudit(
-                    normalizedRequestId,
+            PersistedRuntimeDeletionReconciliationAudit? audit = null;
+            var cleanupCommand = new OrchestraDeleteCommand(
+                RuntimeDeletionCommandIdentity.ForOrchestraCleanup(
                     intent.IntentId,
-                    intent.RuntimeIds.ToArray(),
-                    intent.Revision,
-                    daemonSnapshot.Revision,
-                    normalizedRequestedBy,
-                    effectiveReconciledAt);
-            var previousAudit =
-                runtimeDeletionReconciliationAudit;
-            runtimeDeletionReconciliationAudit =
-                TrimRuntimeDeletionReconciliationAudit(
-                    runtimeDeletionReconciliationAudit.Enqueue(audit));
-            try
-            {
-                CompleteRecoveredRuntimeDeletions([reservation]);
-            }
-            catch
-            {
-                runtimeDeletionReconciliationAudit = previousAudit;
-                throw;
-            }
+                    intent.Revision),
+                intent.RuntimeIds
+                    .Order(StringComparer.Ordinal)
+                    .ToArray());
+            _ = CompleteRecoveredRuntimeDeletions(
+                [reservation],
+                cleanupCommand,
+                receipt =>
+                {
+                    audit =
+                        new PersistedRuntimeDeletionReconciliationAudit(
+                            normalizedRequestId,
+                            intent.IntentId,
+                            intent.RuntimeIds.ToArray(),
+                            intent.Revision,
+                            daemonSnapshot.Revision,
+                            normalizedRequestedBy,
+                            effectiveReconciledAt,
+                            receipt.CommandId,
+                            receipt.OperationGeneration);
+                    return audit;
+                });
 
             return new RuntimeDeletionReconcileResponse(
                 true,
                 false,
-                CloneRuntimeDeletionReconciliationAudit(audit));
+                CloneRuntimeDeletionReconciliationAudit(
+                    audit ??
+                    throw new InvalidOperationException(
+                        "Orchestra cleanup receipt was not audited")));
         }
     }
 
@@ -1064,6 +1108,37 @@ public sealed partial class RegistryService
         CloneRuntimeDeletionReconciliationAudit(
             PersistedRuntimeDeletionReconciliationAudit audit) =>
                 audit with { RuntimeIds = audit.RuntimeIds.ToArray() };
+
+    private static void ValidateOrchestraDeleteReceipt(
+        OrchestraDeleteCommand command,
+        OrchestraDeleteReceipt receipt)
+    {
+        var expectedRuntimeIds = command.RuntimeIds
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var maximumRunCount =
+            checked((ulong)expectedRuntimeIds.Length * 32);
+        var maximumEventCount = checked(maximumRunCount * 3);
+        if (!string.Equals(
+                receipt.CommandId,
+                command.CommandId,
+                StringComparison.Ordinal) ||
+            receipt.OperationGeneration == 0 ||
+            !receipt.RuntimeIds.SequenceEqual(
+                expectedRuntimeIds,
+                StringComparer.Ordinal) ||
+            receipt.DeletedRuntimeCount >
+                checked((uint)expectedRuntimeIds.Length) ||
+            receipt.DeletedRunCount > maximumRunCount ||
+            receipt.DeletedEventCount > maximumEventCount ||
+            receipt.CommittedAt == default ||
+            receipt.CommittedAt >
+                DateTimeOffset.UtcNow.AddMinutes(5))
+        {
+            throw new OrchestraPersistenceException(
+                "Orchestra cleanup receipt does not match the reconciliation intent");
+        }
+    }
 
     private static void EnsureRuntimeDeletionRequiresReconciliation(
         PersistedRuntimeDeletionIntent intent)

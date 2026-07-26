@@ -59,6 +59,7 @@ namespace Leserpent;
 [JsonSerializable(typeof(OrchestraSessionHandoffResponse))]
 [JsonSerializable(typeof(OrchestraFleetBoardResponse))]
 [JsonSerializable(typeof(OrchestraExecutionStepResult[]))]
+[JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(ApiErrorResponse))]
 [JsonSerializable(typeof(HealthResponse))]
 [JsonSerializable(typeof(ControlPlaneStateLoadProvenance))]

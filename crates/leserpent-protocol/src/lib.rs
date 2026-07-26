@@ -31,6 +31,7 @@ pub enum ProtocolRequest {
     OrchestraPersist(OrchestraPersistenceRequest),
     OrchestraHistory(OrchestraHistoryRequest),
     OrchestraDelete(OrchestraDeleteRequest),
+    OrchestraDeleteCommand(OrchestraDeleteCommandRequest),
     RuntimeUnregister(RuntimeUnregisterRequest),
     RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptRequest),
     BootstrapHandoff(BootstrapHandoffRequest),
@@ -74,6 +75,15 @@ pub struct OrchestraHistoryRequest {
 pub struct OrchestraDeleteRequest {
     pub principal: Principal,
     pub capabilities: CapabilitySet,
+    pub runtime_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraDeleteCommandRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub command_id: CommandId,
     pub runtime_ids: Vec<String>,
 }
 
@@ -138,6 +148,7 @@ pub enum ProtocolResponse {
     OrchestraPersisted(OrchestraPersistenceResponse),
     OrchestraHistory(OrchestraHistoryResponse),
     OrchestraDeleted(OrchestraDeleteResponse),
+    OrchestraDeleteReceipt(OrchestraDeleteReceiptResponse),
     RuntimeUnregistered(RuntimeUnregisterResponse),
     RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptLookupResponse),
     BootstrapHandoff(DeploymentBootstrapSnapshot),
@@ -186,6 +197,19 @@ pub struct OrchestraDeleteResponse {
     pub deleted_runtime_count: u32,
     pub deleted_run_count: u64,
     pub deleted_event_count: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraDeleteReceiptResponse {
+    pub command_id: CommandId,
+    pub operation_generation: u64,
+    pub runtime_ids: Vec<String>,
+    pub deleted_runtime_count: u32,
+    pub deleted_run_count: u64,
+    pub deleted_event_count: u64,
+    pub committed_at_unix_ms: i64,
+    pub replayed: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -361,6 +385,7 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::OrchestraDeleteCommand(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
@@ -820,6 +845,38 @@ mod tests {
         assert_eq!(
             decode_request(&encode_request(&delete).unwrap()).unwrap(),
             delete
+        );
+        let delete_command = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraDeleteCommand(OrchestraDeleteCommandRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                command_id: CommandId::new("orchestra-delete-runtime-a").unwrap(),
+                runtime_ids: vec!["runtime-a".into()],
+            }),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&delete_command).unwrap()).unwrap(),
+            delete_command
+        );
+        let delete_receipt = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::OrchestraDeleteReceipt(OrchestraDeleteReceiptResponse {
+                command_id: CommandId::new("orchestra-delete-runtime-a").unwrap(),
+                operation_generation: 7,
+                runtime_ids: vec!["runtime-a".into()],
+                deleted_runtime_count: 1,
+                deleted_run_count: 2,
+                deleted_event_count: 3,
+                committed_at_unix_ms: 1_784_620_800_000,
+                replayed: true,
+            }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&delete_receipt).unwrap()).unwrap(),
+            delete_receipt
         );
         let unregister = RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,

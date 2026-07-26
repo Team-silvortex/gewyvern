@@ -1234,6 +1234,7 @@ fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &s
         "every_final_state_converged",
         "every_final_state_retained_one_reconciliation_audit",
         "every_request_replayed_after_restart",
+        "every_cleanup_receipt_replayed_same_generation",
         "both_control_generation_outcomes_were_exercised",
         "every_host_process_force_killed",
     ] {
@@ -1672,7 +1673,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.15.0");
+    assert_eq!(compatibility_control.contract.version, "1.16.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -1987,7 +1988,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("durable typed replay receipt")
+            .contains("queryable replay horizon")
     );
 
     let reconciliation = catalog
@@ -1998,7 +1999,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.2.0");
+    assert_eq!(reconciliation.contract.version, "1.3.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -2019,6 +2020,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "unrelated-orchestra-history-preservation",
         "single-audit-cross-authority-convergence",
         "cross-platform-cross-authority-proof",
+        "intent-derived-orchestra-cleanup-command",
+        "sqlite-v16-orchestra-delete-receipts",
+        "atomic-cleanup-receipt-commit",
+        "durable-cleanup-generation-replay",
+        "cleanup-command-target-conflict-fence",
+        "reconciliation-audit-cleanup-generation-binding",
+        "cross-platform-cleanup-receipt-crash-proof",
     ] {
         assert!(
             reconciliation
@@ -2033,7 +2041,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         reconciliation
             .next_gate
-            .contains("durable typed replay receipt")
+            .contains("queryable replay horizon")
     );
 
     let bootstrap = catalog

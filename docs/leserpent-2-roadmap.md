@@ -1088,16 +1088,23 @@ then force-kills after Orchestra cleanup, during the later JSON temporary-file
 write, or after the JSON commit. Every Arm64 and physical Linux x86_64 restart
 keeps target history absent, preserves an unrelated run and event byte-for-byte
 at the typed field boundary, and restores either the complete previous or
-replacement control generation. Previous generations repeat the already-absent
-cleanup and converge; every final reload retains exactly one reconciliation
-audit and replays the request identity. Both platforms retained nine forced
+replacement control generation. The cleanup receipt gate is complete: one
+command ID is derived from the reconciliation intent and revision, and runtime
+schema v16 atomically persists its canonical targets, operation generation,
+deletion counts, and timestamp with the Orchestra delete. Previous generations
+replay the command and receive the same generation with `replayed=true`;
+replacement generations retain the command ID and generation in their audit.
+Target drift under the same ID fails closed. Every final reload retains exactly
+one reconciliation audit, replays both request identities, and verifies the
+same durable cleanup generation. Both platforms retained nine forced
 terminations with no torn generation. Evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`;
 `scripts/validation/leserpent_runtime_deletion_cross_authority.sh` reproduces
 it. This proves idempotent convergence, not a distributed transaction. The next
-gate binds Orchestra cleanup to the intent-derived command identity and a
-durable typed replay receipt so restart can verify the same cleanup generation.
+gate adds a bounded, queryable Orchestra cleanup receipt horizon and protects
+every generation referenced by the retained reconciliation audit during
+restart and compaction.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

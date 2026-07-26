@@ -8,11 +8,11 @@ use leserpent_domain::{
 };
 use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
-    OrchestraDeleteResponse, OrchestraHistoryResponse, OrchestraPersistenceResponse,
-    PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-    ResponseEnvelope, RuntimeUnregisterResponse, RuntimeUnregisterTarget,
-    RuntimeUnregistrationReceipt, RuntimeUnregistrationReceiptLookupResponse,
-    RuntimeUnregistrationReplayHorizonHealth,
+    OrchestraDeleteReceiptResponse, OrchestraDeleteResponse, OrchestraHistoryResponse,
+    OrchestraPersistenceResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest,
+    ProtocolResponse, RequestEnvelope, ResponseEnvelope, RuntimeUnregisterResponse,
+    RuntimeUnregisterTarget, RuntimeUnregistrationReceipt,
+    RuntimeUnregistrationReceiptLookupResponse, RuntimeUnregistrationReplayHorizonHealth,
 };
 use leserpent_runtime::{
     ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError,
@@ -236,6 +236,37 @@ pub(crate) fn execute_request(
                 }
             };
         }
+        ProtocolRequest::OrchestraDeleteCommand(request) => {
+            if request.principal.id.trim().is_empty() {
+                return error_response("invalid_principal", "principal must not be blank");
+            }
+            if !request.capabilities.contains(CAPABILITY_ORCHESTRA_WRITE) {
+                return error_response("capability_denied", "missing capability 'orchestra.write'");
+            }
+            return match runtime
+                .delete_orchestra_runtimes_idempotent(request.command_id, &request.runtime_ids)
+            {
+                Ok(receipt) => response(ProtocolResponse::OrchestraDeleteReceipt(
+                    OrchestraDeleteReceiptResponse {
+                        command_id: receipt.command_id,
+                        operation_generation: receipt.operation_generation,
+                        runtime_ids: receipt.runtime_ids,
+                        deleted_runtime_count: receipt.deleted_runtime_count,
+                        deleted_run_count: receipt.deleted_run_count,
+                        deleted_event_count: receipt.deleted_event_count,
+                        committed_at_unix_ms: receipt.committed_at_unix_ms,
+                        replayed: receipt.replayed,
+                    },
+                )),
+                Err(RuntimeError::Domain(error)) => {
+                    leserpent_protocol::domain_error_response(&error)
+                }
+                Err(_) => error_response(
+                    "orchestra_delete_command_failed",
+                    "idempotent Orchestra history delete failed",
+                ),
+            };
+        }
         ProtocolRequest::RuntimeUnregister(request) => {
             if request.principal.id.trim().is_empty()
                 || !request.capabilities.contains(CAPABILITY_RUNTIME_UNREGISTER)
@@ -408,6 +439,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::OrchestraDeleteCommand(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
@@ -421,6 +453,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraPersist(_)
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::OrchestraDeleteCommand(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)

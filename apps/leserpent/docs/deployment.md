@@ -8,7 +8,6 @@ Native AOT output is platform-specific. Build Linux x64 releases on a compatible
 dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
   -p:PublishAot=true \
-  -r linux-x64 \
   --locked-mode
 dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
@@ -16,6 +15,10 @@ dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   --no-restore \
   -o artifacts/leserpent/linux-x64
 ```
+
+The project declares both `osx-arm64` and `linux-x64` AOT runtime graphs. Keep
+the restore RID-neutral so `--locked-mode` validates both graphs from the shared
+lock file; select the target RID only during the `--no-restore` publish.
 
 The publish target also builds the Rust compatibility bridge with Cargo. The
 output contains both native executables, the SQLite native library, dashboard

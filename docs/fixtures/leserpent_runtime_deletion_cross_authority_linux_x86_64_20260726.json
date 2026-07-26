@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "observed_at": "2026-07-26T10:53:34.3617677+00:00",
+  "observed_at": "2026-07-26T11:46:55.5864938+00:00",
   "platform": "Unix",
   "architecture": "X64",
   "iterations_per_strategy": 3,
@@ -28,6 +28,7 @@
     "every_final_state_converged": true,
     "every_final_state_retained_one_reconciliation_audit": true,
     "every_request_replayed_after_restart": true,
+    "every_cleanup_receipt_replayed_same_generation": true,
     "both_control_generation_outcomes_were_exercised": true,
     "every_host_process_force_killed": true
   }

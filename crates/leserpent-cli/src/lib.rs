@@ -1292,6 +1292,9 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         ProtocolResponse::OrchestraDeleted(_) => Err(CliError::Protocol(
             "unexpected Orchestra delete response".into(),
         )),
+        ProtocolResponse::OrchestraDeleteReceipt(_) => Err(CliError::Protocol(
+            "unexpected Orchestra delete receipt response".into(),
+        )),
         ProtocolResponse::RuntimeUnregistered(result) => {
             let runtimes = if result.removed.is_empty() {
                 "none".to_string()

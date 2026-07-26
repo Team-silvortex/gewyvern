@@ -94,7 +94,7 @@ public sealed class SqliteOrchestraRunStoreTests
 
         var store = CreateSqliteStore(databasePath);
         var run = Assert.Single(store.LoadAll());
-        Assert.Equal(2, store.SchemaVersion);
+        Assert.Equal(3, store.SchemaVersion);
         Assert.Equal("legacy-run", run.RunId);
 
         store.Upsert(
@@ -140,6 +140,45 @@ public sealed class SqliteOrchestraRunStoreTests
 
         Assert.Empty(store.LoadAll());
         Assert.Empty(store.LoadEvents("runtime-1", "run-delete"));
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void SqliteStoreReplaysTypedDeleteReceiptAcrossRestart()
+    {
+        var databasePath = TemporaryPath("db");
+        var store = CreateSqliteStore(databasePath);
+        var run = CreateRun(
+            "run-delete-receipt",
+            "request-delete-receipt",
+            "queued");
+        Assert.True(store.Upsert(
+            run,
+            CreateEvent(run, null, "queued")));
+        var command = new OrchestraDeleteCommand(
+            "orchestra-delete-receipt",
+            new[] { "runtime-1" });
+
+        var first = store.DeleteRuntimes(command);
+        Assert.NotNull(first);
+        Assert.False(first.Replayed);
+        Assert.Equal(1UL, first.OperationGeneration);
+        Assert.Equal(1UL, first.DeletedRunCount);
+        Assert.Equal(1UL, first.DeletedEventCount);
+
+        var restarted = CreateSqliteStore(databasePath);
+        var replay = restarted.DeleteRuntimes(command);
+        Assert.NotNull(replay);
+        Assert.True(replay.Replayed);
+        Assert.Equal(
+            first.OperationGeneration,
+            replay.OperationGeneration);
+        Assert.Equal(first.CommittedAt, replay.CommittedAt);
+        Assert.Null(restarted.DeleteRuntimes(
+            command with
+            {
+                RuntimeIds = new[] { "runtime-conflict" },
+            }));
         DeleteDatabase(databasePath);
     }
 

@@ -790,6 +790,11 @@ internal static class ControlPlaneStateValidator
                 persisted.IntentId?.Trim() ?? string.Empty;
             var requestedBy =
                 persisted.RequestedBy?.Trim() ?? string.Empty;
+            var cleanupCommandId =
+                persisted.OrchestraCleanupCommandId?.Trim();
+            var hasCleanupReceipt =
+                cleanupCommandId is not null ||
+                persisted.OrchestraCleanupGeneration is not null;
             var runtimeIds =
                 (persisted.RuntimeIds ?? Array.Empty<string>())
                     .Select(static runtimeId =>
@@ -810,6 +815,10 @@ internal static class ControlPlaneStateValidator
                 persisted.ExpectedRevision >
                     MaxRuntimeDeletionRevision ||
                 persisted.DaemonRevision == 0 ||
+                (hasCleanupReceipt &&
+                    (!IsValidDeletionIdentifier(
+                        cleanupCommandId ?? string.Empty) ||
+                     persisted.OrchestraCleanupGeneration is null or 0)) ||
                 persisted.ReconciledAt == default ||
                 persisted.ReconciledAt >
                     observedAt.AddMinutes(5))
@@ -826,7 +835,9 @@ internal static class ControlPlaneStateValidator
                     persisted.ExpectedRevision,
                     persisted.DaemonRevision,
                     requestedBy,
-                    persisted.ReconciledAt));
+                    persisted.ReconciledAt,
+                    cleanupCommandId,
+                    persisted.OrchestraCleanupGeneration));
         }
 
         return normalized;

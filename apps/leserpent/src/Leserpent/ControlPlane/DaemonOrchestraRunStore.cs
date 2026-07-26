@@ -51,7 +51,7 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
     public bool Enabled => socketPath is not null;
     public string Provider => Enabled ? "leserpentd" : "disabled";
     public string Location => socketPath ?? "unconfigured";
-    public int SchemaVersion => Enabled ? 10 : 0;
+    public int SchemaVersion => Enabled ? 16 : 0;
     public string? LastError { get; private set; }
 
     public IReadOnlyList<OrchestraRunSummary> LoadAll() =>
@@ -180,6 +180,98 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
             }));
             _ = RequireResponse(response.RootElement, "orchestra_deleted");
             return true;
+        });
+    }
+
+    public OrchestraDeleteReceipt? DeleteRuntimes(
+        OrchestraDeleteCommand command)
+    {
+        var expectedRuntimeIds = command.RuntimeIds
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (string.IsNullOrWhiteSpace(command.CommandId) ||
+            expectedRuntimeIds.Length is < 1 or > 128 ||
+            expectedRuntimeIds.Distinct(StringComparer.Ordinal).Count() !=
+                expectedRuntimeIds.Length)
+        {
+            LastError = "orchestra_store_operation_failed";
+            return null;
+        }
+        return Execute("idempotently delete Orchestra history", () =>
+        {
+            using var response = Exchange(BuildFrame(
+                "orchestra_delete_command",
+                writer =>
+                {
+                    WriteAuthority(writer);
+                    writer.WriteString("command_id", command.CommandId);
+                    writer.WritePropertyName("runtime_ids");
+                    writer.WriteStartArray();
+                    foreach (var runtimeId in expectedRuntimeIds)
+                    {
+                        writer.WriteStringValue(runtimeId);
+                    }
+                    writer.WriteEndArray();
+                }));
+            var payload = RequireResponse(
+                response.RootElement,
+                "orchestra_delete_receipt");
+            var returnedCommandId =
+                payload.GetProperty("command_id").GetString();
+            var generation = payload
+                .GetProperty("operation_generation")
+                .GetUInt64();
+            var returnedRuntimeIds = payload
+                .GetProperty("runtime_ids")
+                .EnumerateArray()
+                .Select(element =>
+                    element.GetString() ??
+                    throw new InvalidDataException(
+                        "leserpentd returned a blank Orchestra delete target"))
+                .ToArray();
+            var deletedRuntimeCount = payload
+                .GetProperty("deleted_runtime_count")
+                .GetUInt32();
+            var deletedRunCount = payload
+                .GetProperty("deleted_run_count")
+                .GetUInt64();
+            var deletedEventCount = payload
+                .GetProperty("deleted_event_count")
+                .GetUInt64();
+            var committedAtUnixMs = payload
+                .GetProperty("committed_at_unix_ms")
+                .GetInt64();
+            var replayed = payload.GetProperty("replayed").GetBoolean();
+            var maximumRunCount = checked(
+                (ulong)expectedRuntimeIds.Length * 32);
+            var maximumEventCount = checked(maximumRunCount * 3);
+            if (!string.Equals(
+                    returnedCommandId,
+                    command.CommandId,
+                    StringComparison.Ordinal) ||
+                generation == 0 ||
+                !returnedRuntimeIds.SequenceEqual(
+                    expectedRuntimeIds,
+                    StringComparer.Ordinal) ||
+                deletedRuntimeCount >
+                    checked((uint)expectedRuntimeIds.Length) ||
+                deletedRunCount > maximumRunCount ||
+                deletedEventCount > maximumEventCount ||
+                committedAtUnixMs < 0)
+            {
+                throw new InvalidDataException(
+                    "leserpentd returned a mismatched Orchestra delete receipt");
+            }
+            return new OrchestraDeleteReceipt(
+                command.CommandId,
+                generation,
+                returnedRuntimeIds,
+                deletedRuntimeCount,
+                deletedRunCount,
+                deletedEventCount,
+                DateTimeOffset.FromUnixTimeMilliseconds(
+                    committedAtUnixMs),
+                replayed);
         });
     }
 

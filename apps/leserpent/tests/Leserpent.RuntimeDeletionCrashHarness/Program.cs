@@ -558,6 +558,20 @@ internal sealed class PauseAfterOrchestraCleanupRunStore(
         return true;
     }
 
+    public OrchestraDeleteReceipt? DeleteRuntimes(
+        OrchestraDeleteCommand command)
+    {
+        var receipt = inner.DeleteRuntimes(command);
+        if (receipt is null)
+        {
+            return null;
+        }
+        WriteBoundaryMarker(
+            $"orchestra_cleanup_committed {receipt.CommandId} {receipt.OperationGeneration} {receipt.Replayed}\n");
+        WaitForTrigger();
+        return receipt;
+    }
+
     private void WriteBoundaryMarker(string content)
     {
         var markerBytes =

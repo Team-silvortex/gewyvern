@@ -5,7 +5,7 @@ namespace Leserpent.ControlPlane;
 
 public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private const int MaxRunsPerRuntime = 32;
     private readonly string connectionString;
     private readonly ILogger<SqliteOrchestraRunStore> logger;
@@ -201,6 +201,163 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         }
     }
 
+    public OrchestraDeleteReceipt? DeleteRuntimes(
+        OrchestraDeleteCommand command)
+    {
+        var runtimeIds = command.RuntimeIds
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (string.IsNullOrWhiteSpace(command.CommandId) ||
+            runtimeIds.Length is < 1 or > 128 ||
+            runtimeIds.Distinct(StringComparer.Ordinal).Count() !=
+                runtimeIds.Length)
+        {
+            LastError = "orchestra_store_operation_failed";
+            return null;
+        }
+        try
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            using (var replay = connection.CreateCommand())
+            {
+                replay.Transaction = transaction;
+                replay.CommandText = """
+                    SELECT generation, runtime_ids_json, deleted_runtime_count,
+                           deleted_run_count, deleted_event_count,
+                           committed_at_unix_ms
+                    FROM orchestra_delete_operations
+                    WHERE operation_id = $operation_id;
+                    """;
+                replay.Parameters.AddWithValue(
+                    "$operation_id",
+                    command.CommandId);
+                using var reader = replay.ExecuteReader();
+                if (reader.Read())
+                {
+                    var retainedRuntimeIds = JsonSerializer.Deserialize(
+                            reader.GetString(1),
+                            LeserpentJsonContext.Default.StringArray)
+                        ?? throw new InvalidDataException(
+                            "Orchestra delete receipt targets are missing");
+                    if (!retainedRuntimeIds.SequenceEqual(
+                            runtimeIds,
+                            StringComparer.Ordinal))
+                    {
+                        throw new InvalidDataException(
+                            "Orchestra delete command was reused for different targets");
+                    }
+                    var retained = new OrchestraDeleteReceipt(
+                        command.CommandId,
+                        checked((ulong)reader.GetInt64(0)),
+                        retainedRuntimeIds,
+                        checked((uint)reader.GetInt64(2)),
+                        checked((ulong)reader.GetInt64(3)),
+                        checked((ulong)reader.GetInt64(4)),
+                        DateTimeOffset.FromUnixTimeMilliseconds(
+                            reader.GetInt64(5)),
+                        true);
+                    reader.Close();
+                    transaction.Commit();
+                    LastError = null;
+                    return retained;
+                }
+            }
+            using (var capacity = connection.CreateCommand())
+            {
+                capacity.Transaction = transaction;
+                capacity.CommandText =
+                    "SELECT COUNT(*) FROM orchestra_delete_operations;";
+                if (Convert.ToInt64(capacity.ExecuteScalar()) >= 4096)
+                {
+                    throw new InvalidOperationException(
+                        "Orchestra delete receipt capacity is exhausted");
+                }
+            }
+            uint deletedRuntimeCount = 0;
+            ulong deletedRunCount = 0;
+            ulong deletedEventCount = 0;
+            foreach (var runtimeId in runtimeIds)
+            {
+                var runtimeRunCount = CountRows(
+                    connection,
+                    transaction,
+                    "orchestra_runs",
+                    runtimeId);
+                deletedRunCount += runtimeRunCount;
+                deletedEventCount += CountRows(
+                    connection,
+                    transaction,
+                    "orchestra_run_events",
+                    runtimeId);
+                if (runtimeRunCount > 0)
+                {
+                    deletedRuntimeCount++;
+                }
+                DeleteRuntimeRows(connection, transaction, runtimeId);
+            }
+            var committedAtUnixMs =
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var committedAt = DateTimeOffset
+                .FromUnixTimeMilliseconds(committedAtUnixMs);
+            using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
+            insert.CommandText = """
+                INSERT INTO orchestra_delete_operations (
+                    operation_id, runtime_ids_json, deleted_runtime_count,
+                    deleted_run_count, deleted_event_count,
+                    committed_at_unix_ms)
+                VALUES (
+                    $operation_id, $runtime_ids_json,
+                    $deleted_runtime_count, $deleted_run_count,
+                    $deleted_event_count, $committed_at_unix_ms);
+                """;
+            insert.Parameters.AddWithValue(
+                "$operation_id",
+                command.CommandId);
+            insert.Parameters.AddWithValue(
+                "$runtime_ids_json",
+                JsonSerializer.Serialize(
+                    runtimeIds,
+                    LeserpentJsonContext.Default.StringArray));
+            insert.Parameters.AddWithValue(
+                "$deleted_runtime_count",
+                deletedRuntimeCount);
+            insert.Parameters.AddWithValue(
+                "$deleted_run_count",
+                checked((long)deletedRunCount));
+            insert.Parameters.AddWithValue(
+                "$deleted_event_count",
+                checked((long)deletedEventCount));
+            insert.Parameters.AddWithValue(
+                "$committed_at_unix_ms",
+                committedAtUnixMs);
+            insert.ExecuteNonQuery();
+            using var generationQuery = connection.CreateCommand();
+            generationQuery.Transaction = transaction;
+            generationQuery.CommandText = "SELECT last_insert_rowid();";
+            var generation = checked(
+                (ulong)Convert.ToInt64(
+                    generationQuery.ExecuteScalar()));
+            transaction.Commit();
+            LastError = null;
+            return new OrchestraDeleteReceipt(
+                command.CommandId,
+                generation,
+                runtimeIds,
+                deletedRuntimeCount,
+                deletedRunCount,
+                deletedEventCount,
+                committedAt,
+                false);
+        }
+        catch (Exception ex)
+        {
+            RecordError(ex, "idempotently delete Orchestra runs");
+            return null;
+        }
+    }
+
     private void Initialize()
     {
         using var connection = OpenConnection();
@@ -252,8 +409,46 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 ON orchestra_run_events(runtime_id, run_id, event_id);
             CREATE INDEX IF NOT EXISTS idx_orchestra_run_events_runtime_time
                 ON orchestra_run_events(runtime_id, recorded_at DESC);
-            PRAGMA user_version = 2;
+            CREATE TABLE IF NOT EXISTS orchestra_delete_operations (
+                generation INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_id TEXT NOT NULL UNIQUE,
+                runtime_ids_json TEXT NOT NULL,
+                deleted_runtime_count INTEGER NOT NULL,
+                deleted_run_count INTEGER NOT NULL,
+                deleted_event_count INTEGER NOT NULL,
+                committed_at_unix_ms INTEGER NOT NULL
+            );
+            PRAGMA user_version = 3;
             """;
+        command.ExecuteNonQuery();
+    }
+
+    private static ulong CountRows(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string table,
+        string runtimeId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            $"SELECT COUNT(*) FROM {table} WHERE runtime_id = $runtime_id;";
+        command.Parameters.AddWithValue("$runtime_id", runtimeId);
+        return checked((ulong)Convert.ToInt64(command.ExecuteScalar()));
+    }
+
+    private static void DeleteRuntimeRows(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string runtimeId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            DELETE FROM orchestra_run_events WHERE runtime_id = $runtime_id;
+            DELETE FROM orchestra_runs WHERE runtime_id = $runtime_id;
+            """;
+        command.Parameters.AddWithValue("$runtime_id", runtimeId);
         command.ExecuteNonQuery();
     }
 

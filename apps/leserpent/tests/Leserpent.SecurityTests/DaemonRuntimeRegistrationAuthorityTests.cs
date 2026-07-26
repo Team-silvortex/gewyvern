@@ -980,6 +980,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 Assert.True(result.FinalStateConverged);
                 Assert.True(result.SingleAuditSurvivedReload);
                 Assert.True(result.RequestReplayedAfterRestart);
+                Assert.True(
+                    result.CleanupReceiptReplayedSameGeneration);
             });
             WriteRuntimeDeletionCrossAuthorityEvidenceIfRequested(
                 iterations,
@@ -3034,6 +3036,68 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             CompletedAt: executedAt.AddSeconds(1),
             RequestId: requestId);
 
+    private static void RewriteCrossAuthorityIntentIdentity(
+        string statePath,
+        string suffix)
+    {
+        var context = new LeserpentJsonContext(
+            new JsonSerializerOptions());
+        PersistedControlPlaneState Load(string path)
+        {
+            using var input = File.OpenRead(path);
+            return JsonSerializer.Deserialize(
+                    input,
+                    context.PersistedControlPlaneState)
+                ?? throw new InvalidDataException(
+                    "cross-authority baseline was empty");
+        }
+        void Save(string path, PersistedControlPlaneState state)
+        {
+            using var output = File.Create(path);
+            JsonSerializer.Serialize(
+                output,
+                state,
+                context.PersistedControlPlaneState);
+            output.Flush(flushToDisk: true);
+        }
+
+        var primary = Load(statePath);
+        var intent = Assert.Single(primary.PendingRuntimeDeletions!);
+        var replacementIntentId = $"{intent.IntentId}-{suffix}";
+        var replacement = primary with
+        {
+            PendingRuntimeDeletions = new[]
+            {
+                intent with
+                {
+                    IntentId = replacementIntentId,
+                    UnregistrationCommandId =
+                        RuntimeDeletionCommandIdentity.ForIntent(
+                            replacementIntentId),
+                },
+            },
+        };
+        Save(statePath, replacement);
+        var backup = Load(statePath + ".bak");
+        var backupIntent = Assert.Single(
+            backup.PendingRuntimeDeletions!);
+        Save(
+            statePath + ".bak",
+            backup with
+            {
+                PendingRuntimeDeletions = new[]
+                {
+                    backupIntent with
+                    {
+                        IntentId = replacementIntentId,
+                        UnregistrationCommandId =
+                            RuntimeDeletionCommandIdentity.ForIntent(
+                                replacementIntentId),
+                    },
+                },
+            });
+    }
+
     private static void WritePostRecoveryInvalidPrimary(
         string statePath,
         string baselinePath,
@@ -3117,6 +3181,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 baselinePath + ".bak",
                 statePath + ".bak",
                 overwrite: true);
+            RewriteCrossAuthorityIntentIdentity(
+                statePath,
+                $"{strategyName}-{iteration:D2}");
             harness = StartCrashHarness(
                 harnessAssembly,
                 statePath,
@@ -3280,6 +3347,18 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             var finalAudit = Assert.Single(
                 finalReload.ListRuntimeDeletionReconciliationAudit());
             Assert.Equal(requestId, finalAudit.RequestId);
+            Assert.NotNull(finalAudit.OrchestraCleanupCommandId);
+            Assert.NotNull(finalAudit.OrchestraCleanupGeneration);
+            var replayedCleanupReceipt =
+                orchestraStore.DeleteRuntimes(
+                    new OrchestraDeleteCommand(
+                        finalAudit.OrchestraCleanupCommandId,
+                        finalAudit.RuntimeIds));
+            Assert.NotNull(replayedCleanupReceipt);
+            Assert.True(replayedCleanupReceipt.Replayed);
+            Assert.Equal(
+                finalAudit.OrchestraCleanupGeneration,
+                replayedCleanupReceipt.OperationGeneration);
             Assert.Null(finalReload.GetRuntime(
                 RuntimeDeletionReconciliationCommitTarget));
             Assert.DoesNotContain(
@@ -3308,7 +3387,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 UnrelatedHistoryPreserved: true,
                 FinalStateConverged: true,
                 SingleAuditSurvivedReload: true,
-                RequestReplayedAfterRestart: true);
+                RequestReplayedAfterRestart: true,
+                CleanupReceiptReplayedSameGeneration: true);
         }
         finally
         {
@@ -5596,6 +5676,10 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 every_request_replayed_after_restart =
                     results.All(static result =>
                         result.RequestReplayedAfterRestart),
+                every_cleanup_receipt_replayed_same_generation =
+                    results.All(static result =>
+                        result
+                            .CleanupReceiptReplayedSameGeneration),
                 both_control_generation_outcomes_were_exercised =
                     previousGenerationCount > 0 &&
                     replacementGenerationCount > 0,
@@ -6723,7 +6807,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         bool UnrelatedHistoryPreserved,
         bool FinalStateConverged,
         bool SingleAuditSurvivedReload,
-        bool RequestReplayedAfterRestart);
+        bool RequestReplayedAfterRestart,
+        bool CleanupReceiptReplayedSameGeneration);
 
     private enum RuntimeDeletionRetryAtomicRolloverStrategy
     {

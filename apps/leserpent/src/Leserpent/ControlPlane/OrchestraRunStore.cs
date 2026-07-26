@@ -15,6 +15,20 @@ public sealed class OrchestraPersistenceException : InvalidOperationException
 
 public sealed record OrchestraActiveRunConflict(string RuntimeId, string RunId, string Outcome);
 
+public sealed record OrchestraDeleteCommand(
+    string CommandId,
+    IReadOnlyList<string> RuntimeIds);
+
+public sealed record OrchestraDeleteReceipt(
+    string CommandId,
+    ulong OperationGeneration,
+    IReadOnlyList<string> RuntimeIds,
+    uint DeletedRuntimeCount,
+    ulong DeletedRunCount,
+    ulong DeletedEventCount,
+    DateTimeOffset CommittedAt,
+    bool Replayed);
+
 public sealed class OrchestraRuntimeBusyException(IReadOnlyList<OrchestraActiveRunConflict> activeRuns)
     : InvalidOperationException("one or more runtimes have active Orchestra runs")
 {
@@ -32,13 +46,18 @@ public interface IOrchestraRunStore
     bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null);
     bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs);
     bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds);
+    OrchestraDeleteReceipt? DeleteRuntimes(OrchestraDeleteCommand command) =>
+        null;
 }
 
 public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
 {
     private readonly Dictionary<string, OrchestraRunSummary> runs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<OrchestraRunEvent> events = new();
+    private readonly Dictionary<string, OrchestraDeleteReceipt>
+        deleteReceipts = new(StringComparer.Ordinal);
     private long nextEventId;
+    private ulong nextDeleteGeneration = 1;
 
     public string Provider => "memory";
     public string Location => "memory";
@@ -157,5 +176,49 @@ public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
         }
         events.RemoveAll(item => runtimeIdSet.Contains(item.RuntimeId));
         return true;
+    }
+
+    public OrchestraDeleteReceipt? DeleteRuntimes(
+        OrchestraDeleteCommand command)
+    {
+        var runtimeIds = command.RuntimeIds
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        if (deleteReceipts.TryGetValue(
+                command.CommandId,
+                out var retained))
+        {
+            return retained.RuntimeIds.SequenceEqual(
+                    runtimeIds,
+                    StringComparer.Ordinal)
+                ? retained with { Replayed = true }
+                : null;
+        }
+        var runtimeIdSet =
+            runtimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var deletedRuns = runs.Values
+            .Where(run => runtimeIdSet.Contains(run.RuntimeId))
+            .ToArray();
+        var deletedEvents = events
+            .Where(item => runtimeIdSet.Contains(item.RuntimeId))
+            .ToArray();
+        if (!DeleteRuntimes(runtimeIds))
+        {
+            return null;
+        }
+        var receipt = new OrchestraDeleteReceipt(
+            command.CommandId,
+            nextDeleteGeneration++,
+            runtimeIds,
+            (uint)deletedRuns
+                .Select(run => run.RuntimeId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
+            (ulong)deletedRuns.Length,
+            (ulong)deletedEvents.Length,
+            DateTimeOffset.UtcNow,
+            false);
+        deleteReceipts[command.CommandId] = receipt;
+        return receipt;
     }
 }

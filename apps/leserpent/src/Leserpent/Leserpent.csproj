@@ -7,7 +7,9 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <NuGetLockFilePath Condition="'$(PublishAot)' != 'true'">$(MSBuildProjectDirectory)/packages.development.lock.json</NuGetLockFilePath>
     <NuGetLockFilePath Condition="'$(PublishAot)' == 'true'">$(MSBuildProjectDirectory)/packages.lock.json</NuGetLockFilePath>
-    <NativeAotToolchainVersion Condition="'$(NativeAotToolchainVersion)' == ''">10.0.9</NativeAotToolchainVersion>
+    <NativeAotToolchainVersion Condition="'$(NativeAotToolchainVersion)' == ''">10.0.10</NativeAotToolchainVersion>
+    <RuntimeIdentifiers Condition="'$(PublishAot)' == 'true' And '$(RuntimeIdentifiers)' == ''">osx-arm64;linux-x64</RuntimeIdentifiers>
+    <DisableImplicitLibraryPacksFolder Condition="'$(PublishAot)' == 'true'">true</DisableImplicitLibraryPacksFolder>
     <RuntimeFrameworkVersion Condition="'$(PublishAot)' == 'true'">$(NativeAotToolchainVersion)</RuntimeFrameworkVersion>
     <TargetLatestRuntimePatch Condition="'$(PublishAot)' == 'true'">false</TargetLatestRuntimePatch>
     <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../..'))</RepositoryRoot>
@@ -16,8 +18,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(PublishAot)' == 'true'">

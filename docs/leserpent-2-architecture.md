@@ -700,17 +700,22 @@ SQLite transaction commits. The parent force-kills at that marker, during the
 following JSON temporary-file write, or after JSON commit. Before every
 termination, target run/event history is absent and an unrelated run/event pair
 is still readable. Restart may restore the previous or replacement JSON
-generation; the previous path repeats the absent-target cleanup, while the
-replacement path replays the audit request. Both converge to one audit without
-touching unrelated history. Arm64 and physical Linux x86_64 evidence is retained
-in
+generation. Reconciliation now derives one stable Orchestra cleanup command ID
+from the intent ID and revision. Schema v16 persists the canonical target set,
+nonzero operation generation, exact deletion counts, and commit timestamp in
+the same immediate SQLite transaction as the set-based deletion. A previous
+JSON generation replays that durable command and receives the original receipt
+with `replayed=true`; a replacement generation replays the audit request and
+can recover the same command identity from its persisted audit. Reusing a
+command ID with another target set fails closed. Both paths converge to one
+audit without touching unrelated history, and the audit binds the command ID
+to its generation. Arm64 and physical Linux x86_64 evidence is retained in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`.
 This remains idempotent cross-authority convergence rather than an implied
-distributed transaction. The next gate gives Orchestra cleanup an
-intent-derived command identity and durable typed replay receipt, allowing
-restart to verify the exact cleanup generation rather than infer success from
-target absence alone.
+distributed transaction. The next gate adds a bounded, queryable Orchestra
+cleanup receipt horizon and binds audit retention to it so compaction cannot
+evict proof while a retained reconciliation audit still references it.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent
@@ -1141,6 +1146,14 @@ Authenticated health exposes capacity, retained count, oldest/newest
 generation, next generation, and the eviction high-water mark. The Rust CLI
 renders the same bounded metadata and Avalonia validates it with a strict
 source-generated wire model, while legacy health responses may omit it.
+Schema v16 adds a separate Orchestra cleanup command authority. Its singleton
+generation row and bounded operation table persist canonical target identities,
+validated deletion counts, and a monotonic commit timestamp. First execution
+allocates the generation and inserts the receipt in the same transaction as
+the validated set-based delete; exact replay returns the same generation,
+counts, and timestamp, while target drift under a retained command ID is an
+idempotency conflict. This authority is intentionally separate from runtime
+unregistration generations so the two command domains cannot alias.
 Every successful or replayed runtime-unregistration result now carries the
 exact nonzero operation generation read from that durable row. First execution
 and idempotent replay therefore expose the same receipt identity, and the

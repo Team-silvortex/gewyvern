@@ -639,7 +639,9 @@ public sealed record PersistedRuntimeDeletionReconciliationAudit(
     long ExpectedRevision,
     ulong DaemonRevision,
     string RequestedBy,
-    DateTimeOffset ReconciledAt
+    DateTimeOffset ReconciledAt,
+    string? OrchestraCleanupCommandId = null,
+    ulong? OrchestraCleanupGeneration = null
 );
 
 public sealed record PersistedControlPlaneState(

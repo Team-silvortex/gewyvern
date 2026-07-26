@@ -299,10 +299,11 @@ mod tests {
         RuntimeLogLevel, RuntimeTags,
     };
     use leserpent_protocol::{
-        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, OrchestraDeleteRequest,
-        OrchestraHistoryRequest, OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION,
-        ProtocolRequest, ProtocolResponse, RequestEnvelope, RuntimeUnregisterRequest,
-        RuntimeUnregisterTarget, RuntimeUnregistrationReceiptRequest, decode_response,
+        DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest,
+        OrchestraDeleteCommandRequest, OrchestraDeleteRequest, OrchestraHistoryRequest,
+        OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse,
+        RequestEnvelope, RuntimeUnregisterRequest, RuntimeUnregisterTarget,
+        RuntimeUnregistrationReceiptRequest, decode_response,
     };
     use rusqlite::Connection;
 
@@ -1313,6 +1314,38 @@ mod tests {
             response.response,
             ProtocolResponse::OrchestraHistory(ref history)
                 if history.runs.is_empty() && history.events.is_empty()
+        ));
+        let delete_command = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraDeleteCommand(OrchestraDeleteCommandRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                command_id: CommandId::new("orchestra-delete-ipc-replay").unwrap(),
+                runtime_ids: vec![envelope.run.runtime_id.clone()],
+            }),
+        };
+        let first_receipt = send(
+            &server,
+            &mut runtime,
+            &socket,
+            TOKEN,
+            delete_command.clone(),
+        );
+        let ProtocolResponse::OrchestraDeleteReceipt(first_receipt) = first_receipt.response else {
+            panic!("typed Orchestra delete must return a receipt");
+        };
+        assert_eq!(first_receipt.operation_generation, 1);
+        assert!(!first_receipt.replayed);
+        assert_eq!(first_receipt.deleted_run_count, 0);
+        let replayed_receipt = send(&server, &mut runtime, &socket, TOKEN, delete_command);
+        assert!(matches!(
+            replayed_receipt.response,
+            ProtocolResponse::OrchestraDeleteReceipt(ref receipt)
+                if receipt.operation_generation == first_receipt.operation_generation
+                    && receipt.committed_at_unix_ms == first_receipt.committed_at_unix_ms
+                    && receipt.replayed
         ));
 
         let retention_envelope = |index: u8| {
