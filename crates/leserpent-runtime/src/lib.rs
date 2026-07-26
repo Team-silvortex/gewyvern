@@ -38,6 +38,7 @@ pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
 pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: usize = 4_096;
 pub const RUNTIME_UNREGISTRATION_REPLAY_HORIZON: usize = 256;
+pub const ORCHESTRA_DELETE_REPLAY_HORIZON: usize = 4_096;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeUnregistrationReplayHorizon {
@@ -47,6 +48,17 @@ pub struct RuntimeUnregistrationReplayHorizon {
     pub newest_generation: Option<u64>,
     pub next_generation: u64,
     pub evicted_through_generation: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct OrchestraDeleteReplayHorizon {
+    pub capacity: u64,
+    pub retained: u64,
+    pub oldest_generation: Option<u64>,
+    pub newest_generation: Option<u64>,
+    pub next_generation: u64,
+    pub evicted_through_generation: u64,
+    pub protected_from_generation: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -785,6 +797,44 @@ impl ControlRuntime {
         };
         journal
             .delete_orchestra_runtimes(runtime_ids)
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn orchestra_delete_replay_horizon(
+        &mut self,
+    ) -> Result<OrchestraDeleteReplayHorizon, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Ok(OrchestraDeleteReplayHorizon {
+                capacity: u64::try_from(ORCHESTRA_DELETE_REPLAY_HORIZON)
+                    .map_err(|_| RuntimeError::Storage("replay horizon is invalid".into()))?,
+                retained: 0,
+                oldest_generation: None,
+                newest_generation: None,
+                next_generation: 1,
+                evicted_through_generation: 0,
+                protected_from_generation: None,
+            });
+        };
+        journal
+            .orchestra_delete_replay_horizon()
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn checkpoint_orchestra_delete_replay_horizon(
+        &mut self,
+        minimum_retained_generation: u64,
+        observed_through_generation: u64,
+    ) -> Result<OrchestraDeleteReplayHorizon, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "Orchestra delete replay checkpoint requires persistent storage".into(),
+            ));
+        };
+        journal
+            .checkpoint_orchestra_delete_replay_horizon(
+                minimum_retained_generation,
+                observed_through_generation,
+            )
             .map_err(RuntimeError::Storage)
     }
 
@@ -2762,8 +2812,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 16);
-        assert_eq!(migration_count, 16);
+        assert_eq!(schema, 17);
+        assert_eq!(migration_count, 17);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2832,9 +2882,11 @@ mod tests {
                  DROP TABLE authority_checkpoints;
                  DROP TABLE runtime_unregistration_replay_horizon;
                  DROP TABLE runtime_unregistration_operations;
+                 DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13, 14, 15, 16);
+                 DELETE FROM runtime_schema_migrations
+                 WHERE version IN (12, 13, 14, 15, 16, 17);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -2862,7 +2914,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (16, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (17, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -2913,8 +2965,10 @@ mod tests {
                  FROM runtime_unregistration_operations_v15 ORDER BY generation ASC;
                  DROP TABLE runtime_unregistration_operations_v15;
                  DROP TABLE runtime_unregistration_replay_horizon;
+                 DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
+                 DELETE FROM runtime_schema_migrations WHERE version = 17;
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  DELETE FROM runtime_schema_migrations WHERE version = 15;
                  UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
@@ -2963,8 +3017,10 @@ mod tests {
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
-                "DROP TABLE orchestra_delete_generation;
+                "DROP TABLE orchestra_delete_replay_horizon;
+                 DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
+                 DELETE FROM runtime_schema_migrations WHERE version = 17;
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  UPDATE runtime_metadata SET value = 15
                  WHERE key = 'schema_version';",
@@ -2988,14 +3044,62 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
-        assert_eq!(state, (16, 1, 0, 1));
+        assert_eq!(state, (17, 1, 0, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
 
     #[test]
+    fn schema_16_receipts_gain_a_lossless_replay_horizon() {
+        let path = temp_journal("v16-orchestra-delete-horizon-migration");
+        let command_id = CommandId::new("orchestra-delete-v16").unwrap();
+        let targets = vec!["runtime-delete-v16".to_string()];
+        let first = {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            persist_queued_orchestra_run(&mut runtime, &targets[0], "v16");
+            runtime
+                .delete_orchestra_runtimes_idempotent(command_id.clone(), &targets)
+                .unwrap()
+        };
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "DROP TABLE orchestra_delete_replay_horizon;
+                 DELETE FROM runtime_schema_migrations WHERE version = 17;
+                 UPDATE runtime_metadata SET value = 16
+                 WHERE key = 'schema_version';",
+            )
+            .unwrap();
+        drop(connection);
+
+        let mut migrated = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            migrated.orchestra_delete_replay_horizon().unwrap(),
+            OrchestraDeleteReplayHorizon {
+                capacity: 4_096,
+                retained: 1,
+                oldest_generation: Some(1),
+                newest_generation: Some(1),
+                next_generation: 2,
+                evicted_through_generation: 0,
+                protected_from_generation: Some(1),
+            }
+        );
+        let replay = migrated
+            .delete_orchestra_runtimes_idempotent(command_id, &targets)
+            .unwrap();
+        assert!(replay.replayed);
+        assert_eq!(replay.operation_generation, first.operation_generation);
+        assert_eq!(replay.committed_at_unix_ms, first.committed_at_unix_ms);
+        assert_eq!(replay.deleted_run_count, first.deleted_run_count);
+        assert_eq!(replay.deleted_event_count, first.deleted_event_count);
+        drop(migrated);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v16");
+        let path = temp_journal("incomplete-v17");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -3010,14 +3114,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 16);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 17);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 16")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 17")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3088,6 +3192,15 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 17",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE orchestra_delete_replay_horizon", [])
+            .unwrap();
+        connection
             .execute("DROP TABLE orchestra_delete_generation", [])
             .unwrap();
         connection
@@ -3131,7 +3244,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 16);
+        assert_eq!(schema, 17);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3152,7 +3265,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 16 journal kind")
+                if error.contains("invalid runtime journal schema 17 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3165,14 +3278,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (17, 0)",
+                 VALUES (18, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 16 migration history")
+                if error.contains("invalid runtime journal schema 17 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3454,6 +3567,7 @@ mod tests {
                  DROP TABLE authority_checkpoints;
                  DROP TABLE runtime_unregistration_replay_horizon;
                  DROP TABLE runtime_unregistration_operations;
+                 DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
@@ -3482,7 +3596,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 16);
+        assert_eq!(schema, 17);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -4238,7 +4352,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 16);
+        assert_eq!(schema, 17);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -4603,6 +4717,124 @@ mod tests {
         assert!(!second.replayed);
 
         drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_delete_audit_checkpoint_compacts_only_the_covered_prefix() {
+        let path = temp_journal("orchestra-delete-audit-checkpoint");
+        let targets = vec!["runtime-cleanup-checkpoint".to_string()];
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        for generation in 1..=3 {
+            let receipt = runtime
+                .delete_orchestra_runtimes_idempotent(
+                    CommandId::new(format!("orchestra-cleanup-{generation}")).unwrap(),
+                    &targets,
+                )
+                .unwrap();
+            assert_eq!(receipt.operation_generation, generation);
+        }
+        assert_eq!(
+            runtime.orchestra_delete_replay_horizon().unwrap(),
+            OrchestraDeleteReplayHorizon {
+                capacity: 4_096,
+                retained: 3,
+                oldest_generation: Some(1),
+                newest_generation: Some(3),
+                next_generation: 4,
+                evicted_through_generation: 0,
+                protected_from_generation: Some(1),
+            }
+        );
+        assert!(
+            runtime
+                .checkpoint_orchestra_delete_replay_horizon(3, 2)
+                .is_err()
+        );
+        let checkpointed = runtime
+            .checkpoint_orchestra_delete_replay_horizon(2, 3)
+            .unwrap();
+        assert_eq!(
+            checkpointed,
+            OrchestraDeleteReplayHorizon {
+                capacity: 4_096,
+                retained: 2,
+                oldest_generation: Some(2),
+                newest_generation: Some(3),
+                next_generation: 4,
+                evicted_through_generation: 1,
+                protected_from_generation: Some(2),
+            }
+        );
+        assert!(
+            runtime
+                .checkpoint_orchestra_delete_replay_horizon(1, 3)
+                .is_err()
+        );
+        drop(runtime);
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            restarted.orchestra_delete_replay_horizon().unwrap(),
+            checkpointed
+        );
+        for generation in 2..=3 {
+            let replay = restarted
+                .delete_orchestra_runtimes_idempotent(
+                    CommandId::new(format!("orchestra-cleanup-{generation}")).unwrap(),
+                    &targets,
+                )
+                .unwrap();
+            assert!(replay.replayed);
+            assert_eq!(replay.operation_generation, generation);
+        }
+        drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_delete_audit_checkpoint_rejects_corrupted_eviction_candidates() {
+        let path = temp_journal("orchestra-delete-audit-checkpoint-corruption");
+        let targets = vec!["runtime-cleanup-checkpoint-corruption".to_string()];
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        for generation in 1..=2 {
+            runtime
+                .delete_orchestra_runtimes_idempotent(
+                    CommandId::new(format!("orchestra-cleanup-corruption-{generation}")).unwrap(),
+                    &targets,
+                )
+                .unwrap();
+        }
+
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_delete_operations
+                 SET request = X'6E6F742D6A736F6E'
+                 WHERE generation = 1",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        assert!(
+            runtime
+                .checkpoint_orchestra_delete_replay_horizon(2, 2)
+                .is_err()
+        );
+        assert_eq!(
+            runtime.orchestra_delete_replay_horizon().unwrap(),
+            OrchestraDeleteReplayHorizon {
+                capacity: 4_096,
+                retained: 2,
+                oldest_generation: Some(1),
+                newest_generation: Some(2),
+                next_generation: 3,
+                evicted_through_generation: 0,
+                protected_from_generation: Some(1),
+            }
+        );
+        drop(runtime);
         fs::remove_file(path).unwrap();
     }
 

@@ -8,10 +8,10 @@ use leserpent_domain::{
 };
 use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
-    OrchestraDeleteReceiptResponse, OrchestraDeleteResponse, OrchestraHistoryResponse,
-    OrchestraPersistenceResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest,
-    ProtocolResponse, RequestEnvelope, ResponseEnvelope, RuntimeUnregisterResponse,
-    RuntimeUnregisterTarget, RuntimeUnregistrationReceipt,
+    OrchestraDeleteReceiptResponse, OrchestraDeleteReplayHorizonResponse, OrchestraDeleteResponse,
+    OrchestraHistoryResponse, OrchestraPersistenceResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError,
+    ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
+    RuntimeUnregisterResponse, RuntimeUnregisterTarget, RuntimeUnregistrationReceipt,
     RuntimeUnregistrationReceiptLookupResponse, RuntimeUnregistrationReplayHorizonHealth,
 };
 use leserpent_runtime::{
@@ -37,34 +37,41 @@ pub(crate) fn execute_request(
         ProtocolRequest::Health(_) => {
             return match runtime.heartbeat().and_then(|()| {
                 let queue = runtime.effect_queue_stats()?;
-                let replay_horizon = runtime.runtime_unregistration_replay_horizon()?;
-                Ok((queue, replay_horizon))
+                let unregistration_horizon = runtime.runtime_unregistration_replay_horizon()?;
+                let orchestra_horizon = runtime.orchestra_delete_replay_horizon()?;
+                Ok((queue, unregistration_horizon, orchestra_horizon))
             }) {
-                Ok((queue, replay_horizon)) => response(ProtocolResponse::Health(HealthResponse {
-                    status: "ready".into(),
-                    authority_owned: true,
-                    protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
-                    effect_queue: Some(EffectQueueHealth {
-                        ready: queue.ready,
-                        leased: queue.leased,
-                        completed: queue.completed,
-                        failed: queue.failed,
-                        active: queue.active(),
-                        terminal: queue.terminal(),
-                        capacity: queue.capacity,
-                        saturated: queue.saturated(),
-                    }),
-                    runtime_unregistration_replay_horizon: Some(
-                        RuntimeUnregistrationReplayHorizonHealth {
-                            capacity: replay_horizon.capacity,
-                            retained: replay_horizon.retained,
-                            oldest_generation: replay_horizon.oldest_generation,
-                            newest_generation: replay_horizon.newest_generation,
-                            next_generation: replay_horizon.next_generation,
-                            evicted_through_generation: replay_horizon.evicted_through_generation,
-                        },
-                    ),
-                })),
+                Ok((queue, replay_horizon, orchestra_horizon)) => {
+                    response(ProtocolResponse::Health(HealthResponse {
+                        status: "ready".into(),
+                        authority_owned: true,
+                        protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
+                        effect_queue: Some(EffectQueueHealth {
+                            ready: queue.ready,
+                            leased: queue.leased,
+                            completed: queue.completed,
+                            failed: queue.failed,
+                            active: queue.active(),
+                            terminal: queue.terminal(),
+                            capacity: queue.capacity,
+                            saturated: queue.saturated(),
+                        }),
+                        runtime_unregistration_replay_horizon: Some(
+                            RuntimeUnregistrationReplayHorizonHealth {
+                                capacity: replay_horizon.capacity,
+                                retained: replay_horizon.retained,
+                                oldest_generation: replay_horizon.oldest_generation,
+                                newest_generation: replay_horizon.newest_generation,
+                                next_generation: replay_horizon.next_generation,
+                                evicted_through_generation: replay_horizon
+                                    .evicted_through_generation,
+                            },
+                        ),
+                        orchestra_delete_replay_horizon: Some(
+                            orchestra_delete_replay_horizon_response(orchestra_horizon),
+                        ),
+                    }))
+                }
                 Err(_) => error_response("runtime_unavailable", "runtime authority is unavailable"),
             };
         }
@@ -267,6 +274,43 @@ pub(crate) fn execute_request(
                 ),
             };
         }
+        ProtocolRequest::OrchestraDeleteReplayHorizon(request) => {
+            if request.principal.id.trim().is_empty() {
+                return error_response("invalid_principal", "principal must not be blank");
+            }
+            if !request.capabilities.contains(CAPABILITY_ORCHESTRA_WRITE) {
+                return error_response("capability_denied", "missing capability 'orchestra.write'");
+            }
+            return match runtime.orchestra_delete_replay_horizon() {
+                Ok(horizon) => response(ProtocolResponse::OrchestraDeleteReplayHorizon(
+                    orchestra_delete_replay_horizon_response(horizon),
+                )),
+                Err(_) => error_response(
+                    "orchestra_delete_replay_horizon_failed",
+                    "Orchestra delete replay horizon is unavailable",
+                ),
+            };
+        }
+        ProtocolRequest::OrchestraDeleteReplayCheckpoint(request) => {
+            if request.principal.id.trim().is_empty() {
+                return error_response("invalid_principal", "principal must not be blank");
+            }
+            if !request.capabilities.contains(CAPABILITY_ORCHESTRA_WRITE) {
+                return error_response("capability_denied", "missing capability 'orchestra.write'");
+            }
+            return match runtime.checkpoint_orchestra_delete_replay_horizon(
+                request.minimum_retained_generation,
+                request.observed_through_generation,
+            ) {
+                Ok(horizon) => response(ProtocolResponse::OrchestraDeleteReplayHorizon(
+                    orchestra_delete_replay_horizon_response(horizon),
+                )),
+                Err(_) => error_response(
+                    "orchestra_delete_replay_checkpoint_failed",
+                    "Orchestra delete replay checkpoint was rejected",
+                ),
+            };
+        }
         ProtocolRequest::RuntimeUnregister(request) => {
             if request.principal.id.trim().is_empty()
                 || !request.capabilities.contains(CAPABILITY_RUNTIME_UNREGISTER)
@@ -440,6 +484,8 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::OrchestraDeleteCommand(_)
+        | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
+        | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
@@ -454,6 +500,8 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::OrchestraDeleteCommand(_)
+        | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
+        | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
@@ -471,6 +519,20 @@ pub(crate) fn execute_request(
             error_response("invalid_request", "protocol command plan is invalid")
         }
         Err(_) => error_response("runtime_failed", "runtime request failed"),
+    }
+}
+
+fn orchestra_delete_replay_horizon_response(
+    horizon: leserpent_runtime::OrchestraDeleteReplayHorizon,
+) -> OrchestraDeleteReplayHorizonResponse {
+    OrchestraDeleteReplayHorizonResponse {
+        capacity: horizon.capacity,
+        retained: horizon.retained,
+        oldest_generation: horizon.oldest_generation,
+        newest_generation: horizon.newest_generation,
+        next_generation: horizon.next_generation,
+        evicted_through_generation: horizon.evicted_through_generation,
+        protected_from_generation: horizon.protected_from_generation,
     }
 }
 

@@ -700,22 +700,38 @@ SQLite transaction commits. The parent force-kills at that marker, during the
 following JSON temporary-file write, or after JSON commit. Before every
 termination, target run/event history is absent and an unrelated run/event pair
 is still readable. Restart may restore the previous or replacement JSON
-generation. Reconciliation now derives one stable Orchestra cleanup command ID
+generation. Reconciliation derives one stable Orchestra cleanup command ID
 from the intent ID and revision. Schema v16 persists the canonical target set,
 nonzero operation generation, exact deletion counts, and commit timestamp in
-the same immediate SQLite transaction as the set-based deletion. A previous
-JSON generation replays that durable command and receives the original receipt
-with `replayed=true`; a replacement generation replays the audit request and
-can recover the same command identity from its persisted audit. Reusing a
-command ID with another target set fails closed. Both paths converge to one
-audit without touching unrelated history, and the audit binds the command ID
-to its generation. Arm64 and physical Linux x86_64 evidence is retained in
+the same immediate SQLite transaction as the set-based deletion. Schema v17
+adds a fixed 4096-receipt replay horizon with contiguous generation metadata,
+an eviction high-water mark, and the earliest generation protected by
+reconciliation audit. New receipts enter protection in their delete
+transaction. Only an authenticated, monotonic checkpoint derived from already
+persisted audits may move that boundary; advancing it validates the covered
+generation range and compacts only the preceding prefix. A crash before the
+control-state commit therefore retains extra proof, while startup fails closed
+if a restored audit reaches below the durable horizon. The same typed horizon
+and checkpoint contract is implemented by the Rust daemon authority and local
+C# SQLite store, and daemon health plus explicit authenticated IPC make the
+window queryable. Schema-v16 receipts migrate without changing their command
+identity, generation, counts, or timestamp.
+
+A previous JSON generation replays its durable command and receives the
+original receipt with `replayed=true`; a replacement generation replays the
+audit request and recovers the same command identity from its persisted audit.
+Reusing a command ID with another target set fails closed. Both paths converge
+to one audit without touching unrelated history, and the audit binds the
+command ID to its generation. Arm64 and physical Linux x86_64 cleanup-receipt
+evidence is retained in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`.
-This remains idempotent cross-authority convergence rather than an implied
-distributed transaction. The next gate adds a bounded, queryable Orchestra
-cleanup receipt horizon and binds audit retention to it so compaction cannot
-evict proof while a retained reconciliation audit still references it.
+The Arm64 fixture additionally proves nine forced-termination reloads
+checkpoint and protect the current audit generation while compacting older
+receipts. Refreshed physical Linux x86_64 checkpoint evidence remains the next
+gate because the validation-host link was too unreliable to complete source
+transfer and the physical campaign during this pass. This remains idempotent
+cross-authority convergence rather than an implied distributed transaction.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

@@ -1186,6 +1186,24 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
                     horizon.evicted_through_generation
                 ));
             }
+            if let Some(horizon) = &health.orchestra_delete_replay_horizon {
+                output.push_str(&format!(
+                    " orchestra_cleanup_replay={}/{} generation={}..{} next={} evicted_through={} protected_from={}",
+                    horizon.retained,
+                    horizon.capacity,
+                    horizon
+                        .oldest_generation
+                        .map_or_else(|| "none".into(), |value| value.to_string()),
+                    horizon
+                        .newest_generation
+                        .map_or_else(|| "none".into(), |value| value.to_string()),
+                    horizon.next_generation,
+                    horizon.evicted_through_generation,
+                    horizon
+                        .protected_from_generation
+                        .map_or_else(|| "none".into(), |value| value.to_string()),
+                ));
+            }
             Ok(output)
         }
         ProtocolResponse::Query(QueryResult::RuntimeList { revision, runtimes }) => {
@@ -1294,6 +1312,9 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
         )),
         ProtocolResponse::OrchestraDeleteReceipt(_) => Err(CliError::Protocol(
             "unexpected Orchestra delete receipt response".into(),
+        )),
+        ProtocolResponse::OrchestraDeleteReplayHorizon(_) => Err(CliError::Protocol(
+            "unexpected Orchestra delete replay horizon response".into(),
         )),
         ProtocolResponse::RuntimeUnregistered(result) => {
             let runtimes = if result.removed.is_empty() {

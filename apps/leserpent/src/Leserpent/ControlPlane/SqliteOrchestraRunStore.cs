@@ -5,8 +5,9 @@ namespace Leserpent.ControlPlane;
 
 public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
     private const int MaxRunsPerRuntime = 32;
+    private const ulong MaxDeleteReceipts = 4096;
     private readonly string connectionString;
     private readonly ILogger<SqliteOrchestraRunStore> logger;
 
@@ -35,6 +36,7 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     public string Provider => "sqlite";
     public string Location { get; }
     public int SchemaVersion => CurrentSchemaVersion;
+    public bool SupportsDeleteReplayHorizon => true;
     public string? LastError { get; private set; }
 
     public IReadOnlyList<OrchestraRunSummary> LoadAll()
@@ -268,10 +270,12 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 capacity.Transaction = transaction;
                 capacity.CommandText =
                     "SELECT COUNT(*) FROM orchestra_delete_operations;";
-                if (Convert.ToInt64(capacity.ExecuteScalar()) >= 4096)
+                if (checked((ulong)Convert.ToInt64(
+                        capacity.ExecuteScalar())) >=
+                    MaxDeleteReceipts)
                 {
                     throw new InvalidOperationException(
-                        "Orchestra delete receipt capacity is exhausted");
+                        "Orchestra delete replay horizon is pinned by reconciliation audit");
                 }
             }
             uint deletedRuntimeCount = 0;
@@ -339,6 +343,22 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             var generation = checked(
                 (ulong)Convert.ToInt64(
                     generationQuery.ExecuteScalar()));
+            using var protect = connection.CreateCommand();
+            protect.Transaction = transaction;
+            protect.CommandText = """
+                UPDATE orchestra_delete_replay_horizon
+                SET protected_from_generation =
+                    COALESCE(protected_from_generation, $generation)
+                WHERE id = 1;
+                """;
+            protect.Parameters.AddWithValue(
+                "$generation",
+                checked((long)generation));
+            if (protect.ExecuteNonQuery() != 1)
+            {
+                throw new InvalidDataException(
+                    "Orchestra delete replay protection is inconsistent");
+            }
             transaction.Commit();
             LastError = null;
             return new OrchestraDeleteReceipt(
@@ -355,6 +375,240 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         {
             RecordError(ex, "idempotently delete Orchestra runs");
             return null;
+        }
+    }
+
+    public OrchestraDeleteReplayHorizon? GetDeleteReplayHorizon()
+    {
+        try
+        {
+            using var connection = OpenConnection();
+            var horizon = ReadDeleteReplayHorizon(
+                connection,
+                null);
+            LastError = null;
+            return horizon;
+        }
+        catch (Exception ex)
+        {
+            RecordError(ex, "query Orchestra delete replay horizon");
+            return null;
+        }
+    }
+
+    public OrchestraDeleteReplayHorizon? CheckpointDeleteReplayHorizon(
+        OrchestraDeleteReplayCheckpoint checkpoint)
+    {
+        try
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            var horizon = ReadDeleteReplayHorizon(
+                connection,
+                transaction);
+            if (checkpoint.MinimumRetainedGeneration == 0 ||
+                checkpoint.ObservedThroughGeneration <
+                    checkpoint.MinimumRetainedGeneration ||
+                horizon.NewestGeneration is null ||
+                checkpoint.ObservedThroughGeneration >
+                    horizon.NewestGeneration ||
+                checkpoint.MinimumRetainedGeneration <=
+                    horizon.EvictedThroughGeneration ||
+                horizon.ProtectedFromGeneration is not null &&
+                    checkpoint.MinimumRetainedGeneration <
+                        horizon.ProtectedFromGeneration)
+            {
+                throw new InvalidDataException(
+                    "Orchestra delete replay checkpoint is outside the retained horizon");
+            }
+            var expected = checked(
+                checkpoint.ObservedThroughGeneration -
+                checkpoint.MinimumRetainedGeneration + 1);
+            using (var range = connection.CreateCommand())
+            {
+                range.Transaction = transaction;
+                range.CommandText = """
+                    SELECT COUNT(*) FROM orchestra_delete_operations
+                    WHERE generation BETWEEN $minimum AND $observed;
+                    """;
+                range.Parameters.AddWithValue(
+                    "$minimum",
+                    checked((long)checkpoint.MinimumRetainedGeneration));
+                range.Parameters.AddWithValue(
+                    "$observed",
+                    checked((long)checkpoint.ObservedThroughGeneration));
+                if (checked((ulong)Convert.ToInt64(
+                        range.ExecuteScalar())) != expected)
+                {
+                    throw new InvalidDataException(
+                        "Orchestra delete replay checkpoint has a receipt gap");
+                }
+            }
+            using (var update = connection.CreateCommand())
+            {
+                update.Transaction = transaction;
+                update.CommandText = """
+                    UPDATE orchestra_delete_replay_horizon
+                    SET protected_from_generation = $minimum
+                    WHERE id = 1 AND (
+                        protected_from_generation IS NULL OR
+                        protected_from_generation <= $minimum);
+                    """;
+                update.Parameters.AddWithValue(
+                    "$minimum",
+                    checked((long)checkpoint.MinimumRetainedGeneration));
+                if (update.ExecuteNonQuery() != 1)
+                {
+                    throw new InvalidDataException(
+                        "Orchestra delete replay checkpoint conflicted");
+                }
+            }
+            CompactDeleteReplayHorizon(
+                connection,
+                transaction,
+                checkpoint.MinimumRetainedGeneration);
+            var checkpointed = ReadDeleteReplayHorizon(
+                connection,
+                transaction);
+            transaction.Commit();
+            LastError = null;
+            return checkpointed;
+        }
+        catch (Exception ex)
+        {
+            RecordError(ex, "checkpoint Orchestra delete replay horizon");
+            return null;
+        }
+    }
+
+    private static OrchestraDeleteReplayHorizon ReadDeleteReplayHorizon(
+        SqliteConnection connection,
+        SqliteTransaction? transaction)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT
+                COUNT(*),
+                MIN(generation),
+                MAX(generation),
+                COALESCE((
+                    SELECT seq + 1 FROM sqlite_sequence
+                    WHERE name = 'orchestra_delete_operations'
+                ), 1),
+                (
+                    SELECT evicted_through_generation
+                    FROM orchestra_delete_replay_horizon WHERE id = 1
+                ),
+                (
+                    SELECT protected_from_generation
+                    FROM orchestra_delete_replay_horizon WHERE id = 1
+                )
+            FROM orchestra_delete_operations;
+            """;
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            throw new InvalidDataException(
+                "Orchestra delete replay horizon is missing");
+        }
+        var retained = checked((ulong)reader.GetInt64(0));
+        var oldest = reader.IsDBNull(1)
+            ? null
+            : checked((ulong?)reader.GetInt64(1));
+        var newest = reader.IsDBNull(2)
+            ? null
+            : checked((ulong?)reader.GetInt64(2));
+        var next = checked((ulong)reader.GetInt64(3));
+        var evicted = checked((ulong)reader.GetInt64(4));
+        var protectedFrom = reader.IsDBNull(5)
+            ? null
+            : checked((ulong?)reader.GetInt64(5));
+        var contiguous = oldest is null && newest is null
+            ? retained == 0 &&
+                checked(evicted + 1) == next &&
+                protectedFrom is null
+            : oldest is not null && newest is not null &&
+                retained > 0 &&
+                checked(evicted + 1) == oldest &&
+                checked(newest.Value + 1) == next &&
+                checked(newest.Value - oldest.Value + 1) == retained &&
+                protectedFrom is not null &&
+                protectedFrom >= oldest &&
+                protectedFrom <= newest;
+        if (retained > MaxDeleteReceipts ||
+            next == 0 ||
+            evicted >= next ||
+            !contiguous)
+        {
+            throw new InvalidDataException(
+                "Orchestra delete replay horizon metadata is inconsistent");
+        }
+        return new OrchestraDeleteReplayHorizon(
+            MaxDeleteReceipts,
+            retained,
+            oldest,
+            newest,
+            next,
+            evicted,
+            protectedFrom);
+    }
+
+    private static void CompactDeleteReplayHorizon(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ulong protectedFrom)
+    {
+        long count;
+        long? highWater;
+        using (var plan = connection.CreateCommand())
+        {
+            plan.Transaction = transaction;
+            plan.CommandText = """
+                SELECT COUNT(*), MAX(generation)
+                FROM orchestra_delete_operations
+                WHERE generation < $protected_from;
+                """;
+            plan.Parameters.AddWithValue(
+                "$protected_from",
+                checked((long)protectedFrom));
+            using var reader = plan.ExecuteReader();
+            _ = reader.Read();
+            count = reader.GetInt64(0);
+            highWater = reader.IsDBNull(1)
+                ? null
+                : reader.GetInt64(1);
+        }
+        if (count == 0)
+        {
+            return;
+        }
+        using var delete = connection.CreateCommand();
+        delete.Transaction = transaction;
+        delete.CommandText = """
+            DELETE FROM orchestra_delete_operations
+            WHERE generation < $protected_from;
+            """;
+        delete.Parameters.AddWithValue(
+            "$protected_from",
+            checked((long)protectedFrom));
+        var deleted = delete.ExecuteNonQuery();
+        using var update = connection.CreateCommand();
+        update.Transaction = transaction;
+        update.CommandText = """
+            UPDATE orchestra_delete_replay_horizon
+            SET evicted_through_generation = $high_water
+            WHERE id = 1 AND evicted_through_generation < $high_water;
+            """;
+        update.Parameters.AddWithValue(
+            "$high_water",
+            highWater ??
+                throw new InvalidDataException(
+                    "Orchestra delete replay compaction plan is incomplete"));
+        if (deleted != count || update.ExecuteNonQuery() != 1)
+        {
+            throw new InvalidDataException(
+                "Orchestra delete replay compaction is inconsistent");
         }
     }
 
@@ -418,7 +672,19 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 deleted_event_count INTEGER NOT NULL,
                 committed_at_unix_ms INTEGER NOT NULL
             );
-            PRAGMA user_version = 3;
+            CREATE TABLE IF NOT EXISTS orchestra_delete_replay_horizon (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                evicted_through_generation INTEGER NOT NULL
+                    CHECK (evicted_through_generation >= 0),
+                protected_from_generation INTEGER NULL
+                    CHECK (protected_from_generation >= 1)
+            );
+            INSERT OR IGNORE INTO orchestra_delete_replay_horizon (
+                id, evicted_through_generation,
+                protected_from_generation)
+            SELECT 1, 0, MIN(generation)
+            FROM orchestra_delete_operations;
+            PRAGMA user_version = 4;
             """;
         command.ExecuteNonQuery();
     }

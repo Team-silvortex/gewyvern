@@ -51,7 +51,8 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
     public bool Enabled => socketPath is not null;
     public string Provider => Enabled ? "leserpentd" : "disabled";
     public string Location => socketPath ?? "unconfigured";
-    public int SchemaVersion => Enabled ? 16 : 0;
+    public int SchemaVersion => Enabled ? 17 : 0;
+    public bool SupportsDeleteReplayHorizon => Enabled;
     public string? LastError { get; private set; }
 
     public IReadOnlyList<OrchestraRunSummary> LoadAll() =>
@@ -273,6 +274,98 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
                     committedAtUnixMs),
                 replayed);
         });
+    }
+
+    public OrchestraDeleteReplayHorizon? GetDeleteReplayHorizon() =>
+        Execute("query Orchestra delete replay horizon", () =>
+        {
+            using var response = Exchange(BuildFrame(
+                "orchestra_delete_replay_horizon",
+                WriteAuthority));
+            return ReadDeleteReplayHorizon(
+                RequireResponse(
+                    response.RootElement,
+                    "orchestra_delete_replay_horizon"));
+        });
+
+    public OrchestraDeleteReplayHorizon? CheckpointDeleteReplayHorizon(
+        OrchestraDeleteReplayCheckpoint checkpoint) =>
+        Execute("checkpoint Orchestra delete replay horizon", () =>
+        {
+            using var response = Exchange(BuildFrame(
+                "orchestra_delete_replay_checkpoint",
+                writer =>
+                {
+                    WriteAuthority(writer);
+                    writer.WriteNumber(
+                        "minimum_retained_generation",
+                        checkpoint.MinimumRetainedGeneration);
+                    writer.WriteNumber(
+                        "observed_through_generation",
+                        checkpoint.ObservedThroughGeneration);
+                }));
+            return ReadDeleteReplayHorizon(
+                RequireResponse(
+                    response.RootElement,
+                    "orchestra_delete_replay_horizon"));
+        });
+
+    private static OrchestraDeleteReplayHorizon
+        ReadDeleteReplayHorizon(JsonElement payload)
+    {
+        var capacity = payload.GetProperty("capacity").GetUInt64();
+        var retained = payload.GetProperty("retained").GetUInt64();
+        var oldest = ReadOptionalUInt64(
+            payload,
+            "oldest_generation");
+        var newest = ReadOptionalUInt64(
+            payload,
+            "newest_generation");
+        var next = payload.GetProperty("next_generation").GetUInt64();
+        var evicted = payload
+            .GetProperty("evicted_through_generation")
+            .GetUInt64();
+        var protectedFrom = ReadOptionalUInt64(
+            payload,
+            "protected_from_generation");
+        var contiguous = oldest is null && newest is null
+            ? retained == 0 &&
+                evicted < next &&
+                checked(evicted + 1) == next &&
+                protectedFrom is null
+            : oldest is not null && newest is not null &&
+                retained > 0 &&
+                checked(evicted + 1) == oldest &&
+                checked(newest.Value + 1) == next &&
+                checked(newest.Value - oldest.Value + 1) == retained &&
+                protectedFrom >= oldest &&
+                protectedFrom <= newest;
+        if (capacity != 4096 ||
+            retained > capacity ||
+            next == 0 ||
+            !contiguous)
+        {
+            throw new InvalidDataException(
+                "leserpentd returned an invalid Orchestra delete replay horizon");
+        }
+        return new OrchestraDeleteReplayHorizon(
+            capacity,
+            retained,
+            oldest,
+            newest,
+            next,
+            evicted,
+            protectedFrom);
+    }
+
+    private static ulong? ReadOptionalUInt64(
+        JsonElement payload,
+        string property)
+    {
+        var value = payload.GetProperty(property);
+        return value.ValueKind == JsonValueKind.Null
+            ? null
+            : value.GetUInt64();
     }
 
     private IReadOnlyList<T> LoadPages<T>(string? runtimeId, string? runId, string property)

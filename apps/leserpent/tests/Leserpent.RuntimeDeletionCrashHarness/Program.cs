@@ -526,6 +526,8 @@ internal sealed class PauseAfterOrchestraCleanupRunStore(
     public string Provider => inner.Provider;
     public string Location => inner.Location;
     public int SchemaVersion => inner.SchemaVersion;
+    public bool SupportsDeleteReplayHorizon =>
+        inner.SupportsDeleteReplayHorizon;
     public string? LastError => inner.LastError;
 
     public IReadOnlyList<OrchestraRunSummary> LoadAll() =>
@@ -571,6 +573,13 @@ internal sealed class PauseAfterOrchestraCleanupRunStore(
         WaitForTrigger();
         return receipt;
     }
+
+    public OrchestraDeleteReplayHorizon? GetDeleteReplayHorizon() =>
+        inner.GetDeleteReplayHorizon();
+
+    public OrchestraDeleteReplayHorizon? CheckpointDeleteReplayHorizon(
+        OrchestraDeleteReplayCheckpoint checkpoint) =>
+        inner.CheckpointDeleteReplayHorizon(checkpoint);
 
     private void WriteBoundaryMarker(string content)
     {

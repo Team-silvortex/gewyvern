@@ -300,7 +300,8 @@ mod tests {
     };
     use leserpent_protocol::{
         DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest,
-        OrchestraDeleteCommandRequest, OrchestraDeleteRequest, OrchestraHistoryRequest,
+        OrchestraDeleteCommandRequest, OrchestraDeleteReplayCheckpointRequest,
+        OrchestraDeleteReplayHorizonRequest, OrchestraDeleteRequest, OrchestraHistoryRequest,
         OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse,
         RequestEnvelope, RuntimeUnregisterRequest, RuntimeUnregisterTarget,
         RuntimeUnregistrationReceiptRequest, decode_response,
@@ -1346,6 +1347,55 @@ mod tests {
                 if receipt.operation_generation == first_receipt.operation_generation
                     && receipt.committed_at_unix_ms == first_receipt.committed_at_unix_ms
                     && receipt.replayed
+        ));
+        let horizon = send(
+            &server,
+            &mut runtime,
+            &socket,
+            TOKEN,
+            RequestEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                request: ProtocolRequest::OrchestraDeleteReplayHorizon(
+                    OrchestraDeleteReplayHorizonRequest {
+                        principal: Principal {
+                            id: "operator-a".into(),
+                        },
+                        capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                    },
+                ),
+            },
+        );
+        assert!(matches!(
+            horizon.response,
+            ProtocolResponse::OrchestraDeleteReplayHorizon(ref horizon)
+                if horizon.retained == 1
+                    && horizon.protected_from_generation == Some(1)
+        ));
+        let checkpointed = send(
+            &server,
+            &mut runtime,
+            &socket,
+            TOKEN,
+            RequestEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                request: ProtocolRequest::OrchestraDeleteReplayCheckpoint(
+                    OrchestraDeleteReplayCheckpointRequest {
+                        principal: Principal {
+                            id: "operator-a".into(),
+                        },
+                        capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                        minimum_retained_generation: 1,
+                        observed_through_generation: 1,
+                    },
+                ),
+            },
+        );
+        assert!(matches!(
+            checkpointed.response,
+            ProtocolResponse::OrchestraDeleteReplayHorizon(ref horizon)
+                if horizon.oldest_generation == Some(1)
+                    && horizon.newest_generation == Some(1)
+                    && horizon.protected_from_generation == Some(1)
         ));
 
         let retention_envelope = |index: u8| {

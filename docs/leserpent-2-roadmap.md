@@ -1091,20 +1091,32 @@ at the typed field boundary, and restores either the complete previous or
 replacement control generation. The cleanup receipt gate is complete: one
 command ID is derived from the reconciliation intent and revision, and runtime
 schema v16 atomically persists its canonical targets, operation generation,
-deletion counts, and timestamp with the Orchestra delete. Previous generations
-replay the command and receive the same generation with `replayed=true`;
-replacement generations retain the command ID and generation in their audit.
-Target drift under the same ID fails closed. Every final reload retains exactly
-one reconciliation audit, replays both request identities, and verifies the
-same durable cleanup generation. Both platforms retained nine forced
-terminations with no torn generation. Evidence lives in
+deletion counts, and timestamp with the Orchestra delete. Schema v17 now adds
+the bounded cleanup receipt gate: a contiguous 4096-generation horizon exposes
+oldest, newest, next, evicted-through, and protected-from metadata through
+health and authenticated IPC. Every new receipt protects itself in the delete
+transaction. A monotonic checkpoint is accepted only for a complete retained
+generation range and only after the corresponding reconciliation audit is
+durable; it then deletes exactly the older prefix and advances the high-water
+mark in the same transaction. Restart validates that the oldest retained audit
+still lies inside the horizon. The local C# SQLite bridge uses schema v4 and the
+same checks, while Rust schema-v16 receipts migrate losslessly to v17.
+
+Previous control generations replay the command and receive the same generation
+with `replayed=true`; replacement generations retain the command ID and
+generation in their audit. Target drift under the same ID fails closed. Every
+final reload retains exactly one reconciliation audit, replays both request
+identities, and verifies the same durable cleanup generation. Existing cleanup
+evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`;
 `scripts/validation/leserpent_runtime_deletion_cross_authority.sh` reproduces
-it. This proves idempotent convergence, not a distributed transaction. The next
-gate adds a bounded, queryable Orchestra cleanup receipt horizon and protects
-every generation referenced by the retained reconciliation audit during
-restart and compaction.
+it. The Arm64 fixture now also retains nine forced-termination checkpoint and
+prefix-compaction proofs. The physical Linux x86_64 fixture remains at the
+schema-v16 cleanup-receipt gate because the host link was too unreliable to
+complete source transfer and the physical campaign; refreshing that proof and
+exposing pinned-horizon saturation as an operator diagnostic are the next gate.
+This proves idempotent convergence, not a distributed transaction.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

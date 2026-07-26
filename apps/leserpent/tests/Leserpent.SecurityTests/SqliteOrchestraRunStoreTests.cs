@@ -94,7 +94,7 @@ public sealed class SqliteOrchestraRunStoreTests
 
         var store = CreateSqliteStore(databasePath);
         var run = Assert.Single(store.LoadAll());
-        Assert.Equal(3, store.SchemaVersion);
+        Assert.Equal(4, store.SchemaVersion);
         Assert.Equal("legacy-run", run.RunId);
 
         store.Upsert(
@@ -180,6 +180,190 @@ public sealed class SqliteOrchestraRunStoreTests
                 RuntimeIds = new[] { "runtime-conflict" },
             }));
         DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void SqliteDeleteReplayCheckpointCompactsOnlyAuditedPrefix()
+    {
+        var databasePath = TemporaryPath("db");
+        var store = CreateSqliteStore(databasePath);
+        var commands = Enumerable.Range(1, 3)
+            .Select(index => new OrchestraDeleteCommand(
+                $"orchestra-cleanup-{index}",
+                new[] { "runtime-1" }))
+            .ToArray();
+        foreach (var (command, index) in commands.Select(
+            static (command, index) => (command, index)))
+        {
+            Assert.Equal(
+                checked((ulong)index + 1),
+                store.DeleteRuntimes(command)!.OperationGeneration);
+        }
+        Assert.Equal(
+            new OrchestraDeleteReplayHorizon(
+                4096,
+                3,
+                1,
+                3,
+                4,
+                0,
+                1),
+            store.GetDeleteReplayHorizon());
+        Assert.Null(store.CheckpointDeleteReplayHorizon(
+            new OrchestraDeleteReplayCheckpoint(3, 2)));
+
+        var checkpointed = store.CheckpointDeleteReplayHorizon(
+            new OrchestraDeleteReplayCheckpoint(2, 3));
+        Assert.Equal(
+            new OrchestraDeleteReplayHorizon(
+                4096,
+                2,
+                2,
+                3,
+                4,
+                1,
+                2),
+            checkpointed);
+        Assert.Null(store.CheckpointDeleteReplayHorizon(
+            new OrchestraDeleteReplayCheckpoint(1, 3)));
+
+        var restarted = CreateSqliteStore(databasePath);
+        Assert.Equal(
+            checkpointed,
+            restarted.GetDeleteReplayHorizon());
+        foreach (var index in new[] { 1, 2 })
+        {
+            var replay = restarted.DeleteRuntimes(commands[index]);
+            Assert.NotNull(replay);
+            Assert.True(replay.Replayed);
+            Assert.Equal(
+                checked((ulong)index + 1),
+                replay.OperationGeneration);
+        }
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void SqliteSchemaThreeReceiptsMigrateLosslesslyToReplayHorizon()
+    {
+        var databasePath = TemporaryPath("db");
+        var command = new OrchestraDeleteCommand(
+            "orchestra-cleanup-v3",
+            new[] { "runtime-1" });
+        var first = CreateSqliteStore(databasePath)
+            .DeleteRuntimes(command);
+        Assert.NotNull(first);
+        using (var connection = new SqliteConnection(
+            $"Data Source={databasePath}"))
+        {
+            connection.Open();
+            using var downgrade = connection.CreateCommand();
+            downgrade.CommandText = """
+                DROP TABLE orchestra_delete_replay_horizon;
+                PRAGMA user_version = 3;
+                """;
+            downgrade.ExecuteNonQuery();
+        }
+
+        var migrated = CreateSqliteStore(databasePath);
+        Assert.Equal(
+            new OrchestraDeleteReplayHorizon(
+                4096,
+                1,
+                1,
+                1,
+                2,
+                0,
+                1),
+            migrated.GetDeleteReplayHorizon());
+        var replay = migrated.DeleteRuntimes(command);
+        Assert.NotNull(replay);
+        Assert.True(replay.Replayed);
+        Assert.Equal(first.OperationGeneration, replay.OperationGeneration);
+        Assert.Equal(first.CommittedAt, replay.CommittedAt);
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void RegistryAuditCheckpointProtectsThenCompactsReceiptsAcrossRestart()
+    {
+        var statePath = TemporaryPath("json");
+        var databasePath = TemporaryPath("db");
+        try
+        {
+            var orchestraStore = CreateSqliteStore(databasePath);
+            var reconciledAt = DateTimeOffset.UtcNow;
+            var audits = Enumerable.Range(1, 3)
+                .Select(index =>
+                {
+                    var commandId = $"orchestra-cleanup-audit-{index}";
+                    var receipt = orchestraStore.DeleteRuntimes(
+                        new OrchestraDeleteCommand(
+                            commandId,
+                            new[] { $"runtime-audit-{index}" }));
+                    Assert.NotNull(receipt);
+                    Assert.Equal(
+                        checked((ulong)index),
+                        receipt.OperationGeneration);
+                    return new PersistedRuntimeDeletionReconciliationAudit(
+                        $"reconcile-request-{index}",
+                        $"delete-intent-{index}",
+                        new[] { $"runtime-audit-{index}" },
+                        1,
+                        checked((ulong)index),
+                        "operator-a",
+                        reconciledAt,
+                        commandId,
+                        receipt.OperationGeneration);
+                })
+                .ToArray();
+            var stateStore = CreateStateStore(statePath);
+            stateStore.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                runtimeDeletionReconciliationAudit: audits);
+
+            _ = new RegistryService(
+                CreateStateStore(statePath),
+                CreateSqliteStore(databasePath));
+            Assert.Equal(
+                1UL,
+                CreateSqliteStore(databasePath)
+                    .GetDeleteReplayHorizon()!
+                    .OldestGeneration);
+
+            stateStore.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                runtimeDeletionReconciliationAudit: audits[1..]);
+            _ = new RegistryService(
+                CreateStateStore(statePath),
+                CreateSqliteStore(databasePath));
+            var compacted = CreateSqliteStore(databasePath)
+                .GetDeleteReplayHorizon();
+            Assert.NotNull(compacted);
+            Assert.Equal(2UL, compacted.OldestGeneration);
+            Assert.Equal(1UL, compacted.EvictedThroughGeneration);
+            Assert.Equal(2UL, compacted.ProtectedFromGeneration);
+
+            stateStore.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                runtimeDeletionReconciliationAudit: audits);
+            var error = Assert.Throws<OrchestraPersistenceException>(() =>
+                new RegistryService(
+                    CreateStateStore(statePath),
+                    CreateSqliteStore(databasePath)));
+            Assert.Contains(
+                "outside the durable replay horizon",
+                error.Message,
+                StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteState(statePath);
+            DeleteDatabase(databasePath);
+        }
     }
 
     [Fact]

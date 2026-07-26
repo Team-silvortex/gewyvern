@@ -16,11 +16,12 @@ use leserpent_domain::{RuntimeId, RuntimeLogLevel, RuntimeLogRecord};
 
 use crate::{
     EFFECT_QUEUE_CAPACITY, EffectEnqueue, EffectQueueStats, MAX_EFFECT_ENQUEUE_BATCH,
+    ORCHESTRA_DELETE_REPLAY_HORIZON, OrchestraDeleteReplayHorizon,
     RUNTIME_UNREGISTRATION_REPLAY_HORIZON, RuntimeUnregisterTarget, RuntimeUnregistration,
     RuntimeUnregistrationReplayHorizon,
 };
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 16;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 17;
 pub const AUTHORITY_KIND_DAEMON_BOOTSTRAP: &str = "daemon_bootstrap";
 pub const AUTHORITY_KIND_GEWYVERN_PROVISIONING: &str = "gewyvern_provisioning";
 pub const AUTHORITY_KIND_GEWYVERN_RETIREMENT: &str = "gewyvern_retirement";
@@ -34,7 +35,6 @@ const MAX_EFFECT_LEASE_MS: i64 = 5 * 60 * 1_000;
 const MAX_ORCHESTRA_ENVELOPE_BYTES: usize = 1024 * 1024;
 const MAX_ORCHESTRA_EVENTS_PER_RUN: usize = 3;
 const MAX_ORCHESTRA_RUNS_PER_RUNTIME: usize = 32;
-const MAX_ORCHESTRA_DELETE_OPERATIONS: i64 = 4_096;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: i64 = 4_096;
 static OWNER_TOKEN_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -1237,18 +1237,7 @@ impl Journal {
             transaction.commit().map_err(|error| error.to_string())?;
             return Ok((record, true));
         }
-        let retained: i64 = transaction
-            .query_row(
-                "SELECT COUNT(*) FROM orchestra_delete_operations",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(|error| error.to_string())?;
-        if retained >= MAX_ORCHESTRA_DELETE_OPERATIONS {
-            return Err(format!(
-                "Orchestra delete operation limit {MAX_ORCHESTRA_DELETE_OPERATIONS} reached"
-            ));
-        }
+        evict_orchestra_delete_replay_horizon(&transaction, 1)?;
         let generation = allocate_orchestra_delete_generation(&transaction)?;
         let committed_at_unix_ms = next_orchestra_delete_timestamp(&transaction)?;
         let deleted =
@@ -1288,9 +1277,95 @@ impl Journal {
         if record != expected {
             return Err("Orchestra delete operation post-write receipt is inconsistent".into());
         }
+        let protected = transaction
+            .execute(
+                "UPDATE orchestra_delete_replay_horizon
+                 SET protected_from_generation =
+                     COALESCE(protected_from_generation, ?1)
+                 WHERE id = 1",
+                [i64::try_from(generation)
+                    .map_err(|_| "Orchestra delete generation is out of range")?],
+            )
+            .map_err(|error| error.to_string())?;
+        if protected != 1 {
+            return Err("Orchestra delete replay protection is inconsistent".into());
+        }
         validate_orchestra_delete_replay_snapshot(&transaction, &record)?;
+        load_orchestra_delete_replay_horizon(&transaction)?;
         transaction.commit().map_err(|error| error.to_string())?;
         Ok((record, false))
+    }
+
+    pub fn orchestra_delete_replay_horizon(
+        &mut self,
+    ) -> Result<OrchestraDeleteReplayHorizon, String> {
+        self.ensure_owner()?;
+        load_orchestra_delete_replay_horizon(&self.connection)
+    }
+
+    pub fn checkpoint_orchestra_delete_replay_horizon(
+        &mut self,
+        minimum_retained_generation: u64,
+        observed_through_generation: u64,
+    ) -> Result<OrchestraDeleteReplayHorizon, String> {
+        self.ensure_owner()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let horizon = load_orchestra_delete_replay_horizon(&transaction)?;
+        if minimum_retained_generation == 0
+            || observed_through_generation < minimum_retained_generation
+            || horizon
+                .newest_generation
+                .is_none_or(|newest| observed_through_generation > newest)
+            || minimum_retained_generation <= horizon.evicted_through_generation
+            || horizon
+                .protected_from_generation
+                .is_some_and(|protected| minimum_retained_generation < protected)
+        {
+            return Err(
+                "Orchestra delete replay checkpoint is outside the retained horizon".into(),
+            );
+        }
+        let expected = observed_through_generation
+            .checked_sub(minimum_retained_generation)
+            .and_then(|span| span.checked_add(1))
+            .ok_or_else(|| "Orchestra delete replay checkpoint is invalid".to_string())?;
+        let retained: i64 = transaction
+            .query_row(
+                "SELECT COUNT(*) FROM orchestra_delete_operations
+                 WHERE generation BETWEEN ?1 AND ?2",
+                params![
+                    i64::try_from(minimum_retained_generation)
+                        .map_err(|_| "Orchestra delete replay checkpoint is invalid")?,
+                    i64::try_from(observed_through_generation)
+                        .map_err(|_| "Orchestra delete replay checkpoint is invalid")?,
+                ],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if u64::try_from(retained).ok() != Some(expected) {
+            return Err("Orchestra delete replay checkpoint has a receipt gap".into());
+        }
+        let changed = transaction
+            .execute(
+                "UPDATE orchestra_delete_replay_horizon
+                 SET protected_from_generation = ?1
+                 WHERE id = 1
+                   AND (protected_from_generation IS NULL
+                        OR protected_from_generation <= ?1)",
+                [i64::try_from(minimum_retained_generation)
+                    .map_err(|_| "Orchestra delete replay checkpoint is invalid")?],
+            )
+            .map_err(|error| error.to_string())?;
+        if changed != 1 {
+            return Err("Orchestra delete replay checkpoint conflicted".into());
+        }
+        compact_orchestra_delete_before_protected(&transaction)?;
+        let checkpoint = load_orchestra_delete_replay_horizon(&transaction)?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(checkpoint)
     }
 
     pub fn runtime_unregistration_operation(
@@ -2431,6 +2506,184 @@ fn load_orchestra_delete_operation_record(
         .transpose()
 }
 
+fn load_orchestra_delete_replay_horizon(
+    connection: &Connection,
+) -> Result<OrchestraDeleteReplayHorizon, String> {
+    let (retained, oldest_generation, newest_generation): (i64, Option<i64>, Option<i64>) =
+        connection
+            .query_row(
+                "SELECT COUNT(*), MIN(generation), MAX(generation)
+                 FROM orchestra_delete_operations",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(|error| error.to_string())?;
+    let next_generation: i64 = connection
+        .query_row(
+            "SELECT next_generation FROM orchestra_delete_generation WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let (evicted_through_generation, protected_from_generation): (i64, Option<i64>) = connection
+        .query_row(
+            "SELECT evicted_through_generation, protected_from_generation
+             FROM orchestra_delete_replay_horizon WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|error| error.to_string())?;
+    let retained = u64::try_from(retained)
+        .map_err(|_| "Orchestra delete replay horizon retained count is invalid")?;
+    let capacity = u64::try_from(ORCHESTRA_DELETE_REPLAY_HORIZON)
+        .map_err(|_| "Orchestra delete replay horizon capacity is invalid")?;
+    let oldest_generation = oldest_generation
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|_| "Orchestra delete replay horizon oldest generation is invalid")?;
+    let newest_generation = newest_generation
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|_| "Orchestra delete replay horizon newest generation is invalid")?;
+    let next_generation = u64::try_from(next_generation)
+        .map_err(|_| "Orchestra delete replay horizon next generation is invalid")?;
+    let evicted_through_generation = u64::try_from(evicted_through_generation)
+        .map_err(|_| "Orchestra delete replay horizon high-water mark is invalid")?;
+    let protected_from_generation = protected_from_generation
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|_| "Orchestra delete replay horizon checkpoint is invalid")?;
+    let contiguous = match (oldest_generation, newest_generation) {
+        (None, None) => {
+            retained == 0
+                && evicted_through_generation
+                    .checked_add(1)
+                    .is_some_and(|next| next == next_generation)
+                && protected_from_generation.is_none()
+        }
+        (Some(oldest), Some(newest)) => {
+            retained > 0
+                && evicted_through_generation
+                    .checked_add(1)
+                    .is_some_and(|expected| expected == oldest)
+                && newest
+                    .checked_add(1)
+                    .is_some_and(|expected| expected == next_generation)
+                && newest
+                    .checked_sub(oldest)
+                    .and_then(|span| span.checked_add(1))
+                    .is_some_and(|span| span == retained)
+                && protected_from_generation
+                    .is_some_and(|protected| protected >= oldest && protected <= newest)
+        }
+        _ => false,
+    };
+    if retained > capacity
+        || next_generation == 0
+        || evicted_through_generation >= next_generation
+        || !contiguous
+    {
+        return Err("Orchestra delete replay horizon metadata is inconsistent".into());
+    }
+    Ok(OrchestraDeleteReplayHorizon {
+        capacity,
+        retained,
+        oldest_generation,
+        newest_generation,
+        next_generation,
+        evicted_through_generation,
+        protected_from_generation,
+    })
+}
+
+fn compact_orchestra_delete_before_protected(transaction: &Transaction<'_>) -> Result<u64, String> {
+    let horizon = load_orchestra_delete_replay_horizon(transaction)?;
+    let Some(protected_from_generation) = horizon.protected_from_generation else {
+        return Ok(0);
+    };
+    let protected = i64::try_from(protected_from_generation)
+        .map_err(|_| "Orchestra delete replay checkpoint is invalid".to_string())?;
+    let (candidate_count, high_water): (i64, Option<i64>) = transaction
+        .query_row(
+            "SELECT COUNT(*), MAX(generation)
+             FROM orchestra_delete_operations WHERE generation < ?1",
+            [protected],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|error| error.to_string())?;
+    if candidate_count == 0 {
+        return Ok(0);
+    }
+    let candidate_operation_ids = {
+        let mut statement = transaction
+            .prepare(
+                "SELECT operation_id FROM orchestra_delete_operations
+                 WHERE generation < ?1 ORDER BY generation",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([protected], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
+    if i64::try_from(candidate_operation_ids.len()).ok() != Some(candidate_count) {
+        return Err("Orchestra delete replay compaction plan is inconsistent".into());
+    }
+    for operation_id in candidate_operation_ids {
+        validate_scheduler_id("Orchestra delete operation_id", &operation_id)?;
+        let record = load_orchestra_delete_operation_record(transaction, &operation_id)?
+            .ok_or_else(|| {
+                "Orchestra delete replay compaction candidate disappeared".to_string()
+            })?;
+        validate_orchestra_delete_replay_snapshot(transaction, &record)?;
+    }
+    let high_water = high_water
+        .ok_or_else(|| "Orchestra delete replay compaction plan is incomplete".to_string())?;
+    let deleted = transaction
+        .execute(
+            "DELETE FROM orchestra_delete_operations WHERE generation < ?1",
+            [protected],
+        )
+        .map_err(|error| error.to_string())?;
+    let updated = transaction
+        .execute(
+            "UPDATE orchestra_delete_replay_horizon
+             SET evicted_through_generation = ?1
+             WHERE id = 1 AND evicted_through_generation < ?1",
+            [high_water],
+        )
+        .map_err(|error| error.to_string())?;
+    if i64::try_from(deleted).ok() != Some(candidate_count) || updated != 1 {
+        return Err("Orchestra delete replay compaction is inconsistent".into());
+    }
+    load_orchestra_delete_replay_horizon(transaction)?;
+    u64::try_from(deleted)
+        .map_err(|_| "Orchestra delete replay compaction count is invalid".to_string())
+}
+
+fn evict_orchestra_delete_replay_horizon(
+    transaction: &Transaction<'_>,
+    incoming_operations: usize,
+) -> Result<u64, String> {
+    if incoming_operations > ORCHESTRA_DELETE_REPLAY_HORIZON {
+        return Err("Orchestra delete replay horizon admission is invalid".into());
+    }
+    let compacted = compact_orchestra_delete_before_protected(transaction)?;
+    let horizon = load_orchestra_delete_replay_horizon(transaction)?;
+    let admitted = horizon
+        .retained
+        .checked_add(
+            u64::try_from(incoming_operations)
+                .map_err(|_| "Orchestra delete replay horizon admission is invalid")?,
+        )
+        .ok_or_else(|| "Orchestra delete replay horizon admission is invalid".to_string())?;
+    if admitted > horizon.capacity {
+        return Err("Orchestra delete replay horizon is pinned by reconciliation audit".into());
+    }
+    Ok(compacted)
+}
+
 fn allocate_orchestra_delete_generation(transaction: &Transaction<'_>) -> Result<u64, String> {
     let next: i64 = transaction
         .query_row(
@@ -3177,10 +3430,50 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         13 => migrate_schema_13_to_14(connection),
         14 => migrate_schema_14_to_15(connection),
         15 => migrate_schema_15_to_16(connection),
+        16 => migrate_schema_16_to_17(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_16_to_17(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE orchestra_delete_replay_horizon (
+                 id INTEGER PRIMARY KEY CHECK (id = 1),
+                 evicted_through_generation INTEGER NOT NULL
+                     CHECK (evicted_through_generation >= 0),
+                 protected_from_generation INTEGER
+                     CHECK (protected_from_generation >= 1)
+             ) STRICT;
+             INSERT INTO orchestra_delete_replay_horizon
+                 (id, evicted_through_generation, protected_from_generation)
+             SELECT 1, 0, MIN(generation)
+             FROM orchestra_delete_operations;",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (17, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 17 WHERE key = 'schema_version' AND value = 16",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(17)
 }
 
 fn migrate_schema_15_to_16(connection: &mut Connection) -> Result<i64, String> {
@@ -3823,9 +4116,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (16, 1, 16) {
-        return Err("invalid runtime journal schema 16 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (17, 1, 17) {
+        return Err("invalid runtime journal schema 17 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -3835,23 +4128,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 16 timestamp column".into());
+        return Err("invalid runtime journal schema 17 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -3863,9 +4156,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 16 effect columns".into());
+        return Err("invalid runtime journal schema 17 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -3875,9 +4168,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 16 effect claim index".into());
+        return Err("invalid runtime journal schema 17 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
@@ -3889,9 +4182,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 16 journal kind".into());
+        return Err("invalid runtime journal schema 17 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -3900,9 +4193,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 16 log columns".into());
+        return Err("invalid runtime journal schema 17 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -3912,9 +4205,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 16 log index".into());
+        return Err("invalid runtime journal schema 17 log index".into());
     }
     let orchestra_tables: i64 = connection
         .query_row(
@@ -3923,9 +4216,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if orchestra_tables != 2 {
-        return Err("invalid runtime journal schema 16 Orchestra tables".into());
+        return Err("invalid runtime journal schema 17 Orchestra tables".into());
     }
     let orchestra_indexes: i64 = connection
         .query_row(
@@ -3937,9 +4230,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if orchestra_indexes != 3 {
-        return Err("invalid runtime journal schema 16 Orchestra indexes".into());
+        return Err("invalid runtime journal schema 17 Orchestra indexes".into());
     }
     let authority_columns: i64 = connection
         .query_row(
@@ -3951,9 +4244,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if authority_columns != 6 {
-        return Err("invalid runtime journal schema 16 authority checkpoint columns".into());
+        return Err("invalid runtime journal schema 17 authority checkpoint columns".into());
     }
     let authority_index: i64 = connection
         .query_row(
@@ -3963,9 +4256,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if authority_index != 1 {
-        return Err("invalid runtime journal schema 16 authority checkpoint index".into());
+        return Err("invalid runtime journal schema 17 authority checkpoint index".into());
     }
     let unregistration_columns: i64 = connection
         .query_row(
@@ -3977,9 +4270,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if unregistration_columns != 7 {
-        return Err("invalid runtime journal schema 16 unregistration columns".into());
+        return Err("invalid runtime journal schema 17 unregistration columns".into());
     }
     let unregistration_generation_index: i64 = connection
         .query_row(
@@ -3990,12 +4283,12 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if unregistration_generation_index != 1 {
-        return Err("invalid runtime journal schema 16 unregistration generation index".into());
+        return Err("invalid runtime journal schema 17 unregistration generation index".into());
     }
     load_runtime_unregistration_replay_horizon(connection)
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     let orchestra_delete_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('orchestra_delete_operations')
@@ -4006,9 +4299,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if orchestra_delete_columns != 7 {
-        return Err("invalid runtime journal schema 16 Orchestra delete columns".into());
+        return Err("invalid runtime journal schema 17 Orchestra delete columns".into());
     }
     let orchestra_delete_generation_rows: i64 = connection
         .query_row(
@@ -4017,10 +4310,12 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 16: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     if orchestra_delete_generation_rows != 1 {
-        return Err("invalid runtime journal schema 16 Orchestra delete generation".into());
+        return Err("invalid runtime journal schema 17 Orchestra delete generation".into());
     }
+    load_orchestra_delete_replay_horizon(connection)
+        .map_err(|error| format!("invalid runtime journal schema 17: {error}"))?;
     Ok(())
 }
 

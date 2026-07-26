@@ -982,6 +982,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 Assert.True(result.RequestReplayedAfterRestart);
                 Assert.True(
                     result.CleanupReceiptReplayedSameGeneration);
+                Assert.True(
+                    result.AuditCheckpointProtectedReplayHorizon);
             });
             WriteRuntimeDeletionCrossAuthorityEvidenceIfRequested(
                 iterations,
@@ -3359,6 +3361,21 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             Assert.Equal(
                 finalAudit.OrchestraCleanupGeneration,
                 replayedCleanupReceipt.OperationGeneration);
+            var cleanupHorizon =
+                orchestraStore.GetDeleteReplayHorizon();
+            Assert.NotNull(cleanupHorizon);
+            Assert.Equal(
+                finalAudit.OrchestraCleanupGeneration,
+                cleanupHorizon.OldestGeneration);
+            Assert.Equal(
+                finalAudit.OrchestraCleanupGeneration,
+                cleanupHorizon.ProtectedFromGeneration);
+            Assert.True(
+                cleanupHorizon.NewestGeneration >=
+                    finalAudit.OrchestraCleanupGeneration);
+            Assert.Equal(
+                checked(finalAudit.OrchestraCleanupGeneration.Value - 1),
+                cleanupHorizon.EvictedThroughGeneration);
             Assert.Null(finalReload.GetRuntime(
                 RuntimeDeletionReconciliationCommitTarget));
             Assert.DoesNotContain(
@@ -3388,7 +3405,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 FinalStateConverged: true,
                 SingleAuditSurvivedReload: true,
                 RequestReplayedAfterRestart: true,
-                CleanupReceiptReplayedSameGeneration: true);
+                CleanupReceiptReplayedSameGeneration: true,
+                AuditCheckpointProtectedReplayHorizon: true);
         }
         finally
         {
@@ -5680,6 +5698,10 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                     results.All(static result =>
                         result
                             .CleanupReceiptReplayedSameGeneration),
+                every_audit_checkpoint_protected_cleanup_replay_horizon =
+                    results.All(static result =>
+                        result
+                            .AuditCheckpointProtectedReplayHorizon),
                 both_control_generation_outcomes_were_exercised =
                     previousGenerationCount > 0 &&
                     replacementGenerationCount > 0,
@@ -6808,7 +6830,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         bool FinalStateConverged,
         bool SingleAuditSurvivedReload,
         bool RequestReplayedAfterRestart,
-        bool CleanupReceiptReplayedSameGeneration);
+        bool CleanupReceiptReplayedSameGeneration,
+        bool AuditCheckpointProtectedReplayHorizon);
 
     private enum RuntimeDeletionRetryAtomicRolloverStrategy
     {

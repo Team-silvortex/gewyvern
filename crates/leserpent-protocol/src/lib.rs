@@ -32,6 +32,8 @@ pub enum ProtocolRequest {
     OrchestraHistory(OrchestraHistoryRequest),
     OrchestraDelete(OrchestraDeleteRequest),
     OrchestraDeleteCommand(OrchestraDeleteCommandRequest),
+    OrchestraDeleteReplayHorizon(OrchestraDeleteReplayHorizonRequest),
+    OrchestraDeleteReplayCheckpoint(OrchestraDeleteReplayCheckpointRequest),
     RuntimeUnregister(RuntimeUnregisterRequest),
     RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptRequest),
     BootstrapHandoff(BootstrapHandoffRequest),
@@ -85,6 +87,22 @@ pub struct OrchestraDeleteCommandRequest {
     pub capabilities: CapabilitySet,
     pub command_id: CommandId,
     pub runtime_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraDeleteReplayHorizonRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrchestraDeleteReplayCheckpointRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub minimum_retained_generation: u64,
+    pub observed_through_generation: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -149,6 +167,7 @@ pub enum ProtocolResponse {
     OrchestraHistory(OrchestraHistoryResponse),
     OrchestraDeleted(OrchestraDeleteResponse),
     OrchestraDeleteReceipt(OrchestraDeleteReceiptResponse),
+    OrchestraDeleteReplayHorizon(OrchestraDeleteReplayHorizonResponse),
     RuntimeUnregistered(RuntimeUnregisterResponse),
     RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptLookupResponse),
     BootstrapHandoff(DeploymentBootstrapSnapshot),
@@ -214,6 +233,18 @@ pub struct OrchestraDeleteReceiptResponse {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct OrchestraDeleteReplayHorizonResponse {
+    pub capacity: u64,
+    pub retained: u64,
+    pub oldest_generation: Option<u64>,
+    pub newest_generation: Option<u64>,
+    pub next_generation: u64,
+    pub evicted_through_generation: u64,
+    pub protected_from_generation: Option<u64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeUnregisterResponse {
     pub command_id: CommandId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -255,6 +286,8 @@ pub struct HealthResponse {
     pub effect_queue: Option<EffectQueueHealth>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_unregistration_replay_horizon: Option<RuntimeUnregistrationReplayHorizonHealth>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orchestra_delete_replay_horizon: Option<OrchestraDeleteReplayHorizonResponse>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -386,6 +419,8 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::OrchestraDeleteCommand(_)
+        | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
+        | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
@@ -878,6 +913,41 @@ mod tests {
             decode_response(&encode_response(&delete_receipt).unwrap()).unwrap(),
             delete_receipt
         );
+        let replay_checkpoint = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraDeleteReplayCheckpoint(
+                OrchestraDeleteReplayCheckpointRequest {
+                    principal: Principal {
+                        id: "operator-a".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                    minimum_retained_generation: 4,
+                    observed_through_generation: 7,
+                },
+            ),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&replay_checkpoint).unwrap()).unwrap(),
+            replay_checkpoint
+        );
+        let replay_horizon = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::OrchestraDeleteReplayHorizon(
+                OrchestraDeleteReplayHorizonResponse {
+                    capacity: 4_096,
+                    retained: 4,
+                    oldest_generation: Some(4),
+                    newest_generation: Some(7),
+                    next_generation: 8,
+                    evicted_through_generation: 3,
+                    protected_from_generation: Some(4),
+                },
+            ),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&replay_horizon).unwrap()).unwrap(),
+            replay_horizon
+        );
         let unregister = RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
             request: ProtocolRequest::RuntimeUnregister(RuntimeUnregisterRequest {
@@ -989,6 +1059,7 @@ mod tests {
         };
         assert_eq!(health.effect_queue, None);
         assert_eq!(health.runtime_unregistration_replay_horizon, None);
+        assert_eq!(health.orchestra_delete_replay_horizon, None);
 
         let response = ResponseEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -1016,6 +1087,7 @@ mod tests {
                         evicted_through_generation: 3,
                     },
                 ),
+                orchestra_delete_replay_horizon: None,
             }),
         };
         assert_eq!(

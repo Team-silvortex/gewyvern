@@ -66,6 +66,7 @@ public sealed partial class RegistryService
         runtimeDeletionReconciliationAudit =
             NormalizeRuntimeDeletionReconciliationAudit(loaded);
         RestoreOrMigrateOrchestraRuns();
+        SynchronizeOrchestraDeleteReplayCheckpoint();
     }
 
     public RuntimeRegistrationResponse RegisterRuntime(
@@ -619,6 +620,7 @@ public sealed partial class RegistryService
                 }
                 else
                 {
+                    SynchronizeOrchestraDeleteReplayCheckpoint();
                     cleanupReceipt =
                         orchestraRunStore.DeleteRuntimes(cleanupCommand);
                     if (cleanupReceipt is null)
@@ -1178,6 +1180,41 @@ public sealed partial class RegistryService
             audit = audit.Dequeue();
         }
         return audit;
+    }
+
+    private void SynchronizeOrchestraDeleteReplayCheckpoint()
+    {
+        if (!orchestraRunStore.SupportsDeleteReplayHorizon)
+        {
+            return;
+        }
+        var generations = runtimeDeletionReconciliationAudit
+            .Where(static audit =>
+                audit.OrchestraCleanupGeneration is not null)
+            .Select(static audit =>
+                audit.OrchestraCleanupGeneration!.Value)
+            .Order()
+            .ToArray();
+        if (generations.Length == 0)
+        {
+            return;
+        }
+        var minimum = generations[0];
+        var observedThrough = generations[^1];
+        var checkpointed =
+            orchestraRunStore.CheckpointDeleteReplayHorizon(
+                new OrchestraDeleteReplayCheckpoint(
+                    minimum,
+                    observedThrough));
+        if (checkpointed is null ||
+            checkpointed.ProtectedFromGeneration != minimum ||
+            checkpointed.OldestGeneration != minimum ||
+            checkpointed.NewestGeneration < observedThrough ||
+            checkpointed.EvictedThroughGeneration >= minimum)
+        {
+            throw new OrchestraPersistenceException(
+                "Orchestra cleanup audit is outside the durable replay horizon");
+        }
     }
 
     public void CompleteRuntimeDeletion(RuntimeDeletionReservation reservation)
