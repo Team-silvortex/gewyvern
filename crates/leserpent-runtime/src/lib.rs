@@ -37,6 +37,17 @@ use persistence::{EffectRecord, Journal, JournalEntryKind};
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
 pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: usize = 4_096;
+pub const RUNTIME_UNREGISTRATION_REPLAY_HORIZON: usize = 256;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RuntimeUnregistrationReplayHorizon {
+    pub capacity: u64,
+    pub retained: u64,
+    pub oldest_generation: Option<u64>,
+    pub newest_generation: Option<u64>,
+    pub next_generation: u64,
+    pub evicted_through_generation: u64,
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RuntimeUnregisterTarget {
@@ -590,6 +601,25 @@ impl ControlRuntime {
         journal.effect_queue_stats().map_err(RuntimeError::Storage)
     }
 
+    pub fn runtime_unregistration_replay_horizon(
+        &mut self,
+    ) -> Result<RuntimeUnregistrationReplayHorizon, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Ok(RuntimeUnregistrationReplayHorizon {
+                capacity: u64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON)
+                    .map_err(|_| RuntimeError::Storage("replay horizon is invalid".into()))?,
+                retained: 0,
+                oldest_generation: None,
+                newest_generation: None,
+                next_generation: 1,
+                evicted_through_generation: 0,
+            });
+        };
+        journal
+            .runtime_unregistration_replay_horizon()
+            .map_err(RuntimeError::Storage)
+    }
+
     pub fn deployment_effect_receipt(
         &mut self,
         command_id: &str,
@@ -708,6 +738,15 @@ impl ControlRuntime {
                 return Err(RuntimeError::Domain(DomainError::IdempotencyConflict {
                     key: command_id.as_str().to_string(),
                 }));
+            }
+            if targets.iter().any(|target| {
+                self.control
+                    .runtime_projection(&target.runtime_id)
+                    .is_some()
+            }) {
+                return Err(RuntimeError::Storage(
+                    "runtime unregistration projection tombstone is inconsistent".into(),
+                ));
             }
             return Ok(RuntimeUnregisterResult {
                 command_id,
@@ -1994,7 +2033,7 @@ mod tests {
         Revision, RuntimeCapabilityObservation, RuntimeCapabilitySnapshot,
         RuntimeSidecarStatusSnapshot, RuntimeStatusObservation, RuntimeStatusSnapshot,
     };
-    use rusqlite::Connection;
+    use rusqlite::{Connection, params};
     use std::collections::VecDeque;
     use std::fs;
     use std::path::PathBuf;
@@ -2087,6 +2126,31 @@ mod tests {
             "leserpent-runtime-{label}-{}-{unique}.sqlite",
             std::process::id()
         ))
+    }
+
+    fn persist_queued_orchestra_run(runtime: &mut ControlRuntime, runtime_id: &str, suffix: &str) {
+        let run_id = format!("orun-{suffix}");
+        let request_id = format!("request-{suffix}");
+        let run = format!(
+            "{{\"runId\":\"{run_id}\",\"runtimeId\":\"{runtime_id}\",\"planId\":\"test\",\"outcome\":\"queued\",\"executedAt\":\"2026-01-01T00:00:00Z\",\"completedAt\":null,\"requestId\":\"{request_id}\"}}"
+        );
+        let event = format!(
+            "{{\"eventId\":0,\"runId\":\"{run_id}\",\"runtimeId\":\"{runtime_id}\",\"eventType\":\"run_queued\",\"fromOutcome\":null,\"toOutcome\":\"queued\",\"summary\":\"\",\"recordedAt\":\"2026-01-01T00:00:00Z\"}}"
+        );
+        runtime
+            .persist_orchestra_run_event(
+                &run_id,
+                runtime_id,
+                Some(&request_id),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                run.as_bytes(),
+                event.as_bytes(),
+            )
+            .unwrap();
     }
 
     fn refresh_plan(expected_revision: Revision) -> CommandPlan {
@@ -2578,8 +2642,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 14);
-        assert_eq!(migration_count, 14);
+        assert_eq!(schema, 15);
+        assert_eq!(migration_count, 15);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2646,8 +2710,9 @@ mod tests {
                  FROM authority_checkpoints WHERE operation_kind = 'daemon_bootstrap';
                  DROP INDEX authority_checkpoints_by_kind_phase;
                  DROP TABLE authority_checkpoints;
+                 DROP TABLE runtime_unregistration_replay_horizon;
                  DROP TABLE runtime_unregistration_operations;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13, 14);
+                 DELETE FROM runtime_schema_migrations WHERE version IN (12, 13, 14, 15);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -2675,14 +2740,100 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (14, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (15, 1, 0));
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn schema_14_unregistration_operations_gain_schema_owned_generations() {
+        let path = temp_journal("v14-unregistration-generation-migration");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        for suffix in ["a", "b"] {
+            let runtime_id = RuntimeId::new(format!("runtime-migrate-{suffix}")).unwrap();
+            let projection = runtime
+                .register_runtime(
+                    runtime_id.clone(),
+                    format!("Runtime Migrate {suffix}"),
+                    format!("https://runtime-migrate-{suffix}.invalid"),
+                )
+                .unwrap();
+            runtime
+                .unregister_runtimes(
+                    CommandId::new(format!("unregister-migrate-{suffix}")).unwrap(),
+                    vec![RuntimeUnregisterTarget {
+                        runtime_id,
+                        expected_revision: projection.revision,
+                    }],
+                )
+                .unwrap();
+        }
+        drop(runtime);
+
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "ALTER TABLE runtime_unregistration_operations
+                     RENAME TO runtime_unregistration_operations_v15;
+                 CREATE TABLE runtime_unregistration_operations (
+                     operation_id TEXT PRIMARY KEY,
+                     request BLOB NOT NULL CHECK (length(request) <= 65536),
+                     deleted_runtime_count INTEGER NOT NULL CHECK (deleted_runtime_count >= 0),
+                     deleted_run_count INTEGER NOT NULL CHECK (deleted_run_count >= 0),
+                     deleted_event_count INTEGER NOT NULL CHECK (deleted_event_count >= 0),
+                     removed_at_unix_ms INTEGER NOT NULL CHECK (removed_at_unix_ms >= 0)
+                 ) STRICT;
+                 INSERT INTO runtime_unregistration_operations
+                     (operation_id, request, deleted_runtime_count, deleted_run_count,
+                      deleted_event_count, removed_at_unix_ms)
+                 SELECT operation_id, request, deleted_runtime_count, deleted_run_count,
+                        deleted_event_count, removed_at_unix_ms
+                 FROM runtime_unregistration_operations_v15 ORDER BY generation ASC;
+                 DROP TABLE runtime_unregistration_operations_v15;
+                 DROP TABLE runtime_unregistration_replay_horizon;
+                 DELETE FROM runtime_schema_migrations WHERE version = 15;
+                 UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
+            )
+            .unwrap();
+        drop(connection);
+
+        drop(ControlRuntime::open(&path).unwrap());
+        let connection = Connection::open(&path).unwrap();
+        let operations = connection
+            .prepare(
+                "SELECT operation_id, generation
+                 FROM runtime_unregistration_operations ORDER BY generation ASC",
+            )
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let horizon: (i64, i64) = connection
+            .query_row(
+                "SELECT next_generation, evicted_through_generation
+                 FROM runtime_unregistration_replay_horizon WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            operations,
+            vec![
+                ("unregister-migrate-a".into(), 1),
+                ("unregister-migrate-b".into(), 2),
+            ]
+        );
+        assert_eq!(horizon, (3, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v14");
+        let path = temp_journal("incomplete-v15");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -2697,14 +2848,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 14);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 15);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 14")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 15")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2763,6 +2914,15 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 15",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE runtime_unregistration_replay_horizon", [])
+            .unwrap();
+        connection
             .execute("DROP TABLE runtime_unregistration_operations", [])
             .unwrap();
         connection
@@ -2797,7 +2957,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 14);
+        assert_eq!(schema, 15);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2818,7 +2978,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 14 journal kind")
+                if error.contains("invalid runtime journal schema 15 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -2831,14 +2991,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (15, 0)",
+                 VALUES (16, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 14 migration history")
+                if error.contains("invalid runtime journal schema 15 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3118,6 +3278,7 @@ mod tests {
                  DROP TABLE orchestra_events;
                  DROP TABLE orchestra_runs;
                  DROP TABLE authority_checkpoints;
+                 DROP TABLE runtime_unregistration_replay_horizon;
                  DROP TABLE runtime_unregistration_operations;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
@@ -3145,7 +3306,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 14);
+        assert_eq!(schema, 15);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3588,6 +3749,8 @@ mod tests {
                 event,
             )
             .unwrap();
+        assert_eq!(replay.run, run);
+        assert_eq!(replay.event, event);
         assert_eq!(replay.event_count, 1);
 
         let changed_run = br#"{"runId":"orun-1","runtimeId":"runtime-a","planId":"test","outcome":"running","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-1"}"#;
@@ -3710,7 +3873,7 @@ mod tests {
                 .delete_orchestra_runtimes(&["runtime-a".into(), "runtime-a".into()])
                 .is_err()
         );
-        for index in 0..33 {
+        for index in 0..32 {
             let run_id = format!("bounded-{index:02}");
             let request_id = format!("bounded-request-{index:02}");
             let recorded_at = format!("2026-01-01T00:01:{index:02}Z");
@@ -3735,15 +3898,109 @@ mod tests {
                 )
                 .unwrap();
         }
+        let run_id = "bounded-32";
+        let request_id = "bounded-request-32";
+        let recorded_at = "2026-01-01T00:01:32Z";
+        let bounded_run = format!(
+            "{{\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"planId\":\"test\",\"outcome\":\"queued\",\"executedAt\":\"{recorded_at}\",\"completedAt\":null,\"requestId\":\"{request_id}\"}}"
+        );
+        let bounded_event = format!(
+            "{{\"eventId\":0,\"runId\":\"{run_id}\",\"runtimeId\":\"runtime-a\",\"eventType\":\"run_queued\",\"fromOutcome\":null,\"toOutcome\":\"queued\",\"summary\":\"\",\"recordedAt\":\"{recorded_at}\"}}"
+        );
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET updated_at_unix_ms = 4000000000000
+                 WHERE runtime_id = 'runtime-a'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER ignore_orchestra_retention_delete
+                 BEFORE DELETE ON orchestra_runs
+                 WHEN OLD.runtime_id = 'runtime-a'
+                 BEGIN
+                     SELECT RAISE(IGNORE);
+                 END;",
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    run_id,
+                    "runtime-a",
+                    Some(request_id),
+                    "run_queued",
+                    None,
+                    "queued",
+                    "queued",
+                    recorded_at,
+                    bounded_run.as_bytes(),
+                    bounded_event.as_bytes(),
+                )
+                .is_err()
+        );
+        let retained_after_rollback: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs WHERE runtime_id = 'runtime-a'),
+                     (SELECT COUNT(*) FROM orchestra_events WHERE runtime_id = 'runtime-a'),
+                     (SELECT COUNT(*) FROM orchestra_runs WHERE run_id = 'bounded-31')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(retained_after_rollback, (32, 32, 1));
+        connection
+            .execute_batch("DROP TRIGGER ignore_orchestra_retention_delete;")
+            .unwrap();
+        drop(connection);
+        runtime
+            .persist_orchestra_run_event(
+                run_id,
+                "runtime-a",
+                Some(request_id),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                recorded_at,
+                bounded_run.as_bytes(),
+                bounded_event.as_bytes(),
+            )
+            .unwrap();
         let bounded = runtime
             .load_orchestra_history(Some("runtime-a"), None, 0, 64)
             .unwrap();
         assert_eq!(bounded.runs.len(), 32);
         assert!(bounded.runs.iter().all(|run| {
-            !run.windows(b"bounded-00".len())
-                .any(|value| value == b"bounded-00")
+            !run.windows(b"bounded-31".len())
+                .any(|value| value == b"bounded-31")
         }));
         let connection = Connection::open(&path).unwrap();
+        let evicted_counts: (i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs WHERE runtime_id = 'runtime-a'),
+                     (SELECT COUNT(*) FROM orchestra_events WHERE runtime_id = 'runtime-a'),
+                     (SELECT COUNT(*) FROM orchestra_runs WHERE run_id = 'bounded-31'),
+                     (SELECT COUNT(*) FROM orchestra_events WHERE run_id = 'bounded-31'),
+                     (SELECT updated_at_unix_ms FROM orchestra_runs
+                      WHERE run_id = 'bounded-32')",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(evicted_counts, (32, 32, 0, 0, 4000000000001));
         let (lookahead_run_id, lookahead_envelope): (String, Vec<u8>) = connection
             .query_row(
                 "SELECT run_id, envelope FROM orchestra_runs
@@ -3771,6 +4028,30 @@ mod tests {
                 .load_orchestra_history(Some("runtime-a"), None, 0, 1)
                 .is_err()
         );
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET envelope = ?1 WHERE run_id = ?2",
+                rusqlite::params![lookahead_envelope, lookahead_run_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET request_id = 'lookahead-request-drift'
+                 WHERE run_id = ?1",
+                [&lookahead_run_id],
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .load_orchestra_history(Some("runtime-a"), None, 0, 1)
+                .is_err()
+        );
+        assert!(runtime.load_orchestra_history(None, None, 0, 1).is_err());
+        assert!(
+            runtime
+                .load_orchestra_history(Some("runtime-a"), Some(&lookahead_run_id), 0, 1)
+                .is_err()
+        );
         drop(connection);
         drop(runtime);
         let connection = Connection::open(&path).unwrap();
@@ -3781,7 +4062,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 14);
+        assert_eq!(schema, 15);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3916,6 +4197,261 @@ mod tests {
         assert_eq!(stored.event_count, 1);
         assert_eq!(stored.run, run);
         assert_eq!(stored.event, event);
+
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_multi_runtime_delete_validates_receipt_cascade_and_preservation() {
+        let path = temp_journal("orchestra-delete-snapshot");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        persist_queued_orchestra_run(&mut runtime, "runtime-delete-a", "delete-a");
+        persist_queued_orchestra_run(&mut runtime, "runtime-delete-b", "delete-b");
+        persist_queued_orchestra_run(&mut runtime, "runtime-keep", "keep");
+        let targets = vec!["runtime-delete-a".into(), "runtime-delete-b".into()];
+
+        let connection = Connection::open(&path).unwrap();
+        let unrelated_before: (Vec<u8>, i64, Vec<u8>, i64) = connection
+            .query_row(
+                "SELECT run.envelope, run.updated_at_unix_ms,
+                        event.envelope, event.created_at_unix_ms
+                 FROM orchestra_runs AS run
+                 JOIN orchestra_events AS event ON event.run_id = run.run_id
+                 WHERE run.runtime_id = 'runtime-keep'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_events SET runtime_id = 'runtime-keep'
+                 WHERE run_id = 'orun-delete-a'",
+                [],
+            )
+            .unwrap();
+        assert!(runtime.delete_orchestra_runtimes(&targets).is_err());
+        let counts_after_ownership_rejection: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(counts_after_ownership_rejection, (3, 3));
+        connection
+            .execute(
+                "UPDATE orchestra_events SET runtime_id = 'runtime-delete-a'
+                 WHERE run_id = 'orun-delete-a'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_events SET envelope = x'7b7d'
+                 WHERE run_id = 'orun-delete-a'",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER ignore_orchestra_multi_delete
+                 BEFORE DELETE ON orchestra_runs
+                 WHEN OLD.runtime_id = 'runtime-delete-b'
+                 BEGIN
+                     SELECT RAISE(IGNORE);
+                 END;",
+            )
+            .unwrap();
+        assert!(runtime.delete_orchestra_runtimes(&targets).is_err());
+        let counts_after_ignored_delete: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(counts_after_ignored_delete, (3, 3));
+
+        connection
+            .execute_batch(
+                "DROP TRIGGER ignore_orchestra_multi_delete;
+                 CREATE TRIGGER mutate_unrelated_orchestra_run
+                 AFTER DELETE ON orchestra_runs
+                 WHEN OLD.runtime_id = 'runtime-delete-a'
+                 BEGIN
+                     UPDATE orchestra_runs SET envelope = envelope
+                     WHERE runtime_id = 'runtime-keep';
+                 END;",
+            )
+            .unwrap();
+        assert!(runtime.delete_orchestra_runtimes(&targets).is_err());
+        let unrelated_after_rollback: (Vec<u8>, i64, Vec<u8>, i64) = connection
+            .query_row(
+                "SELECT run.envelope, run.updated_at_unix_ms,
+                        event.envelope, event.created_at_unix_ms
+                 FROM orchestra_runs AS run
+                 JOIN orchestra_events AS event ON event.run_id = run.run_id
+                 WHERE run.runtime_id = 'runtime-keep'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(unrelated_after_rollback, unrelated_before);
+        connection
+            .execute_batch("DROP TRIGGER mutate_unrelated_orchestra_run;")
+            .unwrap();
+        drop(connection);
+
+        let deleted = runtime.delete_orchestra_runtimes(&targets).unwrap();
+        assert_eq!(deleted.deleted_runtime_count, 2);
+        assert_eq!(deleted.deleted_run_count, 2);
+        assert_eq!(deleted.deleted_event_count, 2);
+        let connection = Connection::open(&path).unwrap();
+        let final_counts: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs
+                      WHERE runtime_id IN ('runtime-delete-a', 'runtime-delete-b')),
+                     (SELECT COUNT(*) FROM orchestra_events
+                      WHERE runtime_id IN ('runtime-delete-a', 'runtime-delete-b')),
+                     (SELECT COUNT(*) FROM orchestra_runs WHERE runtime_id = 'runtime-keep'),
+                     (SELECT COUNT(*) FROM orchestra_events WHERE runtime_id = 'runtime-keep')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(final_counts, (0, 0, 1, 1));
+        let unrelated_after_commit: (Vec<u8>, i64, Vec<u8>, i64) = connection
+            .query_row(
+                "SELECT run.envelope, run.updated_at_unix_ms,
+                        event.envelope, event.created_at_unix_ms
+                 FROM orchestra_runs AS run
+                 JOIN orchestra_events AS event ON event.run_id = run.run_id
+                 WHERE run.runtime_id = 'runtime-keep'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(unrelated_after_commit, unrelated_before);
+        drop(connection);
+
+        let replay = runtime.delete_orchestra_runtimes(&targets).unwrap();
+        assert_eq!(replay.deleted_runtime_count, 0);
+        assert_eq!(replay.deleted_run_count, 0);
+        assert_eq!(replay.deleted_event_count, 0);
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_append_validates_its_complete_post_write_snapshot_before_commit() {
+        let path = temp_journal("orchestra-post-write-snapshot");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let run = br#"{"runId":"orun-post-write","runtimeId":"runtime-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-post-write"}"#;
+        let event = br#"{"eventId":0,"runId":"orun-post-write","runtimeId":"runtime-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:00Z"}"#;
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER corrupt_orchestra_event_after_insert
+                 AFTER INSERT ON orchestra_events
+                 BEGIN
+                     UPDATE orchestra_events SET event_type = 'trigger_corrupted'
+                     WHERE event_id = NEW.event_id;
+                 END;",
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-post-write",
+                    "runtime-a",
+                    Some("request-post-write"),
+                    "run_queued",
+                    None,
+                    "queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    run,
+                    event,
+                )
+                .is_err()
+        );
+        let counts: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (0, 0));
+
+        connection
+            .execute_batch(
+                "DROP TRIGGER corrupt_orchestra_event_after_insert;
+                 CREATE TRIGGER drift_orchestra_generation_after_insert
+                 AFTER INSERT ON orchestra_events
+                 BEGIN
+                     UPDATE orchestra_events
+                     SET created_at_unix_ms = NEW.created_at_unix_ms + 1
+                     WHERE event_id = NEW.event_id;
+                 END;",
+            )
+            .unwrap();
+        assert!(
+            runtime
+                .persist_orchestra_run_event(
+                    "orun-post-write",
+                    "runtime-a",
+                    Some("request-post-write"),
+                    "run_queued",
+                    None,
+                    "queued",
+                    "queued",
+                    "2026-01-01T00:00:00Z",
+                    run,
+                    event,
+                )
+                .is_err()
+        );
+        let counts: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(counts, (0, 0));
+        connection
+            .execute_batch("DROP TRIGGER drift_orchestra_generation_after_insert;")
+            .unwrap();
+        drop(connection);
+
+        let stored = runtime
+            .persist_orchestra_run_event(
+                "orun-post-write",
+                "runtime-a",
+                Some("request-post-write"),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                run,
+                event,
+            )
+            .unwrap();
+        assert_eq!(stored.run, run);
+        assert_eq!(stored.event, event);
+        assert_eq!(stored.event_count, 1);
 
         drop(runtime);
         fs::remove_file(path).unwrap();
@@ -4278,6 +4814,72 @@ mod tests {
                 )
                 .unwrap();
 
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TRIGGER ignore_unregistration_orchestra_delete
+                     BEFORE DELETE ON orchestra_runs
+                     BEGIN
+                         SELECT RAISE(IGNORE);
+                     END;",
+                )
+                .unwrap();
+            assert!(
+                runtime
+                    .unregister_runtimes(command_id.clone(), vec![target.clone()])
+                    .is_err()
+            );
+            assert!(runtime.runtime_projection(&runtime_id).is_some());
+            let rollback_counts: (i64, i64, i64, i64) = connection
+                .query_row(
+                    "SELECT
+                         (SELECT COUNT(*) FROM orchestra_runs),
+                         (SELECT COUNT(*) FROM orchestra_events),
+                         (SELECT COUNT(*) FROM runtime_unregistration_operations),
+                         (SELECT COUNT(*) FROM runtime_journal
+                          WHERE kind = 'runtime_unregistration')",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .unwrap();
+            assert_eq!(rollback_counts, (1, 1, 0, 0));
+            connection
+                .execute_batch("DROP TRIGGER ignore_unregistration_orchestra_delete;")
+                .unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TRIGGER corrupt_unregistration_journal_after_insert
+                     AFTER INSERT ON runtime_journal
+                     WHEN NEW.kind = 'runtime_unregistration'
+                     BEGIN
+                         UPDATE runtime_journal SET payload = x'7b7d'
+                         WHERE sequence = NEW.sequence;
+                     END;",
+                )
+                .unwrap();
+            assert!(matches!(
+                runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration journal tombstone is inconsistent"
+            ));
+            let journal_fault_counts: (i64, i64, i64, i64) = connection
+                .query_row(
+                    "SELECT
+                         (SELECT COUNT(*) FROM orchestra_runs),
+                         (SELECT COUNT(*) FROM orchestra_events),
+                         (SELECT COUNT(*) FROM runtime_unregistration_operations),
+                         (SELECT COUNT(*) FROM runtime_journal
+                          WHERE kind = 'runtime_unregistration')",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .unwrap();
+            assert_eq!(journal_fault_counts, (1, 1, 0, 0));
+            connection
+                .execute_batch("DROP TRIGGER corrupt_unregistration_journal_after_insert;")
+                .unwrap();
+            drop(connection);
+
             let first = runtime
                 .unregister_runtimes(command_id.clone(), vec![target.clone()])
                 .unwrap();
@@ -4300,6 +4902,168 @@ mod tests {
                 .unwrap();
             assert!(replay.replayed);
             assert_eq!(replay.removed_at_unix_ms, first.removed_at_unix_ms);
+
+            persist_queued_orchestra_run(
+                &mut runtime,
+                runtime_id.as_str(),
+                "unregister-reappeared",
+            );
+            assert!(matches!(
+                runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration Orchestra tombstone is inconsistent"
+            ));
+            let cleanup = runtime
+                .delete_orchestra_runtimes(&[runtime_id.as_str().to_string()])
+                .unwrap();
+            assert_eq!(cleanup.deleted_runtime_count, 1);
+            assert_eq!(cleanup.deleted_run_count, 1);
+            assert_eq!(cleanup.deleted_event_count, 1);
+
+            let canonical_request = serde_json::to_vec(&vec![target.clone()]).unwrap();
+            let mut noncanonical_request = vec![b' '];
+            noncanonical_request.extend_from_slice(&canonical_request);
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE runtime_unregistration_operations SET request = ?1
+                     WHERE operation_id = ?2",
+                    params![noncanonical_request, command_id.as_str(),],
+                )
+                .unwrap();
+            drop(connection);
+            assert!(matches!(
+                runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration operation request is not canonical"
+            ));
+
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE runtime_unregistration_operations
+                     SET request = ?1, deleted_runtime_count = 0
+                     WHERE operation_id = ?2",
+                    params![canonical_request, command_id.as_str()],
+                )
+                .unwrap();
+            drop(connection);
+            assert!(matches!(
+                runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration operation receipt is inconsistent"
+            ));
+
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE runtime_unregistration_operations
+                     SET deleted_runtime_count = ?1
+                     WHERE operation_id = ?2",
+                    params![
+                        i64::from(first.deleted_orchestra_runtime_count),
+                        command_id.as_str(),
+                    ],
+                )
+                .unwrap();
+            drop(connection);
+            assert!(
+                runtime
+                    .unregister_runtimes(command_id.clone(), vec![target.clone()])
+                    .unwrap()
+                    .replayed
+            );
+
+            let canonical_tombstone = serde_json::to_vec(&RuntimeUnregistration {
+                runtime_id: runtime_id.as_str().to_string(),
+            })
+            .unwrap();
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE runtime_journal SET payload = x'7b7d'
+                     WHERE kind = 'runtime_unregistration'
+                       AND created_at_unix_ms = ?1",
+                    [first.removed_at_unix_ms],
+                )
+                .unwrap();
+            drop(connection);
+            assert!(matches!(
+                runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration journal tombstone is inconsistent"
+            ));
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "UPDATE runtime_journal SET payload = ?1
+                     WHERE kind = 'runtime_unregistration'
+                       AND created_at_unix_ms = ?2",
+                    params![&canonical_tombstone, first.removed_at_unix_ms],
+                )
+                .unwrap();
+            drop(connection);
+
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO runtime_journal
+                         (kind, payload, created_at_unix_ms)
+                     VALUES ('runtime_unregistration', ?1, ?2)",
+                    params![&canonical_tombstone, first.removed_at_unix_ms],
+                )
+                .unwrap();
+            let duplicate_sequence = connection.last_insert_rowid();
+            drop(connection);
+            assert!(matches!(
+                runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration journal tombstone is inconsistent"
+            ));
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute(
+                    "DELETE FROM runtime_journal WHERE sequence = ?1",
+                    [duplicate_sequence],
+                )
+                .unwrap();
+            drop(connection);
+
+            runtime.control.register_runtime(
+                runtime_id.clone(),
+                "Unexpected Runtime A",
+                "https://unexpected-runtime-a.invalid",
+            );
+            assert!(matches!(
+                runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration projection tombstone is inconsistent"
+            ));
+            assert!(runtime.control.unregister_runtime(&runtime_id));
+
+            runtime.create_snapshot().unwrap();
+            runtime.create_snapshot().unwrap();
+            let connection = Connection::open(&path).unwrap();
+            let compacted_journal_counts: (i64, i64) = connection
+                .query_row(
+                    "SELECT
+                         (SELECT COUNT(*) FROM runtime_journal
+                          WHERE kind = 'runtime_unregistration'
+                            AND created_at_unix_ms = ?1),
+                         (SELECT COUNT(*) FROM runtime_journal
+                          WHERE kind = 'runtime_registration')",
+                    [first.removed_at_unix_ms],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!(compacted_journal_counts, (1, 0));
+            drop(connection);
+            assert!(
+                runtime
+                    .unregister_runtimes(command_id.clone(), vec![target.clone()])
+                    .unwrap()
+                    .replayed
+            );
             assert!(matches!(
                 runtime.unregister_runtimes(
                     command_id.clone(),
@@ -4319,6 +5083,337 @@ mod tests {
         assert!(
             recovered
                 .unregister_runtimes(command_id, vec![target])
+                .unwrap()
+                .replayed
+        );
+        drop(recovered);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn runtime_unregistration_replay_horizon_rolls_over_atomically_and_compacts_safely() {
+        let path = temp_journal("runtime-unregistration-horizon");
+        let oldest_runtime_id = RuntimeId::new("runtime-horizon-oldest").unwrap();
+        let oldest_command_id = CommandId::new("unregister-horizon-oldest").unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let oldest_projection = runtime
+            .register_runtime(
+                oldest_runtime_id.clone(),
+                "Runtime Horizon Oldest",
+                "https://runtime-horizon-oldest.invalid",
+            )
+            .unwrap();
+        let oldest_target = RuntimeUnregisterTarget {
+            runtime_id: oldest_runtime_id.clone(),
+            expected_revision: oldest_projection.revision,
+        };
+        let oldest = runtime
+            .unregister_runtimes(oldest_command_id.clone(), vec![oldest_target])
+            .unwrap();
+        let oldest_tombstone = serde_json::to_vec(&RuntimeUnregistration {
+            runtime_id: oldest_runtime_id.as_str().to_string(),
+        })
+        .unwrap();
+
+        let mut connection = Connection::open(&path).unwrap();
+        let transaction = connection.transaction().unwrap();
+        for index in 0..RUNTIME_UNREGISTRATION_REPLAY_HORIZON {
+            let runtime_id = RuntimeId::new(format!("runtime-horizon-seed-{index:03}")).unwrap();
+            let target = RuntimeUnregisterTarget {
+                runtime_id: runtime_id.clone(),
+                expected_revision: Revision(u64::try_from(index).unwrap() + 1),
+            };
+            let request = serde_json::to_vec(&vec![target]).unwrap();
+            let tombstone = serde_json::to_vec(&RuntimeUnregistration {
+                runtime_id: runtime_id.as_str().to_string(),
+            })
+            .unwrap();
+            let removed_at_unix_ms = oldest
+                .removed_at_unix_ms
+                .checked_add(i64::try_from(index).unwrap() + 1)
+                .unwrap();
+            transaction
+                .execute(
+                    "INSERT INTO runtime_journal
+                         (kind, payload, created_at_unix_ms)
+                     VALUES ('runtime_unregistration', ?1, ?2)",
+                    params![tombstone, removed_at_unix_ms],
+                )
+                .unwrap();
+            transaction
+                .execute(
+                    "INSERT INTO runtime_unregistration_operations
+                         (operation_id, generation, request, deleted_runtime_count, deleted_run_count,
+                          deleted_event_count, removed_at_unix_ms)
+                     VALUES (?1, ?2, ?3, 0, 0, 0, ?4)",
+                    params![
+                        format!("unregister-horizon-seed-{index:03}"),
+                        i64::try_from(index).unwrap() + 2,
+                        request,
+                        removed_at_unix_ms,
+                    ],
+                )
+                .unwrap();
+        }
+        transaction
+            .execute(
+                "UPDATE runtime_unregistration_replay_horizon
+                 SET next_generation = ?1 WHERE id = 1",
+                [i64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON).unwrap() + 2],
+            )
+            .unwrap();
+        transaction.commit().unwrap();
+        let full_window: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations),
+                     (SELECT COUNT(*) FROM runtime_journal
+                      WHERE kind = 'runtime_unregistration')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            full_window,
+            (
+                i64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON + 1).unwrap(),
+                i64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON + 1).unwrap(),
+            )
+        );
+        let newest_seed_index = RUNTIME_UNREGISTRATION_REPLAY_HORIZON - 1;
+        let newest_seed_target = RuntimeUnregisterTarget {
+            runtime_id: RuntimeId::new(format!("runtime-horizon-seed-{newest_seed_index:03}"))
+                .unwrap(),
+            expected_revision: Revision(u64::try_from(newest_seed_index).unwrap() + 1),
+        };
+        assert!(
+            runtime
+                .unregister_runtimes(
+                    CommandId::new(format!("unregister-horizon-seed-{newest_seed_index:03}"))
+                        .unwrap(),
+                    vec![newest_seed_target],
+                )
+                .unwrap()
+                .replayed
+        );
+        let lookup_converged_window: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-oldest'),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-seed-000'),
+                     (SELECT COUNT(*) FROM runtime_journal
+                      WHERE kind = 'runtime_unregistration' AND payload = ?1)",
+                [&oldest_tombstone],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            lookup_converged_window,
+            (
+                i64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON).unwrap(),
+                0,
+                1,
+                1,
+            )
+        );
+        assert_eq!(
+            runtime.runtime_unregistration_replay_horizon().unwrap(),
+            RuntimeUnregistrationReplayHorizon {
+                capacity: 256,
+                retained: 256,
+                oldest_generation: Some(2),
+                newest_generation: Some(257),
+                next_generation: 258,
+                evicted_through_generation: 1,
+            }
+        );
+
+        let boundary_runtime_id = RuntimeId::new("runtime-horizon-boundary").unwrap();
+        let boundary_projection = runtime
+            .register_runtime(
+                boundary_runtime_id.clone(),
+                "Runtime Horizon Boundary",
+                "https://runtime-horizon-boundary.invalid",
+            )
+            .unwrap();
+        let boundary_target = RuntimeUnregisterTarget {
+            runtime_id: boundary_runtime_id.clone(),
+            expected_revision: boundary_projection.revision,
+        };
+        let boundary_command_id = CommandId::new("unregister-horizon-boundary").unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER ignore_oldest_unregistration_operation_delete
+                 BEFORE DELETE ON runtime_unregistration_operations
+                 WHEN OLD.operation_id = 'unregister-horizon-seed-000'
+                 BEGIN
+                     SELECT RAISE(IGNORE);
+                 END;",
+            )
+            .unwrap();
+        assert!(matches!(
+            runtime.unregister_runtimes(
+                boundary_command_id.clone(),
+                vec![boundary_target.clone()],
+            ),
+            Err(RuntimeError::Storage(ref error))
+                if error
+                    == "runtime unregistration replay horizon eviction is inconsistent"
+        ));
+        assert!(runtime.runtime_projection(&boundary_runtime_id).is_some());
+        let failed_rollover: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-seed-000'),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-boundary'),
+                     (SELECT COUNT(*) FROM runtime_journal
+                      WHERE kind = 'runtime_unregistration' AND payload = ?1)",
+                [&oldest_tombstone],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(failed_rollover, (1, 0, 1));
+        assert_eq!(
+            runtime.runtime_unregistration_replay_horizon().unwrap(),
+            RuntimeUnregistrationReplayHorizon {
+                capacity: 256,
+                retained: 256,
+                oldest_generation: Some(2),
+                newest_generation: Some(257),
+                next_generation: 258,
+                evicted_through_generation: 1,
+            }
+        );
+        connection
+            .execute_batch("DROP TRIGGER ignore_oldest_unregistration_operation_delete;")
+            .unwrap();
+        let boundary = runtime
+            .unregister_runtimes(boundary_command_id, vec![boundary_target])
+            .unwrap();
+        assert!(!boundary.replayed);
+        let rolled_window: (i64, i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-oldest'),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-seed-000'),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-seed-001'),
+                     (SELECT COUNT(*) FROM runtime_journal
+                      WHERE kind = 'runtime_unregistration' AND payload = ?1)",
+                [&oldest_tombstone],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            rolled_window,
+            (
+                i64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON).unwrap(),
+                0,
+                0,
+                1,
+                1,
+            )
+        );
+        assert_eq!(
+            runtime.runtime_unregistration_replay_horizon().unwrap(),
+            RuntimeUnregistrationReplayHorizon {
+                capacity: 256,
+                retained: 256,
+                oldest_generation: Some(3),
+                newest_generation: Some(258),
+                next_generation: 259,
+                evicted_through_generation: 2,
+            }
+        );
+
+        runtime.create_snapshot().unwrap();
+        runtime.create_snapshot().unwrap();
+        let compacted_oldest_tombstone: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM runtime_journal
+                 WHERE kind = 'runtime_unregistration' AND payload = ?1",
+                [&oldest_tombstone],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(compacted_oldest_tombstone, 0);
+
+        let reused_projection = runtime
+            .register_runtime(
+                oldest_runtime_id.clone(),
+                "Runtime Horizon Reused",
+                "https://runtime-horizon-reused.invalid",
+            )
+            .unwrap();
+        let reused_target = RuntimeUnregisterTarget {
+            runtime_id: oldest_runtime_id.clone(),
+            expected_revision: reused_projection.revision,
+        };
+        let reused = runtime
+            .unregister_runtimes(oldest_command_id.clone(), vec![reused_target.clone()])
+            .unwrap();
+        assert!(!reused.replayed);
+        assert!(runtime.runtime_projection(&oldest_runtime_id).is_none());
+        let reused_window: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-oldest'),
+                     (SELECT COUNT(*) FROM runtime_unregistration_operations
+                      WHERE operation_id = 'unregister-horizon-seed-001'),
+                     (SELECT COUNT(*) FROM runtime_journal
+                      WHERE kind = 'runtime_unregistration' AND payload = ?1)",
+                [&oldest_tombstone],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            reused_window,
+            (
+                i64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON).unwrap(),
+                1,
+                0,
+                1,
+            )
+        );
+        assert_eq!(
+            runtime.runtime_unregistration_replay_horizon().unwrap(),
+            RuntimeUnregistrationReplayHorizon {
+                capacity: 256,
+                retained: 256,
+                oldest_generation: Some(4),
+                newest_generation: Some(259),
+                next_generation: 260,
+                evicted_through_generation: 3,
+            }
+        );
+
+        runtime.create_snapshot().unwrap();
+        runtime.create_snapshot().unwrap();
+        drop(connection);
+        drop(runtime);
+        let mut recovered = ControlRuntime::open(&path).unwrap();
+        assert!(recovered.runtime_projection(&oldest_runtime_id).is_none());
+        assert!(
+            recovered
+                .unregister_runtimes(oldest_command_id, vec![reused_target])
                 .unwrap()
                 .replayed
         );

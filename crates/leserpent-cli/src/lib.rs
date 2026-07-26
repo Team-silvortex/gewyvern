@@ -1151,6 +1151,21 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
                     queue.active, queue.terminal, queue.capacity, queue.saturated
                 ));
             }
+            if let Some(horizon) = &health.runtime_unregistration_replay_horizon {
+                output.push_str(&format!(
+                    " unregister_replay={}/{} generation={}..{} next={} evicted_through={}",
+                    horizon.retained,
+                    horizon.capacity,
+                    horizon
+                        .oldest_generation
+                        .map_or_else(|| "none".into(), |value| value.to_string()),
+                    horizon
+                        .newest_generation
+                        .map_or_else(|| "none".into(), |value| value.to_string()),
+                    horizon.next_generation,
+                    horizon.evicted_through_generation
+                ));
+            }
             Ok(output)
         }
         ProtocolResponse::Query(QueryResult::RuntimeList { revision, runtimes }) => {

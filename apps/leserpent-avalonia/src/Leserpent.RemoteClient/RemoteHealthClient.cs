@@ -5,7 +5,8 @@ public sealed record RemoteHealth(
     string Status,
     bool AuthorityOwned,
     uint ProtocolSchemaVersion,
-    RemoteEffectQueueHealth? EffectQueue);
+    RemoteEffectQueueHealth? EffectQueue,
+    RemoteUnregistrationReplayHorizon? RuntimeUnregistrationReplayHorizon = null);
 
 public sealed record RemoteEffectQueueHealth(
     ulong Ready,
@@ -16,6 +17,14 @@ public sealed record RemoteEffectQueueHealth(
     ulong Terminal,
     ulong Capacity,
     bool Saturated);
+
+public sealed record RemoteUnregistrationReplayHorizon(
+    ulong Capacity,
+    ulong Retained,
+    ulong? OldestGeneration,
+    ulong? NewestGeneration,
+    ulong NextGeneration,
+    ulong EvictedThroughGeneration);
 
 public sealed class RemoteHealthClient : IDisposable
 {
@@ -82,11 +91,15 @@ public static class RemoteHealthCodec
             var queue = health.EffectQueue is null
                 ? null
                 : ValidateQueue(health.EffectQueue);
+            var replayHorizon = health.RuntimeUnregistrationReplayHorizon is null
+                ? null
+                : ValidateReplayHorizon(health.RuntimeUnregistrationReplayHorizon);
             return new RemoteHealth(
                 health.Status,
                 health.AuthorityOwned,
                 health.ProtocolSchemaVersion,
-                queue);
+                queue,
+                replayHorizon);
         }
         catch (JsonException error)
         {
@@ -137,6 +150,41 @@ public static class RemoteHealthCodec
             queue.Saturated);
     }
 
+    private static RemoteUnregistrationReplayHorizon ValidateReplayHorizon(
+        WireUnregistrationReplayHorizon horizon)
+    {
+        var contiguous = horizon.OldestGeneration is { } oldest
+            && horizon.NewestGeneration is { } newest
+            ? horizon.Retained > 0
+                && horizon.EvictedThroughGeneration < ulong.MaxValue
+                && oldest == horizon.EvictedThroughGeneration + 1
+                && newest < ulong.MaxValue
+                && horizon.NextGeneration == newest + 1
+                && newest >= oldest
+                && horizon.Retained == newest - oldest + 1
+            : !horizon.OldestGeneration.HasValue
+                && !horizon.NewestGeneration.HasValue
+                && horizon.Retained == 0
+                && horizon.EvictedThroughGeneration < ulong.MaxValue
+                && horizon.NextGeneration == horizon.EvictedThroughGeneration + 1;
+        if (horizon.Capacity == 0
+            || horizon.Retained > horizon.Capacity
+            || horizon.NextGeneration == 0
+            || horizon.EvictedThroughGeneration >= horizon.NextGeneration
+            || !contiguous)
+        {
+            throw new InvalidDataException(
+                "remote health unregistration replay horizon is inconsistent");
+        }
+        return new RemoteUnregistrationReplayHorizon(
+            horizon.Capacity,
+            horizon.Retained,
+            horizon.OldestGeneration,
+            horizon.NewestGeneration,
+            horizon.NextGeneration,
+            horizon.EvictedThroughGeneration);
+    }
+
     private static string RequiredString(JsonElement value, string name)
     {
         var result = value.GetProperty(name).GetString();
@@ -178,6 +226,7 @@ public sealed class WireHealthPayload
     public bool AuthorityOwned { get; set; }
     public uint ProtocolSchemaVersion { get; set; }
     public WireEffectQueueHealth? EffectQueue { get; set; }
+    public WireUnregistrationReplayHorizon? RuntimeUnregistrationReplayHorizon { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -191,6 +240,17 @@ public sealed class WireEffectQueueHealth
     public ulong Terminal { get; set; }
     public ulong Capacity { get; set; }
     public bool Saturated { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireUnregistrationReplayHorizon
+{
+    public ulong Capacity { get; set; }
+    public ulong Retained { get; set; }
+    public ulong? OldestGeneration { get; set; }
+    public ulong? NewestGeneration { get; set; }
+    public ulong NextGeneration { get; set; }
+    public ulong EvictedThroughGeneration { get; set; }
 }
 
 [JsonSourceGenerationOptions(

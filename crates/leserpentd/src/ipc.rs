@@ -1044,6 +1044,41 @@ mod tests {
                     && history.next_offset.is_none()
         ));
 
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER drift_orchestra_generation_after_insert
+                 AFTER INSERT ON orchestra_events
+                 BEGIN
+                     UPDATE orchestra_events
+                     SET created_at_unix_ms = NEW.created_at_unix_ms + 1
+                     WHERE event_id = NEW.event_id;
+                 END;",
+            )
+            .unwrap();
+        drop(connection);
+        let mut generation_drift = request.clone();
+        let ProtocolRequest::OrchestraPersist(persistence) = &mut generation_drift.request else {
+            unreachable!();
+        };
+        persistence.envelope.run.outcome = "running".into();
+        persistence.envelope.event.event_type = "run_started".into();
+        persistence.envelope.event.from_outcome = Some("queued".into());
+        persistence.envelope.event.to_outcome = "running".into();
+        persistence.envelope.event.recorded_at = "2026-01-01T00:00:01+00:00".into();
+        let response = send(&server, &mut runtime, &socket, TOKEN, generation_drift);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_persistence_failed"
+                    && error.message == "Orchestra persistence transaction failed"
+        ));
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute_batch("DROP TRIGGER drift_orchestra_generation_after_insert;")
+            .unwrap();
+        drop(connection);
+
         let mut illegal_transition = request.clone();
         let ProtocolRequest::OrchestraPersist(persistence) = &mut illegal_transition.request else {
             unreachable!();
@@ -1098,6 +1133,45 @@ mod tests {
             ProtocolResponse::Error(ref error)
                 if error.code == "orchestra_persistence_failed"
         ));
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET request_id = 'request-drift'
+                 WHERE run_id = ?1",
+                [&envelope.run.run_id],
+            )
+            .unwrap();
+        drop(connection);
+        for run_id in [Some(envelope.run.run_id.clone()), None] {
+            let request_drift_history = RequestEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                request: ProtocolRequest::OrchestraHistory(OrchestraHistoryRequest {
+                    principal: Principal {
+                        id: "operator-a".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                    runtime_id: Some(envelope.run.runtime_id.clone()),
+                    run_id,
+                    offset: 0,
+                    limit: 64,
+                }),
+            };
+            let response = send(&server, &mut runtime, &socket, TOKEN, request_drift_history);
+            assert!(matches!(
+                response.response,
+                ProtocolResponse::Error(ref error)
+                    if error.code == "orchestra_history_failed"
+                        && error.message == "Orchestra history query failed"
+            ));
+        }
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute(
+                "UPDATE orchestra_runs SET request_id = ?1 WHERE run_id = ?2",
+                rusqlite::params![envelope.run.request_id, envelope.run.run_id],
+            )
+            .unwrap();
+        drop(connection);
         let mut corrupted_event = envelope.event.clone();
         corrupted_event.from_outcome = Some("failed".into());
         let connection = Connection::open(&database).unwrap();
@@ -1180,6 +1254,39 @@ mod tests {
                 runtime_ids: vec![envelope.run.runtime_id.clone()],
             }),
         };
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER ignore_orchestra_history_delete
+                 BEFORE DELETE ON orchestra_runs
+                 BEGIN
+                     SELECT RAISE(IGNORE);
+                 END;",
+            )
+            .unwrap();
+        drop(connection);
+        let response = send(&server, &mut runtime, &socket, TOKEN, delete.clone());
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_delete_failed"
+                    && error.message == "Orchestra history delete failed"
+        ));
+        let connection = Connection::open(&database).unwrap();
+        let rollback_counts: (i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rollback_counts, (1, 1));
+        connection
+            .execute_batch("DROP TRIGGER ignore_orchestra_history_delete;")
+            .unwrap();
+        drop(connection);
         let response = send(&server, &mut runtime, &socket, TOKEN, delete);
         assert!(matches!(
             response.response,
@@ -1207,6 +1314,114 @@ mod tests {
             ProtocolResponse::OrchestraHistory(ref history)
                 if history.runs.is_empty() && history.events.is_empty()
         ));
+
+        let retention_envelope = |index: u8| {
+            let mut retained = envelope.clone();
+            let run_id = format!("ipc-retained-{index:02}");
+            let recorded_at = format!("2026-01-01T00:01:{index:02}Z");
+            retained.run.run_id = run_id.clone();
+            retained.run.outcome = "queued".into();
+            retained.run.executed_at = recorded_at.clone();
+            retained.run.completed_at = None;
+            retained.run.request_id = Some(format!("ipc-retained-request-{index:02}"));
+            retained.event.event_id = 0;
+            retained.event.run_id = run_id;
+            retained.event.event_type = "run_queued".into();
+            retained.event.from_outcome = None;
+            retained.event.to_outcome = "queued".into();
+            retained.event.recorded_at = recorded_at;
+            retained
+        };
+        for index in 0..32 {
+            let retained = retention_envelope(index);
+            let run_bytes = serde_json::to_vec(&retained.run).unwrap();
+            let event_bytes = serde_json::to_vec(&retained.event).unwrap();
+            runtime
+                .persist_orchestra_run_event(
+                    &retained.run.run_id,
+                    &retained.run.runtime_id,
+                    retained.run.request_id.as_deref(),
+                    &retained.event.event_type,
+                    retained.event.from_outcome.as_deref(),
+                    &retained.event.to_outcome,
+                    &retained.run.outcome,
+                    &retained.event.recorded_at,
+                    &run_bytes,
+                    &event_bytes,
+                )
+                .unwrap();
+        }
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TRIGGER ignore_orchestra_retention_delete
+                 BEFORE DELETE ON orchestra_runs
+                 BEGIN
+                     SELECT RAISE(IGNORE);
+                 END;",
+            )
+            .unwrap();
+        drop(connection);
+        let retained = retention_envelope(32);
+        let retention_request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraPersist(OrchestraPersistenceRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                envelope: retained.clone(),
+            }),
+        };
+        let response = send(
+            &server,
+            &mut runtime,
+            &socket,
+            TOKEN,
+            retention_request.clone(),
+        );
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_persistence_failed"
+                    && error.message == "Orchestra persistence transaction failed"
+        ));
+        let connection = Connection::open(&database).unwrap();
+        let retained_after_rollback: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events),
+                     (SELECT COUNT(*) FROM orchestra_runs WHERE run_id = 'ipc-retained-00')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(retained_after_rollback, (32, 32, 1));
+        connection
+            .execute_batch("DROP TRIGGER ignore_orchestra_retention_delete;")
+            .unwrap();
+        drop(connection);
+        let response = send(&server, &mut runtime, &socket, TOKEN, retention_request);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::OrchestraPersisted(ref persisted)
+                if persisted.envelope == retained && persisted.event_count == 1
+        ));
+        let connection = Connection::open(&database).unwrap();
+        let retained_after_retry: (i64, i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT COUNT(*) FROM orchestra_runs),
+                     (SELECT COUNT(*) FROM orchestra_events),
+                     (SELECT COUNT(*) FROM orchestra_runs WHERE run_id = 'ipc-retained-00'),
+                     (SELECT COUNT(*) FROM orchestra_events WHERE run_id = 'ipc-retained-00')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(retained_after_retry, (32, 32, 0, 0));
+        drop(connection);
         drop(server);
         drop(runtime);
         fs::remove_file(database).unwrap();
@@ -1223,6 +1438,20 @@ mod tests {
                 runtime_id.clone(),
                 "Runtime Unregister A",
                 "https://runtime-unregister-a.invalid",
+            )
+            .unwrap();
+        runtime
+            .persist_orchestra_run_event(
+                "orun-runtime-unregister",
+                runtime_id.as_str(),
+                Some("request-runtime-unregister"),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                "2026-01-01T00:00:00Z",
+                br#"{"runId":"orun-runtime-unregister","runtimeId":"runtime-unregister-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:00Z","completedAt":null,"requestId":"request-runtime-unregister"}"#,
+                br#"{"eventId":0,"runId":"orun-runtime-unregister","runtimeId":"runtime-unregister-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:00Z"}"#,
             )
             .unwrap();
         let server = IpcServer::bind(&socket, TOKEN).unwrap();
@@ -1258,9 +1487,68 @@ mod tests {
         assert!(matches!(
             first.response,
             ProtocolResponse::RuntimeUnregistered(ref result)
-                if !result.replayed && result.removed == expected_targets
+                if !result.replayed
+                    && result.removed == expected_targets
+                    && result.deleted_orchestra_runtime_count == 1
+                    && result.deleted_orchestra_run_count == 1
+                    && result.deleted_orchestra_event_count == 1
         ));
         assert!(runtime.runtime_projection(&runtime_id).is_none());
+
+        runtime
+            .persist_orchestra_run_event(
+                "orun-runtime-unregister-reappeared",
+                runtime_id.as_str(),
+                Some("request-runtime-unregister-reappeared"),
+                "run_queued",
+                None,
+                "queued",
+                "queued",
+                "2026-01-01T00:00:01Z",
+                br#"{"runId":"orun-runtime-unregister-reappeared","runtimeId":"runtime-unregister-a","planId":"test","outcome":"queued","executedAt":"2026-01-01T00:00:01Z","completedAt":null,"requestId":"request-runtime-unregister-reappeared"}"#,
+                br#"{"eventId":0,"runId":"orun-runtime-unregister-reappeared","runtimeId":"runtime-unregister-a","eventType":"run_queued","fromOutcome":null,"toOutcome":"queued","summary":"","recordedAt":"2026-01-01T00:00:01Z"}"#,
+            )
+            .unwrap();
+        let rejected_replay = send(&server, &mut runtime, &socket, TOKEN, request.clone());
+        assert!(matches!(
+            rejected_replay.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "runtime_unregister_failed"
+                    && error.message == "runtime unregistration failed"
+        ));
+        let cleanup = runtime
+            .delete_orchestra_runtimes(&[runtime_id.as_str().to_string()])
+            .unwrap();
+        assert_eq!(cleanup.deleted_runtime_count, 1);
+        assert_eq!(cleanup.deleted_run_count, 1);
+        assert_eq!(cleanup.deleted_event_count, 1);
+
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute(
+                "UPDATE runtime_journal SET payload = x'7b7d'
+                 WHERE kind = 'runtime_unregistration'",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+        let rejected_journal_replay = send(&server, &mut runtime, &socket, TOKEN, request.clone());
+        assert!(matches!(
+            rejected_journal_replay.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "runtime_unregister_failed"
+                    && error.message == "runtime unregistration failed"
+        ));
+        let connection = Connection::open(&database).unwrap();
+        connection
+            .execute(
+                "UPDATE runtime_journal SET payload = ?1
+                 WHERE kind = 'runtime_unregistration'",
+                [br#"{"runtime_id":"runtime-unregister-a"}"#.as_slice()],
+            )
+            .unwrap();
+        drop(connection);
+
         let replay = send(&server, &mut runtime, &socket, TOKEN, request);
         assert!(matches!(
             replay.response,
@@ -1280,6 +1568,23 @@ mod tests {
         runtime
             .enqueue_effect("health-visible", "test.effect", b"payload", 3)
             .unwrap();
+        let runtime_id = RuntimeId::new("runtime-health-unregister").unwrap();
+        let projection = runtime
+            .register_runtime(
+                runtime_id.clone(),
+                "Runtime Health Unregister",
+                "https://runtime-health-unregister.invalid",
+            )
+            .unwrap();
+        runtime
+            .unregister_runtimes(
+                CommandId::new("health-unregister").unwrap(),
+                vec![leserpent_runtime::RuntimeUnregisterTarget {
+                    runtime_id,
+                    expected_revision: projection.revision,
+                }],
+            )
+            .unwrap();
         let server = IpcServer::bind(&socket, TOKEN).unwrap();
         let health = RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -1297,6 +1602,14 @@ mod tests {
                             && queue.active == 1
                             && queue.terminal == 0
                             && !queue.saturated)
+                    && health.runtime_unregistration_replay_horizon.as_ref().is_some_and(
+                        |horizon| horizon.capacity == 256
+                            && horizon.retained == 1
+                            && horizon.oldest_generation == Some(1)
+                            && horizon.newest_generation == Some(1)
+                            && horizon.next_generation == 2
+                            && horizon.evicted_through_generation == 0
+                    )
         ));
         drop(server);
         drop(runtime);

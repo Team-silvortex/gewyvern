@@ -327,6 +327,7 @@ mod tests {
                 authority_owned: true,
                 protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
                 effect_queue: None,
+                runtime_unregistration_replay_horizon: None,
             }),
         })
         .unwrap();

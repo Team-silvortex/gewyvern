@@ -175,6 +175,15 @@ Require(fixtureHealth is
     ProtocolSchemaVersion: 1,
     EffectQueue.Active: 1,
     EffectQueue.Terminal: 5,
+    RuntimeUnregistrationReplayHorizon:
+    {
+        Capacity: 256,
+        Retained: 12,
+        OldestGeneration: 4,
+        NewestGeneration: 15,
+        NextGeneration: 16,
+        EvictedThroughGeneration: 3,
+    },
 }, "health codec did not preserve authority and queue state");
 RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
     Fixtures.HealthJson.Replace(
@@ -182,6 +191,12 @@ RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8
         "\"active\": 2",
         StringComparison.Ordinal))),
     "health codec accepted inconsistent active counters");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.HealthJson.Replace(
+        "\"newest_generation\": 15",
+        "\"newest_generation\": 14",
+        StringComparison.Ordinal))),
+    "health codec accepted a non-contiguous replay horizon");
 RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
     Fixtures.HealthJson.Replace(
         "\"authority_owned\": true",
@@ -559,6 +574,14 @@ public const string HealthJson = """
         "terminal": 5,
         "capacity": 10,
         "saturated": false
+      },
+      "runtime_unregistration_replay_horizon": {
+        "capacity": 256,
+        "retained": 12,
+        "oldest_generation": 4,
+        "newest_generation": 15,
+        "next_generation": 16,
+        "evicted_through_generation": 3
       }
     }
   }

@@ -10,7 +10,7 @@ use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
     OrchestraDeleteResponse, OrchestraHistoryResponse, OrchestraPersistenceResponse,
     PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-    ResponseEnvelope, RuntimeUnregisterResponse,
+    ResponseEnvelope, RuntimeUnregisterResponse, RuntimeUnregistrationReplayHorizonHealth,
 };
 use leserpent_runtime::{
     ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError,
@@ -33,11 +33,12 @@ pub(crate) fn execute_request(
 ) -> ResponseEnvelope {
     let request = match request.request {
         ProtocolRequest::Health(_) => {
-            return match runtime
-                .heartbeat()
-                .and_then(|()| runtime.effect_queue_stats())
-            {
-                Ok(queue) => response(ProtocolResponse::Health(HealthResponse {
+            return match runtime.heartbeat().and_then(|()| {
+                let queue = runtime.effect_queue_stats()?;
+                let replay_horizon = runtime.runtime_unregistration_replay_horizon()?;
+                Ok((queue, replay_horizon))
+            }) {
+                Ok((queue, replay_horizon)) => response(ProtocolResponse::Health(HealthResponse {
                     status: "ready".into(),
                     authority_owned: true,
                     protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -51,6 +52,16 @@ pub(crate) fn execute_request(
                         capacity: queue.capacity,
                         saturated: queue.saturated(),
                     }),
+                    runtime_unregistration_replay_horizon: Some(
+                        RuntimeUnregistrationReplayHorizonHealth {
+                            capacity: replay_horizon.capacity,
+                            retained: replay_horizon.retained,
+                            oldest_generation: replay_horizon.oldest_generation,
+                            newest_generation: replay_horizon.newest_generation,
+                            next_generation: replay_horizon.next_generation,
+                            evicted_through_generation: replay_horizon.evicted_through_generation,
+                        },
+                    ),
                 })),
                 Err(_) => error_response("runtime_unavailable", "runtime authority is unavailable"),
             };

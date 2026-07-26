@@ -1278,6 +1278,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(transport.maturity, Maturity::Mature);
     assert_eq!(transport.completion, 100);
     assert_eq!(transport.contract.stability, ContractStability::Stable);
+    for surface in [
+        "optional-unregistration-replay-horizon-health",
+        "legacy-horizon-free-health-decode",
+        "strict-avalonia-horizon-health-decode",
+    ] {
+        assert!(
+            transport
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing replay horizon transport surface {surface}"
+        );
+    }
     assert!(transport.blockers.is_empty());
 
     let cli = catalog
@@ -1334,6 +1348,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "sanitized-runtime-status-failure",
         "shared-status-observation-validation",
         "sqlite-v14-runtime-unregistration",
+        "sqlite-v15-unregistration-generation",
+        "schema-owned-unregistration-replay-horizon",
+        "queryable-unregistration-horizon-health",
         "atomic-unregistration-orchestra-cleanup",
         "durable-unregistration-idempotency",
         "restart-safe-unregistration-replay",
@@ -1548,6 +1565,84 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "retained-request-id-column-coherence",
         "cross-process-corrupted-replay-rejection",
         "validated-predecessor-reuse",
+        "shared-retained-run-validator",
+        "history-request-id-column-coherence",
+        "run-specific-request-id-drift-rejection",
+        "run-list-request-id-drift-rejection",
+        "pagination-lookahead-request-id-fence",
+        "cross-process-request-id-drift-rejection",
+        "post-append-snapshot-validation",
+        "validated-persistence-receipt",
+        "transaction-generation-receipt-binding",
+        "post-write-column-drift-rollback",
+        "post-write-generation-drift-rollback",
+        "cross-process-post-write-rollback",
+        "validated-replay-receipt-readback",
+        "explicit-bounded-retention-plan",
+        "monotonic-orchestra-transaction-generation",
+        "clock-rollback-current-run-preservation",
+        "complete-retained-run-validation",
+        "batched-retained-event-validation",
+        "runtime-event-cardinality-reconciliation",
+        "validated-eviction-cascade",
+        "retention-fault-atomic-rollback",
+        "cross-process-retention-failure",
+        "retention-retry-convergence",
+        "set-based-multi-runtime-orchestra-delete",
+        "bounded-pre-delete-structural-snapshot",
+        "event-parent-runtime-ownership-fence",
+        "malformed-envelope-safe-cleanup",
+        "exact-cascade-mutation-budget",
+        "post-delete-target-absence",
+        "validated-orchestra-delete-receipt",
+        "unrelated-runtime-mutation-fence",
+        "shared-unregistration-delete-postconditions",
+        "unregistration-delete-fault-rollback",
+        "cross-process-delete-failure",
+        "zero-count-delete-retry",
+        "canonical-unregistration-operation-request",
+        "bounded-unregistration-receipt-validation",
+        "persisted-target-derived-tombstone",
+        "transactional-unregistration-replay-snapshot",
+        "complete-orchestra-replay-tombstone",
+        "replay-on-tombstone-drift-rejection",
+        "replay-on-operation-corruption-rejection",
+        "repaired-tombstone-retry-convergence",
+        "cross-process-unregistration-replay-failure",
+        "fixed-unregistration-replay-error",
+        "post-insert-unregistration-operation-readback",
+        "canonical-runtime-journal-tombstones",
+        "exact-journal-tombstone-cardinality",
+        "ambiguous-journal-tombstone-rejection",
+        "journal-tombstone-terminal-state-fence",
+        "live-runtime-projection-tombstone",
+        "unregistration-journal-fault-rollback",
+        "compaction-preserved-unregistration-evidence",
+        "cross-process-journal-replay-failure",
+        "repaired-journal-replay-convergence",
+        "fixed-256-unregistration-replay-horizon",
+        "oldest-insertion-linearized-operation-eviction",
+        "pure-replay-horizon-convergence",
+        "atomic-operation-horizon-rollover",
+        "operation-only-first-phase-eviction",
+        "retained-operation-journal-protection",
+        "fallback-snapshot-covered-tombstone-compaction",
+        "bounded-1000-journal-compaction",
+        "monotonic-unregistration-timestamp",
+        "outside-horizon-command-id-reuse",
+        "rollover-fault-rollback",
+        "post-rollover-restart-proof",
+        "sqlite-v15-unregistration-generations",
+        "v14-insertion-order-generation-migration",
+        "schema-owned-oldest-generation-eviction",
+        "atomic-generation-allocation",
+        "durable-eviction-high-water",
+        "contiguous-replay-generation-window",
+        "generation-state-fault-rollback",
+        "queryable-replay-horizon-metadata",
+        "authenticated-health-replay-horizon",
+        "native-cli-replay-horizon",
+        "strict-avalonia-replay-horizon",
     ] {
         assert!(
             compatibility_control
@@ -1561,7 +1656,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("request-id and run-envelope coherence validation")
+            .contains("durable operation generation")
     );
 
     let bootstrap = catalog

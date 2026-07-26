@@ -325,14 +325,21 @@ struct RegistryScanState {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    static NEXT_TEMP_REGISTRY_ID: AtomicU64 = AtomicU64::new(0);
+
     fn temp_registry_root() -> PathBuf {
-        let unique = SystemTime::now()
+        let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock should be after unix epoch")
             .as_nanos();
-        std::env::temp_dir().join(format!("gewyvern-registry-test-{unique}"))
+        let sequence = NEXT_TEMP_REGISTRY_ID.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "gewyvern-registry-test-{}-{timestamp}-{sequence}",
+            std::process::id()
+        ))
     }
 
     #[test]
@@ -367,7 +374,10 @@ mod tests {
 
         let error = scan_protocol_registry_in_strict(&root).unwrap_err();
         let _ = fs::remove_dir_all(&root);
-        assert!(error.contains("entry must be a normalized relative path"));
+        assert!(
+            error.contains("entry must be a normalized relative path"),
+            "{error}"
+        );
     }
 
     #[cfg(unix)]
@@ -390,6 +400,9 @@ mod tests {
 
         let error = scan_protocol_registry_in_strict(&root).unwrap_err();
         let _ = fs::remove_dir_all(&root);
-        assert!(error.contains("entry must not traverse symlinks"));
+        assert!(
+            error.contains("entry must not traverse symlinks"),
+            "{error}"
+        );
     }
 }

@@ -198,6 +198,8 @@ pub struct HealthResponse {
     pub protocol_schema_version: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect_queue: Option<EffectQueueHealth>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_unregistration_replay_horizon: Option<RuntimeUnregistrationReplayHorizonHealth>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -211,6 +213,17 @@ pub struct EffectQueueHealth {
     pub terminal: u64,
     pub capacity: u64,
     pub saturated: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeUnregistrationReplayHorizonHealth {
+    pub capacity: u64,
+    pub retained: u64,
+    pub oldest_generation: Option<u64>,
+    pub newest_generation: Option<u64>,
+    pub next_generation: u64,
+    pub evicted_through_generation: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -886,6 +899,7 @@ mod tests {
             panic!("legacy response should remain health");
         };
         assert_eq!(health.effect_queue, None);
+        assert_eq!(health.runtime_unregistration_replay_horizon, None);
 
         let response = ResponseEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -903,6 +917,16 @@ mod tests {
                     capacity: 10_000,
                     saturated: false,
                 }),
+                runtime_unregistration_replay_horizon: Some(
+                    RuntimeUnregistrationReplayHorizonHealth {
+                        capacity: 256,
+                        retained: 12,
+                        oldest_generation: Some(4),
+                        newest_generation: Some(15),
+                        next_generation: 16,
+                        evicted_through_generation: 3,
+                    },
+                ),
             }),
         };
         assert_eq!(

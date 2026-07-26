@@ -896,7 +896,109 @@ byte-identical replay, request-identity drift, and extension over a mismatched
 predecessor all fail without mutation; direct SQLite injection and an
 authenticated Unix-socket regression cover both native and cross-process
 boundaries. The next gate extends SQL request-id/envelope coherence to every
-run-history read, including pagination lookahead.
+run-history read, including pagination lookahead. It is complete: run-specific,
+runtime-filtered, and global history queries all select the nullable SQL
+request ID and pass it through the same retained-run validator used by append.
+Every fetched row, including the `limit + 1` lookahead, must match its envelope
+before event validation or publication. Direct SQLite tests isolate
+request-column drift across all three read shapes, while authenticated IPC
+proves both run detail and run list return only the fixed history failure. The
+next gate validates the complete post-append run/event snapshot and binds the
+returned persistence receipt to that validated transaction generation before
+commit. It is complete: the authority replaces separate opaque run/event/count
+read-back with one retained-run read, one complete three-event-bounded batch,
+and one exact target-event identity read under the same immediate transaction.
+The run and complete event chain must pass the shared semantic validators, the
+target event must belong to that validated batch, and its creation generation
+must equal the run update generation before the receipt is constructed.
+SQLite trigger fault injection proves post-write column drift and generation
+drift both roll back the entire append; authenticated IPC proves the same
+generation failure remains a fixed non-disclosing persistence error. Exact
+replay returns the run, event, and count from the same validated snapshot. The
+next gate validates the complete bounded per-runtime retention set after
+append, including eviction and cascade postconditions, before commit. It is
+complete: append generations now advance monotonically beyond the retained
+runtime maximum even when the wall clock moves backward, and an explicit
+bounded plan identifies the exact 32 retained identities plus at most one
+eviction. Before commit, the authority validates every retained run and its
+complete event chain in batched reads, reconciles the runtime event count, and
+requires both the evicted run and its cascaded events to be absent. Native
+fault injection silently ignores the planned delete and proves the new append
+rolls back to the original 32-run/32-event window. A deterministic future-time
+tie proves the current run remains newest and retry converges to the expected
+eviction. Authenticated IPC preserves the fixed non-disclosing persistence
+failure and the same retry convergence. The next gate binds multi-runtime
+Orchestra deletion receipts to a validated post-delete snapshot, including
+complete cascade and unrelated-runtime preservation, before commit. It is
+complete: one set-based transaction derives bounded counts for every targeted
+runtime and every event attached through its run, rejects SQL ownership drift,
+and still permits deletion of malformed opaque envelopes. After deletion, all
+target run and event rows must be absent and the SQLite total-change delta must
+equal exactly the returned run count plus cascaded event count. This exact
+mutation budget rejects both silently ignored deletes and trigger writes to an
+unrelated runtime, rolling the entire transaction back. The same helper now
+protects explicit Orchestra deletion and runtime unregistration cleanup.
+Native tests prove two-runtime receipts, unrelated byte-for-byte preservation,
+zero-count retry, and unregistration journal rollback. Authenticated IPC proves
+the stable non-disclosing delete failure and successful retry after repair. The
+next gate validates durable runtime-unregistration replay receipts against the
+operation request and live Orchestra tombstone before acknowledging replay. It
+is complete: replay now decodes the persisted operation request into a bounded
+unique typed target set, requires an exact canonical JSON round trip, and
+validates receipt counts against both the target count and Orchestra retention
+and event bounds. A single SQLite read transaction derives its target IDs from
+that historical request and requires target runs, directly owned events, and
+events attached through target parent runs all to remain absent before the
+receipt can be returned. Native fault injection proves a reintroduced
+Orchestra row, a non-canonical request, and an impossible receipt all reject
+replay; repair restores idempotent convergence. Authenticated IPC keeps the
+failure non-disclosing and proves the same repaired retry. The next gate binds
+durable unregistration operation rows to their exact runtime-journal
+tombstones and live projection absence before acknowledging replay. It is
+complete: first commit reads the inserted operation row back and requires one
+canonical, non-terminal runtime-unregistration journal payload for every
+persisted target at the exact removal timestamp before commit. Replay performs
+the same bounded multiset comparison, rejecting missing, mutated, duplicated,
+completed, or failed tombstones, while the control layer independently requires
+every target projection to remain absent. Snapshot compaction preserves these
+unregistration records while still removing ordinary covered journal rows, so
+two-generation maintenance cannot orphan a valid receipt. Native trigger fault
+injection proves post-insert journal corruption rolls the operation, journal,
+and Orchestra cleanup back together; direct corruption proves ambiguity and
+projection drift fail closed. Authenticated IPC preserves the fixed failure and
+repair convergence. The next gate introduces bounded retention and an explicit
+replay horizon for operation-bound unregistration journal tombstones without
+allowing compaction to orphan replay receipts. It is complete: lookup, commit,
+and snapshot maintenance converge the durable operation set to the latest 256
+SQLite insertion-linearized rows. At capacity, the oldest operation/journal
+binding is validated before its receipt is deleted under an exact mutation
+budget in the same transaction as the incoming unregistration. Its journal
+tombstone remains available for state reconstruction until two retained
+snapshots cover it. Compaction derives every sequence protected by the retained
+window and deletes at most 1000 covered ordinary or unreferenced rows, so it
+cannot orphan a replayable receipt or resurrect a runtime after restart.
+Unregistration timestamps advance monotonically beyond retained tombstones,
+preventing same-target ambiguity during command-ID reuse. Native rollover
+tests prove trigger-fault rollback, pure-replay convergence from an oversized
+legacy window, oldest-first eviction, outside-horizon ID reuse, deferred
+tombstone cleanup, and restart replay. The next gate promotes unregistration
+operation linearization from implicit SQLite rowid ordering to a schema-owned
+monotonic generation and exposes retained replay-horizon metadata. It is
+complete: schema v15 migrates v14 operation rows into their original order with
+contiguous generations and persists `next_generation` plus
+`evicted_through_generation` in a singleton authority row. New commits allocate
+and horizon eviction advances this state in the same immediate transaction as
+the operation and journal mutation. Eviction orders exclusively by generation,
+uses an exact operation-delete plus high-water-update budget, and rolls the
+incoming intent back on an ignored delete. Schema and runtime reads require a
+contiguous retained interval bounded by the two high-water values. Native
+migration, oversized-window, rollover-fault, reuse, and restart tests prove the
+state transition. Authenticated daemon health publishes capacity, retained
+count, oldest/newest generation, next generation, and eviction high-water;
+Rust CLI and the strict Avalonia source-generated codec expose and validate the
+same optional protocol-v1 extension. The next gate binds each successful or
+replayed runtime-unregistration receipt to its durable operation generation so
+clients can correlate a specific receipt with the advertised replay horizon.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

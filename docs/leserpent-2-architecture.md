@@ -985,6 +985,102 @@ be acknowledged as a byte-identical replay, request-column drift cannot be
 replayed, and a column/envelope-mismatched predecessor cannot be extended.
 After repair, the same authority extends the run normally. Authenticated IPC
 returns only the stable persistence failure for the corrupted replay.
+History reads apply the same retained-run request-identity fence. Run detail,
+runtime-filtered lists, and global lists select the nullable SQL `request_id`
+alongside the opaque envelope and use one shared validator before processing
+events. Validation covers the extra pagination lookahead row before
+truncation, so a column-only identity drift cannot hide immediately beyond a
+page. The bounded run query plus single event-batch query shape remains
+unchanged. Native fault injection covers all three read forms, and
+authenticated IPC proves the daemon preserves its fixed non-disclosing
+history error.
+Successful append acknowledgement now comes only from a validated post-write
+snapshot. Inside the still-open immediate transaction, the authority reloads
+the retained run with its update generation, batch-loads and validates the
+complete bounded event chain, then resolves the exact appended or replayed
+event identity. The target event must be a member of that validated chain and
+its creation generation must match the run generation. Only then are the run
+envelope, event envelope, and event count assembled into the persistence
+receipt and committed. This replaces the former independent opaque
+run/event/count reads without increasing their three-query budget. SQLite
+triggers prove both post-write column corruption and generation drift roll
+back atomically; authenticated IPC preserves the fixed persistence failure.
+Per-runtime retention is part of the same validated snapshot rather than an
+unverified cleanup side effect. Every append allocates a generation strictly
+newer than the runtime's retained maximum, so a wall-clock rollback or
+same-millisecond burst cannot evict the run being acknowledged. The authority
+then derives an explicit bounded retention plan, deletes at most one oldest
+run, and validates all retained run envelopes plus all of their bounded event
+chains in two batched reads. The runtime event total must equal the validated
+batch cardinality, and both the evicted run and its cascaded events must be
+absent before commit. A trigger that silently ignores the planned deletion
+proves the whole append rolls back; authenticated IPC exposes only the fixed
+persistence failure and converges after the fault is removed.
+Multi-runtime Orchestra deletion uses the same receipt discipline. The
+authority derives bounded pre-delete run and cascade counts for up to 128
+unique runtime identities, rejects SQL event ownership that disagrees with
+its parent run, and executes one set-based delete. Envelope decoding is
+deliberately not required, so malformed historical payloads remain safely
+deletable. Before commit, all target run and event rows must be absent and the
+SQLite total-change delta must equal exactly the acknowledged runs plus
+cascaded events. This mutation budget detects both ignored deletes and trigger
+writes against unrelated runtimes without materializing an unbounded global
+snapshot. The same helper protects explicit Orchestra delete and durable
+runtime unregistration. Native and authenticated IPC fault injection prove
+rollback, fixed external errors, unrelated-runtime byte preservation, and
+successful retry.
+Durable runtime-unregistration replay is also a validated read transaction,
+not an operation-table cache hit. The persisted request must decode into one
+to 128 unique typed targets and round-trip to the exact canonical bytes stored
+by the original commit. Its receipt counts must remain inside the target,
+per-runtime retention, and per-run state-machine bounds. The target IDs are
+derived from that persisted request rather than from the caller's retry, then
+one SQLite snapshot requires target runs, target event ownership, and events
+attached to target parent runs all to remain absent. Only after that snapshot
+passes does the control layer compare the retry request and acknowledge replay.
+Native corruption tests reject non-canonical requests, impossible receipt
+counts, and reintroduced Orchestra state; authenticated IPC exposes only the
+stable unregistration failure and converges after the tombstone is repaired.
+The operation row is not sufficient evidence by itself. First commit reads the
+inserted row back before commit and requires one canonical, non-terminal
+`runtime_unregistration` journal payload per persisted target at the exact
+removal timestamp. Replay repeats that bounded multiset comparison, so missing,
+mutated, duplicated, completed, or failed journal tombstones reject the
+receipt. The control layer separately requires every target projection to
+remain absent. Snapshot compaction currently preserves all unregistration
+journal entries while compacting ordinary covered records, preventing a valid
+operation receipt from being orphaned by maintenance. Native trigger and
+corruption tests prove atomic rollback, ambiguity rejection, projection drift
+rejection, and replay after two snapshot generations. IPC keeps journal
+corruption behind the fixed unregistration failure.
+Runtime-unregistration replay now has an explicit fixed horizon of the latest
+256 operation generations. Lookup, new commit, and snapshot maintenance all
+converge an oversized legacy set oldest-first before continuing. Admission at
+a full window validates the oldest operation/journal binding, deletes only the
+operation receipt under an exact mutation budget, and inserts the new
+operation in the same transaction. Its journal tombstone remains state-replay
+evidence until two retained snapshots cover it. Snapshot compaction derives
+the complete journal sequence set protected by the retained operation window,
+then removes at most 1000 covered ordinary or unreferenced rows; it never
+orphans a retained receipt. Unregistration timestamps advance beyond the
+retained journal maximum even when the wall clock moves backward, preventing
+same-target ambiguity during command-ID reuse. Native rollover tests prove
+trigger-fault rollback, pure-replay convergence of an oversized legacy window,
+outside-horizon ID reuse, orphan cleanup, and restart-safe replay.
+Schema v15 removes SQLite `rowid` from this authority boundary. Migration
+rebuilds retained v14 operation rows with contiguous generations in their
+original insertion order, then installs a singleton state row containing the
+next generation and the generation evicted through. New commits allocate from
+that row in the same immediate transaction as journal append, Orchestra
+cleanup, horizon eviction, and operation insertion. Eviction orders only by
+the schema-owned generation and advances its high-water mark under an exact
+delete-plus-state-update mutation budget; a fault rolls both changes and the
+incoming intent back. Schema validation requires the retained generations to
+form one contiguous interval from `evicted_through + 1` through `next - 1`.
+Authenticated health exposes capacity, retained count, oldest/newest
+generation, next generation, and the eviction high-water mark. The Rust CLI
+renders the same bounded metadata and Avalonia validates it with a strict
+source-generated wire model, while legacy health responses may omit it.
 
 ## Leselang Semantics
 

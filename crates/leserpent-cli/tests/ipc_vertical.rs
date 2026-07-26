@@ -122,6 +122,8 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     let health_stdout = String::from_utf8(health.stdout).unwrap();
     assert!(health_stdout.contains("status=ready authority_owned=true"));
     assert!(health_stdout.contains("queue_active=0"));
+    assert!(health_stdout.contains("unregister_replay=0/256"));
+    assert!(health_stdout.contains("next=1 evicted_through=0"));
 
     let list = Command::new(binary)
         .args([
