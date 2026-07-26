@@ -286,6 +286,12 @@ public sealed class RuntimeReadProjectionTests
                     || string.Equals(runtime.Tags.Environment, filter.Environment, StringComparison.OrdinalIgnoreCase))
                 .ToArray());
 
+        public Task<DaemonRuntimeProjectionSnapshot> SnapshotAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new DaemonRuntimeProjectionSnapshot(
+                1,
+                runtimes));
+
         public Task<DaemonRuntimeProjection?> InspectAsync(
             string runtimeId,
             CancellationToken cancellationToken) =>

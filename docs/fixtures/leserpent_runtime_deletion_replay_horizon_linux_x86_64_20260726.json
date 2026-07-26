@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "observed_at": "2026-07-26T09:03:08.5818413+00:00",
+  "schema_version": 2,
+  "observed_at": "2026-07-26T09:27:51.5951708+00:00",
   "platform": "Unix",
   "architecture": "X64",
   "forced_host_termination_count": 1,
@@ -9,6 +9,7 @@
   "evicted_through_generation": 1,
   "receipt_lookup_call_count": 1,
   "post_restart_unregistration_mutation_count": 0,
+  "reconciliation_daemon_revision": 516,
   "checks": {
     "real_leserpentd": true,
     "schema_v5_replay_floor_persisted_before_mutation": true,
@@ -19,6 +20,10 @@
     "typed_miss_was_classified_ambiguous": true,
     "zero_post_restart_unregistration_mutations": true,
     "local_runtime_projection_was_preserved": true,
-    "ambiguous_intent_survived_disk_reload": true
+    "ambiguous_intent_survived_disk_reload": true,
+    "reappeared_identity_blocked_reconciliation": true,
+    "absence_snapshot_permitted_convergence": true,
+    "atomic_local_cleanup_and_audit_survived_reload": true,
+    "reconciliation_replayed_after_restart": true
   }
 }

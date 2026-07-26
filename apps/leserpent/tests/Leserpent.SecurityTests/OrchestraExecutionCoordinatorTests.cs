@@ -1656,6 +1656,77 @@ public sealed class OrchestraExecutionCoordinatorTests
     }
 
     [Fact]
+    public void RuntimeDeletionReconciliationAuditRejectsUntrustedOrUnboundedState()
+    {
+        var reconciledAt = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var validAudit = Enumerable.Range(0, 257)
+            .Select(index =>
+                new PersistedRuntimeDeletionReconciliationAudit(
+                    $"reconcile-audit-{index:D3}",
+                    "rdel_reconcile_audit",
+                    new[] { "runtime-reconcile-audit" },
+                    3,
+                    42,
+                    "operator-a",
+                    reconciledAt))
+            .ToArray();
+        var invalidStates = new[]
+        {
+            validAudit,
+            new[]
+            {
+                validAudit[0] with
+                {
+                    RequestedBy = "token=secret",
+                },
+            },
+        };
+
+        foreach (var audit in invalidStates)
+        {
+            var statePath = Path.Combine(
+                Path.GetTempPath(),
+                $"leserpent-orchestra-test-{Guid.NewGuid():N}.json");
+            var state = new PersistedControlPlaneState(
+                6,
+                reconciledAt,
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                Array.Empty<OrchestraRunSummary>(),
+                Array.Empty<PersistedRuntimeDeletionIntent>(),
+                Array.Empty<PersistedRuntimeDeletionRetryAudit>(),
+                audit);
+            File.WriteAllText(
+                statePath,
+                JsonSerializer.Serialize(
+                    state,
+                    new LeserpentJsonContext(
+                        new JsonSerializerOptions())
+                        .PersistedControlPlaneState));
+            try
+            {
+                var store = CreateStateStore(statePath);
+                var registry = new RegistryService(
+                    store,
+                    new InMemoryOrchestraRunStore());
+                Assert.Empty(
+                    registry
+                        .ListRuntimeDeletionReconciliationAudit());
+                Assert.Equal(
+                    ControlPlaneStateLoadOutcome.Failed,
+                    store.LoadProvenance.Outcome);
+                Assert.Equal(
+                    ControlPlaneStateLoadFailureCode.SemanticInvalid,
+                    store.LoadProvenance.PrimaryFailureCode);
+            }
+            finally
+            {
+                DeleteStateFiles(statePath);
+            }
+        }
+    }
+
+    [Fact]
     public async Task SaturatedRuntimeDeletionQueueIsFairAndStopsCooperatively()
     {
         const int intentCount = 128;

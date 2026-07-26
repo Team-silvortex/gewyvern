@@ -1,4 +1,5 @@
 using Leserpent.ControlPlane;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Leserpent;
 
@@ -32,6 +33,143 @@ public partial class Program
                     registry.ListRuntimeDeletionRetryAudit().ToArray(),
                     LeserpentJsonContext.Default
                         .PersistedRuntimeDeletionRetryAuditArray));
+
+        app.MapGet(
+            "/v1/persistence/runtime-deletion-reconciliation-audit",
+            (RegistryService registry) =>
+                Results.Json(
+                    registry
+                        .ListRuntimeDeletionReconciliationAudit()
+                        .ToArray(),
+                    LeserpentJsonContext.Default
+                        .PersistedRuntimeDeletionReconciliationAuditArray));
+
+        app.MapGet(
+            "/v1/persistence/runtime-deletions/{intentId}/reconciliation-plan",
+            async (
+                string intentId,
+                RegistryService registry,
+                [FromServices]
+                IDaemonRuntimeProjectionReader daemon,
+                CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    if (!daemon.Enabled)
+                    {
+                        return RuntimeDeletionReconciliationUnavailable(
+                            "authoritative daemon runtime projection is disabled");
+                    }
+
+                    var intent = registry
+                        .GetRuntimeDeletionReconciliationIntent(intentId);
+                    var snapshot = await daemon.SnapshotAsync(
+                        cancellationToken);
+                    if (snapshot.Revision == 0)
+                    {
+                        throw new RuntimeDeletionReconciliationException(
+                            "runtime_deletion_reconciliation_daemon_revision_invalid",
+                            "daemon runtime projection revision is not valid for reconciliation");
+                    }
+                    var targetIds = intent.RuntimeIds.ToHashSet(
+                        StringComparer.OrdinalIgnoreCase);
+                    var reappeared = snapshot.Runtimes
+                        .Select(static runtime => runtime.RuntimeId)
+                        .Where(targetIds.Contains)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(
+                            static runtimeId => runtimeId,
+                            StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    return Results.Json(
+                        new RuntimeDeletionReconciliationPlan(
+                            intent.IntentId,
+                            intent.Revision,
+                            snapshot.Revision,
+                            intent.RuntimeIds.ToArray(),
+                            reappeared,
+                            reappeared.Length == 0),
+                        LeserpentJsonContext.Default
+                            .RuntimeDeletionReconciliationPlan);
+                }
+                catch (RuntimeDeletionReconciliationException ex)
+                {
+                    return RuntimeDeletionReconciliationFailure(ex);
+                }
+                catch (DaemonRuntimeProjectionException ex)
+                {
+                    return RuntimeDeletionReconciliationDaemonFailure(ex);
+                }
+            });
+
+        app.MapPost(
+            "/v1/persistence/runtime-deletions/{intentId}/reconcile",
+            async (
+                string intentId,
+                RuntimeDeletionReconcileRequest request,
+                RegistryService registry,
+                [FromServices]
+                IDaemonRuntimeProjectionReader daemon,
+                CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    var start =
+                        registry.BeginRuntimeDeletionReconciliation(
+                            intentId,
+                            request);
+                    if (start.Replay is not null)
+                    {
+                        return Results.Json(
+                            start.Replay,
+                            LeserpentJsonContext.Default
+                                .RuntimeDeletionReconcileResponse);
+                    }
+
+                    using var reservation = start.Reservation!;
+                    if (!daemon.Enabled)
+                    {
+                        return RuntimeDeletionReconciliationUnavailable(
+                            "authoritative daemon runtime projection is disabled");
+                    }
+
+                    var snapshot = await daemon.SnapshotAsync(
+                        cancellationToken);
+                    var response =
+                        registry.CompleteRuntimeDeletionReconciliation(
+                            reservation,
+                            request,
+                            snapshot);
+                    return Results.Json(
+                        response,
+                        LeserpentJsonContext.Default
+                            .RuntimeDeletionReconcileResponse);
+                }
+                catch (RuntimeDeletionReconciliationException ex)
+                {
+                    return RuntimeDeletionReconciliationFailure(ex);
+                }
+                catch (DaemonRuntimeProjectionException ex)
+                {
+                    return RuntimeDeletionReconciliationDaemonFailure(ex);
+                }
+                catch (OrchestraRuntimeBusyException ex)
+                {
+                    return Results.Conflict(new ApiErrorResponse(
+                        "runtime_deletion_reconciliation_runtime_busy",
+                        ex.Message));
+                }
+                catch (OrchestraPersistenceException ex)
+                {
+                    return Results.Json(
+                        new ApiErrorResponse(
+                            "runtime_deletion_reconciliation_persistence_unavailable",
+                            ex.Message),
+                        LeserpentJsonContext.Default.ApiErrorResponse,
+                        statusCode:
+                            StatusCodes.Status503ServiceUnavailable);
+                }
+            });
 
         app.MapPost(
             "/v1/persistence/runtime-deletions/{intentId}/retry-now",
@@ -155,4 +293,45 @@ public partial class Program
             }
         });
     }
+
+    private static IResult RuntimeDeletionReconciliationFailure(
+        RuntimeDeletionReconciliationException exception)
+    {
+        var response = new ApiErrorResponse(
+            exception.Code,
+            exception.Message);
+        if (string.Equals(
+                exception.Code,
+                "invalid_runtime_deletion_reconciliation",
+                StringComparison.Ordinal))
+        {
+            return Results.BadRequest(response);
+        }
+        if (string.Equals(
+                exception.Code,
+                "runtime_deletion_intent_not_found",
+                StringComparison.Ordinal))
+        {
+            return Results.NotFound(response);
+        }
+        return Results.Conflict(response);
+    }
+
+    private static IResult RuntimeDeletionReconciliationUnavailable(
+        string message) =>
+        Results.Json(
+            new ApiErrorResponse(
+                "runtime_deletion_reconciliation_authority_unavailable",
+                message),
+            LeserpentJsonContext.Default.ApiErrorResponse,
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    private static IResult RuntimeDeletionReconciliationDaemonFailure(
+        DaemonRuntimeProjectionException exception) =>
+        Results.Json(
+            new ApiErrorResponse(
+                "runtime_deletion_reconciliation_authority_failed",
+                exception.Message),
+            LeserpentJsonContext.Default.ApiErrorResponse,
+            statusCode: StatusCodes.Status502BadGateway);
 }

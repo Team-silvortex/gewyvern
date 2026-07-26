@@ -13,6 +13,9 @@ public sealed partial class RegistryService
         ControlPlaneStateValidator.MaxRuntimeDeletionAttempts;
     private const int MaxRuntimeDeletionRetryAuditEntries =
         ControlPlaneStateValidator.MaxRuntimeDeletionRetryAuditEntries;
+    private const int MaxRuntimeDeletionReconciliationAuditEntries =
+        ControlPlaneStateValidator
+            .MaxRuntimeDeletionReconciliationAuditEntries;
     private const long MaxRuntimeDeletionRevision =
         ControlPlaneStateValidator.MaxRuntimeDeletionRevision;
     private static readonly TimeSpan MaxRuntimeDeletionRetryDelay =
@@ -29,6 +32,10 @@ public sealed partial class RegistryService
     private ImmutableQueue<PersistedRuntimeDeletionRetryAudit>
         runtimeDeletionRetryAudit =
             ImmutableQueue<PersistedRuntimeDeletionRetryAudit>.Empty;
+    private ImmutableQueue<PersistedRuntimeDeletionReconciliationAudit>
+        runtimeDeletionReconciliationAudit =
+            ImmutableQueue<
+                PersistedRuntimeDeletionReconciliationAudit>.Empty;
     private readonly HashSet<string> deletingRuntimes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> activeRuntimeDeletionClaims = new(StringComparer.Ordinal);
     private readonly object orchestraRunSync = new();
@@ -56,6 +63,8 @@ public sealed partial class RegistryService
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
         RestorePendingRuntimeDeletions(loaded);
         runtimeDeletionRetryAudit = NormalizeRuntimeDeletionRetryAudit(loaded);
+        runtimeDeletionReconciliationAudit =
+            NormalizeRuntimeDeletionReconciliationAudit(loaded);
         RestoreOrMigrateOrchestraRuns();
     }
 
@@ -673,6 +682,229 @@ public sealed partial class RegistryService
                 })
                 .ToArray();
 
+    public IReadOnlyList<PersistedRuntimeDeletionReconciliationAudit>
+        ListRuntimeDeletionReconciliationAudit() =>
+            runtimeDeletionReconciliationAudit
+                .Reverse()
+                .Select(CloneRuntimeDeletionReconciliationAudit)
+                .ToArray();
+
+    public PersistedRuntimeDeletionIntent
+        GetRuntimeDeletionReconciliationIntent(string intentId)
+    {
+        var normalizedIntentId = intentId?.Trim() ?? string.Empty;
+        if (!IsValidDeletionIdentifier(normalizedIntentId))
+        {
+            throw new RuntimeDeletionReconciliationException(
+                "invalid_runtime_deletion_reconciliation",
+                "runtime deletion reconciliation intent is invalid");
+        }
+
+        lock (orchestraRunSync)
+        {
+            if (!pendingRuntimeDeletions.TryGetValue(
+                    normalizedIntentId,
+                    out var intent))
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_intent_not_found",
+                    "runtime deletion intent was not found");
+            }
+            EnsureRuntimeDeletionRequiresReconciliation(intent);
+            return CloneRuntimeDeletionIntent(intent)!;
+        }
+    }
+
+    internal RuntimeDeletionReconciliationStart
+        BeginRuntimeDeletionReconciliation(
+            string intentId,
+            RuntimeDeletionReconcileRequest request)
+    {
+        var normalizedIntentId = intentId?.Trim() ?? string.Empty;
+        var normalizedRequestId = request.RequestId?.Trim() ?? string.Empty;
+        var normalizedRequestedBy = request.RequestedBy?.Trim() ?? string.Empty;
+        if (!request.Confirmed ||
+            !IsValidDeletionIdentifier(normalizedIntentId) ||
+            !IsValidDeletionIdentifier(normalizedRequestId) ||
+            !IsValidRuntimeDeletionRetryActor(normalizedRequestedBy) ||
+            request.ExpectedRevision < 1 ||
+            request.ExpectedDaemonRevision == 0)
+        {
+            throw new RuntimeDeletionReconciliationException(
+                "invalid_runtime_deletion_reconciliation",
+                "runtime deletion reconciliation request is invalid");
+        }
+
+        lock (orchestraRunSync)
+        {
+            var replayedAudit =
+                runtimeDeletionReconciliationAudit.FirstOrDefault(audit =>
+                    string.Equals(
+                        audit.RequestId,
+                        normalizedRequestId,
+                        StringComparison.Ordinal));
+            if (replayedAudit is not null)
+            {
+                if (!string.Equals(
+                        replayedAudit.IntentId,
+                        normalizedIntentId,
+                        StringComparison.Ordinal) ||
+                    replayedAudit.ExpectedRevision !=
+                        request.ExpectedRevision ||
+                    replayedAudit.DaemonRevision !=
+                        request.ExpectedDaemonRevision ||
+                    !string.Equals(
+                        replayedAudit.RequestedBy,
+                        normalizedRequestedBy,
+                        StringComparison.Ordinal))
+                {
+                    throw new RuntimeDeletionReconciliationException(
+                        "runtime_deletion_reconciliation_request_conflict",
+                        "reconciliation requestId was already used for a different operation");
+                }
+
+                return new RuntimeDeletionReconciliationStart(
+                    null,
+                    new RuntimeDeletionReconcileResponse(
+                        true,
+                        true,
+                        CloneRuntimeDeletionReconciliationAudit(
+                            replayedAudit)));
+            }
+
+            if (!pendingRuntimeDeletions.TryGetValue(
+                    normalizedIntentId,
+                    out var intent))
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_intent_not_found",
+                    "runtime deletion intent was not found");
+            }
+            EnsureRuntimeDeletionRequiresReconciliation(intent);
+            if (activeRuntimeDeletionClaims.ContainsKey(intent.IntentId))
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_reconciliation_in_progress",
+                    "runtime deletion intent is currently being recovered or reconciled");
+            }
+            if (intent.Revision != request.ExpectedRevision)
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_reconciliation_revision_changed",
+                    "runtime deletion intent changed; inspect the reconciliation plan again");
+            }
+
+            var claimId = Guid.NewGuid().ToString("n");
+            activeRuntimeDeletionClaims[intent.IntentId] = claimId;
+            return new RuntimeDeletionReconciliationStart(
+                new RuntimeDeletionReservation(
+                    this,
+                    intent.IntentId,
+                    claimId,
+                    intent.RuntimeIds,
+                    intent.UnregistrationCommandId,
+                    intent.UnregistrationReplayHorizonFloor,
+                    intent.UnregistrationMutationMayHaveStarted),
+                null);
+        }
+    }
+
+    internal RuntimeDeletionReconcileResponse
+        CompleteRuntimeDeletionReconciliation(
+            RuntimeDeletionReservation reservation,
+            RuntimeDeletionReconcileRequest request,
+            DaemonRuntimeProjectionSnapshot daemonSnapshot,
+            DateTimeOffset? reconciledAt = null)
+    {
+        var normalizedRequestId = request.RequestId.Trim();
+        var normalizedRequestedBy = request.RequestedBy.Trim();
+        lock (orchestraRunSync)
+        {
+            if (daemonSnapshot.Revision == 0)
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_reconciliation_daemon_revision_invalid",
+                    "daemon runtime projection revision is not valid for reconciliation");
+            }
+            if (daemonSnapshot.Revision !=
+                request.ExpectedDaemonRevision)
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_reconciliation_daemon_revision_changed",
+                    "daemon runtime projection changed; inspect the reconciliation plan again");
+            }
+            var targetIds = reservation.RuntimeIds.ToHashSet(
+                StringComparer.OrdinalIgnoreCase);
+            if (daemonSnapshot.Runtimes.Any(runtime =>
+                    targetIds.Contains(runtime.RuntimeId)))
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_reconciliation_target_reappeared",
+                    "one or more original runtime identities are present in the daemon projection");
+            }
+            if (!pendingRuntimeDeletions.TryGetValue(
+                    reservation.IntentId,
+                    out var intent) ||
+                !activeRuntimeDeletionClaims.TryGetValue(
+                    reservation.IntentId,
+                    out var activeClaimId) ||
+                !string.Equals(
+                    activeClaimId,
+                    reservation.ClaimId,
+                    StringComparison.Ordinal) ||
+                intent.Revision != request.ExpectedRevision ||
+                !reservation.RuntimeIds
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                    .SetEquals(intent.RuntimeIds))
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "runtime_deletion_reconciliation_revision_changed",
+                    "runtime deletion intent changed; inspect the reconciliation plan again");
+            }
+            EnsureRuntimeDeletionRequiresReconciliation(intent);
+
+            var effectiveReconciledAt =
+                reconciledAt ?? DateTimeOffset.UtcNow;
+            if (effectiveReconciledAt < intent.PreparedAt ||
+                effectiveReconciledAt >
+                    DateTimeOffset.UtcNow.AddMinutes(5))
+            {
+                throw new RuntimeDeletionReconciliationException(
+                    "invalid_runtime_deletion_reconciliation",
+                    "runtime deletion reconciliation timestamp is invalid");
+            }
+
+            var audit =
+                new PersistedRuntimeDeletionReconciliationAudit(
+                    normalizedRequestId,
+                    intent.IntentId,
+                    intent.RuntimeIds.ToArray(),
+                    intent.Revision,
+                    daemonSnapshot.Revision,
+                    normalizedRequestedBy,
+                    effectiveReconciledAt);
+            var previousAudit =
+                runtimeDeletionReconciliationAudit;
+            runtimeDeletionReconciliationAudit =
+                TrimRuntimeDeletionReconciliationAudit(
+                    runtimeDeletionReconciliationAudit.Enqueue(audit));
+            try
+            {
+                CompleteRecoveredRuntimeDeletions([reservation]);
+            }
+            catch
+            {
+                runtimeDeletionReconciliationAudit = previousAudit;
+                throw;
+            }
+
+            return new RuntimeDeletionReconcileResponse(
+                true,
+                false,
+                CloneRuntimeDeletionReconciliationAudit(audit));
+        }
+    }
+
     public RuntimeDeletionRetryNowResponse RetryRuntimeDeletionNow(
         string intentId,
         RuntimeDeletionRetryNowRequest request,
@@ -828,11 +1060,45 @@ public sealed partial class RegistryService
             PersistedRuntimeDeletionRetryAudit audit) =>
                 audit with { RuntimeIds = audit.RuntimeIds.ToArray() };
 
+    private static PersistedRuntimeDeletionReconciliationAudit
+        CloneRuntimeDeletionReconciliationAudit(
+            PersistedRuntimeDeletionReconciliationAudit audit) =>
+                audit with { RuntimeIds = audit.RuntimeIds.ToArray() };
+
+    private static void EnsureRuntimeDeletionRequiresReconciliation(
+        PersistedRuntimeDeletionIntent intent)
+    {
+        if (!string.Equals(
+                intent.LastFailureCode,
+                RuntimeDeletionFailureCodes.ReplayAmbiguous,
+                StringComparison.Ordinal) ||
+            !intent.UnregistrationMutationMayHaveStarted)
+        {
+            throw new RuntimeDeletionReconciliationException(
+                "runtime_deletion_reconciliation_not_required",
+                "runtime deletion intent is not replay-ambiguous");
+        }
+    }
+
     private static ImmutableQueue<PersistedRuntimeDeletionRetryAudit>
         TrimRuntimeDeletionRetryAudit(
             ImmutableQueue<PersistedRuntimeDeletionRetryAudit> audit)
     {
         while (audit.Count() > MaxRuntimeDeletionRetryAuditEntries)
+        {
+            audit = audit.Dequeue();
+        }
+        return audit;
+    }
+
+    private static ImmutableQueue<
+        PersistedRuntimeDeletionReconciliationAudit>
+        TrimRuntimeDeletionReconciliationAudit(
+            ImmutableQueue<
+                PersistedRuntimeDeletionReconciliationAudit> audit)
+    {
+        while (audit.Count() >
+            MaxRuntimeDeletionReconciliationAuditEntries)
         {
             audit = audit.Dequeue();
         }
@@ -1043,7 +1309,8 @@ public sealed partial class RegistryService
                 .OrderBy(static intent => intent.PreparedAt)
                 .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal)
                 .ToArray(),
-            runtimeDeletionRetryAudit.ToArray());
+            runtimeDeletionRetryAudit.ToArray(),
+            runtimeDeletionReconciliationAudit.ToArray());
 
     public PersistenceImportResponse ImportState(PersistedControlPlaneState state)
     {
@@ -1059,6 +1326,8 @@ public sealed partial class RegistryService
                 "pending runtime deletion intents cannot be imported");
         }
         var importedRetryAudit = NormalizeRuntimeDeletionRetryAudit(state);
+        var importedReconciliationAudit =
+            NormalizeRuntimeDeletionReconciliationAudit(state);
 
         lock (orchestraRunSync)
         {
@@ -1075,6 +1344,8 @@ public sealed partial class RegistryService
             sessions.Clear();
             orchestraRuns.Clear();
             runtimeDeletionRetryAudit = importedRetryAudit;
+            runtimeDeletionReconciliationAudit =
+                importedReconciliationAudit;
             var (runtimeCount, sessionCount) = RestorePersistedState(state);
             if (!orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray()))
             {
@@ -1084,6 +1355,9 @@ public sealed partial class RegistryService
                 RestorePersistedState(previousState);
                 runtimeDeletionRetryAudit =
                     NormalizeRuntimeDeletionRetryAudit(previousState);
+                runtimeDeletionReconciliationAudit =
+                    NormalizeRuntimeDeletionReconciliationAudit(
+                        previousState);
                 throw new OrchestraPersistenceException("failed to replace Orchestra database during state import");
             }
             PersistState();

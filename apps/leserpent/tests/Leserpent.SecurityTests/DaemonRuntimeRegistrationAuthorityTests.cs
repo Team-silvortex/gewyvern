@@ -3567,6 +3567,10 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                         Path.GetDirectoryName(statePath)!),
                     NullLogger<ControlPlaneStateStore>.Instance),
                 new InMemoryOrchestraRunStore());
+            var reappearedIdentityBlockedReconciliation = false;
+            var reconciliationDaemonRevision = 0UL;
+            var reconciliationAuditSurvivedReload = false;
+            var reconciliationReplayedAfterRestart = false;
             if (evictReceipt)
             {
                 var persistedAmbiguous = Assert.Single(
@@ -3576,6 +3580,129 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                     persistedAmbiguous.LastFailureCode);
                 Assert.NotNull(
                     diskReloaded.GetRuntime(runtimeId));
+
+                await authority.RegisterAsync(
+                    new RuntimeRegistrationRequest(
+                        "Reappeared lost-ack runtime",
+                        "http://127.0.0.1:19091",
+                        "pairing-token"),
+                    runtimeId,
+                    CancellationToken.None);
+                var reappearedSnapshot =
+                    await authority.SnapshotAsync(
+                        CancellationToken.None);
+                Assert.Contains(
+                    reappearedSnapshot.Runtimes,
+                    runtime => runtime.RuntimeId == runtimeId);
+                var reconcileRequest =
+                    new RuntimeDeletionReconcileRequest(
+                        persistedAmbiguous.Revision,
+                        reappearedSnapshot.Revision,
+                        "reconcile-lost-ack-evicted",
+                        "real-daemon-campaign",
+                        true);
+                var blockedStart =
+                    diskReloaded
+                        .BeginRuntimeDeletionReconciliation(
+                            persistedAmbiguous.IntentId,
+                            reconcileRequest);
+                using (var blockedReservation =
+                    blockedStart.Reservation!)
+                {
+                    var blocked = Assert.Throws<
+                        RuntimeDeletionReconciliationException>(() =>
+                            diskReloaded
+                                .CompleteRuntimeDeletionReconciliation(
+                                    blockedReservation,
+                                    reconcileRequest,
+                                    reappearedSnapshot));
+                    Assert.Equal(
+                        "runtime_deletion_reconciliation_target_reappeared",
+                        blocked.Code);
+                    reappearedIdentityBlockedReconciliation = true;
+                }
+                Assert.NotNull(
+                    diskReloaded.GetRuntime(runtimeId));
+                Assert.Single(
+                    diskReloaded.ListPendingRuntimeDeletions());
+                Assert.Empty(
+                    diskReloaded
+                        .ListRuntimeDeletionReconciliationAudit());
+
+                await authority.UnregisterAsync(
+                    new[] { runtimeId },
+                    "reconcile-remove-reappeared-runtime",
+                    CancellationToken.None);
+                var absentSnapshot =
+                    await authority.SnapshotAsync(
+                        CancellationToken.None);
+                Assert.DoesNotContain(
+                    absentSnapshot.Runtimes,
+                    runtime => runtime.RuntimeId == runtimeId);
+                Assert.True(
+                    absentSnapshot.Revision >
+                    reappearedSnapshot.Revision);
+                reconciliationDaemonRevision =
+                    absentSnapshot.Revision;
+                var convergingRequest = reconcileRequest with
+                {
+                    ExpectedDaemonRevision =
+                        absentSnapshot.Revision,
+                };
+                var convergingStart =
+                    diskReloaded
+                        .BeginRuntimeDeletionReconciliation(
+                            persistedAmbiguous.IntentId,
+                            convergingRequest);
+                using (var convergingReservation =
+                    convergingStart.Reservation!)
+                {
+                    var reconciled =
+                        diskReloaded
+                            .CompleteRuntimeDeletionReconciliation(
+                                convergingReservation,
+                                convergingRequest,
+                                absentSnapshot);
+                    Assert.True(reconciled.Accepted);
+                    Assert.False(reconciled.Replayed);
+                }
+                Assert.Null(
+                    diskReloaded.GetRuntime(runtimeId));
+                Assert.Empty(
+                    diskReloaded.ListPendingRuntimeDeletions());
+                Assert.Single(
+                    diskReloaded
+                        .ListRuntimeDeletionReconciliationAudit());
+
+                var reconciledReload = new RegistryService(
+                    new ControlPlaneStateStore(
+                        configuration,
+                        new CrashTestEnvironment(
+                            Path.GetDirectoryName(statePath)!),
+                        NullLogger<
+                            ControlPlaneStateStore>.Instance),
+                    new InMemoryOrchestraRunStore());
+                Assert.Null(
+                    reconciledReload.GetRuntime(runtimeId));
+                Assert.Empty(
+                    reconciledReload
+                        .ListPendingRuntimeDeletions());
+                var restoredAudit = Assert.Single(
+                    reconciledReload
+                        .ListRuntimeDeletionReconciliationAudit());
+                Assert.Equal(
+                    absentSnapshot.Revision,
+                    restoredAudit.DaemonRevision);
+                reconciliationAuditSurvivedReload = true;
+
+                var replayed =
+                    reconciledReload
+                        .BeginRuntimeDeletionReconciliation(
+                            persistedAmbiguous.IntentId,
+                            convergingRequest);
+                Assert.Null(replayed.Reservation);
+                Assert.True(replayed.Replay?.Replayed);
+                reconciliationReplayedAfterRestart = true;
             }
             else
             {
@@ -3592,7 +3719,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                     .UnregistrationReplayHorizonFloor!.Value,
                 evictedLookup?.ReplayHorizon
                     ?.EvictedThroughGeneration,
-                evictReceipt);
+                evictReceipt,
+                reappearedIdentityBlockedReconciliation,
+                reconciliationDaemonRevision,
+                reconciliationAuditSurvivedReload,
+                reconciliationReplayedAfterRestart);
         }
         finally
         {
@@ -4396,7 +4527,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             Path.GetDirectoryName(evidencePath)!);
         var evidence = new
         {
-            schema_version = 1,
+            schema_version = 2,
             observed_at = DateTimeOffset.UtcNow,
             platform = Environment.OSVersion.Platform.ToString(),
             architecture =
@@ -4410,6 +4541,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             receipt_lookup_call_count = result.LookupCallCount,
             post_restart_unregistration_mutation_count =
                 result.MutationCallCount,
+            reconciliation_daemon_revision =
+                result.ReconciliationDaemonRevision,
             checks = new
             {
                 real_leserpentd = true,
@@ -4428,6 +4561,15 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                     result.MutationCallCount == 0,
                 local_runtime_projection_was_preserved = true,
                 ambiguous_intent_survived_disk_reload = true,
+                reappeared_identity_blocked_reconciliation =
+                    result
+                        .ReappearedIdentityBlockedReconciliation,
+                absence_snapshot_permitted_convergence =
+                    result.ReconciliationDaemonRevision > 0,
+                atomic_local_cleanup_and_audit_survived_reload =
+                    result.ReconciliationAuditSurvivedReload,
+                reconciliation_replayed_after_restart =
+                    result.ReconciliationReplayedAfterRestart,
             },
         };
         File.WriteAllText(
@@ -5372,7 +5514,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         ulong OperationGeneration,
         ulong ReplayHorizonFloor,
         ulong? EvictedThroughGeneration,
-        bool ReplayAmbiguous);
+        bool ReplayAmbiguous,
+        bool ReappearedIdentityBlockedReconciliation,
+        ulong ReconciliationDaemonRevision,
+        bool ReconciliationAuditSurvivedReload,
+        bool ReconciliationReplayedAfterRestart);
 
     private enum RuntimeDeletionRetryAtomicRolloverStrategy
     {

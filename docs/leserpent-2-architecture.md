@@ -635,11 +635,13 @@ daemon revision-fences every target and atomically journals their removal,
 deletes Orchestra history, and stores an idempotent replay record in schema
 v14. The compatibility service reserves the selected runtimes across the
 daemon call, preventing new sessions or Orchestra runs before it removes local
-compatibility state. Its control-plane state schema v5 durably records the
+compatibility state. Its control-plane state schema v6 durably records the
 deletion intent before daemon mutation and clears it only after local cleanup is
 strictly persisted. Schema v4 binds each intent to one deterministic
 unregistration command ID; schema v5 additionally records the replay-horizon
-floor before any mutation may begin. Schema v1-v4 snapshots upgrade
+floor before any mutation may begin. Schema v6 adds a bounded reconciliation
+audit committed in the same strict state generation as local runtime/session
+compatibility projections and intent cleanup. Schema v1-v5 snapshots upgrade
 conservatively: old pending mutations are marked as potentially started but
 receive no invented floor, while malformed current snapshots fail semantic
 validation. Control-plane schema v3 extends each intent with a bounded attempt
@@ -657,7 +659,26 @@ makes the intent eligible, appends one of at most 256 durable audit records,
 and signals the sleeping recovery worker. Matching request-ID replay is
 idempotent even after convergence; conflicting reuse and stale revisions fail
 closed. `GET /v1/persistence/runtime-deletion-retry-audit` retains the
-post-convergence trail. On restart, targets in pending intents remain unavailable
+post-convergence trail.
+
+A replay-ambiguous deletion is never guessed away. The read-only
+`GET /v1/persistence/runtime-deletions/{intentId}/reconciliation-plan`
+returns the current intent revision, one typed full-daemon snapshot revision,
+the original targets, and any identity that has reappeared. The guarded
+`POST /v1/persistence/runtime-deletions/{intentId}/reconcile` requires both
+observed revisions, a bounded operator identity, a unique request ID, and
+explicit confirmation. It claims the intent against the recovery worker and
+takes a fresh full snapshot. Daemon revision drift or any matching live runtime
+returns a conflict while preserving compatibility state. Only an exact-revision
+snapshot with every original identity absent may atomically remove local
+compatibility projections and the intent while appending the bounded audit.
+Orchestra cleanup remains under the same deletion claim but retains its
+existing idempotent persistence-authority boundary. Matching request replay is
+idempotent after restart and convergence; conflicting reuse fails closed.
+`GET /v1/persistence/runtime-deletion-reconciliation-audit` exposes the
+credential-free retained trail.
+
+On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent
 daemon command and local cleanup until both authorities converge. Schema v1
 snapshots migrate with no pending intent, and state import rejects destructive

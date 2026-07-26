@@ -154,6 +154,27 @@ public sealed record RuntimeDeletionRetryNowResponse(
     bool Replayed,
     PersistedRuntimeDeletionIntent? PendingIntent,
     PersistedRuntimeDeletionRetryAudit Audit);
+public sealed record RuntimeDeletionReconciliationPlan(
+    string IntentId,
+    long IntentRevision,
+    ulong DaemonRevision,
+    IReadOnlyList<string> RuntimeIds,
+    IReadOnlyList<string> ReappearedRuntimeIds,
+    bool CanReconcile);
+public sealed record RuntimeDeletionReconcileRequest(
+    long ExpectedRevision,
+    ulong ExpectedDaemonRevision,
+    string RequestId,
+    string RequestedBy,
+    bool Confirmed);
+public sealed record RuntimeDeletionReconcileResponse(
+    bool Accepted,
+    bool Replayed,
+    PersistedRuntimeDeletionReconciliationAudit Audit);
+
+internal sealed record RuntimeDeletionReconciliationStart(
+    RuntimeDeletionReservation? Reservation,
+    RuntimeDeletionReconcileResponse? Replay);
 
 public sealed record RuntimeRegistrationPlanRequest(
     string Name,

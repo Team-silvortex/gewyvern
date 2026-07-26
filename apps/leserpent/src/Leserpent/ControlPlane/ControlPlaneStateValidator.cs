@@ -5,6 +5,7 @@ internal static class ControlPlaneStateValidator
     internal const int MaxPendingRuntimeDeletionIntents = 256;
     internal const int MaxRuntimeDeletionAttempts = 1_000_000;
     internal const int MaxRuntimeDeletionRetryAuditEntries = 256;
+    internal const int MaxRuntimeDeletionReconciliationAuditEntries = 256;
     internal const int MaxOrchestraRunSteps = 256;
     internal const int MaxOrchestraRunAttempts = 1_000_000;
     internal const int MaxRuntimeCapabilities = 256;
@@ -31,6 +32,9 @@ internal static class ControlPlaneStateValidator
         ValidateProjectionGraph(state, observedAt);
         _ = NormalizePendingRuntimeDeletions(state, observedAt);
         _ = NormalizeRuntimeDeletionRetryAudit(state, observedAt);
+        _ = NormalizeRuntimeDeletionReconciliationAudit(
+            state,
+            observedAt);
     }
 
     internal static void ValidateProjectionGraph(
@@ -751,6 +755,78 @@ internal static class ControlPlaneStateValidator
                 persisted.ResultingRevision,
                 requestedBy,
                 persisted.RequestedAt));
+        }
+
+        return normalized;
+    }
+
+    internal static IReadOnlyList<
+        PersistedRuntimeDeletionReconciliationAudit>
+        NormalizeRuntimeDeletionReconciliationAudit(
+            PersistedControlPlaneState? state,
+            DateTimeOffset? now = null)
+    {
+        var persistedAudit =
+            state?.RuntimeDeletionReconciliationAudit ??
+                Array.Empty<
+                    PersistedRuntimeDeletionReconciliationAudit>();
+        if (persistedAudit.Count >
+            MaxRuntimeDeletionReconciliationAuditEntries)
+        {
+            throw new InvalidDataException(
+                $"control-plane state contains more than {MaxRuntimeDeletionReconciliationAuditEntries} runtime deletion reconciliation audit entries");
+        }
+
+        var observedAt = now ?? DateTimeOffset.UtcNow;
+        var requestIds = new HashSet<string>(StringComparer.Ordinal);
+        var normalized = new List<
+            PersistedRuntimeDeletionReconciliationAudit>(
+                persistedAudit.Count);
+        foreach (var persisted in persistedAudit)
+        {
+            var requestId =
+                persisted.RequestId?.Trim() ?? string.Empty;
+            var intentId =
+                persisted.IntentId?.Trim() ?? string.Empty;
+            var requestedBy =
+                persisted.RequestedBy?.Trim() ?? string.Empty;
+            var runtimeIds =
+                (persisted.RuntimeIds ?? Array.Empty<string>())
+                    .Select(static runtimeId =>
+                        runtimeId?.Trim() ?? string.Empty)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(
+                        static runtimeId => runtimeId,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            if (!IsValidDeletionIdentifier(requestId) ||
+                !requestIds.Add(requestId) ||
+                !IsValidDeletionIdentifier(intentId) ||
+                runtimeIds.Length is < 1 or > 128 ||
+                runtimeIds.Any(static runtimeId =>
+                    !IsValidDeletionIdentifier(runtimeId)) ||
+                !IsValidRuntimeDeletionRetryActor(requestedBy) ||
+                persisted.ExpectedRevision < 1 ||
+                persisted.ExpectedRevision >
+                    MaxRuntimeDeletionRevision ||
+                persisted.DaemonRevision == 0 ||
+                persisted.ReconciledAt == default ||
+                persisted.ReconciledAt >
+                    observedAt.AddMinutes(5))
+            {
+                throw new InvalidDataException(
+                    "control-plane state contains an invalid runtime deletion reconciliation audit entry");
+            }
+
+            normalized.Add(
+                new PersistedRuntimeDeletionReconciliationAudit(
+                    requestId,
+                    intentId,
+                    Array.AsReadOnly(runtimeIds),
+                    persisted.ExpectedRevision,
+                    persisted.DaemonRevision,
+                    requestedBy,
+                    persisted.ReconciledAt));
         }
 
         return normalized;

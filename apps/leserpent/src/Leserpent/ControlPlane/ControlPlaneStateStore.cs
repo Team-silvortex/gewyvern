@@ -4,7 +4,7 @@ namespace Leserpent.ControlPlane;
 
 public sealed class ControlPlaneStateStore
 {
-    private const int CurrentSchemaVersion = 5;
+    private const int CurrentSchemaVersion = 6;
     private const int OldestSupportedSchemaVersion = 1;
 
     private readonly string statePath;
@@ -123,7 +123,9 @@ public sealed class ControlPlaneStateStore
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
         IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null,
-        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null) =>
+        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null,
+        IReadOnlyList<PersistedRuntimeDeletionReconciliationAudit>?
+            runtimeDeletionReconciliationAudit = null) =>
         new(
             CurrentSchemaVersion,
             DateTimeOffset.UtcNow,
@@ -131,7 +133,9 @@ public sealed class ControlPlaneStateStore
             sessions,
             orchestraRuns ?? Array.Empty<OrchestraRunSummary>(),
             pendingRuntimeDeletions ?? Array.Empty<PersistedRuntimeDeletionIntent>(),
-            runtimeDeletionRetryAudit ?? Array.Empty<PersistedRuntimeDeletionRetryAudit>());
+            runtimeDeletionRetryAudit ?? Array.Empty<PersistedRuntimeDeletionRetryAudit>(),
+            runtimeDeletionReconciliationAudit ??
+                Array.Empty<PersistedRuntimeDeletionReconciliationAudit>());
 
     public bool IsCompatible(PersistedControlPlaneState? state) =>
         state is not null &&
@@ -142,13 +146,16 @@ public sealed class ControlPlaneStateStore
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
         IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null,
-        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null) =>
+        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null,
+        IReadOnlyList<PersistedRuntimeDeletionReconciliationAudit>?
+            runtimeDeletionReconciliationAudit = null) =>
         SaveCore(
             runtimes,
             sessions,
             orchestraRuns,
             pendingRuntimeDeletions,
             runtimeDeletionRetryAudit,
+            runtimeDeletionReconciliationAudit,
             throwOnFailure: false);
 
     public void SaveStrict(
@@ -156,13 +163,16 @@ public sealed class ControlPlaneStateStore
         IReadOnlyList<PersistedSessionState> sessions,
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns = null,
         IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions = null,
-        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null) =>
+        IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit = null,
+        IReadOnlyList<PersistedRuntimeDeletionReconciliationAudit>?
+            runtimeDeletionReconciliationAudit = null) =>
         SaveCore(
             runtimes,
             sessions,
             orchestraRuns,
             pendingRuntimeDeletions,
             runtimeDeletionRetryAudit,
+            runtimeDeletionReconciliationAudit,
             throwOnFailure: true);
 
     private void SaveCore(
@@ -171,6 +181,8 @@ public sealed class ControlPlaneStateStore
         IReadOnlyList<OrchestraRunSummary>? orchestraRuns,
         IReadOnlyList<PersistedRuntimeDeletionIntent>? pendingRuntimeDeletions,
         IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? runtimeDeletionRetryAudit,
+        IReadOnlyList<PersistedRuntimeDeletionReconciliationAudit>?
+            runtimeDeletionReconciliationAudit,
         bool throwOnFailure)
     {
         lock (saveSync)
@@ -181,7 +193,8 @@ public sealed class ControlPlaneStateStore
                 sessions,
                 orchestraRuns,
                 pendingRuntimeDeletions,
-                runtimeDeletionRetryAudit);
+                runtimeDeletionRetryAudit,
+                runtimeDeletionReconciliationAudit);
             var tempPath = $"{statePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
             var backupTempPath =
                 $"{backupStatePath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
@@ -393,6 +406,10 @@ public sealed class ControlPlaneStateStore
             RuntimeDeletionRetryAudit =
                 state.RuntimeDeletionRetryAudit ??
                     Array.Empty<PersistedRuntimeDeletionRetryAudit>(),
+            RuntimeDeletionReconciliationAudit =
+                state.RuntimeDeletionReconciliationAudit ??
+                    Array.Empty<
+                        PersistedRuntimeDeletionReconciliationAudit>(),
         };
     }
 

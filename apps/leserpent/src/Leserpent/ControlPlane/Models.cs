@@ -632,6 +632,16 @@ public sealed record PersistedRuntimeDeletionRetryAudit(
     DateTimeOffset RequestedAt
 );
 
+public sealed record PersistedRuntimeDeletionReconciliationAudit(
+    string RequestId,
+    string IntentId,
+    IReadOnlyList<string> RuntimeIds,
+    long ExpectedRevision,
+    ulong DaemonRevision,
+    string RequestedBy,
+    DateTimeOffset ReconciledAt
+);
+
 public sealed record PersistedControlPlaneState(
     int SchemaVersion,
     DateTimeOffset SavedAt,
@@ -639,10 +649,19 @@ public sealed record PersistedControlPlaneState(
     IReadOnlyList<PersistedSessionState> Sessions,
     IReadOnlyList<OrchestraRunSummary>? OrchestraRuns = null,
     IReadOnlyList<PersistedRuntimeDeletionIntent>? PendingRuntimeDeletions = null,
-    IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? RuntimeDeletionRetryAudit = null
+    IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? RuntimeDeletionRetryAudit = null,
+    IReadOnlyList<PersistedRuntimeDeletionReconciliationAudit>?
+        RuntimeDeletionReconciliationAudit = null
 );
 
 public sealed class RuntimeDeletionRetryException(
+    string code,
+    string message) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+}
+
+public sealed class RuntimeDeletionReconciliationException(
     string code,
     string message) : InvalidOperationException(message)
 {

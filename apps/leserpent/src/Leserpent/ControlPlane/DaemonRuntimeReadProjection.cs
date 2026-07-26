@@ -11,10 +11,17 @@ public interface IDaemonRuntimeProjectionReader
         RuntimeListFilter filter,
         CancellationToken cancellationToken);
 
+    Task<DaemonRuntimeProjectionSnapshot> SnapshotAsync(
+        CancellationToken cancellationToken);
+
     Task<DaemonRuntimeProjection?> InspectAsync(
         string runtimeId,
         CancellationToken cancellationToken);
 }
+
+public sealed record DaemonRuntimeProjectionSnapshot(
+    ulong Revision,
+    IReadOnlyList<DaemonRuntimeProjection> Runtimes);
 
 public sealed record DaemonRuntimeProjection(
     string RuntimeId,
@@ -150,6 +157,17 @@ public sealed partial class DaemonRuntimeRegistrationAuthority
 {
     public async Task<IReadOnlyList<DaemonRuntimeProjection>> ListAsync(
         RuntimeListFilter filter,
+        CancellationToken cancellationToken) =>
+        (await ReadSnapshotAsync(filter, cancellationToken)).Runtimes;
+
+    public Task<DaemonRuntimeProjectionSnapshot> SnapshotAsync(
+        CancellationToken cancellationToken) =>
+        ReadSnapshotAsync(
+            new RuntimeListFilter(null, null, null),
+            cancellationToken);
+
+    private async Task<DaemonRuntimeProjectionSnapshot> ReadSnapshotAsync(
+        RuntimeListFilter filter,
         CancellationToken cancellationToken)
     {
         EnsureProjectionEnabled();
@@ -182,7 +200,9 @@ public sealed partial class DaemonRuntimeRegistrationAuthority
             {
                 throw new InvalidOperationException("leserpentd runtime list omitted its projections");
             }
-            return decoded.Runtimes.Select(ConvertProjection).ToArray();
+            return new DaemonRuntimeProjectionSnapshot(
+                decoded.Revision,
+                decoded.Runtimes.Select(ConvertProjection).ToArray());
         }
         catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)
         {

@@ -1048,13 +1048,28 @@ floor; schema v1-v4 pending mutations migrate conservatively without invented
 proof. Real Arm64 and physical Linux x86_64 campaigns force-kill the host after
 daemon commit, roll all 256 retained receipts, and observe one lookup, zero
 post-restart mutations, a preserved local runtime, and a durable ambiguous
-intent. Evidence lives in
+intent. The revision-bound operator reconciliation gate is now complete.
+Control-plane schema v6 retains a bounded reconciliation audit. Operators first
+obtain a typed full-daemon snapshot, then submit the exact intent and daemon
+revisions with explicit confirmation. A re-registered original identity blocks
+cleanup; daemon revision drift also fails closed. When a later snapshot proves
+every original identity absent, local runtime/session compatibility
+projections and intent cleanup commit atomically with the audit. Orchestra
+cleanup remains on its existing idempotent persistence-authority boundary
+under the same deletion claim. Request identity replay survives both
+convergence and restart.
+
+The Arm64 and physical Linux x86_64 campaigns now continue past replay
+ambiguity: each re-registers the original runtime identity and proves
+reconciliation rejection, unregisters it, converges against daemon revision
+516, reloads the control-plane state, and replays the same reconciliation
+request without another mutation. Evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_replay_horizon_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_replay_horizon_linux_x86_64_20260726.json`;
 `scripts/validation/leserpent_runtime_deletion_replay_horizon.sh` reproduces
-it. The next gate adds revision-bound operator reconciliation: local cleanup
-may complete only when a typed daemon snapshot proves every original target
-remains absent, while any reappeared identity keeps the intent blocked.
+it. The next gate force-kills the compatibility host before, during, and after
+the reconciliation state-save boundary, proving runtime projection, deletion
+intent, and audit recover together as one old-or-new state generation.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

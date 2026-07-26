@@ -1066,12 +1066,18 @@ fn assert_runtime_deletion_replay_horizon(path: &str, expected_architecture: &st
     )
     .expect("runtime deletion replay-horizon evidence must be JSON");
 
-    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["schema_version"], 2);
     assert_eq!(evidence["architecture"], expected_architecture);
     assert_eq!(evidence["forced_host_termination_count"], 1);
     assert_eq!(evidence["replay_horizon_capacity"], 256);
     assert_eq!(evidence["receipt_lookup_call_count"], 1);
     assert_eq!(evidence["post_restart_unregistration_mutation_count"], 0);
+    assert!(
+        evidence["reconciliation_daemon_revision"]
+            .as_u64()
+            .expect("reconciliation daemon revision must be retained")
+            > 0
+    );
     let floor = evidence["persisted_replay_horizon_floor"]
         .as_u64()
         .expect("replay floor must be retained");
@@ -1091,6 +1097,10 @@ fn assert_runtime_deletion_replay_horizon(path: &str, expected_architecture: &st
         "zero_post_restart_unregistration_mutations",
         "local_runtime_projection_was_preserved",
         "ambiguous_intent_survived_disk_reload",
+        "reappeared_identity_blocked_reconciliation",
+        "absence_snapshot_permitted_convergence",
+        "atomic_local_cleanup_and_audit_survived_reload",
+        "reconciliation_replayed_after_restart",
     ] {
         assert_eq!(
             evidence["checks"][check], true,
@@ -1527,7 +1537,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.12.0");
+    assert_eq!(compatibility_control.contract.version, "1.13.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -1538,6 +1548,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "scripts/validation/leserpent_runtime_deletion_replay_horizon.sh"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "apps/leserpent/tests/Leserpent.SecurityTests/RuntimeDeletionReconciliationEndpointTests.cs"
             && item.state == EvidenceState::Present
     }));
     for surface in [
@@ -1827,7 +1842,43 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("revision-bound operator reconciliation")
+            .contains("reconciliation state-save boundaries")
+    );
+
+    let reconciliation = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-1x/control-plane/runtime-deletion-reconciliation")
+        .expect("runtime deletion reconciliation cell must exist");
+    assert_eq!(reconciliation.maturity, Maturity::Mature);
+    assert_eq!(reconciliation.completion, 100);
+    assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
+    assert_eq!(reconciliation.contract.version, "1.0.0");
+    for surface in [
+        "schema-v6-control-state",
+        "typed-daemon-reconciliation-snapshot",
+        "revision-bound-runtime-deletion-reconciliation",
+        "reappeared-runtime-identity-fence",
+        "atomic-reconciliation-cleanup-audit",
+        "bounded-reconciliation-audit-retention",
+        "idempotent-reconciliation-request-replay",
+        "guarded-runtime-deletion-reconciliation-api",
+        "cross-platform-reconciliation-proof",
+    ] {
+        assert!(
+            reconciliation
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing reconciliation surface {surface}"
+        );
+    }
+    assert!(reconciliation.blockers.is_empty());
+    assert!(
+        reconciliation
+            .next_gate
+            .contains("reconciliation control-state commit")
     );
 
     let bootstrap = catalog

@@ -98,6 +98,19 @@ public sealed partial class RegistryService
             static (queue, audit) => queue.Enqueue(audit));
     }
 
+    private static ImmutableQueue<
+        PersistedRuntimeDeletionReconciliationAudit>
+        NormalizeRuntimeDeletionReconciliationAudit(
+            PersistedControlPlaneState? state)
+    {
+        return ControlPlaneStateValidator
+            .NormalizeRuntimeDeletionReconciliationAudit(state)
+            .Aggregate(
+                ImmutableQueue<
+                    PersistedRuntimeDeletionReconciliationAudit>.Empty,
+                static (queue, audit) => queue.Enqueue(audit));
+    }
+
     private static bool IsValidRuntimeDeletionRetryActor(string value) =>
         ControlPlaneStateValidator.IsValidRuntimeDeletionRetryActor(
             value);
@@ -275,7 +288,8 @@ public sealed partial class RegistryService
                 state.Sessions,
                 state.OrchestraRuns,
                 state.PendingRuntimeDeletions,
-                state.RuntimeDeletionRetryAudit);
+                state.RuntimeDeletionRetryAudit,
+                state.RuntimeDeletionReconciliationAudit);
         }
     }
 
@@ -289,7 +303,8 @@ public sealed partial class RegistryService
                 state.Sessions,
                 state.OrchestraRuns,
                 state.PendingRuntimeDeletions,
-                state.RuntimeDeletionRetryAudit);
+                state.RuntimeDeletionRetryAudit,
+                state.RuntimeDeletionReconciliationAudit);
         }
     }
 }

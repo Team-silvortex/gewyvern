@@ -321,9 +321,11 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.True(loaded is not null, store.LastSaveError);
             var restored = Assert.IsType<PersistedControlPlaneState>(loaded);
 
-            Assert.Equal(5, restored.SchemaVersion);
+            Assert.Equal(6, restored.SchemaVersion);
             Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<PersistedRuntimeDeletionIntent>>(
                 restored.PendingRuntimeDeletions));
+            Assert.Empty(
+                restored.RuntimeDeletionReconciliationAudit!);
         }
         finally
         {
@@ -335,6 +337,7 @@ public sealed class SqliteOrchestraRunStoreTests
     [InlineData(2)]
     [InlineData(3)]
     [InlineData(4)]
+    [InlineData(5)]
     public void ControlPlaneStateStoreMigratesLegacyDeletionIntent(
         int schemaVersion)
     {
@@ -373,7 +376,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 store.Load());
             var intent = Assert.Single(restored.PendingRuntimeDeletions!);
 
-            Assert.Equal(5, restored.SchemaVersion);
+            Assert.Equal(6, restored.SchemaVersion);
             Assert.Equal(0, intent.AttemptCount);
             Assert.Null(intent.LastAttemptAt);
             Assert.Null(intent.NextAttemptAt);
@@ -385,9 +388,12 @@ public sealed class SqliteOrchestraRunStoreTests
                 intent.UnregistrationCommandId);
             Assert.Null(
                 intent.UnregistrationReplayHorizonFloor);
-            Assert.True(
+            Assert.Equal(
+                schemaVersion < 5,
                 intent.UnregistrationMutationMayHaveStarted);
             Assert.Empty(restored.RuntimeDeletionRetryAudit!);
+            Assert.Empty(
+                restored.RuntimeDeletionReconciliationAudit!);
         }
         finally
         {

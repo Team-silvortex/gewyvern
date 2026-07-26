@@ -126,7 +126,7 @@ fn container_entrypoints_default_to_a_bounded_remote_linux_workspace() {
     assert!(runner.contains("BatchMode=yes"));
     assert!(runner.contains("/.cache/gewyvern/docker-workspace"));
     assert!(runner.contains("REMOTE_WORKSPACE") && runner.contains("--delete"));
-    assert!(runner.contains("flock -w 120"));
+    assert!(runner.contains("flock -o -w 120"));
     assert!(runner.contains("control-plane-state.json"));
     assert!(!runner.contains("DOCKER_HOST="));
     assert!(!runner.contains("SSHPASS"));
