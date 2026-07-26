@@ -195,6 +195,11 @@ pub struct RuntimeUnregistrationOperationRecord {
     pub removed_at_unix_ms: i64,
 }
 
+pub struct RuntimeUnregistrationReceiptLookupRecord {
+    pub operation: Option<RuntimeUnregistrationOperationRecord>,
+    pub replay_horizon: RuntimeUnregistrationReplayHorizon,
+}
+
 pub struct AuthorityCheckpointRecord {
     pub revision: u64,
     pub phase: String,
@@ -1224,6 +1229,29 @@ impl Journal {
     ) -> Result<RuntimeUnregistrationReplayHorizon, String> {
         self.ensure_owner()?;
         load_runtime_unregistration_replay_horizon(&self.connection)
+    }
+
+    pub fn runtime_unregistration_receipt_lookup(
+        &mut self,
+        operation_id: &str,
+    ) -> Result<RuntimeUnregistrationReceiptLookupRecord, String> {
+        self.ensure_owner()?;
+        validate_scheduler_id("runtime unregistration operation_id", operation_id)?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        evict_runtime_unregistration_replay_horizon(&transaction, 0)?;
+        let operation = load_runtime_unregistration_operation_record(&transaction, operation_id)?;
+        if let Some(record) = &operation {
+            validate_runtime_unregistration_replay_snapshot(&transaction, record)?;
+        }
+        let replay_horizon = load_runtime_unregistration_replay_horizon(&transaction)?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(RuntimeUnregistrationReceiptLookupRecord {
+            operation,
+            replay_horizon,
+        })
     }
 
     pub fn commit_runtime_unregistration_operation(

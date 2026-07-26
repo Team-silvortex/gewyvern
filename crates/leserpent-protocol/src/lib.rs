@@ -32,6 +32,7 @@ pub enum ProtocolRequest {
     OrchestraHistory(OrchestraHistoryRequest),
     OrchestraDelete(OrchestraDeleteRequest),
     RuntimeUnregister(RuntimeUnregisterRequest),
+    RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptRequest),
     BootstrapHandoff(BootstrapHandoffRequest),
     BootstrapSessionBind(BootstrapSessionBindRequest),
 }
@@ -95,6 +96,14 @@ pub struct RuntimeUnregisterTarget {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct RuntimeUnregistrationReceiptRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub command_id: CommandId,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct BootstrapHandoffRequest {
     pub principal: Principal,
     pub capabilities: CapabilitySet,
@@ -130,6 +139,7 @@ pub enum ProtocolResponse {
     OrchestraHistory(OrchestraHistoryResponse),
     OrchestraDeleted(OrchestraDeleteResponse),
     RuntimeUnregistered(RuntimeUnregisterResponse),
+    RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptLookupResponse),
     BootstrapHandoff(DeploymentBootstrapSnapshot),
     Error(ProtocolError),
 }
@@ -182,12 +192,33 @@ pub struct OrchestraDeleteResponse {
 #[serde(deny_unknown_fields)]
 pub struct RuntimeUnregisterResponse {
     pub command_id: CommandId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_generation: Option<u64>,
     pub removed: Vec<RuntimeUnregisterTarget>,
     pub deleted_orchestra_runtime_count: u32,
     pub deleted_orchestra_run_count: u64,
     pub deleted_orchestra_event_count: u64,
     pub removed_at_unix_ms: i64,
     pub replayed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeUnregistrationReceipt {
+    pub operation_generation: u64,
+    pub removed: Vec<RuntimeUnregisterTarget>,
+    pub deleted_orchestra_runtime_count: u32,
+    pub deleted_orchestra_run_count: u64,
+    pub deleted_orchestra_event_count: u64,
+    pub removed_at_unix_ms: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeUnregistrationReceiptLookupResponse {
+    pub command_id: CommandId,
+    pub receipt: Option<RuntimeUnregistrationReceipt>,
+    pub replay_horizon: RuntimeUnregistrationReplayHorizonHealth,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -331,6 +362,7 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::RuntimeUnregister(_)
+        | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => DOMAIN_SCHEMA_VERSION,
     };
@@ -928,6 +960,87 @@ mod tests {
                     },
                 ),
             }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&response).unwrap()).unwrap(),
+            response
+        );
+    }
+
+    #[test]
+    fn runtime_unregistration_receipt_preserves_generation_and_accepts_legacy_absence() {
+        let legacy = br#"{"schema_version":1,"response":{"kind":"runtime_unregistered","payload":{"command_id":"runtime-unregister-a","removed":[],"deleted_orchestra_runtime_count":0,"deleted_orchestra_run_count":0,"deleted_orchestra_event_count":0,"removed_at_unix_ms":1784620800000,"replayed":true}}}"#;
+        let decoded = decode_response(legacy).unwrap();
+        let ProtocolResponse::RuntimeUnregistered(receipt) = decoded.response else {
+            panic!("legacy response should remain a runtime-unregistration receipt");
+        };
+        assert_eq!(receipt.operation_generation, None);
+
+        let current = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::RuntimeUnregistered(RuntimeUnregisterResponse {
+                command_id: CommandId::new("runtime-unregister-a").unwrap(),
+                operation_generation: Some(17),
+                removed: Vec::new(),
+                deleted_orchestra_runtime_count: 0,
+                deleted_orchestra_run_count: 0,
+                deleted_orchestra_event_count: 0,
+                removed_at_unix_ms: 1_784_620_800_000,
+                replayed: true,
+            }),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&current).unwrap()).unwrap(),
+            current
+        );
+    }
+
+    #[test]
+    fn runtime_unregistration_receipt_lookup_round_trips_typed_presence_and_horizon() {
+        let command_id = CommandId::new("runtime-unregister-a").unwrap();
+        let request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::RuntimeUnregistrationReceipt(
+                RuntimeUnregistrationReceiptRequest {
+                    principal: Principal {
+                        id: "operator-a".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                    command_id: command_id.clone(),
+                },
+            ),
+        };
+        assert_eq!(
+            decode_request(&encode_request(&request).unwrap()).unwrap(),
+            request
+        );
+
+        let response = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::RuntimeUnregistrationReceipt(
+                RuntimeUnregistrationReceiptLookupResponse {
+                    command_id,
+                    receipt: Some(RuntimeUnregistrationReceipt {
+                        operation_generation: 17,
+                        removed: vec![RuntimeUnregisterTarget {
+                            runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                            expected_revision: Revision(4),
+                        }],
+                        deleted_orchestra_runtime_count: 1,
+                        deleted_orchestra_run_count: 2,
+                        deleted_orchestra_event_count: 3,
+                        removed_at_unix_ms: 1_784_620_800_000,
+                    }),
+                    replay_horizon: RuntimeUnregistrationReplayHorizonHealth {
+                        capacity: 256,
+                        retained: 1,
+                        oldest_generation: Some(17),
+                        newest_generation: Some(17),
+                        next_generation: 18,
+                        evicted_through_generation: 16,
+                    },
+                },
+            ),
         };
         assert_eq!(
             decode_response(&encode_response(&response).unwrap()).unwrap(),

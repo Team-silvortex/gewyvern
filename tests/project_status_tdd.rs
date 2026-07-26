@@ -1268,6 +1268,25 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
+    assert!(
+        avalonia
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "avalonia-generation-horizon-classification")
+    );
+    for surface in [
+        "strict-unregistration-receipt-client",
+        "retained-receipt-horizon-binding",
+    ] {
+        assert!(
+            avalonia
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface)
+        );
+    }
     assert!(avalonia.blockers.is_empty());
 
     let transport = catalog
@@ -1282,6 +1301,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "optional-unregistration-replay-horizon-health",
         "legacy-horizon-free-health-decode",
         "strict-avalonia-horizon-health-decode",
+        "optional-runtime-unregistration-operation-generation",
+        "legacy-generation-free-receipt-decode",
+        "typed-runtime-unregistration-receipt-lookup",
+        "atomic-receipt-horizon-response",
+        "typed-null-receipt-miss",
     ] {
         assert!(
             transport
@@ -1303,6 +1327,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(cli.completion, 100);
     assert_eq!(cli.contract.stability, ContractStability::Stable);
     assert_eq!(cli.contract.version, "1.6.0");
+    assert!(
+        cli.contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "native-cli-generation-bound-unregistration-receipt")
+    );
+    assert!(
+        cli.contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "runtime-unregister-receipt-command")
+    );
     for surface in [
         "runtime-provision-command",
         "runtime-retire-command",
@@ -1351,6 +1387,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "sqlite-v15-unregistration-generation",
         "schema-owned-unregistration-replay-horizon",
         "queryable-unregistration-horizon-health",
+        "durable-unregistration-generation-receipt",
+        "first-replay-generation-identity",
+        "validated-unregistration-receipt-lookup",
+        "atomic-receipt-horizon-snapshot",
+        "projection-tombstone-lookup-fence",
         "atomic-unregistration-orchestra-cleanup",
         "durable-unregistration-idempotency",
         "restart-safe-unregistration-replay",
@@ -1643,6 +1684,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "authenticated-health-replay-horizon",
         "native-cli-replay-horizon",
         "strict-avalonia-replay-horizon",
+        "daemon-generation-bound-unregistration-receipt",
+        "legacy-generation-absence-without-zero",
+        "read-only-unregistration-receipt-recovery",
     ] {
         assert!(
             compatibility_control
@@ -1656,7 +1700,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("durable operation generation")
+            .contains("Persist the unregistration command ID")
     );
 
     let bootstrap = catalog

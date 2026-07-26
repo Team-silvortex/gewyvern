@@ -219,6 +219,45 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task ConfiguredAuthorityRejectsZeroUnregistrationGeneration()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        const string runtimeId = "runtime-delete-zero-generation";
+        var server = ServeSequenceAsync(listener, requests, (request, index) =>
+        {
+            if (index == 0)
+            {
+                return QueryResponse(runtimeId, 9);
+            }
+            var payload = request
+                .GetProperty("request")
+                .GetProperty("request")
+                .GetProperty("payload");
+            return RuntimeUnregisteredResponse(
+                payload.GetProperty("command_id").GetString()!,
+                runtimeId,
+                9,
+                operationGeneration: 0);
+        }, 2);
+
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+        var error = await Assert.ThrowsAsync<DaemonRuntimeRegistrationException>(
+            () => authority.UnregisterAsync(new[] { runtimeId }, CancellationToken.None));
+
+        await server;
+        Assert.Equal("daemon_protocol_invalid", error.Code);
+        TryDelete(socketPath);
+    }
+
+    [Fact]
     public async Task ConfiguredRustDaemonOwnsRegistrationDiscoveryAndUpdateEndToEnd()
     {
         var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");
@@ -4605,11 +4644,13 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     private static string RuntimeUnregisteredResponse(
         string commandId,
         string runtimeId,
-        int revision) =>
+        int revision,
+        ulong operationGeneration = 1) =>
         "{" +
         "\"schema_version\":1," +
         "\"response\":{\"kind\":\"runtime_unregistered\",\"payload\":{" +
         "\"command_id\":\"" + commandId + "\"," +
+        "\"operation_generation\":" + operationGeneration + "," +
         "\"removed\":[{\"runtime_id\":\"" + runtimeId +
         "\",\"expected_revision\":" + revision + "}]," +
         "\"deleted_orchestra_runtime_count\":0," +

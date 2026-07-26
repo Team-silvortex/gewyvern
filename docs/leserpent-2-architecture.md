@@ -1081,6 +1081,28 @@ Authenticated health exposes capacity, retained count, oldest/newest
 generation, next generation, and the eviction high-water mark. The Rust CLI
 renders the same bounded metadata and Avalonia validates it with a strict
 source-generated wire model, while legacy health responses may omit it.
+Every successful or replayed runtime-unregistration result now carries the
+exact nonzero operation generation read from that durable row. First execution
+and idempotent replay therefore expose the same receipt identity, and the
+daemon emits it as an optional protocol-v1 extension so legacy receipts remain
+decodable without inventing generation zero. The native CLI renders either the
+generation or an explicit `legacy-unknown` marker. The compatibility authority
+rejects an emitted zero generation, while Avalonia classifies a receipt
+generation against authenticated health as retained, evicted, or future. This
+connects mutation evidence to the advertised replay window without exposing
+SQLite ordering or requiring another mutation.
+Lost mutation responses can now be recovered through the separate
+`runtime_unregistration_receipt` read operation. It accepts only a principal,
+`runtime.read`, and one bounded command ID; it cannot carry targets,
+confirmation, or mutation authority. SQLite converges the replay window and
+validates the operation, journal tombstones, and Orchestra absence in one
+transaction, then returns the optional receipt together with the horizon from
+that same transaction. The control runtime additionally proves every removed
+projection remains absent. A missing receipt is a successful typed `null`, not
+an authority error, while corruption remains a fixed non-disclosing failure.
+The Rust CLI exposes `runtime unregister-receipt COMMAND_ID`. Avalonia's strict
+source-generated client requires any returned generation to be retained by the
+co-returned horizon and revalidates target uniqueness and cleanup bounds.
 
 ## Leselang Semantics
 

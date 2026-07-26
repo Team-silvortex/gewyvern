@@ -41,6 +41,7 @@ use leserpent_protocol::retirement::{
 use leserpent_protocol::{
     BootstrapHandoffRequest, BootstrapSessionBindRequest, HealthRequest, PROTOCOL_SCHEMA_VERSION,
     ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
+    RuntimeUnregistrationReceiptRequest,
 };
 
 mod https;
@@ -84,6 +85,7 @@ pub enum CliCommand {
     RuntimeInspect(RuntimeId),
     RuntimeHistory(RuntimeId),
     RuntimeLogs(RuntimeId),
+    RuntimeUnregistrationReceipt(CommandId),
     RuntimeWatch(RuntimeWatchOptions),
     RuntimeRefresh(RuntimeRefreshOptions),
     RuntimeCapabilitiesRefresh(RuntimeRefreshOptions),
@@ -185,7 +187,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime retire RUNTIME_ID --retirement-id ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime retire RUNTIME_ID --retirement-id ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime unregister-receipt COMMAND_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 pub const REMOTE_TRUST_USAGE: &str = "Bootstrap trust alternative:\n  replace --remote-ca PATH with --remote-trust-root PATH --remote-trust-handle vault:leserpent-ca:KEY";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -367,6 +369,15 @@ pub fn parse_args_with_remote(
                     .map_err(|error| CliError::Usage(error.to_string()))?;
                 let export = parse_local_export(arguments)?;
                 (CliCommand::RuntimeLogs(runtime_id), export)
+            }
+            Some("unregister-receipt") => {
+                let command_id = arguments.next().ok_or_else(|| {
+                    CliError::Usage("runtime unregister-receipt requires COMMAND_ID".into())
+                })?;
+                let command_id = CommandId::new(command_id)
+                    .map_err(|error| CliError::Usage(error.to_string()))?;
+                reject_trailing(arguments)?;
+                (CliCommand::RuntimeUnregistrationReceipt(command_id), None)
             }
             Some("watch") => (
                 CliCommand::RuntimeWatch(parse_runtime_watch(arguments)?),
@@ -561,6 +572,15 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
                 ));
             };
             ProtocolRequest::Query(query)
+        }
+        CliCommand::RuntimeUnregistrationReceipt(command_id) => {
+            ProtocolRequest::RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptRequest {
+                principal: Principal {
+                    id: options.principal.clone(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                command_id: command_id.clone(),
+            })
         }
         CliCommand::RuntimeWatch(watch) => {
             let plan = plan_runtime_inspect(&watch.runtime_id, &query_lowering_context(options))
@@ -1283,9 +1303,13 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
                     .collect::<Vec<_>>()
                     .join(",")
             };
+            let operation_generation = result
+                .operation_generation
+                .map_or_else(|| "legacy-unknown".to_string(), |value| value.to_string());
             Ok(format!(
-                "command={} removed={} runtimes={} orchestra_runtimes={} orchestra_runs={} orchestra_events={} removed_at_unix_ms={} replayed={}",
+                "command={} operation_generation={} removed={} runtimes={} orchestra_runtimes={} orchestra_runs={} orchestra_events={} removed_at_unix_ms={} replayed={}",
                 safe_cell(result.command_id.as_str()),
+                operation_generation,
                 result.removed.len(),
                 runtimes,
                 result.deleted_orchestra_runtime_count,
@@ -1293,6 +1317,49 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
                 result.deleted_orchestra_event_count,
                 result.removed_at_unix_ms,
                 result.replayed,
+            ))
+        }
+        ProtocolResponse::RuntimeUnregistrationReceipt(lookup) => {
+            let horizon = &lookup.replay_horizon;
+            let Some(receipt) = &lookup.receipt else {
+                return Ok(format!(
+                    "command={} found=false retained={} oldest_generation={} newest_generation={} next_generation={} evicted_through_generation={}",
+                    safe_cell(lookup.command_id.as_str()),
+                    horizon.retained,
+                    horizon
+                        .oldest_generation
+                        .map_or_else(|| "none".to_string(), |value| value.to_string()),
+                    horizon
+                        .newest_generation
+                        .map_or_else(|| "none".to_string(), |value| value.to_string()),
+                    horizon.next_generation,
+                    horizon.evicted_through_generation,
+                ));
+            };
+            let runtimes = receipt
+                .removed
+                .iter()
+                .map(|target| safe_cell(target.runtime_id.as_str()))
+                .collect::<Vec<_>>()
+                .join(",");
+            Ok(format!(
+                "command={} found=true operation_generation={} runtimes={} orchestra_runtimes={} orchestra_runs={} orchestra_events={} removed_at_unix_ms={} retained={} oldest_generation={} newest_generation={} next_generation={} evicted_through_generation={}",
+                safe_cell(lookup.command_id.as_str()),
+                receipt.operation_generation,
+                runtimes,
+                receipt.deleted_orchestra_runtime_count,
+                receipt.deleted_orchestra_run_count,
+                receipt.deleted_orchestra_event_count,
+                receipt.removed_at_unix_ms,
+                horizon.retained,
+                horizon
+                    .oldest_generation
+                    .map_or_else(|| "none".to_string(), |value| value.to_string()),
+                horizon
+                    .newest_generation
+                    .map_or_else(|| "none".to_string(), |value| value.to_string()),
+                horizon.next_generation,
+                horizon.evicted_through_generation,
             ))
         }
         ProtocolResponse::BootstrapHandoff(state) => Ok(format!(
@@ -2406,6 +2473,7 @@ mod tests {
                 response: ProtocolResponse::RuntimeUnregistered(
                     leserpent_protocol::RuntimeUnregisterResponse {
                         command_id: CommandId::new("runtime-unregister-command-a").unwrap(),
+                        operation_generation: Some(17),
                         removed: vec![
                             leserpent_protocol::RuntimeUnregisterTarget {
                                 runtime_id: RuntimeId::new("runtime-a").unwrap(),
@@ -2430,7 +2498,66 @@ mod tests {
 
         assert_eq!(
             rendered,
-            "command=runtime-unregister-command-a removed=2 runtimes=runtime-a,runtime-b orchestra_runtimes=2 orchestra_runs=5 orchestra_events=13 removed_at_unix_ms=1721720000000 replayed=true"
+            "command=runtime-unregister-command-a operation_generation=17 removed=2 runtimes=runtime-a,runtime-b orchestra_runtimes=2 orchestra_runs=5 orchestra_events=13 removed_at_unix_ms=1721720000000 replayed=true"
+        );
+    }
+
+    #[test]
+    fn runtime_unregistration_receipt_lookup_is_read_only_and_renders_horizon() {
+        let options = parse_args(
+            [
+                "runtime",
+                "unregister-receipt",
+                "runtime-unregister-command-a",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some("/tmp/leserpent.sock".into()),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        let request = request_for(&options).unwrap();
+        let ProtocolRequest::RuntimeUnregistrationReceipt(request) = request.request else {
+            panic!("runtime unregister-receipt must produce a receipt lookup");
+        };
+        assert_eq!(request.command_id.as_str(), "runtime-unregister-command-a");
+        assert!(request.capabilities.contains(CAPABILITY_RUNTIME_READ));
+
+        let rendered = render_response(
+            &ResponseEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                response: ProtocolResponse::RuntimeUnregistrationReceipt(
+                    leserpent_protocol::RuntimeUnregistrationReceiptLookupResponse {
+                        command_id: request.command_id,
+                        receipt: Some(leserpent_protocol::RuntimeUnregistrationReceipt {
+                            operation_generation: 17,
+                            removed: vec![leserpent_protocol::RuntimeUnregisterTarget {
+                                runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                                expected_revision: Revision(4),
+                            }],
+                            deleted_orchestra_runtime_count: 1,
+                            deleted_orchestra_run_count: 2,
+                            deleted_orchestra_event_count: 3,
+                            removed_at_unix_ms: 1_721_720_000_000,
+                        }),
+                        replay_horizon:
+                            leserpent_protocol::RuntimeUnregistrationReplayHorizonHealth {
+                                capacity: 256,
+                                retained: 12,
+                                oldest_generation: Some(4),
+                                newest_generation: Some(15),
+                                next_generation: 16,
+                                evicted_through_generation: 3,
+                            },
+                    },
+                ),
+            },
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            rendered,
+            "command=runtime-unregister-command-a found=true operation_generation=17 runtimes=runtime-a orchestra_runtimes=1 orchestra_runs=2 orchestra_events=3 removed_at_unix_ms=1721720000000 retained=12 oldest_generation=4 newest_generation=15 next_generation=16 evicted_through_generation=3"
         );
     }
 

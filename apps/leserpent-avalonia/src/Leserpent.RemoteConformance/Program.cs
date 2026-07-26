@@ -166,6 +166,8 @@ if (args.Length != 0)
 
 var snapshot = RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.SnapshotJson));
 var fixtureHealth = RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.HealthJson));
+var fixtureReceipt = RemoteUnregistrationReceiptCodec.Decode(
+    Encoding.UTF8.GetBytes(Fixtures.UnregistrationReceiptJson));
 RemoteLeselangExport.VerifyContract();
 RemoteTopologyStateMachine.VerifyContract();
 Require(fixtureHealth is
@@ -185,6 +187,56 @@ Require(fixtureHealth is
         EvictedThroughGeneration: 3,
     },
 }, "health codec did not preserve authority and queue state");
+var fixtureReplayHorizon = fixtureHealth.RuntimeUnregistrationReplayHorizon
+    ?? throw new InvalidOperationException("fixture health omitted its replay horizon");
+Require(
+    fixtureReplayHorizon.Classify(15)
+        == RemoteUnregistrationGenerationState.Retained,
+    "health replay horizon did not retain its newest receipt generation");
+Require(
+    fixtureReplayHorizon.Classify(3)
+        == RemoteUnregistrationGenerationState.Evicted,
+    "health replay horizon did not classify its eviction highwater");
+Require(
+    fixtureReplayHorizon.Classify(16)
+        == RemoteUnregistrationGenerationState.Future,
+    "health replay horizon did not classify its next generation as future");
+RequireThrows<ArgumentOutOfRangeException>(
+    () => fixtureReplayHorizon.Classify(0),
+    "health replay horizon accepted generation zero");
+Require(fixtureReceipt is
+{
+    CommandId: "runtime-unregister-a",
+    Receipt:
+    {
+        OperationGeneration: 15,
+        Removed.Count: 1,
+        DeletedOrchestraRuntimeCount: 1,
+        DeletedOrchestraRunCount: 2,
+        DeletedOrchestraEventCount: 3,
+    },
+    ReplayHorizon:
+    {
+        OldestGeneration: 4,
+        NewestGeneration: 15,
+    },
+}, "unregistration receipt codec did not preserve its atomic lookup");
+var missingReceipt = RemoteUnregistrationReceiptCodec.Decode(
+    Encoding.UTF8.GetBytes(Fixtures.MissingUnregistrationReceiptJson));
+Require(missingReceipt.Receipt is null,
+    "unregistration receipt codec fabricated a missing receipt");
+RequireThrows<InvalidDataException>(() => RemoteUnregistrationReceiptCodec.Decode(
+    Encoding.UTF8.GetBytes(Fixtures.UnregistrationReceiptJson.Replace(
+        "\"operation_generation\": 15",
+        "\"operation_generation\": 16",
+        StringComparison.Ordinal))),
+    "unregistration receipt codec accepted a future generation");
+RequireThrows<InvalidDataException>(() => RemoteUnregistrationReceiptCodec.Decode(
+    Encoding.UTF8.GetBytes(Fixtures.UnregistrationReceiptJson.Replace(
+        "\"expected_revision\": 4",
+        "\"expected_revision\": 0",
+        StringComparison.Ordinal))),
+    "unregistration receipt codec accepted a zero target revision");
 RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
     Fixtures.HealthJson.Replace(
         "\"active\": 1",
@@ -556,6 +608,60 @@ readonly record struct BenchmarkMeasurement(
 
 static class Fixtures
 {
+public const string UnregistrationReceiptJson = """
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "runtime_unregistration_receipt",
+    "payload": {
+      "command_id": "runtime-unregister-a",
+      "receipt": {
+        "operation_generation": 15,
+        "removed": [
+          {
+            "runtime_id": "runtime-a",
+            "expected_revision": 4
+          }
+        ],
+        "deleted_orchestra_runtime_count": 1,
+        "deleted_orchestra_run_count": 2,
+        "deleted_orchestra_event_count": 3,
+        "removed_at_unix_ms": 1784620800000
+      },
+      "replay_horizon": {
+        "capacity": 256,
+        "retained": 12,
+        "oldest_generation": 4,
+        "newest_generation": 15,
+        "next_generation": 16,
+        "evicted_through_generation": 3
+      }
+    }
+  }
+}
+""";
+
+public const string MissingUnregistrationReceiptJson = """
+{
+  "schema_version": 1,
+  "response": {
+    "kind": "runtime_unregistration_receipt",
+    "payload": {
+      "command_id": "runtime-unregister-missing",
+      "receipt": null,
+      "replay_horizon": {
+        "capacity": 256,
+        "retained": 12,
+        "oldest_generation": 4,
+        "newest_generation": 15,
+        "next_generation": 16,
+        "evicted_through_generation": 3
+      }
+    }
+  }
+}
+""";
+
 public const string HealthJson = """
 {
   "schema_version": 1,

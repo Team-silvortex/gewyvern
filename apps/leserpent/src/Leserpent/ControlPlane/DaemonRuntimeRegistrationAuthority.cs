@@ -246,6 +246,12 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 throw new InvalidOperationException(
                     "leserpentd returned a mismatched runtime unregistration result");
             }
+            if (payload.TryGetProperty("operation_generation", out var generation)
+                && generation.GetUInt64() == 0)
+            {
+                throw new InvalidOperationException(
+                    "leserpentd returned an invalid runtime unregistration generation");
+            }
             var removed = payload.GetProperty("removed")
                 .EnumerateArray()
                 .Select(target => target.GetProperty("runtime_id").GetString())

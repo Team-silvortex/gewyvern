@@ -345,6 +345,15 @@ unregistration and managed compatibility cleanup finish. Without daemon
 configuration, the reservation still protects the existing development
 fallback.
 
+Wire-v1 also exposes `runtime_unregistration_receipt` as a read-only recovery
+operation. It requires `runtime.read` and one command ID and accepts no targets
+or confirmation. The response always carries the command ID, an optional
+validated receipt, and the replay horizon observed by the same authority
+transaction. `receipt: null` is a normal bounded miss; storage or tombstone
+corruption returns only the fixed lookup failure. A present receipt has a
+required nonzero operation generation and no `replayed` flag because the lookup
+does not execute the mutation.
+
 The daemon's typed deployment receipt is intentionally narrower than a generic
 effect-result query. It requires deployment capability, binds command ID and
 request ID to the persisted deployment payload, and returns only pending,

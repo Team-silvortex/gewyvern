@@ -58,12 +58,30 @@ pub struct RuntimeUnregisterTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RuntimeUnregisterResult {
     pub command_id: CommandId,
+    pub operation_generation: u64,
     pub removed: Vec<RuntimeUnregisterTarget>,
     pub deleted_orchestra_runtime_count: u32,
     pub deleted_orchestra_run_count: u64,
     pub deleted_orchestra_event_count: u64,
     pub removed_at_unix_ms: i64,
     pub replayed: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeUnregistrationReceipt {
+    pub operation_generation: u64,
+    pub removed: Vec<RuntimeUnregisterTarget>,
+    pub deleted_orchestra_runtime_count: u32,
+    pub deleted_orchestra_run_count: u64,
+    pub deleted_orchestra_event_count: u64,
+    pub removed_at_unix_ms: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeUnregistrationReceiptLookup {
+    pub command_id: CommandId,
+    pub receipt: Option<RuntimeUnregistrationReceipt>,
+    pub replay_horizon: RuntimeUnregistrationReplayHorizon,
 }
 
 fn command_runtime_id(command: &Command) -> Option<&RuntimeId> {
@@ -620,6 +638,59 @@ impl ControlRuntime {
             .map_err(RuntimeError::Storage)
     }
 
+    pub fn runtime_unregistration_receipt(
+        &mut self,
+        command_id: CommandId,
+    ) -> Result<RuntimeUnregistrationReceiptLookup, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Ok(RuntimeUnregistrationReceiptLookup {
+                command_id,
+                receipt: None,
+                replay_horizon: RuntimeUnregistrationReplayHorizon {
+                    capacity: u64::try_from(RUNTIME_UNREGISTRATION_REPLAY_HORIZON)
+                        .map_err(|_| RuntimeError::Storage("replay horizon is invalid".into()))?,
+                    retained: 0,
+                    oldest_generation: None,
+                    newest_generation: None,
+                    next_generation: 1,
+                    evicted_through_generation: 0,
+                },
+            });
+        };
+        let lookup = journal
+            .runtime_unregistration_receipt_lookup(command_id.as_str())
+            .map_err(RuntimeError::Storage)?;
+        let receipt = lookup
+            .operation
+            .map(|record| {
+                let removed: Vec<RuntimeUnregisterTarget> = serde_json::from_slice(&record.request)
+                    .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+                if removed.iter().any(|target| {
+                    self.control
+                        .runtime_projection(&target.runtime_id)
+                        .is_some()
+                }) {
+                    return Err(RuntimeError::Storage(
+                        "runtime unregistration projection tombstone is inconsistent".into(),
+                    ));
+                }
+                Ok(RuntimeUnregistrationReceipt {
+                    operation_generation: record.generation,
+                    removed,
+                    deleted_orchestra_runtime_count: record.deleted_runtime_count,
+                    deleted_orchestra_run_count: record.deleted_run_count,
+                    deleted_orchestra_event_count: record.deleted_event_count,
+                    removed_at_unix_ms: record.removed_at_unix_ms,
+                })
+            })
+            .transpose()?;
+        Ok(RuntimeUnregistrationReceiptLookup {
+            command_id,
+            receipt,
+            replay_horizon: lookup.replay_horizon,
+        })
+    }
+
     pub fn deployment_effect_receipt(
         &mut self,
         command_id: &str,
@@ -750,6 +821,7 @@ impl ControlRuntime {
             }
             return Ok(RuntimeUnregisterResult {
                 command_id,
+                operation_generation: record.generation,
                 removed: targets,
                 deleted_orchestra_runtime_count: record.deleted_runtime_count,
                 deleted_orchestra_run_count: record.deleted_run_count,
@@ -801,6 +873,7 @@ impl ControlRuntime {
         }
         Ok(RuntimeUnregisterResult {
             command_id,
+            operation_generation: record.generation,
             removed: targets,
             deleted_orchestra_runtime_count: record.deleted_runtime_count,
             deleted_orchestra_run_count: record.deleted_run_count,
@@ -4884,6 +4957,7 @@ mod tests {
                 .unregister_runtimes(command_id.clone(), vec![target.clone()])
                 .unwrap();
             assert!(!first.replayed);
+            assert!(first.operation_generation > 0);
             assert_eq!(first.removed.as_slice(), std::slice::from_ref(&target));
             assert_eq!(first.deleted_orchestra_runtime_count, 1);
             assert_eq!(first.deleted_orchestra_run_count, 1);
@@ -4896,11 +4970,32 @@ mod tests {
                     .runs
                     .is_empty()
             );
+            let lookup = runtime
+                .runtime_unregistration_receipt(command_id.clone())
+                .unwrap();
+            assert_eq!(lookup.command_id, command_id);
+            assert_eq!(lookup.replay_horizon.retained, 1);
+            assert_eq!(lookup.replay_horizon.oldest_generation, Some(1));
+            let receipt = lookup.receipt.unwrap();
+            assert_eq!(receipt.operation_generation, first.operation_generation);
+            assert_eq!(receipt.removed.as_slice(), std::slice::from_ref(&target));
+            assert_eq!(receipt.deleted_orchestra_runtime_count, 1);
+            assert_eq!(receipt.deleted_orchestra_run_count, 1);
+            assert_eq!(receipt.deleted_orchestra_event_count, 1);
+            assert_eq!(receipt.removed_at_unix_ms, first.removed_at_unix_ms);
+            let missing = runtime
+                .runtime_unregistration_receipt(
+                    CommandId::new("runtime-unregister-command-missing").unwrap(),
+                )
+                .unwrap();
+            assert!(missing.receipt.is_none());
+            assert_eq!(missing.replay_horizon, lookup.replay_horizon);
 
             let replay = runtime
                 .unregister_runtimes(command_id.clone(), vec![target.clone()])
                 .unwrap();
             assert!(replay.replayed);
+            assert_eq!(replay.operation_generation, first.operation_generation);
             assert_eq!(replay.removed_at_unix_ms, first.removed_at_unix_ms);
 
             persist_queued_orchestra_run(
@@ -4910,6 +5005,11 @@ mod tests {
             );
             assert!(matches!(
                 runtime.unregister_runtimes(command_id.clone(), vec![target.clone()]),
+                Err(RuntimeError::Storage(ref error))
+                    if error == "runtime unregistration Orchestra tombstone is inconsistent"
+            ));
+            assert!(matches!(
+                runtime.runtime_unregistration_receipt(command_id.clone()),
                 Err(RuntimeError::Storage(ref error))
                     if error == "runtime unregistration Orchestra tombstone is inconsistent"
             ));
@@ -5296,6 +5396,7 @@ mod tests {
             .unregister_runtimes(boundary_command_id, vec![boundary_target])
             .unwrap();
         assert!(!boundary.replayed);
+        assert_eq!(boundary.operation_generation, 258);
         let rolled_window: (i64, i64, i64, i64, i64) = connection
             .query_row(
                 "SELECT
@@ -5369,6 +5470,7 @@ mod tests {
             .unregister_runtimes(oldest_command_id.clone(), vec![reused_target.clone()])
             .unwrap();
         assert!(!reused.replayed);
+        assert_eq!(reused.operation_generation, 259);
         assert!(runtime.runtime_projection(&oldest_runtime_id).is_none());
         let reused_window: (i64, i64, i64, i64) = connection
             .query_row(

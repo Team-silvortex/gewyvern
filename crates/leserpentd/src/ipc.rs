@@ -302,7 +302,7 @@ mod tests {
         DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest, OrchestraDeleteRequest,
         OrchestraHistoryRequest, OrchestraPersistenceRequest, PROTOCOL_SCHEMA_VERSION,
         ProtocolRequest, ProtocolResponse, RequestEnvelope, RuntimeUnregisterRequest,
-        RuntimeUnregisterTarget, decode_response,
+        RuntimeUnregisterTarget, RuntimeUnregistrationReceiptRequest, decode_response,
     };
     use rusqlite::Connection;
 
@@ -1488,12 +1488,72 @@ mod tests {
             first.response,
             ProtocolResponse::RuntimeUnregistered(ref result)
                 if !result.replayed
+                    && result.operation_generation == Some(1)
                     && result.removed == expected_targets
                     && result.deleted_orchestra_runtime_count == 1
                     && result.deleted_orchestra_run_count == 1
                     && result.deleted_orchestra_event_count == 1
         ));
         assert!(runtime.runtime_projection(&runtime_id).is_none());
+
+        let receipt_request = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::RuntimeUnregistrationReceipt(
+                RuntimeUnregistrationReceiptRequest {
+                    principal: Principal {
+                        id: "operator-a".into(),
+                    },
+                    capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_READ]),
+                    command_id: CommandId::new("runtime-unregister-command-a").unwrap(),
+                },
+            ),
+        };
+        let receipt = send(
+            &server,
+            &mut runtime,
+            &socket,
+            TOKEN,
+            receipt_request.clone(),
+        );
+        assert!(matches!(
+            receipt.response,
+            ProtocolResponse::RuntimeUnregistrationReceipt(ref lookup)
+                if lookup.command_id.as_str() == "runtime-unregister-command-a"
+                    && lookup.receipt.as_ref().is_some_and(|receipt|
+                        receipt.operation_generation == 1
+                            && receipt.removed == expected_targets
+                            && receipt.deleted_orchestra_runtime_count == 1
+                            && receipt.deleted_orchestra_run_count == 1
+                            && receipt.deleted_orchestra_event_count == 1)
+                    && lookup.replay_horizon.retained == 1
+                    && lookup.replay_horizon.oldest_generation == Some(1)
+                    && lookup.replay_horizon.newest_generation == Some(1)
+        ));
+        let mut unauthorized_receipt = receipt_request.clone();
+        let ProtocolRequest::RuntimeUnregistrationReceipt(lookup_request) =
+            &mut unauthorized_receipt.request
+        else {
+            unreachable!();
+        };
+        lookup_request.capabilities = CapabilitySet::new(std::iter::empty::<&str>());
+        let unauthorized = send(&server, &mut runtime, &socket, TOKEN, unauthorized_receipt);
+        assert!(matches!(
+            unauthorized.response,
+            ProtocolResponse::Error(ref error) if error.code == "unauthorized"
+        ));
+        let mut missing_receipt = receipt_request;
+        let ProtocolRequest::RuntimeUnregistrationReceipt(lookup_request) =
+            &mut missing_receipt.request
+        else {
+            unreachable!();
+        };
+        lookup_request.command_id = CommandId::new("runtime-unregister-command-missing").unwrap();
+        let missing = send(&server, &mut runtime, &socket, TOKEN, missing_receipt);
+        assert!(matches!(
+            missing.response,
+            ProtocolResponse::RuntimeUnregistrationReceipt(ref lookup)
+                if lookup.receipt.is_none() && lookup.replay_horizon.retained == 1
+        ));
 
         runtime
             .persist_orchestra_run_event(
@@ -1552,7 +1612,8 @@ mod tests {
         let replay = send(&server, &mut runtime, &socket, TOKEN, request);
         assert!(matches!(
             replay.response,
-            ProtocolResponse::RuntimeUnregistered(ref result) if result.replayed
+            ProtocolResponse::RuntimeUnregistered(ref result)
+                if result.replayed && result.operation_generation == Some(1)
         ));
 
         drop(server);

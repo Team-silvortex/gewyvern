@@ -18,13 +18,43 @@ public sealed record RemoteEffectQueueHealth(
     ulong Capacity,
     bool Saturated);
 
+public enum RemoteUnregistrationGenerationState
+{
+    Retained,
+    Evicted,
+    Future,
+}
+
 public sealed record RemoteUnregistrationReplayHorizon(
     ulong Capacity,
     ulong Retained,
     ulong? OldestGeneration,
     ulong? NewestGeneration,
     ulong NextGeneration,
-    ulong EvictedThroughGeneration);
+    ulong EvictedThroughGeneration)
+{
+    public RemoteUnregistrationGenerationState Classify(ulong operationGeneration)
+    {
+        if (operationGeneration == 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(operationGeneration),
+                "runtime unregistration generations start at one");
+        }
+        if (operationGeneration <= EvictedThroughGeneration)
+        {
+            return RemoteUnregistrationGenerationState.Evicted;
+        }
+        if (OldestGeneration is { } oldest
+            && NewestGeneration is { } newest
+            && operationGeneration >= oldest
+            && operationGeneration <= newest)
+        {
+            return RemoteUnregistrationGenerationState.Retained;
+        }
+        return RemoteUnregistrationGenerationState.Future;
+    }
+}
 
 public sealed class RemoteHealthClient : IDisposable
 {
@@ -150,7 +180,7 @@ public static class RemoteHealthCodec
             queue.Saturated);
     }
 
-    private static RemoteUnregistrationReplayHorizon ValidateReplayHorizon(
+    internal static RemoteUnregistrationReplayHorizon ValidateReplayHorizon(
         WireUnregistrationReplayHorizon horizon)
     {
         var contiguous = horizon.OldestGeneration is { } oldest

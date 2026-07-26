@@ -10,7 +10,9 @@ use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
     OrchestraDeleteResponse, OrchestraHistoryResponse, OrchestraPersistenceResponse,
     PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest, ProtocolResponse, RequestEnvelope,
-    ResponseEnvelope, RuntimeUnregisterResponse, RuntimeUnregistrationReplayHorizonHealth,
+    ResponseEnvelope, RuntimeUnregisterResponse, RuntimeUnregisterTarget,
+    RuntimeUnregistrationReceipt, RuntimeUnregistrationReceiptLookupResponse,
+    RuntimeUnregistrationReplayHorizonHealth,
 };
 use leserpent_runtime::{
     ControlRuntime, DeploymentEffectState, PlanResult, RuntimeError,
@@ -256,6 +258,7 @@ pub(crate) fn execute_request(
                 Ok(result) => response(ProtocolResponse::RuntimeUnregistered(
                     RuntimeUnregisterResponse {
                         command_id: result.command_id,
+                        operation_generation: Some(result.operation_generation),
                         removed: request.targets,
                         deleted_orchestra_runtime_count: result.deleted_orchestra_runtime_count,
                         deleted_orchestra_run_count: result.deleted_orchestra_run_count,
@@ -270,6 +273,53 @@ pub(crate) fn execute_request(
                 Err(_) => {
                     error_response("runtime_unregister_failed", "runtime unregistration failed")
                 }
+            };
+        }
+        ProtocolRequest::RuntimeUnregistrationReceipt(request) => {
+            if request.principal.id.trim().is_empty()
+                || !request.capabilities.contains(CAPABILITY_RUNTIME_READ)
+            {
+                return error_response(
+                    "unauthorized",
+                    "runtime unregistration receipt access was rejected",
+                );
+            }
+            return match runtime.runtime_unregistration_receipt(request.command_id.clone()) {
+                Ok(lookup) => response(ProtocolResponse::RuntimeUnregistrationReceipt(
+                    RuntimeUnregistrationReceiptLookupResponse {
+                        command_id: lookup.command_id,
+                        receipt: lookup.receipt.map(|receipt| RuntimeUnregistrationReceipt {
+                            operation_generation: receipt.operation_generation,
+                            removed: receipt
+                                .removed
+                                .into_iter()
+                                .map(|target| RuntimeUnregisterTarget {
+                                    runtime_id: target.runtime_id,
+                                    expected_revision: target.expected_revision,
+                                })
+                                .collect(),
+                            deleted_orchestra_runtime_count: receipt
+                                .deleted_orchestra_runtime_count,
+                            deleted_orchestra_run_count: receipt.deleted_orchestra_run_count,
+                            deleted_orchestra_event_count: receipt.deleted_orchestra_event_count,
+                            removed_at_unix_ms: receipt.removed_at_unix_ms,
+                        }),
+                        replay_horizon: RuntimeUnregistrationReplayHorizonHealth {
+                            capacity: lookup.replay_horizon.capacity,
+                            retained: lookup.replay_horizon.retained,
+                            oldest_generation: lookup.replay_horizon.oldest_generation,
+                            newest_generation: lookup.replay_horizon.newest_generation,
+                            next_generation: lookup.replay_horizon.next_generation,
+                            evicted_through_generation: lookup
+                                .replay_horizon
+                                .evicted_through_generation,
+                        },
+                    },
+                )),
+                Err(_) => error_response(
+                    "runtime_unregistration_receipt_failed",
+                    "runtime unregistration receipt lookup failed",
+                ),
             };
         }
         ProtocolRequest::BootstrapHandoff(request) => {
@@ -359,6 +409,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::RuntimeUnregister(_)
+        | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };
@@ -371,6 +422,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraHistory(_)
         | ProtocolRequest::OrchestraDelete(_)
         | ProtocolRequest::RuntimeUnregister(_)
+        | ProtocolRequest::RuntimeUnregistrationReceipt(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };

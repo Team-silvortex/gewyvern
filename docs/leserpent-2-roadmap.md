@@ -999,6 +999,29 @@ Rust CLI and the strict Avalonia source-generated codec expose and validate the
 same optional protocol-v1 extension. The next gate binds each successful or
 replayed runtime-unregistration receipt to its durable operation generation so
 clients can correlate a specific receipt with the advertised replay horizon.
+It is complete: the native result copies the nonzero schema-v15 generation
+from the validated operation row on both first commit and replay, preserving
+the same receipt identity. Daemon IPC and HTTPS publish it as an optional
+protocol-v1 field; legacy responses decode with explicit absence rather than
+generation zero. The CLI renders the generation or `legacy-unknown`, the C#
+compatibility authority rejects an emitted zero, and Avalonia classifies a
+receipt against authenticated health as retained, evicted, or future. Runtime,
+protocol, IPC, CLI, C# security, and cross-language conformance tests freeze the
+correlation. The next gate adds a bounded typed receipt lookup by command ID so
+clients can recover this correlation after losing a mutation response without
+replaying the mutation. It is complete: the dedicated read request carries only
+principal, `runtime.read`, and one command ID. The SQLite authority converges
+its bounded window and validates operation, journal, and Orchestra tombstones
+in one transaction, returning an optional receipt and the transaction's replay
+horizon together; the runtime separately checks projection absence. Missing
+receipts return typed `null`, while corruption remains a fixed failure. IPC
+tests freeze authorization, found, and not-found paths; the native CLI exposes
+`runtime unregister-receipt`, and Avalonia's source-generated client rejects
+future generations, invalid revisions, duplicate identities, and cleanup-count
+drift. The next gate persists the unregistration command ID in each 1.x runtime
+deletion intent and consults receipt lookup before retrying mutation, so host
+recovery can resolve lost acknowledgements without creating a new operation
+identity.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and
