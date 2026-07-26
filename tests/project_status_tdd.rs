@@ -225,6 +225,30 @@ fn retained_runtime_deletion_replay_horizon_fail_closed_is_non_vacuous() {
 }
 
 #[test]
+fn retained_runtime_deletion_reconciliation_commits_are_non_vacuous() {
+    assert_runtime_deletion_reconciliation_commit(
+        "docs/fixtures/leserpent_runtime_deletion_reconciliation_commit_20260726.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_reconciliation_commit(
+        "docs/fixtures/leserpent_runtime_deletion_reconciliation_commit_linux_x86_64_20260726.json",
+        "X64",
+    );
+}
+
+#[test]
+fn retained_runtime_deletion_cross_authority_convergence_is_non_vacuous() {
+    assert_runtime_deletion_cross_authority(
+        "docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_cross_authority(
+        "docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json",
+        "X64",
+    );
+}
+
+#[test]
 fn retained_runtime_deletion_retry_rollovers_are_non_vacuous() {
     assert_runtime_deletion_retry_rollover(
         "docs/fixtures/leserpent_runtime_deletion_retry_rollover_20260723.json",
@@ -1109,6 +1133,117 @@ fn assert_runtime_deletion_replay_horizon(path: &str, expected_architecture: &st
     }
 }
 
+fn assert_runtime_deletion_reconciliation_commit(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion reconciliation commit evidence must exist"),
+    )
+    .expect("runtime deletion reconciliation commit evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["iterations_per_strategy"], 3);
+    assert_eq!(
+        evidence["strategies"],
+        serde_json::json!(["BeforeWrite", "DuringTempWrite", "AfterCommit"])
+    );
+    assert_eq!(evidence["total_forced_terminations"], 9);
+    assert!(
+        evidence["daemon_revision"]
+            .as_u64()
+            .is_some_and(|revision| revision > 0)
+    );
+    assert_eq!(evidence["retry_audit_retention_limit"], 256);
+    assert_eq!(evidence["temp_artifact_observed_count"], 3);
+    let previous = evidence["previous_generation_count"]
+        .as_u64()
+        .expect("previous generation count must be numeric");
+    let replacement = evidence["replacement_generation_count"]
+        .as_u64()
+        .expect("replacement generation count must be numeric");
+    assert!(previous > 0);
+    assert!(replacement > 0);
+    assert_eq!(previous + replacement, 9);
+    for check in [
+        "real_leserpentd_snapshot_used",
+        "before_write_restored_complete_previous_generation",
+        "every_temp_write_was_observed",
+        "after_commit_restored_complete_replacement_generation",
+        "every_restart_observed_old_or_new_generation",
+        "no_torn_runtime_session_intent_or_audit_generation",
+        "every_previous_generation_retry_converged",
+        "every_reconciliation_audit_survived_reload",
+        "every_request_replayed_after_restart",
+        "every_restart_preserved_retry_audit_window",
+        "every_final_state_converged",
+        "both_atomic_outcomes_were_exercised",
+        "every_host_process_force_killed",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained reconciliation commit proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion cross-authority evidence must exist"),
+    )
+    .expect("runtime deletion cross-authority evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["iterations_per_strategy"], 3);
+    assert_eq!(
+        evidence["strategies"],
+        serde_json::json!([
+            "AfterOrchestraCleanup",
+            "DuringControlTempWrite",
+            "AfterControlCommit"
+        ])
+    );
+    assert_eq!(evidence["total_forced_terminations"], 9);
+    assert!(
+        evidence["daemon_revision"]
+            .as_u64()
+            .is_some_and(|revision| revision > 0)
+    );
+    assert_eq!(evidence["control_temp_artifact_observed_count"], 3);
+    let previous = evidence["previous_generation_count"]
+        .as_u64()
+        .expect("previous generation count must be numeric");
+    let replacement = evidence["replacement_generation_count"]
+        .as_u64()
+        .expect("replacement generation count must be numeric");
+    assert!(previous > 0);
+    assert!(replacement > 0);
+    assert_eq!(previous + replacement, 9);
+    for check in [
+        "real_leserpentd_orchestra_authority_used",
+        "orchestra_cleanup_committed_before_every_termination",
+        "target_history_absent_before_every_termination",
+        "unrelated_run_and_event_preserved",
+        "after_orchestra_cleanup_restored_previous_control_generation",
+        "every_control_temp_write_was_observed",
+        "after_control_commit_restored_replacement_generation",
+        "every_restart_observed_old_or_new_control_generation",
+        "no_torn_control_generation",
+        "every_previous_generation_retried_absent_target_cleanup",
+        "every_final_state_converged",
+        "every_final_state_retained_one_reconciliation_audit",
+        "every_request_replayed_after_restart",
+        "both_control_generation_outcomes_were_exercised",
+        "every_host_process_force_killed",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained cross-authority proof {check}"
+        );
+    }
+}
+
 fn assert_runtime_deletion_retry_rollover(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -1537,7 +1672,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.13.0");
+    assert_eq!(compatibility_control.contract.version, "1.15.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -1829,6 +1964,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "daemon-generation-bound-unregistration-receipt",
         "legacy-generation-absence-without-zero",
         "read-only-unregistration-receipt-recovery",
+        "cross-process-reconciliation-commit-crash-proof",
+        "old-or-new-reconciliation-generation",
+        "observed-reconciliation-temp-write-termination",
+        "cross-platform-reconciliation-commit-proof",
+        "cross-authority-reconciliation-crash-proof",
+        "orchestra-before-control-commit-boundary",
+        "idempotent-absent-history-retry",
+        "unrelated-orchestra-history-preservation",
+        "single-audit-cross-authority-convergence",
+        "cross-platform-cross-authority-proof",
     ] {
         assert!(
             compatibility_control
@@ -1842,7 +1987,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("reconciliation state-save boundaries")
+            .contains("durable typed replay receipt")
     );
 
     let reconciliation = catalog
@@ -1853,7 +1998,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.0.0");
+    assert_eq!(reconciliation.contract.version, "1.2.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -1864,6 +2009,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "idempotent-reconciliation-request-replay",
         "guarded-runtime-deletion-reconciliation-api",
         "cross-platform-reconciliation-proof",
+        "cross-process-reconciliation-commit-crash-proof",
+        "old-or-new-reconciliation-generation",
+        "observed-reconciliation-temp-write-termination",
+        "cross-platform-reconciliation-commit-proof",
+        "cross-authority-reconciliation-crash-proof",
+        "orchestra-before-control-commit-boundary",
+        "idempotent-absent-history-retry",
+        "unrelated-orchestra-history-preservation",
+        "single-audit-cross-authority-convergence",
+        "cross-platform-cross-authority-proof",
     ] {
         assert!(
             reconciliation
@@ -1878,7 +2033,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         reconciliation
             .next_gate
-            .contains("reconciliation control-state commit")
+            .contains("durable typed replay receipt")
     );
 
     let bootstrap = catalog

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-26T10:53:34.3617677+00:00",
+  "platform": "Unix",
+  "architecture": "X64",
+  "iterations_per_strategy": 3,
+  "strategies": [
+    "AfterOrchestraCleanup",
+    "DuringControlTempWrite",
+    "AfterControlCommit"
+  ],
+  "total_forced_terminations": 9,
+  "daemon_revision": 1,
+  "previous_generation_count": 3,
+  "replacement_generation_count": 6,
+  "control_temp_artifact_observed_count": 3,
+  "checks": {
+    "real_leserpentd_orchestra_authority_used": true,
+    "orchestra_cleanup_committed_before_every_termination": true,
+    "target_history_absent_before_every_termination": true,
+    "unrelated_run_and_event_preserved": true,
+    "after_orchestra_cleanup_restored_previous_control_generation": true,
+    "every_control_temp_write_was_observed": true,
+    "after_control_commit_restored_replacement_generation": true,
+    "every_restart_observed_old_or_new_control_generation": true,
+    "no_torn_control_generation": true,
+    "every_previous_generation_retried_absent_target_cleanup": true,
+    "every_final_state_converged": true,
+    "every_final_state_retained_one_reconciliation_audit": true,
+    "every_request_replayed_after_restart": true,
+    "both_control_generation_outcomes_were_exercised": true,
+    "every_host_process_force_killed": true
+  }
+}

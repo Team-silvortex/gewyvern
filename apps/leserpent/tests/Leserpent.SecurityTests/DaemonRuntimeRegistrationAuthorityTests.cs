@@ -20,6 +20,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     private const int RuntimeDeletionInterferenceRuntimeCount = 8;
     private const int HighCardinalityRuntimeDeletionIntentCount = 32;
     private const int HighCardinalityRuntimeDeletionPoisonStride = 8;
+    private const string RuntimeDeletionReconciliationCommitTarget =
+        "runtime-reconciliation-atomic";
     private static readonly string[] RuntimeDeletionCrashPhases =
     {
         "intent_persisted",
@@ -685,6 +687,328 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 databasePath + "-shm",
                 databasePath + "-wal",
             })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionReconciliationCommitIsAtomicAcrossHostTermination()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable(
+            "LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) ||
+            OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_RUNTIME_DELETION_RECONCILIATION_COMMIT_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 10)
+            : 3;
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-reconciliation-commit-{Guid.NewGuid():N}");
+        var baselinePath = $"{rootPath}.baseline.json";
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var results =
+            new List<RuntimeDeletionReconciliationCommitResult>();
+        using var daemon = StartDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            await authority.RegisterAsync(
+                new RuntimeRegistrationRequest(
+                    "Runtime reconciliation revision sentinel",
+                    "http://127.0.0.1:19120",
+                    "pairing-token"),
+                "runtime-reconciliation-revision-sentinel",
+                CancellationToken.None);
+            var daemonSnapshot = await authority.SnapshotAsync(
+                CancellationToken.None);
+            Assert.True(daemonSnapshot.Revision > 0);
+            Assert.DoesNotContain(
+                daemonSnapshot.Runtimes,
+                runtime => string.Equals(
+                    runtime.RuntimeId,
+                    RuntimeDeletionReconciliationCommitTarget,
+                    StringComparison.Ordinal));
+
+            CreateRuntimeDeletionReconciliationCommitBaseline(
+                baselinePath);
+            foreach (var strategy in Enum.GetValues<
+                RuntimeDeletionReconciliationCommitStrategy>())
+            {
+                for (var iteration = 0;
+                     iteration < iterations;
+                     iteration += 1)
+                {
+                    results.Add(
+                        await ExecuteRuntimeDeletionReconciliationCommitAsync(
+                            harnessAssembly,
+                            baselinePath,
+                            socketPath,
+                            rootPath,
+                            daemonSnapshot,
+                            strategy,
+                            iteration));
+                }
+            }
+
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionReconciliationCommitStrategy.BeforeWrite),
+                result => Assert.Equal(
+                    RuntimeDeletionReconciliationCommitWindow.Previous,
+                    result.Window));
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionReconciliationCommitStrategy
+                        .DuringTempWrite),
+                result => Assert.True(result.TempArtifactObserved));
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionReconciliationCommitStrategy.AfterCommit),
+                result => Assert.Equal(
+                    RuntimeDeletionReconciliationCommitWindow.Replacement,
+                    result.Window));
+            Assert.All(results, result =>
+            {
+                Assert.Equal(256, result.RetryAuditCount);
+                Assert.True(result.FinalStateConverged);
+                Assert.True(result.ReconciliationAuditSurvivedReload);
+                Assert.True(result.RequestReplayedAfterRestart);
+            });
+            WriteRuntimeDeletionReconciliationCommitEvidenceIfRequested(
+                iterations,
+                daemonSnapshot.Revision,
+                results);
+        }
+        finally
+        {
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(5000);
+            }
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                baselinePath,
+                baselinePath + ".bak",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(rootPath)!,
+                $"{Path.GetFileName(rootPath)}*"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionReconciliationConvergesAcrossOrchestraAndControlStateCrash()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable(
+            "LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) ||
+            OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_RUNTIME_DELETION_CROSS_AUTHORITY_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 10)
+            : 3;
+        var rootPath = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-cross-authority-{Guid.NewGuid():N}");
+        var baselinePath = $"{rootPath}.baseline.json";
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var results =
+            new List<RuntimeDeletionCrossAuthorityResult>();
+        using var daemon = StartDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            await authority.RegisterAsync(
+                new RuntimeRegistrationRequest(
+                    "Cross-authority revision sentinel",
+                    "http://127.0.0.1:19122",
+                    "pairing-token"),
+                "runtime-cross-authority-revision-sentinel",
+                CancellationToken.None);
+            var daemonSnapshot = await authority.SnapshotAsync(
+                CancellationToken.None);
+            Assert.True(daemonSnapshot.Revision > 0);
+            Assert.DoesNotContain(
+                daemonSnapshot.Runtimes,
+                runtime => string.Equals(
+                    runtime.RuntimeId,
+                    RuntimeDeletionReconciliationCommitTarget,
+                    StringComparison.Ordinal));
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_DAEMON_SOCKET"] = socketPath,
+                        ["LESERPENT_DAEMON_TOKEN"] = Token,
+                        ["LESERPENT_DAEMON_ORCHESTRA_TIMEOUT_MS"] =
+                            "10000",
+                    })
+                .Build();
+            var orchestraStore = new DaemonOrchestraRunStore(
+                configuration,
+                NullLogger<DaemonOrchestraRunStore>.Instance);
+            var unrelatedRun =
+                CreateCrossAuthorityOrchestraRun(
+                    "orun-cross-authority-unrelated",
+                    "runtime-cross-authority-unrelated",
+                    "request-cross-authority-unrelated",
+                    DateTimeOffset.UtcNow.AddMinutes(-5));
+            Assert.True(orchestraStore.Upsert(
+                unrelatedRun,
+                ControlPlaneStateValidator
+                    .CreateLegacyOrchestraImportEvent(
+                        unrelatedRun)));
+            CreateRuntimeDeletionReconciliationCommitBaseline(
+                baselinePath);
+
+            foreach (var strategy in Enum.GetValues<
+                RuntimeDeletionCrossAuthorityStrategy>())
+            {
+                for (var iteration = 0;
+                     iteration < iterations;
+                     iteration += 1)
+                {
+                    var targetRun =
+                        CreateCrossAuthorityOrchestraRun(
+                            $"orun-cross-authority-{strategy.ToString().ToLowerInvariant()}-{iteration:D2}",
+                            RuntimeDeletionReconciliationCommitTarget,
+                            $"request-cross-authority-{strategy.ToString().ToLowerInvariant()}-{iteration:D2}",
+                            DateTimeOffset.UtcNow.AddMinutes(-4)
+                                .AddSeconds(iteration));
+                    Assert.True(orchestraStore.Upsert(
+                        targetRun,
+                        ControlPlaneStateValidator
+                            .CreateLegacyOrchestraImportEvent(
+                                targetRun)));
+                    results.Add(
+                        await ExecuteRuntimeDeletionCrossAuthorityAsync(
+                            harnessAssembly,
+                            baselinePath,
+                            socketPath,
+                            rootPath,
+                            orchestraStore,
+                            daemonSnapshot,
+                            unrelatedRun,
+                            targetRun,
+                            strategy,
+                            iteration));
+                }
+            }
+
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionCrossAuthorityStrategy
+                        .AfterOrchestraCleanup),
+                result => Assert.Equal(
+                    RuntimeDeletionReconciliationCommitWindow.Previous,
+                    result.Window));
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionCrossAuthorityStrategy
+                        .DuringControlTempWrite),
+                result => Assert.True(result.TempArtifactObserved));
+            Assert.All(
+                results.Where(result =>
+                    result.Strategy ==
+                    RuntimeDeletionCrossAuthorityStrategy
+                        .AfterControlCommit),
+                result => Assert.Equal(
+                    RuntimeDeletionReconciliationCommitWindow.Replacement,
+                    result.Window));
+            Assert.All(results, result =>
+            {
+                Assert.True(
+                    result.TargetHistoryAbsentBeforeTermination);
+                Assert.True(result.UnrelatedHistoryPreserved);
+                Assert.True(result.FinalStateConverged);
+                Assert.True(result.SingleAuditSurvivedReload);
+                Assert.True(result.RequestReplayedAfterRestart);
+            });
+            WriteRuntimeDeletionCrossAuthorityEvidenceIfRequested(
+                iterations,
+                daemonSnapshot.Revision,
+                results);
+        }
+        finally
+        {
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(5000);
+            }
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                baselinePath,
+                baselinePath + ".bak",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(rootPath)!,
+                $"{Path.GetFileName(rootPath)}*"))
             {
                 TryDelete(path);
             }
@@ -2625,6 +2949,91 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             audit);
     }
 
+    private static void
+        CreateRuntimeDeletionReconciliationCommitBaseline(
+            string statePath)
+    {
+        CreateRuntimeDeletionRetryAtomicRolloverBaseline(statePath);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+            .Build();
+        var store = new ControlPlaneStateStore(
+            configuration,
+            new CrashTestEnvironment(
+                Path.GetDirectoryName(statePath)!),
+            NullLogger<ControlPlaneStateStore>.Instance);
+        var registry = new RegistryService(
+            store,
+            new InMemoryOrchestraRunStore());
+        registry.RegisterRuntime(
+            new RuntimeRegistrationRequest(
+                "Runtime reconciliation atomic target",
+                "http://127.0.0.1:19121",
+                "pairing-token"),
+            RuntimeDeletionReconciliationCommitTarget);
+        var createdSession = registry.CreateSession(
+            new SessionCreateRequest(
+                RuntimeDeletionReconciliationCommitTarget,
+                "diagnostic",
+                "reconciliation-crash-campaign",
+                Array.Empty<SessionCapabilityRequirement>()));
+        Assert.NotNull(createdSession.Session);
+
+        using (var reservation = registry.ReserveRuntimeDeletion(
+            new[] { RuntimeDeletionReconciliationCommitTarget }))
+        {
+            registry.FenceRuntimeDeletionMutation(
+                reservation,
+                replayHorizonFloor: 1);
+            registry.RecordRuntimeDeletionFailures(
+                new[]
+                {
+                    new RuntimeDeletionFailure(
+                        reservation,
+                        RuntimeDeletionFailureCodes.ReplayAmbiguous,
+                        DateTimeOffset.UtcNow),
+                });
+        }
+
+        var intent = Assert.Single(
+            registry.ListPendingRuntimeDeletions());
+        Assert.Equal(3, intent.Revision);
+        Assert.Equal(
+            RuntimeDeletionFailureCodes.ReplayAmbiguous,
+            intent.LastFailureCode);
+        var state = registry.ExportState();
+        for (var generation = 0; generation < 2; generation += 1)
+        {
+            store.SaveStrict(
+                state.Runtimes,
+                state.Sessions,
+                state.OrchestraRuns,
+                state.PendingRuntimeDeletions,
+                state.RuntimeDeletionRetryAudit,
+                state.RuntimeDeletionReconciliationAudit);
+        }
+    }
+
+    private static OrchestraRunSummary
+        CreateCrossAuthorityOrchestraRun(
+            string runId,
+            string runtimeId,
+            string requestId,
+            DateTimeOffset executedAt) =>
+        new(
+            runId,
+            runtimeId,
+            "cross-authority-reconciliation",
+            "succeeded",
+            executedAt,
+            Array.Empty<OrchestraExecutionStepResult>(),
+            CompletedAt: executedAt.AddSeconds(1),
+            RequestId: requestId);
+
     private static void WritePostRecoveryInvalidPrimary(
         string statePath,
         string baselinePath,
@@ -2674,6 +3083,526 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             invalid,
             stateJsonContext.PersistedControlPlaneState);
         output.Flush(flushToDisk: true);
+    }
+
+    private static async Task<RuntimeDeletionCrossAuthorityResult>
+        ExecuteRuntimeDeletionCrossAuthorityAsync(
+            string harnessAssembly,
+            string baselinePath,
+            string socketPath,
+            string rootPath,
+            DaemonOrchestraRunStore orchestraStore,
+            DaemonRuntimeProjectionSnapshot daemonSnapshot,
+            OrchestraRunSummary unrelatedRun,
+            OrchestraRunSummary targetRun,
+            RuntimeDeletionCrossAuthorityStrategy strategy,
+            int iteration)
+    {
+        var strategyName = strategy.ToString().ToLowerInvariant();
+        var statePath =
+            $"{rootPath}.{strategyName}.{iteration}.state.json";
+        var markerPath =
+            $"{rootPath}.{strategyName}.{iteration}.marker";
+        var triggerPath = $"{markerPath}.trigger";
+        var committedMarkerPath = $"{markerPath}.committed";
+        var requestId =
+            $"reconcile-cross-authority-{strategyName}-{iteration:D2}";
+        Process? harness = null;
+        int? harnessProcessId = null;
+        var tempArtifactObserved = false;
+        try
+        {
+            File.Copy(baselinePath, statePath, overwrite: true);
+            File.Copy(
+                baselinePath + ".bak",
+                statePath + ".bak",
+                overwrite: true);
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                requestId,
+                "reconciliation_cross_authority");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            var historyAfterOrchestraCommit =
+                orchestraStore.LoadAll();
+            var targetHistoryAbsentBeforeTermination =
+                historyAfterOrchestraCommit.All(run =>
+                    !string.Equals(
+                        run.RuntimeId,
+                        RuntimeDeletionReconciliationCommitTarget,
+                        StringComparison.Ordinal));
+            Assert.True(
+                targetHistoryAbsentBeforeTermination);
+            Assert.Empty(orchestraStore.LoadEvents(
+                targetRun.RuntimeId,
+                targetRun.RunId));
+            AssertCrossAuthorityUnrelatedHistory(
+                orchestraStore,
+                unrelatedRun);
+
+            if (strategy ==
+                RuntimeDeletionCrossAuthorityStrategy
+                    .DuringControlTempWrite)
+            {
+                tempArtifactObserved =
+                    await WaitForStateTempArtifactAsync(
+                        harness,
+                        statePath,
+                        triggerPath);
+            }
+            else if (strategy ==
+                RuntimeDeletionCrossAuthorityStrategy
+                    .AfterControlCommit)
+            {
+                File.WriteAllText(triggerPath, "start\n");
+                await WaitForMarkerAsync(
+                    harness,
+                    committedMarkerPath);
+            }
+
+            Assert.False(harness.HasExited);
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = statePath,
+                        ["LESERPENT_DAEMON_SOCKET"] = socketPath,
+                        ["LESERPENT_DAEMON_TOKEN"] = Token,
+                        ["LESERPENT_DAEMON_ORCHESTRA_TIMEOUT_MS"] =
+                            "10000",
+                    })
+                .Build();
+            var reloaded = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new DaemonOrchestraRunStore(
+                    configuration,
+                    NullLogger<DaemonOrchestraRunStore>.Instance));
+            var runtimePresent = reloaded.GetRuntime(
+                RuntimeDeletionReconciliationCommitTarget) is not null;
+            var sessionPresent = reloaded.ListSessions().Any(session =>
+                string.Equals(
+                    session.RuntimeId,
+                    RuntimeDeletionReconciliationCommitTarget,
+                    StringComparison.Ordinal));
+            var pending = reloaded.ListPendingRuntimeDeletions();
+            var reconciliationAudit =
+                reloaded.ListRuntimeDeletionReconciliationAudit();
+            var previousGeneration =
+                runtimePresent &&
+                sessionPresent &&
+                pending.Count == 1 &&
+                string.Equals(
+                    pending[0].LastFailureCode,
+                    RuntimeDeletionFailureCodes.ReplayAmbiguous,
+                    StringComparison.Ordinal) &&
+                reconciliationAudit.Count == 0;
+            var replacementGeneration =
+                !runtimePresent &&
+                !sessionPresent &&
+                pending.Count == 0 &&
+                reconciliationAudit.Count == 1 &&
+                string.Equals(
+                    reconciliationAudit[0].RequestId,
+                    requestId,
+                    StringComparison.Ordinal);
+            var window = previousGeneration
+                ? RuntimeDeletionReconciliationCommitWindow.Previous
+                : replacementGeneration
+                    ? RuntimeDeletionReconciliationCommitWindow.Replacement
+                    : RuntimeDeletionReconciliationCommitWindow.Torn;
+            Assert.NotEqual(
+                RuntimeDeletionReconciliationCommitWindow.Torn,
+                window);
+
+            var request = new RuntimeDeletionReconcileRequest(
+                3,
+                daemonSnapshot.Revision,
+                requestId,
+                "reconciliation-cross-authority-campaign",
+                true);
+            if (window ==
+                RuntimeDeletionReconciliationCommitWindow.Previous)
+            {
+                var start = reloaded
+                    .BeginRuntimeDeletionReconciliation(
+                        pending.Single().IntentId,
+                        request);
+                using var reservation = Assert.IsType<
+                    RuntimeDeletionReservation>(start.Reservation);
+                var completed =
+                    reloaded.CompleteRuntimeDeletionReconciliation(
+                        reservation,
+                        request,
+                        daemonSnapshot);
+                Assert.True(completed.Accepted);
+                Assert.False(completed.Replayed);
+            }
+            else
+            {
+                var replayed =
+                    reloaded.BeginRuntimeDeletionReconciliation(
+                        reconciliationAudit.Single().IntentId,
+                        request);
+                Assert.Null(replayed.Reservation);
+                Assert.True(replayed.Replay?.Replayed);
+            }
+
+            AssertCrossAuthorityUnrelatedHistory(
+                orchestraStore,
+                unrelatedRun);
+            Assert.DoesNotContain(
+                orchestraStore.LoadAll(),
+                run => string.Equals(
+                    run.RuntimeId,
+                    RuntimeDeletionReconciliationCommitTarget,
+                    StringComparison.Ordinal));
+            var finalReload = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new DaemonOrchestraRunStore(
+                    configuration,
+                    NullLogger<DaemonOrchestraRunStore>.Instance));
+            var finalAudit = Assert.Single(
+                finalReload.ListRuntimeDeletionReconciliationAudit());
+            Assert.Equal(requestId, finalAudit.RequestId);
+            Assert.Null(finalReload.GetRuntime(
+                RuntimeDeletionReconciliationCommitTarget));
+            Assert.DoesNotContain(
+                finalReload.ListSessions(),
+                session => string.Equals(
+                    session.RuntimeId,
+                    RuntimeDeletionReconciliationCommitTarget,
+                    StringComparison.Ordinal));
+            Assert.Empty(
+                finalReload.ListPendingRuntimeDeletions());
+            var replayAfterRestart =
+                finalReload.BeginRuntimeDeletionReconciliation(
+                    finalAudit.IntentId,
+                    request);
+            Assert.Null(replayAfterRestart.Reservation);
+            Assert.True(replayAfterRestart.Replay?.Replayed);
+            AssertCrossAuthorityUnrelatedHistory(
+                orchestraStore,
+                unrelatedRun);
+
+            return new RuntimeDeletionCrossAuthorityResult(
+                strategy,
+                window,
+                tempArtifactObserved,
+                targetHistoryAbsentBeforeTermination,
+                UnrelatedHistoryPreserved: true,
+                FinalStateConverged: true,
+                SingleAuditSurvivedReload: true,
+                RequestReplayedAfterRestart: true);
+        }
+        finally
+        {
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            foreach (var path in new[]
+            {
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                triggerPath,
+                committedMarkerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+                committedMarkerPath +
+                    $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}.*.tmp"))
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    private static void AssertCrossAuthorityUnrelatedHistory(
+        DaemonOrchestraRunStore orchestraStore,
+        OrchestraRunSummary unrelatedRun)
+    {
+        var restoredRun = Assert.Single(
+            orchestraStore.LoadAll(),
+            run => string.Equals(
+                run.RunId,
+                unrelatedRun.RunId,
+                StringComparison.Ordinal));
+        Assert.Equal(unrelatedRun.RunId, restoredRun.RunId);
+        Assert.Equal(unrelatedRun.RuntimeId, restoredRun.RuntimeId);
+        Assert.Equal(unrelatedRun.PlanId, restoredRun.PlanId);
+        Assert.Equal(unrelatedRun.Outcome, restoredRun.Outcome);
+        Assert.Equal(unrelatedRun.ExecutedAt, restoredRun.ExecutedAt);
+        Assert.Equal(unrelatedRun.CompletedAt, restoredRun.CompletedAt);
+        Assert.Equal(unrelatedRun.Attempt, restoredRun.Attempt);
+        Assert.Equal(
+            unrelatedRun.RetriedFromRunId,
+            restoredRun.RetriedFromRunId);
+        Assert.Equal(unrelatedRun.ApprovedBy, restoredRun.ApprovedBy);
+        Assert.Equal(
+            unrelatedRun.ApprovalNote,
+            restoredRun.ApprovalNote);
+        Assert.Equal(
+            unrelatedRun.PlanRevision,
+            restoredRun.PlanRevision);
+        Assert.Equal(unrelatedRun.RequestId, restoredRun.RequestId);
+        Assert.Equal(unrelatedRun.Steps, restoredRun.Steps);
+        var restoredEvent = Assert.Single(
+            orchestraStore.LoadEvents(
+                unrelatedRun.RuntimeId,
+                unrelatedRun.RunId));
+        Assert.Equal(unrelatedRun.RuntimeId, restoredEvent.RuntimeId);
+        Assert.Equal(unrelatedRun.RunId, restoredEvent.RunId);
+        Assert.Equal("legacy_import", restoredEvent.EventType);
+        Assert.Equal("succeeded", restoredEvent.ToOutcome);
+    }
+
+    private static async Task<RuntimeDeletionReconciliationCommitResult>
+        ExecuteRuntimeDeletionReconciliationCommitAsync(
+            string harnessAssembly,
+            string baselinePath,
+            string socketPath,
+            string rootPath,
+            DaemonRuntimeProjectionSnapshot daemonSnapshot,
+            RuntimeDeletionReconciliationCommitStrategy strategy,
+            int iteration)
+    {
+        var strategyName = strategy.ToString().ToLowerInvariant();
+        var statePath =
+            $"{rootPath}.{strategyName}.{iteration}.state.json";
+        var markerPath =
+            $"{rootPath}.{strategyName}.{iteration}.marker";
+        var triggerPath = $"{markerPath}.trigger";
+        var committedMarkerPath = $"{markerPath}.committed";
+        var requestId =
+            $"reconcile-commit-{strategyName}-{iteration:D2}";
+        Process? harness = null;
+        int? harnessProcessId = null;
+        var tempArtifactObserved = false;
+        try
+        {
+            File.Copy(baselinePath, statePath, overwrite: true);
+            File.Copy(
+                baselinePath + ".bak",
+                statePath + ".bak",
+                overwrite: true);
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                requestId,
+                "reconciliation_commit");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            if (strategy ==
+                RuntimeDeletionReconciliationCommitStrategy.DuringTempWrite)
+            {
+                tempArtifactObserved =
+                    await WaitForStateTempArtifactAsync(
+                        harness,
+                        statePath,
+                        triggerPath);
+            }
+            else if (strategy ==
+                RuntimeDeletionReconciliationCommitStrategy.AfterCommit)
+            {
+                File.WriteAllText(triggerPath, "start\n");
+                await WaitForMarkerAsync(
+                    harness,
+                    committedMarkerPath);
+            }
+
+            Assert.False(harness.HasExited);
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = statePath,
+                    })
+                .Build();
+            var reloaded = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            var runtimePresent = reloaded.GetRuntime(
+                RuntimeDeletionReconciliationCommitTarget) is not null;
+            var sessionPresent = reloaded.ListSessions().Any(session =>
+                string.Equals(
+                    session.RuntimeId,
+                    RuntimeDeletionReconciliationCommitTarget,
+                    StringComparison.Ordinal));
+            var pending = reloaded.ListPendingRuntimeDeletions();
+            var reconciliationAudit =
+                reloaded.ListRuntimeDeletionReconciliationAudit();
+            var previousGeneration =
+                runtimePresent &&
+                sessionPresent &&
+                pending.Count == 1 &&
+                string.Equals(
+                    pending[0].LastFailureCode,
+                    RuntimeDeletionFailureCodes.ReplayAmbiguous,
+                    StringComparison.Ordinal) &&
+                reconciliationAudit.Count == 0;
+            var replacementGeneration =
+                !runtimePresent &&
+                !sessionPresent &&
+                pending.Count == 0 &&
+                reconciliationAudit.Count == 1 &&
+                string.Equals(
+                    reconciliationAudit[0].RequestId,
+                    requestId,
+                    StringComparison.Ordinal);
+            var window = previousGeneration
+                ? RuntimeDeletionReconciliationCommitWindow.Previous
+                : replacementGeneration
+                    ? RuntimeDeletionReconciliationCommitWindow.Replacement
+                    : RuntimeDeletionReconciliationCommitWindow.Torn;
+            Assert.NotEqual(
+                RuntimeDeletionReconciliationCommitWindow.Torn,
+                window);
+            var retryAuditCount =
+                reloaded.ListRuntimeDeletionRetryAudit().Count;
+            Assert.Equal(256, retryAuditCount);
+
+            var request = new RuntimeDeletionReconcileRequest(
+                ExpectedRevision: 3,
+                daemonSnapshot.Revision,
+                requestId,
+                "reconciliation-crash-campaign",
+                true);
+            if (window ==
+                RuntimeDeletionReconciliationCommitWindow.Previous)
+            {
+                var start = reloaded
+                    .BeginRuntimeDeletionReconciliation(
+                        pending.Single().IntentId,
+                        request);
+                using var reservation = Assert.IsType<
+                    RuntimeDeletionReservation>(start.Reservation);
+                var completed =
+                    reloaded.CompleteRuntimeDeletionReconciliation(
+                        reservation,
+                        request,
+                        daemonSnapshot);
+                Assert.True(completed.Accepted);
+                Assert.False(completed.Replayed);
+            }
+            else
+            {
+                var replayed =
+                    reloaded.BeginRuntimeDeletionReconciliation(
+                        reconciliationAudit.Single().IntentId,
+                        request);
+                Assert.Null(replayed.Reservation);
+                Assert.True(replayed.Replay?.Replayed);
+            }
+
+            var finalReload = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            var finalAudit = Assert.Single(
+                finalReload.ListRuntimeDeletionReconciliationAudit());
+            Assert.Equal(requestId, finalAudit.RequestId);
+            Assert.Equal(
+                daemonSnapshot.Revision,
+                finalAudit.DaemonRevision);
+            Assert.Null(finalReload.GetRuntime(
+                RuntimeDeletionReconciliationCommitTarget));
+            Assert.DoesNotContain(
+                finalReload.ListSessions(),
+                session => string.Equals(
+                    session.RuntimeId,
+                    RuntimeDeletionReconciliationCommitTarget,
+                    StringComparison.Ordinal));
+            Assert.Empty(
+                finalReload.ListPendingRuntimeDeletions());
+            var replayAfterRestart =
+                finalReload.BeginRuntimeDeletionReconciliation(
+                    finalAudit.IntentId,
+                    request);
+            Assert.Null(replayAfterRestart.Reservation);
+            Assert.True(replayAfterRestart.Replay?.Replayed);
+
+            return new RuntimeDeletionReconciliationCommitResult(
+                strategy,
+                window,
+                tempArtifactObserved,
+                retryAuditCount,
+                FinalStateConverged: true,
+                ReconciliationAuditSurvivedReload: true,
+                RequestReplayedAfterRestart: true);
+        }
+        finally
+        {
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            foreach (var path in new[]
+            {
+                statePath,
+                statePath + ".bak",
+                markerPath,
+                triggerPath,
+                committedMarkerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+                committedMarkerPath +
+                    $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}.*.tmp"))
+            {
+                TryDelete(path);
+            }
+        }
     }
 
     private static async Task<RuntimeDeletionRetryAtomicRolloverResult>
@@ -4446,6 +5375,242 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     private static void
+        WriteRuntimeDeletionReconciliationCommitEvidenceIfRequested(
+            int iterations,
+            ulong daemonRevision,
+            IReadOnlyList<
+                RuntimeDeletionReconciliationCommitResult> results)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_RECONCILIATION_COMMIT_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(
+            Path.GetDirectoryName(evidencePath)!);
+        var previousGenerationCount = results.Count(result =>
+            result.Window ==
+            RuntimeDeletionReconciliationCommitWindow.Previous);
+        var replacementGenerationCount = results.Count(result =>
+            result.Window ==
+            RuntimeDeletionReconciliationCommitWindow.Replacement);
+        var duringTempResults = results.Where(result =>
+            result.Strategy ==
+            RuntimeDeletionReconciliationCommitStrategy.DuringTempWrite)
+            .ToArray();
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture =
+                RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations_per_strategy = iterations,
+            strategies = Enum.GetNames<
+                RuntimeDeletionReconciliationCommitStrategy>(),
+            total_forced_terminations = results.Count,
+            daemon_revision = daemonRevision,
+            retry_audit_retention_limit = 256,
+            previous_generation_count = previousGenerationCount,
+            replacement_generation_count =
+                replacementGenerationCount,
+            temp_artifact_observed_count = duringTempResults.Count(
+                static result => result.TempArtifactObserved),
+            checks = new
+            {
+                real_leserpentd_snapshot_used =
+                    daemonRevision > 0,
+                before_write_restored_complete_previous_generation =
+                    results
+                        .Where(result =>
+                            result.Strategy ==
+                            RuntimeDeletionReconciliationCommitStrategy
+                                .BeforeWrite)
+                        .All(result =>
+                            result.Window ==
+                            RuntimeDeletionReconciliationCommitWindow
+                                .Previous),
+                every_temp_write_was_observed =
+                    duringTempResults.All(static result =>
+                        result.TempArtifactObserved),
+                after_commit_restored_complete_replacement_generation =
+                    results
+                        .Where(result =>
+                            result.Strategy ==
+                            RuntimeDeletionReconciliationCommitStrategy
+                                .AfterCommit)
+                        .All(result =>
+                            result.Window ==
+                            RuntimeDeletionReconciliationCommitWindow
+                                .Replacement),
+                every_restart_observed_old_or_new_generation =
+                    previousGenerationCount +
+                    replacementGenerationCount ==
+                    results.Count,
+                no_torn_runtime_session_intent_or_audit_generation =
+                    results.All(result =>
+                        result.Window !=
+                        RuntimeDeletionReconciliationCommitWindow.Torn),
+                every_previous_generation_retry_converged =
+                    results
+                        .Where(result =>
+                            result.Window ==
+                            RuntimeDeletionReconciliationCommitWindow
+                                .Previous)
+                        .All(static result =>
+                            result.FinalStateConverged),
+                every_reconciliation_audit_survived_reload =
+                    results.All(static result =>
+                        result.ReconciliationAuditSurvivedReload),
+                every_request_replayed_after_restart =
+                    results.All(static result =>
+                        result.RequestReplayedAfterRestart),
+                every_restart_preserved_retry_audit_window =
+                    results.All(static result =>
+                        result.RetryAuditCount == 256),
+                every_final_state_converged =
+                    results.All(static result =>
+                        result.FinalStateConverged),
+                both_atomic_outcomes_were_exercised =
+                    previousGenerationCount > 0 &&
+                    replacementGenerationCount > 0,
+                every_host_process_force_killed = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) +
+            "\n");
+    }
+
+    private static void
+        WriteRuntimeDeletionCrossAuthorityEvidenceIfRequested(
+            int iterations,
+            ulong daemonRevision,
+            IReadOnlyList<RuntimeDeletionCrossAuthorityResult> results)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_CROSS_AUTHORITY_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(
+            Path.GetDirectoryName(evidencePath)!);
+        var previousGenerationCount = results.Count(result =>
+            result.Window ==
+            RuntimeDeletionReconciliationCommitWindow.Previous);
+        var replacementGenerationCount = results.Count(result =>
+            result.Window ==
+            RuntimeDeletionReconciliationCommitWindow.Replacement);
+        var duringTempResults = results.Where(result =>
+            result.Strategy ==
+            RuntimeDeletionCrossAuthorityStrategy
+                .DuringControlTempWrite)
+            .ToArray();
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture =
+                RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations_per_strategy = iterations,
+            strategies = Enum.GetNames<
+                RuntimeDeletionCrossAuthorityStrategy>(),
+            total_forced_terminations = results.Count,
+            daemon_revision = daemonRevision,
+            previous_generation_count = previousGenerationCount,
+            replacement_generation_count =
+                replacementGenerationCount,
+            control_temp_artifact_observed_count =
+                duringTempResults.Count(
+                    static result =>
+                        result.TempArtifactObserved),
+            checks = new
+            {
+                real_leserpentd_orchestra_authority_used = true,
+                orchestra_cleanup_committed_before_every_termination =
+                    results.All(static result =>
+                        result
+                            .TargetHistoryAbsentBeforeTermination),
+                target_history_absent_before_every_termination =
+                    results.All(static result =>
+                        result
+                            .TargetHistoryAbsentBeforeTermination),
+                unrelated_run_and_event_preserved =
+                    results.All(static result =>
+                        result.UnrelatedHistoryPreserved),
+                after_orchestra_cleanup_restored_previous_control_generation =
+                    results
+                        .Where(result =>
+                            result.Strategy ==
+                            RuntimeDeletionCrossAuthorityStrategy
+                                .AfterOrchestraCleanup)
+                        .All(result =>
+                            result.Window ==
+                            RuntimeDeletionReconciliationCommitWindow
+                                .Previous),
+                every_control_temp_write_was_observed =
+                    duringTempResults.All(static result =>
+                        result.TempArtifactObserved),
+                after_control_commit_restored_replacement_generation =
+                    results
+                        .Where(result =>
+                            result.Strategy ==
+                            RuntimeDeletionCrossAuthorityStrategy
+                                .AfterControlCommit)
+                        .All(result =>
+                            result.Window ==
+                            RuntimeDeletionReconciliationCommitWindow
+                                .Replacement),
+                every_restart_observed_old_or_new_control_generation =
+                    previousGenerationCount +
+                    replacementGenerationCount ==
+                    results.Count,
+                no_torn_control_generation =
+                    results.All(result =>
+                        result.Window !=
+                        RuntimeDeletionReconciliationCommitWindow.Torn),
+                every_previous_generation_retried_absent_target_cleanup =
+                    results
+                        .Where(result =>
+                            result.Window ==
+                            RuntimeDeletionReconciliationCommitWindow
+                                .Previous)
+                        .All(static result =>
+                            result.FinalStateConverged),
+                every_final_state_converged =
+                    results.All(static result =>
+                        result.FinalStateConverged),
+                every_final_state_retained_one_reconciliation_audit =
+                    results.All(static result =>
+                        result.SingleAuditSurvivedReload),
+                every_request_replayed_after_restart =
+                    results.All(static result =>
+                        result.RequestReplayedAfterRestart),
+                both_control_generation_outcomes_were_exercised =
+                    previousGenerationCount > 0 &&
+                    replacementGenerationCount > 0,
+                every_host_process_force_killed = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) +
+            "\n");
+    }
+
+    private static void
         WriteRuntimeDeletionLostAcknowledgementEvidenceIfRequested(
             int iterations,
             IReadOnlyList<
@@ -5519,6 +6684,46 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         ulong ReconciliationDaemonRevision,
         bool ReconciliationAuditSurvivedReload,
         bool ReconciliationReplayedAfterRestart);
+
+    private enum RuntimeDeletionReconciliationCommitStrategy
+    {
+        BeforeWrite,
+        DuringTempWrite,
+        AfterCommit,
+    }
+
+    private enum RuntimeDeletionReconciliationCommitWindow
+    {
+        Previous,
+        Replacement,
+        Torn,
+    }
+
+    private sealed record RuntimeDeletionReconciliationCommitResult(
+        RuntimeDeletionReconciliationCommitStrategy Strategy,
+        RuntimeDeletionReconciliationCommitWindow Window,
+        bool TempArtifactObserved,
+        int RetryAuditCount,
+        bool FinalStateConverged,
+        bool ReconciliationAuditSurvivedReload,
+        bool RequestReplayedAfterRestart);
+
+    private enum RuntimeDeletionCrossAuthorityStrategy
+    {
+        AfterOrchestraCleanup,
+        DuringControlTempWrite,
+        AfterControlCommit,
+    }
+
+    private sealed record RuntimeDeletionCrossAuthorityResult(
+        RuntimeDeletionCrossAuthorityStrategy Strategy,
+        RuntimeDeletionReconciliationCommitWindow Window,
+        bool TempArtifactObserved,
+        bool TargetHistoryAbsentBeforeTermination,
+        bool UnrelatedHistoryPreserved,
+        bool FinalStateConverged,
+        bool SingleAuditSurvivedReload,
+        bool RequestReplayedAfterRestart);
 
     private enum RuntimeDeletionRetryAtomicRolloverStrategy
     {

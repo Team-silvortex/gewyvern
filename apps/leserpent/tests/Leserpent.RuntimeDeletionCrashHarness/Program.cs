@@ -35,7 +35,18 @@ var stateStore = new ControlPlaneStateStore(
     configuration,
     environment,
     NullLogger<ControlPlaneStateStore>.Instance);
-var registry = new RegistryService(stateStore, new InMemoryOrchestraRunStore());
+IOrchestraRunStore orchestraRunStore =
+    string.Equals(
+        phase,
+        "reconciliation_cross_authority",
+        StringComparison.Ordinal)
+        ? new PauseAfterOrchestraCleanupRunStore(
+            new DaemonOrchestraRunStore(
+                configuration,
+                NullLogger<DaemonOrchestraRunStore>.Instance),
+            markerPath)
+        : new InMemoryOrchestraRunStore();
+var registry = new RegistryService(stateStore, orchestraRunStore);
 var authority = new DaemonRuntimeRegistrationAuthority(configuration);
 
 if (string.Equals(
@@ -77,6 +88,68 @@ if (string.Equals(
     await WriteMarkerAsync(
         $"{markerPath}.committed",
         $"retry_rollover_committed {replacement.RequestId}\n");
+    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
+else if (string.Equals(
+    phase,
+    "reconciliation_commit",
+    StringComparison.Ordinal))
+{
+    var intent = registry.ListPendingRuntimeDeletions().Single();
+    var daemonSnapshot = await authority.SnapshotAsync(
+        CancellationToken.None);
+    var request = new RuntimeDeletionReconcileRequest(
+        intent.Revision,
+        daemonSnapshot.Revision,
+        runtimeId,
+        "reconciliation-crash-campaign",
+        true);
+    var reconciliation = registry.BeginRuntimeDeletionReconciliation(
+        intent.IntentId,
+        request);
+    using var reservation = reconciliation.Reservation
+        ?? throw new InvalidOperationException(
+            "reconciliation crash harness unexpectedly replayed");
+    await WriteMarkerAsync(
+        markerPath,
+        $"reconciliation_ready {intent.IntentId} {intent.Revision} {daemonSnapshot.Revision}\n");
+    await WaitForTriggerAsync($"{markerPath}.trigger");
+    registry.CompleteRuntimeDeletionReconciliation(
+        reservation,
+        request,
+        daemonSnapshot);
+    await WriteMarkerAsync(
+        $"{markerPath}.committed",
+        $"reconciliation_committed {request.RequestId}\n");
+    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
+else if (string.Equals(
+    phase,
+    "reconciliation_cross_authority",
+    StringComparison.Ordinal))
+{
+    var intent = registry.ListPendingRuntimeDeletions().Single();
+    var daemonSnapshot = await authority.SnapshotAsync(
+        CancellationToken.None);
+    var request = new RuntimeDeletionReconcileRequest(
+        intent.Revision,
+        daemonSnapshot.Revision,
+        runtimeId,
+        "reconciliation-cross-authority-campaign",
+        true);
+    var reconciliation = registry.BeginRuntimeDeletionReconciliation(
+        intent.IntentId,
+        request);
+    using var reservation = reconciliation.Reservation
+        ?? throw new InvalidOperationException(
+            "cross-authority reconciliation unexpectedly replayed");
+    registry.CompleteRuntimeDeletionReconciliation(
+        reservation,
+        request,
+        daemonSnapshot);
+    await WriteMarkerAsync(
+        $"{markerPath}.committed",
+        $"reconciliation_cross_authority_committed {request.RequestId}\n");
     await Task.Delay(Timeout.InfiniteTimeSpan);
 }
 else if (string.Equals(phase, "mixed_overlapping", StringComparison.Ordinal))
@@ -443,5 +516,75 @@ internal sealed class LostAcknowledgementUnregisterAuthority(
             markerTempPath,
             markerPath,
             overwrite: true);
+    }
+}
+
+internal sealed class PauseAfterOrchestraCleanupRunStore(
+    IOrchestraRunStore inner,
+    string markerPath) : IOrchestraRunStore
+{
+    public string Provider => inner.Provider;
+    public string Location => inner.Location;
+    public int SchemaVersion => inner.SchemaVersion;
+    public string? LastError => inner.LastError;
+
+    public IReadOnlyList<OrchestraRunSummary> LoadAll() =>
+        inner.LoadAll();
+
+    public IReadOnlyList<OrchestraRunEvent> LoadEvents(
+        string runtimeId,
+        string runId) =>
+        inner.LoadEvents(runtimeId, runId);
+
+    public bool Upsert(
+        OrchestraRunSummary run,
+        OrchestraRunEvent? eventRecord = null) =>
+        inner.Upsert(run, eventRecord);
+
+    public bool ReplaceAll(
+        IReadOnlyList<OrchestraRunSummary> runs) =>
+        inner.ReplaceAll(runs);
+
+    public bool DeleteRuntimes(
+        IReadOnlyCollection<string> runtimeIds)
+    {
+        if (!inner.DeleteRuntimes(runtimeIds))
+        {
+            return false;
+        }
+        WriteBoundaryMarker(
+            $"orchestra_cleanup_committed {string.Join(',', runtimeIds)}\n");
+        WaitForTrigger();
+        return true;
+    }
+
+    private void WriteBoundaryMarker(string content)
+    {
+        var markerBytes =
+            System.Text.Encoding.UTF8.GetBytes(content);
+        var markerTempPath =
+            $"{markerPath}.{Environment.ProcessId}.tmp";
+        using (var marker = new FileStream(
+            markerTempPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None))
+        {
+            marker.Write(markerBytes);
+            marker.Flush(flushToDisk: true);
+        }
+        File.Move(
+            markerTempPath,
+            markerPath,
+            overwrite: true);
+    }
+
+    private void WaitForTrigger()
+    {
+        var triggerPath = $"{markerPath}.trigger";
+        while (!File.Exists(triggerPath))
+        {
+            Thread.Sleep(1);
+        }
     }
 }

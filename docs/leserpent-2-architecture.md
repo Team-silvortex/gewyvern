@@ -678,6 +678,40 @@ idempotent after restart and convergence; conflicting reuse fails closed.
 `GET /v1/persistence/runtime-deletion-reconciliation-audit` exposes the
 credential-free retained trail.
 
+The JSON reconciliation commit has an explicit cross-process crash proof rather
+than a production fault-injection switch. Its test baseline includes the target
+runtime, an associated session, a replay-ambiguous intent, and a full 256-record
+retry-audit window. The parent process force-kills the compatibility host before
+save, on observation of the real state temporary file, and after commit. The
+production loader may recover only the complete previous generation or the
+complete replacement generation; mixed runtime/session/intent/audit state is a
+test failure. Previous generations execute the guarded reconciliation again,
+while replacement generations replay the same request identity. A second disk
+reload must retain one audit and no target projection. Arm64 and physical Linux
+x86_64 evidence is retained under
+`docs/fixtures/leserpent_runtime_deletion_reconciliation_commit_20260726.json`
+and
+`docs/fixtures/leserpent_runtime_deletion_reconciliation_commit_linux_x86_64_20260726.json`.
+This proof deliberately stops at the JSON authority boundary. SQLite Orchestra
+cleanup is idempotent but separately committed. A second cross-process campaign
+now exercises that boundary directly. A test-only wrapper delegates deletion to
+the real daemon-backed store and writes its durable marker only after the Rust
+SQLite transaction commits. The parent force-kills at that marker, during the
+following JSON temporary-file write, or after JSON commit. Before every
+termination, target run/event history is absent and an unrelated run/event pair
+is still readable. Restart may restore the previous or replacement JSON
+generation; the previous path repeats the absent-target cleanup, while the
+replacement path replays the audit request. Both converge to one audit without
+touching unrelated history. Arm64 and physical Linux x86_64 evidence is retained
+in
+`docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
+`docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`.
+This remains idempotent cross-authority convergence rather than an implied
+distributed transaction. The next gate gives Orchestra cleanup an
+intent-derived command identity and durable typed replay receipt, allowing
+restart to verify the exact cleanup generation rather than infer success from
+target absence alone.
+
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent
 daemon command and local cleanup until both authorities converge. Schema v1

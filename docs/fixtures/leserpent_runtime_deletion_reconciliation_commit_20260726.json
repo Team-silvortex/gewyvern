@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-26T09:56:15.941125+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "iterations_per_strategy": 3,
+  "strategies": [
+    "BeforeWrite",
+    "DuringTempWrite",
+    "AfterCommit"
+  ],
+  "total_forced_terminations": 9,
+  "daemon_revision": 1,
+  "retry_audit_retention_limit": 256,
+  "previous_generation_count": 5,
+  "replacement_generation_count": 4,
+  "temp_artifact_observed_count": 3,
+  "checks": {
+    "real_leserpentd_snapshot_used": true,
+    "before_write_restored_complete_previous_generation": true,
+    "every_temp_write_was_observed": true,
+    "after_commit_restored_complete_replacement_generation": true,
+    "every_restart_observed_old_or_new_generation": true,
+    "no_torn_runtime_session_intent_or_audit_generation": true,
+    "every_previous_generation_retry_converged": true,
+    "every_reconciliation_audit_survived_reload": true,
+    "every_request_replayed_after_restart": true,
+    "every_restart_preserved_retry_audit_window": true,
+    "every_final_state_converged": true,
+    "both_atomic_outcomes_were_exercised": true,
+    "every_host_process_force_killed": true
+  }
+}
