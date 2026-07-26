@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "observed_at": "2026-07-26T08:28:45.2904467+00:00",
+  "schema_version": 2,
+  "observed_at": "2026-07-26T08:51:57.5741103+00:00",
   "platform": "Unix",
   "architecture": "X64",
   "iterations": 3,
@@ -9,9 +9,11 @@
   "post_restart_unregistration_mutation_count": 0,
   "minimum_operation_generation": 1,
   "maximum_operation_generation": 3,
+  "minimum_replay_horizon_floor": 1,
+  "maximum_replay_horizon_floor": 3,
   "checks": {
     "real_leserpentd": true,
-    "schema_v4_command_identity_restored": true,
+    "schema_v5_command_identity_and_replay_floor_restored": true,
     "daemon_commit_preceded_host_termination": true,
     "acknowledgement_withheld_from_recovery_worker": true,
     "every_host_process_force_killed": true,

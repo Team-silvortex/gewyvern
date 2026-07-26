@@ -594,18 +594,32 @@ public sealed record PersistedRuntimeDeletionIntent(
     DateTimeOffset? NextAttemptAt = null,
     string? LastFailureCode = null,
     long Revision = 1,
-    string UnregistrationCommandId = ""
+    string UnregistrationCommandId = "",
+    ulong? UnregistrationReplayHorizonFloor = null,
+    bool UnregistrationMutationMayHaveStarted = false
+);
+
+public sealed record RuntimeUnregistrationReplayHorizon(
+    ulong Capacity,
+    ulong Retained,
+    ulong? OldestGeneration,
+    ulong? NewestGeneration,
+    ulong NextGeneration,
+    ulong EvictedThroughGeneration
 );
 
 public sealed record RuntimeUnregistrationReceiptLookup(
     string CommandId,
     IReadOnlyList<string>? RuntimeIds,
-    ulong? OperationGeneration)
+    ulong? OperationGeneration,
+    RuntimeUnregistrationReplayHorizon? ReplayHorizon = null)
 {
     public bool Found => RuntimeIds is not null;
 
-    public static RuntimeUnregistrationReceiptLookup Missing(string commandId) =>
-        new(commandId, null, null);
+    public static RuntimeUnregistrationReceiptLookup Missing(
+        string commandId,
+        RuntimeUnregistrationReplayHorizon? replayHorizon = null) =>
+        new(commandId, null, null, replayHorizon);
 }
 
 public sealed record PersistedRuntimeDeletionRetryAudit(

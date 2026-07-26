@@ -615,9 +615,10 @@ public partial class Program
                 (RuntimeSummary? RemovedRuntime, int RemovedSessionCount) deleted;
                 try
                 {
-                    await registrationAuthority.UnregisterAsync(
-                        reservation.RuntimeIds,
-                        reservation.UnregistrationCommandId,
+                    await RuntimeDeletionAuthorityWorkflow.ExecuteAsync(
+                        registry,
+                        reservation,
+                        registrationAuthority,
                         cancellationToken);
                     deleted = registry.DeleteRuntime(id);
                     registry.CompleteRuntimeDeletion(reservation);
@@ -625,6 +626,12 @@ public partial class Program
                 catch (DaemonRuntimeRegistrationException ex)
                 {
                     return RuntimeUnregistrationAuthorityFailure(ex, id);
+                }
+                catch (RuntimeUnregistrationReplayAmbiguousException ex)
+                {
+                    return RuntimeUnregistrationReplayAmbiguous(
+                        ex,
+                        id);
                 }
                 catch (OrchestraPersistenceException ex)
                 {
@@ -710,9 +717,10 @@ public partial class Program
             using var reservation = registry.ReserveRuntimeDeletion(
                 targetIds,
                 requireAllTargets: true);
-            await registrationAuthority.UnregisterAsync(
-                reservation.RuntimeIds,
-                reservation.UnregistrationCommandId,
+            await RuntimeDeletionAuthorityWorkflow.ExecuteAsync(
+                registry,
+                reservation,
+                registrationAuthority,
                 cancellationToken);
             var deleted = registry.DeleteRuntimesById(reservation.RuntimeIds);
             registry.CompleteRuntimeDeletion(reservation);
@@ -749,6 +757,10 @@ public partial class Program
         catch (DaemonRuntimeRegistrationException ex)
         {
             return RuntimeUnregistrationAuthorityFailure(ex, null);
+        }
+        catch (RuntimeUnregistrationReplayAmbiguousException ex)
+        {
+            return RuntimeUnregistrationReplayAmbiguous(ex, null);
         }
     }
 
@@ -1005,6 +1017,14 @@ public partial class Program
                 LeserpentJsonContext.Default.ApiErrorResponse,
                 statusCode: StatusCodes.Status502BadGateway),
         };
+
+    private static IResult RuntimeUnregistrationReplayAmbiguous(
+        RuntimeUnregistrationReplayAmbiguousException error,
+        string? runtimeId) =>
+        Results.Conflict(new ApiErrorResponse(
+            "runtime_delete_replay_ambiguous",
+            error.Message,
+            RuntimeId: runtimeId));
 
     private static IResult RuntimeProjectionFailure(
         DaemonRuntimeProjectionException exception,

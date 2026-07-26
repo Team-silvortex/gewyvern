@@ -466,6 +466,186 @@ public sealed class OrchestraExecutionCoordinatorTests
     }
 
     [Fact]
+    public async Task RuntimeDeletionRecoveryPersistsReplayFloorBeforeMutation()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+        registry.ReserveRuntimeDeletion(
+            new[] { runtime.RuntimeId }).Dispose();
+        var authority = new ReplayHorizonRegistrationAuthority(
+            ReplayHorizon(nextGeneration: 5));
+        var service = new RuntimeDeletionRecoveryService(
+            registry,
+            authority,
+            NullLogger<RuntimeDeletionRecoveryService>.Instance);
+
+        try
+        {
+            await service.StartAsync(CancellationToken.None);
+            await authority.MutationStarted.WaitAsync(
+                TimeSpan.FromSeconds(2));
+
+            var fenced = Assert.Single(
+                registry.ListPendingRuntimeDeletions());
+            Assert.True(
+                fenced.UnregistrationMutationMayHaveStarted);
+            Assert.Equal(
+                (ulong)5,
+                fenced.UnregistrationReplayHorizonFloor);
+            Assert.Equal(2, fenced.Revision);
+
+            var diskReloaded = CreateRegistry(statePath);
+            var persisted = Assert.Single(
+                diskReloaded.ListPendingRuntimeDeletions());
+            Assert.True(
+                persisted.UnregistrationMutationMayHaveStarted);
+            Assert.Equal(
+                (ulong)5,
+                persisted.UnregistrationReplayHorizonFloor);
+            Assert.Equal(2, persisted.Revision);
+
+            authority.ReleaseMutation();
+            await WaitForPendingDeletionCountAsync(registry, 0);
+        }
+        finally
+        {
+            authority.ReleaseMutation();
+            await service.StopAsync(CancellationToken.None);
+            service.Dispose();
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionReplayFloorPersistenceFailurePreventsMutation()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var backupPath = $"{statePath}.bak";
+        var runtime = RegisterRuntime(registry);
+        using var reservation = registry.ReserveRuntimeDeletion(
+            new[] { runtime.RuntimeId });
+        var authority = new ReplayHorizonRegistrationAuthority(
+            ReplayHorizon(nextGeneration: 5));
+        File.Delete(backupPath);
+        Directory.CreateDirectory(backupPath);
+
+        try
+        {
+            await Assert.ThrowsAsync<OrchestraPersistenceException>(
+                () => RuntimeDeletionAuthorityWorkflow.ExecuteAsync(
+                    registry,
+                    reservation,
+                    authority,
+                    CancellationToken.None));
+
+            Assert.Equal(0, authority.MutationCount);
+            Assert.False(
+                reservation.UnregistrationMutationMayHaveStarted);
+            Assert.Null(
+                reservation.UnregistrationReplayHorizonFloor);
+            var intent = Assert.Single(
+                registry.ListPendingRuntimeDeletions());
+            Assert.False(
+                intent.UnregistrationMutationMayHaveStarted);
+            Assert.Null(
+                intent.UnregistrationReplayHorizonFloor);
+            Assert.Equal(1, intent.Revision);
+            var diskIntent = Assert.Single(
+                CreateRegistry(statePath)
+                    .ListPendingRuntimeDeletions());
+            Assert.False(
+                diskIntent.UnregistrationMutationMayHaveStarted);
+            Assert.Null(
+                diskIntent.UnregistrationReplayHorizonFloor);
+        }
+        finally
+        {
+            Directory.Delete(backupPath);
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Theory]
+    [InlineData(5, 4, true)]
+    [InlineData(6, 5, false)]
+    [InlineData(4, 3, false)]
+    public async Task RuntimeDeletionRecoveryRejectsOnlyEvictedReplayFloor(
+        ulong nextGeneration,
+        ulong evictedThroughGeneration,
+        bool mutationExpected)
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+        using (var reservation = registry.ReserveRuntimeDeletion(
+            new[] { runtime.RuntimeId }))
+        {
+            registry.FenceRuntimeDeletionMutation(
+                reservation,
+                replayHorizonFloor: 5);
+        }
+        var authority = new ReplayHorizonRegistrationAuthority(
+            new RuntimeUnregistrationReplayHorizon(
+                256,
+                0,
+                null,
+                null,
+                nextGeneration,
+                evictedThroughGeneration));
+        var service = new RuntimeDeletionRecoveryService(
+            registry,
+            authority,
+            NullLogger<RuntimeDeletionRecoveryService>.Instance);
+
+        try
+        {
+            await service.StartAsync(CancellationToken.None);
+            if (mutationExpected)
+            {
+                await authority.MutationStarted.WaitAsync(
+                    TimeSpan.FromSeconds(2));
+                authority.ReleaseMutation();
+                await WaitForPendingDeletionCountAsync(registry, 0);
+                Assert.Equal(1, authority.MutationCount);
+                Assert.Null(registry.GetRuntime(runtime.RuntimeId));
+            }
+            else
+            {
+                var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+                PersistedRuntimeDeletionIntent? failed = null;
+                while (DateTimeOffset.UtcNow < deadline)
+                {
+                    failed = registry.ListPendingRuntimeDeletions()
+                        .SingleOrDefault();
+                    if (failed?.AttemptCount == 1)
+                    {
+                        break;
+                    }
+                    await Task.Delay(10);
+                }
+                Assert.NotNull(failed);
+                Assert.Equal(1, failed.AttemptCount);
+                Assert.Equal(
+                    RuntimeDeletionFailureCodes.ReplayAmbiguous,
+                    failed.LastFailureCode);
+                Assert.Equal((ulong)5,
+                    failed.UnregistrationReplayHorizonFloor);
+                Assert.True(
+                    failed.UnregistrationMutationMayHaveStarted);
+                Assert.Equal(3, failed.Revision);
+                Assert.Equal(0, authority.MutationCount);
+                Assert.NotNull(registry.GetRuntime(runtime.RuntimeId));
+            }
+        }
+        finally
+        {
+            authority.ReleaseMutation();
+            await service.StopAsync(CancellationToken.None);
+            service.Dispose();
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public void RuntimeDeletionRecoveryClaimsAndPersistsABoundedSuccessBatch()
     {
         var runStore = new CountingDeleteRunStore();
@@ -2376,13 +2556,92 @@ public sealed class OrchestraExecutionCoordinatorTests
             return Task.FromResult(
                 receiptRuntimeIds is null
                     ? RuntimeUnregistrationReceiptLookup.Missing(
-                        commandId)
+                        commandId,
+                        ReplayHorizon(nextGeneration: 1))
                     : new RuntimeUnregistrationReceiptLookup(
                         commandId,
                         receiptRuntimeIds,
-                        7));
+                        7,
+                        new RuntimeUnregistrationReplayHorizon(
+                            256,
+                            1,
+                            7,
+                            7,
+                            8,
+                            6)));
         }
     }
+
+    private sealed class ReplayHorizonRegistrationAuthority(
+        RuntimeUnregistrationReplayHorizon replayHorizon) :
+        IRuntimeRegistrationAuthority
+    {
+        private readonly TaskCompletionSource mutationStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource mutationRelease =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int mutationCount;
+
+        public bool Enabled => true;
+        public Task MutationStarted => mutationStarted.Task;
+        public int MutationCount => Volatile.Read(ref mutationCount);
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.FromResult(runtimeId);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.CompletedTask;
+
+        public Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "recovery must use the durable command identity");
+
+        public async Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            string commandId,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref mutationCount);
+            mutationStarted.TrySetResult();
+            await mutationRelease.Task.WaitAsync(cancellationToken);
+        }
+
+        public Task<RuntimeUnregistrationReceiptLookup>
+            LookupUnregistrationReceiptAsync(
+                string commandId,
+                CancellationToken cancellationToken) =>
+            Task.FromResult(
+                RuntimeUnregistrationReceiptLookup.Missing(
+                    commandId,
+                    replayHorizon));
+
+        public void ReleaseMutation() =>
+            mutationRelease.TrySetResult();
+    }
+
+    private static RuntimeUnregistrationReplayHorizon ReplayHorizon(
+        ulong nextGeneration) =>
+        new(
+            256,
+            0,
+            null,
+            null,
+            nextGeneration,
+            nextGeneration - 1);
 
     private sealed class RuntimeDeletionRetryClaimRaceAuthority :
         IRuntimeRegistrationAuthority

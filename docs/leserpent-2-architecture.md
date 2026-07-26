@@ -635,15 +635,16 @@ daemon revision-fences every target and atomically journals their removal,
 deletes Orchestra history, and stores an idempotent replay record in schema
 v14. The compatibility service reserves the selected runtimes across the
 daemon call, preventing new sessions or Orchestra runs before it removes local
-compatibility state. Its control-plane state schema v4 durably records the
+compatibility state. Its control-plane state schema v5 durably records the
 deletion intent before daemon mutation and clears it only after local cleanup is
 strictly persisted. Schema v4 binds each intent to one deterministic
-unregistration command ID. Schema v1-v3 snapshots derive the same bounded ID
-from the retained intent identity, while a malformed v4 snapshot fails semantic
-validation instead of silently inventing authority metadata. Control-plane
-schema v3 extends each intent with a bounded attempt counter, last/next attempt
-timestamps, and a closed safe failure-code set. Legacy snapshots upgrade
-without inventing retry history. Failed
+unregistration command ID; schema v5 additionally records the replay-horizon
+floor before any mutation may begin. Schema v1-v4 snapshots upgrade
+conservatively: old pending mutations are marked as potentially started but
+receive no invented floor, while malformed current snapshots fail semantic
+validation. Control-plane schema v3 extends each intent with a bounded attempt
+counter, last/next attempt timestamps, and a closed safe failure-code set.
+Legacy snapshots upgrade without inventing retry history. Failed
 authority calls use durable 1/2/4/8/16/30-second capped backoff; deferred
 intents are filtered before the 32-item claim limit, so a poison target cannot
 consume a ready target's slot. The loopback-or-token-fenced read-only
@@ -1119,13 +1120,22 @@ The lost-ack crash campaign validates this path against a real daemon rather
 than a mock authority. A wrapper withholds success after the daemon's durable
 commit, atomically publishes the crash marker, and blocks until the parent
 force-kills the compatibility host. Three Arm64 and three physical Linux x86_64
-runs restore the schema-v4 intent, perform one receipt lookup and zero
+runs restore the schema-v5 intent, perform one receipt lookup and zero
 unregistration mutations, preserve the original operation generation, and
 converge after another disk reload. The remote validation runner closes its
 workspace-lock descriptor before exec so persistent .NET compiler servers
-cannot inherit and leak the cross-task lock. The next safety boundary records
-the pre-mutation replay-horizon floor so a receipt miss after evidence eviction
-is classified as ambiguous rather than safe to mutate.
+cannot inherit and leak the cross-task lock.
+The shared deletion authority workflow now serves interactive single deletion,
+bulk cleanup, and restart recovery. On a typed miss it atomically persists the
+lookup's `next_generation` as the schema-v5 floor before invoking daemon
+mutation. Once `evicted_through_generation` reaches that floor, another miss is
+classified as `replay_ambiguous`; recovery performs no mutation and preserves
+both the local projection and intent. Real Arm64 and physical Linux x86_64
+campaigns each force-kill the host after daemon commit and execute 256 unrelated
+unregistrations to evict the receipt, proving the fail-closed boundary through
+disk reload. The next safety boundary is a revision-fenced operator
+reconciliation path backed by a typed daemon absence snapshot; a reappeared
+runtime identity must remain blocked.
 
 ## Leselang Semantics
 

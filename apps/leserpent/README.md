@@ -301,7 +301,7 @@ JSON state 默认路径：
 - `GET /v1/orchestra/runtimes/{id}/runs/{runId}/events` 按顺序返回单次运行的审计时间线；旧数据在首次新状态转换前可能没有事件
 - Orchestra 状态转换只有在 SQLite 快照与事件同时提交后才会发布到内存；数据库拒写时不会启动自动执行
 - state import 的 Orchestra 批量替换失败会返回 `503 persistence_import_unavailable` 并恢复导入前的内存 registry
-- control-plane JSON schema v3 保存待完成的 runtime 删除意图及逐意图 `attemptCount`、`lastAttemptAt`、`nextAttemptAt`、`lastFailureCode`；schema v1/v2 在读取时自动升级
+- control-plane JSON schema v5 保存待完成的 runtime 删除意图、稳定注销 command ID、mutation 前 replay-horizon floor 及逐意图重试元数据；schema v1-v4 在读取时保守升级，无法证明旧 mutation 边界的意图保持 fail-closed
 - 删除意图必须在 daemon mutation 前严格落盘，daemon 和本地 registry 都完成后才会清除；失败使用 1/2/4/8/16/30 秒封顶退避，且只持久化固定安全失败码
 - `GET /v1/persistence/runtime-deletions` 提供只读运维视图；尚未到期的 poison 不占用已到期健康意图的领取名额
 - `POST /v1/persistence/runtime-deletions/{intentId}/retry-now` 要求当前 revision、唯一 requestId 和操作者；成功后立即唤醒恢复 worker，陈旧 revision 或复用冲突返回 `409`

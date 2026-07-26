@@ -9,19 +9,33 @@ public sealed class RuntimeDeletionReservation : IDisposable
         string intentId,
         string claimId,
         IReadOnlyList<string> runtimeIds,
-        string unregistrationCommandId)
+        string unregistrationCommandId,
+        ulong? unregistrationReplayHorizonFloor = null,
+        bool unregistrationMutationMayHaveStarted = false)
     {
         this.owner = owner;
         IntentId = intentId;
         ClaimId = claimId;
         RuntimeIds = runtimeIds;
         UnregistrationCommandId = unregistrationCommandId;
+        UnregistrationReplayHorizonFloor =
+            unregistrationReplayHorizonFloor;
+        UnregistrationMutationMayHaveStarted =
+            unregistrationMutationMayHaveStarted;
     }
 
     public string IntentId { get; }
     internal string ClaimId { get; }
     public IReadOnlyList<string> RuntimeIds { get; }
     public string UnregistrationCommandId { get; }
+    public ulong? UnregistrationReplayHorizonFloor { get; private set; }
+    public bool UnregistrationMutationMayHaveStarted { get; private set; }
+
+    internal void MarkUnregistrationMutationFenced(ulong replayHorizonFloor)
+    {
+        UnregistrationReplayHorizonFloor = replayHorizonFloor;
+        UnregistrationMutationMayHaveStarted = true;
+    }
 
     public void Dispose()
     {

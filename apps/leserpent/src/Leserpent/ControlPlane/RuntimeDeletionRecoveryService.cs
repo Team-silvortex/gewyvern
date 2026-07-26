@@ -44,41 +44,12 @@ public sealed class RuntimeDeletionRecoveryService(
                         {
                             try
                             {
-                                var lookup = await registrationAuthority
-                                    .LookupUnregistrationReceiptAsync(
-                                        reservation
-                                            .UnregistrationCommandId,
+                                await RuntimeDeletionAuthorityWorkflow
+                                    .ExecuteAsync(
+                                        registry,
+                                        reservation,
+                                        registrationAuthority,
                                         cancellationToken);
-                                if (!string.Equals(
-                                        lookup.CommandId,
-                                        reservation
-                                            .UnregistrationCommandId,
-                                        StringComparison.Ordinal))
-                                {
-                                    throw new InvalidDataException(
-                                        "runtime unregistration receipt changed the command identity");
-                                }
-                                if (lookup.Found)
-                                {
-                                    if (!lookup.RuntimeIds!
-                                        .ToHashSet(
-                                            StringComparer.OrdinalIgnoreCase)
-                                        .SetEquals(
-                                            reservation.RuntimeIds))
-                                    {
-                                        throw new InvalidDataException(
-                                            "runtime unregistration receipt targets do not match the deletion intent");
-                                    }
-                                }
-                                else
-                                {
-                                    await registrationAuthority
-                                        .UnregisterAsync(
-                                            reservation.RuntimeIds,
-                                            reservation
-                                                .UnregistrationCommandId,
-                                            cancellationToken);
-                                }
                                 successfulReservations.Add(reservation);
                             }
                             catch (OperationCanceledException) when (
@@ -215,6 +186,8 @@ public sealed class RuntimeDeletionRecoveryService(
                 RuntimeDeletionFailureCodes.AuthorityUnavailable,
             UnauthorizedAccessException =>
                 RuntimeDeletionFailureCodes.AuthorityRejected,
+            RuntimeUnregistrationReplayAmbiguousException =>
+                RuntimeDeletionFailureCodes.ReplayAmbiguous,
             _ => RuntimeDeletionFailureCodes.AuthorityFailure,
         };
 }
@@ -230,8 +203,10 @@ internal static class RuntimeDeletionFailureCodes
     public const string AuthorityRejected = "authority_rejected";
     public const string AuthorityTimeout = "authority_timeout";
     public const string AuthorityUnavailable = "authority_unavailable";
+    public const string ReplayAmbiguous = "replay_ambiguous";
 
     public static bool IsValid(string? code) =>
         code is AuthorityFailure or AuthorityRejected
-            or AuthorityTimeout or AuthorityUnavailable;
+            or AuthorityTimeout or AuthorityUnavailable
+            or ReplayAmbiguous;
 }

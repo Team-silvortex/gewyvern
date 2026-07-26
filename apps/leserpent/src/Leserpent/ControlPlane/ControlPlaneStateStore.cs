@@ -4,7 +4,7 @@ namespace Leserpent.ControlPlane;
 
 public sealed class ControlPlaneStateStore
 {
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 5;
     private const int OldestSupportedSchemaVersion = 1;
 
     private readonly string statePath;
@@ -364,6 +364,8 @@ public sealed class ControlPlaneStateStore
     {
         var backfillUnregistrationCommandId =
             state.SchemaVersion < 4;
+        var markLegacyUnregistrationMutation =
+            state.SchemaVersion < 5;
         return state with
         {
             SchemaVersion = CurrentSchemaVersion,
@@ -383,6 +385,9 @@ public sealed class ControlPlaneStateStore
                                 intent.IntentId ?? string.Empty)
                             : intent.UnregistrationCommandId?.Trim() ??
                                 string.Empty,
+                    UnregistrationMutationMayHaveStarted =
+                        markLegacyUnregistrationMutation ||
+                        intent.UnregistrationMutationMayHaveStarted,
                 })
                 .ToArray(),
             RuntimeDeletionRetryAudit =

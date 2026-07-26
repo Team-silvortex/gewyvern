@@ -182,7 +182,9 @@ public sealed partial class RegistryService
                 string.Empty,
                 string.Empty,
                 targets,
-                string.Empty);
+                string.Empty,
+                null,
+                false);
         }
 
         lock (orchestraRunSync)
@@ -212,7 +214,11 @@ public sealed partial class RegistryService
                     overlappingIntent.IntentId,
                     claimId,
                     overlappingIntent.RuntimeIds,
-                    overlappingIntent.UnregistrationCommandId);
+                    overlappingIntent.UnregistrationCommandId,
+                    overlappingIntent
+                        .UnregistrationReplayHorizonFloor,
+                    overlappingIntent
+                        .UnregistrationMutationMayHaveStarted);
             }
 
             if (pendingRuntimeDeletions.Count >= MaxPendingRuntimeDeletionIntents ||
@@ -242,7 +248,10 @@ public sealed partial class RegistryService
                     createdIntent.IntentId,
                     claimId,
                     createdIntent.RuntimeIds,
-                    createdIntent.UnregistrationCommandId);
+                    createdIntent.UnregistrationCommandId,
+                    createdIntent.UnregistrationReplayHorizonFloor,
+                    createdIntent
+                        .UnregistrationMutationMayHaveStarted);
                 try
                 {
                     PersistStateStrict();
@@ -306,9 +315,93 @@ public sealed partial class RegistryService
                     intent.IntentId,
                     claimId,
                     intent.RuntimeIds,
-                    intent.UnregistrationCommandId));
+                    intent.UnregistrationCommandId,
+                    intent.UnregistrationReplayHorizonFloor,
+                    intent.UnregistrationMutationMayHaveStarted));
             }
             return reservations;
+        }
+    }
+
+    internal void FenceRuntimeDeletionMutation(
+        RuntimeDeletionReservation reservation,
+        ulong replayHorizonFloor)
+    {
+        if (replayHorizonFloor == 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(replayHorizonFloor));
+        }
+
+        lock (orchestraRunSync)
+        {
+            if (!pendingRuntimeDeletions.TryGetValue(
+                    reservation.IntentId,
+                    out var intent) ||
+                !activeRuntimeDeletionClaims.TryGetValue(
+                    reservation.IntentId,
+                    out var activeClaimId) ||
+                !string.Equals(
+                    activeClaimId,
+                    reservation.ClaimId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    reservation.UnregistrationCommandId,
+                    intent.UnregistrationCommandId,
+                    StringComparison.Ordinal) ||
+                reservation.UnregistrationReplayHorizonFloor !=
+                    intent.UnregistrationReplayHorizonFloor ||
+                reservation.UnregistrationMutationMayHaveStarted !=
+                    intent.UnregistrationMutationMayHaveStarted ||
+                !reservation.RuntimeIds
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                    .SetEquals(intent.RuntimeIds))
+            {
+                throw new InvalidOperationException(
+                    "runtime deletion replay fence does not match a pending claim");
+            }
+            if (intent.UnregistrationMutationMayHaveStarted)
+            {
+                if (intent.UnregistrationReplayHorizonFloor !=
+                    replayHorizonFloor)
+                {
+                    throw new InvalidOperationException(
+                        "runtime deletion replay fence changed");
+                }
+                reservation.MarkUnregistrationMutationFenced(
+                    replayHorizonFloor);
+                return;
+            }
+            if (intent.Revision >= MaxRuntimeDeletionRevision)
+            {
+                throw new InvalidOperationException(
+                    "runtime deletion replay fence exceeded the revision bound");
+            }
+
+            var updated = intent with
+            {
+                UnregistrationReplayHorizonFloor =
+                    replayHorizonFloor,
+                UnregistrationMutationMayHaveStarted = true,
+                Revision = intent.Revision + 1,
+            };
+            lock (persistenceSync)
+            {
+                pendingRuntimeDeletions[intent.IntentId] = updated;
+                try
+                {
+                    PersistStateStrict();
+                    reservation.MarkUnregistrationMutationFenced(
+                        replayHorizonFloor);
+                }
+                catch (ControlPlaneStatePersistenceException ex)
+                {
+                    pendingRuntimeDeletions[intent.IntentId] = intent;
+                    throw new OrchestraPersistenceException(
+                        "failed to persist runtime deletion replay fence",
+                        ex);
+                }
+            }
         }
     }
 
@@ -355,6 +448,10 @@ public sealed partial class RegistryService
                         reservation.UnregistrationCommandId,
                         intent.UnregistrationCommandId,
                         StringComparison.Ordinal) ||
+                    reservation.UnregistrationReplayHorizonFloor !=
+                        intent.UnregistrationReplayHorizonFloor ||
+                    reservation.UnregistrationMutationMayHaveStarted !=
+                        intent.UnregistrationMutationMayHaveStarted ||
                     !reservation.RuntimeIds
                         .ToHashSet(StringComparer.OrdinalIgnoreCase)
                         .SetEquals(intent.RuntimeIds))
@@ -434,6 +531,14 @@ public sealed partial class RegistryService
                         activeClaimId,
                         reservation.ClaimId,
                         StringComparison.Ordinal) ||
+                    !string.Equals(
+                        reservation.UnregistrationCommandId,
+                        intent.UnregistrationCommandId,
+                        StringComparison.Ordinal) ||
+                    reservation.UnregistrationReplayHorizonFloor !=
+                        intent.UnregistrationReplayHorizonFloor ||
+                    reservation.UnregistrationMutationMayHaveStarted !=
+                        intent.UnregistrationMutationMayHaveStarted ||
                     !reservation.RuntimeIds
                         .ToHashSet(StringComparer.OrdinalIgnoreCase)
                         .SetEquals(intent.RuntimeIds))
@@ -748,6 +853,10 @@ public sealed partial class RegistryService
                     reservation.UnregistrationCommandId,
                     intent.UnregistrationCommandId,
                     StringComparison.Ordinal) ||
+                reservation.UnregistrationReplayHorizonFloor !=
+                    intent.UnregistrationReplayHorizonFloor ||
+                reservation.UnregistrationMutationMayHaveStarted !=
+                    intent.UnregistrationMutationMayHaveStarted ||
                 !reservation.RuntimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase)
                     .SetEquals(intent.RuntimeIds))
             {

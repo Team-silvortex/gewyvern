@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-26T09:00:59.501258+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "forced_host_termination_count": 1,
+  "replay_horizon_capacity": 256,
+  "persisted_replay_horizon_floor": 1,
+  "evicted_through_generation": 1,
+  "receipt_lookup_call_count": 1,
+  "post_restart_unregistration_mutation_count": 0,
+  "checks": {
+    "real_leserpentd": true,
+    "schema_v5_replay_floor_persisted_before_mutation": true,
+    "daemon_commit_preceded_host_termination": true,
+    "acknowledgement_withheld_from_recovery_worker": true,
+    "complete_replay_horizon_rollover": true,
+    "original_receipt_was_evicted": true,
+    "typed_miss_was_classified_ambiguous": true,
+    "zero_post_restart_unregistration_mutations": true,
+    "local_runtime_projection_was_preserved": true,
+    "ambiguous_intent_survived_disk_reload": true
+  }
+}

@@ -321,7 +321,7 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.True(loaded is not null, store.LastSaveError);
             var restored = Assert.IsType<PersistedControlPlaneState>(loaded);
 
-            Assert.Equal(4, restored.SchemaVersion);
+            Assert.Equal(5, restored.SchemaVersion);
             Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<PersistedRuntimeDeletionIntent>>(
                 restored.PendingRuntimeDeletions));
         }
@@ -334,6 +334,7 @@ public sealed class SqliteOrchestraRunStoreTests
     [Theory]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
     public void ControlPlaneStateStoreMigratesLegacyDeletionIntent(
         int schemaVersion)
     {
@@ -352,7 +353,13 @@ public sealed class SqliteOrchestraRunStoreTests
                     new PersistedRuntimeDeletionIntent(
                         "rdel_schema_two",
                         new[] { "runtime-schema-two" },
-                        preparedAt),
+                        preparedAt,
+                        UnregistrationCommandId:
+                            schemaVersion >= 4
+                                ? RuntimeDeletionCommandIdentity
+                                    .ForIntent(
+                                        "rdel_schema_two")
+                                : string.Empty),
                 });
             File.WriteAllText(
                 statePath,
@@ -366,7 +373,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 store.Load());
             var intent = Assert.Single(restored.PendingRuntimeDeletions!);
 
-            Assert.Equal(4, restored.SchemaVersion);
+            Assert.Equal(5, restored.SchemaVersion);
             Assert.Equal(0, intent.AttemptCount);
             Assert.Null(intent.LastAttemptAt);
             Assert.Null(intent.NextAttemptAt);
@@ -376,6 +383,10 @@ public sealed class SqliteOrchestraRunStoreTests
                 RuntimeDeletionCommandIdentity.ForIntent(
                     intent.IntentId),
                 intent.UnregistrationCommandId);
+            Assert.Null(
+                intent.UnregistrationReplayHorizonFloor);
+            Assert.True(
+                intent.UnregistrationMutationMayHaveStarted);
             Assert.Empty(restored.RuntimeDeletionRetryAudit!);
         }
         finally
@@ -385,14 +396,14 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
-    public void ControlPlaneStateStoreRejectsSchemaFourIntentWithoutCommandIdentity()
+    public void ControlPlaneStateStoreRejectsSchemaFiveIntentWithoutCommandIdentity()
     {
         var statePath = TemporaryPath("json");
         try
         {
             var preparedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
-            var schemaFour = new PersistedControlPlaneState(
-                4,
+            var schemaFive = new PersistedControlPlaneState(
+                5,
                 preparedAt,
                 Array.Empty<PersistedRuntimeState>(),
                 Array.Empty<PersistedSessionState>(),
@@ -407,7 +418,7 @@ public sealed class SqliteOrchestraRunStoreTests
             File.WriteAllText(
                 statePath,
                 JsonSerializer.Serialize(
-                    schemaFour,
+                    schemaFive,
                     new LeserpentJsonContext(new JsonSerializerOptions())
                         .PersistedControlPlaneState));
 

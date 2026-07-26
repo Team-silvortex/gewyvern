@@ -1040,9 +1040,21 @@ survives a final disk reload. The retained evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_lost_ack_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_lost_ack_linux_x86_64_20260726.json`;
 `scripts/validation/leserpent_runtime_deletion_lost_ack.sh` reproduces it. The
-next gate persists the replay-horizon floor observed before mutation and treats
-a later typed miss as ambiguous once that floor has been evicted, preventing a
-reappeared runtime identity from being deleted without retained proof.
+replay-horizon floor gate is also complete. Control-plane schema v5 atomically
+persists the daemon's pre-mutation `next_generation` before single, bulk, or
+recovery deletion can execute. A later typed miss is rejected with the fixed
+`replay_ambiguous` posture when `evicted_through_generation` reaches that
+floor; schema v1-v4 pending mutations migrate conservatively without invented
+proof. Real Arm64 and physical Linux x86_64 campaigns force-kill the host after
+daemon commit, roll all 256 retained receipts, and observe one lookup, zero
+post-restart mutations, a preserved local runtime, and a durable ambiguous
+intent. Evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_replay_horizon_20260726.json` and
+`docs/fixtures/leserpent_runtime_deletion_replay_horizon_linux_x86_64_20260726.json`;
+`scripts/validation/leserpent_runtime_deletion_replay_horizon.sh` reproduces
+it. The next gate adds revision-bound operator reconciliation: local cleanup
+may complete only when a typed daemon snapshot proves every original target
+remains absent, while any reappeared identity keeps the intent blocked.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

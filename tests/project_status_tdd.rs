@@ -213,6 +213,18 @@ fn retained_runtime_deletion_lost_acknowledgements_are_non_vacuous() {
 }
 
 #[test]
+fn retained_runtime_deletion_replay_horizon_fail_closed_is_non_vacuous() {
+    assert_runtime_deletion_replay_horizon(
+        "docs/fixtures/leserpent_runtime_deletion_replay_horizon_20260726.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_replay_horizon(
+        "docs/fixtures/leserpent_runtime_deletion_replay_horizon_linux_x86_64_20260726.json",
+        "X64",
+    );
+}
+
+#[test]
 fn retained_runtime_deletion_retry_rollovers_are_non_vacuous() {
     assert_runtime_deletion_retry_rollover(
         "docs/fixtures/leserpent_runtime_deletion_retry_rollover_20260723.json",
@@ -1003,7 +1015,7 @@ fn assert_runtime_deletion_lost_acknowledgement(path: &str, expected_architectur
     )
     .expect("runtime deletion lost-ack evidence must be JSON");
 
-    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["schema_version"], 2);
     assert_eq!(evidence["architecture"], expected_architecture);
     assert_eq!(evidence["iterations"], 3);
     assert_eq!(evidence["total_forced_host_terminations"], 3);
@@ -1020,9 +1032,17 @@ fn assert_runtime_deletion_lost_acknowledgement(path: &str, expected_architectur
             .zip(evidence["minimum_operation_generation"].as_u64())
             .is_some_and(|(maximum, minimum)| maximum >= minimum)
     );
+    assert_eq!(
+        evidence["minimum_replay_horizon_floor"],
+        evidence["minimum_operation_generation"]
+    );
+    assert_eq!(
+        evidence["maximum_replay_horizon_floor"],
+        evidence["maximum_operation_generation"]
+    );
     for check in [
         "real_leserpentd",
-        "schema_v4_command_identity_restored",
+        "schema_v5_command_identity_and_replay_floor_restored",
         "daemon_commit_preceded_host_termination",
         "acknowledgement_withheld_from_recovery_worker",
         "every_host_process_force_killed",
@@ -1035,6 +1055,46 @@ fn assert_runtime_deletion_lost_acknowledgement(path: &str, expected_architectur
         assert_eq!(
             evidence["checks"][check], true,
             "missing retained lost-ack proof {check}"
+        );
+    }
+}
+
+fn assert_runtime_deletion_replay_horizon(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion replay-horizon evidence must exist"),
+    )
+    .expect("runtime deletion replay-horizon evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["forced_host_termination_count"], 1);
+    assert_eq!(evidence["replay_horizon_capacity"], 256);
+    assert_eq!(evidence["receipt_lookup_call_count"], 1);
+    assert_eq!(evidence["post_restart_unregistration_mutation_count"], 0);
+    let floor = evidence["persisted_replay_horizon_floor"]
+        .as_u64()
+        .expect("replay floor must be retained");
+    let evicted_through = evidence["evicted_through_generation"]
+        .as_u64()
+        .expect("evicted generation must be retained");
+    assert!(floor > 0);
+    assert!(evicted_through >= floor);
+    for check in [
+        "real_leserpentd",
+        "schema_v5_replay_floor_persisted_before_mutation",
+        "daemon_commit_preceded_host_termination",
+        "acknowledgement_withheld_from_recovery_worker",
+        "complete_replay_horizon_rollover",
+        "original_receipt_was_evicted",
+        "typed_miss_was_classified_ambiguous",
+        "zero_post_restart_unregistration_mutations",
+        "local_runtime_projection_was_preserved",
+        "ambiguous_intent_survived_disk_reload",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained replay-horizon proof {check}"
         );
     }
 }
@@ -1467,9 +1527,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.11.0");
+    assert_eq!(compatibility_control.contract.version, "1.12.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionAuthorityWorkflow.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "scripts/validation/leserpent_runtime_deletion_replay_horizon.sh"
             && item.state == EvidenceState::Present
     }));
     for surface in [
@@ -1759,7 +1827,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("replay-horizon floor")
+            .contains("revision-bound operator reconciliation")
     );
 
     let bootstrap = catalog

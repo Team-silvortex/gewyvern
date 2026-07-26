@@ -686,7 +686,9 @@ internal static class ControlPlaneStateValidator
                 persisted.NextAttemptAt,
                 persisted.LastFailureCode,
                 persisted.Revision,
-                unregistrationCommandId));
+                unregistrationCommandId,
+                persisted.UnregistrationReplayHorizonFloor,
+                persisted.UnregistrationMutationMayHaveStarted));
         }
 
         return normalized;
@@ -873,16 +875,30 @@ internal static class ControlPlaneStateValidator
         PersistedRuntimeDeletionIntent intent,
         DateTimeOffset observedAt)
     {
+        if ((!intent.UnregistrationMutationMayHaveStarted &&
+                intent.UnregistrationReplayHorizonFloor is not null) ||
+            intent.UnregistrationReplayHorizonFloor == 0)
+        {
+            return false;
+        }
         if (intent.AttemptCount == 0)
         {
             return intent.LastAttemptAt is null &&
                 intent.NextAttemptAt is null &&
                 intent.LastFailureCode is null &&
-                intent.Revision == 1;
+                intent.Revision ==
+                    (intent.UnregistrationReplayHorizonFloor is null
+                        ? 1
+                        : 2);
         }
+        var minimumRevision =
+            (long)intent.AttemptCount + 1 +
+            (intent.UnregistrationReplayHorizonFloor is null
+                ? 0
+                : 1);
         if (intent.AttemptCount is < 0 or
                 > MaxRuntimeDeletionAttempts ||
-            intent.Revision < (long)intent.AttemptCount + 1 ||
+            intent.Revision < minimumRevision ||
             intent.Revision > MaxRuntimeDeletionRevision ||
             intent.LastAttemptAt is null ||
             intent.NextAttemptAt is null ||

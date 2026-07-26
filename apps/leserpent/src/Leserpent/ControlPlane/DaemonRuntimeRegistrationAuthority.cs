@@ -351,7 +351,9 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             var receipt = payload.GetProperty("receipt");
             if (receipt.ValueKind == JsonValueKind.Null)
             {
-                return RuntimeUnregistrationReceiptLookup.Missing(commandId);
+                return RuntimeUnregistrationReceiptLookup.Missing(
+                    commandId,
+                    replayHorizon);
             }
             if (receipt.ValueKind != JsonValueKind.Object)
             {
@@ -412,7 +414,8 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             return new RuntimeUnregistrationReceiptLookup(
                 commandId,
                 Array.AsReadOnly(removed),
-                operationGeneration);
+                operationGeneration,
+                replayHorizon);
         }
         catch (OperationCanceledException error) when (
             !cancellationToken.IsCancellationRequested)
@@ -766,9 +769,7 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         });
     }
 
-    private static (
-        ulong? OldestGeneration,
-        ulong? NewestGeneration)
+    private static RuntimeUnregistrationReplayHorizon
         ValidateUnregistrationReplayHorizon(
         JsonElement horizon)
     {
@@ -808,7 +809,13 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             throw new InvalidOperationException(
                 "leserpentd returned an invalid unregistration replay horizon");
         }
-        return (oldest, newest);
+        return new RuntimeUnregistrationReplayHorizon(
+            capacity,
+            retained,
+            oldest,
+            newest,
+            nextGeneration,
+            evictedThrough);
     }
 
     private static ulong? OptionalUInt64(JsonElement value) =>
