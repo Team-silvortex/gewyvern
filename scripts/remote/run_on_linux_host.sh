@@ -93,7 +93,7 @@ shell_quote() {
   printf '%q' "$1"
 }
 
-REMOTE_COMMAND="cd $(shell_quote "${REMOTE_WORKSPACE}") && flock -w 120 $(shell_quote "${REMOTE_CACHE_ROOT}/docker-workspace.lock") env GEWY_DOCKER_EXECUTION=local CARGO_TARGET_DIR=$(shell_quote "${REMOTE_CACHE_ROOT}/docker-target")"
+REMOTE_COMMAND="cd $(shell_quote "${REMOTE_WORKSPACE}") && flock -o -w 120 $(shell_quote "${REMOTE_CACHE_ROOT}/docker-workspace.lock") env GEWY_DOCKER_EXECUTION=local CARGO_TARGET_DIR=$(shell_quote "${REMOTE_CACHE_ROOT}/docker-target")"
 for name in \
   GEWY_CONTAINER_VALIDATION_TIMEOUT_SECONDS \
   GEWY_DEB_APT_MIRROR GEWY_RPM_DNF_MIRROR \

@@ -44,9 +44,41 @@ public sealed class RuntimeDeletionRecoveryService(
                         {
                             try
                             {
-                                await registrationAuthority.UnregisterAsync(
-                                    reservation.RuntimeIds,
-                                    cancellationToken);
+                                var lookup = await registrationAuthority
+                                    .LookupUnregistrationReceiptAsync(
+                                        reservation
+                                            .UnregistrationCommandId,
+                                        cancellationToken);
+                                if (!string.Equals(
+                                        lookup.CommandId,
+                                        reservation
+                                            .UnregistrationCommandId,
+                                        StringComparison.Ordinal))
+                                {
+                                    throw new InvalidDataException(
+                                        "runtime unregistration receipt changed the command identity");
+                                }
+                                if (lookup.Found)
+                                {
+                                    if (!lookup.RuntimeIds!
+                                        .ToHashSet(
+                                            StringComparer.OrdinalIgnoreCase)
+                                        .SetEquals(
+                                            reservation.RuntimeIds))
+                                    {
+                                        throw new InvalidDataException(
+                                            "runtime unregistration receipt targets do not match the deletion intent");
+                                    }
+                                }
+                                else
+                                {
+                                    await registrationAuthority
+                                        .UnregisterAsync(
+                                            reservation.RuntimeIds,
+                                            reservation
+                                                .UnregistrationCommandId,
+                                            cancellationToken);
+                                }
                                 successfulReservations.Add(reservation);
                             }
                             catch (OperationCanceledException) when (

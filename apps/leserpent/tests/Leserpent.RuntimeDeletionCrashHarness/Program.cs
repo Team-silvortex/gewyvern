@@ -128,6 +128,36 @@ else if (string.Equals(phase, "high_cardinality", StringComparison.Ordinal))
         string.Join(',', reservations.Select(static reservation => reservation.IntentId)),
         phase);
 }
+else if (string.Equals(
+    phase,
+    "lost_ack_daemon_committed",
+    StringComparison.Ordinal))
+{
+    var request = CrashBoundaryRequest(runtimeId);
+    registry.RegisterRuntime(request, runtimeId);
+    await authority.RegisterAsync(
+        request,
+        runtimeId,
+        CancellationToken.None);
+    string intentId;
+    using (var reservation = registry.ReserveRuntimeDeletion(
+        new[] { runtimeId }))
+    {
+        intentId = reservation.IntentId;
+    }
+
+    var lostAcknowledgementAuthority =
+        new LostAcknowledgementUnregisterAuthority(
+            authority,
+            markerPath,
+            intentId);
+    var recovery = new RuntimeDeletionRecoveryService(
+        registry,
+        lostAcknowledgementAuthority,
+        NullLogger<RuntimeDeletionRecoveryService>.Instance);
+    await recovery.StartAsync(CancellationToken.None);
+    await Task.Delay(Timeout.InfiniteTimeSpan);
+}
 else if (
     string.Equals(phase, "retry_acknowledged", StringComparison.Ordinal) ||
     string.Equals(phase, "retry_daemon_committed", StringComparison.Ordinal))
@@ -327,4 +357,91 @@ internal sealed class FailingUnregisterAuthority(
         CancellationToken cancellationToken) =>
         throw new IOException(
             "test authority is unavailable before retry acknowledgement");
+}
+
+internal sealed class LostAcknowledgementUnregisterAuthority(
+    IRuntimeRegistrationAuthority inner,
+    string markerPath,
+    string intentId) : IRuntimeRegistrationAuthority
+{
+    public bool Enabled => inner.Enabled;
+
+    public Task<string> RegisterAsync(
+        RuntimeRegistrationRequest request,
+        string runtimeId,
+        CancellationToken cancellationToken,
+        bool update = false,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+        inner.RegisterAsync(
+            request,
+            runtimeId,
+            cancellationToken,
+            update,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+
+    public Task SubmitDiscoveryAsync(
+        string runtimeId,
+        CancellationToken cancellationToken,
+        CapabilityDiscoveryResult? capabilityDiscovery = null,
+        RuntimeStatusDiscoveryResult? statusDiscovery = null,
+        RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+        inner.SubmitDiscoveryAsync(
+            runtimeId,
+            cancellationToken,
+            capabilityDiscovery,
+            statusDiscovery,
+            sidecarDiscovery);
+
+    public Task UnregisterAsync(
+        IReadOnlyCollection<string> runtimeIds,
+        CancellationToken cancellationToken) =>
+        throw new InvalidOperationException(
+            "lost-ack harness requires the durable command identity");
+
+    public async Task UnregisterAsync(
+        IReadOnlyCollection<string> runtimeIds,
+        string commandId,
+        CancellationToken cancellationToken)
+    {
+        await inner.UnregisterAsync(
+            runtimeIds,
+            commandId,
+            cancellationToken);
+        await WriteBoundaryMarkerAsync(
+            $"{intentId} {commandId}\n");
+        await Task.Delay(Timeout.InfiniteTimeSpan);
+    }
+
+    public Task<RuntimeUnregistrationReceiptLookup>
+        LookupUnregistrationReceiptAsync(
+            string commandId,
+            CancellationToken cancellationToken) =>
+        inner.LookupUnregistrationReceiptAsync(
+            commandId,
+            cancellationToken);
+
+    private async Task WriteBoundaryMarkerAsync(string content)
+    {
+        var markerBytes =
+            System.Text.Encoding.UTF8.GetBytes(content);
+        var markerTempPath =
+            $"{markerPath}.{Environment.ProcessId}.tmp";
+        using (var marker = new FileStream(
+            markerTempPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None))
+        {
+            await marker.WriteAsync(markerBytes);
+            marker.Flush(flushToDisk: true);
+        }
+        File.Move(
+            markerTempPath,
+            markerPath,
+            overwrite: true);
+    }
 }

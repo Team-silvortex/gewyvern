@@ -28,6 +28,19 @@ public interface IRuntimeRegistrationAuthority
     Task UnregisterAsync(
         IReadOnlyCollection<string> runtimeIds,
         CancellationToken cancellationToken);
+
+    Task UnregisterAsync(
+        IReadOnlyCollection<string> runtimeIds,
+        string commandId,
+        CancellationToken cancellationToken) =>
+        UnregisterAsync(runtimeIds, cancellationToken);
+
+    Task<RuntimeUnregistrationReceiptLookup>
+        LookupUnregistrationReceiptAsync(
+            string commandId,
+            CancellationToken cancellationToken) =>
+        Task.FromResult(
+            RuntimeUnregistrationReceiptLookup.Missing(commandId));
 }
 
 public sealed partial class DaemonRuntimeRegistrationAuthority :
@@ -197,11 +210,26 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
 
     public async Task UnregisterAsync(
         IReadOnlyCollection<string> runtimeIds,
+        CancellationToken cancellationToken) =>
+        await UnregisterAsync(
+            runtimeIds,
+            $"runtime-unregister-{Guid.NewGuid():N}",
+            cancellationToken);
+
+    public async Task UnregisterAsync(
+        IReadOnlyCollection<string> runtimeIds,
+        string commandId,
         CancellationToken cancellationToken)
     {
         if (!Enabled || runtimeIds.Count == 0)
         {
             return;
+        }
+        if (!ControlPlaneStateValidator.IsValidDeletionIdentifier(commandId))
+        {
+            throw new ArgumentException(
+                "runtime unregistration command ID is invalid",
+                nameof(commandId));
         }
         var uniqueRuntimeIds = runtimeIds
             .Select(runtimeId => runtimeId.Trim())
@@ -233,7 +261,6 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
                 return;
             }
 
-            var commandId = $"runtime-unregister-{Guid.NewGuid():N}";
             using var response = await ExchangeAsync(
                 BuildUnregisterRequest(commandId, targets),
                 deadline.Token);
@@ -279,6 +306,131 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             throw new DaemonRuntimeRegistrationException(
                 "daemon_protocol_invalid",
                 "leserpentd returned an invalid runtime unregistration response",
+                error);
+        }
+    }
+
+    public async Task<RuntimeUnregistrationReceiptLookup>
+        LookupUnregistrationReceiptAsync(
+            string commandId,
+            CancellationToken cancellationToken)
+    {
+        if (!ControlPlaneStateValidator.IsValidDeletionIdentifier(commandId))
+        {
+            throw new ArgumentException(
+                "runtime unregistration command ID is invalid",
+                nameof(commandId));
+        }
+        if (!Enabled)
+        {
+            return RuntimeUnregistrationReceiptLookup.Missing(commandId);
+        }
+
+        using var deadline =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken);
+        deadline.CancelAfter(timeout);
+        try
+        {
+            using var response = await ExchangeAsync(
+                BuildUnregistrationReceiptRequest(commandId),
+                deadline.Token);
+            var payload = RequireResponse(
+                response.RootElement,
+                "runtime_unregistration_receipt");
+            if (!string.Equals(
+                    payload.GetProperty("command_id").GetString(),
+                    commandId,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "leserpentd returned a mismatched unregistration receipt identity");
+            }
+            var replayHorizon = ValidateUnregistrationReplayHorizon(
+                payload.GetProperty("replay_horizon"));
+            var receipt = payload.GetProperty("receipt");
+            if (receipt.ValueKind == JsonValueKind.Null)
+            {
+                return RuntimeUnregistrationReceiptLookup.Missing(commandId);
+            }
+            if (receipt.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidOperationException(
+                    "leserpentd returned an invalid unregistration receipt");
+            }
+
+            var operationGeneration = receipt
+                .GetProperty("operation_generation")
+                .GetUInt64();
+            var removed = receipt.GetProperty("removed")
+                .EnumerateArray()
+                .Select(target =>
+                {
+                    if (target.GetProperty("expected_revision").GetUInt64() == 0)
+                    {
+                        throw new InvalidOperationException(
+                            "leserpentd returned an invalid receipt target revision");
+                    }
+                    return target.GetProperty("runtime_id").GetString()
+                        ?? throw new InvalidOperationException(
+                            "leserpentd returned an empty receipt target identity");
+                })
+                .ToArray();
+            var deletedOrchestraRuntimeCount = receipt
+                .GetProperty("deleted_orchestra_runtime_count")
+                .GetUInt64();
+            var deletedOrchestraRunCount = receipt
+                .GetProperty("deleted_orchestra_run_count")
+                .GetUInt64();
+            var deletedOrchestraEventCount = receipt
+                .GetProperty("deleted_orchestra_event_count")
+                .GetUInt64();
+            if (operationGeneration == 0 ||
+                replayHorizon.OldestGeneration is null ||
+                replayHorizon.NewestGeneration is null ||
+                operationGeneration <
+                    replayHorizon.OldestGeneration.Value ||
+                operationGeneration >
+                    replayHorizon.NewestGeneration.Value ||
+                removed.Length is < 1 or > 128 ||
+                removed.Distinct(StringComparer.Ordinal).Count() !=
+                    removed.Length ||
+                removed.Any(static runtimeId =>
+                    !ControlPlaneStateValidator
+                        .IsValidDeletionIdentifier(runtimeId)) ||
+                deletedOrchestraRuntimeCount >
+                    (ulong)removed.Length ||
+                deletedOrchestraRunCount >
+                    (ulong)removed.Length * 32 ||
+                deletedOrchestraEventCount >
+                    deletedOrchestraRunCount * 3 ||
+                receipt.GetProperty("removed_at_unix_ms").GetInt64() < 0)
+            {
+                throw new InvalidOperationException(
+                    "leserpentd returned inconsistent unregistration receipt bounds");
+            }
+            return new RuntimeUnregistrationReceiptLookup(
+                commandId,
+                Array.AsReadOnly(removed),
+                operationGeneration);
+        }
+        catch (OperationCanceledException error) when (
+            !cancellationToken.IsCancellationRequested)
+        {
+            throw new DaemonRuntimeRegistrationException(
+                "daemon_unregistration_timeout",
+                "leserpentd runtime unregistration receipt lookup timed out",
+                error);
+        }
+        catch (Exception error) when (
+            error is KeyNotFoundException
+                or InvalidOperationException
+                or FormatException
+                or OverflowException)
+        {
+            throw new DaemonRuntimeRegistrationException(
+                "daemon_protocol_invalid",
+                "leserpentd returned an invalid runtime unregistration receipt",
                 error);
         }
     }
@@ -591,6 +743,78 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
             writer.WriteEndObject();
         });
     }
+
+    private byte[] BuildUnregistrationReceiptRequest(string commandId)
+    {
+        return BuildFrame(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("schema_version", 1);
+            writer.WritePropertyName("request");
+            writer.WriteStartObject();
+            writer.WriteString(
+                "kind",
+                "runtime_unregistration_receipt");
+            writer.WritePropertyName("payload");
+            writer.WriteStartObject();
+            WritePrincipal(writer, "operator");
+            WriteCapabilities(writer, "runtime.read");
+            writer.WriteString("command_id", commandId);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
+    }
+
+    private static (
+        ulong? OldestGeneration,
+        ulong? NewestGeneration)
+        ValidateUnregistrationReplayHorizon(
+        JsonElement horizon)
+    {
+        var capacity = horizon.GetProperty("capacity").GetUInt64();
+        var retained = horizon.GetProperty("retained").GetUInt64();
+        var nextGeneration = horizon
+            .GetProperty("next_generation")
+            .GetUInt64();
+        var oldest = OptionalUInt64(
+            horizon.GetProperty("oldest_generation"));
+        var newest = OptionalUInt64(
+            horizon.GetProperty("newest_generation"));
+        var evictedThrough = horizon
+            .GetProperty("evicted_through_generation")
+            .GetUInt64();
+        var contiguous = oldest is { } oldestGeneration &&
+            newest is { } newestGeneration
+                ? retained > 0 &&
+                    evictedThrough < ulong.MaxValue &&
+                    oldestGeneration == evictedThrough + 1 &&
+                    newestGeneration < ulong.MaxValue &&
+                    nextGeneration == newestGeneration + 1 &&
+                    newestGeneration >= oldestGeneration &&
+                    retained ==
+                        newestGeneration - oldestGeneration + 1
+                : oldest is null &&
+                    newest is null &&
+                    retained == 0 &&
+                    evictedThrough < ulong.MaxValue &&
+                    nextGeneration == evictedThrough + 1;
+        if (capacity == 0 ||
+            retained > capacity ||
+            nextGeneration == 0 ||
+            evictedThrough >= nextGeneration ||
+            !contiguous)
+        {
+            throw new InvalidOperationException(
+                "leserpentd returned an invalid unregistration replay horizon");
+        }
+        return (oldest, newest);
+    }
+
+    private static ulong? OptionalUInt64(JsonElement value) =>
+        value.ValueKind == JsonValueKind.Null
+            ? null
+            : value.GetUInt64();
 
     private static void WriteCapabilitySnapshot(
         Utf8JsonWriter writer,

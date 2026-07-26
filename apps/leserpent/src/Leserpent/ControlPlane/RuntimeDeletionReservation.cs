@@ -8,17 +8,20 @@ public sealed class RuntimeDeletionReservation : IDisposable
         RegistryService owner,
         string intentId,
         string claimId,
-        IReadOnlyList<string> runtimeIds)
+        IReadOnlyList<string> runtimeIds,
+        string unregistrationCommandId)
     {
         this.owner = owner;
         IntentId = intentId;
         ClaimId = claimId;
         RuntimeIds = runtimeIds;
+        UnregistrationCommandId = unregistrationCommandId;
     }
 
     public string IntentId { get; }
     internal string ClaimId { get; }
     public IReadOnlyList<string> RuntimeIds { get; }
+    public string UnregistrationCommandId { get; }
 
     public void Dispose()
     {

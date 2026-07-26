@@ -635,11 +635,15 @@ daemon revision-fences every target and atomically journals their removal,
 deletes Orchestra history, and stores an idempotent replay record in schema
 v14. The compatibility service reserves the selected runtimes across the
 daemon call, preventing new sessions or Orchestra runs before it removes local
-compatibility state. Its control-plane state schema v3 durably records the
+compatibility state. Its control-plane state schema v4 durably records the
 deletion intent before daemon mutation and clears it only after local cleanup is
-strictly persisted. Control-plane schema v3 extends each intent with a bounded
-attempt counter, last/next attempt timestamps, and a closed safe failure-code
-set. Schema v1/v2 snapshots upgrade without inventing retry history. Failed
+strictly persisted. Schema v4 binds each intent to one deterministic
+unregistration command ID. Schema v1-v3 snapshots derive the same bounded ID
+from the retained intent identity, while a malformed v4 snapshot fails semantic
+validation instead of silently inventing authority metadata. Control-plane
+schema v3 extends each intent with a bounded attempt counter, last/next attempt
+timestamps, and a closed safe failure-code set. Legacy snapshots upgrade
+without inventing retry history. Failed
 authority calls use durable 1/2/4/8/16/30-second capped backoff; deferred
 intents are filtered before the 32-item claim limit, so a poison target cannot
 consume a ready target's slot. The loopback-or-token-fenced read-only
@@ -1103,6 +1107,25 @@ an authority error, while corruption remains a fixed non-disclosing failure.
 The Rust CLI exposes `runtime unregister-receipt COMMAND_ID`. Avalonia's strict
 source-generated client requires any returned generation to be retained by the
 co-returned horizon and revalidates target uniqueness and cleanup bounds.
+The 1.x compatibility recovery worker now carries the schema-v4 command ID
+through every claim and daemon mutation. It performs receipt lookup first:
+a matching retained receipt skips mutation and completes local cleanup, while a
+typed miss retries with the exact same command ID. Command echo drift, target
+set drift, malformed generation/horizon data, and lookup failures all fail
+closed and remain on the bounded retry schedule. Interactive single and bulk
+deletion paths use the same persisted identity rather than allocating a
+request-local operation.
+The lost-ack crash campaign validates this path against a real daemon rather
+than a mock authority. A wrapper withholds success after the daemon's durable
+commit, atomically publishes the crash marker, and blocks until the parent
+force-kills the compatibility host. Three Arm64 and three physical Linux x86_64
+runs restore the schema-v4 intent, perform one receipt lookup and zero
+unregistration mutations, preserve the original operation generation, and
+converge after another disk reload. The remote validation runner closes its
+workspace-lock descriptor before exec so persistent .NET compiler servers
+cannot inherit and leak the cross-task lock. The next safety boundary records
+the pre-mutation replay-horizon floor so a receipt miss after evidence eviction
+is classified as ambiguous rather than safe to mutate.
 
 ## Leselang Semantics
 

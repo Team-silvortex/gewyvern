@@ -645,6 +645,8 @@ internal static class ControlPlaneStateValidator
         foreach (var persisted in intents)
         {
             var intentId = persisted.IntentId?.Trim() ?? string.Empty;
+            var unregistrationCommandId =
+                persisted.UnregistrationCommandId?.Trim() ?? string.Empty;
             var runtimeIds = (persisted.RuntimeIds ?? Array.Empty<string>())
                 .Select(static runtimeId =>
                     runtimeId?.Trim() ?? string.Empty)
@@ -655,6 +657,11 @@ internal static class ControlPlaneStateValidator
                 .ToArray();
             if (!IsValidDeletionIdentifier(intentId) ||
                 !intentIds.Add(intentId) ||
+                !IsValidDeletionIdentifier(unregistrationCommandId) ||
+                !string.Equals(
+                    unregistrationCommandId,
+                    RuntimeDeletionCommandIdentity.ForIntent(intentId),
+                    StringComparison.Ordinal) ||
                 runtimeIds.Length is < 1 or > 128 ||
                 runtimeIds.Any(static runtimeId =>
                     !IsValidDeletionIdentifier(runtimeId)) ||
@@ -678,7 +685,8 @@ internal static class ControlPlaneStateValidator
                 persisted.LastAttemptAt,
                 persisted.NextAttemptAt,
                 persisted.LastFailureCode,
-                persisted.Revision));
+                persisted.Revision,
+                unregistrationCommandId));
         }
 
         return normalized;

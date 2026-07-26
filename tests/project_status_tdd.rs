@@ -201,6 +201,18 @@ fn retained_runtime_deletion_retry_crashes_are_non_vacuous() {
 }
 
 #[test]
+fn retained_runtime_deletion_lost_acknowledgements_are_non_vacuous() {
+    assert_runtime_deletion_lost_acknowledgement(
+        "docs/fixtures/leserpent_runtime_deletion_lost_ack_20260726.json",
+        "Arm64",
+    );
+    assert_runtime_deletion_lost_acknowledgement(
+        "docs/fixtures/leserpent_runtime_deletion_lost_ack_linux_x86_64_20260726.json",
+        "X64",
+    );
+}
+
+#[test]
 fn retained_runtime_deletion_retry_rollovers_are_non_vacuous() {
     assert_runtime_deletion_retry_rollover(
         "docs/fixtures/leserpent_runtime_deletion_retry_rollover_20260723.json",
@@ -984,6 +996,49 @@ fn assert_runtime_deletion_retry_crash(path: &str, expected_architecture: &str) 
     }
 }
 
+fn assert_runtime_deletion_lost_acknowledgement(path: &str, expected_architecture: &str) {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(path))
+            .expect("runtime deletion lost-ack evidence must exist"),
+    )
+    .expect("runtime deletion lost-ack evidence must be JSON");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["architecture"], expected_architecture);
+    assert_eq!(evidence["iterations"], 3);
+    assert_eq!(evidence["total_forced_host_terminations"], 3);
+    assert_eq!(evidence["receipt_lookup_call_count"], 3);
+    assert_eq!(evidence["post_restart_unregistration_mutation_count"], 0);
+    assert!(
+        evidence["minimum_operation_generation"]
+            .as_u64()
+            .is_some_and(|generation| generation > 0)
+    );
+    assert!(
+        evidence["maximum_operation_generation"]
+            .as_u64()
+            .zip(evidence["minimum_operation_generation"].as_u64())
+            .is_some_and(|(maximum, minimum)| maximum >= minimum)
+    );
+    for check in [
+        "real_leserpentd",
+        "schema_v4_command_identity_restored",
+        "daemon_commit_preceded_host_termination",
+        "acknowledgement_withheld_from_recovery_worker",
+        "every_host_process_force_killed",
+        "every_restart_performed_receipt_lookup",
+        "zero_post_restart_unregistration_mutations",
+        "receipt_generation_stable_across_recovery",
+        "every_daemon_and_compatibility_state_converged",
+        "every_converged_state_survived_disk_reload",
+    ] {
+        assert_eq!(
+            evidence["checks"][check], true,
+            "missing retained lost-ack proof {check}"
+        );
+    }
+}
+
 fn assert_runtime_deletion_retry_rollover(path: &str, expected_architecture: &str) {
     let evidence: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(repository_root().join(path))
@@ -1412,7 +1467,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.9.0");
+    assert_eq!(compatibility_control.contract.version, "1.11.0");
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
+            && item.state == EvidenceState::Present
+    }));
     for surface in [
         "daemon-authoritative-sidecar-endpoint",
         "daemon-authoritative-runtime-timestamps",
@@ -1700,7 +1759,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         compatibility_control
             .next_gate
-            .contains("Persist the unregistration command ID")
+            .contains("replay-horizon floor")
     );
 
     let bootstrap = catalog

@@ -203,7 +203,12 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var authority = CreateAuthority(
             ("LESERPENT_DAEMON_SOCKET", socketPath),
             ("LESERPENT_DAEMON_TOKEN", Token));
-        await authority.UnregisterAsync(new[] { runtimeId }, CancellationToken.None);
+        const string commandId =
+            "runtime-unregister-durable-command-a";
+        await authority.UnregisterAsync(
+            new[] { runtimeId },
+            commandId,
+            CancellationToken.None);
 
         await server;
         Assert.Equal(2, requests.Count);
@@ -212,9 +217,76 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var payload = request.GetProperty("payload");
         Assert.True(payload.GetProperty("confirmed").GetBoolean());
         Assert.Equal("runtime.unregister", payload.GetProperty("capabilities")[0].GetString());
+        Assert.Equal(
+            commandId,
+            payload.GetProperty("command_id").GetString());
         var target = Assert.Single(payload.GetProperty("targets").EnumerateArray());
         Assert.Equal(runtimeId, target.GetProperty("runtime_id").GetString());
         Assert.Equal(9, target.GetProperty("expected_revision").GetInt64());
+        TryDelete(socketPath);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConfiguredAuthorityLooksUpTypedUnregistrationReceipt(
+        bool receiptExists)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        using var listener = BindPrivateSocket(socketPath);
+        var requests = new List<JsonElement>();
+        const string commandId =
+            "runtime-unregister-durable-lookup-a";
+        const string runtimeId = "runtime-delete-lookup-a";
+        var server = ServeSequenceAsync(
+            listener,
+            requests,
+            (_, _) => RuntimeUnregistrationReceiptResponse(
+                commandId,
+                runtimeId,
+                receiptExists),
+            1);
+
+        var authority = CreateAuthority(
+            ("LESERPENT_DAEMON_SOCKET", socketPath),
+            ("LESERPENT_DAEMON_TOKEN", Token));
+        var lookup = await authority
+            .LookupUnregistrationReceiptAsync(
+                commandId,
+                CancellationToken.None);
+
+        await server;
+        Assert.Equal(commandId, lookup.CommandId);
+        Assert.Equal(receiptExists, lookup.Found);
+        if (receiptExists)
+        {
+            Assert.Equal(
+                new[] { runtimeId },
+                lookup.RuntimeIds);
+            Assert.Equal((ulong)7, lookup.OperationGeneration);
+        }
+        else
+        {
+            Assert.Null(lookup.RuntimeIds);
+            Assert.Null(lookup.OperationGeneration);
+        }
+        var request = Assert.Single(requests)
+            .GetProperty("request")
+            .GetProperty("request");
+        Assert.Equal(
+            "runtime_unregistration_receipt",
+            request.GetProperty("kind").GetString());
+        var payload = request.GetProperty("payload");
+        Assert.Equal(
+            commandId,
+            payload.GetProperty("command_id").GetString());
+        Assert.Equal(
+            "runtime.read",
+            payload.GetProperty("capabilities")[0].GetString());
         TryDelete(socketPath);
     }
 
@@ -467,6 +539,78 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 }
             }
             WriteRuntimeDeletionRetryCrashEvidenceIfRequested(
+                iterations,
+                results);
+        }
+        finally
+        {
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(5000);
+            }
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionLostAcknowledgementRecoversByReceiptLookupAfterHostTermination()
+    {
+        var daemonBinary = Environment.GetEnvironmentVariable(
+            "LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) ||
+            OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var harnessAssembly = FindCrashHarnessAssembly();
+        Assert.True(
+            File.Exists(harnessAssembly),
+            $"crash harness was not built at {harnessAssembly}");
+        var iterations = int.TryParse(
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_RUNTIME_DELETION_LOST_ACK_ITERATIONS"),
+            out var configuredIterations)
+            ? Math.Clamp(configuredIterations, 1, 20)
+            : 3;
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        using var daemon = StartDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            var authority = CreateAuthority(
+                ("LESERPENT_DAEMON_SOCKET", socketPath),
+                ("LESERPENT_DAEMON_TOKEN", Token),
+                ("LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS", "10000"));
+            var results =
+                new List<RuntimeDeletionLostAcknowledgementResult>();
+            for (var iteration = 0;
+                 iteration < iterations;
+                 iteration += 1)
+            {
+                results.Add(
+                    await ExecuteRuntimeDeletionLostAcknowledgementScenarioAsync(
+                        harnessAssembly,
+                        socketPath,
+                        authority,
+                        iteration));
+            }
+            WriteRuntimeDeletionLostAcknowledgementEvidenceIfRequested(
                 iterations,
                 results);
         }
@@ -3175,6 +3319,182 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         }
     }
 
+    private static async Task<RuntimeDeletionLostAcknowledgementResult>
+        ExecuteRuntimeDeletionLostAcknowledgementScenarioAsync(
+            string harnessAssembly,
+            string socketPath,
+            DaemonRuntimeRegistrationAuthority authority,
+            int iteration)
+    {
+        var runtimeId =
+            $"runtime-lost-ack-{iteration}";
+        var statePath =
+            $"{socketPath}.lost-ack.{iteration}.state.json";
+        var markerPath =
+            $"{socketPath}.lost-ack.{iteration}.marker";
+        Process? harness = null;
+        int? harnessProcessId = null;
+        RuntimeDeletionRecoveryService? recovery = null;
+        try
+        {
+            harness = StartCrashHarness(
+                harnessAssembly,
+                statePath,
+                socketPath,
+                markerPath,
+                runtimeId,
+                "lost_ack_daemon_committed");
+            harnessProcessId = harness.Id;
+            await WaitForMarkerAsync(harness, markerPath);
+
+            var marker = (await File.ReadAllTextAsync(markerPath))
+                .Trim()
+                .Split(
+                    ' ',
+                    StringSplitOptions.RemoveEmptyEntries);
+            Assert.Equal(2, marker.Length);
+            var intentId = marker[0];
+            var commandId = marker[1];
+            var receiptBeforeTermination = await authority
+                .LookupUnregistrationReceiptAsync(
+                    commandId,
+                    CancellationToken.None);
+            Assert.True(receiptBeforeTermination.Found);
+            Assert.Equal(
+                new[] { runtimeId },
+                receiptBeforeTermination.RuntimeIds);
+            Assert.NotNull(
+                receiptBeforeTermination.OperationGeneration);
+            Assert.Null(await authority.InspectAsync(
+                runtimeId,
+                CancellationToken.None));
+            Assert.False(harness.HasExited);
+
+            harness.Kill(entireProcessTree: true);
+            Assert.True(harness.WaitForExit(5000));
+            Assert.NotEqual(0, harness.ExitCode);
+
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = statePath,
+                    })
+                .Build();
+            var restarted = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            var pendingIntent = Assert.Single(
+                restarted.ListPendingRuntimeDeletions());
+            Assert.Equal(intentId, pendingIntent.IntentId);
+            Assert.Equal(
+                commandId,
+                pendingIntent.UnregistrationCommandId);
+            Assert.Equal(0, pendingIntent.AttemptCount);
+            Assert.Equal(1, pendingIntent.Revision);
+            Assert.NotNull(restarted.GetRuntime(runtimeId));
+            Assert.Equal(
+                runtimeId,
+                restarted.CreateSession(
+                    new SessionCreateRequest(
+                        runtimeId,
+                        "diagnostic",
+                        "lost-ack-recovery-test",
+                        Array.Empty<
+                            SessionCapabilityRequirement>()))
+                    .RuntimeMissing);
+
+            var countingAuthority =
+                new ReceiptLookupCountingRuntimeDeletionAuthority(
+                    authority);
+            recovery = new RuntimeDeletionRecoveryService(
+                restarted,
+                countingAuthority,
+                NullLogger<RuntimeDeletionRecoveryService>.Instance);
+            await recovery.StartAsync(CancellationToken.None);
+            await WaitForDeletionRecoveryAsync(
+                restarted,
+                runtimeId);
+            await recovery.StopAsync(CancellationToken.None);
+            recovery.Dispose();
+            recovery = null;
+
+            Assert.Equal(1, countingAuthority.LookupCallCount);
+            Assert.Equal(0, countingAuthority.MutationCallCount);
+            Assert.Equal(
+                commandId,
+                countingAuthority.LastLookup?.CommandId);
+            Assert.True(
+                countingAuthority.LastLookup?.Found is true);
+            Assert.Equal(
+                receiptBeforeTermination.OperationGeneration,
+                countingAuthority.LastLookup?.OperationGeneration);
+            Assert.Empty(
+                restarted.ListPendingRuntimeDeletions());
+            Assert.Null(restarted.GetRuntime(runtimeId));
+
+            var receiptAfterRecovery = await authority
+                .LookupUnregistrationReceiptAsync(
+                    commandId,
+                    CancellationToken.None);
+            Assert.True(receiptAfterRecovery.Found);
+            Assert.Equal(
+                receiptBeforeTermination.OperationGeneration,
+                receiptAfterRecovery.OperationGeneration);
+            Assert.Null(await authority.InspectAsync(
+                runtimeId,
+                CancellationToken.None));
+
+            var diskReloaded = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new InMemoryOrchestraRunStore());
+            Assert.Empty(
+                diskReloaded.ListPendingRuntimeDeletions());
+            Assert.Null(diskReloaded.GetRuntime(runtimeId));
+
+            return new RuntimeDeletionLostAcknowledgementResult(
+                countingAuthority.LookupCallCount,
+                countingAuthority.MutationCallCount,
+                receiptBeforeTermination.OperationGeneration!.Value);
+        }
+        finally
+        {
+            if (recovery is not null)
+            {
+                await recovery.StopAsync(CancellationToken.None);
+                recovery.Dispose();
+            }
+            if (harness is not null)
+            {
+                if (!harness.HasExited)
+                {
+                    harness.Kill(entireProcessTree: true);
+                    harness.WaitForExit(5000);
+                }
+                harness.Dispose();
+            }
+            foreach (var path in new[]
+            {
+                statePath,
+                statePath + ".bak",
+                statePath + ".tmp",
+                markerPath,
+                markerPath + $".{harnessProcessId}.tmp",
+            })
+            {
+                TryDelete(path);
+            }
+        }
+    }
+
     private static async Task<RuntimeDeletionCrashScenarioResult> ExecuteRuntimeDeletionCrashScenarioAsync(
         string harnessAssembly,
         string socketPath,
@@ -3837,6 +4157,65 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             JsonSerializer.Serialize(
                 evidence,
                 new JsonSerializerOptions { WriteIndented = true }) + "\n");
+    }
+
+    private static void
+        WriteRuntimeDeletionLostAcknowledgementEvidenceIfRequested(
+            int iterations,
+            IReadOnlyList<
+                RuntimeDeletionLostAcknowledgementResult> results)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_RUNTIME_DELETION_LOST_ACK_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+
+        evidencePath = Path.GetFullPath(evidencePath);
+        Directory.CreateDirectory(
+            Path.GetDirectoryName(evidencePath)!);
+        var evidence = new
+        {
+            schema_version = 1,
+            observed_at = DateTimeOffset.UtcNow,
+            platform = Environment.OSVersion.Platform.ToString(),
+            architecture =
+                RuntimeInformation.ProcessArchitecture.ToString(),
+            iterations,
+            total_forced_host_terminations = results.Count,
+            receipt_lookup_call_count = results.Sum(
+                static result => result.LookupCallCount),
+            post_restart_unregistration_mutation_count = results.Sum(
+                static result => result.MutationCallCount),
+            minimum_operation_generation = results.Min(
+                static result => result.OperationGeneration),
+            maximum_operation_generation = results.Max(
+                static result => result.OperationGeneration),
+            checks = new
+            {
+                real_leserpentd = true,
+                schema_v4_command_identity_restored = true,
+                daemon_commit_preceded_host_termination = true,
+                acknowledgement_withheld_from_recovery_worker = true,
+                every_host_process_force_killed = true,
+                every_restart_performed_receipt_lookup = results.All(
+                    static result => result.LookupCallCount == 1),
+                zero_post_restart_unregistration_mutations =
+                    results.All(
+                        static result =>
+                            result.MutationCallCount == 0),
+                receipt_generation_stable_across_recovery = true,
+                every_daemon_and_compatibility_state_converged = true,
+                every_converged_state_survived_disk_reload = true,
+            },
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions { WriteIndented = true }) +
+                "\n");
     }
 
     private static void
@@ -4658,6 +5037,33 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         "\"deleted_orchestra_event_count\":0," +
         "\"removed_at_unix_ms\":1784620800000,\"replayed\":false}}}";
 
+    private static string RuntimeUnregistrationReceiptResponse(
+        string commandId,
+        string runtimeId,
+        bool receiptExists) =>
+        "{" +
+        "\"schema_version\":1," +
+        "\"response\":{\"kind\":\"runtime_unregistration_receipt\",\"payload\":{" +
+        "\"command_id\":\"" + commandId + "\"," +
+        "\"receipt\":" +
+        (receiptExists
+            ? "{\"operation_generation\":7," +
+                "\"removed\":[{\"runtime_id\":\"" + runtimeId +
+                "\",\"expected_revision\":9}]," +
+                "\"deleted_orchestra_runtime_count\":0," +
+                "\"deleted_orchestra_run_count\":0," +
+                "\"deleted_orchestra_event_count\":0," +
+                "\"removed_at_unix_ms\":1784620800000}"
+            : "null") +
+        ",\"replay_horizon\":{" +
+        "\"capacity\":256," +
+        "\"retained\":" + (receiptExists ? "1" : "0") + "," +
+        "\"oldest_generation\":" + (receiptExists ? "7" : "null") + "," +
+        "\"newest_generation\":" + (receiptExists ? "7" : "null") + "," +
+        "\"next_generation\":" + (receiptExists ? "8" : "1") + "," +
+        "\"evicted_through_generation\":" +
+        (receiptExists ? "6" : "0") + "}}}}";
+
     private static string RuntimeListResponse() =>
         "{" +
         "\"schema_version\":1," +
@@ -4739,6 +5145,11 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     private sealed record RuntimeDeletionRetryCrashScenarioResult(
         bool DaemonCommittedBeforeTermination,
         int RecoveryAuthorityCallCount);
+
+    private sealed record RuntimeDeletionLostAcknowledgementResult(
+        int LookupCallCount,
+        int MutationCallCount,
+        ulong OperationGeneration);
 
     private enum RuntimeDeletionRetryAtomicRolloverStrategy
     {
@@ -4869,6 +5280,91 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         {
             Interlocked.Increment(ref unregisterCallCount);
             await inner.UnregisterAsync(runtimeIds, cancellationToken);
+        }
+    }
+
+    private sealed class ReceiptLookupCountingRuntimeDeletionAuthority(
+        IRuntimeRegistrationAuthority inner) :
+        IRuntimeRegistrationAuthority
+    {
+        private int lookupCallCount;
+        private int mutationCallCount;
+
+        public bool Enabled => inner.Enabled;
+        public int LookupCallCount =>
+            Volatile.Read(ref lookupCallCount);
+        public int MutationCallCount =>
+            Volatile.Read(ref mutationCallCount);
+        public RuntimeUnregistrationReceiptLookup? LastLookup
+        {
+            get;
+            private set;
+        }
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.RegisterAsync(
+                request,
+                runtimeId,
+                cancellationToken,
+                update,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            inner.SubmitDiscoveryAsync(
+                runtimeId,
+                cancellationToken,
+                capabilityDiscovery,
+                statusDiscovery,
+                sidecarDiscovery);
+
+        public Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref mutationCallCount);
+            return inner.UnregisterAsync(
+                runtimeIds,
+                cancellationToken);
+        }
+
+        public Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            string commandId,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref mutationCallCount);
+            return inner.UnregisterAsync(
+                runtimeIds,
+                commandId,
+                cancellationToken);
+        }
+
+        public async Task<RuntimeUnregistrationReceiptLookup>
+            LookupUnregistrationReceiptAsync(
+                string commandId,
+                CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref lookupCallCount);
+            var lookup = await inner
+                .LookupUnregistrationReceiptAsync(
+                    commandId,
+                    cancellationToken);
+            LastLookup = lookup;
+            return lookup;
         }
     }
 

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-07-26T08:16:52.837358+00:00",
+  "platform": "Unix",
+  "architecture": "Arm64",
+  "iterations": 3,
+  "total_forced_host_terminations": 3,
+  "receipt_lookup_call_count": 3,
+  "post_restart_unregistration_mutation_count": 0,
+  "minimum_operation_generation": 1,
+  "maximum_operation_generation": 3,
+  "checks": {
+    "real_leserpentd": true,
+    "schema_v4_command_identity_restored": true,
+    "daemon_commit_preceded_host_termination": true,
+    "acknowledgement_withheld_from_recovery_worker": true,
+    "every_host_process_force_killed": true,
+    "every_restart_performed_receipt_lookup": true,
+    "zero_post_restart_unregistration_mutations": true,
+    "receipt_generation_stable_across_recovery": true,
+    "every_daemon_and_compatibility_state_converged": true,
+    "every_converged_state_survived_disk_reload": true
+  }
+}

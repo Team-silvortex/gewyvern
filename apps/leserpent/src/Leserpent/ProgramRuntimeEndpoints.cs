@@ -617,6 +617,7 @@ public partial class Program
                 {
                     await registrationAuthority.UnregisterAsync(
                         reservation.RuntimeIds,
+                        reservation.UnregistrationCommandId,
                         cancellationToken);
                     deleted = registry.DeleteRuntime(id);
                     registry.CompleteRuntimeDeletion(reservation);
@@ -709,7 +710,10 @@ public partial class Program
             using var reservation = registry.ReserveRuntimeDeletion(
                 targetIds,
                 requireAllTargets: true);
-            await registrationAuthority.UnregisterAsync(reservation.RuntimeIds, cancellationToken);
+            await registrationAuthority.UnregisterAsync(
+                reservation.RuntimeIds,
+                reservation.UnregistrationCommandId,
+                cancellationToken);
             var deleted = registry.DeleteRuntimesById(reservation.RuntimeIds);
             registry.CompleteRuntimeDeletion(reservation);
             return Results.Ok(new RuntimeBulkDeleteResponse(

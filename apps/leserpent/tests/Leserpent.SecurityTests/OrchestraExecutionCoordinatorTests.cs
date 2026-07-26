@@ -373,6 +373,98 @@ public sealed class OrchestraExecutionCoordinatorTests
         }
     }
 
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task RuntimeDeletionRecoveryLooksUpStableReceiptBeforeMutation(
+        bool receiptExists,
+        int expectedMutationCount)
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+        registry.ReserveRuntimeDeletion(
+            new[] { runtime.RuntimeId }).Dispose();
+        var intent = Assert.Single(
+            registry.ListPendingRuntimeDeletions());
+        var authority = new ReceiptAwareRegistrationAuthority(
+            receiptExists
+                ? new[] { runtime.RuntimeId }
+                : null);
+        var service = new RuntimeDeletionRecoveryService(
+            registry,
+            authority,
+            NullLogger<RuntimeDeletionRecoveryService>.Instance);
+
+        try
+        {
+            await service.StartAsync(CancellationToken.None);
+            await WaitForPendingDeletionCountAsync(registry, 0);
+
+            Assert.Equal(1, authority.LookupCount);
+            Assert.Equal(
+                expectedMutationCount,
+                authority.MutationCount);
+            Assert.Equal(
+                intent.UnregistrationCommandId,
+                authority.ObservedCommandId);
+            Assert.Null(registry.GetRuntime(runtime.RuntimeId));
+
+            await service.StopAsync(CancellationToken.None);
+            var restarted = CreateRegistry(statePath);
+            Assert.Empty(
+                restarted.ListPendingRuntimeDeletions());
+            Assert.Null(restarted.GetRuntime(runtime.RuntimeId));
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+            service.Dispose();
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task RuntimeDeletionRecoveryRejectsMismatchedReceiptTargets()
+    {
+        var (registry, statePath) = CreateRegistry();
+        var runtime = RegisterRuntime(registry);
+        registry.ReserveRuntimeDeletion(
+            new[] { runtime.RuntimeId }).Dispose();
+        var authority = new ReceiptAwareRegistrationAuthority(
+            new[] { "runtime-different" });
+        var service = new RuntimeDeletionRecoveryService(
+            registry,
+            authority,
+            NullLogger<RuntimeDeletionRecoveryService>.Instance);
+
+        try
+        {
+            await service.StartAsync(CancellationToken.None);
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+            while (authority.LookupCount == 0 &&
+                   DateTimeOffset.UtcNow < deadline)
+            {
+                await Task.Delay(10);
+            }
+            await service.StopAsync(CancellationToken.None);
+
+            Assert.Equal(1, authority.LookupCount);
+            Assert.Equal(0, authority.MutationCount);
+            Assert.NotNull(registry.GetRuntime(runtime.RuntimeId));
+            var intent = Assert.Single(
+                registry.ListPendingRuntimeDeletions());
+            Assert.Equal(1, intent.AttemptCount);
+            Assert.Equal(
+                RuntimeDeletionFailureCodes.AuthorityFailure,
+                intent.LastFailureCode);
+        }
+        finally
+        {
+            service.Dispose();
+            DeleteStateFiles(statePath);
+        }
+    }
+
     [Fact]
     public void RuntimeDeletionRecoveryClaimsAndPersistsABoundedSuccessBatch()
     {
@@ -2225,6 +2317,70 @@ public sealed class OrchestraExecutionCoordinatorTests
         {
             UnregisteredRuntimeIds = runtimeIds.ToArray();
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ReceiptAwareRegistrationAuthority(
+        IReadOnlyList<string>? receiptRuntimeIds) :
+        IRuntimeRegistrationAuthority
+    {
+        private int lookupCount;
+        private int mutationCount;
+
+        public bool Enabled => true;
+        public int LookupCount => Volatile.Read(ref lookupCount);
+        public int MutationCount => Volatile.Read(ref mutationCount);
+        public string? ObservedCommandId { get; private set; }
+
+        public Task<string> RegisterAsync(
+            RuntimeRegistrationRequest request,
+            string runtimeId,
+            CancellationToken cancellationToken,
+            bool update = false,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.FromResult(runtimeId);
+
+        public Task SubmitDiscoveryAsync(
+            string runtimeId,
+            CancellationToken cancellationToken,
+            CapabilityDiscoveryResult? capabilityDiscovery = null,
+            RuntimeStatusDiscoveryResult? statusDiscovery = null,
+            RuntimeSidecarDiscoveryResult? sidecarDiscovery = null) =>
+            Task.CompletedTask;
+
+        public Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "recovery must use the durable command identity");
+
+        public Task UnregisterAsync(
+            IReadOnlyCollection<string> runtimeIds,
+            string commandId,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref mutationCount);
+            ObservedCommandId = commandId;
+            return Task.CompletedTask;
+        }
+
+        public Task<RuntimeUnregistrationReceiptLookup>
+            LookupUnregistrationReceiptAsync(
+                string commandId,
+                CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref lookupCount);
+            ObservedCommandId = commandId;
+            return Task.FromResult(
+                receiptRuntimeIds is null
+                    ? RuntimeUnregistrationReceiptLookup.Missing(
+                        commandId)
+                    : new RuntimeUnregistrationReceiptLookup(
+                        commandId,
+                        receiptRuntimeIds,
+                        7));
         }
     }
 

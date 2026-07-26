@@ -1021,7 +1021,28 @@ future generations, invalid revisions, duplicate identities, and cleanup-count
 drift. The next gate persists the unregistration command ID in each 1.x runtime
 deletion intent and consults receipt lookup before retrying mutation, so host
 recovery can resolve lost acknowledgements without creating a new operation
-identity.
+identity. It is complete: control-plane schema v4 stores one deterministic,
+validated command ID per deletion intent and migrates v1-v3 state without
+identity drift. Reservations carry that identity through interactive deletion
+and background recovery. Recovery performs a typed receipt lookup first,
+accepts only an exact target-set match, skips a duplicate mutation when the
+receipt exists, and reuses the same ID on a typed miss. Lookup, horizon, command,
+or target corruption fails closed. C# wire tests and recovery tests freeze
+found, missing, and mismatched paths. The next gate runs a real-daemon
+fault campaign that commits unregistration, drops the acknowledgement, kills
+the compatibility host, and proves restart recovery converges through lookup
+without issuing a second mutation. It is complete on local Arm64 and physical
+Linux x86_64. Each host force-kills the compatibility process three times after
+the real daemon commits but before the worker receives success. Every restart
+restores the schema-v4 command identity, performs exactly one receipt lookup,
+issues zero unregistration mutations, preserves the operation generation, and
+survives a final disk reload. The retained evidence lives in
+`docs/fixtures/leserpent_runtime_deletion_lost_ack_20260726.json` and
+`docs/fixtures/leserpent_runtime_deletion_lost_ack_linux_x86_64_20260726.json`;
+`scripts/validation/leserpent_runtime_deletion_lost_ack.sh` reproduces it. The
+next gate persists the replay-horizon floor observed before mutation and treats
+a later typed miss as ambiguous once that floor has been evicted, preventing a
+reappeared runtime identity from being deleted without retained proof.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

@@ -4,7 +4,7 @@ namespace Leserpent.ControlPlane;
 
 public sealed class ControlPlaneStateStore
 {
-    private const int CurrentSchemaVersion = 3;
+    private const int CurrentSchemaVersion = 4;
     private const int OldestSupportedSchemaVersion = 1;
 
     private readonly string statePath;
@@ -360,24 +360,36 @@ public sealed class ControlPlaneStateStore
             BackupFailureCode: backupFailureCode);
 
     private static PersistedControlPlaneState UpgradeState(
-        PersistedControlPlaneState state) =>
-            state with
-            {
-                SchemaVersion = CurrentSchemaVersion,
-                PendingRuntimeDeletions =
-                    (state.PendingRuntimeDeletions ??
-                        Array.Empty<PersistedRuntimeDeletionIntent>())
-                    .Select(static intent => intent with
-                    {
-                        Revision = Math.Max(
-                            intent.Revision,
-                            (long)intent.AttemptCount + 1),
-                    })
-                    .ToArray(),
-                RuntimeDeletionRetryAudit =
-                    state.RuntimeDeletionRetryAudit ??
-                        Array.Empty<PersistedRuntimeDeletionRetryAudit>(),
-            };
+        PersistedControlPlaneState state)
+    {
+        var backfillUnregistrationCommandId =
+            state.SchemaVersion < 4;
+        return state with
+        {
+            SchemaVersion = CurrentSchemaVersion,
+            PendingRuntimeDeletions =
+                (state.PendingRuntimeDeletions ??
+                    Array.Empty<PersistedRuntimeDeletionIntent>())
+                .Select(intent => intent with
+                {
+                    Revision = Math.Max(
+                        intent.Revision,
+                        (long)intent.AttemptCount + 1),
+                    UnregistrationCommandId =
+                        backfillUnregistrationCommandId &&
+                        string.IsNullOrWhiteSpace(
+                            intent.UnregistrationCommandId)
+                            ? RuntimeDeletionCommandIdentity.ForIntent(
+                                intent.IntentId ?? string.Empty)
+                            : intent.UnregistrationCommandId?.Trim() ??
+                                string.Empty,
+                })
+                .ToArray(),
+            RuntimeDeletionRetryAudit =
+                state.RuntimeDeletionRetryAudit ??
+                    Array.Empty<PersistedRuntimeDeletionRetryAudit>(),
+        };
+    }
 
     private static string DefaultStatePath(IHostEnvironment environment)
     {

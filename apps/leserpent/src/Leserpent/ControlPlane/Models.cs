@@ -593,8 +593,20 @@ public sealed record PersistedRuntimeDeletionIntent(
     DateTimeOffset? LastAttemptAt = null,
     DateTimeOffset? NextAttemptAt = null,
     string? LastFailureCode = null,
-    long Revision = 1
+    long Revision = 1,
+    string UnregistrationCommandId = ""
 );
+
+public sealed record RuntimeUnregistrationReceiptLookup(
+    string CommandId,
+    IReadOnlyList<string>? RuntimeIds,
+    ulong? OperationGeneration)
+{
+    public bool Found => RuntimeIds is not null;
+
+    public static RuntimeUnregistrationReceiptLookup Missing(string commandId) =>
+        new(commandId, null, null);
+}
 
 public sealed record PersistedRuntimeDeletionRetryAudit(
     string RequestId,

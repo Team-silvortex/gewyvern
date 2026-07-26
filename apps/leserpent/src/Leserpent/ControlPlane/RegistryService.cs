@@ -177,7 +177,12 @@ public sealed partial class RegistryService
         }
         if (targets.Length == 0)
         {
-            return new RuntimeDeletionReservation(this, string.Empty, string.Empty, targets);
+            return new RuntimeDeletionReservation(
+                this,
+                string.Empty,
+                string.Empty,
+                targets,
+                string.Empty);
         }
 
         lock (orchestraRunSync)
@@ -206,7 +211,8 @@ public sealed partial class RegistryService
                     this,
                     overlappingIntent.IntentId,
                     claimId,
-                    overlappingIntent.RuntimeIds);
+                    overlappingIntent.RuntimeIds,
+                    overlappingIntent.UnregistrationCommandId);
             }
 
             if (pendingRuntimeDeletions.Count >= MaxPendingRuntimeDeletionIntents ||
@@ -217,10 +223,13 @@ public sealed partial class RegistryService
 
             lock (persistenceSync)
             {
+                var intentId = $"rdel_{Guid.NewGuid():N}";
                 var createdIntent = new PersistedRuntimeDeletionIntent(
-                    $"rdel_{Guid.NewGuid():N}",
+                    intentId,
                     Array.AsReadOnly(targets),
-                    DateTimeOffset.UtcNow);
+                    DateTimeOffset.UtcNow,
+                    UnregistrationCommandId:
+                        RuntimeDeletionCommandIdentity.ForIntent(intentId));
                 pendingRuntimeDeletions[createdIntent.IntentId] = createdIntent;
                 var claimId = Guid.NewGuid().ToString("n");
                 activeRuntimeDeletionClaims[createdIntent.IntentId] = claimId;
@@ -232,7 +241,8 @@ public sealed partial class RegistryService
                     this,
                     createdIntent.IntentId,
                     claimId,
-                    createdIntent.RuntimeIds);
+                    createdIntent.RuntimeIds,
+                    createdIntent.UnregistrationCommandId);
                 try
                 {
                     PersistStateStrict();
@@ -295,7 +305,8 @@ public sealed partial class RegistryService
                     this,
                     intent.IntentId,
                     claimId,
-                    intent.RuntimeIds));
+                    intent.RuntimeIds,
+                    intent.UnregistrationCommandId));
             }
             return reservations;
         }
@@ -339,6 +350,10 @@ public sealed partial class RegistryService
                     !string.Equals(
                         activeClaimId,
                         reservation.ClaimId,
+                        StringComparison.Ordinal) ||
+                    !string.Equals(
+                        reservation.UnregistrationCommandId,
+                        intent.UnregistrationCommandId,
                         StringComparison.Ordinal) ||
                     !reservation.RuntimeIds
                         .ToHashSet(StringComparer.OrdinalIgnoreCase)
@@ -729,6 +744,10 @@ public sealed partial class RegistryService
                     reservation.IntentId,
                     out var activeClaimId) ||
                 !string.Equals(activeClaimId, reservation.ClaimId, StringComparison.Ordinal) ||
+                !string.Equals(
+                    reservation.UnregistrationCommandId,
+                    intent.UnregistrationCommandId,
+                    StringComparison.Ordinal) ||
                 !reservation.RuntimeIds.ToHashSet(StringComparer.OrdinalIgnoreCase)
                     .SetEquals(intent.RuntimeIds))
             {
