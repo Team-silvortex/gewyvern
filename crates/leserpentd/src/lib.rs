@@ -496,6 +496,11 @@ fn checkpoint_from_bootstrap_effect(
     {
         return Err("bootstrap response identity does not match its request".into());
     }
+    if state.phase == BootstrapPhase::Bootstrapped
+        && (state.generation.is_none() || state.install_profile.is_none())
+    {
+        return Err("bootstrap response omitted retirement authority".into());
+    }
     let credential_handle = match state.phase {
         BootstrapPhase::Bootstrapped => Some(request.request.intent.credential_handle.clone()),
         BootstrapPhase::Failed => None,
@@ -778,6 +783,8 @@ mod tests {
                 bootstrap_id: bootstrap_id.clone(),
                 daemon_id: DaemonId::new("daemon-host-example").unwrap(),
                 endpoint: "https://host.example:9443/".into(),
+                generation: "a".repeat(64),
+                install_profile: "system".into(),
                 session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
                     .unwrap(),
                 trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
@@ -1397,6 +1404,14 @@ mod tests {
             .unwrap();
         assert_eq!(before_restart.revision, 2);
         assert_eq!(before_restart.state.phase, BootstrapPhase::Bootstrapped);
+        assert_eq!(
+            before_restart.state.generation.as_deref().unwrap(),
+            "a".repeat(64)
+        );
+        assert_eq!(
+            before_restart.state.install_profile.as_deref(),
+            Some("system")
+        );
         assert!(!before_restart.state.mutation_authorized);
         drop(host);
 
@@ -1421,6 +1436,14 @@ mod tests {
         assert_eq!(
             recovered_checkpoint.state.phase,
             BootstrapPhase::Bootstrapped
+        );
+        assert_eq!(
+            recovered_checkpoint.state.generation.as_deref().unwrap(),
+            "a".repeat(64)
+        );
+        assert_eq!(
+            recovered_checkpoint.state.install_profile.as_deref(),
+            Some("system")
         );
         let mut proof = DaemonSessionProof {
             bootstrap_id: bootstrap_id.clone(),
@@ -1805,5 +1828,23 @@ mod tests {
         );
         drop(host);
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn new_bootstrap_outcome_requires_retirement_authority() {
+        let (request, outcome, _) = bootstrap_request_and_outcome();
+        let request = decode_bootstrap_request(&request).unwrap();
+        let mut response = decode_bootstrap_response(&outcome).unwrap();
+        let BootstrapResponse::State(state) = &mut response.response else {
+            panic!("test bootstrap outcome must be a state");
+        };
+        state.generation = None;
+        state.install_profile = None;
+        let outcome = encode_bootstrap_response(&response).unwrap();
+
+        assert_eq!(
+            checkpoint_from_bootstrap_effect(&request, &outcome, None),
+            Err("bootstrap response omitted retirement authority".into())
+        );
     }
 }

@@ -82,6 +82,8 @@ internal sealed class BootstrapSnapshotPayload
     public bool BootstrapCredentialPresent { get; set; }
     public string? DaemonId { get; set; }
     public string? Endpoint { get; set; }
+    public string? Generation { get; set; }
+    public string? InstallProfile { get; set; }
     public string? SessionCredentialHandle { get; set; }
     public string? TrustCredentialHandle { get; set; }
     public string? FaultCode { get; set; }

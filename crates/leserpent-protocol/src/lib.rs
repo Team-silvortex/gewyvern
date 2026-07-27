@@ -1110,6 +1110,8 @@ mod tests {
                 bootstrap_credential_present: false,
                 daemon_id: None,
                 endpoint: None,
+                generation: None,
+                install_profile: None,
                 session_credential_handle: None,
                 trust_credential_handle: None,
                 fault_code: Some("transport_failure".into()),

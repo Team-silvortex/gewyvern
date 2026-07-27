@@ -608,7 +608,33 @@ recovery. Cleanup revalidates the bound manifest, current pointer, and
 descriptor after service stop, so a crashed stale retirement cannot erase a
 newly published generation. A real macOS process vertical proves install, retirement, cleanup,
 private marker persistence, and idempotent replay. Native SSH submission and a
-physical Linux cross-host retirement proof remain the next bootstrap gate.
+physical Linux cross-host retirement proof are now complete. The native
+deployment outcome returns the validated generation, then the retirement
+transport uploads the same bounded native
+artifact through the pinned Rust SSH/SFTP transport under an operation-specific
+staging path, and invokes `bootstrap-retire-v1` with the independent bounded
+wire. The physical systemd-user proof rejects a forged generation before
+mutation, accepts the bound retirement, accepts an exact replay, and audits zero
+unit, process, listener, descriptor, current-generation, or staging residue.
+State, logs, and the private terminal retirement marker remain available for
+operator recovery. Redacted evidence lives in
+`docs/fixtures/leserpent_real_ssh_bootstrap_retirement_20260727.json`.
+The target installer also rejects any generation already bound by its bounded
+private retirement index, and terminal replay refuses success if a generation,
+current pointer, or descriptor has reappeared.
+
+The controller handoff now durably preserves the installer-validated generation
+and policy-bound install profile through `Bootstrapped`, restart recovery, and
+`SessionBound`. New worker settlements fail closed if either authority value is
+missing, while old checkpoints with neither field remain readable but cannot be
+used for generation-fenced retirement. The Avalonia AOT projection applies the
+same paired validation, so future CLI and desktop retirement flows can derive
+target authority from the checkpoint instead of accepting client-supplied
+generation or profile values.
+
+The remaining bootstrap product gate is an authenticated daemon-retirement
+workflow for CLI/Avalonia orchestration that remains distinct from Gewyvern
+runtime retirement, followed by privileged system-profile and WinRM evidence.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

@@ -16,12 +16,15 @@ mod provisioning;
 mod retirement;
 mod secret;
 
-#[cfg(feature = "native-ssh")]
-pub use bootstrap::NativeSshBootstrapTransport;
 pub use bootstrap::{
     BootstrapArtifact, HOST_BOOTSTRAP_EFFECT_KIND, MAX_BOOTSTRAP_ARTIFACT_BYTES,
     SshBootstrapAdapter, SshBootstrapHostPolicy, SshBootstrapJob, SshBootstrapOutcome,
     SshBootstrapTransport, SshBootstrapTransportError,
+};
+#[cfg(feature = "native-ssh")]
+pub use bootstrap::{
+    NativeSshBootstrapTransport, SshBootstrapRetirementJob, SshBootstrapRetirementTransport,
+    SshBootstrapRetirementTransportError,
 };
 pub use bootstrap_trust::{
     BootstrapTrustError, BootstrapTrustRecord, BootstrapTrustStore, FileBootstrapTrustStore,

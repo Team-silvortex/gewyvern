@@ -31,6 +31,7 @@ const CURRENT_NAME: &str = "current";
 const TLS_CERTIFICATE_NAME: &str = "server.crt";
 const TLS_PRIVATE_KEY_NAME: &str = "server.key";
 const RETIREMENT_MARKER_SCHEMA_VERSION: u32 = 1;
+const MAX_RETAINED_RETIREMENT_MARKERS: usize = 4096;
 #[cfg(target_os = "macos")]
 const SERVICE_DESCRIPTOR_NAME: &str = "service.plist";
 #[cfg(target_os = "linux")]
@@ -171,6 +172,7 @@ pub fn install_bootstrap_artifact(
     }
     let generation = generation_id(request);
     prepare_layout(layout)?;
+    reject_retired_generation_reinstall(request, layout, &generation)?;
     let generations = layout.root.join("generations");
     let destination = generations.join(&generation);
     let manifest = InstallManifest {
@@ -318,6 +320,7 @@ fn retire_bootstrap_artifact_with(
             return Err(BootstrapInstallError::GenerationConflict);
         }
         Some(marker) if marker.phase == BootstrapRetirementMarkerPhase::Retired => {
+            verify_terminal_retirement_absence(request, layout)?;
             return Ok(retirement_response(request, true));
         }
         Some(marker) => marker.phase,
@@ -396,6 +399,54 @@ fn verify_retirement_authority(
     )?;
     if retained.as_slice() != published.as_slice() {
         return Err(BootstrapInstallError::GenerationConflict);
+    }
+    Ok(())
+}
+
+fn reject_retired_generation_reinstall(
+    request: &BootstrapInstallerRequest,
+    layout: &BootstrapInstallLayout,
+    generation: &str,
+) -> Result<(), BootstrapInstallError> {
+    let retirements = layout.root.join("retirements");
+    match fs::symlink_metadata(&retirements) {
+        Ok(_) => require_directory_mode(&retirements, 0o700)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err(BootstrapInstallError::Storage),
+    }
+    let entries = fs::read_dir(&retirements).map_err(|_| BootstrapInstallError::Storage)?;
+    for (index, entry) in entries.enumerate() {
+        if index >= MAX_RETAINED_RETIREMENT_MARKERS {
+            return Err(BootstrapInstallError::GenerationConflict);
+        }
+        let path = entry.map_err(|_| BootstrapInstallError::Storage)?.path();
+        let marker =
+            read_retirement_marker(&path)?.ok_or(BootstrapInstallError::GenerationConflict)?;
+        if marker.bootstrap_id == request.bootstrap_id.as_str()
+            && marker.daemon_id == request.daemon_id.as_str()
+            && marker.generation == generation
+            && marker.install_profile == request.install_profile
+        {
+            return Err(BootstrapInstallError::GenerationConflict);
+        }
+    }
+    Ok(())
+}
+
+fn verify_terminal_retirement_absence(
+    request: &BootstrapRetirementRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<(), BootstrapInstallError> {
+    for path in [
+        layout.root.join(CURRENT_NAME),
+        layout.root.join("generations").join(&request.generation),
+        published_service_path_for(request.daemon_id.as_str(), layout),
+    ] {
+        match fs::symlink_metadata(path) {
+            Ok(_) => return Err(BootstrapInstallError::GenerationConflict),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err(BootstrapInstallError::Storage),
+        }
     }
     Ok(())
 }
@@ -1791,6 +1842,36 @@ mod tests {
         .unwrap();
         assert!(replay.replayed);
         assert_eq!(service_calls.get(), 1);
+    }
+
+    #[test]
+    fn retired_generation_cannot_be_reinstalled_or_reported_absent_after_resurrection() {
+        let (_temp, source, install_request, layout) = fixture();
+        let installed = install_bootstrap_artifact(&source, &install_request, &layout).unwrap();
+        let retirement = BootstrapRetirementRequest::new(
+            "retire-bootstrap-resurrection",
+            install_request.bootstrap_id.clone(),
+            install_request.daemon_id.clone(),
+            installed.generation,
+            "test",
+        )
+        .unwrap();
+        retire_bootstrap_artifact_with(&retirement, &layout, || Ok(())).unwrap();
+
+        assert_eq!(
+            install_bootstrap_artifact(&source, &install_request, &layout),
+            Err(BootstrapInstallError::GenerationConflict)
+        );
+        fs::create_dir(layout.root.join("generations").join(&retirement.generation)).unwrap();
+        let called = Cell::new(false);
+        assert_eq!(
+            retire_bootstrap_artifact_with(&retirement, &layout, || {
+                called.set(true);
+                Ok(())
+            }),
+            Err(BootstrapInstallError::GenerationConflict)
+        );
+        assert!(!called.get());
     }
 
     #[test]

@@ -160,6 +160,8 @@ pub struct DaemonBootstrapReceipt {
     pub bootstrap_id: BootstrapId,
     pub daemon_id: DaemonId,
     pub endpoint: String,
+    pub generation: String,
+    pub install_profile: String,
     pub session_credential_handle: CredentialHandle,
     pub trust_credential_handle: CredentialHandle,
 }
@@ -184,6 +186,10 @@ pub struct DeploymentBootstrapSnapshot {
     pub bootstrap_credential_present: bool,
     pub daemon_id: Option<DaemonId>,
     pub endpoint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install_profile: Option<String>,
     pub session_credential_handle: Option<CredentialHandle>,
     pub trust_credential_handle: Option<CredentialHandle>,
     pub fault_code: Option<String>,
@@ -240,6 +246,8 @@ impl DeploymentBootstrapSnapshot {
                 if !self.bootstrap_credential_present
                     || self.daemon_id.is_some()
                     || self.endpoint.is_some()
+                    || self.generation.is_some()
+                    || self.install_profile.is_some()
                     || self.session_credential_handle.is_some()
                     || self.trust_credential_handle.is_some()
                     || self.fault_code.is_some()
@@ -257,6 +265,11 @@ impl DeploymentBootstrapSnapshot {
                         .is_none_or(|value| validate_endpoint(value).is_err())
                     || self.session_credential_handle.is_none()
                     || self.trust_credential_handle.is_none()
+                    || validate_install_authority(
+                        self.generation.as_deref(),
+                        self.install_profile.as_deref(),
+                    )
+                    .is_err()
                     || self.fault_code.is_some()
                     || self.mutation_authorized
                 {
@@ -272,6 +285,11 @@ impl DeploymentBootstrapSnapshot {
                         .is_none_or(|value| validate_endpoint(value).is_err())
                     || self.session_credential_handle.is_none()
                     || self.trust_credential_handle.is_none()
+                    || validate_install_authority(
+                        self.generation.as_deref(),
+                        self.install_profile.as_deref(),
+                    )
+                    .is_err()
                     || self.fault_code.is_some()
                     || !self.mutation_authorized
                 {
@@ -282,6 +300,8 @@ impl DeploymentBootstrapSnapshot {
                 if self.bootstrap_credential_present
                     || self.daemon_id.is_some()
                     || self.endpoint.is_some()
+                    || self.generation.is_some()
+                    || self.install_profile.is_some()
                     || self.session_credential_handle.is_some()
                     || self.trust_credential_handle.is_some()
                     || self
@@ -306,6 +326,8 @@ pub struct DeploymentBootstrap {
     phase: BootstrapPhase,
     daemon_id: Option<DaemonId>,
     endpoint: Option<String>,
+    generation: Option<String>,
+    install_profile: Option<String>,
     session_credential_handle: Option<CredentialHandle>,
     trust_credential_handle: Option<CredentialHandle>,
     fault_code: Option<String>,
@@ -332,6 +354,8 @@ impl DeploymentBootstrap {
             phase: BootstrapPhase::Planned,
             daemon_id: None,
             endpoint: None,
+            generation: None,
+            install_profile: None,
             session_credential_handle: None,
             trust_credential_handle: None,
             fault_code: None,
@@ -353,6 +377,8 @@ impl DeploymentBootstrap {
             phase: checkpoint.state.phase,
             daemon_id: checkpoint.state.daemon_id.clone(),
             endpoint: checkpoint.state.endpoint.clone(),
+            generation: checkpoint.state.generation.clone(),
+            install_profile: checkpoint.state.install_profile.clone(),
             session_credential_handle: checkpoint.state.session_credential_handle.clone(),
             trust_credential_handle: checkpoint.state.trust_credential_handle.clone(),
             fault_code: checkpoint.state.fault_code.clone(),
@@ -379,8 +405,12 @@ impl DeploymentBootstrap {
             return Err(BootstrapError::IdentityMismatch);
         }
         validate_endpoint(&receipt.endpoint)?;
+        validate_generation(&receipt.generation)?;
+        validate_install_profile(&receipt.install_profile)?;
         self.daemon_id = Some(receipt.daemon_id);
         self.endpoint = Some(receipt.endpoint);
+        self.generation = Some(receipt.generation);
+        self.install_profile = Some(receipt.install_profile);
         self.session_credential_handle = Some(receipt.session_credential_handle);
         self.trust_credential_handle = Some(receipt.trust_credential_handle);
         self.phase = BootstrapPhase::Bootstrapped;
@@ -433,6 +463,8 @@ impl DeploymentBootstrap {
         self.bootstrap_credential_handle = None;
         self.daemon_id = None;
         self.endpoint = None;
+        self.generation = None;
+        self.install_profile = None;
         self.session_credential_handle = None;
         self.trust_credential_handle = None;
         self.fault_code = Some(fault_code);
@@ -448,6 +480,8 @@ impl DeploymentBootstrap {
             bootstrap_credential_present: self.bootstrap_credential_handle.is_some(),
             daemon_id: self.daemon_id.clone(),
             endpoint: self.endpoint.clone(),
+            generation: self.generation.clone(),
+            install_profile: self.install_profile.clone(),
             session_credential_handle: self.session_credential_handle.clone(),
             trust_credential_handle: self.trust_credential_handle.clone(),
             fault_code: self.fault_code.clone(),
@@ -470,6 +504,8 @@ pub enum BootstrapError {
     InvalidSchemaVersion { actual: u32, expected: u32 },
     InvalidTarget,
     InvalidEndpoint,
+    InvalidGeneration,
+    InvalidInstallProfile,
     InvalidFaultCode,
     InvalidSnapshot,
     InvalidCheckpoint,
@@ -494,6 +530,8 @@ impl fmt::Display for BootstrapError {
             }
             Self::InvalidTarget => write!(formatter, "invalid bootstrap target"),
             Self::InvalidEndpoint => write!(formatter, "invalid daemon endpoint"),
+            Self::InvalidGeneration => write!(formatter, "invalid bootstrap generation"),
+            Self::InvalidInstallProfile => write!(formatter, "invalid bootstrap install profile"),
             Self::InvalidFaultCode => write!(formatter, "invalid bootstrap fault code"),
             Self::InvalidSnapshot => write!(formatter, "invalid bootstrap snapshot"),
             Self::InvalidCheckpoint => write!(formatter, "invalid bootstrap checkpoint"),
@@ -532,6 +570,34 @@ fn validate_endpoint(value: &str) -> Result<(), BootstrapError> {
         && uri.query().is_none()
         && uri.path() == "/";
     valid.then_some(()).ok_or(BootstrapError::InvalidEndpoint)
+}
+
+fn validate_generation(value: &str) -> Result<(), BootstrapError> {
+    let valid = value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'));
+    valid.then_some(()).ok_or(BootstrapError::InvalidGeneration)
+}
+
+fn validate_install_profile(value: &str) -> Result<(), BootstrapError> {
+    matches!(value, "system" | "user" | "test")
+        .then_some(())
+        .ok_or(BootstrapError::InvalidInstallProfile)
+}
+
+fn validate_install_authority(
+    generation: Option<&str>,
+    install_profile: Option<&str>,
+) -> Result<(), BootstrapError> {
+    match (generation, install_profile) {
+        (None, None) => Ok(()),
+        (Some(generation), Some(install_profile)) => {
+            validate_generation(generation)?;
+            validate_install_profile(install_profile)
+        }
+        _ => Err(BootstrapError::InvalidSnapshot),
+    }
 }
 
 fn validate_fault(value: &str) -> Result<(), BootstrapError> {
@@ -583,6 +649,8 @@ mod tests {
                 bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
                 daemon_id: DaemonId::new("daemon-host-example").unwrap(),
                 endpoint: "https://host.example:9443/".into(),
+                generation: "a".repeat(64),
+                install_profile: "system".into(),
                 session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
                     .unwrap(),
                 trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
@@ -590,6 +658,8 @@ mod tests {
             })
             .unwrap();
         assert_eq!(bootstrapped.phase, BootstrapPhase::Bootstrapped);
+        assert_eq!(bootstrapped.generation.as_deref().unwrap(), "a".repeat(64));
+        assert_eq!(bootstrapped.install_profile.as_deref(), Some("system"));
         assert!(!bootstrapped.mutation_authorized);
 
         let mut wrong = DaemonSessionProof {
@@ -631,6 +701,8 @@ mod tests {
                 bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
                 daemon_id: DaemonId::new("daemon-host-example").unwrap(),
                 endpoint: "https://host.example:9443/".into(),
+                generation: "a".repeat(64),
+                install_profile: "system".into(),
                 session_credential_handle: CredentialHandle::new("vault:leserpentd:host-example")
                     .unwrap(),
                 trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:host-example")
@@ -655,6 +727,8 @@ mod tests {
             })
             .unwrap();
         assert!(bound.mutation_authorized);
+        assert_eq!(bound.generation.as_deref().unwrap(), "a".repeat(64));
+        assert_eq!(bound.install_profile.as_deref(), Some("system"));
         let bound_checkpoint = resumed.checkpoint(4).unwrap();
         assert!(bound_checkpoint.bootstrap_credential_handle.is_none());
     }
@@ -736,6 +810,8 @@ mod tests {
                 bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
                 daemon_id: DaemonId::new("daemon-host-example").unwrap(),
                 endpoint: "https://user:secret@host.example:9443/".into(),
+                generation: "a".repeat(64),
+                install_profile: "system".into(),
                 session_credential_handle: CredentialHandle::new("vault:leserpentd:daemon")
                     .unwrap(),
                 trust_credential_handle: CredentialHandle::new("vault:leserpent-ca:daemon")
@@ -748,6 +824,36 @@ mod tests {
         let mut invalid = bootstrap.snapshot();
         invalid.mutation_authorized = true;
         assert_eq!(invalid.validate(), Err(BootstrapError::InvalidSnapshot));
+    }
+
+    #[test]
+    fn legacy_receipts_remain_readable_but_partial_authority_fails_closed() {
+        let mut legacy = plan().snapshot();
+        legacy.phase = BootstrapPhase::Bootstrapped;
+        legacy.daemon_id = Some(DaemonId::new("daemon-host-example").unwrap());
+        legacy.endpoint = Some("https://host.example:9443/".into());
+        legacy.session_credential_handle =
+            Some(CredentialHandle::new("vault:leserpentd:host-example").unwrap());
+        legacy.trust_credential_handle =
+            Some(CredentialHandle::new("vault:leserpent-ca:host-example").unwrap());
+        legacy.validate().unwrap();
+        let encoded = serde_json::to_vec(&legacy).unwrap();
+        assert!(!encoded.windows(12).any(|window| window == b"generation\":"));
+        assert!(
+            !encoded
+                .windows(17)
+                .any(|window| window == b"install_profile\":")
+        );
+        let decoded: DeploymentBootstrapSnapshot = serde_json::from_slice(&encoded).unwrap();
+        decoded.validate().unwrap();
+        assert_eq!(decoded, legacy);
+
+        legacy.generation = Some("a".repeat(64));
+        assert_eq!(legacy.validate(), Err(BootstrapError::InvalidSnapshot));
+        legacy.install_profile = Some("system".into());
+        legacy.validate().unwrap();
+        legacy.generation = Some("A".repeat(64));
+        assert_eq!(legacy.validate(), Err(BootstrapError::InvalidSnapshot));
     }
 
     #[test]

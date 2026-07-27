@@ -10,7 +10,8 @@ use leserpent_adapters::{
     BootstrapArtifact, BootstrapTrustError, BootstrapTrustRecord, BootstrapTrustStore,
     ConfiguredSecretStore, EffectAdapter, FileBootstrapTrustStore, NativeSshBootstrapTransport,
     SecretKey, SecretValue, SshBootstrapAdapter, SshBootstrapHostPolicy, SshBootstrapJob,
-    SshBootstrapTransport, SshBootstrapTransportError,
+    SshBootstrapRetirementJob, SshBootstrapRetirementTransport,
+    SshBootstrapRetirementTransportError, SshBootstrapTransport, SshBootstrapTransportError,
 };
 use leserpent_domain::bootstrap::{
     BOOTSTRAP_DOMAIN_SCHEMA_VERSION, BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId,
@@ -23,6 +24,7 @@ use leserpent_protocol::bootstrap::{
     BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
     BootstrapResponse, decode_bootstrap_response, encode_bootstrap_request,
 };
+use leserpent_protocol::bootstrap_retirement::BootstrapRetirementRequest;
 use leserpent_runtime::EffectExecution;
 
 #[test]
@@ -169,7 +171,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
         [policy],
         secrets(),
         trust,
-        artifact,
+        artifact.clone(),
         NativeSshBootstrapTransport::with_timeout(Duration::from_millis(1)).unwrap(),
     )
     .unwrap();
@@ -180,13 +182,40 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
     assert!(timed_out.session_credential_handle.is_none());
     assert!(timed_out.trust_credential_handle.is_none());
 
+    let primary_session_token = SecretValue::new(config.session_token.clone()).unwrap();
+    let mut retirement_transport = NativeSshBootstrapTransport::default();
+    let deployment = retirement_transport
+        .deploy(SshBootstrapJob {
+            bootstrap_id: &bootstrap_id,
+            target: &target,
+            username: &config.username,
+            host_key_sha256: &config.host_key_sha256,
+            bootstrap_password: &bootstrap_password,
+            session_token: &primary_session_token,
+            artifact: &artifact,
+            daemon_id: &daemon_id,
+            endpoint: &config.endpoint,
+            install_profile: "user",
+        })
+        .expect("replay the ready deployment before retirement");
+    let retirement_request = BootstrapRetirementRequest::new(
+        format!("{}-retirement", config.bootstrap_id),
+        bootstrap_id.clone(),
+        daemon_id.clone(),
+        deployment.generation,
+        "user",
+    )
+    .unwrap();
+
     let mut handoff = DeploymentBootstrap::plan(&principal, &capabilities, intent).unwrap();
     handoff.begin().unwrap();
     let bootstrapped = handoff
         .accept_deployed(DaemonBootstrapReceipt {
             bootstrap_id: bootstrap_id.clone(),
             daemon_id: daemon_id.clone(),
-            endpoint: config.endpoint,
+            endpoint: config.endpoint.clone(),
+            generation: retirement_request.generation.clone(),
+            install_profile: "user".into(),
             session_credential_handle: session_handle.clone(),
             trust_credential_handle: trust_handle.clone(),
         })
@@ -204,6 +233,82 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
         .unwrap();
     assert_eq!(bound.phase, BootstrapPhase::SessionBound);
     assert!(bound.mutation_authorized);
+
+    let mut forged_retirement = retirement_request.clone();
+    forged_retirement.generation = "f".repeat(64);
+    assert_eq!(
+        retirement_transport.retire(SshBootstrapRetirementJob {
+            request: &forged_retirement,
+            target: &target,
+            username: &config.username,
+            host_key_sha256: &config.host_key_sha256,
+            ssh_password: &bootstrap_password,
+            artifact: &artifact,
+        }),
+        Err(SshBootstrapRetirementTransportError::RetirementRejected)
+    );
+
+    let retired = retirement_transport
+        .retire(SshBootstrapRetirementJob {
+            request: &retirement_request,
+            target: &target,
+            username: &config.username,
+            host_key_sha256: &config.host_key_sha256,
+            ssh_password: &bootstrap_password,
+            artifact: &artifact,
+        })
+        .expect("retire the identity-bound daemon generation");
+    assert!(retired.service_retired);
+    assert!(!retired.replayed);
+
+    let replayed = retirement_transport
+        .retire(SshBootstrapRetirementJob {
+            request: &retirement_request,
+            target: &target,
+            username: &config.username,
+            host_key_sha256: &config.host_key_sha256,
+            ssh_password: &bootstrap_password,
+            artifact: &artifact,
+        })
+        .expect("replay the exact daemon retirement");
+    assert!(replayed.service_retired);
+    assert!(replayed.replayed);
+
+    let resurrection = retirement_transport.deploy(SshBootstrapJob {
+        bootstrap_id: &retirement_request.bootstrap_id,
+        target: &target,
+        username: &config.username,
+        host_key_sha256: &config.host_key_sha256,
+        bootstrap_password: &bootstrap_password,
+        session_token: &primary_session_token,
+        artifact: &artifact,
+        daemon_id: &retirement_request.daemon_id,
+        endpoint: &config.endpoint,
+        install_profile: "user",
+    });
+    if let Ok(resurrected) = &resurrection {
+        let cleanup = BootstrapRetirementRequest::new(
+            format!("{}-resurrection-cleanup", config.bootstrap_id),
+            retirement_request.bootstrap_id.clone(),
+            retirement_request.daemon_id.clone(),
+            resurrected.generation.clone(),
+            "user",
+        )
+        .unwrap();
+        let _ = retirement_transport.retire(SshBootstrapRetirementJob {
+            request: &cleanup,
+            target: &target,
+            username: &config.username,
+            host_key_sha256: &config.host_key_sha256,
+            ssh_password: &bootstrap_password,
+            artifact: &artifact,
+        });
+        panic!("retired bootstrap generation was resurrected");
+    }
+    assert_eq!(
+        resurrection,
+        Err(SshBootstrapTransportError::InstallerRejected)
+    );
 }
 
 struct RejectingTrustStore;

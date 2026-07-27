@@ -20,10 +20,13 @@ public sealed record RemoteBootstrapSnapshot(
     string? SessionCredentialHandle,
     string? TrustCredentialHandle,
     string? FaultCode,
-    bool MutationAuthorized)
+    bool MutationAuthorized,
+    string? Generation = null,
+    string? InstallProfile = null)
 {
     public bool IsTerminal => Phase is "session_bound" or "failed";
     public bool CanBind => Phase == "bootstrapped";
+    public bool HasRetirementAuthority => Generation is not null && InstallProfile is not null;
 }
 
 public sealed class RemoteBootstrapClient : IDisposable
@@ -191,12 +194,24 @@ public sealed class RemoteBootstrapClient : IDisposable
         }
 
         const string bound = """
-            {"schema_version":1,"response":{"kind":"bootstrap_handoff","payload":{"bootstrap_id":"bootstrap-ui-1","phase":"session_bound","target":{"transport":"ssh","host":"target.example","port":22},"bootstrap_credential_present":false,"daemon_id":"daemon-target","endpoint":"https://target.example:9443","session_credential_handle":"vault:leserpentd:target","trust_credential_handle":"vault:leserpent-ca:target","fault_code":null,"mutation_authorized":true}}}
+            {"schema_version":1,"response":{"kind":"bootstrap_handoff","payload":{"bootstrap_id":"bootstrap-ui-1","phase":"session_bound","target":{"transport":"ssh","host":"target.example","port":22},"bootstrap_credential_present":false,"daemon_id":"daemon-target","endpoint":"https://target.example:9443","generation":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","install_profile":"system","session_credential_handle":"vault:leserpentd:target","trust_credential_handle":"vault:leserpent-ca:target","fault_code":null,"mutation_authorized":true}}}
             """;
         state = DecodeWireResponse(Encoding.UTF8.GetBytes(bound), intent.BootstrapId);
-        if (!state.IsTerminal || state.CanBind || !state.MutationAuthorized)
+        if (!state.IsTerminal || state.CanBind || !state.MutationAuthorized
+            || !state.HasRetirementAuthority || state.InstallProfile != "system")
         {
             throw new InvalidDataException("bootstrap bound response projection drifted");
+        }
+        var legacyBound = bound
+            .Replace(
+                "\"generation\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",",
+                "",
+                StringComparison.Ordinal)
+            .Replace("\"install_profile\":\"system\",", "", StringComparison.Ordinal);
+        state = DecodeWireResponse(Encoding.UTF8.GetBytes(legacyBound), intent.BootstrapId);
+        if (state.HasRetirementAuthority)
+        {
+            throw new InvalidDataException("legacy bootstrap response invented retirement authority");
         }
 
         ExpectInvalid(
@@ -204,6 +219,14 @@ public sealed class RemoteBootstrapClient : IDisposable
                 Encoding.UTF8.GetBytes(planned.Replace("planned", "bootstrapped", StringComparison.Ordinal)),
                 intent.BootstrapId),
             "bootstrap client accepted an incomplete bootstrapped state");
+        ExpectInvalid(
+            () => DecodeWireResponse(
+                Encoding.UTF8.GetBytes(bound.Replace(
+                    "\"install_profile\":\"system\",",
+                    "",
+                    StringComparison.Ordinal)),
+                intent.BootstrapId),
+            "bootstrap client accepted partial retirement authority");
         ExpectInvalid(
             () => ValidateIntent(intent with { CredentialHandle = "ssh-password" }),
             "bootstrap client accepted a raw credential source");
@@ -290,7 +313,9 @@ public sealed class RemoteBootstrapClient : IDisposable
             state.SessionCredentialHandle,
             state.TrustCredentialHandle,
             state.FaultCode,
-            state.MutationAuthorized);
+            state.MutationAuthorized,
+            state.Generation,
+            state.InstallProfile);
     }
 
     private static RemoteBootstrapException ProtocolError(JsonElement payload)
@@ -331,6 +356,7 @@ public sealed class RemoteBootstrapClient : IDisposable
         {
             case "planned" or "deploying" when state.BootstrapCredentialPresent
                 && !hasReceipt && state.DaemonId is null && state.Endpoint is null
+                && state.Generation is null && state.InstallProfile is null
                 && state.SessionCredentialHandle is null && state.TrustCredentialHandle is null
                 && state.FaultCode is null && !state.MutationAuthorized:
                 return;
@@ -344,6 +370,7 @@ public sealed class RemoteBootstrapClient : IDisposable
                 return;
             case "failed" when !state.BootstrapCredentialPresent && !hasReceipt
                 && state.DaemonId is null && state.Endpoint is null
+                && state.Generation is null && state.InstallProfile is null
                 && state.SessionCredentialHandle is null && state.TrustCredentialHandle is null
                 && ValidCode(state.FaultCode) && !state.MutationAuthorized:
                 return;
@@ -364,6 +391,22 @@ public sealed class RemoteBootstrapClient : IDisposable
         if (canonicalOrigin != state.Endpoint)
         {
             throw new InvalidDataException("bootstrap response endpoint is not canonical");
+        }
+        if ((state.Generation is null) != (state.InstallProfile is null))
+        {
+            throw new InvalidDataException("bootstrap retirement authority is incomplete");
+        }
+        if (state.Generation is not null
+            && (state.Generation.Length != 64
+                || !state.Generation.All(character => character is >= '0' and <= '9'
+                    or >= 'a' and <= 'f')))
+        {
+            throw new InvalidDataException("bootstrap generation is invalid");
+        }
+        if (state.InstallProfile is not null
+            && state.InstallProfile is not ("system" or "user" or "test"))
+        {
+            throw new InvalidDataException("bootstrap install profile is invalid");
         }
     }
 

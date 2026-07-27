@@ -67,7 +67,7 @@ internal static class Program
             RemoteBootstrapClient.VerifyContract();
             BootstrapSessionCredentialResolver.VerifyContract();
             Console.WriteLine(
-                "bootstrap client valid: submit_route=true, inspect_wire=true, bind_wire=true, strict_state=true, bounded=true, opaque_handles=true, rust_secret_schema=true, raw_secrets=false");
+                "bootstrap client valid: submit_route=true, inspect_wire=true, bind_wire=true, strict_state=true, bounded=true, opaque_handles=true, retirement_authority=true, rust_secret_schema=true, raw_secrets=false");
             return 0;
         }
         if (args is ["--verify-provisioning-client"])

@@ -17,6 +17,12 @@ use leserpent_protocol::bootstrap_installer::{
     BootstrapInstallerRequest, BootstrapInstallerServiceState, MAX_BOOTSTRAP_INSTALLER_BYTES,
     decode_bootstrap_installer_response, encode_bootstrap_installer_request,
 };
+#[cfg(feature = "native-ssh")]
+use leserpent_protocol::bootstrap_retirement::{
+    BootstrapRetirementRequest, BootstrapRetirementResponse, MAX_BOOTSTRAP_RETIREMENT_BYTES,
+    decode_bootstrap_retirement_response, encode_bootstrap_retirement_request,
+    validate_bootstrap_retirement_response_binding,
+};
 use leserpent_runtime::EffectExecution;
 use ring::digest::{SHA256, digest};
 
@@ -72,6 +78,11 @@ impl BootstrapArtifact {
     #[cfg(feature = "native-ssh")]
     fn staging_path(&self, bootstrap_id: &BootstrapId) -> String {
         format!("{}-{}.stage", self.staging_prefix, bootstrap_id.as_str())
+    }
+
+    #[cfg(feature = "native-ssh")]
+    fn retirement_staging_path(&self, retirement_id: &str) -> String {
+        format!("{}-retire-{retirement_id}.stage", self.staging_prefix)
     }
 }
 
@@ -153,6 +164,8 @@ pub struct SshBootstrapJob<'a> {
 pub struct SshBootstrapOutcome {
     pub daemon_id: DaemonId,
     pub endpoint: String,
+    pub generation: String,
+    pub install_profile: String,
     pub tls_ca_pem: String,
     pub tls_ca_sha256: String,
 }
@@ -187,6 +200,54 @@ pub trait SshBootstrapTransport: Send {
         &mut self,
         job: SshBootstrapJob<'_>,
     ) -> Result<SshBootstrapOutcome, SshBootstrapTransportError>;
+}
+
+#[cfg(feature = "native-ssh")]
+pub struct SshBootstrapRetirementJob<'a> {
+    pub request: &'a BootstrapRetirementRequest,
+    pub target: &'a BootstrapTarget,
+    pub username: &'a str,
+    pub host_key_sha256: &'a str,
+    pub ssh_password: &'a SecretValue,
+    pub artifact: &'a BootstrapArtifact,
+}
+
+#[cfg(feature = "native-ssh")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SshBootstrapRetirementTransportError {
+    InvalidRequest,
+    Authentication,
+    HostKeyRejected,
+    Transport,
+    UploadRejected,
+    RetirementRejected,
+    InvalidResponse,
+}
+
+#[cfg(feature = "native-ssh")]
+impl fmt::Display for SshBootstrapRetirementTransportError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidRequest => "bootstrap retirement request is invalid",
+            Self::Authentication => "SSH authentication failed",
+            Self::HostKeyRejected => "SSH host key was rejected",
+            Self::Transport => "SSH transport failed",
+            Self::UploadRejected => "SSH retirement artifact upload failed",
+            Self::RetirementRejected => "remote bootstrap retirement rejected the request",
+            Self::InvalidResponse => "remote bootstrap retirement returned an invalid response",
+        })
+    }
+}
+
+#[cfg(feature = "native-ssh")]
+impl std::error::Error for SshBootstrapRetirementTransportError {}
+
+#[cfg(feature = "native-ssh")]
+pub trait SshBootstrapRetirementTransport: Send {
+    fn retire(
+        &mut self,
+        job: SshBootstrapRetirementJob<'_>,
+    ) -> Result<BootstrapRetirementResponse, SshBootstrapRetirementTransportError>;
 }
 
 pub struct SshBootstrapAdapter<T> {
@@ -283,7 +344,10 @@ impl<T: SshBootstrapTransport> SshBootstrapAdapter<T> {
             }
             Err(_) => return encode_failed(bootstrap, "transport_failure"),
         };
-        if outcome.daemon_id != policy.daemon_id || outcome.endpoint != policy.endpoint {
+        if outcome.daemon_id != policy.daemon_id
+            || outcome.endpoint != policy.endpoint
+            || outcome.install_profile != policy.install_profile
+        {
             return encode_failed(bootstrap, "remote_identity_mismatch");
         }
         let trust_record = BootstrapTrustRecord {
@@ -303,6 +367,8 @@ impl<T: SshBootstrapTransport> SshBootstrapAdapter<T> {
                 bootstrap_id: intent.bootstrap_id.clone(),
                 daemon_id: outcome.daemon_id,
                 endpoint: outcome.endpoint,
+                generation: outcome.generation,
+                install_profile: outcome.install_profile,
                 session_credential_handle: policy.session_credential_handle.clone(),
                 trust_credential_handle: policy.trust_credential_handle.clone(),
             })
@@ -379,7 +445,45 @@ impl SshBootstrapTransport for NativeSshBootstrapTransport {
             .map_err(map_native_ssh_error)?;
         let response = decode_bootstrap_installer_response(&stdout)
             .map_err(|_| SshBootstrapTransportError::InvalidResponse)?;
-        validate_installer_readiness(response, job.bootstrap_id, job.daemon_id, job.endpoint)
+        validate_installer_readiness(
+            response,
+            job.bootstrap_id,
+            job.daemon_id,
+            job.endpoint,
+            job.install_profile,
+        )
+    }
+}
+
+#[cfg(feature = "native-ssh")]
+impl SshBootstrapRetirementTransport for NativeSshBootstrapTransport {
+    fn retire(
+        &mut self,
+        job: SshBootstrapRetirementJob<'_>,
+    ) -> Result<BootstrapRetirementResponse, SshBootstrapRetirementTransportError> {
+        let payload = encode_bootstrap_retirement_request(job.request)
+            .map_err(|_| SshBootstrapRetirementTransportError::InvalidRequest)?;
+        let staging_path = job
+            .artifact
+            .retirement_staging_path(&job.request.retirement_id);
+        let command = format!("{staging_path} bootstrap-retire-v1");
+        let stdout = self
+            .client
+            .execute(NativeSshJob {
+                host: &job.target.host,
+                port: job.target.port,
+                username: job.username,
+                host_key_sha256: job.host_key_sha256,
+                password: job.ssh_password.expose_secret(),
+                staging_path: &staging_path,
+                artifact: job.artifact.bytes(),
+                artifact_sha256: job.artifact.sha256_hex(),
+                command: &command,
+                stdin: &payload,
+                max_stdout_bytes: MAX_BOOTSTRAP_RETIREMENT_BYTES,
+            })
+            .map_err(map_native_ssh_retirement_error)?;
+        validate_retirement_outcome(job.request, &stdout)
     }
 }
 
@@ -396,11 +500,36 @@ fn map_native_ssh_error(error: NativeSshError) -> SshBootstrapTransportError {
 }
 
 #[cfg(feature = "native-ssh")]
+fn map_native_ssh_retirement_error(error: NativeSshError) -> SshBootstrapRetirementTransportError {
+    match error {
+        NativeSshError::Authentication => SshBootstrapRetirementTransportError::Authentication,
+        NativeSshError::HostKeyRejected => SshBootstrapRetirementTransportError::HostKeyRejected,
+        NativeSshError::Transport => SshBootstrapRetirementTransportError::Transport,
+        NativeSshError::UploadRejected => SshBootstrapRetirementTransportError::UploadRejected,
+        NativeSshError::CommandRejected => SshBootstrapRetirementTransportError::RetirementRejected,
+        NativeSshError::InvalidResponse => SshBootstrapRetirementTransportError::InvalidResponse,
+    }
+}
+
+#[cfg(feature = "native-ssh")]
+fn validate_retirement_outcome(
+    request: &BootstrapRetirementRequest,
+    stdout: &[u8],
+) -> Result<BootstrapRetirementResponse, SshBootstrapRetirementTransportError> {
+    let response = decode_bootstrap_retirement_response(stdout)
+        .map_err(|_| SshBootstrapRetirementTransportError::InvalidResponse)?;
+    validate_bootstrap_retirement_response_binding(request, &response)
+        .map_err(|_| SshBootstrapRetirementTransportError::InvalidResponse)?;
+    Ok(response)
+}
+
+#[cfg(feature = "native-ssh")]
 fn validate_installer_readiness(
     response: leserpent_protocol::bootstrap_installer::BootstrapInstallerResponse,
     bootstrap_id: &BootstrapId,
     daemon_id: &DaemonId,
     endpoint: &str,
+    install_profile: &str,
 ) -> Result<SshBootstrapOutcome, SshBootstrapTransportError> {
     if response.bootstrap_id != *bootstrap_id
         || response.daemon_id != *daemon_id
@@ -412,6 +541,8 @@ fn validate_installer_readiness(
     Ok(SshBootstrapOutcome {
         daemon_id: response.daemon_id,
         endpoint: response.endpoint,
+        generation: response.generation,
+        install_profile: install_profile.into(),
         tls_ca_pem: response.tls_ca_pem,
         tls_ca_sha256: response.tls_ca_sha256,
     })
@@ -551,6 +682,8 @@ mod tests {
         SshBootstrapOutcome {
             daemon_id: DaemonId::new(daemon_id).unwrap(),
             endpoint: "https://host.example:7443".into(),
+            generation: "a".repeat(64),
+            install_profile: "system".into(),
             tls_ca_pem: ca.into(),
             tls_ca_sha256: hex(digest(&SHA256, ca.as_bytes()).as_ref()),
         }
@@ -723,6 +856,14 @@ mod tests {
                 Ok(successful_outcome("daemon-attacker")),
                 "remote_identity_mismatch",
             ),
+            (
+                Ok({
+                    let mut outcome = successful_outcome("daemon-host-example");
+                    outcome.install_profile = "user".into();
+                    outcome
+                }),
+                "remote_identity_mismatch",
+            ),
         ] {
             let artifact = BootstrapArtifact::new(
                 Arc::<[u8]>::from(b"native-installer".as_slice()),
@@ -822,9 +963,85 @@ mod tests {
                 response,
                 &bootstrap_id,
                 &daemon_id,
-                "https://host.example:7443"
+                "https://host.example:7443",
+                "system",
             ),
             Err(SshBootstrapTransportError::InvalidResponse)
+        );
+    }
+
+    #[cfg(feature = "native-ssh")]
+    #[test]
+    fn native_retirement_transport_accepts_only_the_bound_terminal_response() {
+        use leserpent_protocol::bootstrap_retirement::{
+            BOOTSTRAP_RETIREMENT_SCHEMA_VERSION, BootstrapRetirementResponse,
+            encode_bootstrap_retirement_response,
+        };
+
+        let request = BootstrapRetirementRequest::new(
+            "retire-bootstrap-1",
+            BootstrapId::new("bootstrap-1").unwrap(),
+            DaemonId::new("daemon-host-example").unwrap(),
+            "a".repeat(64),
+            "user",
+        )
+        .unwrap();
+        let response = BootstrapRetirementResponse {
+            schema_version: BOOTSTRAP_RETIREMENT_SCHEMA_VERSION,
+            retirement_id: request.retirement_id.clone(),
+            bootstrap_id: request.bootstrap_id.clone(),
+            daemon_id: request.daemon_id.clone(),
+            generation: request.generation.clone(),
+            service_retired: true,
+            replayed: false,
+        };
+        let encoded = encode_bootstrap_retirement_response(&response).unwrap();
+        assert_eq!(
+            validate_retirement_outcome(&request, &encoded).unwrap(),
+            response
+        );
+
+        let mut forged = response;
+        forged.daemon_id = DaemonId::new("daemon-attacker").unwrap();
+        let encoded = encode_bootstrap_retirement_response(&forged).unwrap();
+        assert_eq!(
+            validate_retirement_outcome(&request, &encoded),
+            Err(SshBootstrapRetirementTransportError::InvalidResponse)
+        );
+
+        let mut invalid = request;
+        invalid.install_profile = "portable".into();
+        let target = target();
+        let password = SecretValue::new("ssh-password").unwrap();
+        let artifact = BootstrapArtifact::new(
+            Arc::<[u8]>::from(b"native-installer".as_slice()),
+            "/tmp/leserpent-bootstrap",
+        )
+        .unwrap();
+        assert_eq!(
+            NativeSshBootstrapTransport::default().retire(SshBootstrapRetirementJob {
+                request: &invalid,
+                target: &target,
+                username: "deployer",
+                host_key_sha256: "SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDE",
+                ssh_password: &password,
+                artifact: &artifact,
+            }),
+            Err(SshBootstrapRetirementTransportError::InvalidRequest)
+        );
+    }
+
+    #[cfg(feature = "native-ssh")]
+    #[test]
+    fn bootstrap_retirement_uses_an_operation_specific_staging_path() {
+        let artifact = BootstrapArtifact::new(
+            Arc::<[u8]>::from(b"native-installer".as_slice()),
+            "/tmp/leserpent-bootstrap",
+        )
+        .unwrap();
+        assert_eq!(
+            artifact.retirement_staging_path("retire-bootstrap-1"),
+            "/tmp/leserpent-bootstrap-retire-retire-bootstrap-1.stage"
         );
     }
 }

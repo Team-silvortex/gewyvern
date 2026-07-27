@@ -343,8 +343,19 @@ pointer, and selected executable generation but deliberately preserves state
 and logs. The macOS process proof executes both native entries against an
 isolated user home. Cleanup rechecks generation, manifest, current pointer, and
 descriptor ownership after service stop, fencing a stale crashed retirement
-from deleting a replacement generation. Controller-side SSH submission and physical Linux
-retirement evidence remain separate delivery gates.
+from deleting a replacement generation. Controller-side retirement now reuses
+the pinned Rust SSH/SFTP transport with an operation-specific staging path and a
+separate bounded stdin/stdout frame. The native deployment outcome returns the
+validated immutable generation to this transport; retirement accepts only a fully identity-bound
+terminal response. A physical Linux systemd-user vertical rejects a forged
+generation, retires the correct daemon, replays the exact request, and verifies
+that the unit, process, listener, descriptor, current pointer, generation, and
+staging artifact are absent while private state, logs, and the mode-`0600`
+terminal marker remain. Installer admission scans a bounded private retirement
+index and rejects any matching retired generation, preventing an exact old
+deployment identity from resurrecting after uninstall. Terminal retirement
+replay also rechecks that the generation, current pointer, and descriptor remain
+absent before reporting success.
 
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrated schema-11 `bootstrap_handoffs` rows into the
@@ -471,6 +482,18 @@ bootstrap, daemon, session, trust, authority, and protocol identities, and uses 
 checkpoint revision CAS before publishing `SessionBound`. The bootstrap vault
 handle is removed from the current checkpoint at that boundary; raw passwords,
 tokens, CA PEM, and private keys never enter the journal.
+
+New ready outcomes also carry the installer's validated 64-character generation
+and the controller policy's fixed install profile into both `Bootstrapped` and
+`SessionBound` checkpoints. Worker settlement rejects a newly completed
+deployment that omits either value, and the adapter rejects profile drift before
+persisting trust. The public snapshot extension defaults both fields when the
+current decoder reads legacy wire or journal payloads: checkpoints with neither
+value remain readable and usable for existing session control, but are explicitly
+ineligible for generation-fenced bootstrap retirement. This is one-way
+backward-read compatibility; strict older clients correctly reject the expanded
+new response instead of silently discarding authority. Avalonia's AOT decoder
+preserves the same pair and rejects partial, malformed, or unsupported metadata.
 
 This closes durable handoff recovery but not the product entrypoint. The
 authenticated IPC/HTTPS wire now supports checkpoint query and confirmed

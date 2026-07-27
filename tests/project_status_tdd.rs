@@ -2270,9 +2270,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/reverse-bootstrap")
         .expect("reverse deployment bootstrap must be tracked independently");
     assert_eq!(bootstrap.maturity, Maturity::Developing);
-    assert_eq!(bootstrap.completion, 98);
+    assert_eq!(bootstrap.completion, 99);
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
-    assert_eq!(bootstrap.contract.version, "0.19.0");
+    assert_eq!(bootstrap.contract.version, "0.21.0");
     assert!(
         bootstrap
             .contract
@@ -2316,6 +2316,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "generation-fenced-retirement-cleanup",
         "retained-bootstrap-state-and-logs",
         "macos-native-install-retirement-process-proof",
+        "transport-returned-bootstrap-generation",
+        "pinned-native-ssh-bootstrap-retirement",
+        "operation-specific-retirement-staging",
+        "forged-generation-retirement-rejection",
+        "physical-linux-bootstrap-retirement",
+        "cross-host-bootstrap-retirement-replay",
+        "post-retirement-residue-audit",
+        "retired-generation-reinstall-fence",
+        "terminal-retirement-absence-proof",
+        "validated-install-generation-checkpoint",
+        "install-profile-authority-binding",
+        "legacy-checkpoint-retirement-ineligibility",
+        "avalonia-retirement-authority-projection",
     ] {
         assert!(
             bootstrap
@@ -2328,7 +2341,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(bootstrap.blockers.iter().any(|blocker| {
         blocker.id == "cross-platform-bootstrap-installation-incomplete"
-            && blocker.summary.contains("native macOS process proof")
+            && blocker.summary.contains("pinned-SSH Linux systemd-user")
+    }));
+    assert!(bootstrap.evidence.iter().any(|evidence| {
+        evidence.path == "docs/fixtures/leserpent_real_ssh_bootstrap_retirement_20260727.json"
     }));
     assert!(
         !bootstrap

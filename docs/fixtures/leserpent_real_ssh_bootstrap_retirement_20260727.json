@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-07-27",
+  "version": "1.10.0",
+  "target": {
+    "os": "linux",
+    "arch": "x86_64",
+    "host_id_sha256": "734d6b3fb4778119bbf7010d94157466f40f860a003f057574e1d066d58b6c3d",
+    "ssh_host_key_sha256": "SHA256:1Avwm67cEqHvgz83C/mTUKQjl3vrEI+bX/wzbsoy0kg",
+    "service_manager": "systemd-user"
+  },
+  "artifact": {
+    "format": "elf-pie",
+    "sha256": "343376f724aa244c0e8caff267c4c5906cf0e9b08a47c1321ed36b58bd88dbd0",
+    "bytes": 13987304,
+    "stripped": false
+  },
+  "transport": {
+    "implementation": "NativeSshBootstrapTransport",
+    "shell_entrypoint": false,
+    "host_key_pinned": true,
+    "operation_specific_staging": true,
+    "request_and_response_bounded_bytes": 65536,
+    "staging_retained_after_proof": false
+  },
+  "proof": {
+    "service_ready_before_retirement": true,
+    "session_bound_before_retirement": true,
+    "transport_returned_generation": true,
+    "forged_generation_rejected": true,
+    "identity_bound_retirement_succeeded": true,
+    "exact_retirement_replay_succeeded": true,
+    "retired_generation_reinstall_rejected": true,
+    "terminal_marker_mode": "0600",
+    "terminal_marker_phase": "retired",
+    "state_retained": true,
+    "logs_retained": true,
+    "current_pointer_absent": true,
+    "generations_clear": true,
+    "service_descriptor_absent": true,
+    "service_inactive": true,
+    "service_disabled_or_absent": true,
+    "daemon_process_absent": true,
+    "endpoint_port_clear": true,
+    "staging_absent": true
+  },
+  "elapsed_seconds": 84.35,
+  "secrets_retained": false
+}

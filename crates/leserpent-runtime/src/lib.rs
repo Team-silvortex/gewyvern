@@ -3913,6 +3913,8 @@ mod tests {
                     leserpent_domain::bootstrap::DaemonId::new("daemon-host-example").unwrap(),
                 ),
                 endpoint: Some("https://host.example:9443/".into()),
+                generation: Some("a".repeat(64)),
+                install_profile: Some("system".into()),
                 session_credential_handle: Some(
                     leserpent_domain::bootstrap::CredentialHandle::new(
                         "vault:leserpentd:host-example",
