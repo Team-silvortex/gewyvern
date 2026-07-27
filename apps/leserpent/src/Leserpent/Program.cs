@@ -44,7 +44,16 @@ public partial class Program
             var daemon = services.GetRequiredService<DaemonOrchestraRunStore>();
             return daemon.Enabled ? daemon : services.GetRequiredService<SqliteOrchestraRunStore>();
         });
-        builder.Services.AddSingleton<RegistryService>();
+        builder.Services.AddSingleton<
+            OrchestraDeleteCheckpointWorkerLease>();
+        builder.Services.AddSingleton<RegistryService>(services =>
+            new RegistryService(
+                services.GetRequiredService<
+                    ControlPlaneStateStore>(),
+                services.GetRequiredService<
+                    IOrchestraRunStore>(),
+                services.GetRequiredService<
+                    OrchestraDeleteCheckpointWorkerLease>()));
         builder.Services.AddSingleton<ICompatibilityBridge, RustCompatibilityBridge>();
         builder.Services.AddSingleton<IDeploymentAuthority, DaemonDeploymentAuthority>();
         builder.Services.AddSingleton<DaemonRuntimeRegistrationAuthority>();
@@ -57,8 +66,27 @@ public partial class Program
         builder.Services.AddSingleton(
             OrchestraDeleteCheckpointWorkerOptions.Default);
         builder.Services.AddSingleton<
-            IOrchestraDeleteCheckpointAlertSink,
             LoggingOrchestraDeleteCheckpointAlertSink>();
+        builder.Services.AddHttpClient(
+                OrchestraDeleteCheckpointAlertSinkFactory
+                    .HttpClientName,
+                client =>
+                {
+                    client.Timeout = TimeSpan.FromSeconds(5);
+                })
+            .ConfigurePrimaryHttpMessageHandler(() =>
+                new SocketsHttpHandler
+                {
+                    AllowAutoRedirect = false,
+                });
+        builder.Services.AddSingleton<
+            IOrchestraDeleteCheckpointAlertSink>(services =>
+                OrchestraDeleteCheckpointAlertSinkFactory.Create(
+                    services.GetRequiredService<IConfiguration>(),
+                    services.GetRequiredService<
+                        IHttpClientFactory>(),
+                    services.GetRequiredService<
+                        LoggingOrchestraDeleteCheckpointAlertSink>()));
         builder.Services.AddHostedService<
             OrchestraDeleteCheckpointService>();
         builder.Services.AddSingleton<RuntimeReadProjectionService>();

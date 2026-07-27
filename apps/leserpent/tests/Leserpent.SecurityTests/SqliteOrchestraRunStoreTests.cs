@@ -489,9 +489,11 @@ public sealed class SqliteOrchestraRunStoreTests
                 Array.Empty<PersistedRuntimeState>(),
                 Array.Empty<PersistedSessionState>(),
                 runtimeDeletionReconciliationAudit: audits[1..]);
-            _ = new RegistryService(
+            var compactionRegistry = new RegistryService(
                 CreateStateStore(statePath),
                 CreateSqliteStore(databasePath));
+            compactionRegistry
+                .RunOrchestraDeleteCheckpointMaintenance();
             var compacted = CreateSqliteStore(databasePath)
                 .GetDeleteReplayHorizon();
             Assert.NotNull(compacted);
@@ -545,10 +547,12 @@ public sealed class SqliteOrchestraRunStoreTests
                 Array.Empty<PersistedRuntimeState>(),
                 Array.Empty<PersistedSessionState>(),
                 runtimeDeletionReconciliationAudit: audits);
-            var error = Assert.Throws<OrchestraPersistenceException>(() =>
-                new RegistryService(
+            var outsideHorizonRegistry = new RegistryService(
                     CreateStateStore(statePath),
-                    CreateSqliteStore(databasePath)));
+                    CreateSqliteStore(databasePath));
+            var error = Assert.Throws<OrchestraPersistenceException>(
+                outsideHorizonRegistry
+                    .RunOrchestraDeleteCheckpointMaintenance);
             Assert.Contains(
                 "outside the durable replay horizon",
                 error.Message,

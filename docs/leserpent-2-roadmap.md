@@ -1166,10 +1166,31 @@ crash-safe retry idempotency-capable without pretending exactly-once delivery.
 The default structured-log sink and replaceable sink boundary contain no
 credentials. A worker restart activity leaves daemon and sink unavailable,
 reloads the pending attempt, restores both, and proves checkpoint recovery plus
-outbox drainage without operator polling. The next gate adds lease-fenced
-worker ownership and an authenticated configurable alert sink, then proves
-duplicate service hosts cannot duplicate authority mutations or operator
-notifications.
+outbox drainage without operator polling.
+
+The following ownership gate is now complete. Checkpoint work requires an
+owner-private
+process-lifetime lease keyed by the canonical state path. Atomic owner metadata
+binds PID, process start time, and a random release token; live duplicate
+processes remain standby, while a newly loaded process can reclaim a
+force-killed owner record. Active owners revalidate their token before
+maintenance and external alert delivery, stopping safely when the record is
+removed, replaced, malformed, or unsafe. Registry synchronization entry points
+are ownership-gated, and already-covered audit generations no longer repeat
+authority checkpoint mutations. This is intentionally not a general
+active-active JSON control-plane contract. A real child-process harness proves
+live exclusion, graceful release, and stale-owner recovery; a dual-host
+activity proves one mutation and one notification.
+
+Operators may now replace the default structured-log sink with a strict HTTPS
+sink using `LESERPENT_CHECKPOINT_ALERT_ENDPOINT` plus an owner-private absolute
+`LESERPENT_CHECKPOINT_ALERT_TOKEN_FILE`. Inline secrets, partial configuration,
+non-HTTPS endpoints, symlinks, unsafe permissions, redirects, and malformed
+tokens fail closed. Wire-v1 delivery carries Bearer authentication, stable
+idempotency and generation headers, and a bounded public JSON envelope. The next
+gate exposes lease/sink health through authenticated status and retains physical
+Linux duplicate-host evidence before evaluating a broader control-plane
+single-writer fence.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

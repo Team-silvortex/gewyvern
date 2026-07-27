@@ -794,9 +794,36 @@ Complete state validation bounds the outbox to 256 entries and rejects
 duplicate, malformed, or future-monitor generations. A real hosted-service
 restart test holds both daemon and sink unavailable, reloads the persisted
 attempt, restores them, and proves checkpoint health plus outbox drainage
-without calling the status endpoint. The next gate adds lease-fenced worker
-ownership and an authenticated configurable alert sink, then proves duplicate
-service hosts cannot duplicate authority mutations or operator notifications.
+without calling the status endpoint.
+
+Checkpoint and outbox execution now require one process-lifetime worker lease
+derived from the canonical control-state path. A named mutex serializes only
+lease acquisition and release; an owner-private, non-symlink owner record is
+published with `CreateNew` and binds the PID, process start time, and a random
+release token. The owner revalidates that token from disk before maintenance
+and external alert delivery, and stops safely if the record is missing,
+replaced, malformed, or unsafe. A live duplicate host remains standby and every
+Registry checkpoint entry point checks ownership, including request/replay and
+status paths. A process killed while owning the lease leaves a record that a
+freshly loaded process may reclaim only after proving that exact PID/start pair
+is no longer alive. Runtime takeover is deliberately forbidden for an
+already-loaded standby Registry because its wider compatibility projection may
+be stale.
+This fence owns checkpoint work only; it does not declare the JSON control plane
+safe for general active-active writes. In-process dual-host and real child-process
+tests prove one authority mutation, one alert delivery, live-owner exclusion,
+runtime token-loss fencing, token-bound release, and force-kill recovery.
+
+The sink boundary now has an optional authenticated HTTP implementation.
+`LESERPENT_CHECKPOINT_ALERT_ENDPOINT` must be HTTPS and is configured together
+with an absolute `LESERPENT_CHECKPOINT_ALERT_TOKEN_FILE`; inline token
+configuration, symlinked files, unsafe Unix modes, redirects, malformed tokens,
+and partial configuration fail closed. Delivery uses a five-second client
+budget, Bearer authentication, source-generated wire-v1 JSON, the durable event
+ID as `Idempotency-Key`, and an explicit alert-generation header. The logging
+sink remains the credential-free default. The next gate exposes lease and sink
+health through authenticated status and retains physical Linux duplicate-host
+evidence before considering any broader control-plane single-writer fence.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

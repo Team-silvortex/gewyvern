@@ -376,7 +376,7 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
             Assert.Equal(
                 new[] { pending.EventId },
                 recoveredSink.AttemptedEventIds);
-            Assert.True(runStore.HorizonReadCount >= 3);
+            Assert.True(runStore.HorizonReadCount >= 2);
         }
         finally
         {

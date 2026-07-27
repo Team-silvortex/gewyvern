@@ -4,6 +4,40 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 
+if (args.Length == 2 &&
+    string.Equals(
+        args[0],
+        "checkpoint-worker-lease-hold",
+        StringComparison.Ordinal))
+{
+    var leaseStatePath = Path.GetFullPath(args[1]);
+    var leaseConfiguration = new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["LESERPENT_STATE_PATH"] = leaseStatePath,
+        })
+        .Build();
+    var leaseStore = new ControlPlaneStateStore(
+        leaseConfiguration,
+        new HarnessEnvironment
+        {
+            ContentRootPath =
+                Path.GetDirectoryName(leaseStatePath)!,
+        },
+        NullLogger<ControlPlaneStateStore>.Instance);
+    using var lease =
+        new OrchestraDeleteCheckpointWorkerLease(leaseStore);
+    if (!lease.TryAcquire())
+    {
+        Console.Error.WriteLine("checkpoint worker lease unavailable");
+        return 73;
+    }
+    Console.WriteLine("checkpoint-worker-lease-held");
+    await Console.Out.FlushAsync();
+    _ = await Console.In.ReadLineAsync();
+    return 0;
+}
+
 if (args.Length != 5)
 {
     Console.Error.WriteLine(

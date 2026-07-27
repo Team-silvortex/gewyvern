@@ -1,31 +1,5 @@
 namespace Leserpent.ControlPlane;
 
-public interface IOrchestraDeleteCheckpointAlertSink
-{
-    Task DeliverAsync(
-        PersistedOrchestraDeleteCheckpointAlertDelivery delivery,
-        CancellationToken cancellationToken);
-}
-
-public sealed class LoggingOrchestraDeleteCheckpointAlertSink(
-    ILogger<LoggingOrchestraDeleteCheckpointAlertSink> logger) :
-    IOrchestraDeleteCheckpointAlertSink
-{
-    public Task DeliverAsync(
-        PersistedOrchestraDeleteCheckpointAlertDelivery delivery,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        logger.LogCritical(
-            "Orchestra delete replay checkpoint alert {EventId} generation {AlertGeneration}: {FailureCode}, pressure {AdmissionPressure}.",
-            delivery.EventId,
-            delivery.AlertGeneration,
-            delivery.FailureCode,
-            delivery.AdmissionPressure);
-        return Task.CompletedTask;
-    }
-}
-
 public sealed record OrchestraDeleteCheckpointWorkerOptions(
     TimeSpan IdleDelay,
     TimeSpan ReadyDelay)
@@ -40,7 +14,8 @@ public sealed class OrchestraDeleteCheckpointService(
     RegistryService registry,
     IOrchestraDeleteCheckpointAlertSink alertSink,
     ILogger<OrchestraDeleteCheckpointService> logger,
-    OrchestraDeleteCheckpointWorkerOptions? options = null) :
+    OrchestraDeleteCheckpointWorkerOptions? options = null,
+    OrchestraDeleteCheckpointWorkerLease? workerLease = null) :
     BackgroundService
 {
     private const int MaxDeliveryBatchSize = 8;
@@ -51,8 +26,35 @@ public sealed class OrchestraDeleteCheckpointService(
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
+        if (workerLease is not null &&
+            !workerLease.TryAcquire())
+        {
+            logger.LogWarning(
+                "Checkpoint worker lease {LeasePath} is already owned; this service host will not run checkpoint or alert-delivery work.",
+                workerLease.LeasePath);
+            try
+            {
+                await Task.Delay(
+                    Timeout.InfiniteTimeSpan,
+                    stoppingToken);
+            }
+            catch (OperationCanceledException) when (
+                stoppingToken.IsCancellationRequested)
+            {
+            }
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (workerLease is not null &&
+                !workerLease.IsHeld)
+            {
+                logger.LogWarning(
+                    "Checkpoint worker lease {LeasePath} was lost; this service host is stopping checkpoint and alert-delivery work.",
+                    workerLease.LeasePath);
+                return;
+            }
             try
             {
                 registry.RunOrchestraDeleteCheckpointMaintenance();
@@ -85,6 +87,15 @@ public sealed class OrchestraDeleteCheckpointService(
                 if (delivery is null)
                 {
                     break;
+                }
+                if (workerLease is not null &&
+                    !workerLease.IsHeld)
+                {
+                    logger.LogWarning(
+                        "Checkpoint worker lease {LeasePath} was lost before alert {EventId} delivery; this service host is stopping.",
+                        workerLease.LeasePath,
+                        delivery.EventId);
+                    return;
                 }
 
                 try

@@ -46,6 +46,8 @@ public sealed partial class RegistryService
     private readonly ControlPlaneStateStore stateStore;
     private readonly IOrchestraRunStore orchestraRunStore;
     private readonly TimeProvider timeProvider;
+    private readonly OrchestraDeleteCheckpointWorkerLease?
+        checkpointWorkerLease;
     private readonly DateTimeOffset? restoredFromSavedAt;
     private OrchestraDeleteReplayAdmissionPressure
         orchestraDeleteReplayAdmissionPressure =
@@ -75,7 +77,23 @@ public sealed partial class RegistryService
     public RegistryService(
         ControlPlaneStateStore stateStore,
         IOrchestraRunStore orchestraRunStore)
-        : this(stateStore, orchestraRunStore, TimeProvider.System)
+        : this(
+            stateStore,
+            orchestraRunStore,
+            TimeProvider.System,
+            checkpointWorkerLease: null)
+    {
+    }
+
+    public RegistryService(
+        ControlPlaneStateStore stateStore,
+        IOrchestraRunStore orchestraRunStore,
+        OrchestraDeleteCheckpointWorkerLease checkpointWorkerLease)
+        : this(
+            stateStore,
+            orchestraRunStore,
+            TimeProvider.System,
+            checkpointWorkerLease)
     {
     }
 
@@ -83,10 +101,25 @@ public sealed partial class RegistryService
         ControlPlaneStateStore stateStore,
         IOrchestraRunStore orchestraRunStore,
         TimeProvider timeProvider)
+        : this(
+            stateStore,
+            orchestraRunStore,
+            timeProvider,
+            checkpointWorkerLease: null)
+    {
+    }
+
+    private RegistryService(
+        ControlPlaneStateStore stateStore,
+        IOrchestraRunStore orchestraRunStore,
+        TimeProvider timeProvider,
+        OrchestraDeleteCheckpointWorkerLease?
+            checkpointWorkerLease)
     {
         this.stateStore = stateStore;
         this.orchestraRunStore = orchestraRunStore;
         this.timeProvider = timeProvider;
+        this.checkpointWorkerLease = checkpointWorkerLease;
         var loaded = stateStore.Load();
         restoredFromSavedAt = loaded?.SavedAt;
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
@@ -102,7 +135,6 @@ public sealed partial class RegistryService
             orchestraDeleteCheckpointMonitor?.AdmissionPressure ??
                 OrchestraDeleteReplayAdmissionPressure.Healthy;
         RestoreOrMigrateOrchestraRuns();
-        SynchronizeOrchestraDeleteReplayCheckpoint();
     }
 
     public RuntimeRegistrationResponse RegisterRuntime(
@@ -1318,6 +1350,11 @@ public sealed partial class RegistryService
         {
             return;
         }
+        if (checkpointWorkerLease is not null &&
+            !checkpointWorkerLease.IsHeld)
+        {
+            return;
+        }
         var now = timeProvider.GetUtcNow();
         if (orchestraDeleteCheckpointMonitor is
             { ConsecutiveFailureCount: > 0, NextRetryAt: not null }
@@ -1359,6 +1396,11 @@ public sealed partial class RegistryService
     {
         lock (persistenceSync)
         {
+            if (checkpointWorkerLease is not null &&
+                !checkpointWorkerLease.IsHeld)
+            {
+                return null;
+            }
             var now = timeProvider.GetUtcNow();
             var delivery = orchestraDeleteCheckpointAlertOutbox
                 .FirstOrDefault(candidate =>
@@ -1400,6 +1442,11 @@ public sealed partial class RegistryService
     {
         lock (persistenceSync)
         {
+            if (checkpointWorkerLease is not null &&
+                !checkpointWorkerLease.IsHeld)
+            {
+                return;
+            }
             var remaining = orchestraDeleteCheckpointAlertOutbox
                 .Where(delivery => !string.Equals(
                     delivery.EventId,
@@ -1427,6 +1474,11 @@ public sealed partial class RegistryService
     {
         lock (persistenceSync)
         {
+            if (checkpointWorkerLease is not null &&
+                !checkpointWorkerLease.IsHeld)
+            {
+                return;
+            }
             var delivery = orchestraDeleteCheckpointAlertOutbox
                 .FirstOrDefault(candidate => string.Equals(
                     candidate.EventId,
@@ -1528,8 +1580,16 @@ public sealed partial class RegistryService
         {
             var minimum = generations[0];
             var observedThrough = generations[^1];
-            checkpointed =
-                orchestraRunStore.CheckpointDeleteReplayHorizon(
+            var alreadyCheckpointed =
+                before.ProtectedFromGeneration == minimum &&
+                before.OldestGeneration == minimum &&
+                before.NewestGeneration >= observedThrough &&
+                before.CheckpointedThroughGeneration >=
+                    observedThrough &&
+                before.EvictedThroughGeneration < minimum;
+            checkpointed = alreadyCheckpointed
+                ? before
+                : orchestraRunStore.CheckpointDeleteReplayHorizon(
                     new OrchestraDeleteReplayCheckpoint(
                         minimum,
                         observedThrough));
