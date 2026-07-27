@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Leserpent.ControlPlane;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -16,6 +17,69 @@ namespace Leserpent.SecurityTests;
 
 public sealed class RuntimeDeletionReconciliationEndpointTests
 {
+    [Fact]
+    public async Task CleanupReplayStatusExposesCheckpointLagAndRecoveryThresholds()
+    {
+        var statePath = TemporaryStatePath();
+        var databasePath = statePath + ".db";
+        try
+        {
+            var orchestraStore = CreateSqliteStore(databasePath);
+            var registry = CreateRegistry(statePath, orchestraStore);
+            var receipt = orchestraStore.DeleteRuntimes(
+                new OrchestraDeleteCommand(
+                    "orchestra-cleanup-status",
+                    new[] { "runtime-cleanup-status" }));
+            Assert.NotNull(receipt);
+
+            await using var app = await BuildTestAppAsync(
+                registry,
+                FakeDaemonProjectionReader.Disabled);
+            var response = await app.GetTestClient().GetAsync(
+                "/v1/persistence/orchestra-cleanup-replay-status");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var json = await response.Content.ReadAsStringAsync();
+            using var document = JsonDocument.Parse(json);
+            Assert.Equal(
+                512UL,
+                document.RootElement
+                    .GetProperty("warningAvailableCapacity")
+                    .GetUInt64());
+            Assert.Equal(
+                128UL,
+                document.RootElement
+                    .GetProperty("criticalAvailableCapacity")
+                    .GetUInt64());
+            Assert.Equal(
+                768UL,
+                document.RootElement
+                    .GetProperty("warningRecoveryAvailableCapacity")
+                    .GetUInt64());
+            Assert.Equal(
+                256UL,
+                document.RootElement
+                    .GetProperty("criticalRecoveryAvailableCapacity")
+                    .GetUInt64());
+            var status = await response.Content.ReadFromJsonAsync(
+                LeserpentJsonContext.Default
+                    .OrchestraDeleteReplayCheckpointStatus);
+            Assert.NotNull(status);
+            Assert.Equal(1UL, status.Horizon.CheckpointLagGenerations);
+            Assert.Null(status.Horizon.CheckpointedThroughGeneration);
+            Assert.Null(status.MinimumAuditedGeneration);
+            Assert.Null(status.ObservedThroughAuditedGeneration);
+            Assert.False(status.LastAutomaticCheckpointAdvanced);
+            Assert.Null(status.LastAutomaticCheckpointAt);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+            File.Delete(databasePath);
+            File.Delete(databasePath + "-wal");
+            File.Delete(databasePath + "-shm");
+        }
+    }
+
     [Fact]
     public async Task ReconciliationIsRevisionBoundDurableAndReplayable()
     {
@@ -437,6 +501,25 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
                 },
                 NullLogger<ControlPlaneStateStore>.Instance),
             runStore);
+    }
+
+    private static SqliteOrchestraRunStore CreateSqliteStore(
+        string databasePath)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_DATABASE_PATH"] = databasePath,
+            })
+            .Build();
+        return new SqliteOrchestraRunStore(
+            configuration,
+            new TestHostEnvironment
+            {
+                ContentRootPath =
+                    Path.GetDirectoryName(databasePath)!,
+            },
+            NullLogger<SqliteOrchestraRunStore>.Instance);
     }
 
     private static async Task<WebApplication> BuildTestAppAsync(

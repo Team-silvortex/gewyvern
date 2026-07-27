@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -34,6 +35,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         "retry_acknowledged",
         "retry_daemon_committed",
     };
+    private static readonly ConditionalWeakTable<
+        Process,
+        BoundedProcessOutput> DaemonOutput = new();
 
     [Fact]
     public void ConfigurationIsExplicitAndFailClosed()
@@ -1005,11 +1009,37 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 Assert.True(result.ExpectedCompletionOrderObserved);
                 Assert.True(result.FinalHorizonAdmissionSafe);
             });
+            var auditCheckpointDaemonRestart =
+                await ExecuteAuditCheckpointDaemonRestartAsync(
+                    daemonBinary);
+            Assert.True(
+                auditCheckpointDaemonRestart.DaemonRestarted);
+            Assert.True(
+                auditCheckpointDaemonRestart
+                    .CheckpointLagBeforeDaemonRestart > 0);
+            Assert.Equal(
+                0UL,
+                auditCheckpointDaemonRestart
+                    .CheckpointLagAfterDaemonRestart);
+            Assert.Equal(
+                auditCheckpointDaemonRestart.AuditGeneration,
+                auditCheckpointDaemonRestart
+                    .CheckpointedThroughGeneration);
+            Assert.True(
+                auditCheckpointDaemonRestart
+                    .AutomaticCheckpointStatusReported);
             WriteRuntimeDeletionCrossAuthorityEvidenceIfRequested(
                 iterations,
                 daemonSnapshot.Revision,
                 results,
-                cleanupCheckpointRaces);
+                cleanupCheckpointRaces,
+                auditCheckpointDaemonRestart);
+        }
+        catch (Exception error)
+        {
+            throw new InvalidOperationException(
+                $"cross-authority campaign failed; leserpentd output:{Environment.NewLine}{CapturedDaemonOutput(daemon)}",
+                error);
         }
         finally
         {
@@ -2926,8 +2956,25 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         start.ArgumentList.Add("--socket");
         start.ArgumentList.Add(socketPath);
         start.Environment["LESERPENT_IPC_TOKEN"] = Token;
-        return Process.Start(start) ?? throw new InvalidOperationException("failed to start leserpentd");
+        var process = Process.Start(start) ??
+            throw new InvalidOperationException(
+                "failed to start leserpentd");
+        var output = DaemonOutput.GetValue(
+            process,
+            static _ => new BoundedProcessOutput());
+        process.OutputDataReceived += (_, args) =>
+            output.Append("stdout", args.Data);
+        process.ErrorDataReceived += (_, args) =>
+            output.Append("stderr", args.Data);
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        return process;
     }
+
+    private static string CapturedDaemonOutput(Process daemon) =>
+        DaemonOutput.TryGetValue(daemon, out var output)
+            ? output.Snapshot()
+            : "no daemon output was captured";
 
     private static void CreateRuntimeDeletionRetryAtomicRolloverBaseline(
         string statePath)
@@ -3567,6 +3614,145 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             ExpectedCompletionOrderObserved:
                 expectedCompletionOrderObserved,
             FinalHorizonAdmissionSafe: true);
+    }
+
+    private static async Task<AuditCheckpointDaemonRestartResult>
+        ExecuteAuditCheckpointDaemonRestartAsync(
+            string daemonBinary)
+    {
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var statePath = socketPath + ".state.json";
+        using var daemon = new RestartableTestDaemon(
+            daemonBinary,
+            databasePath,
+            socketPath);
+        try
+        {
+            await daemon.StartAsync();
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LESERPENT_STATE_PATH"] = statePath,
+                        ["LESERPENT_DAEMON_SOCKET"] = socketPath,
+                        ["LESERPENT_DAEMON_TOKEN"] = Token,
+                        ["LESERPENT_DAEMON_ORCHESTRA_TIMEOUT_MS"] =
+                            "10000",
+                    })
+                .Build();
+            var orchestraStore = new DaemonOrchestraRunStore(
+                configuration,
+                NullLogger<DaemonOrchestraRunStore>.Instance);
+            var first = Assert.IsType<OrchestraDeleteReceipt>(
+                orchestraStore.DeleteRuntimes(
+                    new OrchestraDeleteCommand(
+                        "orchestra-cleanup-audit-restart-1",
+                        new[] { "runtime-audit-restart-1" })));
+            var second = Assert.IsType<OrchestraDeleteReceipt>(
+                orchestraStore.DeleteRuntimes(
+                    new OrchestraDeleteCommand(
+                        "orchestra-cleanup-audit-restart-2",
+                        new[] { "runtime-audit-restart-2" })));
+            Assert.Equal(
+                checked(first.OperationGeneration + 1),
+                second.OperationGeneration);
+            var before = Assert.IsType<
+                OrchestraDeleteReplayHorizon>(
+                    orchestraStore.GetDeleteReplayHorizon());
+            Assert.Null(before.CheckpointedThroughGeneration);
+            Assert.Equal(2UL, before.CheckpointLagGenerations);
+
+            var stateStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(
+                    Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            stateStore.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                runtimeDeletionReconciliationAudit:
+                [
+                    new PersistedRuntimeDeletionReconciliationAudit(
+                        "reconcile-request-audit-restart",
+                        "delete-intent-audit-restart",
+                        second.RuntimeIds,
+                        1,
+                        2,
+                        "operator-a",
+                        DateTimeOffset.UtcNow,
+                        second.CommandId,
+                        second.OperationGeneration),
+                ]);
+
+            daemon.StopGracefully();
+            await daemon.StartAsync();
+            var restartedRegistry = new RegistryService(
+                new ControlPlaneStateStore(
+                    configuration,
+                    new CrashTestEnvironment(
+                        Path.GetDirectoryName(statePath)!),
+                    NullLogger<ControlPlaneStateStore>.Instance),
+                new DaemonOrchestraRunStore(
+                    configuration,
+                    NullLogger<DaemonOrchestraRunStore>.Instance));
+            var status = Assert.IsType<
+                OrchestraDeleteReplayCheckpointStatus>(
+                    restartedRegistry
+                        .GetOrchestraDeleteReplayCheckpointStatus());
+            Assert.Equal(
+                second.OperationGeneration,
+                status.MinimumAuditedGeneration);
+            Assert.Equal(
+                second.OperationGeneration,
+                status.ObservedThroughAuditedGeneration);
+            Assert.Equal(
+                second.OperationGeneration,
+                status.Horizon.OldestGeneration);
+            Assert.Equal(
+                second.OperationGeneration,
+                status.Horizon.ProtectedFromGeneration);
+            Assert.Equal(
+                second.OperationGeneration,
+                status.Horizon.CheckpointedThroughGeneration);
+            Assert.Equal(
+                0UL,
+                status.Horizon.CheckpointLagGenerations);
+            Assert.True(status.LastAutomaticCheckpointAdvanced);
+            Assert.NotNull(status.LastAutomaticCheckpointAt);
+
+            return new AuditCheckpointDaemonRestartResult(
+                before.CheckpointLagGenerations,
+                status.Horizon.CheckpointLagGenerations,
+                second.OperationGeneration,
+                status.Horizon.CheckpointedThroughGeneration!.Value,
+                DaemonRestarted: true,
+                AutomaticCheckpointStatusReported: true);
+        }
+        finally
+        {
+            daemon.Stop();
+            foreach (var path in new[]
+            {
+                socketPath,
+                databasePath,
+                databasePath + "-journal",
+                databasePath + "-wal",
+                databasePath + "-shm",
+                statePath,
+                statePath + ".bak",
+                statePath + ".tmp",
+            })
+            {
+                TryDelete(path);
+            }
+            foreach (var path in Directory.GetFiles(
+                Path.GetDirectoryName(statePath)!,
+                $"{Path.GetFileName(statePath)}.*.tmp"))
+            {
+                TryDelete(path);
+            }
+        }
     }
 
     private static void SeedCleanupReplayHorizonToOneAvailableSlot(
@@ -5791,7 +5977,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             ulong daemonRevision,
             IReadOnlyList<RuntimeDeletionCrossAuthorityResult> results,
             IReadOnlyList<CleanupCheckpointRaceResult>
-                cleanupCheckpointRaces)
+                cleanupCheckpointRaces,
+            AuditCheckpointDaemonRestartResult
+                auditCheckpointDaemonRestart)
     {
         var evidencePath = Environment.GetEnvironmentVariable(
             "LESERPENT_RUNTIME_DELETION_CROSS_AUTHORITY_EVIDENCE");
@@ -5816,7 +6004,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             .ToArray();
         var evidence = new
         {
-            schema_version = 2,
+            schema_version = 3,
             observed_at = DateTimeOffset.UtcNow,
             platform = Environment.OSVersion.Platform.ToString(),
             architecture =
@@ -5846,6 +6034,20 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                     cleanup_generation =
                         result.CleanupGeneration,
                 }),
+            audit_checkpoint_daemon_restart = new
+            {
+                checkpoint_lag_before_daemon_restart =
+                    auditCheckpointDaemonRestart
+                        .CheckpointLagBeforeDaemonRestart,
+                checkpoint_lag_after_daemon_restart =
+                    auditCheckpointDaemonRestart
+                        .CheckpointLagAfterDaemonRestart,
+                audit_generation =
+                    auditCheckpointDaemonRestart.AuditGeneration,
+                checkpointed_through_generation =
+                    auditCheckpointDaemonRestart
+                        .CheckpointedThroughGeneration,
+            },
             checks = new
             {
                 real_leserpentd_orchestra_authority_used = true,
@@ -5939,6 +6141,20 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 every_cleanup_checkpoint_race_admission_safe =
                     cleanupCheckpointRaces.All(static result =>
                         result.FinalHorizonAdmissionSafe),
+                audit_driven_checkpoint_advanced_after_daemon_restart =
+                    auditCheckpointDaemonRestart.DaemonRestarted &&
+                    auditCheckpointDaemonRestart
+                        .CheckpointedThroughGeneration ==
+                    auditCheckpointDaemonRestart.AuditGeneration,
+                checkpoint_lag_was_visible_before_daemon_restart =
+                    auditCheckpointDaemonRestart
+                        .CheckpointLagBeforeDaemonRestart > 0,
+                checkpoint_lag_converged_to_zero_after_daemon_restart =
+                    auditCheckpointDaemonRestart
+                        .CheckpointLagAfterDaemonRestart == 0,
+                automatic_checkpoint_status_reported =
+                    auditCheckpointDaemonRestart
+                        .AutomaticCheckpointStatusReported,
                 both_control_generation_outcomes_were_exercised =
                     previousGenerationCount > 0 &&
                     replacementGenerationCount > 0,
@@ -6782,8 +6998,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             }
             if (daemon.HasExited)
             {
+                daemon.WaitForExit();
                 throw new InvalidOperationException(
-                    $"leserpentd exited during startup: {await daemon.StandardError.ReadToEndAsync()}");
+                    $"leserpentd exited during startup: {CapturedDaemonOutput(daemon)}");
             }
             await Task.Delay(10);
         }
@@ -7074,6 +7291,14 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         bool CheckpointCommitted,
         bool ExpectedCompletionOrderObserved,
         bool FinalHorizonAdmissionSafe);
+
+    private sealed record AuditCheckpointDaemonRestartResult(
+        ulong CheckpointLagBeforeDaemonRestart,
+        ulong CheckpointLagAfterDaemonRestart,
+        ulong AuditGeneration,
+        ulong CheckpointedThroughGeneration,
+        bool DaemonRestarted,
+        bool AutomaticCheckpointStatusReported);
 
     private sealed record RuntimeDeletionCrossAuthorityResult(
         RuntimeDeletionCrossAuthorityStrategy Strategy,
@@ -8137,6 +8362,43 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             Justification = "The test project intentionally remains safe-code only.")]
         [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
         private static extern int SendSignal(int processId, int signal);
+    }
+
+    private sealed class BoundedProcessOutput
+    {
+        private const int MaximumLines = 32;
+        private const int MaximumLineLength = 1024;
+        private readonly Queue<string> lines = new();
+        private readonly object sync = new();
+
+        public void Append(string stream, string? line)
+        {
+            if (string.IsNullOrEmpty(line))
+            {
+                return;
+            }
+            var bounded = line.Length <= MaximumLineLength
+                ? line
+                : line[..MaximumLineLength];
+            lock (sync)
+            {
+                lines.Enqueue($"{stream}: {bounded}");
+                while (lines.Count > MaximumLines)
+                {
+                    lines.Dequeue();
+                }
+            }
+        }
+
+        public string Snapshot()
+        {
+            lock (sync)
+            {
+                return lines.Count == 0
+                    ? "no daemon output was captured"
+                    : string.Join(Environment.NewLine, lines);
+            }
+        }
     }
 
     private sealed class CrashTestEnvironment(string contentRootPath) : IHostEnvironment

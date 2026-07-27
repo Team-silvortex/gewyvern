@@ -26,6 +26,7 @@ namespace Leserpent;
 [JsonSerializable(typeof(PersistedRuntimeDeletionRetryAudit[]))]
 [JsonSerializable(typeof(PersistedRuntimeDeletionReconciliationAudit))]
 [JsonSerializable(typeof(PersistedRuntimeDeletionReconciliationAudit[]))]
+[JsonSerializable(typeof(OrchestraDeleteReplayCheckpointStatus))]
 [JsonSerializable(typeof(RuntimeDeletionRetryNowRequest))]
 [JsonSerializable(typeof(RuntimeDeletionRetryNowResponse))]
 [JsonSerializable(typeof(RuntimeDeletionReconciliationPlan))]

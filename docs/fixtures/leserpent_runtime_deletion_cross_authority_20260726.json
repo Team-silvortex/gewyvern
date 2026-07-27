@@ -1,6 +1,6 @@
 {
-  "schema_version": 2,
-  "observed_at": "2026-07-27T01:41:50.519762+00:00",
+  "schema_version": 3,
+  "observed_at": "2026-07-27T02:44:54.860112+00:00",
   "platform": "Unix",
   "architecture": "Arm64",
   "iterations_per_strategy": 3,
@@ -29,6 +29,12 @@
       "cleanup_generation": 8198
     }
   ],
+  "audit_checkpoint_daemon_restart": {
+    "checkpoint_lag_before_daemon_restart": 2,
+    "checkpoint_lag_after_daemon_restart": 0,
+    "audit_generation": 2,
+    "checkpointed_through_generation": 2
+  },
   "checks": {
     "real_leserpentd_orchestra_authority_used": true,
     "orchestra_cleanup_committed_before_every_termination": true,
@@ -52,6 +58,10 @@
     "every_raced_checkpoint_committed": true,
     "every_race_observed_expected_completion_order": true,
     "every_cleanup_checkpoint_race_admission_safe": true,
+    "audit_driven_checkpoint_advanced_after_daemon_restart": true,
+    "checkpoint_lag_was_visible_before_daemon_restart": true,
+    "checkpoint_lag_converged_to_zero_after_daemon_restart": true,
+    "automatic_checkpoint_status_reported": true,
     "both_control_generation_outcomes_were_exercised": true,
     "every_host_process_force_killed": true
   }

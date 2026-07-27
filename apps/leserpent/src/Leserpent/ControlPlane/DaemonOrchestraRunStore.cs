@@ -51,7 +51,7 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
     public bool Enabled => socketPath is not null;
     public string Provider => Enabled ? "leserpentd" : "disabled";
     public string Location => socketPath ?? "unconfigured";
-    public int SchemaVersion => Enabled ? 17 : 0;
+    public int SchemaVersion => Enabled ? 18 : 0;
     public bool SupportsDeleteReplayHorizon => Enabled;
     public string? LastError { get; private set; }
 
@@ -324,6 +324,15 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
         var criticalAvailable = payload
             .GetProperty("critical_available_capacity")
             .GetUInt64();
+        var warningRecoveryAvailable = payload
+            .GetProperty("warning_recovery_available_capacity")
+            .GetUInt64();
+        var criticalRecoveryAvailable = payload
+            .GetProperty("critical_recovery_available_capacity")
+            .GetUInt64();
+        var checkpointLag = payload
+            .GetProperty("checkpoint_lag_generations")
+            .GetUInt64();
         var saturated = payload.GetProperty("saturated").GetBoolean();
         var admissionState = payload
             .GetProperty("admission_state")
@@ -374,18 +383,25 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
         var protectedFrom = ReadOptionalUInt64(
             payload,
             "protected_from_generation");
+        var checkpointedThrough = ReadOptionalUInt64(
+            payload,
+            "checkpointed_through_generation");
         var contiguous = oldest is null && newest is null
             ? retained == 0 &&
                 evicted < next &&
                 checked(evicted + 1) == next &&
-                protectedFrom is null
+                protectedFrom is null &&
+                checkpointedThrough is null
             : oldest is not null && newest is not null &&
                 retained > 0 &&
                 checked(evicted + 1) == oldest &&
                 checked(newest.Value + 1) == next &&
                 checked(newest.Value - oldest.Value + 1) == retained &&
                 protectedFrom >= oldest &&
-                protectedFrom <= newest;
+                protectedFrom <= newest &&
+                (checkpointedThrough is null ||
+                    checkpointedThrough >= protectedFrom &&
+                    checkpointedThrough <= newest);
         if (capacity != 4096 ||
             retained > capacity ||
             next == 0 ||
@@ -401,12 +417,18 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
             newest,
             next,
             evicted,
-            protectedFrom);
+            protectedFrom,
+            checkpointedThrough);
         if (available != horizon.AvailableCapacity ||
             warningAvailable !=
                 OrchestraDeleteReplayHorizon.WarningAvailableCapacity ||
             criticalAvailable !=
                 OrchestraDeleteReplayHorizon.CriticalAvailableCapacity ||
+            warningRecoveryAvailable !=
+                OrchestraDeleteReplayHorizon.WarningRecoveryAvailableCapacity ||
+            criticalRecoveryAvailable !=
+                OrchestraDeleteReplayHorizon.CriticalRecoveryAvailableCapacity ||
+            checkpointLag != horizon.CheckpointLagGenerations ||
             saturated != horizon.Saturated ||
             admissionState != horizon.AdmissionState ||
             admissionPressure != horizon.AdmissionPressure ||

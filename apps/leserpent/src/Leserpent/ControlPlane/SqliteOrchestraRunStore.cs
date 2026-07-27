@@ -5,7 +5,7 @@ namespace Leserpent.ControlPlane;
 
 public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 {
-    private const int CurrentSchemaVersion = 4;
+    private const int CurrentSchemaVersion = 5;
     private const int MaxRunsPerRuntime = 32;
     private const ulong MaxDeleteReceipts = 4096;
     private readonly string connectionString;
@@ -449,7 +449,8 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 update.Transaction = transaction;
                 update.CommandText = """
                     UPDATE orchestra_delete_replay_horizon
-                    SET protected_from_generation = $minimum
+                    SET protected_from_generation = $minimum,
+                        checkpointed_through_generation = $observed
                     WHERE id = 1 AND (
                         protected_from_generation IS NULL OR
                         protected_from_generation <= $minimum);
@@ -457,6 +458,9 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 update.Parameters.AddWithValue(
                     "$minimum",
                     checked((long)checkpoint.MinimumRetainedGeneration));
+                update.Parameters.AddWithValue(
+                    "$observed",
+                    checked((long)checkpoint.ObservedThroughGeneration));
                 if (update.ExecuteNonQuery() != 1)
                 {
                     throw new InvalidDataException(
@@ -503,6 +507,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 (
                     SELECT protected_from_generation
                     FROM orchestra_delete_replay_horizon WHERE id = 1
+                ),
+                (
+                    SELECT checkpointed_through_generation
+                    FROM orchestra_delete_replay_horizon WHERE id = 1
                 )
             FROM orchestra_delete_operations;
             """;
@@ -524,10 +532,14 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         var protectedFrom = reader.IsDBNull(5)
             ? null
             : checked((ulong?)reader.GetInt64(5));
+        var checkpointedThrough = reader.IsDBNull(6)
+            ? null
+            : checked((ulong?)reader.GetInt64(6));
         var contiguous = oldest is null && newest is null
             ? retained == 0 &&
                 checked(evicted + 1) == next &&
                 protectedFrom is null
+                && checkpointedThrough is null
             : oldest is not null && newest is not null &&
                 retained > 0 &&
                 checked(evicted + 1) == oldest &&
@@ -535,7 +547,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 checked(newest.Value - oldest.Value + 1) == retained &&
                 protectedFrom is not null &&
                 protectedFrom >= oldest &&
-                protectedFrom <= newest;
+                protectedFrom <= newest &&
+                (checkpointedThrough is null ||
+                    checkpointedThrough >= protectedFrom &&
+                    checkpointedThrough <= newest);
         if (retained > MaxDeleteReceipts ||
             next == 0 ||
             evicted >= next ||
@@ -551,7 +566,8 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
             newest,
             next,
             evicted,
-            protectedFrom);
+            protectedFrom,
+            checkpointedThrough);
     }
 
     private static void CompactDeleteReplayHorizon(
@@ -615,10 +631,11 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     private void Initialize()
     {
         using var connection = OpenConnection();
+        int version;
         using (var versionCommand = connection.CreateCommand())
         {
             versionCommand.CommandText = "PRAGMA user_version;";
-            var version = Convert.ToInt32(versionCommand.ExecuteScalar());
+            version = Convert.ToInt32(versionCommand.ExecuteScalar());
             if (version > CurrentSchemaVersion)
             {
                 throw new InvalidOperationException(
@@ -684,9 +701,22 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
                 protected_from_generation)
             SELECT 1, 0, MIN(generation)
             FROM orchestra_delete_operations;
-            PRAGMA user_version = 4;
             """;
         command.ExecuteNonQuery();
+        if (version < 5)
+        {
+            using var migration = connection.CreateCommand();
+            migration.CommandText = """
+                ALTER TABLE orchestra_delete_replay_horizon
+                    ADD COLUMN checkpointed_through_generation INTEGER NULL
+                    CHECK (checkpointed_through_generation >= 1);
+                UPDATE orchestra_delete_replay_horizon
+                SET checkpointed_through_generation =
+                    protected_from_generation;
+                PRAGMA user_version = 5;
+                """;
+            migration.ExecuteNonQuery();
+        }
     }
 
     private static ulong CountRows(

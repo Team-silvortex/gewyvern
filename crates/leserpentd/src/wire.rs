@@ -558,6 +558,11 @@ fn orchestra_delete_replay_horizon_response(
             leserpent_runtime::ORCHESTRA_DELETE_REPLAY_WARNING_AVAILABLE_CAPACITY,
         critical_available_capacity:
             leserpent_runtime::ORCHESTRA_DELETE_REPLAY_CRITICAL_AVAILABLE_CAPACITY,
+        warning_recovery_available_capacity:
+            leserpent_runtime::ORCHESTRA_DELETE_REPLAY_WARNING_RECOVERY_AVAILABLE_CAPACITY,
+        critical_recovery_available_capacity:
+            leserpent_runtime::ORCHESTRA_DELETE_REPLAY_CRITICAL_RECOVERY_AVAILABLE_CAPACITY,
+        checkpoint_lag_generations: horizon.checkpoint_lag_generations(),
         saturated: horizon.saturated(),
         admission_state: if admission_blocked {
             OrchestraDeleteReplayAdmissionState::BlockedByReconciliationAudit
@@ -573,6 +578,7 @@ fn orchestra_delete_replay_horizon_response(
         next_generation: horizon.next_generation,
         evicted_through_generation: horizon.evicted_through_generation,
         protected_from_generation: horizon.protected_from_generation,
+        checkpointed_through_generation: horizon.checkpointed_through_generation,
     }
 }
 
@@ -760,6 +766,7 @@ mod tests {
                 next_generation: 3_585,
                 evicted_through_generation: 0,
                 protected_from_generation: Some(1),
+                checkpointed_through_generation: None,
             },
         );
         assert_eq!(response.available_capacity, 512);

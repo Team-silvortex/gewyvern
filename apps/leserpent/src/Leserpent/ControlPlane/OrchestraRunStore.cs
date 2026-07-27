@@ -55,10 +55,13 @@ public sealed record OrchestraDeleteReplayHorizon(
     ulong? NewestGeneration,
     ulong NextGeneration,
     ulong EvictedThroughGeneration,
-    ulong? ProtectedFromGeneration)
+    ulong? ProtectedFromGeneration,
+    ulong? CheckpointedThroughGeneration = null)
 {
     public const ulong WarningAvailableCapacity = 512;
     public const ulong CriticalAvailableCapacity = 128;
+    public const ulong WarningRecoveryAvailableCapacity = 768;
+    public const ulong CriticalRecoveryAvailableCapacity = 256;
 
     public ulong AvailableCapacity =>
         Capacity >= Retained ? Capacity - Retained : 0;
@@ -83,6 +86,50 @@ public sealed record OrchestraDeleteReplayHorizon(
                 _ => OrchestraDeleteReplayAdmissionPressure.Healthy,
             };
 
+    public OrchestraDeleteReplayAdmissionPressure AdmissionPressureWithHysteresis(
+        OrchestraDeleteReplayAdmissionPressure previous)
+    {
+        if (ProtectedFromGeneration is null)
+        {
+            return OrchestraDeleteReplayAdmissionPressure.Healthy;
+        }
+        if (AvailableCapacity == 0)
+        {
+            return OrchestraDeleteReplayAdmissionPressure.Blocked;
+        }
+        if (AvailableCapacity <= CriticalAvailableCapacity)
+        {
+            return OrchestraDeleteReplayAdmissionPressure.Critical;
+        }
+        if (previous is OrchestraDeleteReplayAdmissionPressure.Critical
+                or OrchestraDeleteReplayAdmissionPressure.Blocked &&
+            AvailableCapacity <= CriticalRecoveryAvailableCapacity)
+        {
+            return OrchestraDeleteReplayAdmissionPressure.Critical;
+        }
+        if (AvailableCapacity <= WarningAvailableCapacity)
+        {
+            return OrchestraDeleteReplayAdmissionPressure.Warning;
+        }
+        if (previous != OrchestraDeleteReplayAdmissionPressure.Healthy &&
+            AvailableCapacity <= WarningRecoveryAvailableCapacity)
+        {
+            return OrchestraDeleteReplayAdmissionPressure.Warning;
+        }
+        return OrchestraDeleteReplayAdmissionPressure.Healthy;
+    }
+
+    public ulong CheckpointLagGenerations =>
+        NewestGeneration is null
+            ? 0
+            : CheckpointedThroughGeneration is null
+                ? Retained
+                : NewestGeneration.Value >=
+                    CheckpointedThroughGeneration.Value
+                    ? NewestGeneration.Value -
+                        CheckpointedThroughGeneration.Value
+                    : 0;
+
     public OrchestraDeleteReplayOperatorAction? OperatorAction =>
         AdmissionPressure !=
             OrchestraDeleteReplayAdmissionPressure.Healthy
@@ -94,6 +141,27 @@ public sealed record OrchestraDeleteReplayHorizon(
 public sealed record OrchestraDeleteReplayCheckpoint(
     ulong MinimumRetainedGeneration,
     ulong ObservedThroughGeneration);
+
+public sealed record OrchestraDeleteReplayCheckpointStatus(
+    OrchestraDeleteReplayHorizon Horizon,
+    ulong? MinimumAuditedGeneration,
+    ulong? ObservedThroughAuditedGeneration,
+    OrchestraDeleteReplayAdmissionPressure AdmissionPressure,
+    bool LastAutomaticCheckpointAdvanced,
+    DateTimeOffset? LastAutomaticCheckpointAt)
+{
+    public ulong WarningAvailableCapacity =>
+        OrchestraDeleteReplayHorizon.WarningAvailableCapacity;
+
+    public ulong CriticalAvailableCapacity =>
+        OrchestraDeleteReplayHorizon.CriticalAvailableCapacity;
+
+    public ulong WarningRecoveryAvailableCapacity =>
+        OrchestraDeleteReplayHorizon.WarningRecoveryAvailableCapacity;
+
+    public ulong CriticalRecoveryAvailableCapacity =>
+        OrchestraDeleteReplayHorizon.CriticalRecoveryAvailableCapacity;
+}
 
 public sealed class OrchestraRuntimeBusyException(IReadOnlyList<OrchestraActiveRunConflict> activeRuns)
     : InvalidOperationException("one or more runtimes have active Orchestra runs")
@@ -131,6 +199,7 @@ public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
     private ulong nextDeleteGeneration = 1;
     private ulong evictedDeleteGeneration;
     private ulong? protectedDeleteGeneration;
+    private ulong? checkpointedDeleteGeneration;
 
     public string Provider => "memory";
     public string Location => "memory";
@@ -318,7 +387,8 @@ public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
                 : null,
             nextDeleteGeneration,
             evictedDeleteGeneration,
-            protectedDeleteGeneration);
+            protectedDeleteGeneration,
+            checkpointedDeleteGeneration);
     }
 
     public OrchestraDeleteReplayHorizon? CheckpointDeleteReplayHorizon(
@@ -353,6 +423,8 @@ public sealed class InMemoryOrchestraRunStore : IOrchestraRunStore
         }
         protectedDeleteGeneration =
             checkpoint.MinimumRetainedGeneration;
+        checkpointedDeleteGeneration =
+            checkpoint.ObservedThroughGeneration;
         var evicted = deleteReceipts
             .Where(pair => pair.Value.OperationGeneration <
                 checkpoint.MinimumRetainedGeneration)

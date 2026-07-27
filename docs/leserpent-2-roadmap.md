@@ -1091,7 +1091,7 @@ at the typed field boundary, and restores either the complete previous or
 replacement control generation. The cleanup receipt gate is complete: one
 command ID is derived from the reconciliation intent and revision, and runtime
 schema v16 atomically persists its canonical targets, operation generation,
-deletion counts, and timestamp with the Orchestra delete. Schema v17 now adds
+deletion counts, and timestamp with the Orchestra delete. Schema v17 adds
 the bounded cleanup receipt gate: a contiguous 4096-generation horizon exposes
 oldest, newest, next, evicted-through, and protected-from metadata through
 health and authenticated IPC. Every new receipt protects itself in the delete
@@ -1099,13 +1099,20 @@ transaction. A monotonic checkpoint is accepted only for a complete retained
 generation range and only after the corresponding reconciliation audit is
 durable; it then deletes exactly the older prefix and advances the high-water
 mark in the same transaction. Restart validates that the oldest retained audit
-still lies inside the horizon. The local C# SQLite bridge uses schema v4 and the
-same checks, while Rust schema-v16 receipts migrate losslessly to v17. Health
+still lies inside the horizon. Runtime schema v18 adds a durable
+`checkpointed_through_generation` high-water mark. Migration from v17 seeds it
+conservatively from `protected_from_generation`, never from newer unaudited
+receipts. The local C# SQLite bridge uses schema v5 and the same checks, while
+Rust schema-v16 receipts migrate losslessly through v17 and v18. Health
 and explicit queries now expose available capacity, saturation, typed
 admission posture, and admission pressure. Protected windows become warning at
 512 remaining receipts and critical at 128, then blocked at zero; unprotected
 rolling windows remain healthy. Every non-healthy state exposes the checkpoint
-operator action. A full pinned horizon returns a stable saturation error;
+operator action. Warning clears only above 768 available receipts; critical
+clears above 256 and remains warning until the 768 boundary is crossed. Exact
+checkpoint lag is retained count before the first checkpoint and otherwise the
+distance from checkpointed-through to newest. A full pinned horizon returns a
+stable saturation error;
 advancing the durable audit checkpoint compacts the covered prefix and restores
 admission.
 
@@ -1122,10 +1129,23 @@ it. Both schema-v2 fixtures retain nine forced-termination checkpoint and
 prefix-compaction proofs, then fill the horizon to one available slot and race
 cleanup-first plus checkpoint-first commits. Both orders preserve a contiguous
 two-receipt final window and restore healthy admission with 4094 available
-slots. The physical Linux x86_64 fixture was refreshed on 2026-07-27 with the
-native Rust daemon and .NET harness. This proves idempotent convergence, not a
-distributed transaction. Pressure hysteresis, checkpoint-lag telemetry, and
-restart-safe audit-driven automatic checkpoint advancement are the next gate.
+slots. The schema-v3 fixtures also persist an audit without checkpointing,
+observe checkpoint lag `2`, gracefully restart the real daemon on the same
+journal, and reconstruct Registry state. Startup automatically checkpoints the
+audited generation and reports lag `0`; the same synchronization runs after
+strict audit persistence and on reconciliation request replay. Operators can
+query `/v1/persistence/orchestra-cleanup-replay-status` for audited bounds,
+checkpoint high-water, lag, hysteretic pressure, thresholds, and the last
+automatic advancement. The physical Linux x86_64 fixture was refreshed on
+2026-07-27 with the native Rust daemon and .NET harness. That campaign also
+exposed a peer-disconnect defect: a force-killed client could surface
+`BrokenPipe` through the IPC poll loop and terminate `leserpentd`. Accepted IPC
+connection failures are now isolated like remote-server peer failures, with a
+dedicated disconnect regression and bounded asynchronous test diagnostics.
+This proves idempotent convergence, not a distributed transaction. The next
+gate adds bounded automatic-checkpoint retry/backoff and durable operator alert
+acknowledgement, then proves a prolonged daemon outage cannot hide cleanup
+pressure.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

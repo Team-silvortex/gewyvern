@@ -129,7 +129,9 @@ impl IpcServer {
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(false),
             Err(error) => return Err(error.to_string()),
         };
-        self.handle(stream, runtime)?;
+        // Peer disconnects and malformed socket state are isolated to this
+        // accepted connection; they must not terminate the daemon authority.
+        let _ = self.handle(stream, runtime);
         Ok(true)
     }
 
@@ -408,6 +410,32 @@ mod tests {
                 ProtocolResponse::Query(_)
             ));
         }
+
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn disconnected_client_does_not_stop_the_ipc_authority() {
+        let database = temp_path("disconnected-client", "sqlite");
+        let socket = temp_path("disconnected-client", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let request = serde_json::json!({
+            "token": TOKEN,
+            "request": query_request(),
+        });
+        let mut encoded = serde_json::to_vec(&request).unwrap();
+        encoded.push(b'\n');
+        let mut disconnected = UnixStream::connect(&socket).unwrap();
+        disconnected.write_all(&encoded).unwrap();
+        disconnected.shutdown(Shutdown::Both).unwrap();
+        drop(disconnected);
+
+        assert!(server.poll_once(&mut runtime).unwrap());
+        let response = send(&server, &mut runtime, &socket, TOKEN, query_request());
+        assert!(matches!(response.response, ProtocolResponse::Query(_)));
 
         drop(server);
         drop(runtime);

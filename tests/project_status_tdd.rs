@@ -1193,7 +1193,7 @@ fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &s
     )
     .expect("runtime deletion cross-authority evidence must be JSON");
 
-    assert_eq!(evidence["schema_version"], 2);
+    assert_eq!(evidence["schema_version"], 3);
     assert_eq!(evidence["architecture"], expected_architecture);
     assert_eq!(evidence["iterations_per_strategy"], 3);
     assert_eq!(
@@ -1237,6 +1237,17 @@ fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &s
     assert!(previous > 0);
     assert!(replacement > 0);
     assert_eq!(previous + replacement, 9);
+    let checkpoint_restart = &evidence["audit_checkpoint_daemon_restart"];
+    assert!(
+        checkpoint_restart["checkpoint_lag_before_daemon_restart"]
+            .as_u64()
+            .is_some_and(|lag| lag > 0)
+    );
+    assert_eq!(checkpoint_restart["checkpoint_lag_after_daemon_restart"], 0);
+    assert_eq!(
+        checkpoint_restart["audit_generation"],
+        checkpoint_restart["checkpointed_through_generation"]
+    );
     for check in [
         "real_leserpentd_orchestra_authority_used",
         "orchestra_cleanup_committed_before_every_termination",
@@ -1260,6 +1271,10 @@ fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &s
         "every_raced_checkpoint_committed",
         "every_race_observed_expected_completion_order",
         "every_cleanup_checkpoint_race_admission_safe",
+        "audit_driven_checkpoint_advanced_after_daemon_restart",
+        "checkpoint_lag_was_visible_before_daemon_restart",
+        "checkpoint_lag_converged_to_zero_after_daemon_restart",
+        "automatic_checkpoint_status_reported",
         "both_control_generation_outcomes_were_exercised",
         "every_host_process_force_killed",
     ] {
@@ -1698,7 +1713,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.19.0");
+    assert_eq!(compatibility_control.contract.version, "1.20.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -2010,8 +2025,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.19.0");
-    assert!(compatibility_control.next_gate.contains("hysteresis"));
+    assert_eq!(compatibility_control.contract.version, "1.20.0");
+    assert!(compatibility_control.next_gate.contains("retry/backoff"));
 
     let reconciliation = catalog
         .cells
@@ -2021,7 +2036,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.6.0");
+    assert_eq!(reconciliation.contract.version, "1.7.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -2079,6 +2094,22 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "checkpoint-first-race-proof",
         "cross-platform-cleanup-checkpoint-race-proof",
         "physical-linux-cleanup-checkpoint-race-proof",
+        "sqlite-v18-cleanup-checkpoint-high-water",
+        "conservative-v17-cleanup-checkpoint-migration",
+        "sqlite-v5-local-cleanup-checkpoint-high-water",
+        "exact-cleanup-checkpoint-lag",
+        "cleanup-pressure-hysteresis",
+        "cleanup-warning-recovery-threshold-768",
+        "cleanup-critical-recovery-threshold-256",
+        "audit-durable-automatic-cleanup-checkpoint",
+        "replay-triggered-cleanup-checkpoint-repair",
+        "startup-triggered-cleanup-checkpoint-repair",
+        "queryable-cleanup-checkpoint-status",
+        "source-generated-cleanup-status-json",
+        "daemon-restart-checkpoint-convergence",
+        "cross-platform-auto-checkpoint-restart-proof",
+        "ipc-peer-disconnect-isolation",
+        "physical-linux-peer-disconnect-proof",
     ] {
         assert!(
             reconciliation
@@ -2090,7 +2121,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(reconciliation.blockers.is_empty());
-    assert!(reconciliation.next_gate.contains("hysteresis"));
+    assert!(reconciliation.next_gate.contains("retry/backoff"));
 
     let bootstrap = catalog
         .cells

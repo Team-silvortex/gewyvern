@@ -44,6 +44,11 @@ public sealed partial class RegistryService
     private readonly ControlPlaneStateStore stateStore;
     private readonly IOrchestraRunStore orchestraRunStore;
     private readonly DateTimeOffset? restoredFromSavedAt;
+    private OrchestraDeleteReplayAdmissionPressure
+        orchestraDeleteReplayAdmissionPressure =
+            OrchestraDeleteReplayAdmissionPressure.Healthy;
+    private bool lastAutomaticOrchestraDeleteCheckpointAdvanced;
+    private DateTimeOffset? lastAutomaticOrchestraDeleteCheckpointAt;
 
     public int RestoredRuntimeCount { get; }
     public int RestoredSessionCount { get; }
@@ -664,6 +669,7 @@ public sealed partial class RegistryService
                     {
                         activeRuntimeDeletionClaims.Remove(intent.IntentId);
                     }
+                    SynchronizeOrchestraDeleteReplayCheckpoint();
                 }
                 catch (ControlPlaneStatePersistenceException ex)
                 {
@@ -803,6 +809,7 @@ public sealed partial class RegistryService
                         "reconciliation requestId was already used for a different operation");
                 }
 
+                SynchronizeOrchestraDeleteReplayCheckpoint();
                 return new RuntimeDeletionReconciliationStart(
                     null,
                     new RuntimeDeletionReconcileResponse(
@@ -1182,21 +1189,64 @@ public sealed partial class RegistryService
         return audit;
     }
 
-    private void SynchronizeOrchestraDeleteReplayCheckpoint()
+    public OrchestraDeleteReplayCheckpointStatus?
+        GetOrchestraDeleteReplayCheckpointStatus()
     {
         if (!orchestraRunStore.SupportsDeleteReplayHorizon)
         {
-            return;
+            return null;
         }
-        var generations = runtimeDeletionReconciliationAudit
+        lock (persistenceSync)
+        {
+            var horizon = orchestraRunStore.GetDeleteReplayHorizon()
+                ?? throw new OrchestraPersistenceException(
+                    "Orchestra cleanup replay horizon is unavailable");
+            orchestraDeleteReplayAdmissionPressure =
+                horizon.AdmissionPressureWithHysteresis(
+                    orchestraDeleteReplayAdmissionPressure);
+            var generations =
+                RuntimeDeletionReconciliationAuditGenerations();
+            return new OrchestraDeleteReplayCheckpointStatus(
+                horizon,
+                generations.FirstOrDefault() is var minimum &&
+                    minimum > 0
+                    ? minimum
+                    : null,
+                generations.LastOrDefault() is var observed &&
+                    observed > 0
+                    ? observed
+                    : null,
+                orchestraDeleteReplayAdmissionPressure,
+                lastAutomaticOrchestraDeleteCheckpointAdvanced,
+                lastAutomaticOrchestraDeleteCheckpointAt);
+        }
+    }
+
+    private ulong[] RuntimeDeletionReconciliationAuditGenerations() =>
+        runtimeDeletionReconciliationAudit
             .Where(static audit =>
                 audit.OrchestraCleanupGeneration is not null)
             .Select(static audit =>
                 audit.OrchestraCleanupGeneration!.Value)
             .Order()
             .ToArray();
+
+    private void SynchronizeOrchestraDeleteReplayCheckpoint()
+    {
+        if (!orchestraRunStore.SupportsDeleteReplayHorizon)
+        {
+            return;
+        }
+        var before = orchestraRunStore.GetDeleteReplayHorizon()
+            ?? throw new OrchestraPersistenceException(
+                "Orchestra cleanup replay horizon is unavailable");
+        var generations =
+            RuntimeDeletionReconciliationAuditGenerations();
         if (generations.Length == 0)
         {
+            orchestraDeleteReplayAdmissionPressure =
+                before.AdmissionPressureWithHysteresis(
+                    orchestraDeleteReplayAdmissionPressure);
             return;
         }
         var minimum = generations[0];
@@ -1210,10 +1260,26 @@ public sealed partial class RegistryService
             checkpointed.ProtectedFromGeneration != minimum ||
             checkpointed.OldestGeneration != minimum ||
             checkpointed.NewestGeneration < observedThrough ||
+            checkpointed.CheckpointedThroughGeneration is null ||
+            checkpointed.CheckpointedThroughGeneration.Value <
+                observedThrough ||
             checkpointed.EvictedThroughGeneration >= minimum)
         {
             throw new OrchestraPersistenceException(
                 "Orchestra cleanup audit is outside the durable replay horizon");
+        }
+        orchestraDeleteReplayAdmissionPressure =
+            checkpointed.AdmissionPressureWithHysteresis(
+                orchestraDeleteReplayAdmissionPressure);
+        lastAutomaticOrchestraDeleteCheckpointAdvanced =
+            before.ProtectedFromGeneration !=
+                checkpointed.ProtectedFromGeneration ||
+            before.CheckpointedThroughGeneration !=
+                checkpointed.CheckpointedThroughGeneration;
+        if (lastAutomaticOrchestraDeleteCheckpointAdvanced)
+        {
+            lastAutomaticOrchestraDeleteCheckpointAt =
+                DateTimeOffset.UtcNow;
         }
     }
 

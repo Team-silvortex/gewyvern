@@ -1188,12 +1188,15 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             }
             if let Some(horizon) = &health.orchestra_delete_replay_horizon {
                 output.push_str(&format!(
-                    " orchestra_cleanup_replay={}/{} available={} warning_at={} critical_at={} saturated={} admission={} pressure={} generation={}..{} next={} evicted_through={} protected_from={}",
+                    " orchestra_cleanup_replay={}/{} available={} warning_at={} warning_clear_at={} critical_at={} critical_clear_at={} checkpoint_lag={} saturated={} admission={} pressure={} generation={}..{} next={} evicted_through={} protected_from={} checkpointed_through={}",
                     horizon.retained,
                     horizon.capacity,
                     horizon.available_capacity,
                     horizon.warning_available_capacity,
+                    horizon.warning_recovery_available_capacity,
                     horizon.critical_available_capacity,
+                    horizon.critical_recovery_available_capacity,
+                    horizon.checkpoint_lag_generations,
                     horizon.saturated,
                     match horizon.admission_state {
                         leserpent_protocol::OrchestraDeleteReplayAdmissionState::Ready => "ready",
@@ -1215,6 +1218,9 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
                     horizon.evicted_through_generation,
                     horizon
                         .protected_from_generation
+                        .map_or_else(|| "none".into(), |value| value.to_string()),
+                    horizon
+                        .checkpointed_through_generation
                         .map_or_else(|| "none".into(), |value| value.to_string()),
                 ));
                 if let Some(action) = horizon.operator_action {
@@ -2529,6 +2535,9 @@ mod tests {
                             available_capacity: 0,
                             warning_available_capacity: 512,
                             critical_available_capacity: 128,
+                            warning_recovery_available_capacity: 768,
+                            critical_recovery_available_capacity: 256,
+                            checkpoint_lag_generations: 4_096,
                             saturated: true,
                             admission_state: leserpent_protocol::
                                 OrchestraDeleteReplayAdmissionState::
@@ -2546,6 +2555,7 @@ mod tests {
                             next_generation: 4_097,
                             evicted_through_generation: 0,
                             protected_from_generation: Some(1),
+                            checkpointed_through_generation: None,
                         },
                     ),
                 }),
@@ -2554,7 +2564,9 @@ mod tests {
         )
         .unwrap();
 
-        assert!(rendered.contains("available=0 warning_at=512 critical_at=128 saturated=true"));
+        assert!(rendered.contains(
+            "available=0 warning_at=512 warning_clear_at=768 critical_at=128 critical_clear_at=256 checkpoint_lag=4096 saturated=true"
+        ));
         assert!(rendered.contains("admission=blocked_by_reconciliation_audit"));
         assert!(rendered.contains("pressure=blocked"));
         assert!(rendered.contains("orchestra_cleanup_action=persist_audit_and_advance_checkpoint"));

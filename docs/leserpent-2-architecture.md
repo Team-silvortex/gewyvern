@@ -724,7 +724,14 @@ action. Saturated command admission returns its own stable wire error instead
 of a generic storage failure, while a successful checkpoint immediately
 restores admission.
 Schema-v16 receipts migrate without changing their command identity,
-generation, counts, or timestamp.
+generation, counts, or timestamp. Schema v18 adds a durable
+`checkpointed_through_generation` high-water mark; v17 migration initializes
+it only from the already protected generation. The C# SQLite authority mirrors
+this in schema v5. Checkpoint lag is exact, and pressure uses hysteresis:
+warning enters at 512 available receipts and clears above 768, while critical
+enters at 128, clears above 256, and then remains warning until recovery crosses
+768. Registry advances the checkpoint only after strict audit persistence, on
+request replay, or while restoring audited state at startup.
 
 A previous JSON generation replays its durable command and receives the
 original receipt with `replayed=true`; a replacement generation replays the
@@ -735,18 +742,24 @@ command ID to its generation. Arm64 and physical Linux x86_64 cleanup-receipt
 evidence is retained in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`.
-Both schema-v2 fixtures prove nine forced-termination reloads checkpoint and
+Both schema-v3 fixtures prove nine forced-termination reloads checkpoint and
 protect the current audit generation while compacting older receipts. They also
 fill the protected window to 4095 of 4096 receipts, observe critical pressure,
 and exercise both cleanup-first and checkpoint-first linearization. In either
 order cleanup receives the unique next generation, checkpoint removes only its
 audited prefix, and the final two-receipt window is contiguous with 4094 slots
-available. The physical Linux x86_64 proof was refreshed on 2026-07-27 using a
-native Rust daemon and .NET harness on the retained host. This remains
-idempotent cross-authority convergence rather than an implied distributed
-transaction. The next gate adds pressure hysteresis and checkpoint-lag
-telemetry, then proves audit-driven automatic checkpoint advancement across a
-daemon restart.
+available. They additionally persist an audit with lag `2`, restart a real
+daemon on the same journal, and prove startup checkpoint convergence to lag
+`0` on Arm64 and physical Linux x86_64. The source-generated Web status route
+exposes the audited range, high-water, exact lag, recovery thresholds, and last
+automatic advancement. The Linux campaign also proved that a client
+`BrokenPipe` must remain connection-local; Unix IPC now isolates accepted-peer
+failures instead of terminating the authority. The physical Linux x86_64 proof
+was refreshed on 2026-07-27 using a native Rust daemon and .NET harness on the
+retained host. This remains idempotent cross-authority convergence rather than
+an implied distributed transaction. The next gate adds bounded automatic
+checkpoint retry/backoff and durable operator alert acknowledgement, then
+proves a prolonged daemon outage cannot hide cleanup pressure.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

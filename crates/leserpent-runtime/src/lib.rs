@@ -43,6 +43,8 @@ pub const RUNTIME_UNREGISTRATION_REPLAY_HORIZON: usize = 256;
 pub const ORCHESTRA_DELETE_REPLAY_HORIZON: usize = 4_096;
 pub const ORCHESTRA_DELETE_REPLAY_WARNING_AVAILABLE_CAPACITY: u64 = 512;
 pub const ORCHESTRA_DELETE_REPLAY_CRITICAL_AVAILABLE_CAPACITY: u64 = 128;
+pub const ORCHESTRA_DELETE_REPLAY_WARNING_RECOVERY_AVAILABLE_CAPACITY: u64 = 768;
+pub const ORCHESTRA_DELETE_REPLAY_CRITICAL_RECOVERY_AVAILABLE_CAPACITY: u64 = 256;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OrchestraDeleteReplayAdmissionPressure {
@@ -71,6 +73,7 @@ pub struct OrchestraDeleteReplayHorizon {
     pub next_generation: u64,
     pub evicted_through_generation: u64,
     pub protected_from_generation: Option<u64>,
+    pub checkpointed_through_generation: Option<u64>,
 }
 
 impl OrchestraDeleteReplayHorizon {
@@ -99,6 +102,47 @@ impl OrchestraDeleteReplayHorizon {
                 OrchestraDeleteReplayAdmissionPressure::Warning
             }
             _ => OrchestraDeleteReplayAdmissionPressure::Healthy,
+        }
+    }
+
+    pub fn admission_pressure_with_hysteresis(
+        self,
+        previous: OrchestraDeleteReplayAdmissionPressure,
+    ) -> OrchestraDeleteReplayAdmissionPressure {
+        if self.protected_from_generation.is_none() {
+            return OrchestraDeleteReplayAdmissionPressure::Healthy;
+        }
+        let available = self.available_capacity();
+        if available == 0 {
+            return OrchestraDeleteReplayAdmissionPressure::Blocked;
+        }
+        if available <= ORCHESTRA_DELETE_REPLAY_CRITICAL_AVAILABLE_CAPACITY {
+            return OrchestraDeleteReplayAdmissionPressure::Critical;
+        }
+        if matches!(
+            previous,
+            OrchestraDeleteReplayAdmissionPressure::Critical
+                | OrchestraDeleteReplayAdmissionPressure::Blocked
+        ) && available <= ORCHESTRA_DELETE_REPLAY_CRITICAL_RECOVERY_AVAILABLE_CAPACITY
+        {
+            return OrchestraDeleteReplayAdmissionPressure::Critical;
+        }
+        if available <= ORCHESTRA_DELETE_REPLAY_WARNING_AVAILABLE_CAPACITY {
+            return OrchestraDeleteReplayAdmissionPressure::Warning;
+        }
+        if previous != OrchestraDeleteReplayAdmissionPressure::Healthy
+            && available <= ORCHESTRA_DELETE_REPLAY_WARNING_RECOVERY_AVAILABLE_CAPACITY
+        {
+            return OrchestraDeleteReplayAdmissionPressure::Warning;
+        }
+        OrchestraDeleteReplayAdmissionPressure::Healthy
+    }
+
+    pub fn checkpoint_lag_generations(self) -> u64 {
+        match (self.newest_generation, self.checkpointed_through_generation) {
+            (Some(newest), Some(checkpointed)) => newest.saturating_sub(checkpointed),
+            (Some(_), None) => self.retained,
+            (None, _) => 0,
         }
     }
 
@@ -866,6 +910,7 @@ impl ControlRuntime {
                 next_generation: 1,
                 evicted_through_generation: 0,
                 protected_from_generation: None,
+                checkpointed_through_generation: None,
             });
         };
         journal
@@ -2867,8 +2912,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 17);
-        assert_eq!(migration_count, 17);
+        assert_eq!(schema, 18);
+        assert_eq!(migration_count, 18);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2941,7 +2986,7 @@ mod tests {
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DELETE FROM runtime_schema_migrations
-                 WHERE version IN (12, 13, 14, 15, 16, 17);
+                 WHERE version IN (12, 13, 14, 15, 16, 17, 18);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -2969,7 +3014,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (17, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (18, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3023,7 +3068,7 @@ mod tests {
                  DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
-                 DELETE FROM runtime_schema_migrations WHERE version = 17;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18);
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  DELETE FROM runtime_schema_migrations WHERE version = 15;
                  UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
@@ -3075,6 +3120,7 @@ mod tests {
                 "DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
+                 DELETE FROM runtime_schema_migrations WHERE version = 18;
                  DELETE FROM runtime_schema_migrations WHERE version = 17;
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  UPDATE runtime_metadata SET value = 15
@@ -3099,7 +3145,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
-        assert_eq!(state, (17, 1, 0, 1));
+        assert_eq!(state, (18, 1, 0, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3120,7 +3166,7 @@ mod tests {
         connection
             .execute_batch(
                 "DROP TABLE orchestra_delete_replay_horizon;
-                 DELETE FROM runtime_schema_migrations WHERE version = 17;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18);
                  UPDATE runtime_metadata SET value = 16
                  WHERE key = 'schema_version';",
             )
@@ -3138,6 +3184,7 @@ mod tests {
                 next_generation: 2,
                 evicted_through_generation: 0,
                 protected_from_generation: Some(1),
+                checkpointed_through_generation: Some(1),
             }
         );
         let replay = migrated
@@ -3154,7 +3201,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v17");
+        let path = temp_journal("incomplete-v18");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -3169,14 +3216,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 17);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 18);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 17")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 18")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3253,6 +3300,12 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 18",
+                [],
+            )
+            .unwrap();
+        connection
             .execute("DROP TABLE orchestra_delete_replay_horizon", [])
             .unwrap();
         connection
@@ -3299,7 +3352,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 17);
+        assert_eq!(schema, 18);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3320,7 +3373,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 17 journal kind")
+                if error.contains("invalid runtime journal schema 18 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3333,14 +3386,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (18, 0)",
+                 VALUES (19, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 17 migration history")
+                if error.contains("invalid runtime journal schema 18 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3651,7 +3704,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 17);
+        assert_eq!(schema, 18);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -4407,7 +4460,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 17);
+        assert_eq!(schema, 18);
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -4799,6 +4852,7 @@ mod tests {
                 next_generation: 4,
                 evicted_through_generation: 0,
                 protected_from_generation: Some(1),
+                checkpointed_through_generation: None,
             }
         );
         assert!(
@@ -4819,6 +4873,7 @@ mod tests {
                 next_generation: 4,
                 evicted_through_generation: 1,
                 protected_from_generation: Some(2),
+                checkpointed_through_generation: Some(3),
             }
         );
         assert!(
@@ -4887,6 +4942,7 @@ mod tests {
                 next_generation: 3,
                 evicted_through_generation: 0,
                 protected_from_generation: Some(1),
+                checkpointed_through_generation: None,
             }
         );
         drop(runtime);
@@ -4980,6 +5036,7 @@ mod tests {
                 next_generation: 4_097 - available_capacity,
                 evicted_through_generation: 0,
                 protected_from_generation,
+                checkpointed_through_generation: None,
             }
         };
 
@@ -5005,6 +5062,38 @@ mod tests {
         );
         assert!(!horizon(513, Some(1)).operator_action_required());
         assert!(horizon(512, Some(1)).operator_action_required());
+        assert_eq!(
+            horizon(256, Some(1)).admission_pressure_with_hysteresis(
+                OrchestraDeleteReplayAdmissionPressure::Critical
+            ),
+            OrchestraDeleteReplayAdmissionPressure::Critical
+        );
+        assert_eq!(
+            horizon(257, Some(1)).admission_pressure_with_hysteresis(
+                OrchestraDeleteReplayAdmissionPressure::Critical
+            ),
+            OrchestraDeleteReplayAdmissionPressure::Warning
+        );
+        assert_eq!(
+            horizon(768, Some(1)).admission_pressure_with_hysteresis(
+                OrchestraDeleteReplayAdmissionPressure::Warning
+            ),
+            OrchestraDeleteReplayAdmissionPressure::Warning
+        );
+        assert_eq!(
+            horizon(769, Some(1)).admission_pressure_with_hysteresis(
+                OrchestraDeleteReplayAdmissionPressure::Warning
+            ),
+            OrchestraDeleteReplayAdmissionPressure::Healthy
+        );
+
+        let mut lagged = horizon(512, Some(1));
+        assert_eq!(lagged.checkpoint_lag_generations(), lagged.retained);
+        lagged.checkpointed_through_generation = Some(3_000);
+        assert_eq!(
+            lagged.checkpoint_lag_generations(),
+            lagged.newest_generation.unwrap() - 3_000
+        );
     }
 
     #[test]

@@ -45,6 +45,20 @@ public partial class Program
                         .PersistedRuntimeDeletionReconciliationAuditArray));
 
         app.MapGet(
+            "/v1/persistence/orchestra-cleanup-replay-status",
+            (RegistryService registry) =>
+            {
+                var status = registry
+                    .GetOrchestraDeleteReplayCheckpointStatus();
+                return status is null
+                    ? Results.NotFound()
+                    : Results.Json(
+                        status,
+                        LeserpentJsonContext.Default
+                            .OrchestraDeleteReplayCheckpointStatus);
+            });
+
+        app.MapGet(
             "/v1/persistence/runtime-deletions/{intentId}/reconciliation-plan",
             async (
                 string intentId,

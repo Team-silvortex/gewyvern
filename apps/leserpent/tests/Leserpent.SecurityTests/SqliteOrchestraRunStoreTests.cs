@@ -94,7 +94,7 @@ public sealed class SqliteOrchestraRunStoreTests
 
         var store = CreateSqliteStore(databasePath);
         var run = Assert.Single(store.LoadAll());
-        Assert.Equal(4, store.SchemaVersion);
+        Assert.Equal(5, store.SchemaVersion);
         Assert.Equal("legacy-run", run.RunId);
 
         store.Upsert(
@@ -222,7 +222,8 @@ public sealed class SqliteOrchestraRunStoreTests
                 3,
                 4,
                 1,
-                2),
+                2,
+                3),
             checkpointed);
         Assert.Null(store.CheckpointDeleteReplayHorizon(
             new OrchestraDeleteReplayCheckpoint(1, 3)));
@@ -364,6 +365,29 @@ public sealed class SqliteOrchestraRunStoreTests
             OrchestraDeleteReplayOperatorAction
                 .PersistAuditAndAdvanceCheckpoint,
             Horizon(512).OperatorAction);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Critical,
+            Horizon(256).AdmissionPressureWithHysteresis(
+                OrchestraDeleteReplayAdmissionPressure.Critical));
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Warning,
+            Horizon(257).AdmissionPressureWithHysteresis(
+                OrchestraDeleteReplayAdmissionPressure.Critical));
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Warning,
+            Horizon(768).AdmissionPressureWithHysteresis(
+                OrchestraDeleteReplayAdmissionPressure.Warning));
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Healthy,
+            Horizon(769).AdmissionPressureWithHysteresis(
+                OrchestraDeleteReplayAdmissionPressure.Warning));
+        Assert.Equal(Horizon(512).Retained, Horizon(512).CheckpointLagGenerations);
+        Assert.Equal(
+            584UL,
+            (Horizon(512) with
+            {
+                CheckpointedThroughGeneration = 3000,
+            }).CheckpointLagGenerations);
     }
 
     [Fact]
@@ -397,6 +421,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 1,
                 2,
                 0,
+                1,
                 1),
             migrated.GetDeleteReplayHorizon());
         var replay = migrated.DeleteRuntimes(command);
@@ -446,14 +471,19 @@ public sealed class SqliteOrchestraRunStoreTests
                 Array.Empty<PersistedSessionState>(),
                 runtimeDeletionReconciliationAudit: audits);
 
-            _ = new RegistryService(
+            var initialRegistry = new RegistryService(
                 CreateStateStore(statePath),
                 CreateSqliteStore(databasePath));
-            Assert.Equal(
-                1UL,
-                CreateSqliteStore(databasePath)
-                    .GetDeleteReplayHorizon()!
-                    .OldestGeneration);
+            var initialStatus = initialRegistry
+                .GetOrchestraDeleteReplayCheckpointStatus();
+            Assert.NotNull(initialStatus);
+            Assert.Equal(1UL, initialStatus.MinimumAuditedGeneration);
+            Assert.Equal(3UL, initialStatus.ObservedThroughAuditedGeneration);
+            Assert.Equal(1UL, initialStatus.Horizon.OldestGeneration);
+            Assert.Equal(3UL, initialStatus.Horizon.CheckpointedThroughGeneration);
+            Assert.Equal(0UL, initialStatus.Horizon.CheckpointLagGenerations);
+            Assert.True(initialStatus.LastAutomaticCheckpointAdvanced);
+            Assert.NotNull(initialStatus.LastAutomaticCheckpointAt);
 
             stateStore.SaveStrict(
                 Array.Empty<PersistedRuntimeState>(),
@@ -468,6 +498,48 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.Equal(2UL, compacted.OldestGeneration);
             Assert.Equal(1UL, compacted.EvictedThroughGeneration);
             Assert.Equal(2UL, compacted.ProtectedFromGeneration);
+            Assert.Equal(3UL, compacted.CheckpointedThroughGeneration);
+            Assert.Equal(0UL, compacted.CheckpointLagGenerations);
+
+            var fourthReceipt = CreateSqliteStore(databasePath)
+                .DeleteRuntimes(
+                    new OrchestraDeleteCommand(
+                        "orchestra-cleanup-audit-4",
+                        new[] { "runtime-audit-4" }));
+            Assert.NotNull(fourthReceipt);
+            Assert.Equal(4UL, fourthReceipt.OperationGeneration);
+            var lagging = CreateSqliteStore(databasePath)
+                .GetDeleteReplayHorizon();
+            Assert.NotNull(lagging);
+            Assert.Equal(3UL, lagging.CheckpointedThroughGeneration);
+            Assert.Equal(1UL, lagging.CheckpointLagGenerations);
+            var fourthAudit =
+                new PersistedRuntimeDeletionReconciliationAudit(
+                    "reconcile-request-4",
+                    "delete-intent-4",
+                    new[] { "runtime-audit-4" },
+                    1,
+                    4,
+                    "operator-a",
+                    reconciledAt.AddSeconds(1),
+                    fourthReceipt.CommandId,
+                    fourthReceipt.OperationGeneration);
+            stateStore.SaveStrict(
+                Array.Empty<PersistedRuntimeState>(),
+                Array.Empty<PersistedSessionState>(),
+                runtimeDeletionReconciliationAudit:
+                    audits[1..].Append(fourthAudit).ToArray());
+            var restartedRegistry = new RegistryService(
+                CreateStateStore(statePath),
+                CreateSqliteStore(databasePath));
+            var converged = restartedRegistry
+                .GetOrchestraDeleteReplayCheckpointStatus();
+            Assert.NotNull(converged);
+            Assert.Equal(2UL, converged.MinimumAuditedGeneration);
+            Assert.Equal(4UL, converged.ObservedThroughAuditedGeneration);
+            Assert.Equal(4UL, converged.Horizon.CheckpointedThroughGeneration);
+            Assert.Equal(0UL, converged.Horizon.CheckpointLagGenerations);
+            Assert.True(converged.LastAutomaticCheckpointAdvanced);
 
             stateStore.SaveStrict(
                 Array.Empty<PersistedRuntimeState>(),
