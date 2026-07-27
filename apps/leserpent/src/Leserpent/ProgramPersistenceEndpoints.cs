@@ -58,6 +58,16 @@ public partial class Program
                             .OrchestraDeleteReplayCheckpointStatus);
             });
 
+        app.MapGet(
+            "/v1/persistence/orchestra-cleanup-worker-health",
+            (
+                [FromServices]
+                OrchestraDeleteCheckpointWorkerHealth health) =>
+                Results.Json(
+                    health.Snapshot(),
+                    LeserpentJsonContext.Default
+                        .OrchestraDeleteCheckpointWorkerHealthSnapshot));
+
         app.MapPost(
             "/v1/persistence/orchestra-cleanup-replay-status/acknowledge",
             (

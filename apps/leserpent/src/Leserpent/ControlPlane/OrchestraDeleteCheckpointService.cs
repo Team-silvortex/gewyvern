@@ -15,7 +15,8 @@ public sealed class OrchestraDeleteCheckpointService(
     IOrchestraDeleteCheckpointAlertSink alertSink,
     ILogger<OrchestraDeleteCheckpointService> logger,
     OrchestraDeleteCheckpointWorkerOptions? options = null,
-    OrchestraDeleteCheckpointWorkerLease? workerLease = null) :
+    OrchestraDeleteCheckpointWorkerLease? workerLease = null,
+    OrchestraDeleteCheckpointWorkerHealth? workerHealth = null) :
     BackgroundService
 {
     private const int MaxDeliveryBatchSize = 8;
@@ -26,9 +27,11 @@ public sealed class OrchestraDeleteCheckpointService(
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
+        workerHealth?.MarkStarting();
         if (workerLease is not null &&
             !workerLease.TryAcquire())
         {
+            workerHealth?.MarkStandby();
             logger.LogWarning(
                 "Checkpoint worker lease {LeasePath} is already owned; this service host will not run checkpoint or alert-delivery work.",
                 workerLease.LeasePath);
@@ -44,109 +47,127 @@ public sealed class OrchestraDeleteCheckpointService(
             }
             return;
         }
+        workerHealth?.MarkOwner();
 
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            if (workerLease is not null &&
-                !workerLease.IsHeld)
+            while (!stoppingToken.IsCancellationRequested)
             {
-                logger.LogWarning(
-                    "Checkpoint worker lease {LeasePath} was lost; this service host is stopping checkpoint and alert-delivery work.",
-                    workerLease.LeasePath);
-                return;
-            }
-            try
-            {
-                registry.RunOrchestraDeleteCheckpointMaintenance();
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(
-                    ex,
-                    "Automatic Orchestra delete replay checkpoint maintenance did not converge.");
-            }
-
-            for (var index = 0;
-                index < MaxDeliveryBatchSize;
-                index += 1)
-            {
-                PersistedOrchestraDeleteCheckpointAlertDelivery?
-                    delivery;
+                if (workerLease is not null &&
+                    !workerLease.IsHeld)
+                {
+                    workerHealth?.MarkLeaseLost();
+                    logger.LogWarning(
+                        "Checkpoint worker lease {LeasePath} was lost; this service host is stopping checkpoint and alert-delivery work.",
+                        workerLease.LeasePath);
+                    return;
+                }
                 try
                 {
-                    delivery = registry
-                        .ClaimDueOrchestraDeleteCheckpointAlertDelivery();
+                    registry.RunOrchestraDeleteCheckpointMaintenance();
                 }
                 catch (Exception ex)
                 {
                     logger.LogWarning(
                         ex,
-                        "Checkpoint alert delivery claim could not be persisted.");
-                    break;
-                }
-                if (delivery is null)
-                {
-                    break;
-                }
-                if (workerLease is not null &&
-                    !workerLease.IsHeld)
-                {
-                    logger.LogWarning(
-                        "Checkpoint worker lease {LeasePath} was lost before alert {EventId} delivery; this service host is stopping.",
-                        workerLease.LeasePath,
-                        delivery.EventId);
-                    return;
+                        "Automatic Orchestra delete replay checkpoint maintenance did not converge.");
                 }
 
+                for (var index = 0;
+                    index < MaxDeliveryBatchSize;
+                    index += 1)
+                {
+                    PersistedOrchestraDeleteCheckpointAlertDelivery?
+                        delivery;
+                    try
+                    {
+                        delivery = registry
+                            .ClaimDueOrchestraDeleteCheckpointAlertDelivery();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(
+                            ex,
+                            "Checkpoint alert delivery claim could not be persisted.");
+                        break;
+                    }
+                    if (delivery is null)
+                    {
+                        break;
+                    }
+                    if (workerLease is not null &&
+                        !workerLease.IsHeld)
+                    {
+                        workerHealth?.MarkLeaseLost();
+                        logger.LogWarning(
+                            "Checkpoint worker lease {LeasePath} was lost before alert {EventId} delivery; this service host is stopping.",
+                            workerLease.LeasePath,
+                            delivery.EventId);
+                        return;
+                    }
+
+                    var delivered = false;
+                    workerHealth?.MarkAlertDeliveryAttempt();
+                    try
+                    {
+                        await alertSink.DeliverAsync(
+                            delivery,
+                            stoppingToken);
+                        delivered = true;
+                        workerHealth?.MarkAlertDeliverySucceeded();
+                        registry
+                            .CompleteOrchestraDeleteCheckpointAlertDelivery(
+                                delivery.EventId);
+                    }
+                    catch (OperationCanceledException) when (
+                        stoppingToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        workerHealth?.MarkAlertDeliveryFailed(
+                            delivered
+                                ? "delivery_ack_persistence_failed"
+                                : "sink_delivery_failed");
+                        logger.LogWarning(
+                            ex,
+                            "Checkpoint alert {EventId} delivery failed; the durable outbox will retry it.",
+                            delivery.EventId);
+                        try
+                        {
+                            registry
+                                .RecordOrchestraDeleteCheckpointAlertDeliveryFailure(
+                                    delivery.EventId);
+                        }
+                        catch (Exception persistenceError)
+                        {
+                            logger.LogWarning(
+                                persistenceError,
+                                "Checkpoint alert {EventId} failure metadata could not be persisted.",
+                                delivery.EventId);
+                        }
+                    }
+                }
+
+                var delay = registry
+                    .GetNextOrchestraDeleteCheckpointMaintenanceDelay(
+                        options.IdleDelay,
+                        options.ReadyDelay);
                 try
                 {
-                    await alertSink.DeliverAsync(
-                        delivery,
-                        stoppingToken);
-                    registry
-                        .CompleteOrchestraDeleteCheckpointAlertDelivery(
-                            delivery.EventId);
+                    await Task.Delay(delay, stoppingToken);
                 }
                 catch (OperationCanceledException) when (
                     stoppingToken.IsCancellationRequested)
                 {
                     return;
                 }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(
-                        ex,
-                        "Checkpoint alert {EventId} delivery failed; the durable outbox will retry it.",
-                        delivery.EventId);
-                    try
-                    {
-                        registry
-                            .RecordOrchestraDeleteCheckpointAlertDeliveryFailure(
-                                delivery.EventId);
-                    }
-                    catch (Exception persistenceError)
-                    {
-                        logger.LogWarning(
-                            persistenceError,
-                            "Checkpoint alert {EventId} failure metadata could not be persisted.",
-                            delivery.EventId);
-                    }
-                }
             }
-
-            var delay = registry
-                .GetNextOrchestraDeleteCheckpointMaintenanceDelay(
-                    options.IdleDelay,
-                    options.ReadyDelay);
-            try
-            {
-                await Task.Delay(delay, stoppingToken);
-            }
-            catch (OperationCanceledException) when (
-                stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
+        }
+        finally
+        {
+            workerHealth?.MarkStopped();
         }
     }
 

@@ -87,6 +87,8 @@ public partial class Program
                         IHttpClientFactory>(),
                     services.GetRequiredService<
                         LoggingOrchestraDeleteCheckpointAlertSink>()));
+        builder.Services.AddSingleton<
+            OrchestraDeleteCheckpointWorkerHealth>();
         builder.Services.AddHostedService<
             OrchestraDeleteCheckpointService>();
         builder.Services.AddSingleton<RuntimeReadProjectionService>();

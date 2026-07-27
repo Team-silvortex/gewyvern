@@ -30,6 +30,7 @@ namespace Leserpent;
 [JsonSerializable(typeof(PersistedOrchestraDeleteCheckpointAlertDelivery))]
 [JsonSerializable(typeof(PersistedOrchestraDeleteCheckpointAlertDelivery[]))]
 [JsonSerializable(typeof(OrchestraDeleteCheckpointAlertEnvelope))]
+[JsonSerializable(typeof(OrchestraDeleteCheckpointWorkerHealthSnapshot))]
 [JsonSerializable(typeof(OrchestraDeleteReplayCheckpointStatus))]
 [JsonSerializable(typeof(OrchestraDeleteCheckpointAlertAcknowledgeRequest))]
 [JsonSerializable(typeof(OrchestraDeleteCheckpointAlertAcknowledgeResponse))]

@@ -57,6 +57,37 @@ fn retained_runtime_deletion_crash_evidence_is_non_vacuous() {
 }
 
 #[test]
+fn retained_checkpoint_worker_duplicate_host_evidence_is_non_vacuous() {
+    let root = repository_root();
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join(
+            "docs/fixtures/leserpent_checkpoint_worker_duplicate_host_linux_x86_64_20260727.json",
+        ))
+        .expect("checkpoint worker duplicate-host evidence must exist"),
+    )
+    .expect("checkpoint worker duplicate-host evidence must decode");
+    assert_eq!(evidence["schemaVersion"], 1);
+    assert_eq!(
+        evidence["campaign"],
+        "leserpent_checkpoint_worker_duplicate_host"
+    );
+    assert_eq!(evidence["architecture"], "x64");
+    assert_eq!(evidence["firstHost"]["workerState"], "owner");
+    assert_eq!(evidence["firstHost"]["leaseHeld"], true);
+    assert_eq!(evidence["secondHost"]["workerState"], "standby");
+    assert_eq!(evidence["secondHost"]["leaseHeld"], false);
+    assert_eq!(
+        evidence["standbyAfterOwnerTermination"]["workerState"],
+        "standby"
+    );
+    assert_eq!(evidence["freshProcessTakeover"]["workerState"], "owner");
+    assert_eq!(evidence["freshProcessTakeover"]["leaseHeld"], true);
+    assert_eq!(evidence["ownerCountBeforeTermination"], 1);
+    assert_eq!(evidence["authenticatedHealthEndpoint"], true);
+    assert_eq!(evidence["secretFreeHealthPayload"], true);
+}
+
+#[test]
 fn retained_runtime_deletion_fault_campaigns_are_non_vacuous() {
     assert_runtime_deletion_fault_campaign(
         "docs/fixtures/leserpent_runtime_deletion_fault_campaign_20260723.json",
@@ -1713,7 +1744,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.23.0");
+    assert_eq!(compatibility_control.contract.version, "1.24.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -2034,11 +2065,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.23.0");
+    assert_eq!(compatibility_control.contract.version, "1.24.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("lease and sink health")
+            .contains("single-writer fence")
     );
 
     let reconciliation = catalog
@@ -2049,7 +2080,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.10.0");
+    assert_eq!(reconciliation.contract.version, "1.11.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -2163,6 +2194,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "redirect-free-alert-delivery",
         "wire-v1-alert-envelope",
         "idempotency-key-alert-delivery",
+        "authenticated-checkpoint-worker-health",
+        "source-generated-checkpoint-worker-health",
+        "secret-free-checkpoint-worker-health",
+        "alert-sink-delivery-health",
+        "linux-proc-start-identity",
+        "legacy-linux-start-time-compatibility",
+        "physical-linux-checkpoint-worker-duplicate-host-proof",
+        "standby-non-reentry",
+        "fresh-process-stale-owner-takeover",
     ] {
         assert!(
             reconciliation
@@ -2174,7 +2214,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(reconciliation.blockers.is_empty());
-    assert!(reconciliation.next_gate.contains("lease and sink health"));
+    assert!(reconciliation.next_gate.contains("single-writer fence"));
 
     let bootstrap = catalog
         .cells

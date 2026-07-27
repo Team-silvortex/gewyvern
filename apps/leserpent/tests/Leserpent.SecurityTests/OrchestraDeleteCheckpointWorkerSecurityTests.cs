@@ -1,8 +1,16 @@
 using System.Net;
 using System.Diagnostics;
+using System.Net.Http.Json;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Leserpent.ControlPlane;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -48,6 +56,14 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 secondLease);
             var firstSink = new RecordingAlertSink();
             var secondSink = new RecordingAlertSink();
+            var firstHealth =
+                new OrchestraDeleteCheckpointWorkerHealth(
+                    firstLease,
+                    firstSink);
+            var secondHealth =
+                new OrchestraDeleteCheckpointWorkerHealth(
+                    secondLease,
+                    secondSink);
             var options = new OrchestraDeleteCheckpointWorkerOptions(
                 TimeSpan.FromMilliseconds(20),
                 TimeSpan.FromMilliseconds(5));
@@ -58,7 +74,8 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                     NullLogger<
                         OrchestraDeleteCheckpointService>.Instance,
                     options,
-                    firstLease);
+                    firstLease,
+                    firstHealth);
             using var secondWorker =
                 new OrchestraDeleteCheckpointService(
                     secondRegistry,
@@ -66,7 +83,8 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                     NullLogger<
                         OrchestraDeleteCheckpointService>.Instance,
                     options,
-                    secondLease);
+                    secondLease,
+                    secondHealth);
             try
             {
                 await firstWorker.StartAsync(
@@ -96,6 +114,19 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 Assert.Empty(
                     firstRegistry.ExportState()
                         .OrchestraDeleteCheckpointAlertOutbox!);
+                var firstSnapshot = firstHealth.Snapshot();
+                Assert.Equal("owner", firstSnapshot.WorkerState);
+                Assert.True(firstSnapshot.LeaseHeld);
+                Assert.NotNull(
+                    firstSnapshot.LastAlertDeliverySucceededAt);
+                Assert.Equal(
+                    0U,
+                    firstSnapshot.ConsecutiveAlertDeliveryFailures);
+                var secondSnapshot = secondHealth.Snapshot();
+                Assert.Equal("standby", secondSnapshot.WorkerState);
+                Assert.False(secondSnapshot.LeaseHeld);
+                Assert.Null(
+                    secondSnapshot.LastAlertDeliveryAttemptAt);
             }
             finally
             {
@@ -116,6 +147,10 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 new LeaseCheckpointStore(authority, "takeover"),
                 takeoverLease);
             var takeoverSink = new RecordingAlertSink();
+            var takeoverHealth =
+                new OrchestraDeleteCheckpointWorkerHealth(
+                    takeoverLease,
+                    takeoverSink);
             using var takeoverWorker =
                 new OrchestraDeleteCheckpointService(
                     takeoverRegistry,
@@ -123,7 +158,8 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                     NullLogger<
                         OrchestraDeleteCheckpointService>.Instance,
                     options,
-                    takeoverLease);
+                    takeoverLease,
+                    takeoverHealth);
             try
             {
                 await takeoverWorker.StartAsync(
@@ -138,6 +174,9 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                     1,
                     authority.CheckpointMutationCount);
                 Assert.Empty(takeoverSink.EventIds);
+                Assert.Equal(
+                    "owner",
+                    takeoverHealth.Snapshot().WorkerState);
             }
             finally
             {
@@ -145,6 +184,241 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                     CancellationToken.None);
                 takeoverLease.Dispose();
             }
+        }
+        finally
+        {
+            DeleteFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task RealDuplicateHostsExposeOneOwnerAndFreshProcessTakeover()
+    {
+        const string adminToken =
+            "leserpent-duplicate-host-admin-token-012345";
+        var statePath = TemporaryPath("json");
+        var databasePath = TemporaryPath("db");
+        var ports = ReserveTcpPorts(3);
+        var firstUrl = LoopbackUrl(ports[0]);
+        var secondUrl = LoopbackUrl(ports[1]);
+        var takeoverUrl = LoopbackUrl(ports[2]);
+        using var first = StartControlPlaneHost(
+            firstUrl,
+            statePath,
+            databasePath,
+            adminToken);
+        Process? second = null;
+        Process? takeover = null;
+        try
+        {
+            var firstHealth = await WaitForWorkerHealthAsync(
+                first,
+                firstUrl,
+                adminToken,
+                TimeSpan.FromSeconds(15));
+            Assert.Equal("owner", firstHealth.WorkerState);
+            Assert.True(firstHealth.LeaseHeld);
+            second = StartControlPlaneHost(
+                secondUrl,
+                statePath,
+                databasePath,
+                adminToken);
+            var secondHealth = await WaitForWorkerHealthAsync(
+                second,
+                secondUrl,
+                adminToken,
+                TimeSpan.FromSeconds(15));
+            Assert.Equal("standby", secondHealth.WorkerState);
+            Assert.False(secondHealth.LeaseHeld);
+
+            first.Kill(entireProcessTree: true);
+            await first.WaitForExitAsync();
+            var retainedStandby = await WaitForWorkerHealthAsync(
+                second,
+                secondUrl,
+                adminToken,
+                TimeSpan.FromSeconds(5));
+            Assert.Equal("standby", retainedStandby.WorkerState);
+            Assert.False(retainedStandby.LeaseHeld);
+
+            takeover = StartControlPlaneHost(
+                takeoverUrl,
+                statePath,
+                databasePath,
+                adminToken);
+            var takeoverHealth = await WaitForWorkerHealthAsync(
+                takeover,
+                takeoverUrl,
+                adminToken,
+                TimeSpan.FromSeconds(15));
+            Assert.Equal("owner", takeoverHealth.WorkerState);
+            Assert.True(takeoverHealth.LeaseHeld);
+
+            WriteDuplicateHostEvidence(
+                firstHealth,
+                secondHealth,
+                retainedStandby,
+                takeoverHealth);
+        }
+        finally
+        {
+            await StopProcessAsync(first);
+            if (second is not null)
+            {
+                await StopProcessAsync(second);
+                second.Dispose();
+            }
+            if (takeover is not null)
+            {
+                await StopProcessAsync(takeover);
+                takeover.Dispose();
+            }
+            DeleteFiles(statePath);
+            File.Delete(databasePath);
+            File.Delete($"{databasePath}-wal");
+            File.Delete($"{databasePath}-shm");
+        }
+    }
+
+    [Fact]
+    public async Task WorkerHealthReportsSanitizedDeliveryFailure()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var horizon = new OrchestraDeleteReplayHorizon(
+                Capacity: 4096,
+                Retained: 1,
+                OldestGeneration: 1,
+                NewestGeneration: 1,
+                NextGeneration: 2,
+                EvictedThroughGeneration: 0,
+                ProtectedFromGeneration: 1,
+                CheckpointedThroughGeneration: null);
+            SeedCheckpointAlertState(
+                statePath,
+                DateTimeOffset.UtcNow,
+                horizon);
+            var stateStore = CreateStateStore(statePath);
+            using var lease =
+                new OrchestraDeleteCheckpointWorkerLease(
+                    stateStore);
+            var sink = new FailingAlertSink(
+                "secret endpoint and bearer token must not escape");
+            var health =
+                new OrchestraDeleteCheckpointWorkerHealth(
+                    lease,
+                    sink);
+            var registry = new RegistryService(
+                stateStore,
+                new LeaseCheckpointStore(
+                    new SharedCheckpointAuthority(horizon),
+                    "failure"),
+                lease);
+            using var worker =
+                new OrchestraDeleteCheckpointService(
+                    registry,
+                    sink,
+                    NullLogger<
+                        OrchestraDeleteCheckpointService>.Instance,
+                    new OrchestraDeleteCheckpointWorkerOptions(
+                        TimeSpan.FromMilliseconds(20),
+                        TimeSpan.FromMilliseconds(5)),
+                    lease,
+                    health);
+
+            await worker.StartAsync(CancellationToken.None);
+            await WaitUntilAsync(
+                () => health.Snapshot()
+                    .ConsecutiveAlertDeliveryFailures > 0,
+                TimeSpan.FromSeconds(2));
+            var snapshot = health.Snapshot();
+
+            Assert.Equal("owner", snapshot.WorkerState);
+            Assert.Equal("custom", snapshot.AlertSinkMode);
+            Assert.True(snapshot.ExternalAlertSinkConfigured);
+            Assert.Equal(
+                "sink_delivery_failed",
+                snapshot.LastAlertDeliveryFailureCode);
+            Assert.NotNull(snapshot.LastAlertDeliveryAttemptAt);
+            Assert.Null(snapshot.LastAlertDeliverySucceededAt);
+            Assert.DoesNotContain(
+                "secret",
+                JsonSerializer.Serialize(snapshot),
+                StringComparison.OrdinalIgnoreCase);
+
+            await worker.StopAsync(CancellationToken.None);
+        }
+        finally
+        {
+            DeleteFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task WorkerHealthEndpointRequiresRemoteAdminToken()
+    {
+        const string adminToken =
+            "leserpent-worker-health-admin-token-012345";
+        var statePath = TemporaryPath("json");
+        var stateStore = CreateStateStore(statePath);
+        using var lease =
+            new OrchestraDeleteCheckpointWorkerLease(stateStore);
+        try
+        {
+            Assert.True(lease.TryAcquire());
+            var sink =
+                new LoggingOrchestraDeleteCheckpointAlertSink(
+                    NullLogger<
+                        LoggingOrchestraDeleteCheckpointAlertSink>
+                        .Instance);
+            var health =
+                new OrchestraDeleteCheckpointWorkerHealth(
+                    lease,
+                    sink);
+            health.MarkOwner();
+            await using var app =
+                await BuildWorkerHealthTestAppAsync(
+                    health,
+                    adminToken);
+            var client = app.GetTestClient();
+
+            var denied = await client.GetAsync(
+                "/v1/persistence/orchestra-cleanup-worker-health");
+            Assert.Equal(
+                HttpStatusCode.Forbidden,
+                denied.StatusCode);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/v1/persistence/orchestra-cleanup-worker-health");
+            request.Headers.Add(
+                ControlPlaneSecurityPolicy.AdminTokenHeader,
+                adminToken);
+            var allowed = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+            var snapshot = await allowed.Content.ReadFromJsonAsync(
+                LeserpentJsonContext.Default
+                    .OrchestraDeleteCheckpointWorkerHealthSnapshot);
+            Assert.NotNull(snapshot);
+            Assert.Equal(1, snapshot.Version);
+            Assert.Equal("owner", snapshot.WorkerState);
+            Assert.True(snapshot.LeaseHeld);
+            Assert.Equal(
+                "structured_logging",
+                snapshot.AlertSinkMode);
+            Assert.False(snapshot.ExternalAlertSinkConfigured);
+
+            var json = await allowed.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(statePath, json, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                adminToken,
+                json,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "endpoint",
+                json,
+                StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -566,6 +840,257 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 "failed to start checkpoint lease harness");
     }
 
+    private static Process StartControlPlaneHost(
+        string url,
+        string statePath,
+        string databasePath,
+        string adminToken)
+    {
+        var start = new ProcessStartInfo
+        {
+            FileName =
+                Environment.GetEnvironmentVariable(
+                    "DOTNET_HOST_PATH") ?? "dotnet",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        start.ArgumentList.Add(
+            typeof(Leserpent.Program).Assembly.Location);
+        start.ArgumentList.Add("--urls");
+        start.ArgumentList.Add(url);
+        start.Environment["ASPNETCORE_ENVIRONMENT"] =
+            Environments.Production;
+        start.Environment["LESERPENT_STATE_PATH"] = statePath;
+        start.Environment["LESERPENT_DATABASE_PATH"] =
+            databasePath;
+        start.Environment["LESERPENT_ADMIN_TOKEN"] = adminToken;
+        return Process.Start(start) ??
+            throw new InvalidOperationException(
+                "failed to start Leserpent control-plane host");
+    }
+
+    private static async Task<
+        OrchestraDeleteCheckpointWorkerHealthSnapshot>
+        WaitForWorkerHealthAsync(
+            Process process,
+            string url,
+            string adminToken,
+            TimeSpan timeout)
+    {
+        using var client = new HttpClient(
+            new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+            })
+        {
+            Timeout = TimeSpan.FromSeconds(1),
+        };
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (process.HasExited)
+            {
+                var error = await process.StandardError
+                    .ReadToEndAsync();
+                throw new InvalidOperationException(
+                    $"Leserpent host exited with {process.ExitCode}: {error}");
+            }
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"{url}/v1/persistence/orchestra-cleanup-worker-health");
+                request.Headers.Add(
+                    ControlPlaneSecurityPolicy.AdminTokenHeader,
+                    adminToken);
+                using var response = await client.SendAsync(request);
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    var health = await response.Content
+                        .ReadFromJsonAsync(
+                            LeserpentJsonContext.Default
+                                .OrchestraDeleteCheckpointWorkerHealthSnapshot);
+                    if (health is not null &&
+                        !string.Equals(
+                            health.WorkerState,
+                            "starting",
+                            StringComparison.Ordinal))
+                    {
+                        return health;
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+        }
+        throw new TimeoutException(
+            $"Leserpent host at {url} did not expose worker health");
+    }
+
+    private static async Task StopProcessAsync(Process process)
+    {
+        if (!process.HasExited)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+        }
+    }
+
+    private static int[] ReserveTcpPorts(int count)
+    {
+        var listeners = new List<TcpListener>(count);
+        try
+        {
+            for (var index = 0; index < count; index += 1)
+            {
+                var listener = new TcpListener(
+                    IPAddress.Loopback,
+                    0);
+                listener.Start();
+                listeners.Add(listener);
+            }
+            return listeners
+                .Select(static listener =>
+                    ((IPEndPoint)listener.LocalEndpoint).Port)
+                .ToArray();
+        }
+        finally
+        {
+            foreach (var listener in listeners)
+            {
+                listener.Stop();
+            }
+        }
+    }
+
+    private static string LoopbackUrl(int port) =>
+        $"http://127.0.0.1:{port}";
+
+    private static void WriteDuplicateHostEvidence(
+        OrchestraDeleteCheckpointWorkerHealthSnapshot first,
+        OrchestraDeleteCheckpointWorkerHealthSnapshot second,
+        OrchestraDeleteCheckpointWorkerHealthSnapshot retainedStandby,
+        OrchestraDeleteCheckpointWorkerHealthSnapshot takeover)
+    {
+        var evidencePath = Environment.GetEnvironmentVariable(
+            "LESERPENT_CHECKPOINT_WORKER_DUPLICATE_HOST_EVIDENCE");
+        if (string.IsNullOrWhiteSpace(evidencePath))
+        {
+            return;
+        }
+        if (!Path.IsPathFullyQualified(evidencePath))
+        {
+            throw new InvalidOperationException(
+                "duplicate-host evidence path must be absolute");
+        }
+        var directory = Path.GetDirectoryName(evidencePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+        var evidence = new
+        {
+            schemaVersion = 1,
+            campaign =
+                "leserpent_checkpoint_worker_duplicate_host",
+            recordedAt = DateTimeOffset.UtcNow,
+            operatingSystem = RuntimeInformation.OSDescription,
+            architecture =
+                RuntimeInformation.OSArchitecture.ToString()
+                    .ToLowerInvariant(),
+            firstHost = new
+            {
+                first.WorkerState,
+                first.LeaseHeld,
+            },
+            secondHost = new
+            {
+                second.WorkerState,
+                second.LeaseHeld,
+            },
+            standbyAfterOwnerTermination = new
+            {
+                retainedStandby.WorkerState,
+                retainedStandby.LeaseHeld,
+            },
+            freshProcessTakeover = new
+            {
+                takeover.WorkerState,
+                takeover.LeaseHeld,
+            },
+            ownerCountBeforeTermination =
+                new[] { first, second }
+                    .Count(static health =>
+                        health.WorkerState == "owner" &&
+                        health.LeaseHeld),
+            authenticatedHealthEndpoint = true,
+            secretFreeHealthPayload = true,
+        };
+        File.WriteAllText(
+            evidencePath,
+            JsonSerializer.Serialize(
+                evidence,
+                new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy =
+                        JsonNamingPolicy.CamelCase,
+                    WriteIndented = true,
+                }));
+    }
+
+    private static async Task<WebApplication>
+        BuildWorkerHealthTestAppAsync(
+            OrchestraDeleteCheckpointWorkerHealth health,
+            string adminToken)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["LESERPENT_ADMIN_TOKEN"] = adminToken,
+            });
+        builder.Services.AddSingleton(health);
+        builder.Services.AddSingleton<ControlPlaneSecurityPolicy>();
+        var app = builder.Build();
+        app.Use(async (context, next) =>
+        {
+            context.Connection.RemoteIpAddress =
+                IPAddress.Parse("192.0.2.10");
+            await next();
+        });
+        app.Use(async (context, next) =>
+        {
+            var security = context.RequestServices
+                .GetRequiredService<ControlPlaneSecurityPolicy>();
+            if (!security.TryAuthorize(
+                    context,
+                    out var statusCode,
+                    out var payload))
+            {
+                context.Response.StatusCode = statusCode;
+                await context.Response.WriteAsJsonAsync(payload);
+                return;
+            }
+            await next();
+        });
+        app.MapGet(
+            "/v1/persistence/orchestra-cleanup-worker-health",
+            (OrchestraDeleteCheckpointWorkerHealth workerHealth) =>
+                Results.Json(
+                    workerHealth.Snapshot(),
+                    LeserpentJsonContext.Default
+                        .OrchestraDeleteCheckpointWorkerHealthSnapshot));
+        await app.StartAsync();
+        return app;
+    }
+
     private static string FindCrashHarnessAssembly()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -662,6 +1187,19 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 eventIds.Add(delivery.EventId);
             }
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailingAlertSink(
+        string failureMessage) :
+        IOrchestraDeleteCheckpointAlertSink
+    {
+        public Task DeliverAsync(
+            PersistedOrchestraDeleteCheckpointAlertDelivery delivery,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new HttpRequestException(failureMessage);
         }
     }
 

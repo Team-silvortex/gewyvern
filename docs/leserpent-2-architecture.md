@@ -813,6 +813,13 @@ This fence owns checkpoint work only; it does not declare the JSON control plane
 safe for general active-active writes. In-process dual-host and real child-process
 tests prove one authority mutation, one alert delivery, live-owner exclusion,
 runtime token-loss fencing, token-bound release, and force-kill recovery.
+Linux process identity uses the stable start-time field from
+`/proc/<pid>/stat`; positive wall-clock identities remain readable for rolling
+compatibility. A physical Ubuntu x86_64 campaign exposed and closed the unsafe
+exact-`Process.StartTime` comparison, then proved one owner, one standby,
+non-reentry by the already-loaded standby after owner termination, and
+stale-owner takeover by a freshly loaded process. Its retained fixture is
+`docs/fixtures/leserpent_checkpoint_worker_duplicate_host_linux_x86_64_20260727.json`.
 
 The sink boundary now has an optional authenticated HTTP implementation.
 `LESERPENT_CHECKPOINT_ALERT_ENDPOINT` must be HTTPS and is configured together
@@ -821,9 +828,16 @@ configuration, symlinked files, unsafe Unix modes, redirects, malformed tokens,
 and partial configuration fail closed. Delivery uses a five-second client
 budget, Bearer authentication, source-generated wire-v1 JSON, the durable event
 ID as `Idempotency-Key`, and an explicit alert-generation header. The logging
-sink remains the credential-free default. The next gate exposes lease and sink
-health through authenticated status and retains physical Linux duplicate-host
-evidence before considering any broader control-plane single-writer fence.
+sink remains the credential-free default.
+
+Authenticated operators can query
+`/v1/persistence/orchestra-cleanup-worker-health` for source-generated wire-v1
+runtime state. It reports `owner`, `standby`, `lease_lost`, or lifecycle state,
+lease ownership, sink mode, and sanitized delivery timestamps, counters, and
+fixed failure codes. It never returns the lease path, alert URL, token, or raw
+exception text. The next gate inventories every JSON control-plane mutation
+entry point and evaluates a process-wide single-writer fence without claiming
+general active-active support prematurely.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

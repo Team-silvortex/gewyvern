@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "campaign": "leserpent_checkpoint_worker_duplicate_host",
+  "recordedAt": "2026-07-27T05:23:55.4815268+00:00",
+  "operatingSystem": "Ubuntu 24.04.4 LTS",
+  "architecture": "x64",
+  "firstHost": {
+    "workerState": "owner",
+    "leaseHeld": true
+  },
+  "secondHost": {
+    "workerState": "standby",
+    "leaseHeld": false
+  },
+  "standbyAfterOwnerTermination": {
+    "workerState": "standby",
+    "leaseHeld": false
+  },
+  "freshProcessTakeover": {
+    "workerState": "owner",
+    "leaseHeld": true
+  },
+  "ownerCountBeforeTermination": 1,
+  "authenticatedHealthEndpoint": true,
+  "secretFreeHealthPayload": true
+}

@@ -62,8 +62,8 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
                         valid = metadata is not null &&
                             metadata.ProcessId ==
                                 Environment.ProcessId &&
-                            metadata.ProcessStartTicks ==
-                                CurrentProcessStartTicks() &&
+                            metadata.ProcessStartIdentity ==
+                                CurrentProcessStartIdentity() &&
                             string.Equals(
                                 metadata.OwnerToken,
                                 ownerToken,
@@ -133,7 +133,7 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
                         FileAccess.Write,
                         FileShare.Read);
                     var metadata = Encoding.ASCII.GetBytes(
-                        $"{Environment.ProcessId}|{CurrentProcessStartTicks()}|{ownerToken}\n");
+                        $"{Environment.ProcessId}|{CurrentProcessStartIdentity()}|{ownerToken}\n");
                     stream.Write(metadata);
                     stream.Flush(flushToDisk: true);
                 }
@@ -221,8 +221,14 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
         }
     }
 
-    private static long CurrentProcessStartTicks()
+    private static long CurrentProcessStartIdentity()
     {
+        var linuxStartTicks =
+            ReadLinuxProcessStartTicks(Environment.ProcessId);
+        if (linuxStartTicks is not null)
+        {
+            return -linuxStartTicks.Value;
+        }
         using var process = Process.GetCurrentProcess();
         return process.StartTime.ToUniversalTime().Ticks;
     }
@@ -233,8 +239,27 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
         {
             using var process =
                 Process.GetProcessById(metadata.ProcessId);
-            return process.StartTime.ToUniversalTime().Ticks ==
-                metadata.ProcessStartTicks;
+            if (OperatingSystem.IsLinux() &&
+                metadata.ProcessStartIdentity < 0)
+            {
+                var linuxStartTicks =
+                    ReadLinuxProcessStartTicks(
+                        metadata.ProcessId);
+                return linuxStartTicks is null ||
+                    -linuxStartTicks.Value ==
+                        metadata.ProcessStartIdentity;
+            }
+            var observed =
+                process.StartTime.ToUniversalTime().Ticks;
+            if (OperatingSystem.IsLinux())
+            {
+                return Math.Abs(
+                        observed -
+                        metadata.ProcessStartIdentity) <=
+                    TimeSpan.TicksPerSecond * 2;
+            }
+            return observed ==
+                metadata.ProcessStartIdentity;
         }
         catch (ArgumentException)
         {
@@ -251,6 +276,51 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
         catch (UnauthorizedAccessException)
         {
             return true;
+        }
+    }
+
+    private static long? ReadLinuxProcessStartTicks(
+        int processId)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return null;
+        }
+        try
+        {
+            var stat = File.ReadAllText(
+                $"/proc/{processId}/stat");
+            if (stat.Length is < 4 or > 4096)
+            {
+                return null;
+            }
+            var commandEnd = stat.LastIndexOf(')');
+            if (commandEnd < 1 ||
+                commandEnd + 2 >= stat.Length)
+            {
+                return null;
+            }
+            var fields = stat[(commandEnd + 2)..]
+                .Split(
+                    ' ',
+                    StringSplitOptions.RemoveEmptyEntries);
+            return fields.Length > 19 &&
+                long.TryParse(
+                    fields[19],
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var startTicks) &&
+                startTicks > 0
+                    ? startTicks
+                    : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 
@@ -296,10 +366,12 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
             processId <= 0 ||
             !long.TryParse(
                 fields[1],
-                System.Globalization.NumberStyles.None,
+                System.Globalization.NumberStyles.AllowLeadingSign,
                 System.Globalization.CultureInfo.InvariantCulture,
-                out var processStartTicks) ||
-            processStartTicks <= 0 ||
+            out var processStartIdentity) ||
+            processStartIdentity == 0 ||
+            !OperatingSystem.IsLinux() &&
+            processStartIdentity < 0 ||
             fields[2].Length != 32 ||
             fields[2].Any(static value =>
                 !char.IsAsciiHexDigit(value)))
@@ -308,7 +380,7 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
         }
         return new LeaseMetadata(
             processId,
-            processStartTicks,
+            processStartIdentity,
             fields[2]);
     }
 
@@ -326,6 +398,6 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
 
     private sealed record LeaseMetadata(
         int ProcessId,
-        long ProcessStartTicks,
+        long ProcessStartIdentity,
         string OwnerToken);
 }

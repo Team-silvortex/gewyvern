@@ -1181,15 +1181,27 @@ authority checkpoint mutations. This is intentionally not a general
 active-active JSON control-plane contract. A real child-process harness proves
 live exclusion, graceful release, and stale-owner recovery; a dual-host
 activity proves one mutation and one notification.
+The physical Ubuntu x86_64 duplicate-host campaign subsequently exposed that
+exact cross-process `Process.StartTime` equality was not stable on Linux. Lease
+identity now uses `/proc/<pid>/stat` start time with compatibility for existing
+positive records. Three real Web hosts prove one owner, one standby, no
+already-loaded standby re-entry after owner termination, and fresh-process
+takeover. Retained evidence lives in
+`docs/fixtures/leserpent_checkpoint_worker_duplicate_host_linux_x86_64_20260727.json`;
+reproduce it with
+`scripts/validation/leserpent_checkpoint_worker_duplicate_host.sh`.
 
 Operators may now replace the default structured-log sink with a strict HTTPS
 sink using `LESERPENT_CHECKPOINT_ALERT_ENDPOINT` plus an owner-private absolute
 `LESERPENT_CHECKPOINT_ALERT_TOKEN_FILE`. Inline secrets, partial configuration,
 non-HTTPS endpoints, symlinks, unsafe permissions, redirects, and malformed
 tokens fail closed. Wire-v1 delivery carries Bearer authentication, stable
-idempotency and generation headers, and a bounded public JSON envelope. The next
-gate exposes lease/sink health through authenticated status and retains physical
-Linux duplicate-host evidence before evaluating a broader control-plane
+idempotency and generation headers, and a bounded public JSON envelope.
+Authenticated
+`/v1/persistence/orchestra-cleanup-worker-health` now exposes only lifecycle,
+lease ownership, sink mode, and sanitized delivery health; paths, endpoints,
+tokens, and raw exceptions are excluded. The next gate inventories all JSON
+control-plane mutation entry points and evaluates a broader process-wide
 single-writer fence.
 
 Schema v3 added validated domain snapshots that preserve
