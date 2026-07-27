@@ -1713,13 +1713,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.20.0");
+    assert_eq!(compatibility_control.contract.version, "1.22.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
     }));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionAuthorityWorkflow.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/src/Leserpent/ControlPlane/OrchestraDeleteCheckpointService.cs"
             && item.state == EvidenceState::Present
     }));
     assert!(compatibility_control.evidence.iter().any(|item| {
@@ -2025,8 +2029,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.20.0");
-    assert!(compatibility_control.next_gate.contains("retry/backoff"));
+    assert_eq!(compatibility_control.contract.version, "1.22.0");
+    assert!(compatibility_control.next_gate.contains("lease-fenced"));
 
     let reconciliation = catalog
         .cells
@@ -2036,7 +2040,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.7.0");
+    assert_eq!(reconciliation.contract.version, "1.9.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -2110,6 +2114,28 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "cross-platform-auto-checkpoint-restart-proof",
         "ipc-peer-disconnect-isolation",
         "physical-linux-peer-disconnect-proof",
+        "schema-v7-durable-checkpoint-monitor",
+        "full-state-prewrite-monitor-validation",
+        "bounded-automatic-checkpoint-backoff",
+        "automatic-checkpoint-retry-ceiling-30s",
+        "durable-last-trusted-cleanup-horizon",
+        "stale-cleanup-pressure-observation",
+        "restart-safe-checkpoint-alert",
+        "generation-fenced-alert-acknowledgement",
+        "mutate-intent-alert-acknowledgement-api",
+        "new-incident-acknowledgement-invalidation",
+        "daemon-history-outage-degraded-startup",
+        "prolonged-daemon-outage-pressure-proof",
+        "schema-v8-durable-checkpoint-alert-outbox",
+        "hosted-automatic-checkpoint-scheduler",
+        "poll-free-daemon-recovery-convergence",
+        "stable-checkpoint-alert-event-id",
+        "attempt-before-alert-delivery",
+        "at-least-once-checkpoint-alert-delivery",
+        "bounded-alert-delivery-backoff",
+        "restart-safe-alert-outbox-drain",
+        "generation-bound-alert-outbox-validation",
+        "structured-logging-alert-sink",
     ] {
         assert!(
             reconciliation
@@ -2121,7 +2147,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(reconciliation.blockers.is_empty());
-    assert!(reconciliation.next_gate.contains("retry/backoff"));
+    assert!(reconciliation.next_gate.contains("lease-fenced"));
 
     let bootstrap = catalog
         .cells

@@ -13,6 +13,13 @@ public sealed class OrchestraPersistenceException : InvalidOperationException
     }
 }
 
+public sealed class OrchestraDeleteCheckpointAlertException(
+    string code,
+    string message) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+}
+
 public sealed record OrchestraActiveRunConflict(string RuntimeId, string RunId, string Outcome);
 
 public sealed record OrchestraDeleteCommand(
@@ -148,7 +155,19 @@ public sealed record OrchestraDeleteReplayCheckpointStatus(
     ulong? ObservedThroughAuditedGeneration,
     OrchestraDeleteReplayAdmissionPressure AdmissionPressure,
     bool LastAutomaticCheckpointAdvanced,
-    DateTimeOffset? LastAutomaticCheckpointAt)
+    DateTimeOffset? LastAutomaticCheckpointAt,
+    bool ObservationStale = false,
+    uint ConsecutiveFailureCount = 0,
+    DateTimeOffset? LastAttemptAt = null,
+    DateTimeOffset? NextRetryAt = null,
+    DateTimeOffset? LastSucceededAt = null,
+    string? LastFailureCode = null,
+    bool AlertActive = false,
+    ulong AlertGeneration = 0,
+    DateTimeOffset? AlertRaisedAt = null,
+    bool AlertAcknowledged = false,
+    string? AcknowledgedBy = null,
+    DateTimeOffset? AcknowledgedAt = null)
 {
     public ulong WarningAvailableCapacity =>
         OrchestraDeleteReplayHorizon.WarningAvailableCapacity;
@@ -175,6 +194,7 @@ public interface IOrchestraRunStore
     string Location { get; }
     int SchemaVersion { get; }
     bool SupportsDeleteReplayHorizon => false;
+    bool DeleteReplayHorizonAvailabilityMayBeTransient => false;
     string? LastError { get; }
     IReadOnlyList<OrchestraRunSummary> LoadAll();
     IReadOnlyList<OrchestraRunEvent> LoadEvents(string runtimeId, string runId);

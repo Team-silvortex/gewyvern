@@ -81,6 +81,380 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
     }
 
     [Fact]
+    public async Task ProlongedCheckpointOutageRetainsPressureBackoffAndAcknowledgement()
+    {
+        var statePath = TemporaryStatePath();
+        try
+        {
+            var clock = new ManualTimeProvider(
+                DateTimeOffset.Parse("2026-07-27T00:00:00Z"));
+            var runStore = new OutageCheckpointOrchestraRunStore(
+                new OrchestraDeleteReplayHorizon(
+                    Capacity: 4096,
+                    Retained: 4000,
+                    OldestGeneration: 1,
+                    NewestGeneration: 4000,
+                    NextGeneration: 4001,
+                    EvictedThroughGeneration: 0,
+                    ProtectedFromGeneration: 1,
+                    CheckpointedThroughGeneration: 3990));
+            var registry = new RegistryService(
+                CreateStateStore(statePath),
+                runStore,
+                clock);
+            var healthy = Assert.IsType<
+                OrchestraDeleteReplayCheckpointStatus>(
+                    registry
+                        .GetOrchestraDeleteReplayCheckpointStatus());
+            Assert.Equal(
+                OrchestraDeleteReplayAdmissionPressure.Critical,
+                healthy.AdmissionPressure);
+            Assert.Equal(10UL, healthy.Horizon.CheckpointLagGenerations);
+            Assert.False(healthy.ObservationStale);
+
+            runStore.Outage = true;
+            var attemptsBeforeOutage = runStore.HorizonReadCount;
+            var failed = Assert.IsType<
+                OrchestraDeleteReplayCheckpointStatus>(
+                    registry
+                        .GetOrchestraDeleteReplayCheckpointStatus());
+            Assert.Equal(
+                checked(attemptsBeforeOutage + 1),
+                runStore.HorizonReadCount);
+            Assert.True(failed.ObservationStale);
+            Assert.True(failed.AlertActive);
+            Assert.False(failed.AlertAcknowledged);
+            Assert.Equal(1U, failed.ConsecutiveFailureCount);
+            Assert.Equal(
+                clock.GetUtcNow().AddSeconds(1),
+                failed.NextRetryAt);
+            Assert.Equal(
+                OrchestraDeleteReplayAdmissionPressure.Critical,
+                failed.AdmissionPressure);
+            Assert.Equal(10UL, failed.Horizon.CheckpointLagGenerations);
+
+            _ = registry.GetOrchestraDeleteReplayCheckpointStatus();
+            Assert.Equal(
+                checked(attemptsBeforeOutage + 1),
+                runStore.HorizonReadCount);
+
+            clock.Advance(TimeSpan.FromSeconds(1));
+            var secondFailure = Assert.IsType<
+                OrchestraDeleteReplayCheckpointStatus>(
+                    registry
+                        .GetOrchestraDeleteReplayCheckpointStatus());
+            Assert.Equal(2U, secondFailure.ConsecutiveFailureCount);
+            Assert.Equal(
+                clock.GetUtcNow().AddSeconds(2),
+                secondFailure.NextRetryAt);
+
+            await using (var app = await BuildTestAppAsync(
+                registry,
+                FakeDaemonProjectionReader.Disabled))
+            {
+                var request =
+                    new OrchestraDeleteCheckpointAlertAcknowledgeRequest(
+                        secondFailure.AlertGeneration,
+                        "operator-a",
+                        true);
+                using var message = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    "/v1/persistence/orchestra-cleanup-replay-status/acknowledge")
+                {
+                    Content = JsonContent.Create(
+                        request,
+                        LeserpentJsonContext.Default
+                            .OrchestraDeleteCheckpointAlertAcknowledgeRequest),
+                };
+                message.Headers.Add(
+                    ControlPlaneSecurityPolicy.IntentHeader,
+                    ControlPlaneSecurityPolicy.MutateIntent);
+                var response = await app.GetTestClient().SendAsync(
+                    message);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var acknowledgement =
+                    await response.Content.ReadFromJsonAsync(
+                        LeserpentJsonContext.Default
+                            .OrchestraDeleteCheckpointAlertAcknowledgeResponse);
+                Assert.NotNull(acknowledgement);
+                Assert.True(acknowledgement.Acknowledged);
+                Assert.False(acknowledgement.Replayed);
+                Assert.True(
+                    acknowledgement.Status.AlertAcknowledged);
+                Assert.Equal(
+                    "operator-a",
+                    acknowledgement.Status.AcknowledgedBy);
+            }
+
+            var attemptsBeforeRestart = runStore.HorizonReadCount;
+            var restarted = new RegistryService(
+                CreateStateStore(statePath),
+                runStore,
+                clock);
+            var restored = Assert.IsType<
+                OrchestraDeleteReplayCheckpointStatus>(
+                    restarted
+                        .GetOrchestraDeleteReplayCheckpointStatus());
+            Assert.Equal(attemptsBeforeRestart, runStore.HorizonReadCount);
+            Assert.True(restored.ObservationStale);
+            Assert.True(restored.AlertAcknowledged);
+            Assert.Equal("operator-a", restored.AcknowledgedBy);
+            Assert.Equal(
+                secondFailure.AlertGeneration,
+                restored.AlertGeneration);
+
+            for (var expectedFailure = 3U;
+                 expectedFailure <= 7;
+                 expectedFailure += 1)
+            {
+                clock.Advance(
+                    restored.NextRetryAt!.Value -
+                    clock.GetUtcNow());
+                restored = Assert.IsType<
+                    OrchestraDeleteReplayCheckpointStatus>(
+                        restarted
+                            .GetOrchestraDeleteReplayCheckpointStatus());
+                Assert.Equal(
+                    expectedFailure,
+                    restored.ConsecutiveFailureCount);
+                Assert.True(
+                    restored.NextRetryAt - restored.LastAttemptAt <=
+                    TimeSpan.FromSeconds(30));
+                Assert.True(restored.AlertAcknowledged);
+            }
+            Assert.Equal(
+                TimeSpan.FromSeconds(30),
+                restored.NextRetryAt - restored.LastAttemptAt);
+
+            runStore.Outage = false;
+            clock.Advance(
+                restored.NextRetryAt!.Value -
+                clock.GetUtcNow());
+            var recovered = Assert.IsType<
+                OrchestraDeleteReplayCheckpointStatus>(
+                    restarted
+                        .GetOrchestraDeleteReplayCheckpointStatus());
+            Assert.False(recovered.ObservationStale);
+            Assert.False(recovered.AlertActive);
+            Assert.Equal(0U, recovered.ConsecutiveFailureCount);
+            Assert.Null(recovered.NextRetryAt);
+            Assert.Null(recovered.LastFailureCode);
+
+            runStore.Outage = true;
+            var nextIncident = Assert.IsType<
+                OrchestraDeleteReplayCheckpointStatus>(
+                    restarted
+                        .GetOrchestraDeleteReplayCheckpointStatus());
+            Assert.True(nextIncident.AlertActive);
+            Assert.False(nextIncident.AlertAcknowledged);
+            Assert.Equal(
+                checked(recovered.AlertGeneration + 1),
+                nextIncident.AlertGeneration);
+            Assert.Null(nextIncident.AcknowledgedBy);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public async Task HostedCheckpointWorkerRecoversAndDrainsDurableAlertWithoutPolling()
+    {
+        var statePath = TemporaryStatePath();
+        var runStore = new OutageCheckpointOrchestraRunStore(
+            new OrchestraDeleteReplayHorizon(
+                Capacity: 4096,
+                Retained: 4000,
+                OldestGeneration: 1,
+                NewestGeneration: 4000,
+                NextGeneration: 4001,
+                EvictedThroughGeneration: 0,
+                ProtectedFromGeneration: 1,
+                CheckpointedThroughGeneration: 3990));
+        var options = new OrchestraDeleteCheckpointWorkerOptions(
+            TimeSpan.FromMilliseconds(20),
+            TimeSpan.FromMilliseconds(5));
+        try
+        {
+            var registry = new RegistryService(
+                CreateStateStore(statePath),
+                runStore);
+            runStore.Outage = true;
+            var failingSink = new RecordingCheckpointAlertSink
+            {
+                FailDeliveries = true,
+            };
+            var firstWorker = new OrchestraDeleteCheckpointService(
+                registry,
+                failingSink,
+                NullLogger<
+                    OrchestraDeleteCheckpointService>.Instance,
+                options);
+            try
+            {
+                await firstWorker.StartAsync(
+                    CancellationToken.None);
+                await WaitUntilAsync(
+                    () =>
+                    {
+                        var state = registry.ExportState();
+                        return state
+                                .OrchestraDeleteCheckpointMonitor?
+                                .ConsecutiveFailureCount > 0 &&
+                            state
+                                .OrchestraDeleteCheckpointAlertOutbox?
+                                .SingleOrDefault()?
+                                .LastDeliveryFailureCode ==
+                            "checkpoint_alert_delivery_failed";
+                    },
+                    TimeSpan.FromSeconds(3));
+            }
+            finally
+            {
+                await firstWorker.StopAsync(
+                    CancellationToken.None);
+                firstWorker.Dispose();
+            }
+
+            var persisted = registry.ExportState();
+            var pending = Assert.Single(
+                persisted.OrchestraDeleteCheckpointAlertOutbox!);
+            Assert.True(pending.AttemptCount > 0);
+            Assert.Equal(
+                "checkpoint_alert_delivery_failed",
+                pending.LastDeliveryFailureCode);
+            Assert.Contains(
+                pending.EventId,
+                failingSink.AttemptedEventIds);
+
+            runStore.Outage = false;
+            var restarted = new RegistryService(
+                CreateStateStore(statePath),
+                runStore);
+            var restored = Assert.Single(
+                restarted.ExportState()
+                    .OrchestraDeleteCheckpointAlertOutbox!);
+            Assert.Equal(pending.EventId, restored.EventId);
+            Assert.Equal(
+                pending.AttemptCount,
+                restored.AttemptCount);
+
+            var recoveredSink =
+                new RecordingCheckpointAlertSink();
+            var restartedWorker =
+                new OrchestraDeleteCheckpointService(
+                    restarted,
+                    recoveredSink,
+                    NullLogger<
+                        OrchestraDeleteCheckpointService>.Instance,
+                    options);
+            try
+            {
+                await restartedWorker.StartAsync(
+                    CancellationToken.None);
+                await WaitUntilAsync(
+                    () =>
+                    {
+                        var state = restarted.ExportState();
+                        return state
+                                .OrchestraDeleteCheckpointMonitor?
+                                .ConsecutiveFailureCount == 0 &&
+                            state
+                                .OrchestraDeleteCheckpointAlertOutbox?
+                                .Count == 0;
+                    },
+                    TimeSpan.FromSeconds(4));
+            }
+            finally
+            {
+                await restartedWorker.StopAsync(
+                    CancellationToken.None);
+                restartedWorker.Dispose();
+            }
+
+            Assert.Equal(
+                new[] { pending.EventId },
+                recoveredSink.AttemptedEventIds);
+            Assert.True(runStore.HorizonReadCount >= 3);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
+    public void CheckpointAlertOutboxBackoffCapsAtThirtySecondsAndSurvivesRestart()
+    {
+        var statePath = TemporaryStatePath();
+        try
+        {
+            var clock = new ManualTimeProvider(
+                DateTimeOffset.Parse("2026-07-27T00:00:00Z"));
+            var runStore = new OutageCheckpointOrchestraRunStore(
+                new OrchestraDeleteReplayHorizon(
+                    Capacity: 4096,
+                    Retained: 4000,
+                    OldestGeneration: 1,
+                    NewestGeneration: 4000,
+                    NextGeneration: 4001,
+                    EvictedThroughGeneration: 0,
+                    ProtectedFromGeneration: 1,
+                    CheckpointedThroughGeneration: 3990));
+            var registry = new RegistryService(
+                CreateStateStore(statePath),
+                runStore,
+                clock);
+            runStore.Outage = true;
+            registry.RunOrchestraDeleteCheckpointMaintenance();
+            var original = Assert.Single(
+                registry.ExportState()
+                    .OrchestraDeleteCheckpointAlertOutbox!);
+            var expectedDelays = new[] { 1, 2, 4, 8, 16, 30, 30 };
+
+            foreach (var expectedDelay in expectedDelays)
+            {
+                var claimed = Assert.IsType<
+                    PersistedOrchestraDeleteCheckpointAlertDelivery>(
+                        registry
+                            .ClaimDueOrchestraDeleteCheckpointAlertDelivery());
+                Assert.Equal(original.EventId, claimed.EventId);
+                Assert.Equal(
+                    TimeSpan.FromSeconds(expectedDelay),
+                    claimed.NextAttemptAt - claimed.LastAttemptAt);
+                registry
+                    .RecordOrchestraDeleteCheckpointAlertDeliveryFailure(
+                        claimed.EventId);
+                clock.Advance(TimeSpan.FromSeconds(expectedDelay));
+            }
+
+            var persisted = Assert.Single(
+                registry.ExportState()
+                    .OrchestraDeleteCheckpointAlertOutbox!);
+            Assert.Equal(7U, persisted.AttemptCount);
+            Assert.Equal(original.EventId, persisted.EventId);
+            Assert.Equal(
+                "checkpoint_alert_delivery_failed",
+                persisted.LastDeliveryFailureCode);
+
+            runStore.Outage = false;
+            var restarted = new RegistryService(
+                CreateStateStore(statePath),
+                runStore,
+                clock);
+            var restored = Assert.Single(
+                restarted.ExportState()
+                    .OrchestraDeleteCheckpointAlertOutbox!);
+            Assert.Equal(persisted, restored);
+        }
+        finally
+        {
+            DeleteStateFiles(statePath);
+        }
+    }
+
+    [Fact]
     public async Task ReconciliationIsRevisionBoundDurableAndReplayable()
     {
         var statePath = TemporaryStatePath();
@@ -483,7 +857,11 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
 
     private static RegistryService CreateRegistry(
         string statePath,
-        IOrchestraRunStore runStore)
+        IOrchestraRunStore runStore) =>
+        new(CreateStateStore(statePath), runStore);
+
+    private static ControlPlaneStateStore CreateStateStore(
+        string statePath)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -491,16 +869,14 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
                 ["LESERPENT_STATE_PATH"] = statePath,
             })
             .Build();
-        return new RegistryService(
-            new ControlPlaneStateStore(
-                configuration,
-                new TestHostEnvironment
-                {
-                    ContentRootPath =
-                        Path.GetDirectoryName(statePath)!,
-                },
-                NullLogger<ControlPlaneStateStore>.Instance),
-            runStore);
+        return new ControlPlaneStateStore(
+            configuration,
+            new TestHostEnvironment
+            {
+                ContentRootPath =
+                    Path.GetDirectoryName(statePath)!,
+            },
+            NullLogger<ControlPlaneStateStore>.Instance);
     }
 
     private static SqliteOrchestraRunStore CreateSqliteStore(
@@ -646,6 +1022,109 @@ public sealed class RuntimeDeletionReconciliationEndpointTests
         public OrchestraDeleteReceipt? DeleteRuntimes(
             OrchestraDeleteCommand command) =>
             FailDeletes ? null : inner.DeleteRuntimes(command);
+    }
+
+    private sealed class OutageCheckpointOrchestraRunStore(
+        OrchestraDeleteReplayHorizon horizon) : IOrchestraRunStore
+    {
+        public bool Outage { get; set; }
+        public int HorizonReadCount { get; private set; }
+        public string Provider => "outage-test";
+        public string Location => "memory";
+        public int SchemaVersion => 18;
+        public bool SupportsDeleteReplayHorizon => true;
+        public bool DeleteReplayHorizonAvailabilityMayBeTransient =>
+            true;
+        public string? LastError { get; private set; }
+        public IReadOnlyList<OrchestraRunSummary> LoadAll() =>
+            Array.Empty<OrchestraRunSummary>();
+        public IReadOnlyList<OrchestraRunEvent> LoadEvents(
+            string runtimeId,
+            string runId) =>
+            Array.Empty<OrchestraRunEvent>();
+        public bool Upsert(
+            OrchestraRunSummary run,
+            OrchestraRunEvent? eventRecord = null) =>
+            true;
+        public bool ReplaceAll(
+            IReadOnlyList<OrchestraRunSummary> runs) =>
+            true;
+        public bool DeleteRuntimes(
+            IReadOnlyCollection<string> runtimeIds) =>
+            true;
+
+        public OrchestraDeleteReplayHorizon?
+            GetDeleteReplayHorizon()
+        {
+            HorizonReadCount += 1;
+            LastError = Outage
+                ? "orchestra_store_operation_failed"
+                : null;
+            return Outage ? null : horizon;
+        }
+    }
+
+    private sealed class ManualTimeProvider(
+        DateTimeOffset current) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => current;
+
+        public void Advance(TimeSpan duration)
+        {
+            Assert.True(duration >= TimeSpan.Zero);
+            current += duration;
+        }
+    }
+
+    private sealed class RecordingCheckpointAlertSink :
+        IOrchestraDeleteCheckpointAlertSink
+    {
+        private readonly object sync = new();
+        private readonly List<string> attemptedEventIds = new();
+
+        public bool FailDeliveries { get; init; }
+
+        public IReadOnlyList<string> AttemptedEventIds
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return attemptedEventIds.ToArray();
+                }
+            }
+        }
+
+        public Task DeliverAsync(
+            PersistedOrchestraDeleteCheckpointAlertDelivery delivery,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (sync)
+            {
+                attemptedEventIds.Add(delivery.EventId);
+            }
+            return FailDeliveries
+                ? Task.FromException(
+                    new IOException("alert sink unavailable"))
+                : Task.CompletedTask;
+        }
+    }
+
+    private static async Task WaitUntilAsync(
+        Func<bool> predicate,
+        TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (predicate())
+            {
+                return;
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(10));
+        }
+        Assert.True(predicate(), "condition did not converge");
     }
 
     private sealed class TestHostEnvironment : IHostEnvironment

@@ -644,6 +644,35 @@ public sealed record PersistedRuntimeDeletionReconciliationAudit(
     ulong? OrchestraCleanupGeneration = null
 );
 
+public sealed record PersistedOrchestraDeleteCheckpointMonitor(
+    OrchestraDeleteReplayHorizon? LastKnownHorizon,
+    OrchestraDeleteReplayAdmissionPressure AdmissionPressure,
+    uint ConsecutiveFailureCount,
+    DateTimeOffset? LastAttemptAt,
+    DateTimeOffset? NextRetryAt,
+    DateTimeOffset? LastSucceededAt,
+    string? LastFailureCode,
+    ulong AlertGeneration,
+    DateTimeOffset? AlertRaisedAt,
+    ulong? AcknowledgedAlertGeneration,
+    string? AcknowledgedBy,
+    DateTimeOffset? AcknowledgedAt
+);
+
+public sealed record PersistedOrchestraDeleteCheckpointAlertDelivery(
+    string EventId,
+    ulong AlertGeneration,
+    DateTimeOffset RaisedAt,
+    OrchestraDeleteReplayAdmissionPressure AdmissionPressure,
+    uint FailureCount,
+    string FailureCode,
+    DateTimeOffset EnqueuedAt,
+    uint AttemptCount,
+    DateTimeOffset? LastAttemptAt,
+    DateTimeOffset? NextAttemptAt,
+    string? LastDeliveryFailureCode
+);
+
 public sealed record PersistedControlPlaneState(
     int SchemaVersion,
     DateTimeOffset SavedAt,
@@ -653,7 +682,11 @@ public sealed record PersistedControlPlaneState(
     IReadOnlyList<PersistedRuntimeDeletionIntent>? PendingRuntimeDeletions = null,
     IReadOnlyList<PersistedRuntimeDeletionRetryAudit>? RuntimeDeletionRetryAudit = null,
     IReadOnlyList<PersistedRuntimeDeletionReconciliationAudit>?
-        RuntimeDeletionReconciliationAudit = null
+        RuntimeDeletionReconciliationAudit = null,
+    PersistedOrchestraDeleteCheckpointMonitor?
+        OrchestraDeleteCheckpointMonitor = null,
+    IReadOnlyList<PersistedOrchestraDeleteCheckpointAlertDelivery>?
+        OrchestraDeleteCheckpointAlertOutbox = null
 );
 
 public sealed class RuntimeDeletionRetryException(

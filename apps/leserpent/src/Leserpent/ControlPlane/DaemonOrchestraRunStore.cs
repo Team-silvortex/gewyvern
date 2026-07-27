@@ -53,6 +53,8 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
     public string Location => socketPath ?? "unconfigured";
     public int SchemaVersion => Enabled ? 18 : 0;
     public bool SupportsDeleteReplayHorizon => Enabled;
+    public bool DeleteReplayHorizonAvailabilityMayBeTransient =>
+        Enabled;
     public string? LastError { get; private set; }
 
     public IReadOnlyList<OrchestraRunSummary> LoadAll() =>

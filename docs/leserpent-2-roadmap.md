@@ -1125,7 +1125,7 @@ evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`;
 `scripts/validation/leserpent_runtime_deletion_cross_authority.sh` reproduces
-it. Both schema-v2 fixtures retain nine forced-termination checkpoint and
+it. Both schema-v3 fixtures retain nine forced-termination checkpoint and
 prefix-compaction proofs, then fill the horizon to one available slot and race
 cleanup-first plus checkpoint-first commits. Both orders preserve a contiguous
 two-receipt final window and restore healthy admission with 4094 available
@@ -1142,10 +1142,34 @@ exposed a peer-disconnect defect: a force-killed client could surface
 `BrokenPipe` through the IPC poll loop and terminate `leserpentd`. Accepted IPC
 connection failures are now isolated like remote-server peer failures, with a
 dedicated disconnect regression and bounded asynchronous test diagnostics.
-This proves idempotent convergence, not a distributed transaction. The next
-gate adds bounded automatic-checkpoint retry/backoff and durable operator alert
-acknowledgement, then proves a prolonged daemon outage cannot hide cleanup
-pressure.
+This proves idempotent convergence, not a distributed transaction.
+
+Control-plane schema v7 now persists the last trusted cleanup horizon and
+pressure together with a sanitized automatic-checkpoint incident. Startup,
+audit persistence, request replay, and status reads honor the durable
+1/2/4/8/16/30-second retry schedule instead of busy-looping against an
+unavailable daemon. Daemon-backed history loading can start in monitored
+degraded mode without migrating an unavailable authority as empty. During a
+prolonged outage the status API continues to report the stale critical pressure,
+lag, failure count, next retry, and alert generation. The mutation-fenced
+acknowledgement endpoint persists one operator acknowledgement against that
+generation; restart preserves it, recovery closes the incident, and a later
+outage creates a new unacknowledged generation. Complete state validation runs
+before every atomic save, including monitor and acknowledgement coherence. A
+deterministic outage/restart activity proves the 30-second retry ceiling and
+that pressure cannot disappear merely because the daemon is offline.
+Schema v8 adds a bounded generation-derived alert outbox. A hosted worker now
+drives synchronization independently of the status endpoint, persists each
+delivery attempt before invoking the sink, retries with the same capped
+schedule, and deletes an event only after acceptance. Stable event IDs make a
+crash-safe retry idempotency-capable without pretending exactly-once delivery.
+The default structured-log sink and replaceable sink boundary contain no
+credentials. A worker restart activity leaves daemon and sink unavailable,
+reloads the pending attempt, restores both, and proves checkpoint recovery plus
+outbox drainage without operator polling. The next gate adds lease-fenced
+worker ownership and an authenticated configurable alert sink, then proves
+duplicate service hosts cannot duplicate authority mutations or operator
+notifications.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

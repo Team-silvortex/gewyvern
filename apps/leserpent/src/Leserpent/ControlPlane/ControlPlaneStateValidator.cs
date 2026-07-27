@@ -6,6 +6,8 @@ internal static class ControlPlaneStateValidator
     internal const int MaxRuntimeDeletionAttempts = 1_000_000;
     internal const int MaxRuntimeDeletionRetryAuditEntries = 256;
     internal const int MaxRuntimeDeletionReconciliationAuditEntries = 256;
+    internal const uint MaxOrchestraDeleteCheckpointFailures = 1_000_000;
+    internal const int MaxOrchestraDeleteCheckpointAlertOutboxEntries = 256;
     internal const int MaxOrchestraRunSteps = 256;
     internal const int MaxOrchestraRunAttempts = 1_000_000;
     internal const int MaxRuntimeCapabilities = 256;
@@ -35,6 +37,22 @@ internal static class ControlPlaneStateValidator
         _ = NormalizeRuntimeDeletionReconciliationAudit(
             state,
             observedAt);
+        var checkpointMonitor =
+            NormalizeOrchestraDeleteCheckpointMonitor(
+            state.OrchestraDeleteCheckpointMonitor,
+            observedAt);
+        var checkpointAlertOutbox =
+            NormalizeOrchestraDeleteCheckpointAlertOutbox(
+            state.OrchestraDeleteCheckpointAlertOutbox,
+            observedAt);
+        if (checkpointAlertOutbox.Any(delivery =>
+                checkpointMonitor is null ||
+                delivery.AlertGeneration >
+                    checkpointMonitor.AlertGeneration))
+        {
+            throw new InvalidDataException(
+                "control-plane state contains a checkpoint alert delivery outside the monitor generation");
+        }
     }
 
     internal static void ValidateProjectionGraph(
@@ -843,6 +861,225 @@ internal static class ControlPlaneStateValidator
         return normalized;
     }
 
+    internal static PersistedOrchestraDeleteCheckpointMonitor?
+        NormalizeOrchestraDeleteCheckpointMonitor(
+            PersistedOrchestraDeleteCheckpointMonitor? persisted,
+            DateTimeOffset? now = null)
+    {
+        if (persisted is null)
+        {
+            return null;
+        }
+
+        var observedAt = now ?? DateTimeOffset.UtcNow;
+        var lastFailureCode = persisted.LastFailureCode?.Trim();
+        var acknowledgedBy = persisted.AcknowledgedBy?.Trim();
+        var hasAcknowledgement =
+            persisted.AcknowledgedAlertGeneration is not null ||
+            acknowledgedBy is not null ||
+            persisted.AcknowledgedAt is not null;
+        if (!Enum.IsDefined(persisted.AdmissionPressure) ||
+            persisted.ConsecutiveFailureCount >
+                MaxOrchestraDeleteCheckpointFailures ||
+            !IsValidCheckpointHorizon(persisted.LastKnownHorizon) ||
+            !IsValidObservedTimestamp(persisted.LastAttemptAt, observedAt) ||
+            !IsValidObservedTimestamp(
+                persisted.LastSucceededAt,
+                observedAt) ||
+            !IsValidObservedTimestamp(
+                persisted.AlertRaisedAt,
+                observedAt) ||
+            !IsValidObservedTimestamp(
+                persisted.AcknowledgedAt,
+                observedAt) ||
+            (persisted.NextRetryAt is not null &&
+                (persisted.LastAttemptAt is null ||
+                 persisted.NextRetryAt <= persisted.LastAttemptAt ||
+                 persisted.NextRetryAt >
+                    persisted.LastAttemptAt.Value.AddSeconds(30))) ||
+            (persisted.ConsecutiveFailureCount == 0 &&
+                (lastFailureCode is not null ||
+                 persisted.NextRetryAt is not null)) ||
+            (persisted.ConsecutiveFailureCount > 0 &&
+                (lastFailureCode !=
+                    "orchestra_checkpoint_unavailable" ||
+                 persisted.LastAttemptAt is null ||
+                 persisted.NextRetryAt is null ||
+                 persisted.AlertGeneration == 0 ||
+                 persisted.AlertRaisedAt is null)) ||
+            (persisted.AlertGeneration == 0 &&
+                persisted.AlertRaisedAt is not null) ||
+            (persisted.AlertGeneration > 0 &&
+                persisted.AlertRaisedAt is null) ||
+            (persisted.LastSucceededAt is not null &&
+                persisted.LastAttemptAt is not null &&
+                persisted.LastSucceededAt >
+                    persisted.LastAttemptAt) ||
+            (persisted.AlertRaisedAt is not null &&
+                persisted.LastAttemptAt is not null &&
+                persisted.AlertRaisedAt >
+                    persisted.LastAttemptAt) ||
+            (hasAcknowledgement &&
+                (persisted.AcknowledgedAlertGeneration is null or 0 ||
+                 persisted.AcknowledgedAlertGeneration >
+                    persisted.AlertGeneration ||
+                 !IsValidRuntimeDeletionRetryActor(
+                    acknowledgedBy ?? string.Empty) ||
+                 persisted.AcknowledgedAt is null)) ||
+            (!hasAcknowledgement &&
+                (persisted.AcknowledgedAlertGeneration is not null ||
+                 acknowledgedBy is not null ||
+                 persisted.AcknowledgedAt is not null)))
+        {
+            throw new InvalidDataException(
+                "control-plane state contains an invalid Orchestra delete checkpoint monitor");
+        }
+
+        return persisted with
+        {
+            LastFailureCode = lastFailureCode,
+            AcknowledgedBy = acknowledgedBy,
+        };
+    }
+
+    private static bool IsValidObservedTimestamp(
+        DateTimeOffset? value,
+        DateTimeOffset observedAt) =>
+        value is null ||
+        (value != default && value <= observedAt.AddMinutes(5));
+
+    internal static IReadOnlyList<
+        PersistedOrchestraDeleteCheckpointAlertDelivery>
+        NormalizeOrchestraDeleteCheckpointAlertOutbox(
+            IReadOnlyList<
+                PersistedOrchestraDeleteCheckpointAlertDelivery>? persisted,
+            DateTimeOffset? now = null)
+    {
+        var values = persisted ??
+            Array.Empty<
+                PersistedOrchestraDeleteCheckpointAlertDelivery>();
+        var observedAt = now ?? DateTimeOffset.UtcNow;
+        if (values.Count >
+            MaxOrchestraDeleteCheckpointAlertOutboxEntries)
+        {
+            throw new InvalidDataException(
+                "control-plane state contains too many checkpoint alert deliveries");
+        }
+
+        var eventIds = new HashSet<string>(StringComparer.Ordinal);
+        var generations = new HashSet<ulong>();
+        var normalized = new List<
+            PersistedOrchestraDeleteCheckpointAlertDelivery>(
+                values.Count);
+        foreach (var value in values)
+        {
+            var eventId = value.EventId?.Trim() ?? string.Empty;
+            var failureCode = value.FailureCode?.Trim() ?? string.Empty;
+            var lastDeliveryFailureCode =
+                value.LastDeliveryFailureCode?.Trim();
+            var expectedEventId =
+                $"orchestra-checkpoint-alert-{value.AlertGeneration}";
+            if (value.AlertGeneration == 0 ||
+                !string.Equals(
+                    eventId,
+                    expectedEventId,
+                    StringComparison.Ordinal) ||
+                !eventIds.Add(eventId) ||
+                !generations.Add(value.AlertGeneration) ||
+                value.RaisedAt == default ||
+                value.RaisedAt > observedAt.AddMinutes(5) ||
+                value.EnqueuedAt < value.RaisedAt ||
+                value.EnqueuedAt > observedAt.AddMinutes(5) ||
+                !Enum.IsDefined(value.AdmissionPressure) ||
+                value.FailureCount is 0 or >
+                    MaxOrchestraDeleteCheckpointFailures ||
+                failureCode != "orchestra_checkpoint_unavailable" ||
+                value.AttemptCount >
+                    MaxOrchestraDeleteCheckpointFailures ||
+                (value.AttemptCount == 0 &&
+                    (value.LastAttemptAt is not null ||
+                     value.NextAttemptAt is not null ||
+                     lastDeliveryFailureCode is not null)) ||
+                (value.AttemptCount > 0 &&
+                    (value.LastAttemptAt is null ||
+                     value.NextAttemptAt is null)) ||
+                !IsValidObservedTimestamp(
+                    value.LastAttemptAt,
+                    observedAt) ||
+                (value.NextAttemptAt is not null &&
+                    (value.LastAttemptAt is null ||
+                     value.NextAttemptAt <= value.LastAttemptAt ||
+                     value.NextAttemptAt >
+                        value.LastAttemptAt.Value.AddSeconds(30))) ||
+                (lastDeliveryFailureCode is not null &&
+                    lastDeliveryFailureCode !=
+                        "checkpoint_alert_delivery_failed"))
+            {
+                throw new InvalidDataException(
+                    "control-plane state contains an invalid checkpoint alert delivery");
+            }
+
+            normalized.Add(value with
+            {
+                EventId = eventId,
+                FailureCode = failureCode,
+                LastDeliveryFailureCode =
+                    lastDeliveryFailureCode,
+            });
+        }
+
+        return normalized;
+    }
+
+    private static bool IsValidCheckpointHorizon(
+        OrchestraDeleteReplayHorizon? horizon)
+    {
+        if (horizon is null)
+        {
+            return true;
+        }
+        if (horizon.Capacity == 0 ||
+            horizon.Retained > horizon.Capacity ||
+            horizon.NextGeneration == 0 ||
+            horizon.EvictedThroughGeneration >=
+                horizon.NextGeneration)
+        {
+            return false;
+        }
+        if (horizon.Retained == 0)
+        {
+            return horizon.OldestGeneration is null &&
+                horizon.NewestGeneration is null &&
+                horizon.ProtectedFromGeneration is null &&
+                horizon.CheckpointedThroughGeneration is null;
+        }
+        if (horizon.OldestGeneration is null ||
+            horizon.NewestGeneration is null ||
+            horizon.OldestGeneration == 0 ||
+            horizon.NewestGeneration < horizon.OldestGeneration ||
+            horizon.NextGeneration <= horizon.NewestGeneration ||
+            horizon.Retained !=
+                horizon.NewestGeneration -
+                horizon.OldestGeneration + 1)
+        {
+            return false;
+        }
+        if (horizon.ProtectedFromGeneration is not null &&
+            (horizon.ProtectedFromGeneration <
+                horizon.OldestGeneration ||
+             horizon.ProtectedFromGeneration >
+                horizon.NewestGeneration))
+        {
+            return false;
+        }
+        return horizon.CheckpointedThroughGeneration is null ||
+            (horizon.ProtectedFromGeneration is not null &&
+             horizon.CheckpointedThroughGeneration >=
+                horizon.ProtectedFromGeneration &&
+             horizon.CheckpointedThroughGeneration <=
+                horizon.NewestGeneration);
+    }
+
     internal static bool IsValidDeletionIdentifier(string value) =>
         value.Length is > 0 and <= 128 &&
         value.All(static character =>
@@ -997,7 +1234,8 @@ internal static class ControlPlaneStateValidator
 
         return intent.LastAttemptAt >= intent.PreparedAt &&
             intent.LastAttemptAt <= observedAt.AddMinutes(5) &&
-            intent.NextAttemptAt >= intent.LastAttemptAt &&
+            intent.NextAttemptAt >= intent.PreparedAt &&
+            intent.NextAttemptAt <= observedAt.AddMinutes(5) &&
             intent.NextAttemptAt <=
                 intent.LastAttemptAt.Value.Add(
                     MaxRuntimeDeletionRetryDelay);

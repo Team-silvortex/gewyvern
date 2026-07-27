@@ -739,11 +739,15 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.True(loaded is not null, store.LastSaveError);
             var restored = Assert.IsType<PersistedControlPlaneState>(loaded);
 
-            Assert.Equal(6, restored.SchemaVersion);
+            Assert.Equal(8, restored.SchemaVersion);
             Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<PersistedRuntimeDeletionIntent>>(
                 restored.PendingRuntimeDeletions));
             Assert.Empty(
                 restored.RuntimeDeletionReconciliationAudit!);
+            Assert.Null(
+                restored.OrchestraDeleteCheckpointMonitor);
+            Assert.Empty(
+                restored.OrchestraDeleteCheckpointAlertOutbox!);
         }
         finally
         {
@@ -794,7 +798,7 @@ public sealed class SqliteOrchestraRunStoreTests
                 store.Load());
             var intent = Assert.Single(restored.PendingRuntimeDeletions!);
 
-            Assert.Equal(6, restored.SchemaVersion);
+            Assert.Equal(8, restored.SchemaVersion);
             Assert.Equal(0, intent.AttemptCount);
             Assert.Null(intent.LastAttemptAt);
             Assert.Null(intent.NextAttemptAt);
@@ -812,6 +816,10 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.Empty(restored.RuntimeDeletionRetryAudit!);
             Assert.Empty(
                 restored.RuntimeDeletionReconciliationAudit!);
+            Assert.Null(
+                restored.OrchestraDeleteCheckpointMonitor);
+            Assert.Empty(
+                restored.OrchestraDeleteCheckpointAlertOutbox!);
         }
         finally
         {
@@ -851,6 +859,115 @@ public sealed class SqliteOrchestraRunStoreTests
             Assert.Equal(
                 ControlPlaneStateLoadFailureCode.SemanticInvalid,
                 store.LoadProvenance.PrimaryFailureCode);
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreRejectsForgedCheckpointAlertAcknowledgement()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var monitor =
+                new PersistedOrchestraDeleteCheckpointMonitor(
+                    new OrchestraDeleteReplayHorizon(
+                        4096,
+                        4000,
+                        1,
+                        4000,
+                        4001,
+                        0,
+                        1,
+                        3990),
+                    OrchestraDeleteReplayAdmissionPressure.Critical,
+                    1,
+                    now,
+                    now.AddSeconds(1),
+                    now.AddSeconds(-1),
+                    "orchestra_checkpoint_unavailable",
+                    1,
+                    now,
+                    AcknowledgedAlertGeneration: 2,
+                    AcknowledgedBy: "operator-a",
+                    AcknowledgedAt: now);
+            var error = Assert.Throws<
+                ControlPlaneStatePersistenceException>(() =>
+                CreateStateStore(statePath).SaveStrict(
+                    Array.Empty<PersistedRuntimeState>(),
+                    Array.Empty<PersistedSessionState>(),
+                    orchestraDeleteCheckpointMonitor: monitor));
+
+            Assert.IsType<InvalidDataException>(
+                error.InnerException);
+            Assert.False(File.Exists(statePath));
+        }
+        finally
+        {
+            DeleteState(statePath);
+        }
+    }
+
+    [Fact]
+    public void ControlPlaneStateStoreRejectsForgedCheckpointAlertOutboxGeneration()
+    {
+        var statePath = TemporaryPath("json");
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var monitor =
+                new PersistedOrchestraDeleteCheckpointMonitor(
+                    new OrchestraDeleteReplayHorizon(
+                        4096,
+                        4000,
+                        1,
+                        4000,
+                        4001,
+                        0,
+                        1,
+                        3990),
+                    OrchestraDeleteReplayAdmissionPressure.Critical,
+                    1,
+                    now,
+                    now.AddSeconds(1),
+                    now.AddSeconds(-1),
+                    "orchestra_checkpoint_unavailable",
+                    1,
+                    now,
+                    AcknowledgedAlertGeneration: null,
+                    AcknowledgedBy: null,
+                    AcknowledgedAt: null);
+            var forged = new[]
+            {
+                new PersistedOrchestraDeleteCheckpointAlertDelivery(
+                    "orchestra-checkpoint-alert-2",
+                    2,
+                    now,
+                    OrchestraDeleteReplayAdmissionPressure.Critical,
+                    1,
+                    "orchestra_checkpoint_unavailable",
+                    now,
+                    AttemptCount: 0,
+                    LastAttemptAt: null,
+                    NextAttemptAt: null,
+                    LastDeliveryFailureCode: null),
+            };
+            var error = Assert.Throws<
+                ControlPlaneStatePersistenceException>(() =>
+                CreateStateStore(statePath).SaveStrict(
+                    Array.Empty<PersistedRuntimeState>(),
+                    Array.Empty<PersistedSessionState>(),
+                    orchestraDeleteCheckpointMonitor: monitor,
+                    orchestraDeleteCheckpointAlertOutbox:
+                        forged));
+
+            Assert.IsType<InvalidDataException>(
+                error.InnerException);
+            Assert.False(File.Exists(statePath));
         }
         finally
         {

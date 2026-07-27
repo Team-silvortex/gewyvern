@@ -111,6 +111,26 @@ public sealed partial class RegistryService
                 static (queue, audit) => queue.Enqueue(audit));
     }
 
+    private static PersistedOrchestraDeleteCheckpointMonitor?
+        NormalizeOrchestraDeleteCheckpointMonitor(
+            PersistedControlPlaneState? state) =>
+        ControlPlaneStateValidator
+            .NormalizeOrchestraDeleteCheckpointMonitor(
+                state?.OrchestraDeleteCheckpointMonitor);
+
+    private static ImmutableQueue<
+        PersistedOrchestraDeleteCheckpointAlertDelivery>
+        NormalizeOrchestraDeleteCheckpointAlertOutbox(
+            PersistedControlPlaneState? state) =>
+        ControlPlaneStateValidator
+            .NormalizeOrchestraDeleteCheckpointAlertOutbox(
+                state?.OrchestraDeleteCheckpointAlertOutbox)
+            .Aggregate(
+                ImmutableQueue<
+                    PersistedOrchestraDeleteCheckpointAlertDelivery>.Empty,
+                static (queue, delivery) =>
+                    queue.Enqueue(delivery));
+
     private static bool IsValidRuntimeDeletionRetryActor(string value) =>
         ControlPlaneStateValidator.IsValidRuntimeDeletionRetryActor(
             value);
@@ -120,6 +140,11 @@ public sealed partial class RegistryService
         var databaseRuns = orchestraRunStore.LoadAll();
         if (!string.IsNullOrWhiteSpace(orchestraRunStore.LastError))
         {
+            if (orchestraRunStore
+                .DeleteReplayHorizonAvailabilityMayBeTransient)
+            {
+                return;
+            }
             throw new OrchestraPersistenceException(
                 "failed to validate persisted Orchestra history");
         }
@@ -289,7 +314,9 @@ public sealed partial class RegistryService
                 state.OrchestraRuns,
                 state.PendingRuntimeDeletions,
                 state.RuntimeDeletionRetryAudit,
-                state.RuntimeDeletionReconciliationAudit);
+                state.RuntimeDeletionReconciliationAudit,
+                state.OrchestraDeleteCheckpointMonitor,
+                state.OrchestraDeleteCheckpointAlertOutbox);
         }
     }
 
@@ -304,7 +331,9 @@ public sealed partial class RegistryService
                 state.OrchestraRuns,
                 state.PendingRuntimeDeletions,
                 state.RuntimeDeletionRetryAudit,
-                state.RuntimeDeletionReconciliationAudit);
+                state.RuntimeDeletionReconciliationAudit,
+                state.OrchestraDeleteCheckpointMonitor,
+                state.OrchestraDeleteCheckpointAlertOutbox);
         }
     }
 }

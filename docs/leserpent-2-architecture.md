@@ -635,13 +635,20 @@ daemon revision-fences every target and atomically journals their removal,
 deletes Orchestra history, and stores an idempotent replay record in schema
 v14. The compatibility service reserves the selected runtimes across the
 daemon call, preventing new sessions or Orchestra runs before it removes local
-compatibility state. Its control-plane state schema v6 durably records the
+compatibility state. Its control-plane state schema v7 durably records the
 deletion intent before daemon mutation and clears it only after local cleanup is
 strictly persisted. Schema v4 binds each intent to one deterministic
 unregistration command ID; schema v5 additionally records the replay-horizon
 floor before any mutation may begin. Schema v6 adds a bounded reconciliation
 audit committed in the same strict state generation as local runtime/session
-compatibility projections and intent cleanup. Schema v1-v5 snapshots upgrade
+compatibility projections and intent cleanup. Schema v7 adds the last trusted
+cleanup horizon, hysteretic pressure, checkpoint retry schedule, sanitized
+failure code, alert generation, and generation-bound operator acknowledgement.
+Schema v8 adds a bounded checkpoint-alert delivery outbox whose stable event
+identity is derived from the alert generation. Schema v1-v7 snapshots upgrade
+without inventing monitor health, alert state, or pending delivery.
+All state writes run the complete semantic validator before atomic replacement.
+Schema v1-v5 snapshots upgrade
 conservatively: old pending mutations are marked as potentially started but
 receive no invented floor, while malformed current snapshots fail semantic
 validation. Control-plane schema v3 extends each intent with a bounded attempt
@@ -757,9 +764,39 @@ automatic advancement. The Linux campaign also proved that a client
 failures instead of terminating the authority. The physical Linux x86_64 proof
 was refreshed on 2026-07-27 using a native Rust daemon and .NET harness on the
 retained host. This remains idempotent cross-authority convergence rather than
-an implied distributed transaction. The next gate adds bounded automatic
-checkpoint retry/backoff and durable operator alert acknowledgement, then
-proves a prolonged daemon outage cannot hide cleanup pressure.
+an implied distributed transaction.
+
+Automatic checkpoint failure is now an explicit durable incident. Startup,
+strict audit persistence, replay, and status observation attempt synchronization
+only when its persisted `next_retry_at` is due; failures use a
+1/2/4/8/16/30-second capped schedule and retain only the sanitized
+`orchestra_checkpoint_unavailable` code. A daemon-backed history read failure
+starts in degraded mode without treating an unavailable authority as an empty
+database. The status route continues to expose the last trusted horizon,
+pressure, and lag with `observation_stale=true`, plus attempt, retry, alert, and
+acknowledgement metadata. The mutate-intent-fenced acknowledgement route binds
+one operator to the current alert generation; recovery closes the incident and
+a later outage creates a fresh unacknowledged generation. A deterministic
+restart test drives the retry ceiling, durable acknowledgement, recovery, and
+new-incident invalidation while the daemon store remains unavailable.
+
+A dedicated hosted checkpoint worker now runs the same Registry-owned state
+machine independently of status reads. It wakes on the persisted checkpoint or
+delivery due time, with a 30-second healthy safety interval, so daemon recovery
+converges without operator polling. A new incident atomically enqueues one
+schema-v8 delivery before the state generation commits. The worker persists the
+attempt and its capped 1/2/4/8/16/30-second retry before invoking the sink, then
+removes the item only after sink success. A crash between those writes may
+redeliver, but always with the same generation-derived event ID; it cannot lose
+the alert. The default sink emits a structured critical service log, while the
+interface remains replaceable for authenticated notification transports.
+Complete state validation bounds the outbox to 256 entries and rejects
+duplicate, malformed, or future-monitor generations. A real hosted-service
+restart test holds both daemon and sink unavailable, reloads the persisted
+attempt, restores them, and proves checkpoint health plus outbox drainage
+without calling the status endpoint. The next gate adds lease-fenced worker
+ownership and an authenticated configurable alert sink, then proves duplicate
+service hosts cannot duplicate authority mutations or operator notifications.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

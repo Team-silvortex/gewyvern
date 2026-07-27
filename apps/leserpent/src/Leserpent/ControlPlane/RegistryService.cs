@@ -24,6 +24,8 @@ public sealed partial class RegistryService
     private static readonly TimeSpan AuthFailedRecoveryCooldown = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan NetworkFailedRecoveryCooldown = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan IncompleteDataRecoveryCooldown = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MaxAutomaticCheckpointRetryDelay =
+        TimeSpan.FromSeconds(30);
     private readonly ConcurrentDictionary<string, RuntimeRecord> runtimes = new();
     private readonly ConcurrentDictionary<string, SessionRecord> sessions = new();
     private readonly ConcurrentDictionary<string, ImmutableQueue<RuntimeRecoveryActivity>> recoveryActivities = new();
@@ -43,26 +45,48 @@ public sealed partial class RegistryService
     private readonly object persistenceSync = new();
     private readonly ControlPlaneStateStore stateStore;
     private readonly IOrchestraRunStore orchestraRunStore;
+    private readonly TimeProvider timeProvider;
     private readonly DateTimeOffset? restoredFromSavedAt;
     private OrchestraDeleteReplayAdmissionPressure
         orchestraDeleteReplayAdmissionPressure =
             OrchestraDeleteReplayAdmissionPressure.Healthy;
     private bool lastAutomaticOrchestraDeleteCheckpointAdvanced;
     private DateTimeOffset? lastAutomaticOrchestraDeleteCheckpointAt;
+    private PersistedOrchestraDeleteCheckpointMonitor?
+        orchestraDeleteCheckpointMonitor;
+    private ImmutableQueue<
+        PersistedOrchestraDeleteCheckpointAlertDelivery>
+        orchestraDeleteCheckpointAlertOutbox =
+            ImmutableQueue<
+                PersistedOrchestraDeleteCheckpointAlertDelivery>.Empty;
 
     public int RestoredRuntimeCount { get; }
     public int RestoredSessionCount { get; }
     public DateTimeOffset? RestoredFromSavedAt => restoredFromSavedAt;
 
     public RegistryService(ControlPlaneStateStore stateStore)
-        : this(stateStore, new InMemoryOrchestraRunStore())
+        : this(
+            stateStore,
+            new InMemoryOrchestraRunStore(),
+            TimeProvider.System)
     {
     }
 
-    public RegistryService(ControlPlaneStateStore stateStore, IOrchestraRunStore orchestraRunStore)
+    public RegistryService(
+        ControlPlaneStateStore stateStore,
+        IOrchestraRunStore orchestraRunStore)
+        : this(stateStore, orchestraRunStore, TimeProvider.System)
+    {
+    }
+
+    public RegistryService(
+        ControlPlaneStateStore stateStore,
+        IOrchestraRunStore orchestraRunStore,
+        TimeProvider timeProvider)
     {
         this.stateStore = stateStore;
         this.orchestraRunStore = orchestraRunStore;
+        this.timeProvider = timeProvider;
         var loaded = stateStore.Load();
         restoredFromSavedAt = loaded?.SavedAt;
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
@@ -70,6 +94,13 @@ public sealed partial class RegistryService
         runtimeDeletionRetryAudit = NormalizeRuntimeDeletionRetryAudit(loaded);
         runtimeDeletionReconciliationAudit =
             NormalizeRuntimeDeletionReconciliationAudit(loaded);
+        orchestraDeleteCheckpointMonitor =
+            NormalizeOrchestraDeleteCheckpointMonitor(loaded);
+        orchestraDeleteCheckpointAlertOutbox =
+            NormalizeOrchestraDeleteCheckpointAlertOutbox(loaded);
+        orchestraDeleteReplayAdmissionPressure =
+            orchestraDeleteCheckpointMonitor?.AdmissionPressure ??
+                OrchestraDeleteReplayAdmissionPressure.Healthy;
         RestoreOrMigrateOrchestraRuns();
         SynchronizeOrchestraDeleteReplayCheckpoint();
     }
@@ -1198,27 +1229,77 @@ public sealed partial class RegistryService
         }
         lock (persistenceSync)
         {
-            var horizon = orchestraRunStore.GetDeleteReplayHorizon()
-                ?? throw new OrchestraPersistenceException(
-                    "Orchestra cleanup replay horizon is unavailable");
-            orchestraDeleteReplayAdmissionPressure =
-                horizon.AdmissionPressureWithHysteresis(
-                    orchestraDeleteReplayAdmissionPressure);
-            var generations =
-                RuntimeDeletionReconciliationAuditGenerations();
-            return new OrchestraDeleteReplayCheckpointStatus(
-                horizon,
-                generations.FirstOrDefault() is var minimum &&
-                    minimum > 0
-                    ? minimum
-                    : null,
-                generations.LastOrDefault() is var observed &&
-                    observed > 0
-                    ? observed
-                    : null,
-                orchestraDeleteReplayAdmissionPressure,
-                lastAutomaticOrchestraDeleteCheckpointAdvanced,
-                lastAutomaticOrchestraDeleteCheckpointAt);
+            SynchronizeOrchestraDeleteReplayCheckpoint();
+            return BuildOrchestraDeleteReplayCheckpointStatus();
+        }
+    }
+
+    public OrchestraDeleteCheckpointAlertAcknowledgeResponse
+        AcknowledgeOrchestraDeleteCheckpointAlert(
+            OrchestraDeleteCheckpointAlertAcknowledgeRequest request,
+            DateTimeOffset? acknowledgedAt = null)
+    {
+        var requestedBy = request.RequestedBy?.Trim() ?? string.Empty;
+        var effectiveAcknowledgedAt =
+            acknowledgedAt ?? timeProvider.GetUtcNow();
+        if (!request.Confirmed ||
+            request.AlertGeneration == 0 ||
+            !IsValidRuntimeDeletionRetryActor(requestedBy) ||
+            effectiveAcknowledgedAt == default ||
+            effectiveAcknowledgedAt >
+                timeProvider.GetUtcNow().AddMinutes(5))
+        {
+            throw new OrchestraDeleteCheckpointAlertException(
+                "invalid_orchestra_checkpoint_alert_acknowledgement",
+                "checkpoint alert acknowledgement is invalid");
+        }
+
+        lock (persistenceSync)
+        {
+            var monitor = orchestraDeleteCheckpointMonitor;
+            if (monitor is null ||
+                monitor.ConsecutiveFailureCount == 0)
+            {
+                throw new OrchestraDeleteCheckpointAlertException(
+                    "orchestra_checkpoint_alert_not_active",
+                    "checkpoint alert is not active");
+            }
+            if (monitor.AlertGeneration != request.AlertGeneration)
+            {
+                throw new OrchestraDeleteCheckpointAlertException(
+                    "orchestra_checkpoint_alert_generation_changed",
+                    "checkpoint alert generation changed; inspect the current status");
+            }
+            if (monitor.AcknowledgedAlertGeneration ==
+                request.AlertGeneration)
+            {
+                if (!string.Equals(
+                        monitor.AcknowledgedBy,
+                        requestedBy,
+                        StringComparison.Ordinal))
+                {
+                    throw new OrchestraDeleteCheckpointAlertException(
+                        "orchestra_checkpoint_alert_acknowledgement_conflict",
+                        "checkpoint alert was already acknowledged by another operator");
+                }
+                return new OrchestraDeleteCheckpointAlertAcknowledgeResponse(
+                    true,
+                    true,
+                    RequireOrchestraDeleteReplayCheckpointStatus());
+            }
+
+            orchestraDeleteCheckpointMonitor = monitor with
+            {
+                AcknowledgedAlertGeneration =
+                    request.AlertGeneration,
+                AcknowledgedBy = requestedBy,
+                AcknowledgedAt = effectiveAcknowledgedAt,
+            };
+            PersistStateStrict();
+            return new OrchestraDeleteCheckpointAlertAcknowledgeResponse(
+                true,
+                false,
+                RequireOrchestraDeleteReplayCheckpointStatus());
         }
     }
 
@@ -1237,51 +1318,401 @@ public sealed partial class RegistryService
         {
             return;
         }
-        var before = orchestraRunStore.GetDeleteReplayHorizon()
-            ?? throw new OrchestraPersistenceException(
-                "Orchestra cleanup replay horizon is unavailable");
-        var generations =
-            RuntimeDeletionReconciliationAuditGenerations();
-        if (generations.Length == 0)
+        var now = timeProvider.GetUtcNow();
+        if (orchestraDeleteCheckpointMonitor is
+            { ConsecutiveFailureCount: > 0, NextRetryAt: not null }
+                monitor &&
+            monitor.NextRetryAt > now)
         {
-            orchestraDeleteReplayAdmissionPressure =
-                before.AdmissionPressureWithHysteresis(
-                    orchestraDeleteReplayAdmissionPressure);
             return;
         }
-        var minimum = generations[0];
-        var observedThrough = generations[^1];
-        var checkpointed =
-            orchestraRunStore.CheckpointDeleteReplayHorizon(
-                new OrchestraDeleteReplayCheckpoint(
-                    minimum,
-                    observedThrough));
-        if (checkpointed is null ||
-            checkpointed.ProtectedFromGeneration != minimum ||
-            checkpointed.OldestGeneration != minimum ||
-            checkpointed.NewestGeneration < observedThrough ||
-            checkpointed.CheckpointedThroughGeneration is null ||
-            checkpointed.CheckpointedThroughGeneration.Value <
-                observedThrough ||
-            checkpointed.EvictedThroughGeneration >= minimum)
+
+        try
         {
-            throw new OrchestraPersistenceException(
-                "Orchestra cleanup audit is outside the durable replay horizon");
+            SynchronizeOrchestraDeleteReplayCheckpointCore(now);
         }
+        catch (OrchestraPersistenceException) when (
+            orchestraRunStore
+                .DeleteReplayHorizonAvailabilityMayBeTransient &&
+            !string.IsNullOrWhiteSpace(orchestraRunStore.LastError))
+        {
+            RecordOrchestraDeleteCheckpointFailure(now);
+        }
+        catch (Exception error) when (
+            error is IOException or TimeoutException
+                or OperationCanceledException)
+        {
+            RecordOrchestraDeleteCheckpointFailure(now);
+        }
+    }
+
+    internal void RunOrchestraDeleteCheckpointMaintenance()
+    {
+        lock (persistenceSync)
+        {
+            SynchronizeOrchestraDeleteReplayCheckpoint();
+        }
+    }
+
+    internal PersistedOrchestraDeleteCheckpointAlertDelivery?
+        ClaimDueOrchestraDeleteCheckpointAlertDelivery()
+    {
+        lock (persistenceSync)
+        {
+            var now = timeProvider.GetUtcNow();
+            var delivery = orchestraDeleteCheckpointAlertOutbox
+                .FirstOrDefault(candidate =>
+                    candidate.NextAttemptAt is null ||
+                    candidate.NextAttemptAt <= now);
+            if (delivery is null)
+            {
+                return null;
+            }
+
+            var attemptCount = delivery.AttemptCount >=
+                ControlPlaneStateValidator
+                    .MaxOrchestraDeleteCheckpointFailures
+                ? ControlPlaneStateValidator
+                    .MaxOrchestraDeleteCheckpointFailures
+                : delivery.AttemptCount + 1;
+            var retryDelaySeconds = Math.Min(
+                1L << Math.Min(
+                    checked((int)attemptCount - 1),
+                    5),
+                checked((long)
+                    MaxAutomaticCheckpointRetryDelay.TotalSeconds));
+            var claimed = delivery with
+            {
+                AttemptCount = attemptCount,
+                LastAttemptAt = now,
+                NextAttemptAt =
+                    now.AddSeconds(retryDelaySeconds),
+                LastDeliveryFailureCode = null,
+            };
+            ReplaceOrchestraDeleteCheckpointAlertDelivery(claimed);
+            PersistStateStrict();
+            return claimed;
+        }
+    }
+
+    internal void CompleteOrchestraDeleteCheckpointAlertDelivery(
+        string eventId)
+    {
+        lock (persistenceSync)
+        {
+            var remaining = orchestraDeleteCheckpointAlertOutbox
+                .Where(delivery => !string.Equals(
+                    delivery.EventId,
+                    eventId,
+                    StringComparison.Ordinal))
+                .ToArray();
+            if (remaining.Length ==
+                orchestraDeleteCheckpointAlertOutbox.Count())
+            {
+                return;
+            }
+            orchestraDeleteCheckpointAlertOutbox =
+                remaining.Aggregate(
+                    ImmutableQueue<
+                        PersistedOrchestraDeleteCheckpointAlertDelivery>
+                        .Empty,
+                    static (queue, delivery) =>
+                        queue.Enqueue(delivery));
+            PersistStateStrict();
+        }
+    }
+
+    internal void RecordOrchestraDeleteCheckpointAlertDeliveryFailure(
+        string eventId)
+    {
+        lock (persistenceSync)
+        {
+            var delivery = orchestraDeleteCheckpointAlertOutbox
+                .FirstOrDefault(candidate => string.Equals(
+                    candidate.EventId,
+                    eventId,
+                    StringComparison.Ordinal));
+            if (delivery is null)
+            {
+                return;
+            }
+            ReplaceOrchestraDeleteCheckpointAlertDelivery(
+                delivery with
+                {
+                    LastDeliveryFailureCode =
+                        "checkpoint_alert_delivery_failed",
+                });
+            PersistStateStrict();
+        }
+    }
+
+    internal TimeSpan GetNextOrchestraDeleteCheckpointMaintenanceDelay(
+        TimeSpan idleDelay,
+        TimeSpan readyDelay)
+    {
+        lock (persistenceSync)
+        {
+            var now = timeProvider.GetUtcNow();
+            var candidates = orchestraDeleteCheckpointAlertOutbox
+                .Select(static delivery =>
+                    delivery.NextAttemptAt)
+                .Append(
+                    orchestraDeleteCheckpointMonitor is
+                    { ConsecutiveFailureCount: > 0 } monitor
+                        ? monitor.NextRetryAt
+                        : null)
+                .ToArray();
+            if (orchestraDeleteCheckpointAlertOutbox.Any(
+                    static delivery =>
+                        delivery.NextAttemptAt is null))
+            {
+                return readyDelay;
+            }
+
+            var nextDueAt = candidates
+                .Where(static dueAt => dueAt is not null)
+                .Min();
+            if (nextDueAt is null)
+            {
+                return idleDelay;
+            }
+            var untilDue = nextDueAt.Value - now;
+            if (untilDue <= readyDelay)
+            {
+                return readyDelay;
+            }
+            return untilDue < idleDelay
+                ? untilDue
+                : idleDelay;
+        }
+    }
+
+    private void ReplaceOrchestraDeleteCheckpointAlertDelivery(
+        PersistedOrchestraDeleteCheckpointAlertDelivery replacement)
+    {
+        orchestraDeleteCheckpointAlertOutbox =
+            orchestraDeleteCheckpointAlertOutbox
+                .Select(delivery => string.Equals(
+                    delivery.EventId,
+                    replacement.EventId,
+                    StringComparison.Ordinal)
+                    ? replacement
+                    : delivery)
+                .Aggregate(
+                    ImmutableQueue<
+                        PersistedOrchestraDeleteCheckpointAlertDelivery>
+                        .Empty,
+                    static (queue, delivery) =>
+                        queue.Enqueue(delivery));
+    }
+
+    private void SynchronizeOrchestraDeleteReplayCheckpointCore(
+        DateTimeOffset now)
+    {
+        var before = orchestraRunStore.GetDeleteReplayHorizon();
+        if (before is null)
+        {
+            if (orchestraRunStore
+                .DeleteReplayHorizonAvailabilityMayBeTransient)
+            {
+                RecordOrchestraDeleteCheckpointFailure(now);
+                return;
+            }
+            throw new OrchestraPersistenceException(
+                "Orchestra cleanup replay horizon is unavailable");
+        }
+        var generations =
+            RuntimeDeletionReconciliationAuditGenerations();
+        var checkpointed = before;
+        if (generations.Length > 0)
+        {
+            var minimum = generations[0];
+            var observedThrough = generations[^1];
+            checkpointed =
+                orchestraRunStore.CheckpointDeleteReplayHorizon(
+                    new OrchestraDeleteReplayCheckpoint(
+                        minimum,
+                        observedThrough));
+            if (checkpointed is null)
+            {
+                if (orchestraRunStore
+                    .DeleteReplayHorizonAvailabilityMayBeTransient)
+                {
+                    RecordOrchestraDeleteCheckpointFailure(now);
+                    return;
+                }
+                throw new OrchestraPersistenceException(
+                    "Orchestra cleanup audit is outside the durable replay horizon");
+            }
+            if (checkpointed.ProtectedFromGeneration != minimum ||
+                checkpointed.OldestGeneration != minimum ||
+                checkpointed.NewestGeneration < observedThrough ||
+                checkpointed.CheckpointedThroughGeneration is null ||
+                checkpointed.CheckpointedThroughGeneration.Value <
+                    observedThrough ||
+                checkpointed.EvictedThroughGeneration >= minimum)
+            {
+                throw new OrchestraPersistenceException(
+                    "Orchestra cleanup audit is outside the durable replay horizon");
+            }
+            var advanced =
+                before.ProtectedFromGeneration !=
+                    checkpointed.ProtectedFromGeneration ||
+                before.CheckpointedThroughGeneration !=
+                    checkpointed.CheckpointedThroughGeneration;
+            if (advanced)
+            {
+                lastAutomaticOrchestraDeleteCheckpointAdvanced = true;
+                lastAutomaticOrchestraDeleteCheckpointAt = now;
+            }
+        }
+
         orchestraDeleteReplayAdmissionPressure =
             checkpointed.AdmissionPressureWithHysteresis(
                 orchestraDeleteReplayAdmissionPressure);
-        lastAutomaticOrchestraDeleteCheckpointAdvanced =
-            before.ProtectedFromGeneration !=
-                checkpointed.ProtectedFromGeneration ||
-            before.CheckpointedThroughGeneration !=
-                checkpointed.CheckpointedThroughGeneration;
-        if (lastAutomaticOrchestraDeleteCheckpointAdvanced)
+        var previous = orchestraDeleteCheckpointMonitor;
+        orchestraDeleteCheckpointMonitor =
+            new PersistedOrchestraDeleteCheckpointMonitor(
+                checkpointed,
+                orchestraDeleteReplayAdmissionPressure,
+                ConsecutiveFailureCount: 0,
+                LastAttemptAt: now,
+                NextRetryAt: null,
+                LastSucceededAt: now,
+                LastFailureCode: null,
+                AlertGeneration: previous?.AlertGeneration ?? 0,
+                AlertRaisedAt: previous?.AlertRaisedAt,
+                AcknowledgedAlertGeneration:
+                    previous?.AcknowledgedAlertGeneration,
+                AcknowledgedBy: previous?.AcknowledgedBy,
+                AcknowledgedAt: previous?.AcknowledgedAt);
+        if (previous is not null ||
+            checkpointed.Retained > 0 ||
+            generations.Length > 0 ||
+            orchestraDeleteReplayAdmissionPressure !=
+                OrchestraDeleteReplayAdmissionPressure.Healthy)
         {
-            lastAutomaticOrchestraDeleteCheckpointAt =
-                DateTimeOffset.UtcNow;
+            PersistStateStrict();
         }
     }
+
+    private void RecordOrchestraDeleteCheckpointFailure(
+        DateTimeOffset attemptedAt)
+    {
+        var previous = orchestraDeleteCheckpointMonitor;
+        var previousFailureCount =
+            previous?.ConsecutiveFailureCount ?? 0;
+        var failureCount = Math.Min(
+            previousFailureCount + 1,
+            ControlPlaneStateValidator
+                .MaxOrchestraDeleteCheckpointFailures);
+        var retryDelaySeconds = Math.Min(
+            1L << Math.Min(
+                checked((int)failureCount - 1),
+                5),
+            checked((long)MaxAutomaticCheckpointRetryDelay.TotalSeconds));
+        var newIncident = previousFailureCount == 0;
+        var alertGeneration = newIncident
+            ? checked((previous?.AlertGeneration ?? 0) + 1)
+            : previous!.AlertGeneration;
+        if (newIncident &&
+            orchestraDeleteCheckpointAlertOutbox.Count() >=
+                ControlPlaneStateValidator
+                    .MaxOrchestraDeleteCheckpointAlertOutboxEntries)
+        {
+            throw new OrchestraPersistenceException(
+                "checkpoint alert delivery outbox is full");
+        }
+        orchestraDeleteCheckpointMonitor =
+            new PersistedOrchestraDeleteCheckpointMonitor(
+                previous?.LastKnownHorizon,
+                previous?.AdmissionPressure ??
+                    orchestraDeleteReplayAdmissionPressure,
+                failureCount,
+                attemptedAt,
+                attemptedAt.AddSeconds(retryDelaySeconds),
+                previous?.LastSucceededAt,
+                "orchestra_checkpoint_unavailable",
+                alertGeneration,
+                newIncident
+                    ? attemptedAt
+                    : previous!.AlertRaisedAt,
+                newIncident
+                    ? null
+                    : previous!.AcknowledgedAlertGeneration,
+                newIncident ? null : previous!.AcknowledgedBy,
+                newIncident ? null : previous!.AcknowledgedAt);
+        if (newIncident)
+        {
+            orchestraDeleteCheckpointAlertOutbox =
+                orchestraDeleteCheckpointAlertOutbox.Enqueue(
+                    new PersistedOrchestraDeleteCheckpointAlertDelivery(
+                        $"orchestra-checkpoint-alert-{alertGeneration}",
+                        alertGeneration,
+                        attemptedAt,
+                        orchestraDeleteCheckpointMonitor
+                            .AdmissionPressure,
+                        failureCount,
+                        "orchestra_checkpoint_unavailable",
+                        attemptedAt,
+                        AttemptCount: 0,
+                        LastAttemptAt: null,
+                        NextAttemptAt: null,
+                        LastDeliveryFailureCode: null));
+        }
+        PersistStateStrict();
+    }
+
+    private OrchestraDeleteReplayCheckpointStatus?
+        BuildOrchestraDeleteReplayCheckpointStatus()
+    {
+        var monitor = orchestraDeleteCheckpointMonitor;
+        if (monitor?.LastKnownHorizon is not { } horizon)
+        {
+            return null;
+        }
+        var generations =
+            RuntimeDeletionReconciliationAuditGenerations();
+        var alertActive = monitor.ConsecutiveFailureCount > 0;
+        var alertAcknowledged =
+            alertActive &&
+            monitor.AcknowledgedAlertGeneration ==
+                monitor.AlertGeneration;
+        return new OrchestraDeleteReplayCheckpointStatus(
+            horizon,
+            generations.FirstOrDefault() is var minimum &&
+                minimum > 0
+                ? minimum
+                : null,
+            generations.LastOrDefault() is var observed &&
+                observed > 0
+                ? observed
+                : null,
+            monitor.AdmissionPressure,
+            lastAutomaticOrchestraDeleteCheckpointAdvanced,
+            lastAutomaticOrchestraDeleteCheckpointAt,
+            ObservationStale: alertActive,
+            monitor.ConsecutiveFailureCount,
+            monitor.LastAttemptAt,
+            monitor.NextRetryAt,
+            monitor.LastSucceededAt,
+            monitor.LastFailureCode,
+            AlertActive: alertActive,
+            monitor.AlertGeneration,
+            monitor.AlertRaisedAt,
+            AlertAcknowledged: alertAcknowledged,
+            AcknowledgedBy:
+                alertAcknowledged ? monitor.AcknowledgedBy : null,
+            AcknowledgedAt:
+                alertAcknowledged ? monitor.AcknowledgedAt : null);
+    }
+
+    private OrchestraDeleteReplayCheckpointStatus
+        RequireOrchestraDeleteReplayCheckpointStatus() =>
+        BuildOrchestraDeleteReplayCheckpointStatus() ??
+        throw new OrchestraDeleteCheckpointAlertException(
+            "orchestra_checkpoint_horizon_unavailable",
+            "checkpoint replay horizon has not been observed");
 
     public void CompleteRuntimeDeletion(RuntimeDeletionReservation reservation)
     {
@@ -1488,7 +1919,9 @@ public sealed partial class RegistryService
                 .ThenBy(static intent => intent.IntentId, StringComparer.Ordinal)
                 .ToArray(),
             runtimeDeletionRetryAudit.ToArray(),
-            runtimeDeletionReconciliationAudit.ToArray());
+            runtimeDeletionReconciliationAudit.ToArray(),
+            orchestraDeleteCheckpointMonitor,
+            orchestraDeleteCheckpointAlertOutbox.ToArray());
 
     public PersistenceImportResponse ImportState(PersistedControlPlaneState state)
     {
@@ -1506,6 +1939,10 @@ public sealed partial class RegistryService
         var importedRetryAudit = NormalizeRuntimeDeletionRetryAudit(state);
         var importedReconciliationAudit =
             NormalizeRuntimeDeletionReconciliationAudit(state);
+        var importedCheckpointMonitor =
+            NormalizeOrchestraDeleteCheckpointMonitor(state);
+        var importedCheckpointAlertOutbox =
+            NormalizeOrchestraDeleteCheckpointAlertOutbox(state);
 
         lock (orchestraRunSync)
         {
@@ -1524,6 +1961,10 @@ public sealed partial class RegistryService
             runtimeDeletionRetryAudit = importedRetryAudit;
             runtimeDeletionReconciliationAudit =
                 importedReconciliationAudit;
+            orchestraDeleteCheckpointMonitor =
+                importedCheckpointMonitor;
+            orchestraDeleteCheckpointAlertOutbox =
+                importedCheckpointAlertOutbox;
             var (runtimeCount, sessionCount) = RestorePersistedState(state);
             if (!orchestraRunStore.ReplaceAll(orchestraRuns.Values.SelectMany(static queue => queue).ToArray()))
             {
@@ -1535,6 +1976,12 @@ public sealed partial class RegistryService
                     NormalizeRuntimeDeletionRetryAudit(previousState);
                 runtimeDeletionReconciliationAudit =
                     NormalizeRuntimeDeletionReconciliationAudit(
+                        previousState);
+                orchestraDeleteCheckpointMonitor =
+                    NormalizeOrchestraDeleteCheckpointMonitor(
+                        previousState);
+                orchestraDeleteCheckpointAlertOutbox =
+                    NormalizeOrchestraDeleteCheckpointAlertOutbox(
                         previousState);
                 throw new OrchestraPersistenceException("failed to replace Orchestra database during state import");
             }

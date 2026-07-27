@@ -54,6 +54,13 @@ public partial class Program
             services.GetRequiredService<DaemonRuntimeRegistrationAuthority>());
         builder.Services.AddSingleton<RuntimeDeletionRecoverySignal>();
         builder.Services.AddHostedService<RuntimeDeletionRecoveryService>();
+        builder.Services.AddSingleton(
+            OrchestraDeleteCheckpointWorkerOptions.Default);
+        builder.Services.AddSingleton<
+            IOrchestraDeleteCheckpointAlertSink,
+            LoggingOrchestraDeleteCheckpointAlertSink>();
+        builder.Services.AddHostedService<
+            OrchestraDeleteCheckpointService>();
         builder.Services.AddSingleton<RuntimeReadProjectionService>();
         builder.Services.AddHttpClient<CapabilityDiscoveryService>();
         builder.Services.AddSingleton<IOrchestraPlanExecutor, OrchestraPlanExecutor>();

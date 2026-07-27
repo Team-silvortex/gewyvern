@@ -172,6 +172,15 @@ public sealed record RuntimeDeletionReconcileResponse(
     bool Replayed,
     PersistedRuntimeDeletionReconciliationAudit Audit);
 
+public sealed record OrchestraDeleteCheckpointAlertAcknowledgeRequest(
+    ulong AlertGeneration,
+    string RequestedBy,
+    bool Confirmed);
+public sealed record OrchestraDeleteCheckpointAlertAcknowledgeResponse(
+    bool Acknowledged,
+    bool Replayed,
+    OrchestraDeleteReplayCheckpointStatus Status);
+
 internal sealed record RuntimeDeletionReconciliationStart(
     RuntimeDeletionReservation? Reservation,
     RuntimeDeletionReconcileResponse? Replay);

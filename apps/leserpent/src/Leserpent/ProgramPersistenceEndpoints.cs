@@ -58,6 +58,59 @@ public partial class Program
                             .OrchestraDeleteReplayCheckpointStatus);
             });
 
+        app.MapPost(
+            "/v1/persistence/orchestra-cleanup-replay-status/acknowledge",
+            (
+                OrchestraDeleteCheckpointAlertAcknowledgeRequest request,
+                RegistryService registry) =>
+            {
+                try
+                {
+                    return Results.Json(
+                        registry
+                            .AcknowledgeOrchestraDeleteCheckpointAlert(
+                                request),
+                        LeserpentJsonContext.Default
+                            .OrchestraDeleteCheckpointAlertAcknowledgeResponse);
+                }
+                catch (OrchestraDeleteCheckpointAlertException ex)
+                    when (string.Equals(
+                        ex.Code,
+                        "invalid_orchestra_checkpoint_alert_acknowledgement",
+                        StringComparison.Ordinal))
+                {
+                    return Results.BadRequest(
+                        new ApiErrorResponse(ex.Code, ex.Message));
+                }
+                catch (OrchestraDeleteCheckpointAlertException ex)
+                    when (string.Equals(
+                        ex.Code,
+                        "orchestra_checkpoint_horizon_unavailable",
+                        StringComparison.Ordinal))
+                {
+                    return Results.Json(
+                        new ApiErrorResponse(ex.Code, ex.Message),
+                        LeserpentJsonContext.Default.ApiErrorResponse,
+                        statusCode:
+                            StatusCodes.Status503ServiceUnavailable);
+                }
+                catch (OrchestraDeleteCheckpointAlertException ex)
+                {
+                    return Results.Conflict(
+                        new ApiErrorResponse(ex.Code, ex.Message));
+                }
+                catch (ControlPlaneStatePersistenceException ex)
+                {
+                    return Results.Json(
+                        new ApiErrorResponse(
+                            "orchestra_checkpoint_alert_persistence_unavailable",
+                            ex.Message),
+                        LeserpentJsonContext.Default.ApiErrorResponse,
+                        statusCode:
+                            StatusCodes.Status503ServiceUnavailable);
+                }
+            });
+
         app.MapGet(
             "/v1/persistence/runtime-deletions/{intentId}/reconciliation-plan",
             async (
