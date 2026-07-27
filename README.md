@@ -1,4 +1,4 @@
-# gewyvern v1.7.x
+# gewyvern v1.10.x
 
 <p align="center">
   <img src="docs/assets/branding/gewyvern-logo-v1.svg" alt="gewyvern logo" width="240">
@@ -80,7 +80,7 @@ session data.
 
 ## Status
 
-- project version: `1.7.x`
+- project version: `1.10.x`
 - stage: post-1.0 stable development, preserving the sealed debugger core while
   hardening reliability and advancing the Rust Leserpent/Leselang control plane
 - transport support: TCP + UDP
@@ -111,12 +111,12 @@ session data.
 `gewyvern` is no longer just a convergence story. The current line is:
 
 - historical validation baseline: `v0.10.0`
-- current release line: `v1.7.x`, the active post-1.0 stable line
+- current release line: `v1.10.x`, with `v1.10.0` as the current shared release
 - current focus: keep the broad protocol catalog behaving like one integrated
   local network debugger with stable startup, stop, logs, recovery,
   persistence, cross-validation, and Linux-host execution paths
 
-The `1.0.0` seal established the trust baseline. The `1.7.x` line preserves
+The `1.0.0` seal established the trust baseline. The `1.10.x` line preserves
 that baseline while extending the surrounding system: stable CLI/runtime and
 DSL/compiler boundaries, reliable HTML/JSON/API reporting, predictable
 operational performance, clean lifecycle behavior, and a contract-driven path

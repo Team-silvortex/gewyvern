@@ -191,7 +191,7 @@
       "leserpent.remoteclient": {
         "type": "Project",
         "dependencies": {
-          "Leserpent.RendererCore": "[1.5.0, )"
+          "Leserpent.RendererCore": "[1.10.0, )"
         }
       },
       "leserpent.renderercore": {

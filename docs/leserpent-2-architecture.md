@@ -5,6 +5,10 @@ This document is the authoritative target architecture for the
 current 1.x implementation. Delivery order and exit gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
+The current implementation checkpoint is the shared `v1.10.0` release. This
+document remains the `2.0.0` target contract rather than a claim that every
+target capability is already complete.
+
 ## Decision
 
 Leserpent 2.0 is a Rust control runtime with three equivalent operator

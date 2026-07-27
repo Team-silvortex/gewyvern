@@ -1,12 +1,12 @@
 # Release Checklist
 
 This page is the shortest practical release checklist for the active
-`1.7.x` line.
+`1.10.x` line.
 
 Use it when the question is not "how does packaging work?" or "what does field
 validation mean?", but simply:
 
-- can we still ship `1.7.x` with confidence?
+- can we still ship `1.10.x` with confidence?
 - did we exercise the real packaged artifacts?
 - did standalone and multi-project paths both survive?
 
@@ -56,9 +56,9 @@ For those, use:
   for the protocol-breadth and physical-host validation baseline that this line
   inherits
 
-## Current `1.7.x` Gate
+## Current `1.10.x` Gate
 
-Treat `1.7.x` as release-ready only when all of the following stay true:
+Treat `1.10.x` as release-ready only when all of the following stay true:
 
 1. current native artifacts are rebuilt from the current source tree
 2. packaged `deb` and `rpm` install smoke both pass
@@ -112,7 +112,7 @@ Expected outputs:
 
 The `<version>` value is read from the root `gewyvern` package metadata in
 `Cargo.toml`. Always use that exact semantic version in concrete artifact
-names; `1.7.x` identifies the active minor line and is never itself a package
+names; `1.10.x` identifies the active minor line and is never itself a package
 version.
 
 The package smoke must always verify the artifacts that the tree actually
@@ -433,7 +433,7 @@ Use this triage order:
 
 ## Ship Read
 
-For the active `1.7.x` line, a good practical ship read is:
+For the active `1.10.x` line, a good practical ship read is:
 
 - current artifacts rebuilt
 - `release_gate.sh` green, or the equivalent build + packaged release check +

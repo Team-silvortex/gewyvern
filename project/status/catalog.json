@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "project": "gewyvern",
-  "checkpoint": "v1.0.0-to-v2.0.0-roadmap",
+  "checkpoint": "v1.10.0-to-v2.0.0-roadmap",
   "dimensions": {
     "architectures": [
       {

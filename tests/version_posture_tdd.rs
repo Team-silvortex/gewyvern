@@ -80,6 +80,7 @@ fn etragon_inherits_the_workspace_version() {
     let workspace_version = section_version(&root_manifest, "workspace.package");
     let package_version = section_version(&root_manifest, "package");
 
+    assert_eq!(workspace_version, "1.10.0");
     assert!(root_manifest.contains("[workspace.package]"));
     assert_eq!(workspace_version, package_version);
     assert!(etragon_manifest.contains("version.workspace = true"));
@@ -153,9 +154,9 @@ fn docs_describe_the_active_minor_line_without_component_versions() {
     let workspace_version = section_version(&root_manifest, "workspace.package");
 
     assert!(!workspace_version.is_empty());
-    assert!(readme.starts_with("# gewyvern v1.7.x\n"));
-    assert!(readme.contains("project version: `1.7.x`"));
-    assert!(readme.contains("current release line: `v1.7.x`"));
+    assert!(readme.starts_with("# gewyvern v1.10.x\n"));
+    assert!(readme.contains("project version: `1.10.x`"));
+    assert!(readme.contains("current release line: `v1.10.x`"));
 
     assert!(readme.contains("follows the root `gewyvern` version"));
     assert!(monorepo.contains("one shared mainline version"));
@@ -220,8 +221,8 @@ fn release_checklist_uses_version_template_for_package_artifacts() {
     assert!(checklist.contains("target/packages/rpm/gewyvern-<version>-1.<rpm-arch>.rpm"));
     assert!(checklist.contains("root `gewyvern` package metadata"));
     assert!(checklist.contains("is never itself a package"));
-    assert!(!checklist.contains("gewyvern_1.7.x-1_"));
-    assert!(!checklist.contains("gewyvern-1.7.x-1."));
+    assert!(!checklist.contains("gewyvern_1.10.x-1_"));
+    assert!(!checklist.contains("gewyvern-1.10.x-1."));
     assert!(!checklist.contains("target/packages/gewyvern_0.20.0-1_<arch>.deb"));
     assert!(!checklist.contains("target/packages/rpm/gewyvern-0.20.0-1.<arch>.rpm"));
 }

@@ -19,7 +19,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "1.5.0"
+version = "1.10.0"
 edition = "2024"
 license = "MIT"
 
@@ -35,7 +35,7 @@ tungstenite = { version = "0.29", default-features = false, features = ["handsha
 
 [package]
 name = "gewyvern"
-version = "1.5.0"
+version = "1.10.0"
 edition = "2024"
 description = "Linux-first protocol debugging and evidence reconstruction runtime"
 license.workspace = true

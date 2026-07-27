@@ -7,6 +7,10 @@ defines the invariant destination; this page defines ordered delivery gates.
 The roadmap is capability-gated, not date-gated. A later gate may be prototyped
 early, but it cannot become authoritative before its prerequisites are green.
 
+Current implementation checkpoint: shared release `v1.10.0`. The
+[project status tensor](project-status-system.md) remains authoritative for
+per-feature maturity, evidence, dependencies, and next gates.
+
 Implementation stack rule:
 
 - control-plane authority is Rust-first.

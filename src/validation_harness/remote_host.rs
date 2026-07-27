@@ -63,7 +63,7 @@ pub fn run_remote_linux_host_validation(
         .clone()
         .unwrap_or_else(default_remote_dir);
     let remote_path = remote_workspace_path(&remote_dir);
-    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.5.0".to_string());
+    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.10.0".to_string());
 
     validation_log(format!("[remote-host] host: {}", options.host));
     validation_log(format!(
