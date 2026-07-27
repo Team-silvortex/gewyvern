@@ -236,11 +236,41 @@ pub struct OrchestraDeleteReceiptResponse {
 pub struct OrchestraDeleteReplayHorizonResponse {
     pub capacity: u64,
     pub retained: u64,
+    pub available_capacity: u64,
+    pub warning_available_capacity: u64,
+    pub critical_available_capacity: u64,
+    pub saturated: bool,
+    pub admission_state: OrchestraDeleteReplayAdmissionState,
+    pub admission_pressure: OrchestraDeleteReplayAdmissionPressure,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operator_action: Option<OrchestraDeleteReplayOperatorAction>,
     pub oldest_generation: Option<u64>,
     pub newest_generation: Option<u64>,
     pub next_generation: u64,
     pub evicted_through_generation: u64,
     pub protected_from_generation: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrchestraDeleteReplayAdmissionState {
+    Ready,
+    BlockedByReconciliationAudit,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrchestraDeleteReplayAdmissionPressure {
+    Healthy,
+    Warning,
+    Critical,
+    Blocked,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrchestraDeleteReplayOperatorAction {
+    PersistAuditAndAdvanceCheckpoint,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -936,6 +966,13 @@ mod tests {
                 OrchestraDeleteReplayHorizonResponse {
                     capacity: 4_096,
                     retained: 4,
+                    available_capacity: 4_092,
+                    warning_available_capacity: 512,
+                    critical_available_capacity: 128,
+                    saturated: false,
+                    admission_state: OrchestraDeleteReplayAdmissionState::Ready,
+                    admission_pressure: OrchestraDeleteReplayAdmissionPressure::Healthy,
+                    operator_action: None,
                     oldest_generation: Some(4),
                     newest_generation: Some(7),
                     next_generation: 8,
@@ -947,6 +984,34 @@ mod tests {
         assert_eq!(
             decode_response(&encode_response(&replay_horizon).unwrap()).unwrap(),
             replay_horizon
+        );
+        let saturated_horizon = ResponseEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            response: ProtocolResponse::OrchestraDeleteReplayHorizon(
+                OrchestraDeleteReplayHorizonResponse {
+                    capacity: 4_096,
+                    retained: 4_096,
+                    available_capacity: 0,
+                    warning_available_capacity: 512,
+                    critical_available_capacity: 128,
+                    saturated: true,
+                    admission_state:
+                        OrchestraDeleteReplayAdmissionState::BlockedByReconciliationAudit,
+                    admission_pressure: OrchestraDeleteReplayAdmissionPressure::Blocked,
+                    operator_action: Some(
+                        OrchestraDeleteReplayOperatorAction::PersistAuditAndAdvanceCheckpoint,
+                    ),
+                    oldest_generation: Some(1),
+                    newest_generation: Some(4_096),
+                    next_generation: 4_097,
+                    evicted_through_generation: 0,
+                    protected_from_generation: Some(1),
+                },
+            ),
+        };
+        assert_eq!(
+            decode_response(&encode_response(&saturated_horizon).unwrap()).unwrap(),
+            saturated_horizon
         );
         let unregister = RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,

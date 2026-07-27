@@ -1100,7 +1100,14 @@ generation range and only after the corresponding reconciliation audit is
 durable; it then deletes exactly the older prefix and advances the high-water
 mark in the same transaction. Restart validates that the oldest retained audit
 still lies inside the horizon. The local C# SQLite bridge uses schema v4 and the
-same checks, while Rust schema-v16 receipts migrate losslessly to v17.
+same checks, while Rust schema-v16 receipts migrate losslessly to v17. Health
+and explicit queries now expose available capacity, saturation, typed
+admission posture, and admission pressure. Protected windows become warning at
+512 remaining receipts and critical at 128, then blocked at zero; unprotected
+rolling windows remain healthy. Every non-healthy state exposes the checkpoint
+operator action. A full pinned horizon returns a stable saturation error;
+advancing the durable audit checkpoint compacts the covered prefix and restores
+admission.
 
 Previous control generations replay the command and receive the same generation
 with `replayed=true`; replacement generations retain the command ID and
@@ -1111,12 +1118,14 @@ evidence lives in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`;
 `scripts/validation/leserpent_runtime_deletion_cross_authority.sh` reproduces
-it. The Arm64 fixture now also retains nine forced-termination checkpoint and
-prefix-compaction proofs. The physical Linux x86_64 fixture remains at the
-schema-v16 cleanup-receipt gate because the host link was too unreliable to
-complete source transfer and the physical campaign; refreshing that proof and
-exposing pinned-horizon saturation as an operator diagnostic are the next gate.
-This proves idempotent convergence, not a distributed transaction.
+it. Both schema-v2 fixtures retain nine forced-termination checkpoint and
+prefix-compaction proofs, then fill the horizon to one available slot and race
+cleanup-first plus checkpoint-first commits. Both orders preserve a contiguous
+two-receipt final window and restore healthy admission with 4094 available
+slots. The physical Linux x86_64 fixture was refreshed on 2026-07-27 with the
+native Rust daemon and .NET harness. This proves idempotent convergence, not a
+distributed transaction. Pressure hysteresis, checkpoint-lag telemetry, and
+restart-safe audit-driven automatic checkpoint advancement are the next gate.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

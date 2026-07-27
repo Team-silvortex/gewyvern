@@ -249,24 +249,6 @@ fn retained_runtime_deletion_cross_authority_convergence_is_non_vacuous() {
 }
 
 #[test]
-fn retained_arm64_cross_authority_cleanup_horizon_is_checkpoint_protected() {
-    let evidence: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(
-            repository_root()
-                .join("docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json"),
-        )
-        .expect("Arm64 runtime deletion cross-authority evidence must exist"),
-    )
-    .expect("Arm64 runtime deletion cross-authority evidence must be JSON");
-
-    assert_eq!(evidence["architecture"], "Arm64");
-    assert_eq!(
-        evidence["checks"]["every_audit_checkpoint_protected_cleanup_replay_horizon"],
-        true
-    );
-}
-
-#[test]
 fn retained_runtime_deletion_retry_rollovers_are_non_vacuous() {
     assert_runtime_deletion_retry_rollover(
         "docs/fixtures/leserpent_runtime_deletion_retry_rollover_20260723.json",
@@ -1211,7 +1193,7 @@ fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &s
     )
     .expect("runtime deletion cross-authority evidence must be JSON");
 
-    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(evidence["schema_version"], 2);
     assert_eq!(evidence["architecture"], expected_architecture);
     assert_eq!(evidence["iterations_per_strategy"], 3);
     assert_eq!(
@@ -1229,6 +1211,23 @@ fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &s
             .is_some_and(|revision| revision > 0)
     );
     assert_eq!(evidence["control_temp_artifact_observed_count"], 3);
+    assert_eq!(evidence["cleanup_checkpoint_race_rounds"], 2);
+    let races = evidence["cleanup_checkpoint_races"]
+        .as_array()
+        .expect("cleanup/checkpoint races must be an array");
+    assert_eq!(races.len(), 2);
+    assert_eq!(races[0]["order"], "CleanupFirst");
+    assert_eq!(races[1]["order"], "CheckpointFirst");
+    for race in races {
+        assert_eq!(race["available_before_race"], 1);
+        let checkpoint = race["checkpoint_generation"]
+            .as_u64()
+            .expect("checkpoint generation must be numeric");
+        let cleanup = race["cleanup_generation"]
+            .as_u64()
+            .expect("cleanup generation must be numeric");
+        assert_eq!(cleanup, checkpoint + 1);
+    }
     let previous = evidence["previous_generation_count"]
         .as_u64()
         .expect("previous generation count must be numeric");
@@ -1253,6 +1252,14 @@ fn assert_runtime_deletion_cross_authority(path: &str, expected_architecture: &s
         "every_final_state_retained_one_reconciliation_audit",
         "every_request_replayed_after_restart",
         "every_cleanup_receipt_replayed_same_generation",
+        "every_audit_checkpoint_protected_cleanup_replay_horizon",
+        "every_pre_saturation_critical_warning_visible",
+        "cleanup_first_race_exercised",
+        "checkpoint_first_race_exercised",
+        "every_raced_cleanup_committed",
+        "every_raced_checkpoint_committed",
+        "every_race_observed_expected_completion_order",
+        "every_cleanup_checkpoint_race_admission_safe",
         "both_control_generation_outcomes_were_exercised",
         "every_host_process_force_killed",
     ] {
@@ -1691,7 +1698,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.17.0");
+    assert_eq!(compatibility_control.contract.version, "1.19.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -2003,11 +2010,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert!(
-        compatibility_control
-            .next_gate
-            .contains("physical Linux x86-64")
-    );
+    assert_eq!(compatibility_control.contract.version, "1.19.0");
+    assert!(compatibility_control.next_gate.contains("hysteresis"));
 
     let reconciliation = catalog
         .cells
@@ -2017,7 +2021,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.4.0");
+    assert_eq!(reconciliation.contract.version, "1.6.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -2056,6 +2060,25 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "daemon-local-store-horizon-parity",
         "startup-audit-horizon-fence",
         "arm64-cleanup-horizon-crash-proof",
+        "physical-linux-x64-cleanup-horizon-crash-proof",
+        "typed-cleanup-replay-admission-posture",
+        "queryable-cleanup-replay-available-capacity",
+        "pinned-cleanup-horizon-saturation-diagnostic",
+        "actionable-cleanup-checkpoint-remediation",
+        "typed-cleanup-saturation-wire-error",
+        "daemon-cli-local-store-saturation-parity",
+        "checkpoint-restored-cleanup-admission",
+        "protected-cleanup-horizon-pressure-model",
+        "cleanup-horizon-warning-threshold-512",
+        "cleanup-horizon-critical-threshold-128",
+        "false-positive-free-unpinned-horizon",
+        "cross-language-cleanup-pressure-parity",
+        "pre-saturation-operator-remediation",
+        "cleanup-checkpoint-race-linearization",
+        "cleanup-first-race-proof",
+        "checkpoint-first-race-proof",
+        "cross-platform-cleanup-checkpoint-race-proof",
+        "physical-linux-cleanup-checkpoint-race-proof",
     ] {
         assert!(
             reconciliation
@@ -2067,7 +2090,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(reconciliation.blockers.is_empty());
-    assert!(reconciliation.next_gate.contains("physical Linux x86-64"));
+    assert!(reconciliation.next_gate.contains("hysteresis"));
 
     let bootstrap = catalog
         .cells

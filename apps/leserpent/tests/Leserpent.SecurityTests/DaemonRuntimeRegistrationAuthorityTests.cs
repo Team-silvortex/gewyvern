@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Leserpent.ControlPlane;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -861,6 +862,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         var databasePath = socketPath + ".db";
         var results =
             new List<RuntimeDeletionCrossAuthorityResult>();
+        var cleanupCheckpointRaces =
+            new List<CleanupCheckpointRaceResult>();
         using var daemon = StartDaemon(
             daemonBinary,
             databasePath,
@@ -896,7 +899,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                         ["LESERPENT_DAEMON_SOCKET"] = socketPath,
                         ["LESERPENT_DAEMON_TOKEN"] = Token,
                         ["LESERPENT_DAEMON_ORCHESTRA_TIMEOUT_MS"] =
-                            "10000",
+                            "30000",
                     })
                 .Build();
             var orchestraStore = new DaemonOrchestraRunStore(
@@ -985,10 +988,28 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 Assert.True(
                     result.AuditCheckpointProtectedReplayHorizon);
             });
+            foreach (var order in Enum.GetValues<
+                CleanupCheckpointRaceOrder>())
+            {
+                cleanupCheckpointRaces.Add(
+                    await ExecuteCleanupCheckpointRaceAsync(
+                        databasePath,
+                        orchestraStore,
+                        order));
+            }
+            Assert.All(cleanupCheckpointRaces, result =>
+            {
+                Assert.True(result.PreSaturationCriticalVisible);
+                Assert.True(result.CleanupCommitted);
+                Assert.True(result.CheckpointCommitted);
+                Assert.True(result.ExpectedCompletionOrderObserved);
+                Assert.True(result.FinalHorizonAdmissionSafe);
+            });
             WriteRuntimeDeletionCrossAuthorityEvidenceIfRequested(
                 iterations,
                 daemonSnapshot.Revision,
-                results);
+                results,
+                cleanupCheckpointRaces);
         }
         finally
         {
@@ -3442,6 +3463,184 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         }
     }
 
+    private static async Task<CleanupCheckpointRaceResult>
+        ExecuteCleanupCheckpointRaceAsync(
+            string databasePath,
+            DaemonOrchestraRunStore orchestraStore,
+            CleanupCheckpointRaceOrder order)
+    {
+        var initial = Assert.IsType<OrchestraDeleteReplayHorizon>(
+            orchestraStore.GetDeleteReplayHorizon());
+        SeedCleanupReplayHorizonToOneAvailableSlot(
+            databasePath,
+            initial,
+            order);
+        var critical = Assert.IsType<OrchestraDeleteReplayHorizon>(
+            orchestraStore.GetDeleteReplayHorizon());
+        Assert.Equal(1UL, critical.AvailableCapacity);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Critical,
+            critical.AdmissionPressure);
+        Assert.Equal(
+            OrchestraDeleteReplayOperatorAction
+                .PersistAuditAndAdvanceCheckpoint,
+            critical.OperatorAction);
+        var checkpointGeneration =
+            Assert.IsType<ulong>(critical.NewestGeneration);
+        using var start = new ManualResetEventSlim();
+        var completionSequence = 0;
+        var cleanupCompletion = 0;
+        var checkpointCompletion = 0;
+        var cleanup = Task.Run(() =>
+        {
+            start.Wait();
+            if (order == CleanupCheckpointRaceOrder.CheckpointFirst)
+            {
+                Thread.Sleep(50);
+            }
+            var receipt = orchestraStore.DeleteRuntimes(
+                new OrchestraDeleteCommand(
+                    $"orchestra-cleanup-checkpoint-race-{order.ToString().ToLowerInvariant()}",
+                    new[] { "runtime-cleanup-checkpoint-race" }));
+            cleanupCompletion =
+                Interlocked.Increment(ref completionSequence);
+            return receipt;
+        });
+        var checkpoint = Task.Run(() =>
+        {
+            start.Wait();
+            if (order == CleanupCheckpointRaceOrder.CleanupFirst)
+            {
+                Thread.Sleep(50);
+            }
+            var horizon = orchestraStore.CheckpointDeleteReplayHorizon(
+                new OrchestraDeleteReplayCheckpoint(
+                    checkpointGeneration,
+                    checkpointGeneration));
+            checkpointCompletion =
+                Interlocked.Increment(ref completionSequence);
+            return horizon;
+        });
+        start.Set();
+        await Task.WhenAll(cleanup, checkpoint);
+
+        var receipt = Assert.IsType<OrchestraDeleteReceipt>(
+            cleanup.Result);
+        Assert.False(receipt.Replayed);
+        Assert.Equal(
+            checked(checkpointGeneration + 1),
+            receipt.OperationGeneration);
+        Assert.NotNull(checkpoint.Result);
+        var final = Assert.IsType<OrchestraDeleteReplayHorizon>(
+            orchestraStore.GetDeleteReplayHorizon());
+        Assert.Equal(2UL, final.Retained);
+        Assert.Equal(checkpointGeneration, final.OldestGeneration);
+        Assert.Equal(receipt.OperationGeneration, final.NewestGeneration);
+        Assert.Equal(
+            checked(receipt.OperationGeneration + 1),
+            final.NextGeneration);
+        Assert.Equal(
+            checked(checkpointGeneration - 1),
+            final.EvictedThroughGeneration);
+        Assert.Equal(
+            checkpointGeneration,
+            final.ProtectedFromGeneration);
+        Assert.Equal(4094UL, final.AvailableCapacity);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Healthy,
+            final.AdmissionPressure);
+        Assert.Null(final.OperatorAction);
+        var expectedCompletionOrderObserved =
+            order == CleanupCheckpointRaceOrder.CleanupFirst
+                ? cleanupCompletion < checkpointCompletion
+                : checkpointCompletion < cleanupCompletion;
+        Assert.True(expectedCompletionOrderObserved);
+
+        return new CleanupCheckpointRaceResult(
+            order,
+            critical.AvailableCapacity,
+            checkpointGeneration,
+            receipt.OperationGeneration,
+            PreSaturationCriticalVisible: true,
+            CleanupCommitted: true,
+            CheckpointCommitted: true,
+            ExpectedCompletionOrderObserved:
+                expectedCompletionOrderObserved,
+            FinalHorizonAdmissionSafe: true);
+    }
+
+    private static void SeedCleanupReplayHorizonToOneAvailableSlot(
+        string databasePath,
+        OrchestraDeleteReplayHorizon horizon,
+        CleanupCheckpointRaceOrder order)
+    {
+        const ulong targetRetained = 4095;
+        Assert.NotNull(horizon.ProtectedFromGeneration);
+        Assert.True(horizon.Retained <= targetRetained);
+        var seedCount = checked(targetRetained - horizon.Retained);
+        if (seedCount == 0)
+        {
+            return;
+        }
+        using var connection = new SqliteConnection(
+            $"Data Source={databasePath}");
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+        using (var insert = connection.CreateCommand())
+        {
+            insert.Transaction = transaction;
+            insert.CommandText = """
+                INSERT INTO orchestra_delete_operations (
+                    operation_id, generation, request,
+                    deleted_runtime_count, deleted_run_count,
+                    deleted_event_count, committed_at_unix_ms)
+                VALUES (
+                    $operation_id, $generation, $request,
+                    0, 0, 0, $committed_at_unix_ms);
+                """;
+            var operationId = insert.Parameters.Add(
+                "$operation_id",
+                SqliteType.Text);
+            var generation = insert.Parameters.Add(
+                "$generation",
+                SqliteType.Integer);
+            insert.Parameters.Add(
+                "$request",
+                SqliteType.Blob).Value =
+                Encoding.UTF8.GetBytes(
+                    "[\"runtime-cleanup-checkpoint-race\"]");
+            var committedAt = insert.Parameters.Add(
+                "$committed_at_unix_ms",
+                SqliteType.Integer);
+            for (ulong offset = 0; offset < seedCount; offset++)
+            {
+                var value = checked(horizon.NextGeneration + offset);
+                operationId.Value =
+                    $"cleanup-checkpoint-{order.ToString().ToLowerInvariant()}-{value}";
+                generation.Value = checked((long)value);
+                committedAt.Value = checked((long)value);
+                Assert.Equal(1, insert.ExecuteNonQuery());
+            }
+        }
+        using (var advance = connection.CreateCommand())
+        {
+            advance.Transaction = transaction;
+            advance.CommandText = """
+                UPDATE orchestra_delete_generation
+                SET next_generation = $replacement
+                WHERE id = 1 AND next_generation = $expected;
+                """;
+            advance.Parameters.AddWithValue(
+                "$replacement",
+                checked((long)(horizon.NextGeneration + seedCount)));
+            advance.Parameters.AddWithValue(
+                "$expected",
+                checked((long)horizon.NextGeneration));
+            Assert.Equal(1, advance.ExecuteNonQuery());
+        }
+        transaction.Commit();
+    }
+
     private static void AssertCrossAuthorityUnrelatedHistory(
         DaemonOrchestraRunStore orchestraStore,
         OrchestraRunSummary unrelatedRun)
@@ -5590,7 +5789,9 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         WriteRuntimeDeletionCrossAuthorityEvidenceIfRequested(
             int iterations,
             ulong daemonRevision,
-            IReadOnlyList<RuntimeDeletionCrossAuthorityResult> results)
+            IReadOnlyList<RuntimeDeletionCrossAuthorityResult> results,
+            IReadOnlyList<CleanupCheckpointRaceResult>
+                cleanupCheckpointRaces)
     {
         var evidencePath = Environment.GetEnvironmentVariable(
             "LESERPENT_RUNTIME_DELETION_CROSS_AUTHORITY_EVIDENCE");
@@ -5615,7 +5816,7 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             .ToArray();
         var evidence = new
         {
-            schema_version = 1,
+            schema_version = 2,
             observed_at = DateTimeOffset.UtcNow,
             platform = Environment.OSVersion.Platform.ToString(),
             architecture =
@@ -5632,6 +5833,19 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                 duringTempResults.Count(
                     static result =>
                         result.TempArtifactObserved),
+            cleanup_checkpoint_race_rounds =
+                cleanupCheckpointRaces.Count,
+            cleanup_checkpoint_races =
+                cleanupCheckpointRaces.Select(result => new
+                {
+                    order = result.Order.ToString(),
+                    available_before_race =
+                        result.AvailableBeforeRace,
+                    checkpoint_generation =
+                        result.CheckpointGeneration,
+                    cleanup_generation =
+                        result.CleanupGeneration,
+                }),
             checks = new
             {
                 real_leserpentd_orchestra_authority_used = true,
@@ -5702,6 +5916,29 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
                     results.All(static result =>
                         result
                             .AuditCheckpointProtectedReplayHorizon),
+                every_pre_saturation_critical_warning_visible =
+                    cleanupCheckpointRaces.All(static result =>
+                        result.PreSaturationCriticalVisible),
+                cleanup_first_race_exercised =
+                    cleanupCheckpointRaces.Any(result =>
+                        result.Order ==
+                        CleanupCheckpointRaceOrder.CleanupFirst),
+                checkpoint_first_race_exercised =
+                    cleanupCheckpointRaces.Any(result =>
+                        result.Order ==
+                        CleanupCheckpointRaceOrder.CheckpointFirst),
+                every_raced_cleanup_committed =
+                    cleanupCheckpointRaces.All(static result =>
+                        result.CleanupCommitted),
+                every_raced_checkpoint_committed =
+                    cleanupCheckpointRaces.All(static result =>
+                        result.CheckpointCommitted),
+                every_race_observed_expected_completion_order =
+                    cleanupCheckpointRaces.All(static result =>
+                        result.ExpectedCompletionOrderObserved),
+                every_cleanup_checkpoint_race_admission_safe =
+                    cleanupCheckpointRaces.All(static result =>
+                        result.FinalHorizonAdmissionSafe),
                 both_control_generation_outcomes_were_exercised =
                     previousGenerationCount > 0 &&
                     replacementGenerationCount > 0,
@@ -6820,6 +7057,23 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
         DuringControlTempWrite,
         AfterControlCommit,
     }
+
+    private enum CleanupCheckpointRaceOrder
+    {
+        CleanupFirst,
+        CheckpointFirst,
+    }
+
+    private sealed record CleanupCheckpointRaceResult(
+        CleanupCheckpointRaceOrder Order,
+        ulong AvailableBeforeRace,
+        ulong CheckpointGeneration,
+        ulong CleanupGeneration,
+        bool PreSaturationCriticalVisible,
+        bool CleanupCommitted,
+        bool CheckpointCommitted,
+        bool ExpectedCompletionOrderObserved,
+        bool FinalHorizonAdmissionSafe);
 
     private sealed record RuntimeDeletionCrossAuthorityResult(
         RuntimeDeletionCrossAuthorityStrategy Strategy,

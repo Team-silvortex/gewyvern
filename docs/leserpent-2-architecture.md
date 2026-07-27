@@ -714,8 +714,17 @@ control-state commit therefore retains extra proof, while startup fails closed
 if a restored audit reaches below the durable horizon. The same typed horizon
 and checkpoint contract is implemented by the Rust daemon authority and local
 C# SQLite store, and daemon health plus explicit authenticated IPC make the
-window queryable. Schema-v16 receipts migrate without changing their command
-identity, generation, counts, or timestamp.
+window queryable. The projection includes available capacity, saturation, a
+typed `ready` or `blocked_by_reconciliation_audit` admission state, and
+`healthy`, `warning`, `critical`, or `blocked` admission pressure. A protected
+window enters warning at 512 remaining receipts and critical at 128; an
+unprotected rolling window remains healthy even when full. Every non-healthy
+pressure state exposes the `persist_audit_and_advance_checkpoint` operator
+action. Saturated command admission returns its own stable wire error instead
+of a generic storage failure, while a successful checkpoint immediately
+restores admission.
+Schema-v16 receipts migrate without changing their command identity,
+generation, counts, or timestamp.
 
 A previous JSON generation replays its durable command and receives the
 original receipt with `replayed=true`; a replacement generation replays the
@@ -726,12 +735,18 @@ command ID to its generation. Arm64 and physical Linux x86_64 cleanup-receipt
 evidence is retained in
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_20260726.json` and
 `docs/fixtures/leserpent_runtime_deletion_cross_authority_linux_x86_64_20260726.json`.
-The Arm64 fixture additionally proves nine forced-termination reloads
-checkpoint and protect the current audit generation while compacting older
-receipts. Refreshed physical Linux x86_64 checkpoint evidence remains the next
-gate because the validation-host link was too unreliable to complete source
-transfer and the physical campaign during this pass. This remains idempotent
-cross-authority convergence rather than an implied distributed transaction.
+Both schema-v2 fixtures prove nine forced-termination reloads checkpoint and
+protect the current audit generation while compacting older receipts. They also
+fill the protected window to 4095 of 4096 receipts, observe critical pressure,
+and exercise both cleanup-first and checkpoint-first linearization. In either
+order cleanup receives the unique next generation, checkpoint removes only its
+audited prefix, and the final two-receipt window is contiguous with 4094 slots
+available. The physical Linux x86_64 proof was refreshed on 2026-07-27 using a
+native Rust daemon and .NET harness on the retained host. This remains
+idempotent cross-authority convergence rather than an implied distributed
+transaction. The next gate adds pressure hysteresis and checkpoint-lag
+telemetry, then proves audit-driven automatic checkpoint advancement across a
+daemon restart.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

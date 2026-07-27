@@ -21,6 +21,9 @@ use crate::{
     RuntimeUnregistrationReplayHorizon,
 };
 
+pub(super) const ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR: &str =
+    "Orchestra delete replay horizon is pinned by reconciliation audit";
+
 const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 17;
 pub const AUTHORITY_KIND_DAEMON_BOOTSTRAP: &str = "daemon_bootstrap";
 pub const AUTHORITY_KIND_GEWYVERN_PROVISIONING: &str = "gewyvern_provisioning";
@@ -2679,7 +2682,7 @@ fn evict_orchestra_delete_replay_horizon(
         )
         .ok_or_else(|| "Orchestra delete replay horizon admission is invalid".to_string())?;
     if admitted > horizon.capacity {
-        return Err("Orchestra delete replay horizon is pinned by reconciliation audit".into());
+        return Err(ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR.into());
     }
     Ok(compacted)
 }

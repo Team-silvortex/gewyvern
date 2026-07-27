@@ -29,6 +29,25 @@ public sealed record OrchestraDeleteReceipt(
     DateTimeOffset CommittedAt,
     bool Replayed);
 
+public enum OrchestraDeleteReplayAdmissionState
+{
+    Ready,
+    BlockedByReconciliationAudit,
+}
+
+public enum OrchestraDeleteReplayAdmissionPressure
+{
+    Healthy,
+    Warning,
+    Critical,
+    Blocked,
+}
+
+public enum OrchestraDeleteReplayOperatorAction
+{
+    PersistAuditAndAdvanceCheckpoint,
+}
+
 public sealed record OrchestraDeleteReplayHorizon(
     ulong Capacity,
     ulong Retained,
@@ -36,7 +55,41 @@ public sealed record OrchestraDeleteReplayHorizon(
     ulong? NewestGeneration,
     ulong NextGeneration,
     ulong EvictedThroughGeneration,
-    ulong? ProtectedFromGeneration);
+    ulong? ProtectedFromGeneration)
+{
+    public const ulong WarningAvailableCapacity = 512;
+    public const ulong CriticalAvailableCapacity = 128;
+
+    public ulong AvailableCapacity =>
+        Capacity >= Retained ? Capacity - Retained : 0;
+
+    public bool Saturated => AvailableCapacity == 0;
+
+    public OrchestraDeleteReplayAdmissionState AdmissionState =>
+        Saturated && ProtectedFromGeneration is not null
+            ? OrchestraDeleteReplayAdmissionState.BlockedByReconciliationAudit
+            : OrchestraDeleteReplayAdmissionState.Ready;
+
+    public OrchestraDeleteReplayAdmissionPressure AdmissionPressure =>
+        ProtectedFromGeneration is null
+            ? OrchestraDeleteReplayAdmissionPressure.Healthy
+            : AvailableCapacity switch
+            {
+                0 => OrchestraDeleteReplayAdmissionPressure.Blocked,
+                <= CriticalAvailableCapacity =>
+                    OrchestraDeleteReplayAdmissionPressure.Critical,
+                <= WarningAvailableCapacity =>
+                    OrchestraDeleteReplayAdmissionPressure.Warning,
+                _ => OrchestraDeleteReplayAdmissionPressure.Healthy,
+            };
+
+    public OrchestraDeleteReplayOperatorAction? OperatorAction =>
+        AdmissionPressure !=
+            OrchestraDeleteReplayAdmissionPressure.Healthy
+            ? OrchestraDeleteReplayOperatorAction
+                .PersistAuditAndAdvanceCheckpoint
+            : null;
+}
 
 public sealed record OrchestraDeleteReplayCheckpoint(
     ulong MinimumRetainedGeneration,

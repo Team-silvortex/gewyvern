@@ -8,10 +8,12 @@ use leserpent_domain::{
 };
 use leserpent_protocol::{
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
-    OrchestraDeleteReceiptResponse, OrchestraDeleteReplayHorizonResponse, OrchestraDeleteResponse,
-    OrchestraHistoryResponse, OrchestraPersistenceResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError,
-    ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
-    RuntimeUnregisterResponse, RuntimeUnregisterTarget, RuntimeUnregistrationReceipt,
+    OrchestraDeleteReceiptResponse, OrchestraDeleteReplayAdmissionPressure,
+    OrchestraDeleteReplayAdmissionState, OrchestraDeleteReplayHorizonResponse,
+    OrchestraDeleteReplayOperatorAction, OrchestraDeleteResponse, OrchestraHistoryResponse,
+    OrchestraPersistenceResponse, PROTOCOL_SCHEMA_VERSION, ProtocolError, ProtocolRequest,
+    ProtocolResponse, RequestEnvelope, ResponseEnvelope, RuntimeUnregisterResponse,
+    RuntimeUnregisterTarget, RuntimeUnregistrationReceipt,
     RuntimeUnregistrationReceiptLookupResponse, RuntimeUnregistrationReplayHorizonHealth,
 };
 use leserpent_runtime::{
@@ -265,13 +267,7 @@ pub(crate) fn execute_request(
                         replayed: receipt.replayed,
                     },
                 )),
-                Err(RuntimeError::Domain(error)) => {
-                    leserpent_protocol::domain_error_response(&error)
-                }
-                Err(_) => error_response(
-                    "orchestra_delete_command_failed",
-                    "idempotent Orchestra history delete failed",
-                ),
+                Err(error) => orchestra_delete_command_error(error),
             };
         }
         ProtocolRequest::OrchestraDeleteReplayHorizon(request) => {
@@ -522,12 +518,56 @@ pub(crate) fn execute_request(
     }
 }
 
+fn orchestra_delete_command_error(error: RuntimeError) -> ResponseEnvelope {
+    match error {
+        RuntimeError::Domain(error) => leserpent_protocol::domain_error_response(&error),
+        RuntimeError::OrchestraDeleteReplayHorizonSaturated => error_response(
+            "orchestra_delete_replay_horizon_saturated",
+            "cleanup receipt admission is blocked; persist reconciliation audit and advance its checkpoint",
+        ),
+        _ => error_response(
+            "orchestra_delete_command_failed",
+            "idempotent Orchestra history delete failed",
+        ),
+    }
+}
+
 fn orchestra_delete_replay_horizon_response(
     horizon: leserpent_runtime::OrchestraDeleteReplayHorizon,
 ) -> OrchestraDeleteReplayHorizonResponse {
+    let admission_blocked = horizon.admission_blocked();
+    let admission_pressure = match horizon.admission_pressure() {
+        leserpent_runtime::OrchestraDeleteReplayAdmissionPressure::Healthy => {
+            OrchestraDeleteReplayAdmissionPressure::Healthy
+        }
+        leserpent_runtime::OrchestraDeleteReplayAdmissionPressure::Warning => {
+            OrchestraDeleteReplayAdmissionPressure::Warning
+        }
+        leserpent_runtime::OrchestraDeleteReplayAdmissionPressure::Critical => {
+            OrchestraDeleteReplayAdmissionPressure::Critical
+        }
+        leserpent_runtime::OrchestraDeleteReplayAdmissionPressure::Blocked => {
+            OrchestraDeleteReplayAdmissionPressure::Blocked
+        }
+    };
     OrchestraDeleteReplayHorizonResponse {
         capacity: horizon.capacity,
         retained: horizon.retained,
+        available_capacity: horizon.available_capacity(),
+        warning_available_capacity:
+            leserpent_runtime::ORCHESTRA_DELETE_REPLAY_WARNING_AVAILABLE_CAPACITY,
+        critical_available_capacity:
+            leserpent_runtime::ORCHESTRA_DELETE_REPLAY_CRITICAL_AVAILABLE_CAPACITY,
+        saturated: horizon.saturated(),
+        admission_state: if admission_blocked {
+            OrchestraDeleteReplayAdmissionState::BlockedByReconciliationAudit
+        } else {
+            OrchestraDeleteReplayAdmissionState::Ready
+        },
+        admission_pressure,
+        operator_action: horizon
+            .operator_action_required()
+            .then_some(OrchestraDeleteReplayOperatorAction::PersistAuditAndAdvanceCheckpoint),
         oldest_generation: horizon.oldest_generation,
         newest_generation: horizon.newest_generation,
         next_generation: horizon.next_generation,
@@ -695,6 +735,47 @@ mod tests {
             authority_owned: true,
             protocol_schema_version: BOOTSTRAP_SESSION_PROTOCOL_VERSION,
         }
+    }
+
+    #[test]
+    fn cleanup_horizon_saturation_is_an_actionable_wire_error() {
+        let response =
+            orchestra_delete_command_error(RuntimeError::OrchestraDeleteReplayHorizonSaturated);
+        assert!(matches!(
+            response.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "orchestra_delete_replay_horizon_saturated"
+                    && error.message.contains("advance its checkpoint")
+        ));
+    }
+
+    #[test]
+    fn cleanup_horizon_warning_is_actionable_before_admission_blocks() {
+        let response = orchestra_delete_replay_horizon_response(
+            leserpent_runtime::OrchestraDeleteReplayHorizon {
+                capacity: 4_096,
+                retained: 3_584,
+                oldest_generation: Some(1),
+                newest_generation: Some(3_584),
+                next_generation: 3_585,
+                evicted_through_generation: 0,
+                protected_from_generation: Some(1),
+            },
+        );
+        assert_eq!(response.available_capacity, 512);
+        assert!(!response.saturated);
+        assert_eq!(
+            response.admission_state,
+            OrchestraDeleteReplayAdmissionState::Ready
+        );
+        assert_eq!(
+            response.admission_pressure,
+            OrchestraDeleteReplayAdmissionPressure::Warning
+        );
+        assert_eq!(
+            response.operator_action,
+            Some(OrchestraDeleteReplayOperatorAction::PersistAuditAndAdvanceCheckpoint)
+        );
     }
 
     #[test]

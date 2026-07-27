@@ -10,6 +10,9 @@ pub(super) enum DaemonRequestRead {
 
 pub(super) fn read_daemon_request(stream: &mut TcpStream) -> Result<DaemonRequestRead, String> {
     stream
+        .set_nonblocking(false)
+        .map_err(|err| format!("failed to configure daemon request blocking mode: {err}"))?;
+    stream
         .set_read_timeout(Some(Duration::from_millis(250)))
         .map_err(|err| format!("failed to configure daemon request timeout: {err}"))?;
 
@@ -34,8 +37,11 @@ pub(super) fn read_daemon_request(stream: &mut TcpStream) -> Result<DaemonReques
                 if matches!(
                     err.kind(),
                     io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-                ) && !request.is_empty() =>
+                ) =>
             {
+                if request.is_empty() {
+                    return Ok(DaemonRequestRead::Invalid);
+                }
                 break;
             }
             Err(err) => return Err(format!("failed to read daemon request: {err}")),

@@ -1188,9 +1188,23 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             }
             if let Some(horizon) = &health.orchestra_delete_replay_horizon {
                 output.push_str(&format!(
-                    " orchestra_cleanup_replay={}/{} generation={}..{} next={} evicted_through={} protected_from={}",
+                    " orchestra_cleanup_replay={}/{} available={} warning_at={} critical_at={} saturated={} admission={} pressure={} generation={}..{} next={} evicted_through={} protected_from={}",
                     horizon.retained,
                     horizon.capacity,
+                    horizon.available_capacity,
+                    horizon.warning_available_capacity,
+                    horizon.critical_available_capacity,
+                    horizon.saturated,
+                    match horizon.admission_state {
+                        leserpent_protocol::OrchestraDeleteReplayAdmissionState::Ready => "ready",
+                        leserpent_protocol::OrchestraDeleteReplayAdmissionState::BlockedByReconciliationAudit => "blocked_by_reconciliation_audit",
+                    },
+                    match horizon.admission_pressure {
+                        leserpent_protocol::OrchestraDeleteReplayAdmissionPressure::Healthy => "healthy",
+                        leserpent_protocol::OrchestraDeleteReplayAdmissionPressure::Warning => "warning",
+                        leserpent_protocol::OrchestraDeleteReplayAdmissionPressure::Critical => "critical",
+                        leserpent_protocol::OrchestraDeleteReplayAdmissionPressure::Blocked => "blocked",
+                    },
                     horizon
                         .oldest_generation
                         .map_or_else(|| "none".into(), |value| value.to_string()),
@@ -1203,6 +1217,14 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
                         .protected_from_generation
                         .map_or_else(|| "none".into(), |value| value.to_string()),
                 ));
+                if let Some(action) = horizon.operator_action {
+                    output.push_str(&format!(
+                        " orchestra_cleanup_action={}",
+                        match action {
+                            leserpent_protocol::OrchestraDeleteReplayOperatorAction::PersistAuditAndAdvanceCheckpoint => "persist_audit_and_advance_checkpoint",
+                        }
+                    ));
+                }
             }
             Ok(output)
         }
@@ -2487,6 +2509,55 @@ mod tests {
         );
 
         assert!(output.contains("capabilities_observed_for_revision=legacy-unknown"));
+    }
+
+    #[test]
+    fn health_renders_actionable_orchestra_cleanup_horizon_saturation() {
+        let rendered = render_response(
+            &ResponseEnvelope {
+                schema_version: PROTOCOL_SCHEMA_VERSION,
+                response: ProtocolResponse::Health(leserpent_protocol::HealthResponse {
+                    status: "ready".into(),
+                    authority_owned: true,
+                    protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
+                    effect_queue: None,
+                    runtime_unregistration_replay_horizon: None,
+                    orchestra_delete_replay_horizon: Some(
+                        leserpent_protocol::OrchestraDeleteReplayHorizonResponse {
+                            capacity: 4_096,
+                            retained: 4_096,
+                            available_capacity: 0,
+                            warning_available_capacity: 512,
+                            critical_available_capacity: 128,
+                            saturated: true,
+                            admission_state: leserpent_protocol::
+                                OrchestraDeleteReplayAdmissionState::
+                                BlockedByReconciliationAudit,
+                            admission_pressure: leserpent_protocol::
+                                OrchestraDeleteReplayAdmissionPressure::
+                                Blocked,
+                            operator_action: Some(
+                                leserpent_protocol::
+                                    OrchestraDeleteReplayOperatorAction::
+                                    PersistAuditAndAdvanceCheckpoint,
+                            ),
+                            oldest_generation: Some(1),
+                            newest_generation: Some(4_096),
+                            next_generation: 4_097,
+                            evicted_through_generation: 0,
+                            protected_from_generation: Some(1),
+                        },
+                    ),
+                }),
+            },
+            false,
+        )
+        .unwrap();
+
+        assert!(rendered.contains("available=0 warning_at=512 critical_at=128 saturated=true"));
+        assert!(rendered.contains("admission=blocked_by_reconciliation_audit"));
+        assert!(rendered.contains("pressure=blocked"));
+        assert!(rendered.contains("orchestra_cleanup_action=persist_audit_and_advance_checkpoint"));
     }
 
     #[test]

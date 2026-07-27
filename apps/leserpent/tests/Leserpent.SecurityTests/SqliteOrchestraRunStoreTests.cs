@@ -244,6 +244,129 @@ public sealed class SqliteOrchestraRunStoreTests
     }
 
     [Fact]
+    public void SqlitePinnedDeleteReplayHorizonReportsSaturationAndCheckpointRestoresAdmission()
+    {
+        var databasePath = TemporaryPath("db");
+        var store = CreateSqliteStore(databasePath);
+        using (var connection = new SqliteConnection(
+            $"Data Source={databasePath}"))
+        {
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using (var insert = connection.CreateCommand())
+            {
+                insert.Transaction = transaction;
+                insert.CommandText = """
+                    INSERT INTO orchestra_delete_operations (
+                        generation, operation_id, runtime_ids_json,
+                        deleted_runtime_count, deleted_run_count,
+                        deleted_event_count, committed_at_unix_ms)
+                    VALUES (
+                        $generation, $operation_id, '["runtime-1"]',
+                        0, 0, 0, $generation);
+                    """;
+                var generationParameter =
+                    insert.Parameters.Add("$generation", SqliteType.Integer);
+                var operationParameter =
+                    insert.Parameters.Add("$operation_id", SqliteType.Text);
+                for (var generation = 1; generation <= 4096; generation++)
+                {
+                    generationParameter.Value = generation;
+                    operationParameter.Value =
+                        $"orchestra-cleanup-saturated-{generation}";
+                    Assert.Equal(1, insert.ExecuteNonQuery());
+                }
+            }
+            using (var protect = connection.CreateCommand())
+            {
+                protect.Transaction = transaction;
+                protect.CommandText = """
+                    UPDATE orchestra_delete_replay_horizon
+                    SET protected_from_generation = 1
+                    WHERE id = 1;
+                    """;
+                Assert.Equal(1, protect.ExecuteNonQuery());
+            }
+            transaction.Commit();
+        }
+
+        var saturated = store.GetDeleteReplayHorizon();
+        Assert.NotNull(saturated);
+        Assert.Equal(0UL, saturated.AvailableCapacity);
+        Assert.True(saturated.Saturated);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionState
+                .BlockedByReconciliationAudit,
+            saturated.AdmissionState);
+        Assert.Equal(
+            OrchestraDeleteReplayOperatorAction
+                .PersistAuditAndAdvanceCheckpoint,
+            saturated.OperatorAction);
+        Assert.Null(store.DeleteRuntimes(
+            new OrchestraDeleteCommand(
+                "orchestra-cleanup-saturated-overflow",
+                new[] { "runtime-1" })));
+        Assert.Equal(
+            "orchestra_store_operation_failed",
+            store.LastError);
+
+        var checkpointed = store.CheckpointDeleteReplayHorizon(
+            new OrchestraDeleteReplayCheckpoint(4096, 4096));
+        Assert.NotNull(checkpointed);
+        Assert.Equal(4095UL, checkpointed.AvailableCapacity);
+        Assert.False(checkpointed.Saturated);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionState.Ready,
+            checkpointed.AdmissionState);
+        Assert.Null(checkpointed.OperatorAction);
+        var admitted = store.DeleteRuntimes(
+            new OrchestraDeleteCommand(
+                "orchestra-cleanup-saturated-admitted",
+                new[] { "runtime-1" }));
+        Assert.NotNull(admitted);
+        Assert.Equal(4097UL, admitted.OperationGeneration);
+
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
+    public void DeleteReplayAdmissionPressureUsesStableProtectedCapacityThresholds()
+    {
+        static OrchestraDeleteReplayHorizon Horizon(
+            ulong available,
+            ulong? protectedFrom = 1) =>
+            new(
+                4096,
+                4096 - available,
+                1,
+                4096 - available,
+                4097 - available,
+                0,
+                protectedFrom);
+
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Healthy,
+            Horizon(513).AdmissionPressure);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Warning,
+            Horizon(512).AdmissionPressure);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Critical,
+            Horizon(128).AdmissionPressure);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Blocked,
+            Horizon(0).AdmissionPressure);
+        Assert.Equal(
+            OrchestraDeleteReplayAdmissionPressure.Healthy,
+            Horizon(0, null).AdmissionPressure);
+        Assert.Null(Horizon(513).OperatorAction);
+        Assert.Equal(
+            OrchestraDeleteReplayOperatorAction
+                .PersistAuditAndAdvanceCheckpoint,
+            Horizon(512).OperatorAction);
+    }
+
+    [Fact]
     public void SqliteSchemaThreeReceiptsMigrateLosslesslyToReplayHorizon()
     {
         var databasePath = TemporaryPath("db");

@@ -315,6 +315,52 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
     {
         var capacity = payload.GetProperty("capacity").GetUInt64();
         var retained = payload.GetProperty("retained").GetUInt64();
+        var available = payload
+            .GetProperty("available_capacity")
+            .GetUInt64();
+        var warningAvailable = payload
+            .GetProperty("warning_available_capacity")
+            .GetUInt64();
+        var criticalAvailable = payload
+            .GetProperty("critical_available_capacity")
+            .GetUInt64();
+        var saturated = payload.GetProperty("saturated").GetBoolean();
+        var admissionState = payload
+            .GetProperty("admission_state")
+            .GetString() switch
+        {
+            "ready" => OrchestraDeleteReplayAdmissionState.Ready,
+            "blocked_by_reconciliation_audit" =>
+                OrchestraDeleteReplayAdmissionState
+                    .BlockedByReconciliationAudit,
+            _ => throw new InvalidDataException(
+                "leserpentd returned an unknown Orchestra delete replay admission state"),
+        };
+        var admissionPressure = payload
+            .GetProperty("admission_pressure")
+            .GetString() switch
+        {
+            "healthy" => OrchestraDeleteReplayAdmissionPressure.Healthy,
+            "warning" => OrchestraDeleteReplayAdmissionPressure.Warning,
+            "critical" => OrchestraDeleteReplayAdmissionPressure.Critical,
+            "blocked" => OrchestraDeleteReplayAdmissionPressure.Blocked,
+            _ => throw new InvalidDataException(
+                "leserpentd returned an unknown Orchestra delete replay admission pressure"),
+        };
+        OrchestraDeleteReplayOperatorAction? operatorAction = null;
+        if (payload.TryGetProperty(
+                "operator_action",
+                out var operatorActionProperty))
+        {
+            operatorAction = operatorActionProperty.GetString() switch
+            {
+                "persist_audit_and_advance_checkpoint" =>
+                    OrchestraDeleteReplayOperatorAction
+                        .PersistAuditAndAdvanceCheckpoint,
+                _ => throw new InvalidDataException(
+                    "leserpentd returned an unknown Orchestra delete replay operator action"),
+            };
+        }
         var oldest = ReadOptionalUInt64(
             payload,
             "oldest_generation");
@@ -348,7 +394,7 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
             throw new InvalidDataException(
                 "leserpentd returned an invalid Orchestra delete replay horizon");
         }
-        return new OrchestraDeleteReplayHorizon(
+        var horizon = new OrchestraDeleteReplayHorizon(
             capacity,
             retained,
             oldest,
@@ -356,6 +402,20 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
             next,
             evicted,
             protectedFrom);
+        if (available != horizon.AvailableCapacity ||
+            warningAvailable !=
+                OrchestraDeleteReplayHorizon.WarningAvailableCapacity ||
+            criticalAvailable !=
+                OrchestraDeleteReplayHorizon.CriticalAvailableCapacity ||
+            saturated != horizon.Saturated ||
+            admissionState != horizon.AdmissionState ||
+            admissionPressure != horizon.AdmissionPressure ||
+            operatorAction != horizon.OperatorAction)
+        {
+            throw new InvalidDataException(
+                "leserpentd returned an inconsistent Orchestra delete replay diagnostic");
+        }
+        return horizon;
     }
 
     private static ulong? ReadOptionalUInt64(

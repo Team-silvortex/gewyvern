@@ -60,6 +60,41 @@ fn daemon_request_reader_collects_full_declared_body() {
 }
 
 #[test]
+fn daemon_request_reader_waits_for_delayed_bytes_on_nonblocking_accepted_stream() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+    let addr = listener.local_addr().expect("listener should have addr");
+    let (accepted_tx, accepted_rx) = std::sync::mpsc::channel();
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("client should connect");
+        stream
+            .set_nonblocking(true)
+            .expect("accepted stream should become nonblocking");
+        accepted_tx
+            .send(())
+            .expect("accepted stream signal should send");
+        match read_daemon_request(&mut stream).expect("request should read") {
+            DaemonRequestRead::Complete(request) => {
+                assert!(request.starts_with("GET /health HTTP/1.1"));
+            }
+            DaemonRequestRead::Invalid => {
+                panic!("delayed valid request should not be treated as invalid")
+            }
+            DaemonRequestRead::TooLarge => panic!("small request should be accepted"),
+        }
+    });
+
+    let mut client = TcpStream::connect(addr).expect("client should connect");
+    accepted_rx
+        .recv()
+        .expect("accepted stream signal should arrive");
+    thread::sleep(Duration::from_millis(25));
+    client
+        .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        .expect("request should write");
+    handle.join().expect("server thread should join");
+}
+
+#[test]
 fn daemon_handler_returns_413_for_oversized_request() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
     let addr = listener.local_addr().expect("listener should have addr");

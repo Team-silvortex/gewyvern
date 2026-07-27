@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "observed_at": "2026-07-26T11:46:55.5864938+00:00",
+  "schema_version": 2,
+  "observed_at": "2026-07-27T01:44:00.3302467+00:00",
   "platform": "Unix",
   "architecture": "X64",
   "iterations_per_strategy": 3,
@@ -14,6 +14,21 @@
   "previous_generation_count": 3,
   "replacement_generation_count": 6,
   "control_temp_artifact_observed_count": 3,
+  "cleanup_checkpoint_race_rounds": 2,
+  "cleanup_checkpoint_races": [
+    {
+      "order": "CleanupFirst",
+      "available_before_race": 1,
+      "checkpoint_generation": 4103,
+      "cleanup_generation": 4104
+    },
+    {
+      "order": "CheckpointFirst",
+      "available_before_race": 1,
+      "checkpoint_generation": 8197,
+      "cleanup_generation": 8198
+    }
+  ],
   "checks": {
     "real_leserpentd_orchestra_authority_used": true,
     "orchestra_cleanup_committed_before_every_termination": true,
@@ -29,6 +44,14 @@
     "every_final_state_retained_one_reconciliation_audit": true,
     "every_request_replayed_after_restart": true,
     "every_cleanup_receipt_replayed_same_generation": true,
+    "every_audit_checkpoint_protected_cleanup_replay_horizon": true,
+    "every_pre_saturation_critical_warning_visible": true,
+    "cleanup_first_race_exercised": true,
+    "checkpoint_first_race_exercised": true,
+    "every_raced_cleanup_committed": true,
+    "every_raced_checkpoint_committed": true,
+    "every_race_observed_expected_completion_order": true,
+    "every_cleanup_checkpoint_race_admission_safe": true,
     "both_control_generation_outcomes_were_exercised": true,
     "every_host_process_force_killed": true
   }

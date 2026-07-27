@@ -32,13 +32,25 @@ mod persistence;
 pub use persistence::{
     EffectLease, OrchestraDeleteRecord, OrchestraHistoryRecord, OrchestraPersistenceRecord,
 };
-use persistence::{EffectRecord, Journal, JournalEntryKind};
+use persistence::{
+    EffectRecord, Journal, JournalEntryKind, ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR,
+};
 
 pub const EFFECT_QUEUE_CAPACITY: u64 = 10_000;
 pub const MAX_EFFECT_ENQUEUE_BATCH: usize = 1_000;
 pub const MAX_PERSISTED_RUNTIME_LOG_ENTRIES: usize = 4_096;
 pub const RUNTIME_UNREGISTRATION_REPLAY_HORIZON: usize = 256;
 pub const ORCHESTRA_DELETE_REPLAY_HORIZON: usize = 4_096;
+pub const ORCHESTRA_DELETE_REPLAY_WARNING_AVAILABLE_CAPACITY: u64 = 512;
+pub const ORCHESTRA_DELETE_REPLAY_CRITICAL_AVAILABLE_CAPACITY: u64 = 128;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OrchestraDeleteReplayAdmissionPressure {
+    Healthy,
+    Warning,
+    Critical,
+    Blocked,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeUnregistrationReplayHorizon {
@@ -59,6 +71,40 @@ pub struct OrchestraDeleteReplayHorizon {
     pub next_generation: u64,
     pub evicted_through_generation: u64,
     pub protected_from_generation: Option<u64>,
+}
+
+impl OrchestraDeleteReplayHorizon {
+    pub fn available_capacity(self) -> u64 {
+        self.capacity.saturating_sub(self.retained)
+    }
+
+    pub fn saturated(self) -> bool {
+        self.available_capacity() == 0
+    }
+
+    pub fn admission_blocked(self) -> bool {
+        self.saturated() && self.protected_from_generation.is_some()
+    }
+
+    pub fn admission_pressure(self) -> OrchestraDeleteReplayAdmissionPressure {
+        if self.protected_from_generation.is_none() {
+            return OrchestraDeleteReplayAdmissionPressure::Healthy;
+        }
+        match self.available_capacity() {
+            0 => OrchestraDeleteReplayAdmissionPressure::Blocked,
+            available if available <= ORCHESTRA_DELETE_REPLAY_CRITICAL_AVAILABLE_CAPACITY => {
+                OrchestraDeleteReplayAdmissionPressure::Critical
+            }
+            available if available <= ORCHESTRA_DELETE_REPLAY_WARNING_AVAILABLE_CAPACITY => {
+                OrchestraDeleteReplayAdmissionPressure::Warning
+            }
+            _ => OrchestraDeleteReplayAdmissionPressure::Healthy,
+        }
+    }
+
+    pub fn operator_action_required(self) -> bool {
+        self.admission_pressure() != OrchestraDeleteReplayAdmissionPressure::Healthy
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -242,6 +288,7 @@ pub enum RuntimeError {
     Provisioning(ProvisioningError),
     Retirement(RetirementError),
     InvalidSnapshot(DomainSnapshotError),
+    OrchestraDeleteReplayHorizonSaturated,
     Storage(String),
     ReplayMismatch { sequence: i64 },
 }
@@ -262,6 +309,9 @@ impl fmt::Display for RuntimeError {
                 write!(formatter, "runtime retirement state failed: {error}")
             }
             Self::InvalidSnapshot(error) => write!(formatter, "invalid runtime snapshot: {error}"),
+            Self::OrchestraDeleteReplayHorizonSaturated => {
+                formatter.write_str(ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR)
+            }
             Self::Storage(error) => write!(formatter, "runtime storage failed: {error}"),
             Self::ReplayMismatch { sequence } => {
                 write!(
@@ -282,7 +332,10 @@ impl std::error::Error for RuntimeError {
             Self::Provisioning(error) => Some(error),
             Self::Retirement(error) => Some(error),
             Self::InvalidSnapshot(error) => Some(error),
-            Self::InvalidEffectOutcome(_) | Self::Storage(_) | Self::ReplayMismatch { .. } => None,
+            Self::InvalidEffectOutcome(_)
+            | Self::OrchestraDeleteReplayHorizonSaturated
+            | Self::Storage(_)
+            | Self::ReplayMismatch { .. } => None,
         }
     }
 }
@@ -855,6 +908,8 @@ impl ControlRuntime {
                     RuntimeError::Domain(DomainError::IdempotencyConflict {
                         key: command_id.as_str().to_string(),
                     })
+                } else if error == ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR {
+                    RuntimeError::OrchestraDeleteReplayHorizonSaturated
                 } else {
                     RuntimeError::Storage(error)
                 }
@@ -4836,6 +4891,120 @@ mod tests {
         );
         drop(runtime);
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_delete_pinned_horizon_reports_saturation_and_checkpoint_restores_admission() {
+        let path = temp_journal("orchestra-delete-pinned-horizon");
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let request = serde_json::to_vec(&vec!["runtime-cleanup-saturated".to_string()]).unwrap();
+        let mut connection = Connection::open(&path).unwrap();
+        let transaction = connection.transaction().unwrap();
+        {
+            let mut insert = transaction
+                .prepare(
+                    "INSERT INTO orchestra_delete_operations
+                         (operation_id, generation, request, deleted_runtime_count,
+                          deleted_run_count, deleted_event_count, committed_at_unix_ms)
+                     VALUES (?1, ?2, ?3, 0, 0, 0, ?2)",
+                )
+                .unwrap();
+            for generation in 1..=ORCHESTRA_DELETE_REPLAY_HORIZON {
+                insert
+                    .execute(params![
+                        format!("orchestra-cleanup-saturated-{generation}"),
+                        i64::try_from(generation).unwrap(),
+                        &request,
+                    ])
+                    .unwrap();
+            }
+        }
+        transaction
+            .execute(
+                "UPDATE orchestra_delete_generation SET next_generation = 4097 WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "UPDATE orchestra_delete_replay_horizon
+                 SET protected_from_generation = 1 WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        transaction.commit().unwrap();
+        drop(connection);
+
+        let saturated = runtime.orchestra_delete_replay_horizon().unwrap();
+        assert_eq!(saturated.retained, saturated.capacity);
+        assert_eq!(saturated.available_capacity(), 0);
+        assert!(saturated.saturated());
+        assert!(saturated.admission_blocked());
+        assert!(matches!(
+            runtime.delete_orchestra_runtimes_idempotent(
+                CommandId::new("orchestra-cleanup-saturated-overflow").unwrap(),
+                &["runtime-cleanup-saturated".into()],
+            ),
+            Err(RuntimeError::OrchestraDeleteReplayHorizonSaturated)
+        ));
+
+        let checkpointed = runtime
+            .checkpoint_orchestra_delete_replay_horizon(4_096, 4_096)
+            .unwrap();
+        assert_eq!(checkpointed.retained, 1);
+        assert_eq!(checkpointed.available_capacity(), 4_095);
+        assert!(!checkpointed.saturated());
+        assert!(!checkpointed.admission_blocked());
+        let admitted = runtime
+            .delete_orchestra_runtimes_idempotent(
+                CommandId::new("orchestra-cleanup-saturated-admitted").unwrap(),
+                &["runtime-cleanup-saturated".into()],
+            )
+            .unwrap();
+        assert_eq!(admitted.operation_generation, 4_097);
+
+        drop(runtime);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn orchestra_delete_replay_admission_pressure_has_stable_threshold_boundaries() {
+        let horizon = |available_capacity: u64,
+                       protected_from_generation: Option<u64>|
+         -> OrchestraDeleteReplayHorizon {
+            OrchestraDeleteReplayHorizon {
+                capacity: 4_096,
+                retained: 4_096 - available_capacity,
+                oldest_generation: Some(1),
+                newest_generation: Some(4_096 - available_capacity),
+                next_generation: 4_097 - available_capacity,
+                evicted_through_generation: 0,
+                protected_from_generation,
+            }
+        };
+
+        assert_eq!(
+            horizon(513, Some(1)).admission_pressure(),
+            OrchestraDeleteReplayAdmissionPressure::Healthy
+        );
+        assert_eq!(
+            horizon(512, Some(1)).admission_pressure(),
+            OrchestraDeleteReplayAdmissionPressure::Warning
+        );
+        assert_eq!(
+            horizon(128, Some(1)).admission_pressure(),
+            OrchestraDeleteReplayAdmissionPressure::Critical
+        );
+        assert_eq!(
+            horizon(0, Some(1)).admission_pressure(),
+            OrchestraDeleteReplayAdmissionPressure::Blocked
+        );
+        assert_eq!(
+            horizon(0, None).admission_pressure(),
+            OrchestraDeleteReplayAdmissionPressure::Healthy
+        );
+        assert!(!horizon(513, Some(1)).operator_action_required());
+        assert!(horizon(512, Some(1)).operator_action_required());
     }
 
     #[test]
