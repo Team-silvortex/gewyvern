@@ -198,6 +198,19 @@ pub struct RuntimeUnregistrationReceiptLookup {
     pub replay_horizon: RuntimeUnregistrationReplayHorizon,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorityWriterClaim {
+    pub generation: u64,
+    pub writer_id: String,
+    pub replayed: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AuthorityWriterFenceError {
+    Required,
+    Rejected,
+}
+
 fn command_runtime_id(command: &Command) -> Option<&RuntimeId> {
     match command {
         Command::RuntimeRegister { runtime_id, .. }
@@ -333,6 +346,7 @@ pub enum RuntimeError {
     Retirement(RetirementError),
     InvalidSnapshot(DomainSnapshotError),
     OrchestraDeleteReplayHorizonSaturated,
+    AuthorityWriterFence(AuthorityWriterFenceError),
     Storage(String),
     ReplayMismatch { sequence: i64 },
 }
@@ -356,6 +370,12 @@ impl fmt::Display for RuntimeError {
             Self::OrchestraDeleteReplayHorizonSaturated => {
                 formatter.write_str(ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR)
             }
+            Self::AuthorityWriterFence(AuthorityWriterFenceError::Required) => {
+                formatter.write_str("authority writer fence is required")
+            }
+            Self::AuthorityWriterFence(AuthorityWriterFenceError::Rejected) => {
+                formatter.write_str("authority writer fence was rejected")
+            }
             Self::Storage(error) => write!(formatter, "runtime storage failed: {error}"),
             Self::ReplayMismatch { sequence } => {
                 write!(
@@ -378,6 +398,7 @@ impl std::error::Error for RuntimeError {
             Self::InvalidSnapshot(error) => Some(error),
             Self::InvalidEffectOutcome(_)
             | Self::OrchestraDeleteReplayHorizonSaturated
+            | Self::AuthorityWriterFence(_)
             | Self::Storage(_)
             | Self::ReplayMismatch { .. } => None,
         }
@@ -415,6 +436,54 @@ struct RuntimeUnregistration {
 }
 
 impl ControlRuntime {
+    pub fn claim_authority_writer(
+        &mut self,
+        writer_id: &str,
+    ) -> Result<AuthorityWriterClaim, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "authority writer fencing requires persistent storage".into(),
+            ));
+        };
+        let claim = journal
+            .claim_authority_writer(writer_id)
+            .map_err(RuntimeError::Storage)?;
+        Ok(AuthorityWriterClaim {
+            generation: claim.generation,
+            writer_id: claim.writer_id,
+            replayed: claim.replayed,
+        })
+    }
+
+    pub fn require_authority_writer(
+        &mut self,
+        generation: Option<u64>,
+        writer_id: Option<&str>,
+    ) -> Result<(), RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Ok(());
+        };
+        let current = journal
+            .authority_writer_fence()
+            .map_err(RuntimeError::Storage)?;
+        let Some((current_generation, current_writer_id)) = current else {
+            return Ok(());
+        };
+        match (generation, writer_id) {
+            (Some(generation), Some(writer_id))
+                if generation == current_generation && writer_id == current_writer_id =>
+            {
+                Ok(())
+            }
+            (None, None) => Err(RuntimeError::AuthorityWriterFence(
+                AuthorityWriterFenceError::Required,
+            )),
+            _ => Err(RuntimeError::AuthorityWriterFence(
+                AuthorityWriterFenceError::Rejected,
+            )),
+        }
+    }
+
     pub fn open(path: impl AsRef<Path>) -> Result<Self, RuntimeError> {
         let mut journal = Journal::open(path.as_ref()).map_err(RuntimeError::Storage)?;
         let snapshots = journal.load_snapshots().map_err(RuntimeError::Storage)?;
@@ -2816,6 +2885,47 @@ mod tests {
     }
 
     #[test]
+    fn authority_writer_generation_is_idempotent_durable_and_monotonic() {
+        let path = temp_journal("authority-writer-generation");
+        let writer_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let first = runtime.claim_authority_writer(writer_a).unwrap();
+            assert_eq!(first.generation, 1);
+            assert!(!first.replayed);
+            let replay = runtime.claim_authority_writer(writer_a).unwrap();
+            assert_eq!(replay.generation, 1);
+            assert!(replay.replayed);
+            runtime
+                .require_authority_writer(Some(1), Some(writer_a))
+                .unwrap();
+        }
+        {
+            let mut runtime = ControlRuntime::open(&path).unwrap();
+            let takeover = runtime.claim_authority_writer(writer_b).unwrap();
+            assert_eq!(takeover.generation, 2);
+            assert!(!takeover.replayed);
+            assert!(matches!(
+                runtime.require_authority_writer(Some(1), Some(writer_a)),
+                Err(RuntimeError::AuthorityWriterFence(
+                    AuthorityWriterFenceError::Rejected
+                ))
+            ));
+            assert!(matches!(
+                runtime.require_authority_writer(None, None),
+                Err(RuntimeError::AuthorityWriterFence(
+                    AuthorityWriterFenceError::Required
+                ))
+            ));
+            runtime
+                .require_authority_writer(Some(2), Some(writer_b))
+                .unwrap();
+        }
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn sqlite_expired_owner_can_be_replaced_and_old_writer_is_fenced() {
         let path = temp_journal("expired-owner");
         let mut stale = ControlRuntime::open(&path).unwrap();
@@ -2912,8 +3022,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 18);
-        assert_eq!(migration_count, 18);
+        assert_eq!(schema, 19);
+        assert_eq!(migration_count, 19);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -2985,8 +3095,9 @@ mod tests {
                  DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
+                 DROP TABLE authority_writer_fence;
                  DELETE FROM runtime_schema_migrations
-                 WHERE version IN (12, 13, 14, 15, 16, 17, 18);
+                 WHERE version IN (12, 13, 14, 15, 16, 17, 18, 19);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -3014,7 +3125,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (18, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (19, 1, 0));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3068,7 +3179,8 @@ mod tests {
                  DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18);
+                 DROP TABLE authority_writer_fence;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19);
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  DELETE FROM runtime_schema_migrations WHERE version = 15;
                  UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
@@ -3120,6 +3232,8 @@ mod tests {
                 "DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
+                 DROP TABLE authority_writer_fence;
+                 DELETE FROM runtime_schema_migrations WHERE version = 19;
                  DELETE FROM runtime_schema_migrations WHERE version = 18;
                  DELETE FROM runtime_schema_migrations WHERE version = 17;
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
@@ -3145,7 +3259,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
-        assert_eq!(state, (18, 1, 0, 1));
+        assert_eq!(state, (19, 1, 0, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3166,7 +3280,8 @@ mod tests {
         connection
             .execute_batch(
                 "DROP TABLE orchestra_delete_replay_horizon;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18);
+                 DROP TABLE authority_writer_fence;
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19);
                  UPDATE runtime_metadata SET value = 16
                  WHERE key = 'schema_version';",
             )
@@ -3201,7 +3316,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v18");
+        let path = temp_journal("incomplete-v19");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -3216,14 +3331,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 18);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 19);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 18")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 19")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3306,6 +3421,15 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 19",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute("DROP TABLE authority_writer_fence", [])
+            .unwrap();
+        connection
             .execute("DROP TABLE orchestra_delete_replay_horizon", [])
             .unwrap();
         connection
@@ -3352,7 +3476,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 18);
+        assert_eq!(schema, 19);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3373,7 +3497,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 18 journal kind")
+                if error.contains("invalid runtime journal schema 19 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3386,14 +3510,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (19, 0)",
+                 VALUES (20, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 18 migration history")
+                if error.contains("invalid runtime journal schema 19 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3678,6 +3802,7 @@ mod tests {
                  DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
+                 DROP TABLE authority_writer_fence;
                  DELETE FROM runtime_schema_migrations WHERE version >= 4;
                  UPDATE runtime_metadata SET value = 3 WHERE key = 'schema_version';",
             )
@@ -3704,7 +3829,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 18);
+        assert_eq!(schema, 19);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -4460,7 +4585,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 18);
+        assert_eq!(schema, 19);
         drop(connection);
         fs::remove_file(path).unwrap();
     }

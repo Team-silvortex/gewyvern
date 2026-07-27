@@ -251,9 +251,13 @@ impl RemoteServer {
                 body,
             }) => {
                 let response = match decode_request(&body) {
-                    Ok(request) => {
-                        execute_request(runtime, request, self.bootstrap_verifier.as_deref())
-                    }
+                    Ok(request) => execute_request(
+                        runtime,
+                        request,
+                        self.bootstrap_verifier.as_deref(),
+                        None,
+                        false,
+                    ),
                     Err(_) => error_response("invalid_request", "wire protocol request is invalid"),
                 };
                 (

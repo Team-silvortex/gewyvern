@@ -5,7 +5,8 @@ public sealed record ControlPlaneWriterHealthSnapshot(
     string State,
     bool LeaseHeld,
     DateTimeOffset? AcquiredAt,
-    DateTimeOffset? LostAt);
+    DateTimeOffset? LostAt,
+    ulong? AuthorityGeneration);
 
 public sealed class ControlPlaneWriterUnavailableException :
     InvalidOperationException
@@ -19,14 +20,25 @@ public sealed class ControlPlaneWriterUnavailableException :
     }
 }
 
-public sealed class ControlPlaneWriterFence(
-    ControlPlaneWriterLease lease,
-    ILogger<ControlPlaneWriterFence> logger) : IHostedService
+public sealed class ControlPlaneWriterFence : IHostedService
 {
+    private readonly ControlPlaneWriterLease lease;
+    private readonly ILogger<ControlPlaneWriterFence> logger;
+    private readonly DaemonAuthorityWriterSession? authoritySession;
     private readonly object sync = new();
     private string state = "starting";
     private DateTimeOffset? acquiredAt;
     private DateTimeOffset? lostAt;
+
+    public ControlPlaneWriterFence(
+        ControlPlaneWriterLease lease,
+        ILogger<ControlPlaneWriterFence> logger,
+        DaemonAuthorityWriterSession? authoritySession = null)
+    {
+        this.lease = lease;
+        this.logger = logger;
+        this.authoritySession = authoritySession;
+    }
 
     public bool IsWriter
     {
@@ -45,27 +57,45 @@ public sealed class ControlPlaneWriterFence(
         }
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        lock (sync)
+        if (!lease.TryAcquire())
         {
-            if (lease.TryAcquire())
-            {
-                state = "owner";
-                acquiredAt = DateTimeOffset.UtcNow;
-                logger.LogInformation(
-                    "This host owns the control-plane writer lease {LeasePath}.",
-                    lease.LeasePath);
-            }
-            else
+            lock (sync)
             {
                 state = "standby";
                 logger.LogWarning(
                     "Control-plane writer lease {LeasePath} is already owned; this host is read-only until a fresh process starts.",
                     lease.LeasePath);
             }
+            return;
         }
-        return Task.CompletedTask;
+        AuthorityWriterTicket? authorityTicket;
+        try
+        {
+            authorityTicket = authoritySession is null
+                ? null
+                : await authoritySession.ClaimAsync(cancellationToken);
+        }
+        catch
+        {
+            lease.Dispose();
+            lock (sync)
+            {
+                state = "authority_claim_failed";
+                lostAt = DateTimeOffset.UtcNow;
+            }
+            throw;
+        }
+        lock (sync)
+        {
+            state = "owner";
+            acquiredAt = DateTimeOffset.UtcNow;
+            logger.LogInformation(
+                "This host owns the control-plane writer lease {LeasePath} at authority generation {AuthorityGeneration}.",
+                lease.LeasePath,
+                authorityTicket?.Generation);
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -88,17 +118,21 @@ public sealed class ControlPlaneWriterFence(
         }
     }
 
+    public AuthorityWriterTicket? AuthorityTicket =>
+        IsWriter ? authoritySession?.Ticket : null;
+
     public ControlPlaneWriterHealthSnapshot Snapshot()
     {
         var held = IsWriter;
         lock (sync)
         {
             return new ControlPlaneWriterHealthSnapshot(
-                1,
+                2,
                 state,
                 held,
                 acquiredAt,
-                lostAt);
+                lostAt,
+                authoritySession?.Ticket?.Generation);
         }
     }
 }

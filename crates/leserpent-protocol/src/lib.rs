@@ -18,6 +18,7 @@ pub mod transport_safety;
 pub const PROTOCOL_SCHEMA_VERSION: u32 = 1;
 pub const EVENT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_PROTOCOL_MESSAGE_BYTES: usize = 1024 * 1024;
+pub const CAPABILITY_AUTHORITY_WRITER: &str = "authority.writer";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "payload", rename_all = "snake_case")]
@@ -36,6 +37,7 @@ pub enum ProtocolRequest {
     OrchestraDeleteReplayCheckpoint(OrchestraDeleteReplayCheckpointRequest),
     RuntimeUnregister(RuntimeUnregisterRequest),
     RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptRequest),
+    AuthorityWriterClaim(AuthorityWriterClaimRequest),
     BootstrapHandoff(BootstrapHandoffRequest),
     BootstrapSessionBind(BootstrapSessionBindRequest),
 }
@@ -132,6 +134,21 @@ pub struct RuntimeUnregistrationReceiptRequest {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct AuthorityWriterClaimRequest {
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub writer_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityWriterFence {
+    pub generation: u64,
+    pub writer_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct BootstrapHandoffRequest {
     pub principal: Principal,
     pub capabilities: CapabilitySet,
@@ -170,6 +187,7 @@ pub enum ProtocolResponse {
     OrchestraDeleteReplayHorizon(OrchestraDeleteReplayHorizonResponse),
     RuntimeUnregistered(RuntimeUnregisterResponse),
     RuntimeUnregistrationReceipt(RuntimeUnregistrationReceiptLookupResponse),
+    AuthorityWriterClaimed(AuthorityWriterClaimResponse),
     BootstrapHandoff(DeploymentBootstrapSnapshot),
     Error(ProtocolError),
 }
@@ -308,6 +326,14 @@ pub struct RuntimeUnregistrationReceiptLookupResponse {
     pub command_id: CommandId,
     pub receipt: Option<RuntimeUnregistrationReceipt>,
     pub replay_horizon: RuntimeUnregistrationReplayHorizonHealth,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityWriterClaimResponse {
+    pub generation: u64,
+    pub writer_id: String,
+    pub replayed: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -457,6 +483,7 @@ pub fn decode_request(bytes: &[u8]) -> Result<RequestEnvelope, DecodeError> {
         | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
+        | ProtocolRequest::AuthorityWriterClaim(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => DOMAIN_SCHEMA_VERSION,
     };

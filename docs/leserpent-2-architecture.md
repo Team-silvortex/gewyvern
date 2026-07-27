@@ -862,6 +862,22 @@ three-process tests prove owner writes, standby rejection, non-reentry after
 owner termination, and fresh-process takeover. This is cold single-writer
 failover, not active-active consensus.
 
+The first durable-authority generation fence is now complete for runtime
+registration, discovery intake, and unregistration. A fresh C# owner claims an
+idempotent random writer identity before entering `owner` state. leserpentd
+allocates the monotonic generation in SQLite runtime journal schema v19 and
+requires the exact generation/identity ticket on covered IPC mutations after
+fencing has first been activated. Daemon dispatch is serialized under the
+single `ControlRuntime` owner, so a takeover claim and each covered mutation
+have one linearization order. Missing and stale tickets return fixed protocol
+errors without touching runtime projection or unregistration receipts.
+
+This does not yet cover deployment effects, Orchestra writes, bootstrap,
+provisioning, retirement, or remote HTTP transport. Those routes must adopt
+the same Rust-issued ticket before the architecture can claim a general
+external-authority fence, and none of this changes the cold-takeover-only
+contract.
+
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent
 daemon command and local cleanup until both authorities converge. Schema v1

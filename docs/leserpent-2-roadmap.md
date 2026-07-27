@@ -1204,6 +1204,17 @@ tokens, and raw exceptions are excluded. The next gate inventories all JSON
 control-plane mutation entry points and evaluates a broader process-wide
 single-writer fence.
 
+That broader process fence is complete, and the first Rust generation-fenced
+slice is now implemented. Runtime journal schema v19 stores a single
+monotonically increasing authority writer generation and its random writer ID.
+The C# owner claims it before startup admission completes, then attaches the
+ticket to registration, discovery intake, and unregistration IPC frames.
+Claim retry is idempotent; a newer claim rejects missing and stale tickets
+before mutation. The next slice extends this ticket to deployment, Orchestra,
+bootstrap, provisioning, retirement, and remote transport. Hot failover
+remains explicitly out of scope until all external side-effect routes share
+that authority boundary.
+
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and
 replays only its incremental journal suffix. Snapshot metadata and payload share

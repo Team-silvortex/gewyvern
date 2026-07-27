@@ -24,7 +24,7 @@ use crate::{
 pub(super) const ORCHESTRA_DELETE_REPLAY_HORIZON_PINNED_ERROR: &str =
     "Orchestra delete replay horizon is pinned by reconciliation audit";
 
-const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 18;
+const RUNTIME_JOURNAL_SCHEMA_VERSION: i64 = 19;
 pub const AUTHORITY_KIND_DAEMON_BOOTSTRAP: &str = "daemon_bootstrap";
 pub const AUTHORITY_KIND_GEWYVERN_PROVISIONING: &str = "gewyvern_provisioning";
 pub const AUTHORITY_KIND_GEWYVERN_RETIREMENT: &str = "gewyvern_retirement";
@@ -220,6 +220,13 @@ pub struct AuthorityCheckpointRecord {
     pub payload: Vec<u8>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorityWriterClaimRecord {
+    pub generation: u64,
+    pub writer_id: String,
+    pub replayed: bool,
+}
+
 pub struct Journal {
     connection: Connection,
     owner_token: String,
@@ -329,6 +336,87 @@ impl Journal {
             sequence: self.connection.last_insert_rowid(),
             created_at_unix_ms,
         })
+    }
+
+    pub fn claim_authority_writer(
+        &mut self,
+        writer_id: &str,
+    ) -> Result<AuthorityWriterClaimRecord, String> {
+        validate_authority_writer_id(writer_id)?;
+        self.ensure_owner()?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let current: Option<(i64, String)> = transaction
+            .query_row(
+                "SELECT generation, writer_id
+                 FROM authority_writer_fence WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if let Some((generation, current_writer_id)) = current.as_ref()
+            && current_writer_id == writer_id
+        {
+            let generation = u64::try_from(*generation)
+                .map_err(|_| "authority writer generation is invalid".to_string())?;
+            transaction.commit().map_err(|error| error.to_string())?;
+            return Ok(AuthorityWriterClaimRecord {
+                generation,
+                writer_id: writer_id.to_string(),
+                replayed: true,
+            });
+        }
+        let generation = match current {
+            Some((generation, _)) => generation
+                .checked_add(1)
+                .ok_or_else(|| "authority writer generation is exhausted".to_string())?,
+            None => 1,
+        };
+        transaction
+            .execute(
+                "INSERT INTO authority_writer_fence (id, generation, writer_id)
+                 VALUES (1, ?1, ?2)
+                 ON CONFLICT(id) DO UPDATE SET
+                     generation = excluded.generation,
+                     writer_id = excluded.writer_id",
+                params![generation, writer_id],
+            )
+            .map_err(|error| error.to_string())?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(AuthorityWriterClaimRecord {
+            generation: u64::try_from(generation)
+                .map_err(|_| "authority writer generation is invalid".to_string())?,
+            writer_id: writer_id.to_string(),
+            replayed: false,
+        })
+    }
+
+    pub fn authority_writer_fence(&mut self) -> Result<Option<(u64, String)>, String> {
+        self.ensure_owner()?;
+        self.connection
+            .query_row(
+                "SELECT generation, writer_id
+                 FROM authority_writer_fence WHERE id = 1",
+                [],
+                |row| {
+                    let generation = row.get::<_, i64>(0)?;
+                    let writer_id = row.get::<_, String>(1)?;
+                    Ok((generation, writer_id))
+                },
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .map(|(generation, writer_id)| {
+                Ok((
+                    u64::try_from(generation)
+                        .map_err(|_| "authority writer generation is invalid".to_string())?,
+                    writer_id,
+                ))
+            })
+            .transpose()
     }
 
     pub fn complete(&mut self, sequence: i64, outcome: &[u8]) -> Result<(), String> {
@@ -3456,10 +3544,47 @@ fn migrate_schema(connection: &mut Connection, from: i64) -> Result<i64, String>
         15 => migrate_schema_15_to_16(connection),
         16 => migrate_schema_16_to_17(connection),
         17 => migrate_schema_17_to_18(connection),
+        18 => migrate_schema_18_to_19(connection),
         version => Err(format!(
             "no runtime journal migration from schema {version}"
         )),
     }
+}
+
+fn migrate_schema_18_to_19(connection: &mut Connection) -> Result<i64, String> {
+    let applied_at = unix_time_ms()?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE authority_writer_fence (
+                 id INTEGER PRIMARY KEY CHECK (id = 1),
+                 generation INTEGER NOT NULL CHECK (generation >= 1),
+                 writer_id TEXT NOT NULL CHECK (
+                     length(writer_id) = 32
+                     AND writer_id NOT GLOB '*[^0-9A-Fa-f]*'
+                 )
+             ) STRICT;",
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms) VALUES (19, ?1)",
+            [applied_at],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "UPDATE runtime_metadata SET value = 19 WHERE key = 'schema_version' AND value = 18",
+            [],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("runtime journal schema changed during migration".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(19)
 }
 
 fn migrate_schema_17_to_18(connection: &mut Connection) -> Result<i64, String> {
@@ -4174,9 +4299,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
-    if (migration_count, first_migration, last_migration) != (18, 1, 18) {
-        return Err("invalid runtime journal schema 18 migration history".into());
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
+    if (migration_count, first_migration, last_migration) != (19, 1, 19) {
+        return Err("invalid runtime journal schema 19 migration history".into());
     }
     let timestamp_column: i64 = connection
         .query_row(
@@ -4186,23 +4311,23 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if timestamp_column != 1 {
-        return Err("invalid runtime journal schema 18 timestamp column".into());
+        return Err("invalid runtime journal schema 19 timestamp column".into());
     }
     connection
         .query_row("SELECT COUNT(*) FROM runtime_snapshots", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     connection
         .query_row("SELECT COUNT(*) FROM runtime_effect_tasks", [], |row| {
             row.get::<_, i64>(0)
         })
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     let effect_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('runtime_effect_tasks')
@@ -4214,9 +4339,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if effect_columns != 13 {
-        return Err("invalid runtime journal schema 18 effect columns".into());
+        return Err("invalid runtime journal schema 19 effect columns".into());
     }
     let claim_index: i64 = connection
         .query_row(
@@ -4226,9 +4351,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if claim_index != 1 {
-        return Err("invalid runtime journal schema 18 effect claim index".into());
+        return Err("invalid runtime journal schema 19 effect claim index".into());
     }
     let unknown_journal_kinds: i64 = connection
         .query_row(
@@ -4240,9 +4365,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if unknown_journal_kinds != 0 {
-        return Err("invalid runtime journal schema 18 journal kind".into());
+        return Err("invalid runtime journal schema 19 journal kind".into());
     }
     let log_columns: i64 = connection
         .query_row(
@@ -4251,9 +4376,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if log_columns != 5 {
-        return Err("invalid runtime journal schema 18 log columns".into());
+        return Err("invalid runtime journal schema 19 log columns".into());
     }
     let log_index: i64 = connection
         .query_row(
@@ -4263,9 +4388,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if log_index != 1 {
-        return Err("invalid runtime journal schema 18 log index".into());
+        return Err("invalid runtime journal schema 19 log index".into());
     }
     let orchestra_tables: i64 = connection
         .query_row(
@@ -4274,9 +4399,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if orchestra_tables != 2 {
-        return Err("invalid runtime journal schema 18 Orchestra tables".into());
+        return Err("invalid runtime journal schema 19 Orchestra tables".into());
     }
     let orchestra_indexes: i64 = connection
         .query_row(
@@ -4288,9 +4413,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if orchestra_indexes != 3 {
-        return Err("invalid runtime journal schema 18 Orchestra indexes".into());
+        return Err("invalid runtime journal schema 19 Orchestra indexes".into());
     }
     let authority_columns: i64 = connection
         .query_row(
@@ -4302,9 +4427,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if authority_columns != 6 {
-        return Err("invalid runtime journal schema 18 authority checkpoint columns".into());
+        return Err("invalid runtime journal schema 19 authority checkpoint columns".into());
     }
     let authority_index: i64 = connection
         .query_row(
@@ -4314,9 +4439,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if authority_index != 1 {
-        return Err("invalid runtime journal schema 18 authority checkpoint index".into());
+        return Err("invalid runtime journal schema 19 authority checkpoint index".into());
     }
     let unregistration_columns: i64 = connection
         .query_row(
@@ -4328,9 +4453,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if unregistration_columns != 7 {
-        return Err("invalid runtime journal schema 18 unregistration columns".into());
+        return Err("invalid runtime journal schema 19 unregistration columns".into());
     }
     let unregistration_generation_index: i64 = connection
         .query_row(
@@ -4341,12 +4466,12 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if unregistration_generation_index != 1 {
-        return Err("invalid runtime journal schema 18 unregistration generation index".into());
+        return Err("invalid runtime journal schema 19 unregistration generation index".into());
     }
     load_runtime_unregistration_replay_horizon(connection)
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     let orchestra_delete_columns: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('orchestra_delete_operations')
@@ -4357,9 +4482,9 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if orchestra_delete_columns != 7 {
-        return Err("invalid runtime journal schema 18 Orchestra delete columns".into());
+        return Err("invalid runtime journal schema 19 Orchestra delete columns".into());
     }
     let orchestra_delete_generation_rows: i64 = connection
         .query_row(
@@ -4368,13 +4493,30 @@ fn validate_current_schema(connection: &Connection) -> Result<(), String> {
             [],
             |row| row.get(0),
         )
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
     if orchestra_delete_generation_rows != 1 {
-        return Err("invalid runtime journal schema 18 Orchestra delete generation".into());
+        return Err("invalid runtime journal schema 19 Orchestra delete generation".into());
     }
     load_orchestra_delete_replay_horizon(connection)
-        .map_err(|error| format!("invalid runtime journal schema 18: {error}"))?;
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
+    let authority_writer_columns: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('authority_writer_fence')
+             WHERE name IN ('id', 'generation', 'writer_id')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("invalid runtime journal schema 19: {error}"))?;
+    if authority_writer_columns != 3 {
+        return Err("invalid runtime journal schema 19 authority writer fence".into());
+    }
     Ok(())
+}
+
+fn validate_authority_writer_id(writer_id: &str) -> Result<(), String> {
+    (writer_id.len() == 32 && writer_id.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .then_some(())
+        .ok_or_else(|| "authority writer ID must be 32 ASCII hexadecimal characters".to_string())
 }
 
 fn log_level_label(level: RuntimeLogLevel) -> &'static str {

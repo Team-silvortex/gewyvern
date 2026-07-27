@@ -99,8 +99,7 @@ fn retained_checkpoint_worker_duplicate_host_evidence_is_non_vacuous() {
         409
     );
     assert_eq!(
-        evidence["controlPlaneWriter"]["standbyAfterOwnerTermination"]
-            ["saveStatus"],
+        evidence["controlPlaneWriter"]["standbyAfterOwnerTermination"]["saveStatus"],
         409
     );
     assert_eq!(
@@ -108,8 +107,7 @@ fn retained_checkpoint_worker_duplicate_host_evidence_is_non_vacuous() {
         "owner"
     );
     assert_eq!(
-        evidence["controlPlaneWriter"]["freshProcessTakeover"]
-            ["saveStatus"],
+        evidence["controlPlaneWriter"]["freshProcessTakeover"]["saveStatus"],
         200
     );
     assert_eq!(
@@ -1778,7 +1776,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.25.0");
+    assert_eq!(compatibility_control.contract.version, "1.26.0");
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
+            && item.state == EvidenceState::Present
+    }));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -2099,11 +2101,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.25.0");
+    assert_eq!(compatibility_control.contract.version, "1.26.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("generation-fenced Rust authority")
+            .contains("Rust-issued writer generation fence")
     );
 
     let reconciliation = catalog
@@ -2114,7 +2116,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.12.0");
+    assert_eq!(reconciliation.contract.version, "1.13.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -2259,7 +2261,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         reconciliation
             .next_gate
-            .contains("generation-fenced Rust authority")
+            .contains("generation-fenced unregistration")
     );
 
     let bootstrap = catalog

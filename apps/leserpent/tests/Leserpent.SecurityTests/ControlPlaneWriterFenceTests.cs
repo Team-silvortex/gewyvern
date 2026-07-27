@@ -1,4 +1,7 @@
 using Leserpent.ControlPlane;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
@@ -130,6 +133,205 @@ public sealed class ControlPlaneWriterFenceTests
             }
             catch (IOException)
             {
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ActiveWriterClaimsDaemonGenerationAndFencesRegistration()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"leserpent-writer-authority-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var statePath = Path.Combine(directory, "state.json");
+        var socketPath =
+            $"/tmp/lese-writer-{Guid.NewGuid():N}.sock";
+        const string token =
+            "0123456789abcdef0123456789abcdef";
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                    ["LESERPENT_DAEMON_SOCKET"] = socketPath,
+                    ["LESERPENT_DAEMON_TOKEN"] = token,
+                })
+            .Build();
+        var store = new ControlPlaneStateStore(
+            configuration,
+            new TestHostEnvironment
+            {
+                ContentRootPath = directory,
+            },
+            NullLogger<ControlPlaneStateStore>.Instance);
+        using var lease = new ControlPlaneWriterLease(store);
+        var session = new DaemonAuthorityWriterSession(configuration);
+        var fence = new ControlPlaneWriterFence(
+            lease,
+            NullLogger<ControlPlaneWriterFence>.Instance,
+            session);
+        using var listener = new Socket(
+            AddressFamily.Unix,
+            SocketType.Stream,
+            ProtocolType.Unspecified);
+        listener.Bind(new UnixDomainSocketEndPoint(socketPath));
+        File.SetUnixFileMode(
+            socketPath,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        listener.Listen(2);
+        var requests = new List<JsonElement>();
+        var server = ServeWriterClaimAndRegistrationAsync(
+            listener,
+            requests);
+
+        try
+        {
+            await fence.StartAsync(CancellationToken.None);
+            Assert.True(fence.IsWriter);
+            Assert.Equal(
+                7UL,
+                fence.Snapshot().AuthorityGeneration);
+
+            var authority =
+                new DaemonRuntimeRegistrationAuthority(
+                    configuration,
+                    fence);
+            await authority.RegisterAsync(
+                new RuntimeRegistrationRequest(
+                    "Runtime Fenced",
+                    "https://runtime.example",
+                    "pairing-token"),
+                "runtime-fenced",
+                CancellationToken.None);
+            await server;
+
+            Assert.Equal(2, requests.Count);
+            var claim = requests[0]
+                .GetProperty("request")
+                .GetProperty("request");
+            Assert.Equal(
+                "authority_writer_claim",
+                claim.GetProperty("kind").GetString());
+            var writerId = claim
+                .GetProperty("payload")
+                .GetProperty("writer_id")
+                .GetString();
+            var ticket = requests[1].GetProperty("writer_fence");
+            Assert.Equal(7UL, ticket.GetProperty("generation").GetUInt64());
+            Assert.Equal(
+                writerId,
+                ticket.GetProperty("writer_id").GetString());
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(socketPath);
+            }
+            catch (IOException)
+            {
+            }
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static async Task ServeWriterClaimAndRegistrationAsync(
+        Socket listener,
+        List<JsonElement> requests)
+    {
+        for (var index = 0; index < 2; index++)
+        {
+            using var client = await listener.AcceptAsync();
+            var request = await ReadFrameAsync(client);
+            using var document = JsonDocument.Parse(request);
+            var frame = document.RootElement.Clone();
+            requests.Add(frame);
+            string response;
+            if (index == 0)
+            {
+                var writerId = frame
+                    .GetProperty("request")
+                    .GetProperty("request")
+                    .GetProperty("payload")
+                    .GetProperty("writer_id")
+                    .GetString();
+                response = JsonSerializer.Serialize(new
+                {
+                    schema_version = 1,
+                    response = new
+                    {
+                        kind = "authority_writer_claimed",
+                        payload = new
+                        {
+                            generation = 7,
+                            writer_id = writerId,
+                            replayed = false,
+                        },
+                    },
+                });
+            }
+            else
+            {
+                var command = frame
+                    .GetProperty("request")
+                    .GetProperty("request")
+                    .GetProperty("payload");
+                response = JsonSerializer.Serialize(new
+                {
+                    schema_version = 1,
+                    response = new
+                    {
+                        kind = "command",
+                        payload = new
+                        {
+                            status = "applied",
+                            command_id =
+                                command.GetProperty("command_id").GetString(),
+                            revision = 1,
+                            runtime = new
+                            {
+                                id = "runtime-fenced",
+                                revision = 1,
+                            },
+                        },
+                    },
+                });
+            }
+            var encoded = Encoding.UTF8.GetBytes(response + "\n");
+            await client.SendAsync(encoded, SocketFlags.None);
+            client.Shutdown(SocketShutdown.Send);
+        }
+    }
+
+    private static async Task<byte[]> ReadFrameAsync(Socket socket)
+    {
+        using var output = new MemoryStream();
+        var buffer = new byte[1024];
+        while (true)
+        {
+            var read = await socket.ReceiveAsync(
+                buffer,
+                SocketFlags.None);
+            Assert.True(read > 0);
+            var newline = Array.IndexOf(buffer, (byte)'\n', 0, read);
+            output.Write(
+                buffer,
+                0,
+                newline < 0 ? read : newline);
+            if (newline >= 0)
+            {
+                return output.ToArray();
             }
         }
     }

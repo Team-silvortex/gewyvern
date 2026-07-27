@@ -51,9 +51,18 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
     private readonly string? socketPath;
     private readonly string? token;
     private readonly TimeSpan timeout;
+    private readonly ControlPlaneWriterFence? writerFence;
 
     public DaemonRuntimeRegistrationAuthority(IConfiguration configuration)
+        : this(configuration, null)
     {
+    }
+
+    public DaemonRuntimeRegistrationAuthority(
+        IConfiguration configuration,
+        ControlPlaneWriterFence? writerFence)
+    {
+        this.writerFence = writerFence;
         var configuredSocket = configuration["LESERPENT_DAEMON_SOCKET"];
         var configuredToken = configuration["LESERPENT_DAEMON_TOKEN"];
         if (string.IsNullOrWhiteSpace(configuredSocket) != string.IsNullOrWhiteSpace(configuredToken))
@@ -1027,6 +1036,19 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         {
             writer.WriteStartObject();
             writer.WriteString("token", token);
+            var authorityTicket = writerFence?.AuthorityTicket;
+            if (authorityTicket is not null)
+            {
+                writer.WritePropertyName("writer_fence");
+                writer.WriteStartObject();
+                writer.WriteNumber(
+                    "generation",
+                    authorityTicket.Generation);
+                writer.WriteString(
+                    "writer_id",
+                    authorityTicket.WriterId);
+                writer.WriteEndObject();
+            }
             writer.WritePropertyName("request");
             writeRequest(writer);
             writer.WriteEndObject();

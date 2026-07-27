@@ -1427,6 +1427,9 @@ pub fn render_response(response: &ResponseEnvelope, json: bool) -> Result<String
             safe_cell(state.endpoint.as_deref().unwrap_or("none")),
             state.mutation_authorized,
         )),
+        ProtocolResponse::AuthorityWriterClaimed(_) => Err(CliError::Protocol(
+            "unexpected internal authority writer response".into(),
+        )),
         ProtocolResponse::Error(error) => Err(CliError::Protocol(format!(
             "{}: {}",
             error.code, error.message

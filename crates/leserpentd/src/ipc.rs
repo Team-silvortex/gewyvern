@@ -12,7 +12,8 @@ use leserpent_protocol::provisioning::{
 };
 use leserpent_protocol::retirement::{RetirementResponseEnvelope, encode_retirement_response};
 use leserpent_protocol::{
-    MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request, encode_response,
+    AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request,
+    encode_response,
 };
 use leserpent_runtime::ControlRuntime;
 use serde::Deserialize;
@@ -35,6 +36,8 @@ const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
 #[serde(deny_unknown_fields)]
 struct AuthenticatedRequest {
     token: String,
+    #[serde(default)]
+    writer_fence: Option<AuthorityWriterFence>,
     #[serde(default)]
     route: IpcRoute,
     request: serde_json::Value,
@@ -251,6 +254,8 @@ impl IpcServer {
                     runtime,
                     request,
                     self.bootstrap_verifier.as_deref(),
+                    authenticated.writer_fence.as_ref(),
+                    true,
                 )))
             }
             IpcRoute::BootstrapV1 => IpcResponse::Bootstrap(decode_and_submit(
@@ -301,6 +306,7 @@ mod tests {
         RuntimeLogLevel, RuntimeTags,
     };
     use leserpent_protocol::{
+        AuthorityWriterClaimRequest, AuthorityWriterFence, CAPABILITY_AUTHORITY_WRITER,
         DeploymentReceiptRequest, DeploymentReceiptStatus, HealthRequest,
         OrchestraDeleteCommandRequest, OrchestraDeleteReplayCheckpointRequest,
         OrchestraDeleteReplayHorizonRequest, OrchestraDeleteRequest, OrchestraHistoryRequest,
@@ -349,6 +355,28 @@ mod tests {
         protocol_request: RequestEnvelope,
     ) -> ResponseEnvelope {
         let request = serde_json::json!({ "token": token, "request": protocol_request });
+        let mut client = UnixStream::connect(socket).unwrap();
+        let mut encoded = serde_json::to_vec(&request).unwrap();
+        encoded.push(b'\n');
+        client.write_all(&encoded).unwrap();
+        assert!(server.poll_once(runtime).unwrap());
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).unwrap();
+        decode_response(&response).unwrap()
+    }
+
+    fn send_with_writer_fence(
+        server: &IpcServer,
+        runtime: &mut ControlRuntime,
+        socket: &Path,
+        protocol_request: RequestEnvelope,
+        writer_fence: Option<AuthorityWriterFence>,
+    ) -> ResponseEnvelope {
+        let request = serde_json::json!({
+            "token": TOKEN,
+            "writer_fence": writer_fence,
+            "request": protocol_request,
+        });
         let mut client = UnixStream::connect(socket).unwrap();
         let mut encoded = serde_json::to_vec(&request).unwrap();
         encoded.push(b'\n');
@@ -872,6 +900,177 @@ mod tests {
                     && runtimes[0].capabilities_observed_for_revision == Some(Revision(2))
         ));
         drop(restored);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authority_writer_generation_rejects_missing_and_stale_registration() {
+        let database = temp_path("writer-fence", "sqlite");
+        let socket = temp_path("writer-fence", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let writer_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let writer_c = "cccccccccccccccccccccccccccccccc";
+        let claim = |writer_id: &str| RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::AuthorityWriterClaim(AuthorityWriterClaimRequest {
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_AUTHORITY_WRITER]),
+                writer_id: writer_id.into(),
+            }),
+        };
+        let registration = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("fenced-register-command").unwrap(),
+                idempotency_key: IdempotencyKey::new("fenced-register-request").unwrap(),
+                expected_revision: None,
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeRegister {
+                    runtime_id: RuntimeId::new("runtime-fenced").unwrap(),
+                    name: "Runtime Fenced".into(),
+                    endpoint: "https://127.0.0.1:9443".into(),
+                    sidecar_endpoint: None,
+                    tags: RuntimeTags::default(),
+                },
+            }),
+        };
+
+        let first = send(&server, &mut runtime, &socket, TOKEN, claim(writer_a));
+        assert!(matches!(
+            first.response,
+            ProtocolResponse::AuthorityWriterClaimed(ref response)
+                if response.generation == 1
+                    && response.writer_id == writer_a
+                    && !response.replayed
+        ));
+        let replay = send(&server, &mut runtime, &socket, TOKEN, claim(writer_a));
+        assert!(matches!(
+            replay.response,
+            ProtocolResponse::AuthorityWriterClaimed(ref response)
+                if response.generation == 1 && response.replayed
+        ));
+        let takeover = send(&server, &mut runtime, &socket, TOKEN, claim(writer_b));
+        assert!(matches!(
+            takeover.response,
+            ProtocolResponse::AuthorityWriterClaimed(ref response)
+                if response.generation == 2 && !response.replayed
+        ));
+
+        let missing =
+            send_with_writer_fence(&server, &mut runtime, &socket, registration.clone(), None);
+        assert!(matches!(
+            missing.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_required"
+        ));
+        let stale = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            registration.clone(),
+            Some(AuthorityWriterFence {
+                generation: 1,
+                writer_id: writer_a.into(),
+            }),
+        );
+        assert!(matches!(
+            stale.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_rejected"
+        ));
+        assert!(
+            runtime
+                .runtime_projection(&RuntimeId::new("runtime-fenced").unwrap())
+                .is_none()
+        );
+
+        let applied = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            registration,
+            Some(AuthorityWriterFence {
+                generation: 2,
+                writer_id: writer_b.into(),
+            }),
+        );
+        assert!(matches!(
+            applied.response,
+            ProtocolResponse::Command(ref result)
+                if result.status == CommandStatus::Applied
+        ));
+
+        let takeover = send(&server, &mut runtime, &socket, TOKEN, claim(writer_c));
+        assert!(matches!(
+            takeover.response,
+            ProtocolResponse::AuthorityWriterClaimed(ref response)
+                if response.generation == 3 && !response.replayed
+        ));
+        let unregistration = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::RuntimeUnregister(RuntimeUnregisterRequest {
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_UNREGISTER]),
+                command_id: CommandId::new("fenced-unregister-command").unwrap(),
+                targets: vec![RuntimeUnregisterTarget {
+                    runtime_id: RuntimeId::new("runtime-fenced").unwrap(),
+                    expected_revision: Revision(1),
+                }],
+                confirmed: true,
+            }),
+        };
+        let stale_delete = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            unregistration.clone(),
+            Some(AuthorityWriterFence {
+                generation: 2,
+                writer_id: writer_b.into(),
+            }),
+        );
+        assert!(matches!(
+            stale_delete.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_rejected"
+        ));
+        assert!(
+            runtime
+                .runtime_projection(&RuntimeId::new("runtime-fenced").unwrap())
+                .is_some()
+        );
+        let deleted = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            unregistration,
+            Some(AuthorityWriterFence {
+                generation: 3,
+                writer_id: writer_c.into(),
+            }),
+        );
+        assert!(matches!(
+            deleted.response,
+            ProtocolResponse::RuntimeUnregistered(ref response)
+                if response.command_id.as_str() == "fenced-unregister-command"
+                    && !response.replayed
+        ));
+
+        drop(server);
+        drop(runtime);
         fs::remove_file(database).unwrap();
     }
 

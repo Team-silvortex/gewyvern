@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -46,6 +46,28 @@
     "persistence-write-backstop",
     "background-worker-owner-gate"
   ],
+  "rust_authority_writer_fence": {
+    "journal_schema": 19,
+    "claim": "authenticated-idempotent-random-writer-id-private-local-ipc-only",
+    "generation": "rust-issued-monotonic",
+    "covered_ipc_mutations": [
+      "runtime_register",
+      "runtime_registration_update",
+      "runtime_discovery_intake",
+      "runtime_unregister"
+    ],
+    "missing_error": "authority_writer_fence_required",
+    "stale_error": "authority_writer_fence_rejected",
+    "legacy_before_first_claim": true,
+    "remaining_routes": [
+      "runtime_deploy",
+      "orchestra_mutations",
+      "bootstrap",
+      "provisioning",
+      "retirement",
+      "remote_transport"
+    ]
+  },
   "standby_contract": {
     "reads_allowed": true,
     "writes_return": {

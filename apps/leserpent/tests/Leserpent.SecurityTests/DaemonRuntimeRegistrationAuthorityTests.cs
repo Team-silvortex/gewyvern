@@ -445,6 +445,133 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
     }
 
     [Fact]
+    public async Task RealDaemonRejectsReplacedWriterAndAcceptsFreshOwner()
+    {
+        var daemonBinary =
+            Environment.GetEnvironmentVariable(
+                "LESERPENT_TEST_DAEMON_BIN");
+        if (string.IsNullOrWhiteSpace(daemonBinary) ||
+            OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var socketPath = TempSocket();
+        var databasePath = socketPath + ".db";
+        var statePath = socketPath + ".state.json";
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["LESERPENT_DAEMON_SOCKET"] = socketPath,
+                    ["LESERPENT_DAEMON_TOKEN"] = Token,
+                    ["LESERPENT_DAEMON_REGISTRATION_TIMEOUT_MS"] =
+                        "10000",
+                    ["LESERPENT_STATE_PATH"] = statePath,
+                })
+            .Build();
+        using var daemon =
+            StartDaemon(daemonBinary, databasePath, socketPath);
+        try
+        {
+            await WaitForSocketAsync(daemon, socketPath);
+            var firstStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(
+                    Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            using var firstLease =
+                new ControlPlaneWriterLease(firstStore);
+            var firstSession =
+                new DaemonAuthorityWriterSession(configuration);
+            var firstFence = new ControlPlaneWriterFence(
+                firstLease,
+                NullLogger<ControlPlaneWriterFence>.Instance,
+                firstSession);
+            await firstFence.StartAsync(CancellationToken.None);
+            Assert.Equal(
+                1UL,
+                firstFence.Snapshot().AuthorityGeneration);
+            var firstAuthority =
+                new DaemonRuntimeRegistrationAuthority(
+                    configuration,
+                    firstFence);
+            await firstAuthority.RegisterAsync(
+                new RuntimeRegistrationRequest(
+                    "First Owner Runtime",
+                    "https://first.example",
+                    "pairing-token"),
+                "runtime-first-owner",
+                CancellationToken.None);
+
+            var takeoverSession =
+                new DaemonAuthorityWriterSession(configuration);
+            var takeoverTicket = await takeoverSession.ClaimAsync(
+                CancellationToken.None);
+            Assert.Equal(2UL, takeoverTicket?.Generation);
+
+            var rejected =
+                await Assert.ThrowsAsync<
+                    DaemonRuntimeRegistrationException>(
+                    () => firstAuthority.RegisterAsync(
+                        new RuntimeRegistrationRequest(
+                            "Stale Owner Runtime",
+                            "https://stale.example",
+                            "pairing-token"),
+                        "runtime-stale-owner",
+                        CancellationToken.None));
+            Assert.Equal(
+                "authority_writer_fence_rejected",
+                rejected.Code);
+            Assert.Null(await firstAuthority.InspectAsync(
+                "runtime-stale-owner",
+                CancellationToken.None));
+
+            firstLease.Dispose();
+            var takeoverStore = new ControlPlaneStateStore(
+                configuration,
+                new CrashTestEnvironment(
+                    Path.GetDirectoryName(statePath)!),
+                NullLogger<ControlPlaneStateStore>.Instance);
+            using var takeoverLease =
+                new ControlPlaneWriterLease(takeoverStore);
+            var takeoverFence = new ControlPlaneWriterFence(
+                takeoverLease,
+                NullLogger<ControlPlaneWriterFence>.Instance,
+                takeoverSession);
+            await takeoverFence.StartAsync(CancellationToken.None);
+            var takeoverAuthority =
+                new DaemonRuntimeRegistrationAuthority(
+                    configuration,
+                    takeoverFence);
+            await takeoverAuthority.RegisterAsync(
+                new RuntimeRegistrationRequest(
+                    "Takeover Runtime",
+                    "https://takeover.example",
+                    "pairing-token"),
+                "runtime-takeover-owner",
+                CancellationToken.None);
+            Assert.NotNull(await takeoverAuthority.InspectAsync(
+                "runtime-takeover-owner",
+                CancellationToken.None));
+        }
+        finally
+        {
+            if (!daemon.HasExited)
+            {
+                daemon.Kill(entireProcessTree: true);
+                daemon.WaitForExit(2000);
+            }
+            TryDelete(socketPath);
+            TryDelete(databasePath);
+            TryDelete(databasePath + "-journal");
+            TryDelete(databasePath + "-wal");
+            TryDelete(databasePath + "-shm");
+            TryDelete(statePath);
+            TryDelete(statePath + ".control-writer.lease");
+        }
+    }
+
+    [Fact]
     public async Task RuntimeDeletionRecoversAfterHostIsKilledAtDaemonCommitBoundary()
     {
         var daemonBinary = Environment.GetEnvironmentVariable("LESERPENT_TEST_DAEMON_BIN");

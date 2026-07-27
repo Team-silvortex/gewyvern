@@ -52,6 +52,7 @@ public partial class Program
             return daemon.Enabled ? daemon : services.GetRequiredService<SqliteOrchestraRunStore>();
         });
         builder.Services.AddSingleton<ControlPlaneWriterLease>();
+        builder.Services.AddSingleton<DaemonAuthorityWriterSession>();
         builder.Services.AddSingleton<ControlPlaneWriterFence>();
         builder.Services.AddSingleton<IHostedService>(services =>
             services.GetRequiredService<ControlPlaneWriterFence>());

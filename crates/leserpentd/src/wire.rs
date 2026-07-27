@@ -7,6 +7,7 @@ use leserpent_domain::{
     IdempotencyKey, PlannedOperation, Query,
 };
 use leserpent_protocol::{
+    AuthorityWriterClaimResponse, AuthorityWriterFence, CAPABILITY_AUTHORITY_WRITER,
     DeploymentReceiptResponse, DeploymentReceiptStatus, EffectQueueHealth, HealthResponse,
     OrchestraDeleteReceiptResponse, OrchestraDeleteReplayAdmissionPressure,
     OrchestraDeleteReplayAdmissionState, OrchestraDeleteReplayHorizonResponse,
@@ -34,8 +35,49 @@ pub(crate) fn execute_request(
     runtime: &mut ControlRuntime,
     request: RequestEnvelope,
     bootstrap_verifier: Option<&dyn BootstrapSessionVerifier>,
+    writer_fence: Option<&AuthorityWriterFence>,
+    authority_writer_claim_enabled: bool,
 ) -> ResponseEnvelope {
-    let request = match request.request {
+    let request = request.request;
+    if let ProtocolRequest::AuthorityWriterClaim(claim) = &request {
+        if !authority_writer_claim_enabled {
+            return error_response(
+                "authority_writer_claim_unavailable",
+                "authority writer claims require the private local transport",
+            );
+        }
+        if claim.principal.id.trim().is_empty()
+            || !claim.capabilities.contains(CAPABILITY_AUTHORITY_WRITER)
+        {
+            return error_response(
+                "authority_writer_claim_rejected",
+                "authority writer claim requires explicit authority",
+            );
+        }
+        return match runtime.claim_authority_writer(&claim.writer_id) {
+            Ok(claim) => response(ProtocolResponse::AuthorityWriterClaimed(
+                AuthorityWriterClaimResponse {
+                    generation: claim.generation,
+                    writer_id: claim.writer_id,
+                    replayed: claim.replayed,
+                },
+            )),
+            Err(_) => error_response(
+                "authority_writer_claim_failed",
+                "authority writer claim failed",
+            ),
+        };
+    }
+    if requires_authority_writer_fence(&request) {
+        let fenced = runtime.require_authority_writer(
+            writer_fence.map(|fence| fence.generation),
+            writer_fence.map(|fence| fence.writer_id.as_str()),
+        );
+        if let Err(error) = fenced {
+            return authority_writer_fence_error(error);
+        }
+    }
+    let request = match request {
         ProtocolRequest::Health(_) => {
             return match runtime.heartbeat().and_then(|()| {
                 let queue = runtime.effect_queue_stats()?;
@@ -484,6 +526,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
+        | ProtocolRequest::AuthorityWriterClaim(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };
@@ -500,6 +543,7 @@ pub(crate) fn execute_request(
         | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
         | ProtocolRequest::RuntimeUnregister(_)
         | ProtocolRequest::RuntimeUnregistrationReceipt(_)
+        | ProtocolRequest::AuthorityWriterClaim(_)
         | ProtocolRequest::BootstrapHandoff(_)
         | ProtocolRequest::BootstrapSessionBind(_) => unreachable!(),
     };
@@ -515,6 +559,41 @@ pub(crate) fn execute_request(
             error_response("invalid_request", "protocol command plan is invalid")
         }
         Err(_) => error_response("runtime_failed", "runtime request failed"),
+    }
+}
+
+fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
+    matches!(request, ProtocolRequest::RuntimeUnregister(_))
+        || matches!(
+            request,
+            ProtocolRequest::Command(command)
+                if matches!(
+                    command.command,
+                    Command::RuntimeRegister { .. }
+                        | Command::RuntimeRegistrationUpdate { .. }
+                        | Command::RuntimeDiscoveryIntake { .. }
+                )
+        )
+}
+
+fn authority_writer_fence_error(error: RuntimeError) -> ResponseEnvelope {
+    match error {
+        RuntimeError::AuthorityWriterFence(
+            leserpent_runtime::AuthorityWriterFenceError::Required,
+        ) => error_response(
+            "authority_writer_fence_required",
+            "authority mutation requires the active writer fence",
+        ),
+        RuntimeError::AuthorityWriterFence(
+            leserpent_runtime::AuthorityWriterFenceError::Rejected,
+        ) => error_response(
+            "authority_writer_fence_rejected",
+            "authority mutation was submitted by a stale writer",
+        ),
+        _ => error_response(
+            "authority_writer_fence_failed",
+            "authority writer fence validation failed",
+        ),
     }
 }
 
@@ -629,7 +708,8 @@ mod tests {
     };
     use leserpent_domain::{CapabilitySet, Principal};
     use leserpent_protocol::{
-        BootstrapHandoffRequest, BootstrapSessionBindRequest, ProtocolRequest,
+        AuthorityWriterClaimRequest, BootstrapHandoffRequest, BootstrapSessionBindRequest,
+        CAPABILITY_AUTHORITY_WRITER, ProtocolRequest,
     };
 
     use super::*;
@@ -656,6 +736,33 @@ mod tests {
             "leserpent-wire-bootstrap-{}-{unique}.sqlite",
             std::process::id()
         ))
+    }
+
+    #[test]
+    fn authority_writer_claim_is_unavailable_outside_private_ipc() {
+        let path = temp_database();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let claim = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::AuthorityWriterClaim(AuthorityWriterClaimRequest {
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_AUTHORITY_WRITER]),
+                writer_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+            }),
+        };
+
+        let rejected = execute_request(&mut runtime, claim, None, None, false);
+        assert!(matches!(
+            rejected.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_claim_unavailable"
+        ));
+        runtime.require_authority_writer(None, None).unwrap();
+
+        drop(runtime);
+        fs::remove_file(path).unwrap();
     }
 
     fn seed_bootstrapped(runtime: &mut ControlRuntime) -> BootstrapId {
@@ -791,14 +898,14 @@ mod tests {
         let mut runtime = ControlRuntime::open(&path).unwrap();
         let bootstrap_id = seed_bootstrapped(&mut runtime);
 
-        let queried = execute_request(&mut runtime, query(&bootstrap_id), None);
+        let queried = execute_request(&mut runtime, query(&bootstrap_id), None, None, false);
         assert!(matches!(
             queried.response,
             ProtocolResponse::BootstrapHandoff(ref state)
                 if state.phase == BootstrapPhase::Bootstrapped
                     && !state.mutation_authorized
         ));
-        let unavailable = execute_request(&mut runtime, bind(&bootstrap_id), None);
+        let unavailable = execute_request(&mut runtime, bind(&bootstrap_id), None, None, false);
         assert!(matches!(
             unavailable.response,
             ProtocolResponse::Error(ref error)
@@ -808,7 +915,8 @@ mod tests {
         let wrong = FixedVerifier {
             proof: proof(&bootstrap_id, "daemon-wrong"),
         };
-        let rejected = execute_request(&mut runtime, bind(&bootstrap_id), Some(&wrong));
+        let rejected =
+            execute_request(&mut runtime, bind(&bootstrap_id), Some(&wrong), None, false);
         assert!(matches!(
             rejected.response,
             ProtocolResponse::Error(ref error)
@@ -826,13 +934,25 @@ mod tests {
         let verifier = FixedVerifier {
             proof: proof(&bootstrap_id, "daemon-host-example"),
         };
-        let bound = execute_request(&mut runtime, bind(&bootstrap_id), Some(&verifier));
+        let bound = execute_request(
+            &mut runtime,
+            bind(&bootstrap_id),
+            Some(&verifier),
+            None,
+            false,
+        );
         assert!(matches!(
             &bound.response,
             ProtocolResponse::BootstrapHandoff(state)
                 if state.phase == BootstrapPhase::SessionBound && state.mutation_authorized
         ));
-        let replay = execute_request(&mut runtime, bind(&bootstrap_id), Some(&verifier));
+        let replay = execute_request(
+            &mut runtime,
+            bind(&bootstrap_id),
+            Some(&verifier),
+            None,
+            false,
+        );
         assert_eq!(replay, bound);
         assert_eq!(
             runtime
