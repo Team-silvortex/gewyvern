@@ -595,6 +595,21 @@ idempotently, and proves zero service, process, port, runtime-root, descriptor,
 or staging residue. Its redacted evidence is
 `docs/fixtures/leserpent_real_ssh_retirement_20260723.json`.
 
+The daemon bootstrap path now has its own symmetric target-side retirement
+kernel rather than borrowing Gewyvern retirement semantics. The strict,
+independently bounded `bootstrap-retirement-v1` wire binds retirement,
+bootstrap, daemon, generation, and profile identities. The native
+`bootstrap-retire-v1` entry verifies the private current generation, manifest,
+and published descriptor before service mutation; then a private
+`retiring -> service_retired -> retired` marker makes stop and cleanup
+restart-safe and replayable. It removes only the service descriptor, current
+pointer, and executable generation while retaining state and logs for operator
+recovery. Cleanup revalidates the bound manifest, current pointer, and
+descriptor after service stop, so a crashed stale retirement cannot erase a
+newly published generation. A real macOS process vertical proves install, retirement, cleanup,
+private marker persistence, and idempotent replay. Native SSH submission and a
+physical Linux cross-host retirement proof remain the next bootstrap gate.
+
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path
 without confirmed transition. Proof evidence must be versioned, reproducible, and

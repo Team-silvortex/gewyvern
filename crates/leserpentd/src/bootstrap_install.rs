@@ -12,6 +12,11 @@ use leserpent_protocol::bootstrap_installer::{
     BootstrapInstallerServiceState, MAX_BOOTSTRAP_INSTALLER_BYTES,
     decode_bootstrap_installer_request, encode_bootstrap_installer_response,
 };
+use leserpent_protocol::bootstrap_retirement::{
+    BOOTSTRAP_RETIREMENT_SCHEMA_VERSION, BootstrapRetirementRequest, BootstrapRetirementResponse,
+    MAX_BOOTSTRAP_RETIREMENT_BYTES, decode_bootstrap_retirement_request,
+    encode_bootstrap_retirement_response,
+};
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 use ring::digest::{Context, SHA256, digest};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
@@ -25,6 +30,7 @@ const MANIFEST_NAME: &str = "install.json";
 const CURRENT_NAME: &str = "current";
 const TLS_CERTIFICATE_NAME: &str = "server.crt";
 const TLS_PRIVATE_KEY_NAME: &str = "server.key";
+const RETIREMENT_MARKER_SCHEMA_VERSION: u32 = 1;
 #[cfg(target_os = "macos")]
 const SERVICE_DESCRIPTOR_NAME: &str = "service.plist";
 #[cfg(target_os = "linux")]
@@ -127,6 +133,26 @@ struct InstallManifest {
     generation: String,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum BootstrapRetirementMarkerPhase {
+    Retiring,
+    ServiceRetired,
+    Retired,
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct BootstrapRetirementMarker {
+    schema_version: u32,
+    retirement_id: String,
+    bootstrap_id: String,
+    daemon_id: String,
+    generation: String,
+    install_profile: String,
+    phase: BootstrapRetirementMarkerPhase,
+}
+
 pub fn install_bootstrap_artifact(
     source: &Path,
     request: &BootstrapInstallerRequest,
@@ -203,6 +229,20 @@ pub fn run_bootstrap_activate_stdio() -> Result<(), BootstrapInstallError> {
     write_stdio_response(&response)
 }
 
+pub fn run_bootstrap_retire_stdio() -> Result<(), BootstrapInstallError> {
+    let request = read_retirement_stdio_request(std::io::stdin().lock())?;
+    let layout = platform_layout(&request.install_profile)?;
+    let response = retire_bootstrap_artifact(&request, &layout)?;
+    let encoded = encode_bootstrap_retirement_response(&response)
+        .map_err(|_| BootstrapInstallError::ResponseEncoding)?;
+    let mut stdout = std::io::stdout().lock();
+    stdout
+        .write_all(&encoded)
+        .and_then(|_| stdout.write_all(b"\n"))
+        .and_then(|_| stdout.flush())
+        .map_err(|_| BootstrapInstallError::Storage)
+}
+
 pub fn activate_bootstrap_artifact(
     source: &Path,
     request: &BootstrapInstallerRequest,
@@ -242,6 +282,232 @@ fn activate_bootstrap_artifact_with(
     }
     response.service_state = BootstrapInstallerServiceState::Ready;
     Ok(response)
+}
+
+pub fn retire_bootstrap_artifact(
+    request: &BootstrapRetirementRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<BootstrapRetirementResponse, BootstrapInstallError> {
+    retire_bootstrap_artifact_with(request, layout, || {
+        execute_service_commands(service_retirement_commands(request, layout)?)
+    })
+}
+
+fn retire_bootstrap_artifact_with(
+    request: &BootstrapRetirementRequest,
+    layout: &BootstrapInstallLayout,
+    retire_service: impl FnOnce() -> Result<(), BootstrapInstallError>,
+) -> Result<BootstrapRetirementResponse, BootstrapInstallError> {
+    request
+        .validate()
+        .map_err(|_| BootstrapInstallError::InvalidRequest)?;
+    if request.install_profile != layout.profile
+        || !is_safe_absolute_path(&layout.root)
+        || !is_safe_absolute_path(&layout.service_directory)
+    {
+        return Err(BootstrapInstallError::InvalidLayout);
+    }
+
+    let retirements = layout.root.join("retirements");
+    let marker_path = retirements.join(format!("{}.json", request.retirement_id));
+    let expected = retirement_marker(request, BootstrapRetirementMarkerPhase::Retiring);
+    let existing = read_retirement_marker(&marker_path)?;
+    let replayed = existing.is_some();
+    let phase = match existing {
+        Some(marker) if !same_retirement_identity(&marker, &expected) => {
+            return Err(BootstrapInstallError::GenerationConflict);
+        }
+        Some(marker) if marker.phase == BootstrapRetirementMarkerPhase::Retired => {
+            return Ok(retirement_response(request, true));
+        }
+        Some(marker) => marker.phase,
+        None => {
+            verify_retirement_authority(request, layout)?;
+            create_private_dir(&retirements)?;
+            write_retirement_marker(&marker_path, &expected)?;
+            BootstrapRetirementMarkerPhase::Retiring
+        }
+    };
+
+    let descriptor = published_service_path_for(request.daemon_id.as_str(), layout);
+    if phase == BootstrapRetirementMarkerPhase::Retiring {
+        if !descriptor.exists() {
+            return Err(BootstrapInstallError::GenerationConflict);
+        }
+        retire_service()?;
+        write_retirement_marker(
+            &marker_path,
+            &retirement_marker(request, BootstrapRetirementMarkerPhase::ServiceRetired),
+        )?;
+    }
+
+    verify_retirement_cleanup_authority(request, layout)?;
+    restore_private_file(&descriptor, None)?;
+    restore_private_file(&layout.root.join(CURRENT_NAME), None)?;
+    let generation = layout.root.join("generations").join(&request.generation);
+    match fs::symlink_metadata(&generation) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            fs::remove_dir_all(&generation).map_err(|_| BootstrapInstallError::Storage)?;
+            sync_directory(
+                generation
+                    .parent()
+                    .ok_or(BootstrapInstallError::InvalidLayout)?,
+            )?;
+        }
+        Ok(_) => return Err(BootstrapInstallError::InvalidLayout),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err(BootstrapInstallError::Storage),
+    }
+    write_retirement_marker(
+        &marker_path,
+        &retirement_marker(request, BootstrapRetirementMarkerPhase::Retired),
+    )?;
+    Ok(retirement_response(request, replayed))
+}
+
+fn verify_retirement_authority(
+    request: &BootstrapRetirementRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<(), BootstrapInstallError> {
+    require_directory_mode(&layout.root, 0o700)?;
+    let generations = layout.root.join("generations");
+    require_directory_mode(&generations, 0o700)?;
+    let current = read_private_file(&layout.root.join(CURRENT_NAME), 128)?;
+    if current.as_slice() != format!("{}\n", request.generation).as_bytes() {
+        return Err(BootstrapInstallError::GenerationConflict);
+    }
+    let generation = generations.join(&request.generation);
+    require_directory_mode(&generation, 0o700)?;
+    let manifest_path = generation.join(MANIFEST_NAME);
+    let manifest =
+        serde_json::from_slice::<InstallManifest>(&read_private_file(&manifest_path, 64 * 1024)?)
+            .map_err(|_| BootstrapInstallError::GenerationConflict)?;
+    if manifest.schema_version != BOOTSTRAP_INSTALLER_SCHEMA_VERSION
+        || manifest.bootstrap_id != request.bootstrap_id.as_str()
+        || manifest.daemon_id != request.daemon_id.as_str()
+        || manifest.generation != request.generation
+    {
+        return Err(BootstrapInstallError::GenerationConflict);
+    }
+    let retained = read_private_file(&generation.join(SERVICE_DESCRIPTOR_NAME), 64 * 1024)?;
+    let published = read_private_file(
+        &published_service_path_for(request.daemon_id.as_str(), layout),
+        64 * 1024,
+    )?;
+    if retained.as_slice() != published.as_slice() {
+        return Err(BootstrapInstallError::GenerationConflict);
+    }
+    Ok(())
+}
+
+fn verify_retirement_cleanup_authority(
+    request: &BootstrapRetirementRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<(), BootstrapInstallError> {
+    let generation = layout.root.join("generations").join(&request.generation);
+    let generation_exists = match fs::symlink_metadata(&generation) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+            require_directory_mode(&generation, 0o700)?;
+            let manifest = serde_json::from_slice::<InstallManifest>(&read_private_file(
+                &generation.join(MANIFEST_NAME),
+                64 * 1024,
+            )?)
+            .map_err(|_| BootstrapInstallError::GenerationConflict)?;
+            if manifest.schema_version != BOOTSTRAP_INSTALLER_SCHEMA_VERSION
+                || manifest.bootstrap_id != request.bootstrap_id.as_str()
+                || manifest.daemon_id != request.daemon_id.as_str()
+                || manifest.generation != request.generation
+            {
+                return Err(BootstrapInstallError::GenerationConflict);
+            }
+            true
+        }
+        Ok(_) => return Err(BootstrapInstallError::InvalidLayout),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => return Err(BootstrapInstallError::Storage),
+    };
+
+    if let Some(current) = read_optional_private_file(&layout.root.join(CURRENT_NAME), 128)?
+        && current.as_slice() != format!("{}\n", request.generation).as_bytes()
+    {
+        return Err(BootstrapInstallError::GenerationConflict);
+    }
+
+    let descriptor = published_service_path_for(request.daemon_id.as_str(), layout);
+    if let Some(published) = read_optional_private_file(&descriptor, 64 * 1024)? {
+        if !generation_exists {
+            return Err(BootstrapInstallError::GenerationConflict);
+        }
+        let retained = read_private_file(&generation.join(SERVICE_DESCRIPTOR_NAME), 64 * 1024)?;
+        if retained.as_slice() != published.as_slice() {
+            return Err(BootstrapInstallError::GenerationConflict);
+        }
+    }
+    Ok(())
+}
+
+fn retirement_marker(
+    request: &BootstrapRetirementRequest,
+    phase: BootstrapRetirementMarkerPhase,
+) -> BootstrapRetirementMarker {
+    BootstrapRetirementMarker {
+        schema_version: RETIREMENT_MARKER_SCHEMA_VERSION,
+        retirement_id: request.retirement_id.clone(),
+        bootstrap_id: request.bootstrap_id.as_str().into(),
+        daemon_id: request.daemon_id.as_str().into(),
+        generation: request.generation.clone(),
+        install_profile: request.install_profile.clone(),
+        phase,
+    }
+}
+
+fn read_retirement_marker(
+    path: &Path,
+) -> Result<Option<BootstrapRetirementMarker>, BootstrapInstallError> {
+    let Some(bytes) = read_optional_private_file(path, 64 * 1024)? else {
+        return Ok(None);
+    };
+    let marker = serde_json::from_slice::<BootstrapRetirementMarker>(&bytes)
+        .map_err(|_| BootstrapInstallError::GenerationConflict)?;
+    if marker.schema_version != RETIREMENT_MARKER_SCHEMA_VERSION {
+        return Err(BootstrapInstallError::GenerationConflict);
+    }
+    Ok(Some(marker))
+}
+
+fn write_retirement_marker(
+    path: &Path,
+    marker: &BootstrapRetirementMarker,
+) -> Result<(), BootstrapInstallError> {
+    let encoded = serde_json::to_vec(marker).map_err(|_| BootstrapInstallError::Storage)?;
+    restore_private_file(path, Some(&encoded))
+}
+
+fn same_retirement_identity(
+    left: &BootstrapRetirementMarker,
+    right: &BootstrapRetirementMarker,
+) -> bool {
+    left.schema_version == right.schema_version
+        && left.retirement_id == right.retirement_id
+        && left.bootstrap_id == right.bootstrap_id
+        && left.daemon_id == right.daemon_id
+        && left.generation == right.generation
+        && left.install_profile == right.install_profile
+}
+
+fn retirement_response(
+    request: &BootstrapRetirementRequest,
+    replayed: bool,
+) -> BootstrapRetirementResponse {
+    BootstrapRetirementResponse {
+        schema_version: BOOTSTRAP_RETIREMENT_SCHEMA_VERSION,
+        retirement_id: request.retirement_id.clone(),
+        bootstrap_id: request.bootstrap_id.clone(),
+        daemon_id: request.daemon_id.clone(),
+        generation: request.generation.clone(),
+        service_retired: true,
+        replayed,
+    }
 }
 
 struct ActivationRollback {
@@ -462,6 +728,32 @@ fn service_rollback_commands(
     Ok(commands)
 }
 
+#[cfg(target_os = "macos")]
+fn service_retirement_commands(
+    request: &BootstrapRetirementRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    use std::os::unix::fs::MetadataExt;
+
+    let domain = match layout.profile.as_str() {
+        "system" => "system".to_string(),
+        "user" => {
+            let uid = fs::metadata(&layout.service_directory)
+                .map_err(|_| BootstrapInstallError::ServiceActivation)?
+                .uid();
+            format!("gui/{uid}")
+        }
+        _ => return Err(BootstrapInstallError::UnsupportedProfile),
+    };
+    let label = format!("org.gewyvern.leserpentd.{}", request.daemon_id.as_str());
+    Ok(vec![ServiceManagerCommand {
+        program: PathBuf::from("/bin/launchctl"),
+        arguments: vec!["bootout".into(), format!("{domain}/{label}").into()],
+        // A crash may leave the service stopped while the private marker is still Retiring.
+        tolerate_failure: true,
+    }])
+}
+
 #[cfg(target_os = "linux")]
 fn service_activation_commands(
     request: &BootstrapInstallerRequest,
@@ -554,6 +846,44 @@ fn service_rollback_commands(
     Ok(commands)
 }
 
+#[cfg(target_os = "linux")]
+fn service_retirement_commands(
+    request: &BootstrapRetirementRequest,
+    layout: &BootstrapInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    let program = [
+        PathBuf::from("/usr/bin/systemctl"),
+        PathBuf::from("/bin/systemctl"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
+    .ok_or(BootstrapInstallError::ServiceActivation)?;
+    let mut prefix = Vec::new();
+    match layout.profile.as_str() {
+        "system" => {}
+        "user" => prefix.push(OsString::from("--user")),
+        _ => return Err(BootstrapInstallError::UnsupportedProfile),
+    }
+    let unit = service_descriptor_file_name_for(request.daemon_id.as_str());
+    let command = |verb: &str, include_unit: bool, tolerate_failure: bool| {
+        let mut arguments = prefix.clone();
+        arguments.push(verb.into());
+        if include_unit {
+            arguments.push(unit.clone().into());
+        }
+        ServiceManagerCommand {
+            program: program.clone(),
+            arguments,
+            tolerate_failure,
+        }
+    };
+    Ok(vec![
+        command("stop", true, true),
+        command("disable", true, true),
+        command("daemon-reload", false, false),
+    ])
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn service_activation_commands(
     _request: &BootstrapInstallerRequest,
@@ -571,6 +901,14 @@ fn service_rollback_commands(
     Err(BootstrapInstallError::UnsupportedProfile)
 }
 
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_retirement_commands(
+    _request: &BootstrapRetirementRequest,
+    _layout: &BootstrapInstallLayout,
+) -> Result<Vec<ServiceManagerCommand>, BootstrapInstallError> {
+    Err(BootstrapInstallError::UnsupportedProfile)
+}
+
 fn read_stdio_request(
     mut reader: impl Read,
 ) -> Result<BootstrapInstallerRequest, BootstrapInstallError> {
@@ -584,6 +922,21 @@ fn read_stdio_request(
         return Err(BootstrapInstallError::InvalidRequest);
     }
     decode_bootstrap_installer_request(&bytes).map_err(|_| BootstrapInstallError::InvalidRequest)
+}
+
+fn read_retirement_stdio_request(
+    mut reader: impl Read,
+) -> Result<BootstrapRetirementRequest, BootstrapInstallError> {
+    let mut bytes = Vec::new();
+    reader
+        .by_ref()
+        .take((MAX_BOOTSTRAP_RETIREMENT_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|_| BootstrapInstallError::InvalidRequest)?;
+    if bytes.len() > MAX_BOOTSTRAP_RETIREMENT_BYTES {
+        return Err(BootstrapInstallError::InvalidRequest);
+    }
+    decode_bootstrap_retirement_request(&bytes).map_err(|_| BootstrapInstallError::InvalidRequest)
 }
 
 fn platform_layout(profile: &str) -> Result<BootstrapInstallLayout, BootstrapInstallError> {
@@ -802,27 +1155,43 @@ fn published_service_path(
     request: &BootstrapInstallerRequest,
     layout: &BootstrapInstallLayout,
 ) -> PathBuf {
+    published_service_path_for(request.daemon_id.as_str(), layout)
+}
+
+fn published_service_path_for(daemon_id: &str, layout: &BootstrapInstallLayout) -> PathBuf {
     layout
         .service_directory
-        .join(service_descriptor_file_name(request))
+        .join(service_descriptor_file_name_for(daemon_id))
 }
 
 #[cfg(target_os = "macos")]
 fn service_descriptor_file_name(request: &BootstrapInstallerRequest) -> String {
-    format!(
-        "org.gewyvern.leserpentd.{}.plist",
-        request.daemon_id.as_str()
-    )
+    service_descriptor_file_name_for(request.daemon_id.as_str())
+}
+
+#[cfg(target_os = "macos")]
+fn service_descriptor_file_name_for(daemon_id: &str) -> String {
+    format!("org.gewyvern.leserpentd.{daemon_id}.plist")
 }
 
 #[cfg(target_os = "linux")]
 fn service_descriptor_file_name(request: &BootstrapInstallerRequest) -> String {
-    format!("leserpentd-{}.service", request.daemon_id.as_str())
+    service_descriptor_file_name_for(request.daemon_id.as_str())
+}
+
+#[cfg(target_os = "linux")]
+fn service_descriptor_file_name_for(daemon_id: &str) -> String {
+    format!("leserpentd-{daemon_id}.service")
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn service_descriptor_file_name(request: &BootstrapInstallerRequest) -> String {
-    format!("leserpentd-{}.conf", request.daemon_id.as_str())
+    service_descriptor_file_name_for(request.daemon_id.as_str())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn service_descriptor_file_name_for(daemon_id: &str) -> String {
+    format!("leserpentd-{daemon_id}.conf")
 }
 
 #[cfg(target_os = "macos")]
@@ -1260,11 +1629,12 @@ fn sync_directory(path: &Path) -> Result<(), BootstrapInstallError> {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::os::unix::fs::{PermissionsExt, symlink};
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use leserpent_domain::bootstrap::{BootstrapId, DaemonId};
+    use leserpent_protocol::bootstrap_retirement::BootstrapRetirementRequest;
 
     use super::*;
 
@@ -1315,6 +1685,20 @@ mod tests {
         (temp, source, request, layout)
     }
 
+    fn retirement_fixture() -> (TempTree, BootstrapRetirementRequest, BootstrapInstallLayout) {
+        let (temp, source, request, layout) = fixture();
+        let installed = install_bootstrap_artifact(&source, &request, &layout).unwrap();
+        let retirement = BootstrapRetirementRequest::new(
+            "retire-bootstrap-1",
+            request.bootstrap_id.clone(),
+            request.daemon_id.clone(),
+            installed.generation,
+            "test",
+        )
+        .unwrap();
+        (temp, retirement, layout)
+    }
+
     #[test]
     fn generation_install_is_atomic_private_and_idempotent() {
         let (_temp, source, request, layout) = fixture();
@@ -1362,6 +1746,153 @@ mod tests {
         let replay = install_bootstrap_artifact(&source, &request, &layout).unwrap();
         assert!(replay.replayed);
         assert_eq!(replay.generation, first.generation);
+    }
+
+    #[test]
+    fn retirement_is_identity_bound_private_idempotent_and_preserves_operator_state() {
+        let (_temp, request, layout) = retirement_fixture();
+        let service_calls = Cell::new(0_u32);
+        let first = retire_bootstrap_artifact_with(&request, &layout, || {
+            service_calls.set(service_calls.get() + 1);
+            Ok(())
+        })
+        .unwrap();
+        assert!(first.service_retired);
+        assert!(!first.replayed);
+        assert_eq!(service_calls.get(), 1);
+        assert!(!layout.root.join(CURRENT_NAME).exists());
+        assert!(
+            !layout
+                .root
+                .join("generations")
+                .join(&request.generation)
+                .exists()
+        );
+        assert!(!published_service_path_for(request.daemon_id.as_str(), &layout).exists());
+        assert!(layout.root.join("state").is_dir());
+        assert!(layout.root.join("logs").is_dir());
+        let marker_path = layout
+            .root
+            .join("retirements")
+            .join(format!("{}.json", request.retirement_id));
+        assert_eq!(
+            fs::metadata(&marker_path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            read_retirement_marker(&marker_path).unwrap().unwrap().phase,
+            BootstrapRetirementMarkerPhase::Retired
+        );
+
+        let replay = retire_bootstrap_artifact_with(&request, &layout, || {
+            service_calls.set(service_calls.get() + 1);
+            Ok(())
+        })
+        .unwrap();
+        assert!(replay.replayed);
+        assert_eq!(service_calls.get(), 1);
+    }
+
+    #[test]
+    fn retirement_failure_is_restart_safe_and_rejects_identity_confusion() {
+        let (_temp, request, layout) = retirement_fixture();
+        assert_eq!(
+            retire_bootstrap_artifact_with(&request, &layout, || {
+                Err(BootstrapInstallError::ServiceActivation)
+            }),
+            Err(BootstrapInstallError::ServiceActivation)
+        );
+        assert!(layout.root.join(CURRENT_NAME).exists());
+        assert!(published_service_path_for(request.daemon_id.as_str(), &layout).exists());
+        let marker_path = layout
+            .root
+            .join("retirements")
+            .join(format!("{}.json", request.retirement_id));
+        assert_eq!(
+            read_retirement_marker(&marker_path).unwrap().unwrap().phase,
+            BootstrapRetirementMarkerPhase::Retiring
+        );
+
+        let mut confused = request.clone();
+        confused.bootstrap_id = BootstrapId::new("bootstrap-other").unwrap();
+        let called = Cell::new(false);
+        assert_eq!(
+            retire_bootstrap_artifact_with(&confused, &layout, || {
+                called.set(true);
+                Ok(())
+            }),
+            Err(BootstrapInstallError::GenerationConflict)
+        );
+        assert!(!called.get());
+
+        let resumed = retire_bootstrap_artifact_with(&request, &layout, || Ok(())).unwrap();
+        assert!(resumed.replayed);
+        assert_eq!(
+            read_retirement_marker(&marker_path).unwrap().unwrap().phase,
+            BootstrapRetirementMarkerPhase::Retired
+        );
+    }
+
+    #[test]
+    fn retirement_rejects_relaxed_manifest_before_stopping_service() {
+        let (_temp, request, layout) = retirement_fixture();
+        let manifest = layout
+            .root
+            .join("generations")
+            .join(&request.generation)
+            .join(MANIFEST_NAME);
+        fs::set_permissions(&manifest, fs::Permissions::from_mode(0o644)).unwrap();
+        let called = Cell::new(false);
+        assert_eq!(
+            retire_bootstrap_artifact_with(&request, &layout, || {
+                called.set(true);
+                Ok(())
+            }),
+            Err(BootstrapInstallError::GenerationConflict)
+        );
+        assert!(!called.get());
+        assert!(!layout.root.join("retirements").exists());
+        assert!(layout.root.join(CURRENT_NAME).exists());
+    }
+
+    #[test]
+    fn retirement_reentry_rejects_a_newer_current_generation_before_cleanup() {
+        let (_temp, request, layout) = retirement_fixture();
+        let retirements = layout.root.join("retirements");
+        create_private_dir(&retirements).unwrap();
+        let marker_path = retirements.join(format!("{}.json", request.retirement_id));
+        write_retirement_marker(
+            &marker_path,
+            &retirement_marker(&request, BootstrapRetirementMarkerPhase::ServiceRetired),
+        )
+        .unwrap();
+        restore_private_file(
+            &layout.root.join(CURRENT_NAME),
+            Some(format!("{}\n", "b".repeat(64)).as_bytes()),
+        )
+        .unwrap();
+
+        let called = Cell::new(false);
+        assert_eq!(
+            retire_bootstrap_artifact_with(&request, &layout, || {
+                called.set(true);
+                Ok(())
+            }),
+            Err(BootstrapInstallError::GenerationConflict)
+        );
+        assert!(!called.get());
+        assert!(published_service_path_for(request.daemon_id.as_str(), &layout).exists());
+        assert!(
+            layout
+                .root
+                .join("generations")
+                .join(&request.generation)
+                .exists()
+        );
+        assert_eq!(
+            read_retirement_marker(&marker_path).unwrap().unwrap().phase,
+            BootstrapRetirementMarkerPhase::ServiceRetired
+        );
     }
 
     #[test]

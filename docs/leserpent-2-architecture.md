@@ -331,6 +331,21 @@ replay succeeds. The private final marker remains `0600` in `retired` phase;
 the redacted evidence is retained in
 `docs/fixtures/leserpent_real_ssh_retirement_20260723.json`.
 
+Leserpentd installation now also has a distinct target-side retirement
+contract. `bootstrap-retirement-v1` is a strict 64 KiB wire that binds a unique
+retirement ID to the original bootstrap ID, daemon ID, immutable generation,
+and install profile. The native `bootstrap-retire-v1` process entry verifies
+the private current pointer, retained manifest, and byte-identical published
+service descriptor before stopping anything. Its private
+`retiring -> service_retired -> retired` marker supports crash re-entry and
+identity-bound replay. Successful cleanup removes the descriptor, current
+pointer, and selected executable generation but deliberately preserves state
+and logs. The macOS process proof executes both native entries against an
+isolated user home. Cleanup rechecks generation, manifest, current pointer, and
+descriptor ownership after service stop, fencing a stale crashed retirement
+from deleting a replacement generation. Controller-side SSH submission and physical Linux
+retirement evidence remain separate delivery gates.
+
 The runtime persistence layer now supplies that contract with shared durable
 ground. Schema 12 migrated schema-11 `bootstrap_handoffs` rows into the
 kind-scoped `authority_checkpoints` table, where daemon bootstrap and Gewyvern

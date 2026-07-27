@@ -11,6 +11,11 @@ use leserpent_protocol::bootstrap_installer::{
     BootstrapInstallerRequest, BootstrapInstallerServiceState, decode_bootstrap_installer_response,
     encode_bootstrap_installer_request,
 };
+#[cfg(target_os = "macos")]
+use leserpent_protocol::bootstrap_retirement::{
+    BootstrapRetirementRequest, decode_bootstrap_retirement_response,
+    encode_bootstrap_retirement_request,
+};
 use ring::digest::{SHA256, digest};
 
 struct TempHome(PathBuf);
@@ -66,6 +71,32 @@ fn run_installer(binary: &Path, home: &Path, request: &BootstrapInstallerRequest
     assert!(
         output.status.success(),
         "installer failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
+}
+
+#[cfg(target_os = "macos")]
+fn run_retirement(binary: &Path, home: &Path, request: &BootstrapRetirementRequest) -> Vec<u8> {
+    let mut child = Command::new(binary)
+        .arg("bootstrap-retire-v1")
+        .env_clear()
+        .env("HOME", home)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&encode_bootstrap_retirement_request(request).unwrap())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "retirement failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     output.stdout
@@ -137,10 +168,38 @@ fn native_installer_entrypoint_commits_and_replays_a_private_generation() {
     let published = home
         .0
         .join(".config/systemd/user/leserpentd-daemon-process-1.service");
-    assert_eq!(fs::read_to_string(published).unwrap(), descriptor);
+    assert_eq!(fs::read_to_string(&published).unwrap(), descriptor);
 
     let replay =
         decode_bootstrap_installer_response(&run_installer(&binary, &home.0, &request)).unwrap();
     assert!(replay.replayed);
     assert_eq!(replay.generation, first.generation);
+
+    #[cfg(target_os = "macos")]
+    {
+        let retirement = BootstrapRetirementRequest::new(
+            "retire-process-1",
+            request.bootstrap_id.clone(),
+            request.daemon_id.clone(),
+            first.generation.clone(),
+            "user",
+        )
+        .unwrap();
+        let retired =
+            decode_bootstrap_retirement_response(&run_retirement(&binary, &home.0, &retirement))
+                .unwrap();
+        assert!(retired.service_retired);
+        assert!(!retired.replayed);
+        assert!(!published.exists());
+        assert!(!root.join("current").exists());
+        assert!(!generation.exists());
+        assert!(root.join("state").is_dir());
+        assert!(root.join("logs").is_dir());
+        assert!(root.join("retirements/retire-process-1.json").is_file());
+
+        let replayed =
+            decode_bootstrap_retirement_response(&run_retirement(&binary, &home.0, &retirement))
+                .unwrap();
+        assert!(replayed.replayed);
+    }
 }

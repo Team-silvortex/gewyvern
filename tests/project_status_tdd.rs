@@ -2270,8 +2270,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/reverse-bootstrap")
         .expect("reverse deployment bootstrap must be tracked independently");
     assert_eq!(bootstrap.maturity, Maturity::Developing);
-    assert!((80..=98).contains(&bootstrap.completion));
+    assert_eq!(bootstrap.completion, 98);
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
+    assert_eq!(bootstrap.contract.version, "0.19.0");
     assert!(
         bootstrap
             .contract
@@ -2307,11 +2308,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "session-bound-add-to-hub-gate")
     );
+    for surface in [
+        "independent-bootstrap-retirement-wire-v1",
+        "five-identity-bootstrap-retirement-binding",
+        "native-bootstrap-retire-v1-entry",
+        "private-three-phase-bootstrap-retirement-marker",
+        "generation-fenced-retirement-cleanup",
+        "retained-bootstrap-state-and-logs",
+        "macos-native-install-retirement-process-proof",
+    ] {
+        assert!(
+            bootstrap
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing bootstrap retirement surface {surface}"
+        );
+    }
     assert!(bootstrap.blockers.iter().any(|blocker| {
         blocker.id == "cross-platform-bootstrap-installation-incomplete"
-            && blocker
-                .summary
-                .contains("real Linux SSH/systemd-user authority proof")
+            && blocker.summary.contains("native macOS process proof")
     }));
     assert!(
         !bootstrap

@@ -51,6 +51,13 @@ fn run() -> Result<(), String> {
         return leserpentd::bootstrap_install::run_bootstrap_activate_stdio()
             .map_err(|error| error.to_string());
     }
+    if arguments.first().map(String::as_str) == Some("bootstrap-retire-v1") {
+        if arguments.len() != 1 {
+            return Err("bootstrap-retire-v1 accepts no command-line arguments".into());
+        }
+        return leserpentd::bootstrap_install::run_bootstrap_retire_stdio()
+            .map_err(|error| error.to_string());
+    }
     let mut database = std::env::var_os("LESERPENT_DATABASE").map(PathBuf::from);
     let mut socket = None;
     let mut remote_listen = None;

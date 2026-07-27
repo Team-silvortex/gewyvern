@@ -1609,12 +1609,12 @@
       "feature": "reverse-bootstrap",
       "lifecycle": "target",
       "maturity": "developing",
-      "completion": 97,
+      "completion": 98,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.18.0",
+        "version": "0.19.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1734,14 +1734,26 @@
           "malformed-outcome-authority-withholding",
           "post-bind-bootstrap-handle-retirement",
           "trust-endpoint-confusion-rejection",
-          "exclusive-ca-source-selection"
+          "exclusive-ca-source-selection",
+          "independent-bootstrap-retirement-wire-v1",
+          "bounded-bootstrap-retirement-frame",
+          "five-identity-bootstrap-retirement-binding",
+          "native-bootstrap-retire-v1-entry",
+          "private-three-phase-bootstrap-retirement-marker",
+          "restart-safe-bootstrap-retirement-replay",
+          "generation-fenced-retirement-cleanup",
+          "manifest-and-descriptor-retirement-fence",
+          "platform-service-retirement-plan",
+          "executable-generation-retirement",
+          "retained-bootstrap-state-and-logs",
+          "macos-native-install-retirement-process-proof"
         ]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/transport-protocol/wire-compatibility"],
       "blockers": [
         {
           "id": "cross-platform-bootstrap-installation-incomplete",
-          "summary": "The bootstrap-install-v1 and bootstrap-activate-v1 path now has a real Linux SSH/systemd-user authority proof, including trust rejection, timeout staging compensation, and health-failure publication rollback. WinRM, privileged system-profile activation, and cross-platform product uninstall/retirement proof remain."
+          "summary": "The bootstrap install/activate path has a real Linux SSH/systemd-user authority proof, and the identity-bound bootstrap-retire-v1 target kernel has a native macOS process proof. Native SSH retirement submission, physical Linux cross-host retirement, WinRM, and privileged system-profile evidence remain."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1750,6 +1762,7 @@
         { "kind": "source", "path": "crates/leserpent-domain/src/bootstrap.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bootstrap.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bootstrap_installer.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol/src/bootstrap_retirement.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-domain/src/bootstrap.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/src/bootstrap.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/bootstrap-request-v1.json", "state": "present" },
@@ -1783,7 +1796,7 @@
         { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Preserve the completed post-bind retirement contract while future bootstrap transports add their own platform-specific uninstall evidence."
+      "next_gate": "Carry bootstrap-retirement-v1 through the pinned native SSH transport and retain a physical Linux cross-host uninstall/replay proof."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
