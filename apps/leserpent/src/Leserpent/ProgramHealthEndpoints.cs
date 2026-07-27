@@ -47,6 +47,7 @@ public partial class Program
                     "/v1/persistence/export",
                     "/v1/persistence/import",
                     "/v1/persistence/save",
+                    "/v1/persistence/control-writer-health",
                     "/v1/persistence/orchestra-cleanup-worker-health",
                     "/v1/fleet/summary",
                     "/v1/fleet/attention-summary",

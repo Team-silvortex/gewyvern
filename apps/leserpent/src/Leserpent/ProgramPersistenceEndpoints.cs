@@ -68,6 +68,14 @@ public partial class Program
                     LeserpentJsonContext.Default
                         .OrchestraDeleteCheckpointWorkerHealthSnapshot));
 
+        app.MapGet(
+            "/v1/persistence/control-writer-health",
+            ([FromServices] ControlPlaneWriterFence writer) =>
+                Results.Json(
+                    writer.Snapshot(),
+                    LeserpentJsonContext.Default
+                        .ControlPlaneWriterHealthSnapshot));
+
         app.MapPost(
             "/v1/persistence/orchestra-cleanup-replay-status/acknowledge",
             (

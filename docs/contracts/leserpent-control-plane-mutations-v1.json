@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "contract": "leserpent-control-plane-mutations",
+  "version": "1.0.0",
+  "scope": "/v1",
+  "default_policy": "non-read-method-requires-process-writer",
+  "read_methods": ["GET", "HEAD", "OPTIONS"],
+  "read_only_post_allowlist": [
+    "/v1/runtimes/registration-plan"
+  ],
+  "mutation_routes": [
+    "/v1/persistence/save",
+    "/v1/persistence/orchestra-cleanup-replay-status/acknowledge",
+    "/v1/persistence/runtime-deletions/{intentId}/reconcile",
+    "/v1/persistence/runtime-deletions/{intentId}/retry-now",
+    "/v1/persistence/import",
+    "/v1/fleet/refresh-all",
+    "/v1/fleet/refresh-capabilities",
+    "/v1/fleet/refresh-sidecars",
+    "/v1/fleet/refresh-status",
+    "/v1/runtimes/register",
+    "/v1/runtimes/{id}/deployments",
+    "/v1/runtimes/{id}/refresh-capabilities",
+    "/v1/runtimes/{id}/recovery",
+    "/v1/runtimes/{id}/refresh-status",
+    "/v1/runtimes/{id}/refresh-sidecar",
+    "/v1/runtimes/{id}/delete",
+    "/v1/runtimes/delete-failed",
+    "/v1/runtimes/delete-unobserved",
+    "/v1/runtimes/delete-slice",
+    "/v1/orchestra/plans/{id}/{planId}/execute",
+    "/v1/orchestra/runtimes/{id}/runs/{runId}/cancel",
+    "/v1/orchestra/runtimes/{id}/runs/{runId}/retry",
+    "/v1/orchestra/plans/{id}/session",
+    "/v1/sessions",
+    "/v1/sessions/{id}/stop"
+  ],
+  "background_mutations": [
+    "runtime-deletion-recovery",
+    "orchestra-delete-checkpoint-maintenance",
+    "checkpoint-alert-delivery-outbox"
+  ],
+  "fence_layers": [
+    "http-pre-effect-middleware",
+    "registry-pre-mutation-guard",
+    "persistence-write-backstop",
+    "background-worker-owner-gate"
+  ],
+  "standby_contract": {
+    "reads_allowed": true,
+    "writes_return": {
+      "status": 409,
+      "error": "control_plane_writer_standby"
+    },
+    "automatic_promotion": false,
+    "takeover": "fresh-process-only"
+  }
+}

@@ -6,7 +6,8 @@ public sealed class RuntimeDeletionRecoveryService(
     RegistryService registry,
     IRuntimeRegistrationAuthority registrationAuthority,
     ILogger<RuntimeDeletionRecoveryService> logger,
-    RuntimeDeletionRecoverySignal? recoverySignal = null) : BackgroundService
+    RuntimeDeletionRecoverySignal? recoverySignal = null,
+    ControlPlaneWriterFence? writerFence = null) : BackgroundService
 {
     private const int MaxRecoveryBatchSize = 32;
     private const int MaxConcurrentAuthorityMutations = 8;
@@ -19,8 +20,22 @@ public sealed class RuntimeDeletionRecoveryService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (writerFence is not null && !writerFence.IsWriter)
+        {
+            logger.LogInformation(
+                "Runtime deletion recovery is idle because this host is a control-plane standby.");
+            await WaitForShutdown(stoppingToken);
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (writerFence is not null && !writerFence.IsWriter)
+            {
+                logger.LogWarning(
+                    "Control-plane writer ownership was lost; runtime deletion recovery is stopping.");
+                return;
+            }
             var reservations = registry.ClaimPendingRuntimeDeletions(
                 MaxRecoveryBatchSize);
             var successfulReservations =
@@ -137,6 +152,21 @@ public sealed class RuntimeDeletionRecoveryService(
             {
                 return;
             }
+        }
+    }
+
+    private static async Task WaitForShutdown(
+        CancellationToken stoppingToken)
+    {
+        try
+        {
+            await Task.Delay(
+                Timeout.InfiniteTimeSpan,
+                stoppingToken);
+        }
+        catch (OperationCanceledException) when (
+            stoppingToken.IsCancellationRequested)
+        {
         }
     }
 

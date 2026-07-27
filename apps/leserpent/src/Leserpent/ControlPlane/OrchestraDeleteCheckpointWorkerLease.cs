@@ -4,8 +4,7 @@ using System.Text;
 
 namespace Leserpent.ControlPlane;
 
-public sealed class OrchestraDeleteCheckpointWorkerLease :
-    IDisposable
+public abstract class ControlPlaneProcessLease : IDisposable
 {
     private const UnixFileMode OwnerPrivateMode =
         UnixFileMode.UserRead | UnixFileMode.UserWrite;
@@ -20,18 +19,24 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
     private const int MaxMetadataBytes = 256;
     private readonly object sync = new();
     private readonly string mutexName;
+    private readonly string leaseDescription;
     private readonly string ownerToken = Guid.NewGuid().ToString("N");
     private bool owned;
 
-    public OrchestraDeleteCheckpointWorkerLease(
-        ControlPlaneStateStore stateStore)
+    protected ControlPlaneProcessLease(
+        ControlPlaneStateStore stateStore,
+        string pathSuffix,
+        string mutexPrefix,
+        string leaseDescription)
     {
-        LeasePath =
-            $"{Path.GetFullPath(stateStore.StatePath)}.checkpoint-worker.lease";
+        ArgumentException.ThrowIfNullOrWhiteSpace(pathSuffix);
+        ArgumentException.ThrowIfNullOrWhiteSpace(mutexPrefix);
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseDescription);
+        LeasePath = $"{Path.GetFullPath(stateStore.StatePath)}{pathSuffix}";
+        this.leaseDescription = leaseDescription;
         var digest = SHA256.HashData(
             Encoding.UTF8.GetBytes(LeasePath));
-        mutexName =
-            $"leserpent-checkpoint-{Convert.ToHexString(digest)}";
+        mutexName = $"{mutexPrefix}-{Convert.ToHexString(digest)}";
     }
 
     public string LeasePath { get; }
@@ -150,7 +155,7 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
                     if ((mode & UnsafeMode) != 0)
                     {
                         throw new InvalidDataException(
-                            "checkpoint worker lease must be owner-private");
+                            $"{leaseDescription} must be owner-private");
                     }
                 }
                 owned = true;
@@ -332,7 +337,7 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
             (File.GetUnixFileMode(LeasePath) & UnsafeMode) != 0)
         {
             throw new InvalidDataException(
-                "checkpoint worker lease must be owner-private");
+                $"{leaseDescription} must be owner-private");
         }
         byte[] bytes;
         try
@@ -392,7 +397,7 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
             (file.Attributes & FileAttributes.ReparsePoint) != 0)
         {
             throw new InvalidDataException(
-                "checkpoint worker lease must not be a symbolic link");
+                $"{leaseDescription} must not be a symbolic link");
         }
     }
 
@@ -400,4 +405,30 @@ public sealed class OrchestraDeleteCheckpointWorkerLease :
         int ProcessId,
         long ProcessStartIdentity,
         string OwnerToken);
+}
+
+public sealed class OrchestraDeleteCheckpointWorkerLease :
+    ControlPlaneProcessLease
+{
+    public OrchestraDeleteCheckpointWorkerLease(
+        ControlPlaneStateStore stateStore)
+        : base(
+            stateStore,
+            ".checkpoint-worker.lease",
+            "leserpent-checkpoint",
+            "checkpoint worker lease")
+    {
+    }
+}
+
+public sealed class ControlPlaneWriterLease : ControlPlaneProcessLease
+{
+    public ControlPlaneWriterLease(ControlPlaneStateStore stateStore)
+        : base(
+            stateStore,
+            ".control-writer.lease",
+            "leserpent-control-writer",
+            "control-plane writer lease")
+    {
+    }
 }

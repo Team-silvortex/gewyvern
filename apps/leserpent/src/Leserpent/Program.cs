@@ -37,13 +37,24 @@ public partial class Program
             options.Level = CompressionLevel.Fastest);
         builder.Services.AddSingleton<ControlPlaneSecurityPolicy>();
         builder.Services.AddSingleton<ControlPlaneStateStore>();
-        builder.Services.AddSingleton<SqliteOrchestraRunStore>();
+        builder.Services.AddSingleton<SqliteOrchestraRunStore>(services =>
+            new SqliteOrchestraRunStore(
+                services.GetRequiredService<IConfiguration>(),
+                services.GetRequiredService<IHostEnvironment>(),
+                services.GetRequiredService<
+                    ILogger<SqliteOrchestraRunStore>>(),
+                services.GetRequiredService<
+                    ControlPlaneWriterFence>().IsWriter));
         builder.Services.AddSingleton<DaemonOrchestraRunStore>();
         builder.Services.AddSingleton<IOrchestraRunStore>(services =>
         {
             var daemon = services.GetRequiredService<DaemonOrchestraRunStore>();
             return daemon.Enabled ? daemon : services.GetRequiredService<SqliteOrchestraRunStore>();
         });
+        builder.Services.AddSingleton<ControlPlaneWriterLease>();
+        builder.Services.AddSingleton<ControlPlaneWriterFence>();
+        builder.Services.AddSingleton<IHostedService>(services =>
+            services.GetRequiredService<ControlPlaneWriterFence>());
         builder.Services.AddSingleton<
             OrchestraDeleteCheckpointWorkerLease>();
         builder.Services.AddSingleton<RegistryService>(services =>
@@ -53,7 +64,9 @@ public partial class Program
                 services.GetRequiredService<
                     IOrchestraRunStore>(),
                 services.GetRequiredService<
-                    OrchestraDeleteCheckpointWorkerLease>()));
+                    OrchestraDeleteCheckpointWorkerLease>(),
+                services.GetRequiredService<
+                    ControlPlaneWriterFence>()));
         builder.Services.AddSingleton<ICompatibilityBridge, RustCompatibilityBridge>();
         builder.Services.AddSingleton<IDeploymentAuthority, DaemonDeploymentAuthority>();
         builder.Services.AddSingleton<DaemonRuntimeRegistrationAuthority>();
@@ -146,6 +159,31 @@ public partial class Program
                     payload,
                     LeserpentJsonContext.Default.ApiErrorResponse);
                 return;
+            }
+
+            await next();
+        });
+        app.Use(async (context, next) =>
+        {
+            if (ControlPlaneMutationPolicy.IsMutation(
+                    context.Request))
+            {
+                var writer = context.RequestServices
+                    .GetRequiredService<ControlPlaneWriterFence>();
+                if (!writer.IsWriter)
+                {
+                    context.Response.StatusCode =
+                        StatusCodes.Status409Conflict;
+                    await context.Response.WriteAsJsonAsync(
+                        new ApiErrorResponse(
+                            ControlPlaneWriterUnavailableException
+                                .ErrorCode,
+                            "This leserpentd instance is read-only because another process owns the control-plane writer lease."),
+                        LeserpentJsonContext.Default.ApiErrorResponse,
+                        cancellationToken:
+                            context.RequestAborted);
+                    return;
+                }
             }
 
             await next();

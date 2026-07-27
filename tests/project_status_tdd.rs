@@ -66,7 +66,7 @@ fn retained_checkpoint_worker_duplicate_host_evidence_is_non_vacuous() {
         .expect("checkpoint worker duplicate-host evidence must exist"),
     )
     .expect("checkpoint worker duplicate-host evidence must decode");
-    assert_eq!(evidence["schemaVersion"], 1);
+    assert_eq!(evidence["schemaVersion"], 2);
     assert_eq!(
         evidence["campaign"],
         "leserpent_checkpoint_worker_duplicate_host"
@@ -82,6 +82,40 @@ fn retained_checkpoint_worker_duplicate_host_evidence_is_non_vacuous() {
     );
     assert_eq!(evidence["freshProcessTakeover"]["workerState"], "owner");
     assert_eq!(evidence["freshProcessTakeover"]["leaseHeld"], true);
+    assert_eq!(
+        evidence["controlPlaneWriter"]["firstHost"]["state"],
+        "owner"
+    );
+    assert_eq!(
+        evidence["controlPlaneWriter"]["firstHost"]["saveStatus"],
+        200
+    );
+    assert_eq!(
+        evidence["controlPlaneWriter"]["secondHost"]["state"],
+        "standby"
+    );
+    assert_eq!(
+        evidence["controlPlaneWriter"]["secondHost"]["saveStatus"],
+        409
+    );
+    assert_eq!(
+        evidence["controlPlaneWriter"]["standbyAfterOwnerTermination"]
+            ["saveStatus"],
+        409
+    );
+    assert_eq!(
+        evidence["controlPlaneWriter"]["freshProcessTakeover"]["state"],
+        "owner"
+    );
+    assert_eq!(
+        evidence["controlPlaneWriter"]["freshProcessTakeover"]
+            ["saveStatus"],
+        200
+    );
+    assert_eq!(
+        evidence["controlPlaneWriter"]["fixedStandbyError"],
+        "control_plane_writer_standby"
+    );
     assert_eq!(evidence["ownerCountBeforeTermination"], 1);
     assert_eq!(evidence["authenticatedHealthEndpoint"], true);
     assert_eq!(evidence["secretFreeHealthPayload"], true);
@@ -1744,7 +1778,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.24.0");
+    assert_eq!(compatibility_control.contract.version, "1.25.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/RuntimeDeletionCommandIdentity.cs"
             && item.state == EvidenceState::Present
@@ -2065,11 +2099,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.24.0");
+    assert_eq!(compatibility_control.contract.version, "1.25.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("single-writer fence")
+            .contains("generation-fenced Rust authority")
     );
 
     let reconciliation = catalog
@@ -2080,7 +2114,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(reconciliation.maturity, Maturity::Mature);
     assert_eq!(reconciliation.completion, 100);
     assert_eq!(reconciliation.contract.stability, ContractStability::Stable);
-    assert_eq!(reconciliation.contract.version, "1.11.0");
+    assert_eq!(reconciliation.contract.version, "1.12.0");
     for surface in [
         "schema-v6-control-state",
         "typed-daemon-reconciliation-snapshot",
@@ -2203,6 +2237,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "physical-linux-checkpoint-worker-duplicate-host-proof",
         "standby-non-reentry",
         "fresh-process-stale-owner-takeover",
+        "process-wide-control-writer-lease",
+        "fail-closed-http-mutation-policy",
+        "registry-pre-mutation-writer-fence",
+        "standby-startup-repair-suppression",
+        "background-worker-writer-gate",
+        "authenticated-control-writer-health",
+        "fixed-standby-mutation-rejection",
+        "fresh-process-control-writer-takeover",
     ] {
         assert!(
             reconciliation
@@ -2214,7 +2256,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(reconciliation.blockers.is_empty());
-    assert!(reconciliation.next_gate.contains("single-writer fence"));
+    assert!(
+        reconciliation
+            .next_gate
+            .contains("generation-fenced Rust authority")
+    );
 
     let bootstrap = catalog
         .cells

@@ -67,6 +67,7 @@ public sealed partial class RegistryService
         string? planRevision = null,
         string? requestId = null)
     {
+        RequireControlPlaneWriter();
         var now = DateTimeOffset.UtcNow;
         var run = new OrchestraRunSummary(
             runId,
@@ -92,6 +93,7 @@ public sealed partial class RegistryService
         string outcome,
         IReadOnlyList<OrchestraExecutionStepResult>? steps = null)
     {
+        RequireControlPlaneWriter();
         lock (orchestraRunSync)
         {
             if (!orchestraRuns.TryGetValue(runtimeId, out var queue))
@@ -135,6 +137,7 @@ public sealed partial class RegistryService
         string? planRevision = null,
         string? requestId = null)
     {
+        RequireControlPlaneWriter();
         var now = DateTimeOffset.UtcNow;
         var run = new OrchestraRunSummary(
             $"orun_{Guid.NewGuid():N}",

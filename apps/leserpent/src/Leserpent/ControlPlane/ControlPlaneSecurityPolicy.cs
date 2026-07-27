@@ -206,10 +206,7 @@ public sealed class ControlPlaneSecurityPolicy
             return true;
         }
 
-        return HttpMethods.IsPost(request.Method)
-            || HttpMethods.IsPut(request.Method)
-            || HttpMethods.IsPatch(request.Method)
-            || HttpMethods.IsDelete(request.Method);
+        return ControlPlaneMutationPolicy.IsMutation(request);
     }
 
     private bool HasValidAdminToken(HttpRequest request)

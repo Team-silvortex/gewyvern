@@ -218,6 +218,18 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 TimeSpan.FromSeconds(15));
             Assert.Equal("owner", firstHealth.WorkerState);
             Assert.True(firstHealth.LeaseHeld);
+            var firstWriter = await WaitForWriterHealthAsync(
+                first,
+                firstUrl,
+                adminToken,
+                TimeSpan.FromSeconds(5));
+            Assert.Equal("owner", firstWriter.State);
+            Assert.True(firstWriter.LeaseHeld);
+            Assert.Equal(
+                HttpStatusCode.OK,
+                await SaveControlPlaneAsync(
+                    firstUrl,
+                    adminToken));
             second = StartControlPlaneHost(
                 secondUrl,
                 statePath,
@@ -230,6 +242,18 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 TimeSpan.FromSeconds(15));
             Assert.Equal("standby", secondHealth.WorkerState);
             Assert.False(secondHealth.LeaseHeld);
+            var secondWriter = await WaitForWriterHealthAsync(
+                second,
+                secondUrl,
+                adminToken,
+                TimeSpan.FromSeconds(5));
+            Assert.Equal("standby", secondWriter.State);
+            Assert.False(secondWriter.LeaseHeld);
+            Assert.Equal(
+                HttpStatusCode.Conflict,
+                await SaveControlPlaneAsync(
+                    secondUrl,
+                    adminToken));
 
             first.Kill(entireProcessTree: true);
             await first.WaitForExitAsync();
@@ -240,6 +264,19 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 TimeSpan.FromSeconds(5));
             Assert.Equal("standby", retainedStandby.WorkerState);
             Assert.False(retainedStandby.LeaseHeld);
+            var retainedStandbyWriter =
+                await WaitForWriterHealthAsync(
+                    second,
+                    secondUrl,
+                    adminToken,
+                    TimeSpan.FromSeconds(5));
+            Assert.Equal("standby", retainedStandbyWriter.State);
+            Assert.False(retainedStandbyWriter.LeaseHeld);
+            Assert.Equal(
+                HttpStatusCode.Conflict,
+                await SaveControlPlaneAsync(
+                    secondUrl,
+                    adminToken));
 
             takeover = StartControlPlaneHost(
                 takeoverUrl,
@@ -253,12 +290,28 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
                 TimeSpan.FromSeconds(15));
             Assert.Equal("owner", takeoverHealth.WorkerState);
             Assert.True(takeoverHealth.LeaseHeld);
+            var takeoverWriter = await WaitForWriterHealthAsync(
+                takeover,
+                takeoverUrl,
+                adminToken,
+                TimeSpan.FromSeconds(5));
+            Assert.Equal("owner", takeoverWriter.State);
+            Assert.True(takeoverWriter.LeaseHeld);
+            Assert.Equal(
+                HttpStatusCode.OK,
+                await SaveControlPlaneAsync(
+                    takeoverUrl,
+                    adminToken));
 
             WriteDuplicateHostEvidence(
                 firstHealth,
                 secondHealth,
                 retainedStandby,
-                takeoverHealth);
+                takeoverHealth,
+                firstWriter,
+                secondWriter,
+                retainedStandbyWriter,
+                takeoverWriter);
         }
         finally
         {
@@ -933,6 +986,98 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
             $"Leserpent host at {url} did not expose worker health");
     }
 
+    private static async Task<ControlPlaneWriterHealthSnapshot>
+        WaitForWriterHealthAsync(
+            Process process,
+            string url,
+            string adminToken,
+            TimeSpan timeout)
+    {
+        using var client = new HttpClient(
+            new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+            })
+        {
+            Timeout = TimeSpan.FromSeconds(1),
+        };
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (process.HasExited)
+            {
+                var error = await process.StandardError
+                    .ReadToEndAsync();
+                throw new InvalidOperationException(
+                    $"Leserpent host exited with {process.ExitCode}: {error}");
+            }
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"{url}/v1/persistence/control-writer-health");
+                request.Headers.Add(
+                    ControlPlaneSecurityPolicy.AdminTokenHeader,
+                    adminToken);
+                using var response = await client.SendAsync(request);
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    var health = await response.Content
+                        .ReadFromJsonAsync(
+                            LeserpentJsonContext.Default
+                                .ControlPlaneWriterHealthSnapshot);
+                    if (health is not null &&
+                        !string.Equals(
+                            health.State,
+                            "starting",
+                            StringComparison.Ordinal))
+                    {
+                        return health;
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+        }
+        throw new TimeoutException(
+            $"Leserpent host at {url} did not expose writer health");
+    }
+
+    private static async Task<HttpStatusCode> SaveControlPlaneAsync(
+        string url,
+        string adminToken)
+    {
+        using var client = new HttpClient(
+            new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+            });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{url}/v1/persistence/save");
+        request.Headers.Add(
+            ControlPlaneSecurityPolicy.AdminTokenHeader,
+            adminToken);
+        request.Headers.Add(
+            ControlPlaneSecurityPolicy.IntentHeader,
+            ControlPlaneSecurityPolicy.MutateIntent);
+        using var response = await client.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var error = await response.Content.ReadFromJsonAsync(
+                LeserpentJsonContext.Default.ApiErrorResponse);
+            Assert.Equal(
+                ControlPlaneWriterUnavailableException.ErrorCode,
+                error?.Error);
+        }
+        return response.StatusCode;
+    }
+
     private static async Task StopProcessAsync(Process process)
     {
         if (!process.HasExited)
@@ -976,7 +1121,11 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
         OrchestraDeleteCheckpointWorkerHealthSnapshot first,
         OrchestraDeleteCheckpointWorkerHealthSnapshot second,
         OrchestraDeleteCheckpointWorkerHealthSnapshot retainedStandby,
-        OrchestraDeleteCheckpointWorkerHealthSnapshot takeover)
+        OrchestraDeleteCheckpointWorkerHealthSnapshot takeover,
+        ControlPlaneWriterHealthSnapshot firstWriter,
+        ControlPlaneWriterHealthSnapshot secondWriter,
+        ControlPlaneWriterHealthSnapshot retainedStandbyWriter,
+        ControlPlaneWriterHealthSnapshot takeoverWriter)
     {
         var evidencePath = Environment.GetEnvironmentVariable(
             "LESERPENT_CHECKPOINT_WORKER_DUPLICATE_HOST_EVIDENCE");
@@ -996,7 +1145,7 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
         }
         var evidence = new
         {
-            schemaVersion = 1,
+            schemaVersion = 2,
             campaign =
                 "leserpent_checkpoint_worker_duplicate_host",
             recordedAt = DateTimeOffset.UtcNow,
@@ -1023,6 +1172,36 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
             {
                 takeover.WorkerState,
                 takeover.LeaseHeld,
+            },
+            controlPlaneWriter = new
+            {
+                firstHost = new
+                {
+                    firstWriter.State,
+                    firstWriter.LeaseHeld,
+                    saveStatus = 200,
+                },
+                secondHost = new
+                {
+                    secondWriter.State,
+                    secondWriter.LeaseHeld,
+                    saveStatus = 409,
+                },
+                standbyAfterOwnerTermination = new
+                {
+                    retainedStandbyWriter.State,
+                    retainedStandbyWriter.LeaseHeld,
+                    saveStatus = 409,
+                },
+                freshProcessTakeover = new
+                {
+                    takeoverWriter.State,
+                    takeoverWriter.LeaseHeld,
+                    saveStatus = 200,
+                },
+                fixedStandbyError =
+                    ControlPlaneWriterUnavailableException
+                        .ErrorCode,
             },
             ownerCountBeforeTermination =
                 new[] { first, second }
@@ -1142,6 +1321,10 @@ public sealed class OrchestraDeleteCheckpointWorkerSecurityTests
             $"{Path.GetFullPath(statePath)}.checkpoint-worker.lease");
         File.Delete(
             $"{Path.GetFullPath(statePath)}.checkpoint-worker.lease.target");
+        File.Delete(
+            $"{Path.GetFullPath(statePath)}.control-writer.lease");
+        File.Delete(
+            $"{Path.GetFullPath(statePath)}.control-writer.lease.target");
     }
 
     private static async Task WaitUntilAsync(

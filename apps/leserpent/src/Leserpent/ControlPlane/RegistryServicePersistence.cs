@@ -135,11 +135,15 @@ public sealed partial class RegistryService
         ControlPlaneStateValidator.IsValidRuntimeDeletionRetryActor(
             value);
 
-    private void RestoreOrMigrateOrchestraRuns()
+    private void RestoreOrMigrateOrchestraRuns(bool allowRepairs)
     {
         var databaseRuns = orchestraRunStore.LoadAll();
         if (!string.IsNullOrWhiteSpace(orchestraRunStore.LastError))
         {
+            if (!allowRepairs)
+            {
+                return;
+            }
             if (orchestraRunStore
                 .DeleteReplayHorizonAvailabilityMayBeTransient)
             {
@@ -151,7 +155,7 @@ public sealed partial class RegistryService
         if (databaseRuns.Count == 0)
         {
             var legacyRuns = orchestraRuns.Values.SelectMany(static queue => queue).ToArray();
-            if (legacyRuns.Length > 0)
+            if (legacyRuns.Length > 0 && allowRepairs)
             {
                 if (!orchestraRunStore.ReplaceAll(legacyRuns))
                 {
@@ -187,7 +191,7 @@ public sealed partial class RegistryService
                     throw new OrchestraPersistenceException(
                         "failed to validate persisted Orchestra event history");
                 }
-                if (events.Count == 0)
+                if (events.Count == 0 && allowRepairs)
                 {
                     if (!orchestraRunStore.Upsert(
                             previous,
@@ -200,7 +204,8 @@ public sealed partial class RegistryService
                     }
                 }
 
-                if (!string.Equals(
+                if (allowRepairs &&
+                    !string.Equals(
                         previous.Outcome,
                         run.Outcome,
                         StringComparison.Ordinal))
@@ -232,12 +237,15 @@ public sealed partial class RegistryService
                     throw new OrchestraPersistenceException(
                         "failed to validate restored Orchestra event history");
                 }
-                ControlPlaneStateValidator
-                    .ValidateOrchestraEventSequence(
-                        run,
-                        events,
-                        run.RuntimeId,
-                        run.RunId);
+                if (events.Count > 0)
+                {
+                    ControlPlaneStateValidator
+                        .ValidateOrchestraEventSequence(
+                            run,
+                            events,
+                            run.RuntimeId,
+                            run.RunId);
+                }
             }
         }
     }
@@ -245,6 +253,7 @@ public sealed partial class RegistryService
     private (int RemovedRuntimeCount, int RemovedSessionCount, IReadOnlyList<string> RemovedRuntimeNames)
         DeleteRuntimesWhere(Func<RuntimeRecord, bool> predicate)
     {
+        RequireControlPlaneWriter();
         var runtimeIds = runtimes.Values
             .Where(predicate)
             .Select(runtime => runtime.RuntimeId)
@@ -305,6 +314,7 @@ public sealed partial class RegistryService
 
     private void PersistState()
     {
+        RequireControlPlaneWriter();
         lock (persistenceSync)
         {
             var state = ExportState();
@@ -322,6 +332,7 @@ public sealed partial class RegistryService
 
     private void PersistStateStrict()
     {
+        RequireControlPlaneWriter();
         lock (persistenceSync)
         {
             var state = ExportState();

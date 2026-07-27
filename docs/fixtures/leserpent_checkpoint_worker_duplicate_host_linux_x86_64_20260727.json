@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "campaign": "leserpent_checkpoint_worker_duplicate_host",
-  "recordedAt": "2026-07-27T05:23:55.4815268+00:00",
+  "recordedAt": "2026-07-27T06:18:20.0858747+00:00",
   "operatingSystem": "Ubuntu 24.04.4 LTS",
   "architecture": "x64",
   "firstHost": {
@@ -19,6 +19,29 @@
   "freshProcessTakeover": {
     "workerState": "owner",
     "leaseHeld": true
+  },
+  "controlPlaneWriter": {
+    "firstHost": {
+      "state": "owner",
+      "leaseHeld": true,
+      "saveStatus": 200
+    },
+    "secondHost": {
+      "state": "standby",
+      "leaseHeld": false,
+      "saveStatus": 409
+    },
+    "standbyAfterOwnerTermination": {
+      "state": "standby",
+      "leaseHeld": false,
+      "saveStatus": 409
+    },
+    "freshProcessTakeover": {
+      "state": "owner",
+      "leaseHeld": true,
+      "saveStatus": 200
+    },
+    "fixedStandbyError": "control_plane_writer_standby"
   },
   "ownerCountBeforeTermination": 1,
   "authenticatedHealthEndpoint": true,

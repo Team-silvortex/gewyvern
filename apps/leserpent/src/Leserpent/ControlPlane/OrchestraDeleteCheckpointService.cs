@@ -16,7 +16,8 @@ public sealed class OrchestraDeleteCheckpointService(
     ILogger<OrchestraDeleteCheckpointService> logger,
     OrchestraDeleteCheckpointWorkerOptions? options = null,
     OrchestraDeleteCheckpointWorkerLease? workerLease = null,
-    OrchestraDeleteCheckpointWorkerHealth? workerHealth = null) :
+    OrchestraDeleteCheckpointWorkerHealth? workerHealth = null,
+    ControlPlaneWriterFence? writerFence = null) :
     BackgroundService
 {
     private const int MaxDeliveryBatchSize = 8;
@@ -28,6 +29,24 @@ public sealed class OrchestraDeleteCheckpointService(
         CancellationToken stoppingToken)
     {
         workerHealth?.MarkStarting();
+        if (writerFence is not null &&
+            !writerFence.IsWriter)
+        {
+            workerHealth?.MarkStandby();
+            logger.LogInformation(
+                "Checkpoint worker is idle because this host is a control-plane standby.");
+            try
+            {
+                await Task.Delay(
+                    Timeout.InfiniteTimeSpan,
+                    stoppingToken);
+            }
+            catch (OperationCanceledException) when (
+                stoppingToken.IsCancellationRequested)
+            {
+            }
+            return;
+        }
         if (workerLease is not null &&
             !workerLease.TryAcquire())
         {
@@ -53,6 +72,14 @@ public sealed class OrchestraDeleteCheckpointService(
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                if (writerFence is not null &&
+                    !writerFence.IsWriter)
+                {
+                    workerHealth?.MarkLeaseLost();
+                    logger.LogWarning(
+                        "Control-plane writer ownership was lost; checkpoint and alert-delivery work is stopping.");
+                    return;
+                }
                 if (workerLease is not null &&
                     !workerLease.IsHeld)
                 {

@@ -62,6 +62,24 @@ public sealed class ControlPlaneSecurityPolicyTests
     }
 
     [Fact]
+    public void ReadOnlyRegistrationPlanDoesNotRequireMutationIntent()
+    {
+        var policy = BuildPolicy();
+        var context = BuildContext(
+            "POST",
+            "/v1/runtimes/registration-plan",
+            IPAddress.Loopback);
+
+        var allowed = policy.TryAuthorize(
+            context,
+            out var statusCode,
+            out _);
+
+        Assert.True(allowed);
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+    }
+
+    [Fact]
     public void PersistenceImportOverLimitIsRejectedBeforeBodyRead()
     {
         var policy = BuildPolicy();

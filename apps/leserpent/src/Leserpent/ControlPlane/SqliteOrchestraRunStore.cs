@@ -10,27 +10,35 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     private const ulong MaxDeleteReceipts = 4096;
     private readonly string connectionString;
     private readonly ILogger<SqliteOrchestraRunStore> logger;
+    private readonly bool writable;
 
     public SqliteOrchestraRunStore(
         IConfiguration configuration,
         IHostEnvironment environment,
-        ILogger<SqliteOrchestraRunStore> logger)
+        ILogger<SqliteOrchestraRunStore> logger,
+        bool writable = true)
     {
         Location = configuration["LESERPENT_DATABASE_PATH"] ?? DefaultDatabasePath(environment);
         this.logger = logger;
+        this.writable = writable;
         var directory = Path.GetDirectoryName(Location);
-        if (!string.IsNullOrWhiteSpace(directory))
+        if (writable && !string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
         }
         connectionString = new SqliteConnectionStringBuilder
         {
             DataSource = Location,
-            Mode = SqliteOpenMode.ReadWriteCreate,
+            Mode = writable
+                ? SqliteOpenMode.ReadWriteCreate
+                : SqliteOpenMode.ReadOnly,
             Cache = SqliteCacheMode.Shared,
             Pooling = true,
         }.ToString();
-        Initialize();
+        if (writable)
+        {
+            Initialize();
+        }
     }
 
     public string Provider => "sqlite";
@@ -99,6 +107,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 
     public bool Upsert(OrchestraRunSummary run, OrchestraRunEvent? eventRecord = null)
     {
+        if (!AllowWrite())
+        {
+            return false;
+        }
         try
         {
             ControlPlaneStateValidator.ValidateOrchestraStoreEnvelope(
@@ -136,6 +148,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 
     public bool ReplaceAll(IReadOnlyList<OrchestraRunSummary> runs)
     {
+        if (!AllowWrite())
+        {
+            return false;
+        }
         try
         {
             foreach (var run in runs)
@@ -173,6 +189,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 
     public bool DeleteRuntimes(IReadOnlyCollection<string> runtimeIds)
     {
+        if (!AllowWrite())
+        {
+            return false;
+        }
         if (runtimeIds.Count == 0)
         {
             return true;
@@ -206,6 +226,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     public OrchestraDeleteReceipt? DeleteRuntimes(
         OrchestraDeleteCommand command)
     {
+        if (!AllowWrite())
+        {
+            return null;
+        }
         var runtimeIds = command.RuntimeIds
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -399,6 +423,10 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     public OrchestraDeleteReplayHorizon? CheckpointDeleteReplayHorizon(
         OrchestraDeleteReplayCheckpoint checkpoint)
     {
+        if (!AllowWrite())
+        {
+            return null;
+        }
         try
         {
             using var connection = OpenConnection();
@@ -753,9 +781,21 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         var connection = new SqliteConnection(connectionString);
         connection.Open();
         using var pragma = connection.CreateCommand();
-        pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;";
+        pragma.CommandText = writable
+            ? "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;"
+            : "PRAGMA query_only=ON; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;";
         pragma.ExecuteNonQuery();
         return connection;
+    }
+
+    private bool AllowWrite()
+    {
+        if (writable)
+        {
+            return true;
+        }
+        LastError = "orchestra_store_read_only";
+        return false;
     }
 
     private void Upsert(SqliteConnection connection, SqliteTransaction transaction, OrchestraRunSummary run)

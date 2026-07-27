@@ -48,6 +48,7 @@ public sealed partial class RegistryService
     private readonly TimeProvider timeProvider;
     private readonly OrchestraDeleteCheckpointWorkerLease?
         checkpointWorkerLease;
+    private readonly ControlPlaneWriterFence? controlPlaneWriterFence;
     private readonly DateTimeOffset? restoredFromSavedAt;
     private OrchestraDeleteReplayAdmissionPressure
         orchestraDeleteReplayAdmissionPressure =
@@ -81,7 +82,8 @@ public sealed partial class RegistryService
             stateStore,
             orchestraRunStore,
             TimeProvider.System,
-            checkpointWorkerLease: null)
+            checkpointWorkerLease: null,
+            controlPlaneWriterFence: null)
     {
     }
 
@@ -93,7 +95,22 @@ public sealed partial class RegistryService
             stateStore,
             orchestraRunStore,
             TimeProvider.System,
-            checkpointWorkerLease)
+            checkpointWorkerLease,
+            controlPlaneWriterFence: null)
+    {
+    }
+
+    public RegistryService(
+        ControlPlaneStateStore stateStore,
+        IOrchestraRunStore orchestraRunStore,
+        OrchestraDeleteCheckpointWorkerLease checkpointWorkerLease,
+        ControlPlaneWriterFence controlPlaneWriterFence)
+        : this(
+            stateStore,
+            orchestraRunStore,
+            TimeProvider.System,
+            checkpointWorkerLease,
+            controlPlaneWriterFence)
     {
     }
 
@@ -105,7 +122,8 @@ public sealed partial class RegistryService
             stateStore,
             orchestraRunStore,
             timeProvider,
-            checkpointWorkerLease: null)
+            checkpointWorkerLease: null,
+            controlPlaneWriterFence: null)
     {
     }
 
@@ -114,12 +132,14 @@ public sealed partial class RegistryService
         IOrchestraRunStore orchestraRunStore,
         TimeProvider timeProvider,
         OrchestraDeleteCheckpointWorkerLease?
-            checkpointWorkerLease)
+            checkpointWorkerLease,
+        ControlPlaneWriterFence? controlPlaneWriterFence)
     {
         this.stateStore = stateStore;
         this.orchestraRunStore = orchestraRunStore;
         this.timeProvider = timeProvider;
         this.checkpointWorkerLease = checkpointWorkerLease;
+        this.controlPlaneWriterFence = controlPlaneWriterFence;
         var loaded = stateStore.Load();
         restoredFromSavedAt = loaded?.SavedAt;
         (RestoredRuntimeCount, RestoredSessionCount) = RestorePersistedState(loaded);
@@ -134,7 +154,10 @@ public sealed partial class RegistryService
         orchestraDeleteReplayAdmissionPressure =
             orchestraDeleteCheckpointMonitor?.AdmissionPressure ??
                 OrchestraDeleteReplayAdmissionPressure.Healthy;
-        RestoreOrMigrateOrchestraRuns();
+        RestoreOrMigrateOrchestraRuns(
+            allowRepairs:
+                controlPlaneWriterFence is null ||
+                controlPlaneWriterFence.IsWriter);
     }
 
     public RuntimeRegistrationResponse RegisterRuntime(
@@ -241,6 +264,7 @@ public sealed partial class RegistryService
         IReadOnlyCollection<string> runtimeIds,
         bool requireAllTargets = false)
     {
+        RequireControlPlaneWriter();
         var requestedTargets = runtimeIds
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static runtimeId => runtimeId, StringComparer.OrdinalIgnoreCase)
@@ -368,6 +392,7 @@ public sealed partial class RegistryService
         int maxCount = MaxPendingRuntimeDeletionIntents,
         DateTimeOffset? eligibleAt = null)
     {
+        RequireControlPlaneWriter();
         ArgumentOutOfRangeException.ThrowIfLessThan(maxCount, 1);
         var eligibilityBoundary = eligibleAt ?? DateTimeOffset.UtcNow;
         lock (orchestraRunSync)
@@ -405,6 +430,7 @@ public sealed partial class RegistryService
         RuntimeDeletionReservation reservation,
         ulong replayHorizonFloor)
     {
+        RequireControlPlaneWriter();
         if (replayHorizonFloor == 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -494,6 +520,7 @@ public sealed partial class RegistryService
     internal void RecordRuntimeDeletionFailures(
         IReadOnlyCollection<RuntimeDeletionFailure> failures)
     {
+        RequireControlPlaneWriter();
         if (failures.Count == 0)
         {
             return;
@@ -591,6 +618,7 @@ public sealed partial class RegistryService
             PersistedRuntimeDeletionReconciliationAudit>?
             reconciliationAuditFactory = null)
     {
+        RequireControlPlaneWriter();
         if (reservations.Count == 0)
         {
             return null;
@@ -829,6 +857,7 @@ public sealed partial class RegistryService
             string intentId,
             RuntimeDeletionReconcileRequest request)
     {
+        RequireControlPlaneWriter();
         var normalizedIntentId = intentId?.Trim() ?? string.Empty;
         var normalizedRequestId = request.RequestId?.Trim() ?? string.Empty;
         var normalizedRequestedBy = request.RequestedBy?.Trim() ?? string.Empty;
@@ -926,6 +955,7 @@ public sealed partial class RegistryService
             DaemonRuntimeProjectionSnapshot daemonSnapshot,
             DateTimeOffset? reconciledAt = null)
     {
+        RequireControlPlaneWriter();
         var normalizedRequestId = request.RequestId.Trim();
         var normalizedRequestedBy = request.RequestedBy.Trim();
         lock (orchestraRunSync)
@@ -1026,6 +1056,7 @@ public sealed partial class RegistryService
         RuntimeDeletionRetryNowRequest request,
         DateTimeOffset? requestedAt = null)
     {
+        RequireControlPlaneWriter();
         var normalizedIntentId = intentId?.Trim() ?? string.Empty;
         var normalizedRequestId = request.RequestId?.Trim() ?? string.Empty;
         var normalizedRequestedBy = request.RequestedBy?.Trim() ?? string.Empty;
@@ -1261,7 +1292,10 @@ public sealed partial class RegistryService
         }
         lock (persistenceSync)
         {
-            SynchronizeOrchestraDeleteReplayCheckpoint();
+            if (controlPlaneWriterFence is null)
+            {
+                SynchronizeOrchestraDeleteReplayCheckpoint();
+            }
             return BuildOrchestraDeleteReplayCheckpointStatus();
         }
     }
@@ -1271,6 +1305,7 @@ public sealed partial class RegistryService
             OrchestraDeleteCheckpointAlertAcknowledgeRequest request,
             DateTimeOffset? acknowledgedAt = null)
     {
+        RequireControlPlaneWriter();
         var requestedBy = request.RequestedBy?.Trim() ?? string.Empty;
         var effectiveAcknowledgedAt =
             acknowledgedAt ?? timeProvider.GetUtcNow();
@@ -1385,6 +1420,7 @@ public sealed partial class RegistryService
 
     internal void RunOrchestraDeleteCheckpointMaintenance()
     {
+        RequireControlPlaneWriter();
         lock (persistenceSync)
         {
             SynchronizeOrchestraDeleteReplayCheckpoint();
@@ -1394,6 +1430,7 @@ public sealed partial class RegistryService
     internal PersistedOrchestraDeleteCheckpointAlertDelivery?
         ClaimDueOrchestraDeleteCheckpointAlertDelivery()
     {
+        RequireControlPlaneWriter();
         lock (persistenceSync)
         {
             if (checkpointWorkerLease is not null &&
@@ -1440,6 +1477,7 @@ public sealed partial class RegistryService
     internal void CompleteOrchestraDeleteCheckpointAlertDelivery(
         string eventId)
     {
+        RequireControlPlaneWriter();
         lock (persistenceSync)
         {
             if (checkpointWorkerLease is not null &&
@@ -1472,6 +1510,7 @@ public sealed partial class RegistryService
     internal void RecordOrchestraDeleteCheckpointAlertDeliveryFailure(
         string eventId)
     {
+        RequireControlPlaneWriter();
         lock (persistenceSync)
         {
             if (checkpointWorkerLease is not null &&
@@ -1776,6 +1815,7 @@ public sealed partial class RegistryService
 
     public void CompleteRuntimeDeletion(RuntimeDeletionReservation reservation)
     {
+        RequireControlPlaneWriter();
         lock (orchestraRunSync)
         {
             PersistedRuntimeDeletionIntent intent;
@@ -1956,6 +1996,7 @@ public sealed partial class RegistryService
 
     public DateTimeOffset SaveNow()
     {
+        RequireControlPlaneWriter();
         PersistState();
         return stateStore.LastSavedAt ?? DateTimeOffset.UtcNow;
     }
@@ -1985,6 +2026,7 @@ public sealed partial class RegistryService
 
     public PersistenceImportResponse ImportState(PersistedControlPlaneState state)
     {
+        RequireControlPlaneWriter();
         if (!stateStore.IsCompatible(state))
         {
             throw new InvalidOperationException(
@@ -2057,6 +2099,7 @@ public sealed partial class RegistryService
 
     public RuntimeCapabilityRefreshResponse? RefreshRuntimeCapabilities(string runtimeId, CapabilityDiscoveryResult discovery)
     {
+        RequireControlPlaneWriter();
         if (!runtimes.TryGetValue(runtimeId, out var runtime))
         {
             return null;
@@ -2086,6 +2129,7 @@ public sealed partial class RegistryService
 
     public RuntimeStatusRefreshResponse? RefreshRuntimeStatus(string runtimeId, RuntimeStatusDiscoveryResult discovery)
     {
+        RequireControlPlaneWriter();
         if (!runtimes.TryGetValue(runtimeId, out var runtime))
         {
             return null;
@@ -2107,6 +2151,7 @@ public sealed partial class RegistryService
 
     public RuntimeSidecarRefreshResponse? RefreshRuntimeSidecar(string runtimeId, RuntimeSidecarDiscoveryResult discovery)
     {
+        RequireControlPlaneWriter();
         if (!runtimes.TryGetValue(runtimeId, out var runtime))
         {
             return null;
@@ -2145,6 +2190,7 @@ public sealed partial class RegistryService
 
     public (RuntimeSummary? RemovedRuntime, int RemovedSessionCount) DeleteRuntime(string runtimeId)
     {
+        RequireControlPlaneWriter();
         if (!runtimes.TryGetValue(runtimeId, out var runtime))
         {
             return (null, 0);
@@ -2213,6 +2259,7 @@ public sealed partial class RegistryService
 
     public void RecordRecoveryActivity(string runtimeId, string action, string outcome, string summary)
     {
+        RequireControlPlaneWriter();
         var activity = new RuntimeRecoveryActivity(
             action,
             outcome,
@@ -2227,6 +2274,7 @@ public sealed partial class RegistryService
     public (SessionSummary? Session, IReadOnlyList<CapabilityRejection> Rejections, string? RuntimeMissing)
         CreateSession(SessionCreateRequest request)
     {
+        RequireControlPlaneWriter();
         lock (orchestraRunSync)
         {
             if (deletingRuntimes.Contains(request.RuntimeId) ||
@@ -2269,6 +2317,7 @@ public sealed partial class RegistryService
 
     public SessionSummary? StopSession(string sessionId)
     {
+        RequireControlPlaneWriter();
         if (!sessions.TryGetValue(sessionId, out var session))
         {
             return null;
@@ -2294,6 +2343,7 @@ public sealed partial class RegistryService
         RuntimeSidecarStatusSnapshot? sidecarStatus,
         string? runtimeId = null)
     {
+        RequireControlPlaneWriter();
         lock (runtimeRegistrationSync)
         {
             return RegisterRuntimeLocked(
@@ -2384,4 +2434,7 @@ public sealed partial class RegistryService
         PersistState();
         return created.ToRegistrationResponse();
     }
+
+    private void RequireControlPlaneWriter() =>
+        controlPlaneWriterFence?.RequireWriter();
 }

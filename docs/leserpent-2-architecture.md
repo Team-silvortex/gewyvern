@@ -839,6 +839,29 @@ exception text. The next gate inventories every JSON control-plane mutation
 entry point and evaluates a process-wide single-writer fence without claiming
 general active-active support prematurely.
 
+That gate is now complete. The same hardened process-lease substrate also owns
+the process-wide JSON control-plane writer lease. Startup admission happens
+before Registry construction, so a standby cannot perform legacy Orchestra
+event backfill or SQLite migration as a constructor side effect. Every
+non-read `/v1` method fails closed unless explicitly allowlisted as a read-only
+POST; the only current exception is runtime registration planning. HTTP
+middleware rejects a standby before discovery or external authority effects,
+Registry mutation entry points revalidate ownership before changing memory,
+JSON, or SQLite, and persistence methods repeat the check as a final backstop.
+Runtime-deletion recovery and checkpoint workers remain idle on standby and
+stop if writer ownership is lost.
+
+`/v1/persistence/control-writer-health` exposes sanitized `owner`, `standby`,
+`lease_lost`, and lifecycle state. Standby mutation returns fixed
+`409/control_plane_writer_standby`. An already-loaded standby never promotes:
+only a fresh process may validate a stale owner record, reload all projections,
+and take over. The canonical inventory lives in
+`docs/contracts/leserpent-control-plane-mutations-v1.json`; the operational
+contract is documented in `docs/leserpent-control-plane-writer.md`. Real
+three-process tests prove owner writes, standby rejection, non-reentry after
+owner termination, and fresh-process takeover. This is cold single-writer
+failover, not active-active consensus.
+
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent
 daemon command and local cleanup until both authorities converge. Schema v1
