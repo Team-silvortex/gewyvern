@@ -78,10 +78,13 @@ pub fn lower_effect(
         Effect::UiFocus { .. }
             | Effect::UiScrollIntoView { .. }
             | Effect::UiAssertVisible { .. }
+            | Effect::UiAssertRealized { .. }
+            | Effect::UiWaitRealized { .. }
             | Effect::UiAssertFocused { .. }
             | Effect::UiAssertEnabled { .. }
             | Effect::UiAssertText { .. }
             | Effect::UiAssertAccessibleName { .. }
+            | Effect::UiAssertAccessibleDescription { .. }
     ) {
         return Err(LoweringError::FrontendLocalEffect);
     }
@@ -98,10 +101,13 @@ pub fn lower_effect(
         Effect::UiFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
+        | Effect::UiAssertRealized { .. }
+        | Effect::UiWaitRealized { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertText { .. }
-        | Effect::UiAssertAccessibleName { .. } => {
+        | Effect::UiAssertAccessibleName { .. }
+        | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
         }
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
@@ -129,10 +135,13 @@ pub fn lower_effect(
         Effect::UiFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
+        | Effect::UiAssertRealized { .. }
+        | Effect::UiWaitRealized { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertText { .. }
-        | Effect::UiAssertAccessibleName { .. } => {
+        | Effect::UiAssertAccessibleName { .. }
+        | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
         }
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
@@ -399,10 +408,13 @@ mod tests {
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {
             let program = lower(&parse(source)).unwrap();
             assert_eq!(

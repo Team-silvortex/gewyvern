@@ -231,19 +231,25 @@ dispatch result, and restart-safe re-entry. The renderer-neutral UI maps every
 current action to HIR, exports it through the Rust canonical printer, and maps
 the effect back to an equivalent stable-node event. Presentation automation now
 includes `ui.focus(node_id: ...)`, `ui.scroll_into_view(node_id: ...)`, and
-`ui.assert_visible(node_id: ...)`, plus
+`ui.assert_visible(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
+`ui.wait_realized(node_id: ...)`,
 `ui.assert_focused(node_id: ...)` and
 `ui.assert_enabled(node_id: ...)`, plus
 `ui.assert_text(node_id: ..., expected: ...)` and
-`ui.assert_accessible_name(node_id: ..., expected: ...)`: HIR and the VM keep each
+`ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
+`ui.assert_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all seven, and `leselang-ui` round-trips them against the current semantic
+rejects all ten, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, checks visibility against native layout and viewport state,
-reads native focus and effective enabled state, and compares actual native text
-and accessibility name exactly without mutating the target. Disabled,
-text-mismatched, and accessible-name-mismatched targets fail with typed native
-presentation results. Navigation, waits, selection, and
+checks realization directly against the native visual index without forcing it,
+waits up to the protocol-fixed 2000 ms for natural realization while yielding
+the native dispatcher,
+reads native focus and effective enabled state, and compares actual native text,
+accessibility name, and declared accessibility help text exactly without
+mutating the target. Disabled, text-mismatched, accessible-name-mismatched, and
+accessible-description-mismatched targets fail with typed native
+presentation results. Navigation, additional wait predicates, selection, and
 additional state assertions remain the next slices rather than being
 approximated with coordinate-level scripting or OCR.
 

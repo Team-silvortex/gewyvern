@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 public sealed class SemanticRenderer
 {
     private const int MaxPatchOperations = 8192;
+    public const int WaitRealizedTimeoutMs = 2000;
 
     public UiDocument Document { get; private set; } = null!;
 
@@ -85,7 +86,8 @@ public sealed class SemanticRenderer
             return UiPresentationValidation.UnknownTarget;
         }
         if (operation.Kind is UiPresentationOperationKind.AssertText
-            or UiPresentationOperationKind.AssertAccessibleName)
+            or UiPresentationOperationKind.AssertAccessibleName
+            or UiPresentationOperationKind.AssertAccessibleDescription)
         {
             if (!IsExpectedText(operation.Expected))
             {
@@ -95,6 +97,17 @@ public sealed class SemanticRenderer
         else if (operation.Expected is not null)
         {
             return UiPresentationValidation.InvalidExpectedText;
+        }
+        if (operation.Kind == UiPresentationOperationKind.WaitRealized)
+        {
+            if (operation.TimeoutMs != WaitRealizedTimeoutMs)
+            {
+                return UiPresentationValidation.InvalidTimeout;
+            }
+        }
+        else if (operation.TimeoutMs is not null)
+        {
+            return UiPresentationValidation.InvalidTimeout;
         }
         var node = Find(Document.Root, operation.NodeId);
         if (node is null)
@@ -112,6 +125,10 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertVisible =>
                 UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertRealized =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.WaitRealized =>
+                UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertText
                 when node.Text is not null
                     && node.Kind is UiNodeKind.Heading
@@ -123,6 +140,11 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertAccessibleName =>
                 UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertAccessibleDescription
+                when node.Accessibility.Description is not null =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertAccessibleDescription =>
+                UiPresentationValidation.DescriptionlessTarget,
             UiPresentationOperationKind.AssertText =>
                 UiPresentationValidation.TextlessTarget,
             _ => UiPresentationValidation.UnfocusableTarget,
@@ -412,10 +434,13 @@ public sealed class RendererFixture
     public UiPresentationOperation? PresentationOperation { get; set; }
     public UiPresentationOperation? ScrollOperation { get; set; }
     public UiPresentationOperation? AssertOperation { get; set; }
+    public UiPresentationOperation? RealizedAssertOperation { get; set; }
+    public UiPresentationOperation? RealizedWaitOperation { get; set; }
     public UiPresentationOperation? FocusedAssertOperation { get; set; }
     public UiPresentationOperation? EnabledAssertOperation { get; set; }
     public UiPresentationOperation? TextAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
+    public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -495,6 +520,7 @@ public sealed class UiPresentationOperation
     public UiPresentationOperationKind Kind { get; set; }
     public required string NodeId { get; set; }
     public string? Expected { get; set; }
+    public int? TimeoutMs { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -562,10 +588,13 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("focus")] Focus,
     [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
     [JsonStringEnumMemberName("assert_visible")] AssertVisible,
+    [JsonStringEnumMemberName("assert_realized")] AssertRealized,
+    [JsonStringEnumMemberName("wait_realized")] WaitRealized,
     [JsonStringEnumMemberName("assert_focused")] AssertFocused,
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
     [JsonStringEnumMemberName("assert_text")] AssertText,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
+    [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
 }
 
 public enum UiPresentationValidation
@@ -574,7 +603,9 @@ public enum UiPresentationValidation
     UnknownTarget,
     UnfocusableTarget,
     TextlessTarget,
+    DescriptionlessTarget,
     InvalidExpectedText,
+    InvalidTimeout,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PatchKind>))]

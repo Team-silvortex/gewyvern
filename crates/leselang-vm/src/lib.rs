@@ -4,8 +4,8 @@ use std::path::Path;
 
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
-    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, authorize, validate_ui_expected_text,
-    validate_ui_node_id,
+    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_REALIZED_TIMEOUT_MS, authorize,
+    validate_ui_expected_text, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -108,10 +108,13 @@ pub enum PresentationOperation {
     Focus { node_id: String },
     ScrollIntoView { node_id: String },
     AssertVisible { node_id: String },
+    AssertRealized { node_id: String },
+    WaitRealized { node_id: String, timeout_ms: u64 },
     AssertFocused { node_id: String },
     AssertEnabled { node_id: String },
     AssertText { node_id: String, expected: String },
     AssertAccessibleName { node_id: String, expected: String },
+    AssertAccessibleDescription { node_id: String, expected: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -131,10 +134,13 @@ pub enum PresentationResult {
     Focus { node_id: String },
     ScrollIntoView { node_id: String },
     AssertVisible { node_id: String },
+    AssertRealized { node_id: String },
+    WaitRealized { node_id: String, timeout_ms: u64 },
     AssertFocused { node_id: String },
     AssertEnabled { node_id: String },
     AssertText { node_id: String, expected: String },
     AssertAccessibleName { node_id: String, expected: String },
+    AssertAccessibleDescription { node_id: String, expected: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -391,6 +397,12 @@ pub enum Value {
     UiAssertVisible {
         node_id: String,
     },
+    UiAssertRealized {
+        node_id: String,
+    },
+    UiWaitRealized {
+        node_id: String,
+    },
     UiAssertFocused {
         node_id: String,
     },
@@ -402,6 +414,10 @@ pub enum Value {
         expected: String,
     },
     UiAssertAccessibleName {
+        node_id: String,
+        expected: String,
+    },
+    UiAssertAccessibleDescription {
         node_id: String,
         expected: String,
     },
@@ -722,6 +738,29 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiAssertRealized { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertRealized {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitRealized { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitRealized {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiAssertFocused { node_id } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -763,6 +802,18 @@ impl Vm {
                     principal,
                     capabilities,
                     operation: PresentationOperation::AssertAccessibleName {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertAccessibleDescription { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertAccessibleDescription {
                         node_id: node_id.clone(),
                         expected: expected.clone(),
                     },
@@ -1314,10 +1365,13 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiFocus { .. } => Type::UiFocus,
         Effect::UiScrollIntoView { .. } => Type::UiScrollIntoView,
         Effect::UiAssertVisible { .. } => Type::UiAssertVisible,
+        Effect::UiAssertRealized { .. } => Type::UiAssertRealized,
+        Effect::UiWaitRealized { .. } => Type::UiWaitRealized,
         Effect::UiAssertFocused { .. } => Type::UiAssertFocused,
         Effect::UiAssertEnabled { .. } => Type::UiAssertEnabled,
         Effect::UiAssertText { .. } => Type::UiAssertText,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
+        Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
         Effect::All { .. } => {
             return Err(Fault {
                 code: "LSV2015".to_string(),
@@ -1587,6 +1641,39 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
             )
         }
+        (Effect::UiAssertRealized { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertRealized {
+                    node_id: operation_node_id
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiWaitRealized { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitRealized {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_REALIZED_TIMEOUT_MS
+            )
+        }
         (Effect::UiAssertFocused { node_id }, EffectOperation::Presentation(presentation)) => {
             validate_effect_identity(
                 presentation.schema_version,
@@ -1653,6 +1740,28 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             matches!(
                 &presentation.operation,
                 PresentationOperation::AssertAccessibleName {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_expected_text(operation_expected)
+            )
+        }
+        (
+            Effect::UiAssertAccessibleDescription { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertAccessibleDescription {
                     node_id: operation_node_id,
                     expected: operation_expected,
                 } if operation_node_id == node_id
@@ -1943,6 +2052,8 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiFocus { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiScrollIntoView { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertVisible { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertRealized { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitRealized { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertText { node_id, expected }
@@ -1951,6 +2062,11 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             Ok(1)
         }
         Value::UiAssertAccessibleName { node_id, expected }
+            if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertAccessibleDescription { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
         {
             Ok(1)
@@ -2286,6 +2402,58 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiAssertRealized { node_id },
+            Type::UiAssertRealized,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertRealized {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertRealized {
+                            node_id: operation_node_id
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertRealized {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiWaitRealized { node_id },
+            Type::UiWaitRealized,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitRealized {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_REALIZED_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitRealized {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_REALIZED_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitRealized {
+                node_id: result_node_id,
+            })
+        }
+        (
             Effect::UiAssertFocused { node_id },
             Type::UiAssertFocused,
             operation,
@@ -2385,6 +2553,34 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiAssertAccessibleName {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiAssertAccessibleDescription { node_id, expected },
+            Type::UiAssertAccessibleDescription,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertAccessibleDescription {
+                node_id: result_node_id,
+                expected: result_expected,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertAccessibleDescription {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                        },
+                        ..
+                    }) if operation_node_id == node_id && operation_expected == expected
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertAccessibleDescription {
                 node_id: result_node_id,
                 expected: result_expected,
             })
@@ -2832,6 +3028,107 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_realized_reenters_only_from_its_matching_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI realization assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI realization assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertRealized { node_id }
+                if node_id == "runtime-a:card"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertRealized {
+                    node_id: "runtime-a:card".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertRealized {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI realization assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertVisible {
+            node_id: "runtime-a:card".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_realized_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI realization wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI realization wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitRealized {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:card"
+                && *timeout_ms == UI_WAIT_REALIZED_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitRealized {
+                    node_id: "runtime-a:card".into(),
+                    timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitRealized {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI realization wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitRealized {
+            node_id: "runtime-a:card".into(),
+            timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
     fn ui_assert_focused_reenters_only_from_its_matching_presentation_result() {
         let program = lower(&parse(
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
@@ -3025,6 +3322,58 @@ mod tests {
         presentation.operation = PresentationOperation::AssertAccessibleName {
             node_id: "fleet-title".into(),
             expected: "Forged name".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_accessible_description_binds_expected_description_across_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI accessible description assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI accessible description assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertAccessibleDescription { node_id, expected }
+                if node_id == "runtime-runtime-a-inspect"
+                    && expected == "Open the read-only runtime workspace"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertAccessibleDescription {
+                    node_id: "runtime-runtime-a-inspect".into(),
+                    expected: "Open the read-only runtime workspace".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertAccessibleDescription {
+                node_id: "runtime-runtime-a-inspect".into(),
+                expected: "Open the read-only runtime workspace".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI accessible description assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertAccessibleDescription {
+            node_id: "runtime-runtime-a-inspect".into(),
+            expected: "Forged description".into(),
         };
         assert!(validate_effect_request(&torn).is_err());
     }

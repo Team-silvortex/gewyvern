@@ -133,8 +133,9 @@ internal sealed class LeserpentApp : Application
             }
             else if (verifyFocusRetention)
             {
-                window.Opened += (_, _) =>
+                window.Opened += async (_, _) =>
                 {
+                    await window.CompleteInitialRealizedWaitProbeAsync();
                     var nodeId = window.BeginFocusRetentionProbe();
                     DispatcherTimer.RunOnce(
                         () =>
@@ -147,7 +148,7 @@ internal sealed class LeserpentApp : Application
                                     window.CompleteFocusRetentionProbe(nodeId);
                                     window.ProbeRemovedFocusTarget(nodeId);
                                     Console.WriteLine(
-                                        $"Avalonia focus retention valid: node={nodeId}, leselang_presentation=true, scroll_into_view=true, scroll_focus_preserved=true, assert_visible=true, assert_focused=true, assert_enabled=true, assert_text=true, assert_accessible_name=true, text_mismatch_rejected=true, accessible_name_mismatch_rejected=true, disabled_target_rejected=true, unfocused_target_rejected=true, hidden_target_rejected=true, missing_target_rejected=true, unfocusable_target_rejected=true, remount=true, patch_update=true, restored=true, removed_target_safe=true");
+                                        $"Avalonia focus retention valid: node={nodeId}, leselang_presentation=true, scroll_into_view=true, scroll_focus_preserved=true, assert_visible=true, assert_realized=true, wait_realized=true, wait_realized_natural_layout=true, wait_realized_timeout=true, assert_focused=true, assert_enabled=true, assert_text=true, assert_accessible_name=true, assert_accessible_description=true, unrealized_target_rejected=true, text_mismatch_rejected=true, accessible_name_mismatch_rejected=true, accessible_description_mismatch_rejected=true, disabled_target_rejected=true, unfocused_target_rejected=true, hidden_target_rejected=true, missing_target_rejected=true, unfocusable_target_rejected=true, remount=true, patch_update=true, restored=true, removed_target_safe=true");
                                     desktop.Shutdown(0);
                                 },
                                 TimeSpan.FromMilliseconds(200));

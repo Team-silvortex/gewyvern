@@ -306,6 +306,14 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert visible",
         ),
+        Effect::UiAssertRealized { .. } => (
+            DebuggerEffectKind::UiAssertRealized,
+            None,
+            "UI assert realized",
+        ),
+        Effect::UiWaitRealized { .. } => {
+            (DebuggerEffectKind::UiWaitRealized, None, "UI wait realized")
+        }
         Effect::UiAssertFocused { .. } => (
             DebuggerEffectKind::UiAssertFocused,
             None,
@@ -321,6 +329,11 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertAccessibleName,
             None,
             "UI assert accessible name",
+        ),
+        Effect::UiAssertAccessibleDescription { .. } => (
+            DebuggerEffectKind::UiAssertAccessibleDescription,
+            None,
+            "UI assert accessible description",
         ),
         Effect::All { .. } => {
             return Err(ObserveError::InvalidEffectRequest(Fault {

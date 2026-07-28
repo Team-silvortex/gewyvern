@@ -7,6 +7,8 @@ using Avalonia.Media;
 internal sealed class MainWindow : Window
 {
     private readonly AvaloniaDocumentRenderer renderer;
+    private readonly Task<PresentationAutomationResult> initialRealizedWait;
+    private readonly Task<PresentationAutomationResult> initialRealizedWaitTimeout;
     private readonly TextBlock statusText = new()
     {
         Foreground = LeserpentTheme.Muted,
@@ -23,6 +25,9 @@ internal sealed class MainWindow : Window
     public int UnrealizedVirtualItemCount => renderer.UnrealizedVirtualItemCount;
     public int InitialUnrealizedNodeCount { get; }
     public int UnrealizedNodeCount => renderer.UnrealizedNodeCount;
+    public bool InitialUnrealizedAssertionRejected { get; }
+    public bool InitialRealizedWaitCompleted { get; private set; }
+    public bool InitialRealizedWaitTimedOut { get; private set; }
     public int InitialDebuggerCancelButtonCount { get; }
     public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
     public int DisabledActionProbeCount { get; private set; }
@@ -54,6 +59,40 @@ internal sealed class MainWindow : Window
         VirtualizedHostCount = renderer.VirtualizedHostCount;
         InitialUnrealizedVirtualItemCount = renderer.UnrealizedVirtualItemCount;
         InitialUnrealizedNodeCount = renderer.UnrealizedNodeCount;
+        var initialUnrealizedNodeId = renderer.FirstUnrealizedNodeId
+            ?? throw new InvalidDataException(
+                "realization assertion probe requires a pre-layout virtualized semantic node");
+        var initialUnrealized = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertRealized,
+            NodeId = initialUnrealizedNodeId,
+        });
+        InitialUnrealizedAssertionRejected = !initialUnrealized.Applied
+            && initialUnrealized.FailureCode
+                == PresentationAutomationFailureCode.TargetUnrealized;
+        if (!InitialUnrealizedAssertionRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang realization assertion accepted a pre-layout unrealized target");
+        }
+        initialRealizedWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitRealized,
+            NodeId = initialUnrealizedNodeId,
+            TimeoutMs = SemanticRenderer.WaitRealizedTimeoutMs,
+        });
+        var detachedRenderer = new AvaloniaDocumentRenderer(_ => { });
+        detachedRenderer.Mount(fixture.Next);
+        var detachedUnrealizedNodeId = detachedRenderer.FirstUnrealizedNodeId
+            ?? throw new InvalidDataException(
+                "realization wait timeout probe requires a detached unrealized node");
+        initialRealizedWaitTimeout = detachedRenderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitRealized,
+                NodeId = detachedUnrealizedNodeId,
+                TimeoutMs = SemanticRenderer.WaitRealizedTimeoutMs,
+            });
         Title = $"Leserpent / revision {Revision}";
         Content = new Grid
         {
@@ -68,6 +107,26 @@ internal sealed class MainWindow : Window
                 BuildStatusBar(),
             },
         };
+    }
+
+    public async Task CompleteInitialRealizedWaitProbeAsync()
+    {
+        var result = await initialRealizedWait;
+        InitialRealizedWaitCompleted = result.Applied
+            && result.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialRealizedWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang realization wait did not observe natural post-layout realization");
+        }
+        var timeoutResult = await initialRealizedWaitTimeout;
+        InitialRealizedWaitTimedOut = !timeoutResult.Applied
+            && timeoutResult.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        if (!InitialRealizedWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang realization wait did not reject a persistently unrealized target");
+        }
     }
 
     public void ProbeActionAvailability()
@@ -244,6 +303,39 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang accessible name assertion accepted mismatched native metadata or changed focus");
         }
+        var descriptionNode = FindFirstDescriptionNode(renderer.Document.Root)
+            ?? throw new InvalidDataException(
+                "accessible description probe requires explicit semantic metadata");
+        var expectedAccessibleDescription = descriptionNode.Accessibility.Description!.Fallback;
+        var accessibleDescriptionMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertAccessibleDescription,
+            NodeId = descriptionNode.Id,
+            Expected = expectedAccessibleDescription,
+        });
+        if (!accessibleDescriptionMatched.Applied
+            || accessibleDescriptionMatched.FailureCode
+                != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible description assertion rejected native automation metadata or changed focus");
+        }
+        var accessibleDescriptionMismatch = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertAccessibleDescription,
+                NodeId = descriptionNode.Id,
+                Expected = $"{expectedAccessibleDescription} mismatch",
+            });
+        if (accessibleDescriptionMismatch.Applied
+            || accessibleDescriptionMismatch.FailureCode
+                != PresentationAutomationFailureCode.TargetAccessibleDescriptionMismatch
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible description assertion accepted mismatched native metadata or changed focus");
+        }
         var missing = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.Focus,
@@ -303,6 +395,24 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang visibility assertion rejected a visible target or changed focus");
         }
+        var realized = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertRealized,
+            NodeId = nodeId,
+        });
+        if (!realized.Applied
+            || realized.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang realization assertion rejected a realized target or changed focus");
+        }
+        if (!InitialUnrealizedAssertionRejected
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang realization assertion lost its pre-layout rejection evidence or changed focus");
+        }
         renderer.Surface.IsVisible = false;
         var hidden = renderer.ApplyPresentation(new UiPresentationOperation
         {
@@ -345,6 +455,22 @@ internal sealed class MainWindow : Window
             if (FindFirstNonActionNodeId(child) is { } nodeId)
             {
                 return nodeId;
+            }
+        }
+        return null;
+    }
+
+    private static UiNode? FindFirstDescriptionNode(UiNode node)
+    {
+        if (node.Accessibility.Description is not null)
+        {
+            return node;
+        }
+        foreach (var child in node.Children)
+        {
+            if (FindFirstDescriptionNode(child) is { } described)
+            {
+                return described;
             }
         }
         return null;

@@ -13,6 +13,7 @@ pub const MAX_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
+pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HirProgram {
@@ -72,6 +73,12 @@ pub enum Effect {
     UiAssertVisible {
         node_id: String,
     },
+    UiAssertRealized {
+        node_id: String,
+    },
+    UiWaitRealized {
+        node_id: String,
+    },
     UiAssertFocused {
         node_id: String,
     },
@@ -83,6 +90,10 @@ pub enum Effect {
         expected: String,
     },
     UiAssertAccessibleName {
+        node_id: String,
+        expected: String,
+    },
+    UiAssertAccessibleDescription {
         node_id: String,
         expected: String,
     },
@@ -105,10 +116,13 @@ pub enum Type {
     UiFocus,
     UiScrollIntoView,
     UiAssertVisible,
+    UiAssertRealized,
+    UiWaitRealized,
     UiAssertFocused,
     UiAssertEnabled,
     UiAssertText,
     UiAssertAccessibleName,
+    UiAssertAccessibleDescription,
     Structured,
 }
 
@@ -187,10 +201,13 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.focus"
         | "ui.scroll_into_view"
         | "ui.assert_visible"
+        | "ui.assert_realized"
+        | "ui.wait_realized"
         | "ui.assert_focused"
         | "ui.assert_enabled"
         | "ui.assert_text"
-        | "ui.assert_accessible_name" => lower_atomic_effect(callee, arguments, *span),
+        | "ui.assert_accessible_name"
+        | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -307,6 +324,26 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_realized", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1134".to_string(),
+                    message:
+                        "ui.assert_realized node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_realized", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1136".to_string(),
+                    message:
+                        "ui.wait_realized node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_focused", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -358,6 +395,23 @@ fn lower_atomic_effect(
                     code: "LSH1127".to_string(),
                     message:
                         "ui.assert_accessible_name expected must be bounded display text".to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_accessible_description", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1130".to_string(),
+                    message: "ui.assert_accessible_description node_id must be a valid UI node identifier string".to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_accessible_description", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1131".to_string(),
+                    message: "ui.assert_accessible_description expected must be bounded display text"
+                        .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -420,6 +474,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_realized" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1135".to_string(),
+            message: "ui.assert_realized requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_realized" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1137".to_string(),
+            message: "ui.wait_realized requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_focused" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1119".to_string(),
@@ -459,6 +527,23 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1129".to_string(),
             message: "ui.assert_accessible_name requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_accessible_description" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1132".to_string(),
+            message: "ui.assert_accessible_description requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_accessible_description"
+        && expected_text.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1133".to_string(),
+            message: "ui.assert_accessible_description requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -568,6 +653,20 @@ fn lower_atomic_effect(
             Type::UiAssertVisible,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_realized" => (
+            Effect::UiAssertRealized {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertRealized,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_realized" => (
+            Effect::UiWaitRealized {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitRealized,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_focused" => (
             Effect::UiAssertFocused {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -596,6 +695,14 @@ fn lower_atomic_effect(
                 expected: expected_text.expect("validated UI expected accessible name"),
             },
             Type::UiAssertAccessibleName,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_accessible_description" => (
+            Effect::UiAssertAccessibleDescription {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected accessible description"),
+            },
+            Type::UiAssertAccessibleDescription,
             CAPABILITY_UI_PRESENTATION,
         ),
         _ => unreachable!("unknown effects returned above"),
@@ -673,6 +780,12 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiAssertVisible { node_id } => {
             atomic_identifier_source("ui.assert_visible", "node_id", node_id, depth)
         }
+        Effect::UiAssertRealized { node_id } => {
+            atomic_identifier_source("ui.assert_realized", "node_id", node_id, depth)
+        }
+        Effect::UiWaitRealized { node_id } => {
+            atomic_identifier_source("ui.wait_realized", "node_id", node_id, depth)
+        }
         Effect::UiAssertFocused { node_id } => {
             atomic_identifier_source("ui.assert_focused", "node_id", node_id, depth)
         }
@@ -689,6 +802,14 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         ),
         Effect::UiAssertAccessibleName { node_id, expected } => format!(
             "ui.assert_accessible_name(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiAssertAccessibleDescription { node_id, expected } => format!(
+            "ui.assert_accessible_description(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
             quote(node_id),
             indent(depth + 1),
@@ -1177,6 +1298,70 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_realized_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertRealized);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertRealized { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_realized()",
+            "fn main() = ui.assert_realized(node_id: none)",
+            "fn main() = ui.assert_realized(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_realized_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitRealized);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitRealized { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_realized()",
+            "fn main() = ui.wait_realized(node_id: none)",
+            "fn main() = ui.wait_realized(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_focused_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
@@ -1324,6 +1509,54 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_accessible_description_is_capability_gated_and_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiAssertAccessibleDescription
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertAccessibleDescription {
+                ref node_id,
+                ref expected,
+            } if node_id == "runtime-runtime-a-inspect"
+                && expected == "Open the read-only runtime workspace"
+        ));
+        let canonical = canonical_source(&program.function.effect).unwrap();
+        assert_eq!(
+            lower(&parse(&canonical)).unwrap().function.effect,
+            program.function.effect
+        );
+
+        for source in [
+            "fn main() = ui.assert_accessible_description()",
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\")",
+            "fn main() = ui.assert_accessible_description(expected: \"description\")",
+            "fn main() = ui.assert_accessible_description(node_id: \"bad/node\", expected: \"description\")",
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: none)",
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"bad\\ndescription\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized = format!(
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized)).is_err());
+    }
+
+    #[test]
     fn every_atomic_effect_has_one_semantically_stable_canonical_source() {
         for source in [
             "fn main() = runtime.list(environment: \"prod\", cluster: none, role: \"edge\")",
@@ -1337,10 +1570,13 @@ mod tests {
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {
             let effect = lower(&parse(source)).unwrap().function.effect;
             let canonical = canonical_source(&effect).unwrap();

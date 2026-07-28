@@ -12,8 +12,10 @@ serializes, restores, and resumes the read-only
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
 plus the frontend-local `ui.focus`, `ui.scroll_into_view`,
-`ui.assert_visible`, `ui.assert_focused`, `ui.assert_enabled`, and
-`ui.assert_text`, plus `ui.assert_accessible_name` presentation effects.
+`ui.assert_visible`, `ui.assert_realized`, `ui.wait_realized`, `ui.assert_focused`,
+`ui.assert_enabled`, and
+`ui.assert_text`, plus `ui.assert_accessible_name` and
+`ui.assert_accessible_description` presentation effects.
 
 ## Canonical Program
 
@@ -140,6 +142,35 @@ the renderer viewport. A hidden, unrealized, missing, or off-viewport target
 does not produce a successful presentation result. The assertion does not
 focus, scroll, select, or activate the target.
 
+Native control realization can be asserted independently of visibility:
+
+```leselang
+fn main() = ui.assert_realized(node_id: "runtime-runtime-a")
+```
+
+`ui.assert_realized` requires `ui.presentation` and any existing semantic node.
+The renderer succeeds only when that stable node currently resolves to a
+realized native control. A virtualized, missing, or removed target fails. The
+assertion does not force materialization, scroll, focus, select, or activate the
+target; it is the side-effect-free predicate used by the synchronous realization
+wait.
+
+Native realization can also be awaited without exposing an asynchronous
+language model:
+
+```leselang
+fn main() = ui.wait_realized(node_id: "runtime-runtime-a")
+```
+
+`ui.wait_realized` requires `ui.presentation` and any existing semantic node.
+The presentation envelope carries the protocol-fixed 2000 ms deadline; the
+source intentionally has no string-encoded duration argument. The frontend
+adapter yields its dispatcher between checks and succeeds only if the stable
+node naturally resolves to a native control before the deadline. Missing nodes
+fail immediately, persistently virtualized nodes time out, and cancellation is
+honored by the host. Waiting never scrolls, focuses, selects, activates, or
+otherwise forces materialization.
+
 Native keyboard focus can be asserted without changing it:
 
 ```leselang
@@ -195,6 +226,21 @@ node, and the same bounded control-free expected-text contract. The renderer
 must read the realized platform accessibility name and require an exact ordinal
 match. It does not infer success from semantic text, focus, activate, scroll, or
 change accessibility metadata.
+
+Explicit accessibility descriptions use the same bounded exact-match model:
+
+```leselang
+fn main() = ui.assert_accessible_description(
+  node_id: "runtime-runtime-a-inspect",
+  expected: "Open the read-only runtime workspace"
+)
+```
+
+`ui.assert_accessible_description` requires `ui.presentation` and a semantic
+node that explicitly declares `accessibility.description`. The renderer reads
+the realized platform help text and requires an exact ordinal match; a
+descriptionless, unrealized, or mismatched target fails without focus,
+activation, scrolling, or metadata mutation.
 
 Every atomic HIR effect has one Rust-owned canonical source representation.
 Parsing and lowering that source must reproduce the same effect. GUI event

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -68,13 +69,17 @@ internal enum PresentationAutomationFailureCode
     UnknownTarget,
     UnfocusableTarget,
     TextlessTarget,
+    DescriptionlessTarget,
     InvalidExpectedText,
+    InvalidTimeout,
     TargetUnrealized,
+    WaitTimedOut,
     TargetNotVisible,
     TargetNotFocused,
     TargetNotEnabled,
     TargetTextMismatch,
     TargetAccessibleNameMismatch,
+    TargetAccessibleDescriptionMismatch,
     FocusRejected,
 }
 
@@ -101,6 +106,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
     public int UnrealizedVirtualItemCount => nodes.Values.Sum(
         node => node.RealizedChildrenHost?.UnrealizedCount ?? 0);
     public int UnrealizedNodeCount => nodes.Values.Count(node => !node.IsRealized);
+    public string? FirstUnrealizedNodeId =>
+        nodes.Values.FirstOrDefault(node => !node.IsRealized)?.Id;
     public int RealizedDebuggerCancelButtonCount => nodes.Values.Count(node =>
         node.ActionKind is ActionKind.DebuggerCancel
         && node.TryGetRealizedControl(out var control)
@@ -148,8 +155,12 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.UnfocusableTarget,
                     UiPresentationValidation.TextlessTarget =>
                         PresentationAutomationFailureCode.TextlessTarget,
+                    UiPresentationValidation.DescriptionlessTarget =>
+                        PresentationAutomationFailureCode.DescriptionlessTarget,
                     UiPresentationValidation.InvalidExpectedText =>
                         PresentationAutomationFailureCode.InvalidExpectedText,
+                    UiPresentationValidation.InvalidTimeout =>
+                        PresentationAutomationFailureCode.InvalidTimeout,
                     _ => throw new InvalidDataException(
                         "unknown presentation validation result"),
                 });
@@ -171,6 +182,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 visible
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetNotVisible);
+        }
+        if (operation.Kind is UiPresentationOperationKind.AssertRealized
+            or UiPresentationOperationKind.WaitRealized)
+        {
+            return new PresentationAutomationResult(
+                true,
+                operation.NodeId,
+                PresentationAutomationFailureCode.None);
         }
         if (operation.Kind == UiPresentationOperationKind.AssertFocused)
         {
@@ -214,6 +233,18 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetAccessibleNameMismatch);
         }
+        if (operation.Kind == UiPresentationOperationKind.AssertAccessibleDescription)
+        {
+            var matched = StringComparer.Ordinal.Equals(
+                AutomationProperties.GetHelpText(control!),
+                operation.Expected);
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetAccessibleDescriptionMismatch);
+        }
         if (operation.Kind == UiPresentationOperationKind.ScrollIntoView)
         {
             control!.BringIntoView();
@@ -233,6 +264,46 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             true,
             operation.NodeId,
             PresentationAutomationFailureCode.None);
+    }
+
+    public async Task<PresentationAutomationResult> ApplyPresentationAsync(
+        UiPresentationOperation operation,
+        CancellationToken cancellationToken = default)
+    {
+        if (operation.Kind != UiPresentationOperationKind.WaitRealized)
+        {
+            return await Dispatcher.UIThread.InvokeAsync(
+                () => ApplyPresentation(operation));
+        }
+
+        var startedAt = Stopwatch.GetTimestamp();
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await Dispatcher.UIThread.InvokeAsync(
+                () => ApplyPresentation(operation));
+            if (result.Applied
+                || result.FailureCode != PresentationAutomationFailureCode.TargetUnrealized)
+            {
+                return result;
+            }
+
+            var timeout = TimeSpan.FromMilliseconds(
+                operation.TimeoutMs ?? SemanticRenderer.WaitRealizedTimeoutMs);
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
+            if (elapsed >= timeout)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.WaitTimedOut);
+            }
+            var delay = TimeSpan.FromMilliseconds(16);
+            var remaining = timeout - elapsed;
+            await Task.Delay(
+                remaining < delay ? remaining : delay,
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private bool IsControlVisibleInSurface(Control control)

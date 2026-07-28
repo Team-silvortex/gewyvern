@@ -35,14 +35,21 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.Focus"));
     assert!(core.contains("UiPresentationOperationKind.ScrollIntoView"));
     assert!(core.contains("UiPresentationOperationKind.AssertVisible"));
+    assert!(core.contains("UiPresentationOperationKind.AssertRealized"));
+    assert!(core.contains("UiPresentationOperationKind.WaitRealized"));
+    assert!(core.contains("WaitRealizedTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertFocused"));
     assert!(core.contains("UiPresentationOperationKind.AssertEnabled"));
     assert!(core.contains("UiPresentationOperationKind.AssertText"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
+    assert!(core.contains("UiPresentationOperationKind.AssertAccessibleDescription"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
     assert!(core.contains("UiPresentationValidation.UnfocusableTarget"));
     assert!(renderer.contains("PresentationAutomationResult ApplyPresentation"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetUnrealized"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.WaitTimedOut"));
+    assert!(renderer.contains("ApplyPresentationAsync"));
+    assert!(renderer.contains("Task.Delay("));
     assert!(renderer.contains("PresentationAutomationFailureCode.FocusRejected"));
     assert!(renderer.contains("control!.BringIntoView()"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotVisible"));
@@ -50,6 +57,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotEnabled"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetTextMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAccessibleNameMismatch"));
+    assert!(
+        renderer.contains("PresentationAutomationFailureCode.TargetAccessibleDescriptionMismatch")
+    );
     assert!(renderer.contains("control.IsEffectivelyVisible"));
     assert!(renderer.contains("control!.IsEffectivelyEnabled"));
     assert!(renderer.contains("StringComparer.Ordinal.Equals(actual, operation.Expected)"));
@@ -57,12 +67,19 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("leselang_presentation=true"));
     assert!(app.contains("scroll_into_view=true"));
     assert!(app.contains("assert_visible=true"));
+    assert!(app.contains("assert_realized=true"));
+    assert!(app.contains("wait_realized=true"));
+    assert!(app.contains("wait_realized_natural_layout=true"));
+    assert!(app.contains("wait_realized_timeout=true"));
+    assert!(app.contains("unrealized_target_rejected=true"));
     assert!(app.contains("assert_focused=true"));
     assert!(app.contains("assert_enabled=true"));
     assert!(app.contains("disabled_target_rejected=true"));
     assert!(app.contains("assert_text=true"));
     assert!(app.contains("assert_accessible_name=true"));
     assert!(app.contains("accessible_name_mismatch_rejected=true"));
+    assert!(app.contains("assert_accessible_description=true"));
+    assert!(app.contains("accessible_description_mismatch_rejected=true"));
     assert!(app.contains("text_mismatch_rejected=true"));
     assert!(conformance.contains("presentation_focus=true"));
 }

@@ -37,14 +37,17 @@ semantic tree with the Rust-produced next document. The frozen primary fixture
 remains the version-1 compatibility baseline.
 
 The separate candidate fixture carries Rust-generated
-`UiPresentationOperation::Focus`, `ScrollIntoView`, `AssertVisible`, and
-`AssertFocused`, plus `AssertEnabled`, `AssertText`, and
-`AssertAccessibleName` values. RendererCore strictly round-trips all seven and
+`UiPresentationOperation::Focus`, `ScrollIntoView`, `AssertVisible`,
+`AssertRealized`, `WaitRealized`, and `AssertFocused`, plus `AssertEnabled`, `AssertText`, and
+`AssertAccessibleName` and `AssertAccessibleDescription` values. RendererCore
+strictly round-trips all ten and
 validates valid, missing, noninteractive,
 textless, and invalid-expected-text targets before the Avalonia shell proves
-native focus, bring-into-view, viewport-aware visibility, and side-effect-free
+native focus, bring-into-view, viewport-aware visibility, native realization,
+fixed-deadline dispatcher-yielding realization wait, and side-effect-free
 focus, enabled-state, actual displayed-text, and accessibility-name observation
-through its stable visual index. Scrolling a noninteractive node must preserve the currently
+plus declared accessibility-description observation through its stable visual
+index. Scrolling a noninteractive node must preserve the currently
 focused control, hiding the renderer surface must make visibility assertion
 fail, an unfocused action must make focus assertion fail, a disabled action
 must make enabled assertion fail, and mismatched native text or accessibility
