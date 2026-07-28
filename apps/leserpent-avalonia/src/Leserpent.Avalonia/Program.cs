@@ -84,6 +84,13 @@ internal static class Program
                 "retirement client valid: https_route=true, strict_state=true, bounded=true, stable_identity=true, provisioning_bound=true, opaque_handles=true, raw_secrets=false, failure_preserves_registration=true");
             return 0;
         }
+        if (args is ["--verify-daemon-retirement-client"])
+        {
+            RemoteDaemonRetirementClient.VerifyContract();
+            Console.WriteLine(
+                "daemon retirement client valid: https_route=true, strict_state=true, bounded=true, stable_identity=true, bootstrap_bound=true, authority_omitting=true, opaque_handles=true, raw_secrets=false, runtime_retirement_independent=true");
+            return 0;
+        }
         if (args is ["--verify-bootstrap-promotion"])
         {
             DesktopBootstrapPromotion.VerifyContract();

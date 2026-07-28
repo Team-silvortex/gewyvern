@@ -643,9 +643,15 @@ response binding, restart replay is covered, and the production bootstrap origin
 registers both deployment and retirement adapters. Explicit authenticated
 `daemon_retirement_v1` IPC and `/v1/daemon-retirement` HTTPS routes are now
 adapter-gated, bounded, operation-specific, and proven not to collide with
-Gewyvern runtime retirement even when IDs match. The remaining product gate is
-native CLI and Avalonia orchestration, followed by privileged system-profile
-and WinRM evidence.
+Gewyvern runtime retirement even when IDs match. The native CLI now exposes the
+confirmed `bootstrap retire` operation with authority-omitting input, identical
+IPC/HTTPS lowering, credential-free progress, bounded waiting, and distinct
+protocol/failure/timeout exit codes. Avalonia now provides a separate confirmed
+`Retire daemon` workspace with a source-generated strict codec, no
+client-supplied derived authority, stable identity locking, credential-free
+status, and at most 30 exact-request observations. Hub daemon and Gewyvern
+lifecycle actions remain visibly separate. The remaining evidence gate is
+privileged system-profile retirement and WinRM.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

@@ -10,6 +10,11 @@ use leserpent_protocol::bootstrap::{
     BootstrapRequestEnvelope, BootstrapResponseEnvelope, MAX_BOOTSTRAP_PROTOCOL_BYTES,
     decode_bootstrap_response, encode_bootstrap_request,
 };
+use leserpent_protocol::bootstrap_retirement_control::{
+    DaemonRetirementRequestEnvelope, DaemonRetirementResponseEnvelope,
+    MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES, decode_daemon_retirement_response,
+    encode_daemon_retirement_request,
+};
 use leserpent_protocol::provisioning::{
     MAX_PROVISIONING_PROTOCOL_BYTES, ProvisioningRequestEnvelope, ProvisioningResponseEnvelope,
     decode_provisioning_response, encode_provisioning_request,
@@ -166,6 +171,22 @@ impl HttpsClient {
         }
         let response = self.send_json("/v1/retirement", &body)?;
         decode_retirement_response(&response)
+            .map_err(|error| CliError::Protocol(format!("{error:?}")))
+    }
+
+    pub fn send_daemon_retirement(
+        &self,
+        request: &DaemonRetirementRequestEnvelope,
+    ) -> Result<DaemonRetirementResponseEnvelope, CliError> {
+        let body = encode_daemon_retirement_request(request)
+            .map_err(|error| CliError::Protocol(error.to_string()))?;
+        if body.len() > MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES {
+            return Err(CliError::Protocol(
+                "remote daemon retirement request exceeds the protocol limit".into(),
+            ));
+        }
+        let response = self.send_json("/v1/daemon-retirement", &body)?;
+        decode_daemon_retirement_response(&response)
             .map_err(|error| CliError::Protocol(format!("{error:?}")))
     }
 

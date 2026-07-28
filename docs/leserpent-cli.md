@@ -80,6 +80,8 @@ leserpent runtime provision runtime-new --provisioning-id provision-a \
 leserpent runtime retire runtime-a --retirement-id retire-a \
   --provisioning-id provision-a --host runtime.example \
   --credential-handle vault:ssh:runtime-retirement --yes --wait
+leserpent bootstrap retire bootstrap-a --retirement-id daemon-retire-a \
+  --credential-handle vault:ssh:daemon-retirement --yes --wait
 ```
 
 Human list output is tabular and replaces terminal control characters. JSON
@@ -168,7 +170,17 @@ Retirement additionally binds the original provisioning ID; daemon rejection
 prevents an unrelated registered runtime from being retired. A failed external
 retirement leaves the runtime registered and inspectable.
 
+`bootstrap retire` is the independent product-level retirement of the
+`leserpentd` service created by a completed bootstrap. Unlike `runtime retire`,
+it accepts no host, port, daemon ID, generation, or install profile. The daemon
+derives those authority fields from the matching `SessionBound` bootstrap
+checkpoint, while the CLI supplies only the bootstrap ID, stable retirement ID,
+opaque SSH vault handle, principal, and explicit confirmation. IPC and HTTPS
+share one strict 64 KiB protocol. Optional `--wait`, `--count`, and
+`--interval-ms` have the same bounded progress behavior as runtime retirement,
+and human output never includes the credential handle.
+
 Exit code `0` means success, `2` means local usage/configuration/transport
 failure, and `3` means the daemon returned a protocol error. Provisioning or
-retirement terminal failure returns `4`; bounded waiting that never reaches a
-terminal phase returns `5`.
+either retirement operation's terminal failure returns `4`; bounded waiting
+that never reaches a terminal phase returns `5`.

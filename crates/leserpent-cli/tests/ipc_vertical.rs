@@ -11,10 +11,17 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use leserpent_adapters::{
-    EffectAdapter, GEWYVERN_PROVISIONING_EFFECT_KIND, GEWYVERN_RETIREMENT_EFFECT_KIND,
+    DAEMON_RETIREMENT_EFFECT_KIND, EffectAdapter, GEWYVERN_PROVISIONING_EFFECT_KIND,
+    GEWYVERN_RETIREMENT_EFFECT_KIND,
 };
+use leserpent_domain::bootstrap_retirement::DaemonRetirement;
 use leserpent_domain::provisioning::RuntimeProvisioning;
 use leserpent_domain::retirement::RuntimeRetirement;
+use leserpent_protocol::bootstrap_retirement_control::{
+    DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION, DaemonRetirementResponse,
+    DaemonRetirementResponseEnvelope, decode_daemon_retirement_effect,
+    encode_daemon_retirement_response,
+};
 use leserpent_protocol::provisioning::{
     PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningResponse, ProvisioningResponseEnvelope,
     decode_provisioning_request, encode_provisioning_response,
@@ -31,6 +38,7 @@ const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 
 struct FailedProvisioningAdapter;
 struct FailedRetirementAdapter;
+struct FailedDaemonRetirementAdapter;
 
 impl EffectAdapter for FailedProvisioningAdapter {
     fn kind(&self) -> &str {
@@ -82,6 +90,28 @@ impl EffectAdapter for FailedRetirementAdapter {
     }
 }
 
+impl EffectAdapter for FailedDaemonRetirementAdapter {
+    fn kind(&self) -> &str {
+        DAEMON_RETIREMENT_EFFECT_KIND
+    }
+
+    fn execute(&mut self, payload: &[u8]) -> EffectExecution {
+        let effect = decode_daemon_retirement_effect(payload).unwrap();
+        let mut retirement = DaemonRetirement::resume(&effect.checkpoint).unwrap();
+        retirement.begin().unwrap();
+        let state = retirement
+            .record_fault("test_daemon_retirement_failed")
+            .unwrap();
+        EffectExecution::Complete(
+            encode_daemon_retirement_response(&DaemonRetirementResponseEnvelope {
+                schema_version: DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+                response: DaemonRetirementResponse::State(state),
+            })
+            .unwrap(),
+        )
+    }
+}
+
 #[test]
 fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
     let database = temp_path("sqlite");
@@ -99,11 +129,13 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
             "runtime-a",
             "runtime.example",
         );
+        support::seed_bound_deployment(&mut runtime, "bootstrap-cli-retire");
         let ipc = IpcServer::bind(&server_socket, TOKEN)
             .unwrap()
             .with_bootstrap_submission()
             .with_provisioning_submission()
-            .with_retirement_submission();
+            .with_retirement_submission()
+            .with_daemon_retirement_submission();
         ready_tx.send(()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             ipc.poll_once(&mut runtime).unwrap();
@@ -352,6 +384,84 @@ fn native_cli_uses_authenticated_wire_v1_for_health_and_runtime_list() {
             .contains("bootstrap=bootstrap-cli-1 phase=planned")
     );
 
+    let unconfirmed_daemon_retirement = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "bootstrap",
+            "retire",
+            "bootstrap-cli-retire",
+            "--retirement-id",
+            "retire-daemon-cli-1",
+            "--credential-handle",
+            "vault:ssh:daemon-retirement-secret",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(unconfirmed_daemon_retirement.status.code(), Some(2));
+    assert!(
+        String::from_utf8(unconfirmed_daemon_retirement.stderr)
+            .unwrap()
+            .contains("requires explicit --yes")
+    );
+
+    let daemon_retirement = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "bootstrap",
+            "retire",
+            "bootstrap-cli-retire",
+            "--retirement-id",
+            "retire-daemon-cli-1",
+            "--credential-handle",
+            "vault:ssh:daemon-retirement-secret",
+            "--yes",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert!(
+        daemon_retirement.status.success(),
+        "{}",
+        String::from_utf8_lossy(&daemon_retirement.stderr)
+    );
+    let output = String::from_utf8(daemon_retirement.stdout).unwrap();
+    assert!(output.contains("daemon_retirement=retire-daemon-cli-1"));
+    assert!(output.contains("bootstrap=bootstrap-cli-retire"));
+    assert!(output.contains("phase=planned"));
+    assert!(!output.contains("daemon-retirement-secret"));
+
+    let bounded_daemon_retirement_wait = Command::new(binary)
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "bootstrap",
+            "retire",
+            "bootstrap-cli-retire",
+            "--retirement-id",
+            "retire-daemon-cli-1",
+            "--credential-handle",
+            "vault:ssh:daemon-retirement-secret",
+            "--yes",
+            "--wait",
+            "--count",
+            "1",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(bounded_daemon_retirement_wait.status.code(), Some(5));
+    assert!(
+        String::from_utf8(bounded_daemon_retirement_wait.stderr)
+            .unwrap()
+            .contains("daemon retirement retire-daemon-cli-1 did not reach a terminal phase")
+    );
+
     let unconfirmed_provisioning = Command::new(binary)
         .args([
             "--socket",
@@ -541,9 +651,11 @@ fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
             "runtime-retirement-failed",
             "runtime.example",
         );
+        support::seed_bound_deployment(&mut runtime, "bootstrap-retirement-failed");
         let mut registry = AdapterRegistry::default();
         registry.register(FailedProvisioningAdapter).unwrap();
         registry.register(FailedRetirementAdapter).unwrap();
+        registry.register(FailedDaemonRetirementAdapter).unwrap();
         let mut host = DaemonHost::new(
             runtime,
             registry,
@@ -556,7 +668,8 @@ fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
         let ipc = IpcServer::bind(&server_socket, TOKEN)
             .unwrap()
             .with_provisioning_submission()
-            .with_retirement_submission();
+            .with_retirement_submission()
+            .with_daemon_retirement_submission();
         ready_tx.send(()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             ipc.poll_once(host.runtime_mut()).unwrap();
@@ -628,6 +741,35 @@ fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
     assert!(stdout.contains("phase=failed"));
     assert!(stdout.contains("fault=test_retirement_failed"));
     assert!(!stdout.contains("secret-retirement-handle"));
+
+    let daemon_retirement = Command::new(env!("CARGO_BIN_EXE_leserpent"))
+        .args([
+            "--socket",
+            socket.to_str().unwrap(),
+            "bootstrap",
+            "retire",
+            "bootstrap-retirement-failed",
+            "--retirement-id",
+            "retire-daemon-failed-1",
+            "--credential-handle",
+            "vault:ssh:secret-daemon-retirement-handle",
+            "--yes",
+            "--wait",
+            "--count",
+            "20",
+            "--interval-ms",
+            "50",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(daemon_retirement.status.code(), Some(4));
+    let stdout = String::from_utf8(daemon_retirement.stdout).unwrap();
+    assert!(stdout.contains("phase=planned"));
+    assert!(stdout.contains("phase=failed"));
+    assert!(stdout.contains("fault=test_daemon_retirement_failed"));
+    assert!(!stdout.contains("secret-daemon-retirement-handle"));
 
     let inspect = Command::new(env!("CARGO_BIN_EXE_leserpent"))
         .args([

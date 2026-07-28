@@ -103,8 +103,9 @@ control sequence with `--verify-bootstrap-controls`.
 
 On macOS and Linux, set `LESERPENT_BOOTSTRAP_CONFIG` to the absolute private
 origin-config path before launching the desktop app to make Local Orchestra a
-deployment authority. The managed local daemon receives that config plus a
-private app-owned trust root. After server-verified binding, `Add to Hub` reads
+deployment and daemon-retirement authority. The managed local daemon receives
+that config plus a private app-owned trust root. After server-verified binding,
+`Add to Hub` reads
 the endpoint-bound CA record from that root, resolves the `vault:leserpentd:*`
 session handle from the Rust-compatible platform secret schema, proves target
 TLS/token health, then stores the target token and secret-free profile. Automatic
@@ -136,6 +137,19 @@ unregistration; a failed state explicitly preserves the runtime registration
 for recovery and requires a new retirement ID for a corrected attempt. Verify
 the strict codec with `--verify-retirement-client` and the native controls with
 `--verify-retirement-controls`.
+
+`Retire daemon` is a separate destructive workspace for a `leserpentd` service
+created by reverse bootstrap. The desktop submits only the original bootstrap
+ID, a stable retirement ID, an opaque `vault:ssh:*` handle, principal, and
+explicit confirmation to `POST /v1/daemon-retirement`. Host, daemon ID,
+generation, and install profile are derived from the server-side
+`SessionBound` checkpoint and cannot be entered in the form. The complete
+identity locks after submission, automatic observation is bounded to 30 exact
+request replays, and status never renders the credential handle. Successful
+service retirement refreshes Hub topology but deliberately does not delete a
+saved connection or credential without a separate operator action. Verify the
+strict AOT codec with `--verify-daemon-retirement-client` and the native controls
+with `--verify-daemon-retirement-controls`.
 
 On macOS and Linux, `LESERPENT_GEWYVERN_PROVISIONING_CONFIG` may point to the
 absolute private `gewyvern-provisioning-config` file before app startup. Local

@@ -66,6 +66,12 @@ internal sealed class LeserpentApp : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            if (desktop.Args is ["--verify-daemon-retirement-controls"])
+            {
+                ConfigureDaemonRetirementControlVerification(desktop);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             if (desktop.Args is ["--remote", ..])
             {
                 ConfigureRemoteWindow(desktop);
@@ -336,6 +342,7 @@ internal sealed class LeserpentApp : Application
             },
             _ => Task.FromResult(topology),
             (_, _) => Task.FromResult(topology),
+            () => { },
             () => { },
             () => { },
             () => { },
@@ -641,6 +648,78 @@ internal sealed class LeserpentApp : Application
         desktop.MainWindow = window;
     }
 
+    private static void ConfigureDaemonRetirementControlVerification(
+        IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var reconcileCount = 0;
+        RemoteDaemonRetirementIntent? acceptedIntent = null;
+        var window = new DaemonRetirementWindow(
+            [new BootstrapAuthorityOption(
+                "daemon-verification",
+                "Verification authority",
+                "https://controller.example:9443",
+                false)],
+            new DaemonRetirementHubOperations((_, intent, _) =>
+            {
+                reconcileCount++;
+                acceptedIntent ??= intent;
+                if (acceptedIntent != intent)
+                {
+                    throw new InvalidDataException(
+                        "daemon retirement controls changed identity while observing progress");
+                }
+                return Task.FromResult(reconcileCount == 1
+                    ? new RemoteDaemonRetirementSnapshot(
+                        intent.RetirementId,
+                        intent.BootstrapId,
+                        "daemon-target",
+                        "planned",
+                        "ssh",
+                        "daemon.example",
+                        22,
+                        new string('a', 64),
+                        "system",
+                        true,
+                        false,
+                        null)
+                    : new RemoteDaemonRetirementSnapshot(
+                        intent.RetirementId,
+                        intent.BootstrapId,
+                        "daemon-target",
+                        "service_retired",
+                        "ssh",
+                        "daemon.example",
+                        22,
+                        new string('a', 64),
+                        "system",
+                        false,
+                        true,
+                        null));
+            }));
+        RegisterMainWindowLifecycle(desktop, window);
+        window.Opened += async (_, _) =>
+        {
+            window.VerifyAccessibility();
+            await window.ProbeConfirmationFenceAsync();
+            if (reconcileCount != 0)
+            {
+                throw new InvalidDataException(
+                    "daemon retirement controls submitted without explicit confirmation");
+            }
+            await window.ProbeWorkflowAsync();
+            if (reconcileCount != 2 || acceptedIntent is null)
+            {
+                throw new InvalidDataException(
+                    "daemon retirement controls did not preserve submit-observe identity");
+            }
+            Console.WriteLine(
+                "daemon retirement controls valid: controls=10, authority_scoped=true, bootstrap_bound=true, authority_omitting=true, opaque_ssh_handle=true, explicit_confirmation=true, unconfirmed_submit_blocked=true, stable_identity=true, bounded_polling=30, terminal_state=true, retry_guidance=true, automation=true");
+            DispatcherTimer.RunOnce(window.Close, TimeSpan.FromMilliseconds(100));
+        };
+        window.Closed += (_, _) => desktop.Shutdown(0);
+        desktop.MainWindow = window;
+    }
+
     private static void ConfigureInteractiveDesktop(
         IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -734,6 +813,7 @@ internal sealed class LeserpentApp : Application
                 connection,
                 cancellationToken),
             () => ShowBootstrapDeployment(desktop, catalogStore, certificateStore),
+            () => ShowDaemonRetirement(desktop, catalogStore, certificateStore),
             () => ShowGewyvernProvisioning(desktop, catalogStore, certificateStore),
             () => ShowGewyvernRetirement(desktop, catalogStore, certificateStore),
             () => ShowConnectionManager(desktop, null),
@@ -1075,6 +1155,109 @@ internal sealed class LeserpentApp : Application
             connection);
         using var client = new RemoteBootstrapClient(plan.Options);
         return await operation(client, cancellationToken);
+    }
+
+    private static void ShowDaemonRetirement(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore)
+    {
+        try
+        {
+            var catalog = DesktopProductStartup.PrepareSavedCatalog(
+                catalogStore.Load(),
+                catalogStore,
+                certificateStore);
+            var authorities = catalog.Connections
+                .Select(connection => new BootstrapAuthorityOption(
+                    connection.DaemonId,
+                    connection.DisplayName,
+                    connection.Profile.Endpoint,
+                    false))
+                .ToList();
+            if (localOrchestraService is { BootstrapEnabled: true })
+            {
+                authorities.Insert(0, new BootstrapAuthorityOption(
+                    "local-orchestra",
+                    "Local Orchestra",
+                    "Managed on this device",
+                    false));
+            }
+            if (authorities.Count == 0)
+            {
+                throw new InvalidDataException(
+                    "Add and authenticate the daemon authority that owns the original bootstrap before retiring its deployed daemon.");
+            }
+            var operations = new DaemonRetirementHubOperations(
+                async (authorityId, intent, cancellationToken) =>
+                {
+                    var state = await ExecuteDaemonRetirementAsync(
+                        catalogStore,
+                        certificateStore,
+                        authorityId,
+                        intent,
+                        cancellationToken);
+                    if (state.ServiceRetired)
+                    {
+                        RefreshHub(desktop);
+                    }
+                    return state;
+                });
+            var window = new DaemonRetirementWindow(authorities, operations);
+            if (desktop.MainWindow is { } owner)
+            {
+                window.Show(owner);
+            }
+            else
+            {
+                window.Show();
+            }
+        }
+        catch (Exception error) when (StartupFailure.IsExpected(error))
+        {
+            var description = StartupFailure.Describe(
+                error,
+                Environment.GetEnvironmentVariable(RemoteTokenResolver.EnvironmentVariable));
+            new StartupErrorWindow(description).Show();
+        }
+    }
+
+    private static async Task<RemoteDaemonRetirementSnapshot> ExecuteDaemonRetirementAsync(
+        DesktopConnectionCatalogStore catalogStore,
+        DesktopCertificateAuthorityStore certificateStore,
+        string authorityId,
+        RemoteDaemonRetirementIntent intent,
+        CancellationToken cancellationToken)
+    {
+        if (authorityId == "local-orchestra")
+        {
+            if (localOrchestraService is not { BootstrapEnabled: true } localService)
+            {
+                throw new InvalidDataException(
+                    "local daemon retirement authority is unavailable");
+            }
+            if (!localService.TryEnsureReady(
+                    certificateStore,
+                    out var localPlan,
+                    out var startupError)
+                || localPlan is null)
+            {
+                throw new InvalidDataException(
+                    startupError ?? "local daemon retirement authority is unavailable");
+            }
+            using var localClient = new RemoteDaemonRetirementClient(localPlan.Options);
+            return await localClient.ReconcileAsync(intent, cancellationToken);
+        }
+        var connection = catalogStore.Load().Connections.SingleOrDefault(
+            item => item.DaemonId == authorityId)
+            ?? throw new InvalidDataException(
+                "the daemon retirement authority changed; reopen the Hub before continuing");
+        var plan = ResolveRemoteConnectionPlan(
+            catalogStore,
+            certificateStore,
+            connection);
+        using var client = new RemoteDaemonRetirementClient(plan.Options);
+        return await client.ReconcileAsync(intent, cancellationToken);
     }
 
     private static void ShowGewyvernProvisioning(

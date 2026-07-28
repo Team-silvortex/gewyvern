@@ -529,15 +529,35 @@ operation-specific error envelope and create no checkpoint. A shared
 retirement ID may exist in daemon and Gewyvern runtime retirement namespaces
 without collision because authority lookup always includes the operation kind.
 
-This closes durable handoff recovery but not the product entrypoint. The
-authenticated IPC/HTTPS wire now supports checkpoint query and confirmed
-session bind by bootstrap ID. Bind deliberately accepts no proof fields. A
-server-owned `BootstrapSessionVerifier` must resolve the retained session token
-and CA record, require exact endpoint binding, and prove the target's TLS, token,
-wire schema, readiness, and daemon authority before creating the internal proof.
-Without a verifier the operation fails closed. The packaged daemon can enable
-the native implementation with `--bootstrap-trust-root`; the Rust CLI consumes
-the operations through `bootstrap inspect` and `bootstrap bind ... --yes`.
+The native CLI exposes this product operation as `bootstrap retire`. It accepts
+only the bootstrap ID, a caller-stable retirement ID, an opaque `vault:ssh:*`
+credential handle, and explicit `--yes` confirmation. Target, daemon,
+generation, and install profile cannot be supplied by the caller and remain
+checkpoint-derived authority. Local IPC and authenticated HTTPS use the same
+request, renderer, bounded polling loop, and terminal exit codes. Human progress
+never renders the credential handle; `--wait` reports terminal failure as exit
+code 4 and bounded observation exhaustion as exit code 5.
+
+The Avalonia Hub exposes the same operation through a separate `Retire daemon`
+workspace rather than overloading `Retire gewyvern`. Its AOT source-generated
+codec rejects unknown fields and verifies the checkpoint-derived daemon,
+target, generation, and install profile returned by the controller while its
+request model has no fields capable of supplying them. The native form requires
+explicit confirmation, locks the authority/bootstrap/retirement/credential
+identity after submission, and performs at most 30 automatic observations by
+replaying the exact request. Human status omits the credential handle. A
+successful service retirement refreshes topology but does not implicitly remove
+an independently persisted Hub connection or platform credential.
+
+Separately, the authenticated IPC/HTTPS handoff wire supports checkpoint query
+and confirmed session bind by bootstrap ID. Bind deliberately accepts no proof
+fields. A server-owned `BootstrapSessionVerifier` must resolve the retained
+session token and CA record, require exact endpoint binding, and prove the
+target's TLS, token, wire schema, readiness, and daemon authority before creating
+the internal proof. Without a verifier the operation fails closed. The packaged
+daemon can enable the native implementation with `--bootstrap-trust-root`; the
+Rust CLI consumes the operations through `bootstrap inspect` and
+`bootstrap bind ... --yes`.
 
 The packaged daemon now includes the feature-gated native SSH origin and can
 register it through `--bootstrap-config` plus `--bootstrap-trust-root`. The

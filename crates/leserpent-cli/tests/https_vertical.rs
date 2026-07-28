@@ -378,6 +378,7 @@ fn native_cli_submits_provisioning_bound_retirement_over_authenticated_https() {
             "runtime-https-retire",
             "runtime.example",
         );
+        support::seed_bound_deployment(&mut runtime, "bootstrap-https-retire");
         let mut https = RemoteServer::bind(
             "127.0.0.1:0".parse().unwrap(),
             server_certificate,
@@ -385,7 +386,8 @@ fn native_cli_submits_provisioning_bound_retirement_over_authenticated_https() {
             TOKEN,
         )
         .unwrap()
-        .with_retirement_submission();
+        .with_retirement_submission()
+        .with_daemon_retirement_submission();
         ready_tx.send(https.local_addr().unwrap()).unwrap();
         while !server_stop.load(Ordering::Acquire) {
             https.poll_once(&mut runtime).unwrap();
@@ -420,6 +422,31 @@ fn native_cli_submits_provisioning_bound_retirement_over_authenticated_https() {
     assert!(output.contains("runtime=runtime-https-retire phase=planned"));
     assert!(!output.contains("https-retirement-secret"));
 
+    let daemon_retirement = remote_command(binary, &endpoint, &certificate)
+        .args([
+            "bootstrap",
+            "retire",
+            "bootstrap-https-retire",
+            "--retirement-id",
+            "retire-daemon-https-1",
+            "--credential-handle",
+            "vault:ssh:https-daemon-retirement-secret",
+            "--yes",
+        ])
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert!(
+        daemon_retirement.status.success(),
+        "{}",
+        stderr(&daemon_retirement)
+    );
+    let output = String::from_utf8(daemon_retirement.stdout).unwrap();
+    assert!(output.contains("daemon_retirement=retire-daemon-https-1"));
+    assert!(output.contains("bootstrap=bootstrap-https-retire"));
+    assert!(output.contains("phase=planned"));
+    assert!(!output.contains("https-daemon-retirement-secret"));
+
     let unauthorized = Command::new(binary)
         .args([
             "--remote",
@@ -445,6 +472,28 @@ fn native_cli_submits_provisioning_bound_retirement_over_authenticated_https() {
         .unwrap();
     assert_eq!(unauthorized.status.code(), Some(3));
     assert!(stderr(&unauthorized).contains("unauthorized"));
+
+    let unauthorized_daemon_retirement = Command::new(binary)
+        .args([
+            "--remote",
+            &endpoint,
+            "--remote-ca",
+            certificate.to_str().unwrap(),
+            "bootstrap",
+            "retire",
+            "bootstrap-https-retire",
+            "--retirement-id",
+            "retire-daemon-https-unauthorized",
+            "--credential-handle",
+            "vault:ssh:https-daemon-retirement-secret",
+            "--yes",
+        ])
+        .env("LESERPENT_REMOTE_TOKEN", "fedcba9876543210fedcba9876543210")
+        .env("LESERPENT_PRINCIPAL", "integration-test")
+        .output()
+        .unwrap();
+    assert_eq!(unauthorized_daemon_retirement.status.code(), Some(3));
+    assert!(stderr(&unauthorized_daemon_retirement).contains("unauthorized"));
 
     stop.store(true, Ordering::Release);
     server.join().unwrap();

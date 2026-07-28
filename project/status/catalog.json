@@ -1614,7 +1614,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.24.0",
+        "version": "0.26.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1736,6 +1736,22 @@
           "adapter-registration-daemon-retirement-route-gate",
           "retirement-operation-namespace-isolation",
           "daemon-retirement-auth-error-envelope",
+          "native-cli-confirmed-daemon-retirement",
+          "authenticated-cli-daemon-retirement-ipc-https",
+          "authority-omitting-cli-daemon-retirement-request",
+          "bounded-cli-daemon-retirement-progress",
+          "daemon-retirement-terminal-exit-codes",
+          "credential-free-daemon-retirement-output",
+          "explicit-cli-daemon-retirement-confirmation",
+          "avalonia-confirmed-daemon-retirement",
+          "authenticated-avalonia-daemon-retirement-https",
+          "authority-omitting-avalonia-daemon-retirement",
+          "bootstrap-bound-avalonia-daemon-retirement",
+          "identity-locked-avalonia-daemon-retirement-progress",
+          "bounded-avalonia-daemon-retirement-poll",
+          "credential-free-avalonia-daemon-retirement-status",
+          "daemon-retirement-failure-recovery-guidance",
+          "hub-separated-daemon-runtime-lifecycle-actions",
           "divergent-bootstrap-identity-rejection",
           "native-cli-bootstrap-deploy",
           "ssh-vault-only-cli-submission",
@@ -1786,7 +1802,7 @@
       "blockers": [
         {
           "id": "cross-platform-bootstrap-installation-incomplete",
-          "summary": "The bootstrap install/activate path and identity-bound bootstrap-retire-v1 path now have native macOS process proof plus pinned-SSH Linux systemd-user deployment, forged-generation rejection, retirement, replay, and residue evidence. Product-level daemon-retirement persistence, scheduling, worker settlement, native adapter registration, authenticated IPC, and authenticated HTTPS are complete; CLI, Avalonia, WinRM, and privileged system-profile evidence remain."
+          "summary": "The bootstrap install/activate path and identity-bound bootstrap-retire-v1 path now have native macOS process proof plus pinned-SSH Linux systemd-user deployment, forged-generation rejection, retirement, replay, and residue evidence. Product-level daemon-retirement persistence, scheduling, worker settlement, native adapter registration, authenticated IPC/HTTPS, native CLI orchestration, and Avalonia Hub orchestration are complete; WinRM and privileged system-profile evidence remain."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1827,13 +1843,16 @@
         { "kind": "test", "path": "crates/leserpent-cli/tests/ipc_vertical.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteBootstrapClient.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDaemonRetirementClient.cs", "state": "present" },
+        { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDaemonRetirementContracts.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/BootstrapDeploymentWindow.cs", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DaemonRetirementWindow.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/DesktopBootstrapPromotion.cs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Expose the independently persisted daemon-retirement operation through the native CLI and Avalonia orchestration while preserving its separation from runtime retirement."
+      "next_gate": "Complete privileged system-profile and WinRM daemon-retirement evidence while preserving the stable CLI and Avalonia authority-omitting orchestration."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
@@ -2048,9 +2067,9 @@
       "independence": "standalone-tool",
       "contract": {
         "id": "leserpent-cli-contract",
-        "version": "1.6.0",
+        "version": "1.7.0",
         "stability": "stable",
-        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "bounded-resolved-address-connect-budget", "atomic-unix-ca-open", "strict-ascii-token-header-names", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "zeroized-transport-credentials", "zeroized-authenticated-request-buffer", "zeroized-authorization-header", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "runtime-deploy-command", "bounded-deployment-arguments", "runtime-provision-command", "runtime-retire-command", "authenticated-retirement-ipc-https", "stable-retirement-identity-replay", "credential-free-retirement-progress", "retirement-terminal-exit-code", "runtime-capability-refresh-command", "remote-capability-refresh-command", "remote-discovery-inspect-readback", "bounded-capability-summary", "explicit-unobserved-capabilities", "capability-observation-revision-output", "canonical-capability-endpoint-output", "sorted-capability-extension-output", "capability-secret-omission", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "cli-leselang-deployment-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping", "native-cli-generation-bound-unregistration-receipt", "runtime-unregister-receipt-command"]
+        "surfaces": ["native-binary", "manual-bounded-argument-parser", "mutually-exclusive-transport-selection", "authenticated-unix-ipc-client", "authenticated-https-client", "bounded-resolved-address-connect-budget", "atomic-unix-ca-open", "strict-ascii-token-header-names", "explicit-ca-trust", "tls-hostname-verification", "environment-only-tokens", "zeroized-transport-credentials", "zeroized-authenticated-request-buffer", "zeroized-authorization-header", "private-socket-validation", "bounded-http-response", "no-redirect-remote-transport", "wire-v1-health", "runtime-list-query", "runtime-list-filters", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-log-response-rendering", "runtime-refresh-command", "runtime-deploy-command", "bounded-deployment-arguments", "runtime-provision-command", "runtime-retire-command", "authenticated-retirement-ipc-https", "stable-retirement-identity-replay", "credential-free-retirement-progress", "retirement-terminal-exit-code", "native-cli-confirmed-daemon-retirement", "authenticated-cli-daemon-retirement-ipc-https", "authority-omitting-cli-daemon-retirement-request", "bounded-cli-daemon-retirement-progress", "daemon-retirement-terminal-exit-codes", "credential-free-daemon-retirement-output", "explicit-cli-daemon-retirement-confirmation", "runtime-capability-refresh-command", "remote-capability-refresh-command", "remote-discovery-inspect-readback", "bounded-capability-summary", "explicit-unobserved-capabilities", "capability-observation-revision-output", "canonical-capability-endpoint-output", "sorted-capability-extension-output", "capability-secret-omission", "explicit-confirmation", "dry-run", "expected-revision", "caller-idempotency-key", "canonical-leselang-export", "shared-leselang-formatter", "read-query-leselang-export", "deterministic-plan-export", "read-query-plan-export", "shared-query-normalization", "bounded-newest-first-history", "bounded-runtime-watch", "revision-deduplicated-watch", "line-flushed-watch-output", "cli-leselang-command-parity", "cli-leselang-query-parity", "cli-leselang-deployment-parity", "remote-cli-command-parity", "remote-cli-query-parity", "human-output", "terminal-safe-cells", "stable-json-envelope", "exit-code-contract", "shared-transport-safety-consumer", "post-open-file-growth-rejection", "thin-transport-error-mapping", "native-cli-generation-bound-unregistration-receipt", "runtime-unregister-receipt-command"]
       },
       "depends_on": [
         "leserpent-2/transport-protocol/wire-compatibility",

@@ -41,13 +41,14 @@ internal sealed class HubWindow : Window
         Func<DesktopDaemonConnection, CancellationToken, Task<RemoteTopologySnapshot>>
             loadRemoteTopology,
         Action deployDaemon,
+        Action retireDaemon,
         Action provisionRuntime,
         Action retireRuntime,
         Action addConnection,
         Action<DesktopDaemonConnection> manageConnection)
     {
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 5 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 6 + connections.Count * 3 + (localSupported ? 2 : 0);
         Title = "Leserpent / Hub";
         Width = 900;
         Height = 680;
@@ -84,6 +85,19 @@ internal sealed class HubWindow : Window
         auditedControls.Add(deployButton);
         deployButton.Click += (_, _) => deployDaemon();
 
+        var retireDaemonButton = new Button
+        {
+            Content = "Retire daemon",
+            Padding = new Thickness(17, 9),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AutomationProperties.SetAutomationId(retireDaemonButton, "hub-retire-daemon");
+        AutomationProperties.SetName(
+            retireDaemonButton,
+            "Retire a daemon service through its original bootstrap authority");
+        auditedControls.Add(retireDaemonButton);
+        retireDaemonButton.Click += (_, _) => retireDaemon();
+
         var provisionButton = new Button
         {
             Content = "Provision gewyvern",
@@ -110,16 +124,31 @@ internal sealed class HubWindow : Window
 
         var headingActions = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 9,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { deployButton, provisionButton, retireButton, addButton },
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Children =
+            {
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 9,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { deployButton, retireDaemonButton },
+                },
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 9,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { provisionButton, retireButton, addButton },
+                },
+            },
         };
 
         var heading = new Grid
         {
-            ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"),
-            ColumnSpacing = 20,
+            RowDefinitions = RowDefinitions.Parse("Auto,Auto"),
+            RowSpacing = 14,
         };
         heading.Children.Add(new StackPanel
         {
@@ -150,7 +179,7 @@ internal sealed class HubWindow : Window
                 },
             },
         });
-        Grid.SetColumn(headingActions, 1);
+        Grid.SetRow(headingActions, 1);
         heading.Children.Add(headingActions);
 
         var topology = new StackPanel { Spacing = 10 };

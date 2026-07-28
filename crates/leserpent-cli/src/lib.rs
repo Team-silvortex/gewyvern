@@ -13,6 +13,10 @@ use leserpent_domain::bootstrap::{
     BOOTSTRAP_DOMAIN_SCHEMA_VERSION, BootstrapId, BootstrapIntent, BootstrapTarget,
     BootstrapTransport, CAPABILITY_HOST_BOOTSTRAP, CredentialHandle,
 };
+use leserpent_domain::bootstrap_retirement::{
+    CAPABILITY_HOST_RETIRE, DAEMON_RETIREMENT_DOMAIN_SCHEMA_VERSION, DaemonRetirementIntent,
+    DaemonRetirementPhase,
+};
 use leserpent_domain::provisioning::{
     CAPABILITY_RUNTIME_PROVISION, PROVISIONING_DOMAIN_SCHEMA_VERSION, ProvisioningId,
     ProvisioningPhase, RuntimeProvisioningIntent,
@@ -29,6 +33,10 @@ use leserpent_domain::{
 use leserpent_protocol::bootstrap::{
     BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
     BootstrapResponse, BootstrapResponseEnvelope,
+};
+use leserpent_protocol::bootstrap_retirement_control::{
+    DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION, DaemonRetirementRequest,
+    DaemonRetirementRequestEnvelope, DaemonRetirementResponse, DaemonRetirementResponseEnvelope,
 };
 use leserpent_protocol::provisioning::{
     PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningRequest, ProvisioningRequestEnvelope,
@@ -95,6 +103,7 @@ pub enum CliCommand {
     BootstrapInspect(BootstrapId),
     BootstrapBind(BootstrapId),
     BootstrapDeploy(BootstrapDeployOptions),
+    BootstrapRetire(BootstrapRetireOptions),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -102,6 +111,20 @@ pub struct BootstrapDeployOptions {
     pub bootstrap_id: BootstrapId,
     pub target: BootstrapTarget,
     pub credential_handle: CredentialHandle,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BootstrapRetireOptions {
+    pub bootstrap_id: BootstrapId,
+    pub retirement_id: RetirementId,
+    pub credential_handle: CredentialHandle,
+    pub wait: Option<DaemonRetirementWaitOptions>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DaemonRetirementWaitOptions {
+    pub count: u16,
+    pub interval_ms: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -187,7 +210,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime retire RUNTIME_ID --retirement-id ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime unregister-receipt COMMAND_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap retire BOOTSTRAP_ID --retirement-id ID --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime retire RUNTIME_ID --retirement-id ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime unregister-receipt COMMAND_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 pub const REMOTE_TRUST_USAGE: &str = "Bootstrap trust alternative:\n  replace --remote-ca PATH with --remote-trust-root PATH --remote-trust-handle vault:leserpent-ca:KEY";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -331,6 +354,10 @@ pub fn parse_args_with_remote(
                     reject_trailing(arguments)?;
                     (CliCommand::BootstrapBind(bootstrap_id), None)
                 }
+                "retire" => (
+                    CliCommand::BootstrapRetire(parse_bootstrap_retire(bootstrap_id, arguments)?),
+                    None,
+                ),
                 _ => {
                     return Err(CliError::Usage(format!(
                         "unknown bootstrap command '{action}'"
@@ -521,6 +548,11 @@ pub fn request_for(options: &CliOptions) -> Result<RequestEnvelope, CliError> {
         CliCommand::BootstrapDeploy(_) => {
             return Err(CliError::Usage(
                 "bootstrap deploy uses the independent bootstrap transport".into(),
+            ));
+        }
+        CliCommand::BootstrapRetire(_) => {
+            return Err(CliError::Usage(
+                "bootstrap retire uses the independent daemon retirement transport".into(),
             ));
         }
         CliCommand::RuntimeProvision(_) => {
@@ -801,6 +833,31 @@ pub fn retirement_request_for(
     }))
 }
 
+pub fn daemon_retirement_request_for(
+    options: &CliOptions,
+) -> Result<Option<DaemonRetirementRequestEnvelope>, CliError> {
+    let CliCommand::BootstrapRetire(retirement) = &options.command else {
+        return Ok(None);
+    };
+    Ok(Some(DaemonRetirementRequestEnvelope {
+        schema_version: DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+        request: DaemonRetirementRequest {
+            principal: Principal {
+                id: options.principal.clone(),
+            },
+            capabilities: CapabilitySet::new([CAPABILITY_HOST_RETIRE]),
+            intent: DaemonRetirementIntent {
+                schema_version: DAEMON_RETIREMENT_DOMAIN_SCHEMA_VERSION,
+                retirement_id: retirement.retirement_id.clone(),
+                bootstrap_id: retirement.bootstrap_id.clone(),
+                retirement_credential_handle: retirement.credential_handle.clone(),
+                requested_by: options.principal.clone(),
+                confirmed: true,
+            },
+        },
+    }))
+}
+
 fn parse_bootstrap_deploy(
     bootstrap_id: BootstrapId,
     mut arguments: impl Iterator<Item = String>,
@@ -866,6 +923,92 @@ fn parse_bootstrap_deploy(
         credential_handle: credential_handle.ok_or_else(|| {
             CliError::Usage("bootstrap deploy requires --credential-handle".into())
         })?,
+    })
+}
+
+fn parse_bootstrap_retire(
+    bootstrap_id: BootstrapId,
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<BootstrapRetireOptions, CliError> {
+    let mut retirement_id = None;
+    let mut credential_handle = None;
+    let mut confirmed = false;
+    let mut wait = false;
+    let mut count = 30_u16;
+    let mut count_seen = false;
+    let mut interval_ms = 1_000_u64;
+    let mut interval_seen = false;
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--retirement-id" if retirement_id.is_none() => {
+                retirement_id =
+                    Some(
+                        RetirementId::new(arguments.next().ok_or_else(|| {
+                            CliError::Usage("--retirement-id requires ID".into())
+                        })?)
+                        .map_err(|error| CliError::Usage(error.to_string()))?,
+                    );
+            }
+            "--credential-handle" if credential_handle.is_none() => {
+                let handle = CredentialHandle::new(arguments.next().ok_or_else(|| {
+                    CliError::Usage("--credential-handle requires vault:ssh:KEY".into())
+                })?)
+                .map_err(|_| {
+                    CliError::Usage("daemon retirement credential handle is invalid".into())
+                })?;
+                if handle.parts().0 != "ssh" {
+                    return Err(CliError::Usage(
+                        "daemon retirement credential handle must use the ssh vault provider"
+                            .into(),
+                    ));
+                }
+                credential_handle = Some(handle);
+            }
+            "--yes" if !confirmed => confirmed = true,
+            "--wait" if !wait => wait = true,
+            "--count" if !count_seen => {
+                count_seen = true;
+                count = parse_observation_count(arguments.next())?;
+            }
+            "--interval-ms" if !interval_seen => {
+                interval_seen = true;
+                interval_ms = parse_observation_interval(arguments.next())?;
+            }
+            "--retirement-id"
+            | "--credential-handle"
+            | "--yes"
+            | "--wait"
+            | "--count"
+            | "--interval-ms" => {
+                return Err(CliError::Usage(format!(
+                    "{argument} was provided more than once"
+                )));
+            }
+            _ => {
+                return Err(CliError::Usage(format!(
+                    "unknown bootstrap retire option '{argument}'"
+                )));
+            }
+        }
+    }
+    if !confirmed {
+        return Err(CliError::Usage(
+            "bootstrap retire requires explicit --yes confirmation".into(),
+        ));
+    }
+    if !wait && (count_seen || interval_seen) {
+        return Err(CliError::Usage(
+            "--count and --interval-ms require --wait".into(),
+        ));
+    }
+    Ok(BootstrapRetireOptions {
+        bootstrap_id,
+        retirement_id: retirement_id
+            .ok_or_else(|| CliError::Usage("bootstrap retire requires --retirement-id".into()))?,
+        credential_handle: credential_handle.ok_or_else(|| {
+            CliError::Usage("bootstrap retire requires --credential-handle".into())
+        })?,
+        wait: wait.then_some(DaemonRetirementWaitOptions { count, interval_ms }),
     })
 }
 
@@ -1141,6 +1284,44 @@ pub fn render_retirement_response(
             "{}: {}",
             error.code, error.message
         ))),
+    }
+}
+
+pub fn render_daemon_retirement_response(
+    response: &DaemonRetirementResponseEnvelope,
+    json: bool,
+) -> Result<String, CliError> {
+    if json {
+        return serde_json::to_string(response)
+            .map_err(|error| CliError::Protocol(error.to_string()));
+    }
+    match &response.response {
+        DaemonRetirementResponse::State(state) => Ok(format!(
+            "daemon_retirement={} bootstrap={} daemon={} phase={} target={}:{} generation={} profile={} service_retired={} fault={}",
+            safe_cell(state.retirement_id.as_str()),
+            safe_cell(state.bootstrap_id.as_str()),
+            safe_cell(state.daemon_id.as_str()),
+            daemon_retirement_phase_name(state.phase),
+            safe_cell(&state.target.host),
+            state.target.port,
+            safe_cell(&state.generation),
+            safe_cell(&state.install_profile),
+            state.service_retired,
+            safe_cell(state.fault_code.as_deref().unwrap_or("none")),
+        )),
+        DaemonRetirementResponse::Error(error) => Err(CliError::Protocol(format!(
+            "{}: {}",
+            error.code, error.message
+        ))),
+    }
+}
+
+pub fn daemon_retirement_phase_name(phase: DaemonRetirementPhase) -> &'static str {
+    match phase {
+        DaemonRetirementPhase::Planned => "planned",
+        DaemonRetirementPhase::RetiringService => "retiring_service",
+        DaemonRetirementPhase::ServiceRetired => "service_retired",
+        DaemonRetirementPhase::Failed => "failed",
     }
 }
 
@@ -1649,6 +1830,28 @@ pub fn send_retirement_request(
 }
 
 #[cfg(unix)]
+pub fn send_daemon_retirement_request(
+    socket: &std::path::Path,
+    token: &str,
+    request: &DaemonRetirementRequestEnvelope,
+) -> Result<DaemonRetirementResponseEnvelope, CliError> {
+    use leserpent_protocol::bootstrap_retirement_control::{
+        MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES, decode_daemon_retirement_response,
+    };
+
+    let response = send_routed_ipc_request(
+        socket,
+        token,
+        "daemon_retirement_v1",
+        "daemon retirement",
+        request,
+        MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES,
+    )?;
+    decode_daemon_retirement_response(&response)
+        .map_err(|error| CliError::Protocol(format!("{error:?}")))
+}
+
+#[cfg(unix)]
 fn send_routed_ipc_request(
     socket: &std::path::Path,
     token: &str,
@@ -1747,6 +1950,17 @@ pub fn send_retirement_request(
     _token: &str,
     _request: &RetirementRequestEnvelope,
 ) -> Result<RetirementResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon retirement transport is not implemented on this platform".into(),
+    ))
+}
+
+#[cfg(not(unix))]
+pub fn send_daemon_retirement_request(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &DaemonRetirementRequestEnvelope,
+) -> Result<DaemonRetirementResponseEnvelope, CliError> {
     Err(CliError::Transport(
         "local daemon retirement transport is not implemented on this platform".into(),
     ))
@@ -3255,6 +3469,145 @@ mod tests {
                 ..
             }) if bootstrap_id.as_str() == "bootstrap-1"
         ));
+    }
+
+    #[test]
+    fn bootstrap_retire_cli_emits_only_public_authority_and_rejects_injection() {
+        let options = parse_args(
+            [
+                "bootstrap",
+                "retire",
+                "bootstrap-1",
+                "--retirement-id",
+                "retire-daemon-cli-1",
+                "--credential-handle",
+                "vault:ssh:daemon-retirement",
+                "--yes",
+                "--wait",
+                "--count",
+                "3",
+                "--interval-ms",
+                "50",
+            ]
+            .into_iter()
+            .map(str::to_string),
+            Some(PathBuf::from("/tmp/leserpent.sock")),
+            Some("operator-a".into()),
+        )
+        .unwrap();
+        assert!(matches!(
+            &options.command,
+            CliCommand::BootstrapRetire(BootstrapRetireOptions {
+                bootstrap_id,
+                retirement_id,
+                wait: Some(DaemonRetirementWaitOptions {
+                    count: 3,
+                    interval_ms: 50,
+                }),
+                ..
+            }) if bootstrap_id.as_str() == "bootstrap-1"
+                && retirement_id.as_str() == "retire-daemon-cli-1"
+        ));
+        let request = daemon_retirement_request_for(&options).unwrap().unwrap();
+        assert_eq!(request.request.principal.id, "operator-a");
+        assert_eq!(request.request.intent.requested_by, "operator-a");
+        assert_eq!(
+            request.request.intent.retirement_credential_handle.parts(),
+            ("ssh", "daemon-retirement")
+        );
+        let value = serde_json::to_value(&request).unwrap();
+        let intent = value["request"]["intent"].as_object().unwrap();
+        for forbidden in ["target", "daemon_id", "generation", "install_profile"] {
+            assert!(!intent.contains_key(forbidden));
+        }
+        assert!(request_for(&options).is_err());
+
+        for arguments in [
+            vec![
+                "bootstrap",
+                "retire",
+                "bootstrap-1",
+                "--retirement-id",
+                "retire-daemon-cli-1",
+                "--credential-handle",
+                "vault:ssh:daemon-retirement",
+            ],
+            vec![
+                "bootstrap",
+                "retire",
+                "bootstrap-1",
+                "--retirement-id",
+                "retire-daemon-cli-1",
+                "--credential-handle",
+                "vault:ssh:daemon-retirement",
+                "--host",
+                "forged.example",
+                "--yes",
+            ],
+            vec![
+                "bootstrap",
+                "retire",
+                "bootstrap-1",
+                "--retirement-id",
+                "retire-daemon-cli-1",
+                "--credential-handle",
+                "vault:api:wrong-provider",
+                "--yes",
+            ],
+            vec![
+                "bootstrap",
+                "retire",
+                "bootstrap-1",
+                "--retirement-id",
+                "retire-daemon-cli-1",
+                "--credential-handle",
+                "vault:ssh:daemon-retirement",
+                "--yes",
+                "--count",
+                "3",
+            ],
+        ] {
+            assert!(
+                parse_args(
+                    arguments.into_iter().map(str::to_string),
+                    Some(PathBuf::from("/tmp/leserpent.sock")),
+                    Some("operator-a".into()),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn daemon_retirement_renderer_omits_credential_handles() {
+        use leserpent_domain::bootstrap::{BootstrapTarget, BootstrapTransport, DaemonId};
+        use leserpent_domain::bootstrap_retirement::DaemonRetirementSnapshot;
+
+        let response = DaemonRetirementResponseEnvelope {
+            schema_version: DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+            response: DaemonRetirementResponse::State(DaemonRetirementSnapshot {
+                retirement_id: RetirementId::new("retire-daemon-cli-1").unwrap(),
+                bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
+                daemon_id: DaemonId::new("daemon-host").unwrap(),
+                phase: DaemonRetirementPhase::Planned,
+                target: BootstrapTarget {
+                    transport: BootstrapTransport::Ssh,
+                    host: "host.example".into(),
+                    port: 22,
+                },
+                generation: "a".repeat(64),
+                install_profile: "system".into(),
+                retirement_credential_present: true,
+                service_retired: false,
+                fault_code: None,
+            }),
+        };
+        let rendered = render_daemon_retirement_response(&response, false).unwrap();
+        assert!(rendered.contains("daemon_retirement=retire-daemon-cli-1"));
+        assert!(rendered.contains("bootstrap=bootstrap-1"));
+        assert!(rendered.contains("phase=planned"));
+        assert!(!rendered.contains("vault:ssh"));
+        assert!(!rendered.contains("credential"));
     }
 
     #[test]

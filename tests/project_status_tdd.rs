@@ -1690,7 +1690,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(cli.maturity, Maturity::Mature);
     assert_eq!(cli.completion, 100);
     assert_eq!(cli.contract.stability, ContractStability::Stable);
-    assert_eq!(cli.contract.version, "1.6.0");
+    assert_eq!(cli.contract.version, "1.7.0");
     assert!(
         cli.contract
             .surfaces
@@ -1710,6 +1710,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "stable-retirement-identity-replay",
         "credential-free-retirement-progress",
         "retirement-terminal-exit-code",
+        "native-cli-confirmed-daemon-retirement",
+        "authenticated-cli-daemon-retirement-ipc-https",
+        "authority-omitting-cli-daemon-retirement-request",
+        "bounded-cli-daemon-retirement-progress",
+        "daemon-retirement-terminal-exit-codes",
+        "credential-free-daemon-retirement-output",
+        "explicit-cli-daemon-retirement-confirmation",
     ] {
         assert!(
             cli.contract
@@ -2272,7 +2279,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(bootstrap.maturity, Maturity::Developing);
     assert_eq!(bootstrap.completion, 99);
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
-    assert_eq!(bootstrap.contract.version, "0.24.0");
+    assert_eq!(bootstrap.contract.version, "0.26.0");
     assert!(
         bootstrap
             .contract
@@ -2348,6 +2355,22 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "adapter-registration-daemon-retirement-route-gate",
         "retirement-operation-namespace-isolation",
         "daemon-retirement-auth-error-envelope",
+        "native-cli-confirmed-daemon-retirement",
+        "authenticated-cli-daemon-retirement-ipc-https",
+        "authority-omitting-cli-daemon-retirement-request",
+        "bounded-cli-daemon-retirement-progress",
+        "daemon-retirement-terminal-exit-codes",
+        "credential-free-daemon-retirement-output",
+        "explicit-cli-daemon-retirement-confirmation",
+        "avalonia-confirmed-daemon-retirement",
+        "authenticated-avalonia-daemon-retirement-https",
+        "authority-omitting-avalonia-daemon-retirement",
+        "bootstrap-bound-avalonia-daemon-retirement",
+        "identity-locked-avalonia-daemon-retirement-progress",
+        "bounded-avalonia-daemon-retirement-poll",
+        "credential-free-avalonia-daemon-retirement-status",
+        "daemon-retirement-failure-recovery-guidance",
+        "hub-separated-daemon-runtime-lifecycle-actions",
     ] {
         assert!(
             bootstrap

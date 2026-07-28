@@ -162,6 +162,50 @@ fn gewyvern_retirement_is_confirmed_provisioning_bound_and_failure_safe() {
 }
 
 #[test]
+fn daemon_retirement_is_bootstrap_bound_authority_omitting_and_runtime_independent() {
+    let client = avalonia_source("Leserpent.RemoteClient/RemoteDaemonRetirementClient.cs");
+    let contracts = avalonia_source("Leserpent.RemoteClient/RemoteDaemonRetirementContracts.cs");
+    let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
+    let window = avalonia_source("Leserpent.Avalonia/DaemonRetirementWindow.cs");
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    assert!(client.contains("public sealed class RemoteDaemonRetirementClient"));
+    assert!(client.contains("Capability = \"host.retire\""));
+    assert!(client.contains("state.BootstrapId != expected.BootstrapId"));
+    assert!(client.contains("state.RetirementId != expected.RetirementId"));
+    assert!(client.contains("encoded.Contains(\"\\\"target\\\":\""));
+    assert!(client.contains("encoded.Contains(\"\\\"daemon_id\\\":\""));
+    assert!(client.contains("encoded.Contains(\"\\\"generation\\\":\""));
+    assert!(client.contains("encoded.Contains(\"\\\"install_profile\\\":\""));
+    assert!(!client.contains("Capability = \"runtime.retire\""));
+    assert!(contracts.contains("JsonUnmappedMemberHandling.Disallow"));
+    let request_intent = contracts
+        .split("internal sealed class DaemonRetirementIntent")
+        .nth(1)
+        .expect("daemon retirement request intent must exist")
+        .split("internal sealed class DaemonRetirementResponseEnvelope")
+        .next()
+        .expect("daemon retirement request intent must be bounded");
+    assert!(!request_intent.contains("DaemonRetirementTarget"));
+    assert!(!request_intent.contains("DaemonId"));
+    assert!(!request_intent.contains("Generation"));
+    assert!(!request_intent.contains("InstallProfile"));
+    assert!(transport.contains("\"v1/daemon-retirement\""));
+    assert!(window.contains("MaxAutomaticObservations = 30"));
+    assert!(window.contains("LockIdentityFields()"));
+    assert!(window.contains("new retirement ID"));
+    assert!(window.contains("daemon-retirement-credential-handle"));
+    assert!(window.contains("AutomationLiveSetting.Assertive"));
+    assert!(!window.contains("private readonly TextBox host"));
+    assert!(hub.contains("hub-retire-daemon"));
+    assert!(app.contains("ExecuteDaemonRetirementAsync"));
+    assert!(app.contains("--verify-daemon-retirement-controls"));
+    assert!(program.contains("--verify-daemon-retirement-client"));
+}
+
+#[test]
 fn remote_window_observes_async_ui_operations_and_fences_shutdown_updates() {
     let source = remote_main_window_source();
 
