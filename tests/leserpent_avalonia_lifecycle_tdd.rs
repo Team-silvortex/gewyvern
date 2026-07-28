@@ -24,6 +24,26 @@ fn repo_source(relative: &str) -> String {
 }
 
 #[test]
+fn leselang_focus_is_a_typed_native_presentation_operation() {
+    let core = avalonia_source("Leserpent.RendererCore/Program.cs");
+    let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
+    let window = avalonia_source("Leserpent.Avalonia/MainWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let conformance = avalonia_source("Leserpent.RendererConformance/Program.cs");
+
+    assert!(core.contains("public sealed class UiPresentationOperation"));
+    assert!(core.contains("UiPresentationOperationKind.Focus"));
+    assert!(core.contains("UiPresentationValidation.UnknownTarget"));
+    assert!(core.contains("UiPresentationValidation.UnfocusableTarget"));
+    assert!(renderer.contains("PresentationAutomationResult ApplyPresentation"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetUnrealized"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.FocusRejected"));
+    assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
+    assert!(app.contains("leselang_presentation=true"));
+    assert!(conformance.contains("presentation_focus=true"));
+}
+
+#[test]
 fn workspace_policies_are_renderer_independent_and_mobile_consumable() {
     let remote_project = repo_source(
         "apps/leserpent-avalonia/src/Leserpent.RemoteClient/Leserpent.RemoteClient.csproj",
@@ -245,30 +265,34 @@ fn gui_mutations_export_canonical_leselang_without_execution() {
     let window = remote_main_window_source();
     let workspace = avalonia_source("Leserpent.Avalonia/RemoteRuntimeWorkspaceWindow.cs");
     let exporter = avalonia_source("Leserpent.RemoteClient/RemoteLeselangExport.cs");
+    let transport = avalonia_source("Leserpent.RemoteClient/RemoteWireTransport.cs");
     let control = avalonia_source("Leserpent.Avalonia/LeselangExportControl.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(window.contains("RemoteLeselangExport.Refresh"));
-    assert!(window.contains("RemoteLeselangExport.Deploy"));
-    assert!(workspace.contains("RemoteLeselangExport.Workspace(RuntimeId)"));
+    assert!(window.contains("leselangClient.ExportRefreshAsync"));
+    assert!(window.contains("leselangClient.ExportDeployAsync"));
+    assert!(workspace.contains("leselangClient.ExportWorkspaceAsync"));
     assert!(workspace.contains("runtime-workspace-leselang"));
     assert!(workspace.contains("Preview equivalent workspace Leselang"));
     assert!(workspace.contains("workspaceLeselangWindow.Activate()"));
     assert!(workspace.contains("new LeselangExportControl"));
     assert!(window.contains("new LeselangExportControl"));
-    assert!(exporter.contains("runtime.refresh_capabilities"));
-    assert!(exporter.contains("inspect: runtime.inspect"));
-    assert!(exporter.contains("history: runtime.history"));
-    assert!(exporter.contains("logs: runtime.logs"));
-    assert!(exporter.contains("target: none"));
-    assert!(exporter.contains("GUI Leselang export diverged"));
-    assert!(!exporter.contains("RemoteWireTransport"));
+    assert!(exporter.contains("public sealed class RemoteLeselangClient"));
+    assert!(exporter.contains("RemoteLeselangExportException"));
+    assert!(exporter.contains("JsonUnmappedMemberHandling.Disallow"));
+    assert!(exporter.contains("PostLeselangExportAsync"));
+    assert!(!exporter.contains("fn main()"));
+    assert!(!exporter.contains("runtime.inspect("));
+    assert!(!exporter.contains("runtime.deploy("));
     assert!(!exporter.contains("RemoteMutationClient(options"));
+    assert!(transport.contains("\"v1/leselang-export\""));
     assert!(control.contains("Copy Leselang"));
     assert!(control.contains("No operation was executed."));
     assert!(control.contains("SetTextAsync(source)"));
+    assert!(control.contains("ExportDebounce"));
+    assert!(control.contains("no local template was substituted"));
     assert!(program.contains("--verify-leselang-gui-export"));
-    assert!(program.contains("workspace_queries=true"));
+    assert!(program.contains("rust_authority=true"));
 }
 
 #[test]

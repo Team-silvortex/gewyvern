@@ -389,7 +389,7 @@
       "id": "boundary-leselang-ui",
       "architecture": "leserpent-2",
       "kind": "ownership-boundary",
-      "summary": "The planned leselang-ui crate owns pure lowering into neutral UI IR.",
+      "summary": "The leselang-ui crate owns neutral UI IR plus typed semantic event and Leselang effect round trips.",
       "source": "docs/leserpent-2-architecture.md",
       "cells": ["leserpent-2/ui-language/ui-ir-lowering"]
     },
@@ -1317,9 +1317,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-syntax-contract",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "stability": "stable",
-        "surfaces": ["lossless-syntax", "source-diagnostics", "all-expression", "bounded-source", "utf8-safe-escape-lexing", "validated-syntax-tree-deserialization", "lossless-token-stream-validation", "utf8-span-validation", "panic-free-token-access", "oversized-rejection-tree-roundtrip", "canonical-formatter", "declaration-order-formatting", "bounded-formatted-source", "format-idempotence", "deterministic-parser-formatter-fuzz"]
+        "surfaces": ["lossless-syntax", "source-diagnostics", "all-expression", "bounded-source", "utf8-safe-escape-lexing", "validated-syntax-tree-deserialization", "lossless-token-stream-validation", "utf8-span-validation", "panic-free-token-access", "oversized-rejection-tree-roundtrip", "canonical-formatter", "declaration-order-formatting", "bounded-formatted-source", "format-idempotence", "deterministic-parser-formatter-fuzz", "unescaped-string-fast-path", "bounded-language-pipeline-benchmark"]
       },
       "depends_on": [],
       "blockers": [],
@@ -1328,6 +1328,7 @@
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-syntax", "state": "present" },
         { "kind": "test", "path": "crates/leselang-syntax/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/examples/language_benchmark.rs", "state": "present" },
         { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" }
       ],
       "next_gate": "Preserve the stable lossless syntax and validated span contract while future operations expand through HIR rather than parser shortcuts."
@@ -1344,9 +1345,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-hir-contract",
-        "version": "0.15.0",
+        "version": "0.17.0",
         "stability": "stable",
-        "surfaces": ["typed-hir", "strict-effect-deserialization", "capability-check", "effect-union", "declared-branch-order", "runtime-inspect-effect", "runtime-history-effect", "runtime-logs-effect", "runtime-capability-refresh-effect", "runtime-deploy-effect", "shared-domain-deployment-validation", "bounded-deployment-intent"]
+        "surfaces": ["typed-hir", "strict-effect-deserialization", "capability-check", "effect-union", "declared-branch-order", "runtime-inspect-effect", "runtime-history-effect", "runtime-logs-effect", "runtime-capability-refresh-effect", "runtime-deploy-effect", "debugger-cancel-effect", "ui-focus-effect", "ui-presentation-capability", "shared-ui-node-id-validation", "shared-domain-deployment-validation", "shared-debugger-session-validation", "bounded-deployment-intent", "canonical-effect-source", "canonical-effect-roundtrip", "single-allocation-name-deduplication", "bounded-language-pipeline-benchmark"]
       },
       "depends_on": ["leserpent-2/language-syntax/lossless-frontend", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [],
@@ -1354,9 +1355,10 @@
       "evidence": [
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-hir", "state": "present" },
-        { "kind": "test", "path": "crates/leselang-hir/src/lib.rs", "state": "present" }
+        { "kind": "test", "path": "crates/leselang-hir/src/lib.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/examples/language_benchmark.rs", "state": "present" }
       ],
-      "next_gate": "Preserve the stable typed-effect and shared domain-validation boundary as new language operations are introduced."
+      "next_gate": "Preserve the stable typed-effect boundary and the ui.focus presentation/control-plane separation as new language operations are introduced."
     },
     {
       "id": "leserpent-2/language-vm/effect-reentry",
@@ -1370,7 +1372,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-execution-protocol",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "stability": "stable",
         "surfaces": [
           "step",
@@ -1439,7 +1441,17 @@
           "bounded-runtime-history-reentry",
           "bounded-runtime-logs-reentry",
           "confirmed-runtime-deploy-effect",
-          "runtime-deploy-dispatch-reentry"
+          "runtime-deploy-dispatch-reentry",
+          "debugger-cancel-language-effect",
+          "typed-debugger-cancel-result",
+          "command-correlated-debugger-cancel-reentry",
+          "restart-safe-debugger-cancel-dispatch",
+          "typed-presentation-envelope",
+          "principal-capability-presentation-binding",
+          "typed-ui-focus-result",
+          "presentation-effect-request-validation",
+          "allocation-free-continuation-size-validation",
+          "bounded-language-pipeline-benchmark"
         ]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
@@ -1449,9 +1461,10 @@
         { "kind": "documentation", "path": "docs/leselang-language.md", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm", "state": "present" },
         { "kind": "source", "path": "crates/leselang-vm/src/journal.rs", "state": "present" },
+        { "kind": "test", "path": "crates/leselang-vm/examples/language_benchmark.rs", "state": "present" },
         { "kind": "test", "path": "tests/leselang_fuzz_tdd.rs", "state": "present" }
       ],
-      "next_gate": "Preserve the stable deterministic execution and re-entry contract; nested all requires an explicit future protocol version."
+      "next_gate": "Preserve deterministic query, command, and presentation re-entry; nested all and additional presentation atoms require explicit bounded contracts."
     },
     {
       "id": "leserpent-2/command-lowering/command-plan-lowering",
@@ -1465,9 +1478,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-command-contract",
-        "version": "0.12.0",
+        "version": "0.14.0",
         "stability": "stable",
-        "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-refresh-command", "runtime-deploy-command", "independent-runtime-deploy-capability", "debugger-cancel-command", "debugger-control-capability", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang", "shared-cli-query-lowering", "shared-cli-command-lowering", "deterministic-local-plan-export"]
+        "surfaces": ["command-plan", "planned-operation", "runtime-list-query", "runtime-inspect-query", "runtime-history-query", "bounded-runtime-logs-query", "runtime-refresh-command", "runtime-deploy-command", "independent-runtime-deploy-capability", "debugger-cancel-command", "debugger-cancel-language-lowering", "debugger-control-capability", "frontend-local-effect-rejection", "origin-metadata", "dry-run-plan", "versioned-plan-json", "bounded-plan-codec", "plan-semantic-validation", "fail-closed-capability-check", "canonical-leselang", "shared-cli-query-lowering", "shared-cli-command-lowering", "deterministic-local-plan-export"]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/domain-model/command-query-kernel"],
       "blockers": [],
@@ -1480,7 +1493,7 @@
         { "kind": "test", "path": "crates/leserpent-cli/tests/leselang_parity.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-observe/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Preserve complete current-domain lowering and CLI/Leselang/plan parity as new orchestration operations are added."
+      "next_gate": "Preserve complete current-domain lowering, explicitly reject frontend-local effects, and retain CLI/Leselang/plan parity as orchestration operations are added."
     },
     {
       "id": "leserpent-2/ui-language/ui-ir-lowering",
@@ -1494,9 +1507,9 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leselang-ui-contract",
-        "version": "1.0.0",
+        "version": "1.3.0",
         "stability": "stable",
-        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "strict-action-field-rejection", "strict-patch-operation-field-rejection", "bounded-json-codec", "context-free-patch-validation", "embedded-patch-node-validation", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-capability-projection", "explicit-unobserved-capabilities", "canonical-capability-endpoint-nodes", "sorted-capability-extension-nodes", "capability-secret-omission", "runtime-log-projection", "runtime-log-document-lowering", "runtime-log-source-producer", "bounded-log-source-batch", "newest-log-window", "utf8-safe-log-sanitization", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "runtime-deploy-debugger-kind", "bounded-logical-frames", "debugger-secret-omission", "validated-vm-producer", "relative-deadline-projection", "debugger-cancel-plan", "safe-mutation-inspection", "debugger-dry-run", "session-revision-fenced-cancel", "confirmation-gated-cancel", "atomic-persistent-debugger-audit", "restart-safe-debugger-audit-replay", "debugger-workspace-session-binding", "session-bound-debugger-action", "debugger-action-command-lowering", "token-free-mutation-result", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "parameterized-form-description", "typed-submit-event", "bounded-form-value-validation", "runtime-deploy-form-lowering", "revision-fenced-event", "runtime-bound-action", "runtime-inspect-action", "frontend-neutral-inspect-plan", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
+        "surfaces": ["ui-document", "stable-node-id", "typed-semantic-node", "localized-fallback-text", "accessibility-metadata", "bounded-ui-tree", "strict-unknown-field-rejection", "strict-action-field-rejection", "strict-patch-operation-field-rejection", "bounded-json-codec", "context-free-patch-validation", "embedded-patch-node-validation", "fleet-document-lowering", "runtime-workspace-lowering", "runtime-capability-projection", "explicit-unobserved-capabilities", "canonical-capability-endpoint-nodes", "sorted-capability-extension-nodes", "capability-secret-omission", "runtime-log-projection", "runtime-log-document-lowering", "runtime-log-source-producer", "bounded-log-source-batch", "newest-log-window", "utf8-safe-log-sanitization", "bounded-log-window", "sanitized-log-display", "stable-log-entry-id", "debugger-projection", "debugger-document-lowering", "stackless-waiting-effect-state", "synchronous-reentry-transition", "runtime-deploy-debugger-kind", "debugger-cancel-debugger-kind", "bounded-logical-frames", "debugger-secret-omission", "validated-vm-producer", "relative-deadline-projection", "debugger-cancel-plan", "safe-mutation-inspection", "debugger-dry-run", "session-revision-fenced-cancel", "confirmation-gated-cancel", "atomic-persistent-debugger-audit", "restart-safe-debugger-audit-replay", "debugger-workspace-session-binding", "session-bound-debugger-action", "debugger-action-command-lowering", "token-free-mutation-result", "same-revision-state-composition", "torn-state-rejection", "bounded-history-nodes", "endpoint-omission", "ui-event", "ui-event-hir-effect-lowering", "hir-effect-ui-event-reverse-mapping", "canonical-event-leselang-export", "current-action-semantic-roundtrip", "single-validation-event-lowering", "parameterized-form-description", "typed-submit-event", "bounded-form-value-validation", "runtime-deploy-form-lowering", "revision-fenced-event", "runtime-bound-action", "runtime-inspect-action", "frontend-neutral-inspect-plan", "shared-command-plan", "ui-patch", "deterministic-incremental-diff", "same-topology-linear-diff", "relative-patch-performance-fence", "working-tree-diff-convergence", "bounded-history-window-diff", "reference-patch-application", "patch-revision-fence", "cyclic-move-rejection", "renderer-conformance-roundtrip", "cross-language-renderer-fixture"]
       },
       "depends_on": ["leserpent-2/language-hir/typed-effects", "leserpent-2/command-lowering/command-plan-lowering"],
       "blockers": [],
@@ -1509,7 +1522,7 @@
         { "kind": "test", "path": "crates/leselang-observe/src/lib.rs", "state": "present" },
         { "kind": "test", "path": "crates/leselang-ui/src/lib.rs", "state": "present" }
       ],
-      "next_gate": "Preserve the stable renderer-neutral UI IR and strict patch boundary while mobile or web shells adopt it without frontend-owned command lowering."
+      "next_gate": "Extend the typed presentation path beyond stable-node focus while preserving strict UI IR, Rust-owned canonical source, and the prohibition on frontend-owned command lowering."
     },
     {
       "id": "leserpent-2/control-runtime/durable-authority",
@@ -1614,7 +1627,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.26.0",
+        "version": "0.27.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1795,14 +1808,20 @@
           "cross-host-bootstrap-retirement-replay",
           "post-retirement-residue-audit",
           "retired-generation-reinstall-fence",
-          "terminal-retirement-absence-proof"
+          "terminal-retirement-absence-proof",
+          "exact-install-profile-policy",
+          "fixed-noninteractive-system-profile-elevation",
+          "privileged-system-profile-bootstrap-retirement",
+          "system-wide-systemd-retirement-proof",
+          "temporary-sudo-authority-revocation",
+          "system-profile-residue-audit"
         ]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/transport-protocol/wire-compatibility"],
       "blockers": [
         {
           "id": "cross-platform-bootstrap-installation-incomplete",
-          "summary": "The bootstrap install/activate path and identity-bound bootstrap-retire-v1 path now have native macOS process proof plus pinned-SSH Linux systemd-user deployment, forged-generation rejection, retirement, replay, and residue evidence. Product-level daemon-retirement persistence, scheduling, worker settlement, native adapter registration, authenticated IPC/HTTPS, native CLI orchestration, and Avalonia Hub orchestration are complete; WinRM and privileged system-profile evidence remain."
+          "summary": "The bootstrap install/activate and identity-bound bootstrap-retire-v1 paths now have native macOS process proof plus pinned-SSH Linux systemd-user and privileged systemd-system deployment, forged-generation rejection, retirement, replay, privilege-revocation, and residue evidence. Product-level daemon-retirement persistence, scheduling, worker settlement, native adapter registration, authenticated IPC/HTTPS, native CLI orchestration, and Avalonia Hub orchestration are complete; only WinRM evidence remains."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1840,6 +1859,7 @@
         { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_bootstrap.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_bootstrap_20260722.json", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_bootstrap_retirement_20260727.json", "state": "present" },
+        { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_system_profile_retirement_20260728.json", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/ipc_vertical.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-cli/tests/https_vertical.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteBootstrapClient.cs", "state": "present" },
@@ -1852,7 +1872,7 @@
         { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Complete privileged system-profile and WinRM daemon-retirement evidence while preserving the stable CLI and Avalonia authority-omitting orchestration."
+      "next_gate": "Complete WinRM daemon-retirement evidence when Windows becomes an active target, while preserving the proven macOS and Linux orchestration contracts."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
@@ -2099,7 +2119,7 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-avalonia-contract",
-        "version": "1.34.0",
+        "version": "1.36.0",
         "stability": "stable",
         "surfaces": ["strict-ui-ir-deserialization", "source-generated-json-metadata", "aot-safe-enum-codec", "explicit-semantic-deep-clone", "pure-renderer-core-library", "separate-conformance-runner", "transactional-semantic-patch", "semantic-document-mount", "incremental-patch-application", "runtime-action-binding-validation", "runtime-capability-action-binding-validation", "capability-observation-mutation-fence", "heartbeat-resistant-unknown-mutation-fence", "mutation-fence-policy-probe", "debugger-session-binding-validation", "rust-generated-conformance-fixture", "bounded-history-conformance-fixture", "bounded-log-conformance-fixture", "bounded-debugger-conformance-fixture", "capability-workspace-conformance-fixture", "no-argument-product-launch", "hierarchical-daemon-topology-hub", "bounded-multi-daemon-connection-catalog", "stable-authenticated-authority-id", "atomic-legacy-single-profile-migration", "independent-daemon-session-windows", "authority-keyed-session-reuse", "independent-daemon-open-manage-actions", "set-based-multi-ca-retention", "local-authority-ca-retention", "hub-topology-control-probe", "typed-hub-runtime-list-query", "bounded-daemon-runtime-preview", "live-cached-topology-status", "renderer-neutral-topology-state", "parallel-health-runtime-list-query", "authority-proof-required-live-topology", "cache-health-nonfabrication", "visible-daemon-queue-pressure", "real-local-authority-topology-composition", "retained-stale-topology", "topology-revision-regression-fence", "bounded-periodic-topology-refresh", "same-card-refresh-exclusion", "four-way-topology-load-bound", "topology-load-cancellation", "endpoint-free-runtime-child-projection", "real-local-daemon-topology-query", "direct-hub-runtime-workspace-action", "daemon-owned-workspace-routing", "topology-revision-workspace-fence", "snapshot-revision-feed-binding", "heartbeat-resistant-workspace-launch", "bounded-pending-workspace-requests", "session-window-reuse-before-workspace", "removed-runtime-authoritative-rejection", "desktop-connection-window", "bounded-private-desktop-profile", "desktop-profile-contract-probe", "desktop-connect-accessibility-probe", "side-effect-free-connection-preflight-control", "connected-authority-health-control", "accessible-queue-pressure-status", "canonical-leselang-mutation-preview", "explicit-clipboard-export", "shared-connection-management", "native-menu-connection-settings", "renderer-connection-settings", "safe-session-replacement", "confirmed-endpoint-forget", "stale-profile-delete-fence", "connection-management-control-probe", "app-private-desktop-ca", "strict-single-ca-pem", "content-addressed-ca", "private-ca-permissions", "legacy-profile-ca-migration", "managed-ca-tamper-rejection", "bounded-ca-prune", "stale-ca-temp-cleanup", "keychain-only-product-startup", "in-app-platform-credential-onboarding", "secure-password-entry", "token-field-clearing", "desktop-control-tree", "semantic-node-control-mapping", "stable-id-visual-index", "incremental-control-tree-patch", "unaffected-control-reuse", "visual-index-integrity-check", "stable-node-focus-retention", "runtime-inspect-control", "runtime-capability-discovery-control", "capability-gated-deployment-control", "bounded-deployment-form", "deployment-form-automation-metadata", "parameterized-form-description", "renderer-neutral-submit-event", "generic-form-control-generation", "form-event-contract-probe", "independent-runtime-workspace-window", "single-window-per-runtime", "bounded-workspace-window-fanout", "live-revision-workspace-reload", "runtime-log-workspace-section", "bounded-local-workspace-log-filter", "accessible-workspace-log-filter-summary", "filtered-log-empty-state", "history-command-identity", "bounded-explicit-diagnostic-export", "responsive-diagnostic-toolbar", "explicit-live-log-refresh", "single-flight-workspace-refresh", "inactive-window-refresh-suspension", "bounded-live-refresh-backoff", "consecutive-failure-live-refresh-stop", "bounded-workspace-delta-summary", "visible-log-window-rollover", "workspace-revision-regression-fence", "runtime-capability-workspace-section", "manual-workspace-reload-control", "workspace-reload-f5", "bounded-list-viewport", "active-layout-virtualization", "nested-scroll-avoidance", "compiled-item-binding", "lazy-leaf-control-materialization", "lazy-container-subtree-materialization", "model-only-unrealized-patch", "unrealized-subtree-smoke-evidence", "lazy-monospace-log-entry", "lazy-debugger-frame", "debugger-cancel-control", "debugger-control-lifecycle-evidence", "remote-snapshot-ui-projection", "strict-remote-capability-projection", "visible-remote-stale-state", "observed-async-ui-operations", "closed-window-state-fence", "idempotent-client-shutdown", "leserpent-brand-icon", "native-aot-publish-profile", "pinned-native-aot-toolchain", "isolated-development-and-aot-lock-graphs", "multi-rid-locked-restore", "macos-arm64-native-aot-smoke", "linux-x64-native-aot-smoke", "physical-linux-host-aot-evidence", "self-contained-desktop-artifact", "macos-app-bundle", "native-rust-bundler", "strict-bundle-allowlist", "debug-symbol-exclusion", "checked-icns", "stable-info-plist", "macos-native-menu", "dock-reopen-lifecycle", "explicit-app-quit", "finder-launch-proof", "adhoc-signature-proof", "hardened-runtime-release-policy", "developer-id-only-signing", "inside-out-native-signing", "secure-signing-timestamp", "checked-empty-entitlements", "keychain-only-notary-profile", "explicit-notary-acceptance", "notary-ticket-staple", "gatekeeper-assessment", "local-adhoc-isolation", "adhoc-library-validation-boundary", "explicit-runtime-launch-claim", "shared-desktop-product-startup", "packaged-saved-profile-startup", "real-keychain-roundtrip-proof", "isolated-temporary-profile-proof", "existing-credential-preservation", "credential-cleanup-proof", "automation-metadata", "unique-automation-id-audit", "complete-automation-name-audit", "automation-help-text-audit", "explicit-action-label-audit", "wcag-aa-theme-contrast", "managed-macos-accessibility-proof", "physical-linux-accessibility-proof", "native-aot-accessibility-proof", "action-node-event", "control-smoke-mode", "severity-aware-workspace-delta", "assertive-new-error-signal", "initial-severity-realert-suppression", "independent-workspace-snapshot-validation", "strict-snapshot-log-chronology", "bounded-snapshot-index", "explicit-workspace-alert-acknowledgement", "retained-severity-alert", "nonrepeating-assertive-error-signal", "hybrid-live-log-refresh", "periodic-full-log-resync", "incremental-log-refresh-status", "successful-manual-query-backoff-reset", "skipped-live-query-backoff-neutrality", "manual-query-live-timer-ownership", "system-picker-diagnostic-file-export", "bounded-utf8-diagnostic-file", "safe-diagnostic-filename", "workspace-leselang-preview", "single-workspace-query-preview", "frontend-workspace-policy-consumer", "external-remote-ui-document-consumer", "zero-frontend-owned-remote-projection", "external-mutation-fence-consumer", "shared-remote-action-availability-consumer", "single-source-workspace-action-availability-consumer", "shared-authority-health-consumer", "parallel-proof-msbuild-isolation", "workspace-version-bound-bundle-release", "arm64-macho-payload-validation", "bundled-rust-daemon", "local-loopback-tls-authority", "ephemeral-local-process-credential", "sigterm-first-daemon-cleanup", "immediate-local-daemon-restart-proof", "avalonia-generation-horizon-classification", "strict-unregistration-receipt-client", "retained-receipt-horizon-binding"]
       },
@@ -2124,6 +2144,7 @@
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LocalOrchestraServiceSupervisor.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.Avalonia/LeselangExportControl.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteLeselangExport.cs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd/src/remote.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteDocumentProjection.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteWorkspaceDocumentProjection.cs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent-avalonia/src/Leserpent.RemoteClient/RemoteMutationFences.cs", "state": "present" },
@@ -2151,11 +2172,12 @@
         { "kind": "source", "path": "src/validation_harness/leserpent_accessibility.rs", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_avalonia_lifecycle_tdd.rs", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json", "state": "present" },
+        { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-workspace-conformance-v1.json", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-log-conformance-v1.json", "state": "present" },
         { "kind": "test", "path": "apps/leserpent-avalonia/fixtures/renderer-debugger-conformance-v1.json", "state": "present" }
       ],
-      "next_gate": "Preserve the stable replaceable renderer contract while release-assurance owns Apple signing/notarization evidence and remote-console owns deferred mobile clients."
+      "next_gate": "Extend native presentation automation beyond focus while preserving stable-node validation, typed failures, replaceable rendering, and authenticated Rust-owned Leselang previews."
     },
     {
       "id": "leserpent-2/remote-console/remote-mobile-console",

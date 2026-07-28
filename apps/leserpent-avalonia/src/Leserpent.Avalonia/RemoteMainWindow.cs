@@ -11,6 +11,7 @@ internal sealed class RemoteMainWindow : Window
     private readonly AvaloniaDocumentRenderer renderer;
     private readonly RemoteEventClient eventClient;
     private readonly RemoteHealthClient healthClient;
+    private readonly RemoteLeselangClient leselangClient;
     private readonly RemoteMutationClient mutationClient;
     private readonly RemoteClientOptions options;
     private readonly Dictionary<string, RemoteRuntimeWorkspaceWindow> workspaceWindows =
@@ -151,6 +152,7 @@ internal sealed class RemoteMainWindow : Window
         renderer = new AvaloniaDocumentRenderer(OnActionInvoked);
         eventClient = new RemoteEventClient(options);
         healthClient = new RemoteHealthClient(options);
+        leselangClient = new RemoteLeselangClient(options);
         mutationClient = new RemoteMutationClient(options);
         ConfigureTrustIdentity(eventClient.TrustIdentity);
         principal = Environment.GetEnvironmentVariable("LESERPENT_PRINCIPAL")
@@ -767,7 +769,11 @@ internal sealed class RemoteMainWindow : Window
         UpdateMutationAvailability();
         var confirmed = await new RuntimeRefreshConfirmationWindow(
                 runtime,
-                refreshCapabilities)
+                refreshCapabilities,
+                cancellationToken => leselangClient.ExportRefreshAsync(
+                    runtime.Id,
+                    refreshCapabilities,
+                    cancellationToken))
             .ShowDialog<bool>(this);
         if (!confirmed || lifetime.IsCancellationRequested)
         {
@@ -889,7 +895,7 @@ internal sealed class RemoteMainWindow : Window
                 form,
                 $"{SafeDisplay(runtime.Name)}\nID: {runtime.Id}\nExpected revision: {runtime.Revision}",
                 "This submits an authenticated, revision-checked deployment and is not retried automatically.",
-                values =>
+                (values, cancellationToken) =>
                 {
                     if (!values.TryGetValue("pipeline_kind", out var pipelineKind))
                     {
@@ -897,10 +903,11 @@ internal sealed class RemoteMainWindow : Window
                             "deployment form is missing pipeline_kind");
                     }
                     values.TryGetValue("target", out var target);
-                    return RemoteLeselangExport.Deploy(
+                    return leselangClient.ExportDeployAsync(
                         runtime.Id,
                         pipelineKind,
-                        target);
+                        target,
+                        cancellationToken);
                 })
             .ShowDialog<ParameterizedFormIntent?>(this);
         if (intent is null || lifetime.IsCancellationRequested)
@@ -1134,6 +1141,7 @@ internal sealed class RemoteMainWindow : Window
         }
         pendingWorkspaceRequests.Clear();
         healthClient.Dispose();
+        leselangClient.Dispose();
         mutationClient.Dispose();
         ObserveShutdown(eventClient.DisposeAsync());
     }
@@ -1306,7 +1314,8 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
 {
     public RuntimeRefreshConfirmationWindow(
         RemoteRuntimeProjection runtime,
-        bool refreshCapabilities)
+        bool refreshCapabilities,
+        Func<CancellationToken, Task<string>> exportLeselang)
     {
         var operation = refreshCapabilities ? "capability discovery" : "runtime refresh";
         var action = refreshCapabilities ? "Discover capabilities" : "Refresh runtime";
@@ -1333,7 +1342,7 @@ internal sealed class RuntimeRefreshConfirmationWindow : Window
         };
         var leselang = new LeselangExportControl(
             refreshCapabilities ? "runtime-capabilities-refresh" : "runtime-refresh",
-            RemoteLeselangExport.Refresh(runtime.Id, refreshCapabilities));
+            exportLeselang);
         AutomationProperties.SetAutomationId(
             cancel,
             refreshCapabilities
@@ -1418,7 +1427,7 @@ internal sealed class ParameterizedActionFormWindow : Window
         UiForm form,
         string context,
         string warning,
-        Func<IReadOnlyDictionary<string, string>, string> exportLeselang)
+        Func<IReadOnlyDictionary<string, string>, CancellationToken, Task<string>> exportLeselang)
     {
         Title = form.Title.Fallback;
         Width = 520;
@@ -1496,7 +1505,7 @@ internal sealed class ParameterizedActionFormWindow : Window
                 ? string.Empty
                 : $"{invalid.Field.Label.Fallback}: {ValidationMessage(invalid.Field)}";
             leselang.Update(invalid.Field is null
-                ? exportLeselang(Values())
+                ? cancellationToken => exportLeselang(Values(), cancellationToken)
                 : null);
         }
         foreach (var (_, input) in inputs.Values)

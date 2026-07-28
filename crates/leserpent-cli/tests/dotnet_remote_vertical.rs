@@ -10,8 +10,6 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use leselang_hir::{Effect, lower};
-use leselang_syntax::parse;
 use leserpent_adapters::{GewyvernDiscoveryAdapter, GewyvernTarget};
 use leserpent_domain::{RuntimeId, RuntimeLogLevel};
 use leserpent_runtime::ControlRuntime;
@@ -19,54 +17,6 @@ use leserpentd::{AdapterRegistry, DaemonConfig, DaemonHost, RemoteServer};
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
-
-#[test]
-#[ignore = "requires the locked .NET SDK used by the named parity shelf"]
-fn dotnet_workspace_leselang_export_lowers_to_three_read_queries() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf();
-    let artifacts = TestDotnetArtifacts::new();
-    let output = remote_conformance_command(&root, &artifacts)
-        .args(["--", "--export-workspace-leselang", "runtime-a"])
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "export stdout:\n{}\nexport stderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    let source = String::from_utf8(output.stdout).unwrap();
-    let syntax = parse(&source);
-    assert!(syntax.diagnostics.is_empty(), "{:#?}", syntax.diagnostics);
-    let program = lower(&syntax).unwrap();
-    let Effect::All { branches } = program.function.effect else {
-        panic!("workspace export did not lower to one structured query batch");
-    };
-    assert_eq!(
-        branches
-            .iter()
-            .map(|branch| branch.name.as_str())
-            .collect::<Vec<_>>(),
-        ["inspect", "history", "logs"]
-    );
-    assert!(matches!(
-        &branches[0].effect,
-        Effect::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
-    ));
-    assert!(matches!(
-        &branches[1].effect,
-        Effect::RuntimeHistory { runtime_id } if runtime_id.as_str() == "runtime-a"
-    ));
-    assert!(matches!(
-        &branches[2].effect,
-        Effect::RuntimeLogs { runtime_id } if runtime_id.as_str() == "runtime-a"
-    ));
-}
 
 #[test]
 #[ignore = "requires the locked .NET SDK used by the named parity shelf"]

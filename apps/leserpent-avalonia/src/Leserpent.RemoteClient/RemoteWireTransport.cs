@@ -88,6 +88,16 @@ internal sealed class RemoteWireTransport : IDisposable
             RemoteDaemonRetirementClient.MaxMessageBytes,
             cancellationToken).ConfigureAwait(false);
 
+    public async Task<byte[]> PostLeselangExportAsync(
+        ReadOnlyMemory<byte> payload,
+        CancellationToken cancellationToken)
+        => await PostAsync(
+            payload,
+            "Leselang export",
+            "v1/leselang-export",
+            RemoteLeselangClient.MaxMessageBytes,
+            cancellationToken).ConfigureAwait(false);
+
     private async Task<byte[]> PostAsync(
         ReadOnlyMemory<byte> payload,
         string operation,

@@ -2,7 +2,8 @@ use leselang_hir::lower;
 use leselang_syntax::{MAX_SOURCE_BYTES, SyntaxTree, TokenKind, format as format_source, parse};
 use leselang_vm::{Step, Vm, decode_continuation, encode_continuation};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Principal,
+    CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH,
+    CapabilitySet, Principal,
 };
 
 const FUZZ_SEED: u64 = 0x6c65_7365_6c61_6e67;
@@ -51,7 +52,11 @@ fn deterministic_utf8_parser_hir_vm_fuzz_shelf() {
             Principal {
                 id: "fuzz-operator".to_string(),
             },
-            CapabilitySet::new([CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH]),
+            CapabilitySet::new([
+                CAPABILITY_RUNTIME_READ,
+                CAPABILITY_RUNTIME_REFRESH,
+                CAPABILITY_DEBUGGER_CONTROL,
+            ]),
             None,
         );
         let step_bytes = serde_json::to_vec(&step).expect("VM step must serialize");
@@ -156,6 +161,7 @@ fn source_corpus(random: &mut DeterministicRandom) -> Vec<String> {
         "fn main() = runtime.inspect(runtime_id: \"runtime-a\")".to_string(),
         "fn main() = runtime.history(runtime_id: \"runtime-a\")".to_string(),
         "fn main() = runtime.refresh(runtime_id: \"runtime-a\")".to_string(),
+        "fn main() = debugger.cancel(session_id: \"session-a\")".to_string(),
         "fn main() = all(left: runtime.list(), right: runtime.list(role: \"edge\"))".to_string(),
         String::new(),
         "\0\u{10ffff}🙂//\nfn".to_string(),

@@ -1,119 +1,196 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-public static class RemoteLeselangExport
+public sealed class RemoteLeselangClient : IDisposable
 {
-    private const int MaxSourceLength = 4096;
+    public const int SchemaVersion = 1;
+    public const int MaxMessageBytes = 8 * 1024;
+    public const int MaxSourceBytes = 4 * 1024;
+    private readonly RemoteWireTransport transport;
 
-    public static string Refresh(string runtimeId, bool capabilities)
+    public RemoteLeselangClient(RemoteClientOptions options)
     {
-        RemoteQueryValidation.RequireIdentifier(runtimeId, "runtime ID");
-        var operation = capabilities ? "refresh_capabilities" : "refresh";
-        return Bounded(
-            $"fn main() = runtime.{operation}(runtime_id: {Quote(runtimeId)})\n");
+        transport = new RemoteWireTransport(options);
     }
 
-    public static string Workspace(string runtimeId)
-    {
-        RemoteQueryValidation.RequireIdentifier(runtimeId, "runtime ID");
-        var quoted = Quote(runtimeId);
-        return Bounded(
-            "fn main() = all(\n"
-            + $"  inspect: runtime.inspect(runtime_id: {quoted}),\n"
-            + $"  history: runtime.history(runtime_id: {quoted}),\n"
-            + $"  logs: runtime.logs(runtime_id: {quoted}),\n"
-            + ")\n");
-    }
+    public Task<string> ExportRefreshAsync(
+        string runtimeId,
+        bool capabilities,
+        CancellationToken cancellationToken = default) => ExportAsync(
+            capabilities
+                ? "runtime_capabilities_refresh"
+                : "runtime_refresh",
+            runtimeId,
+            null,
+            null,
+            cancellationToken);
 
-    public static string Deploy(
+    public Task<string> ExportWorkspaceAsync(
+        string runtimeId,
+        CancellationToken cancellationToken = default) => ExportAsync(
+            "runtime_workspace",
+            runtimeId,
+            null,
+            null,
+            cancellationToken);
+
+    public Task<string> ExportDeployAsync(
         string runtimeId,
         string pipelineKind,
-        string? target)
+        string? target,
+        CancellationToken cancellationToken = default) => ExportAsync(
+            "runtime_deploy",
+            runtimeId,
+            pipelineKind,
+            target,
+            cancellationToken);
+
+    private async Task<string> ExportAsync(
+        string kind,
+        string runtimeId,
+        string? pipelineKind,
+        string? target,
+        CancellationToken cancellationToken)
     {
         RemoteQueryValidation.RequireIdentifier(runtimeId, "runtime ID");
-        RemoteMutationClient.RequireDeploymentToken(pipelineKind, "pipeline kind");
-        if (target is not null)
+        var request = new LeselangExportRequest
         {
-            RemoteMutationClient.RequireDeploymentTarget(target);
-        }
-        return Bounded(
-            "fn main() = runtime.deploy(\n"
-            + $"  runtime_id: {Quote(runtimeId)},\n"
-            + $"  pipeline_kind: {Quote(pipelineKind)},\n"
-            + $"  target: {(target is null ? "none" : Quote(target))},\n"
-            + ")\n");
+            SchemaVersion = SchemaVersion,
+            Intent = new LeselangExportIntent
+            {
+                Kind = kind,
+                RuntimeId = runtimeId,
+                PipelineKind = pipelineKind,
+                Target = target,
+            },
+        };
+        var payload = JsonSerializer.SerializeToUtf8Bytes(
+            request,
+            RemoteLeselangJsonContext.Default.LeselangExportRequest);
+        var responsePayload = await transport.PostLeselangExportAsync(
+            payload,
+            cancellationToken).ConfigureAwait(false);
+        return DecodeResponse(responsePayload);
     }
+
+    public void Dispose() => transport.Dispose();
+
+    private static string DecodeResponse(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length > MaxMessageBytes)
+        {
+            throw new InvalidDataException(
+                "remote Leselang export response exceeds the protocol limit");
+        }
+        var response = JsonSerializer.Deserialize(
+                payload,
+                RemoteLeselangJsonContext.Default.LeselangExportResponse)
+            ?? throw new InvalidDataException(
+                "remote Leselang export response is empty");
+        if (response.SchemaVersion != SchemaVersion)
+        {
+            throw new InvalidDataException(
+                "remote Leselang export schema is unsupported");
+        }
+        if (response.Source is { } source && response.Error is null)
+        {
+            if (string.IsNullOrEmpty(source)
+                || Encoding.UTF8.GetByteCount(source) > MaxSourceBytes)
+            {
+                throw new InvalidDataException(
+                    "remote Leselang export source is invalid");
+            }
+            return source;
+        }
+        if (response.Source is null && response.Error is { } error
+            && ValidFailure(error))
+        {
+            throw new RemoteLeselangExportException(error.Code, error.Message);
+        }
+        throw new InvalidDataException(
+            "remote Leselang export response has an invalid result shape");
+    }
+
+    private static bool ValidFailure(LeselangExportFailure failure) =>
+        !string.IsNullOrWhiteSpace(failure.Code)
+        && failure.Code.Length <= 64
+        && failure.Code.All(character =>
+            char.IsAsciiLetterOrDigit(character) || character == '_')
+        && !string.IsNullOrWhiteSpace(failure.Message)
+        && failure.Message.Length <= 256
+        && !failure.Message.Any(char.IsControl);
 
     public static void VerifyContract()
     {
-        if (Refresh("runtime-a", false)
-                != "fn main() = runtime.refresh(runtime_id: \"runtime-a\")\n"
-            || Refresh("runtime-a", true)
-                != "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")\n"
-            || Workspace("runtime-a")
-                != "fn main() = all(\n"
-                    + "  inspect: runtime.inspect(runtime_id: \"runtime-a\"),\n"
-                    + "  history: runtime.history(runtime_id: \"runtime-a\"),\n"
-                    + "  logs: runtime.logs(runtime_id: \"runtime-a\"),\n"
-                    + ")\n"
-            || Deploy("runtime-a", "http/request", "pid:42")
-                != "fn main() = runtime.deploy(\n"
-                    + "  runtime_id: \"runtime-a\",\n"
-                    + "  pipeline_kind: \"http/request\",\n"
-                    + "  target: \"pid:42\",\n"
-                    + ")\n"
-            || Deploy("runtime-a", "http/request", null)
-                != "fn main() = runtime.deploy(\n"
-                    + "  runtime_id: \"runtime-a\",\n"
-                    + "  pipeline_kind: \"http/request\",\n"
-                    + "  target: none,\n"
-                    + ")\n"
-            || Deploy("runtime-a", "http/request", "label:\"a\"\\b")
-                != "fn main() = runtime.deploy(\n"
-                    + "  runtime_id: \"runtime-a\",\n"
-                    + "  pipeline_kind: \"http/request\",\n"
-                    + "  target: \"label:\\\"a\\\"\\\\b\",\n"
-                    + ")\n")
+        var success = Encoding.UTF8.GetBytes(
+            "{\"schema_version\":1,\"source\":\"canonical-source\",\"error\":null}");
+        if (DecodeResponse(success) != "canonical-source")
         {
             throw new InvalidDataException(
-                "GUI Leselang export diverged from the canonical CLI format");
+                "GUI Leselang export response contract diverged");
         }
+        var rejected = Encoding.UTF8.GetBytes(
+            "{\"schema_version\":1,\"source\":null,\"error\":{\"code\":\"invalid_intent\",\"message\":\"Leselang export intent is invalid\"}}");
         try
         {
-            Deploy("runtime-a", "bad kind", null);
+            DecodeResponse(rejected);
             throw new InvalidDataException(
-                "GUI Leselang export accepted an invalid deployment");
+                "GUI Leselang export accepted a rejected Rust intent");
         }
-        catch (ArgumentException)
+        catch (RemoteLeselangExportException error)
+            when (error.Code == "invalid_intent")
         {
         }
-    }
-
-    private static string Quote(string value)
-    {
-        var output = new StringBuilder(value.Length + 2);
-        output.Append('"');
-        foreach (var character in value)
-        {
-            output.Append(character switch
-            {
-                '"' => "\\\"",
-                '\\' => "\\\\",
-                '\n' => "\\n",
-                '\r' => "\\r",
-                '\t' => "\\t",
-                _ => character.ToString(),
-            });
-        }
-        output.Append('"');
-        return output.ToString();
-    }
-
-    private static string Bounded(string source)
-    {
-        if (source.Length > MaxSourceLength)
-        {
-            throw new InvalidDataException("Leselang export exceeds the source limit");
-        }
-        return source;
     }
 }
+
+public sealed class RemoteLeselangExportException : Exception
+{
+    public RemoteLeselangExportException(string code, string message)
+        : base(message)
+    {
+        Code = code;
+    }
+
+    public string Code { get; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class LeselangExportRequest
+{
+    public int SchemaVersion { get; set; }
+    public required LeselangExportIntent Intent { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class LeselangExportIntent
+{
+    public required string Kind { get; set; }
+    public required string RuntimeId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PipelineKind { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Target { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class LeselangExportResponse
+{
+    public int SchemaVersion { get; set; }
+    public string? Source { get; set; }
+    public LeselangExportFailure? Error { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class LeselangExportFailure
+{
+    public required string Code { get; set; }
+    public required string Message { get; set; }
+}
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]
+[JsonSerializable(typeof(LeselangExportRequest))]
+[JsonSerializable(typeof(LeselangExportResponse))]
+public partial class RemoteLeselangJsonContext : JsonSerializerContext;

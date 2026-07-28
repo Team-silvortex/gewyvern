@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-07-28",
+  "version": "1.10.0",
+  "target": {
+    "os": "Ubuntu 24.04.4",
+    "kernel": "7.0.0-28-generic",
+    "arch": "x86_64",
+    "host_id_sha256": "734d6b3fb4778119bbf7010d94157466f40f860a003f057574e1d066d58b6c3d",
+    "ssh_host_key_sha256": "SHA256:1Avwm67cEqHvgz83C/mTUKQjl3vrEI+bX/wzbsoy0kg",
+    "service_manager": "systemd-system",
+    "install_profile": "system"
+  },
+  "artifact": {
+    "format": "elf-pie",
+    "sha256": "8f8507f0af4fe46eea59d1dc6c8224f4c683d1de959cd68f92657c2f104d5b53",
+    "bytes": 14233144,
+    "stripped": false
+  },
+  "transport": {
+    "implementation": "NativeSshBootstrapTransport",
+    "shell_entrypoint": false,
+    "host_key_pinned": true,
+    "system_elevation_command": "/usr/bin/sudo -n --",
+    "password_over_stdin": false,
+    "secret_in_argv": false,
+    "operation_specific_staging": true,
+    "staging_retained_after_proof": false
+  },
+  "privilege_policy": {
+    "temporary": true,
+    "nopasswd_scope": "bootstrap staging prefix plus activate/retire action",
+    "general_shell_authority": false,
+    "general_systemctl_authority": false,
+    "policy_removed_after_proof": true,
+    "passwordless_sudo_exit_after_revocation": 1
+  },
+  "proof": {
+    "service_ready_before_retirement": true,
+    "session_bound_before_retirement": true,
+    "trust_persistence_failure_withheld_authority": true,
+    "one_millisecond_timeout_rejected": true,
+    "forged_generation_rejected": true,
+    "identity_bound_retirement_succeeded": true,
+    "exact_retirement_replay_succeeded": true,
+    "retired_generation_reinstall_rejected": true,
+    "system_service_descriptor_absent": true,
+    "service_inactive": true,
+    "service_disabled_or_absent": true,
+    "daemon_process_absent": true,
+    "endpoint_port_clear": true,
+    "staging_absent": true,
+    "retained_audit_records_observed": 3,
+    "test_identity_residue_after_cleanup": 0,
+    "remote_source_removed": true,
+    "local_artifact_removed": true,
+    "local_trust_root_removed": true
+  },
+  "elapsed_seconds": 64.39,
+  "secrets_retained": false
+}

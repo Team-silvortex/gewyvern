@@ -33,7 +33,36 @@ if (!JsonNode.DeepEquals(actual, expected))
     throw new InvalidDataException("incremental render does not match the next document");
 }
 
-Console.WriteLine($"renderer conformance valid: revision={renderer.Document.Revision}");
+if (fixture.PresentationOperation is not { } operation)
+{
+    Console.WriteLine($"renderer conformance valid: revision={renderer.Document.Revision}");
+    return 0;
+}
+
+var operationPayload = JsonSerializer.SerializeToUtf8Bytes(
+    operation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedOperation = JsonSerializer.Deserialize(
+    operationPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("presentation operation round trip failed");
+if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.Focus,
+        NodeId = "missing-presentation-target",
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.Focus,
+        NodeId = renderer.Document.Root.Id,
+    }) != UiPresentationValidation.UnfocusableTarget)
+{
+    throw new InvalidDataException("presentation operation validation diverged");
+}
+
+Console.WriteLine(
+    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, strict_codec=true");
 return 0;
 
 static byte[] ReadBoundedFixture(string path)

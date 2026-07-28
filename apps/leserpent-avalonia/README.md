@@ -33,7 +33,24 @@ The renderer rejects payloads above 2 MiB, unknown JSON members, schema or
 revision drift, malformed patch shapes, duplicate IDs, cyclic moves, invalid
 localized text, unlabelled actions, and runtime-binding mismatches. It mounts
 the previous document, applies every incremental operation, and compares its
-semantic tree with the Rust-produced next document.
+semantic tree with the Rust-produced next document. The frozen primary fixture
+remains the version-1 compatibility baseline.
+
+The separate candidate fixture carries a Rust-generated
+`UiPresentationOperation::Focus`. RendererCore strictly round-trips it and
+validates valid, missing, and noninteractive targets before the Avalonia shell
+proves native focus through its stable visual index:
+
+```bash
+cargo run --quiet -p leselang-ui \
+  --example render_presentation_conformance_fixture -- \
+  apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json
+
+dotnet run --project \
+  apps/leserpent-avalonia/src/Leserpent.RendererConformance/Leserpent.RendererConformance.csproj \
+  --no-build -- \
+  apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json
+```
 
 `Leserpent.RendererCore` is a pure library and owns no command, persistence,
 transport, endpoint, adapter, or process-entry logic. The separate
@@ -241,7 +258,7 @@ node ID when the focused control still exists, including replacement of an
 updated action control. A removed action clears the pending target rather than
 transferring focus to another mutation control. Verify all paths against real
 Avalonia controls with
-`dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-focus-retention apps/leserpent-avalonia/fixtures/renderer-conformance-v1.json`.
+`dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-focus-retention apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json`.
 
 Run the named accessibility shelf across all real-control fixtures:
 

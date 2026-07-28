@@ -3,12 +3,15 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
-use leselang_hir::{Effect, HirProgram, Type, authorize};
+use leselang_hir::{
+    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, authorize, validate_ui_node_id,
+};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
-    Command, CommandEnvelope, CommandId, CommandOrigin, CommandResult, CommandStatus, Confirmation,
-    DOMAIN_SCHEMA_VERSION, IdempotencyKey, MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query,
-    QueryEnvelope, QueryResult, Revision, RuntimeId, RuntimeLogRecord, RuntimeProjection,
+    CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin,
+    CommandResult, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
+    MAX_RUNTIME_LOG_QUERY_ENTRIES, Principal, Query, QueryEnvelope, QueryResult, Revision,
+    RuntimeId, RuntimeLogRecord, RuntimeProjection, validate_debugger_session_id,
 };
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -86,6 +89,22 @@ pub struct EffectRequest {
 pub enum EffectOperation {
     Query(QueryEnvelope),
     Command(CommandEnvelope),
+    Presentation(PresentationEnvelope),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationEnvelope {
+    pub schema_version: u32,
+    pub principal: Principal,
+    pub capabilities: CapabilitySet,
+    pub operation: PresentationOperation,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PresentationOperation {
+    Focus { node_id: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -95,6 +114,22 @@ pub enum EffectOperation {
 pub enum EffectResult {
     Query(QueryResult),
     Command(Box<CommandResult>),
+    DebuggerCancel(DebuggerCancelResult),
+    Presentation(PresentationResult),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PresentationResult {
+    Focus { node_id: String },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebuggerCancelResult {
+    pub command_id: CommandId,
+    pub session_id: String,
+    pub observed_at_ms: u64,
 }
 
 #[derive(Deserialize)]
@@ -330,6 +365,12 @@ pub enum Value {
     },
     RuntimeDeploy {
         result: Box<CommandResult>,
+    },
+    DebuggerCancel {
+        result: DebuggerCancelResult,
+    },
+    UiFocus {
+        node_id: String,
     },
     Structured {
         fields: Vec<StructuredField>,
@@ -614,37 +655,55 @@ impl Vm {
             deadline_at_ms,
             max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
         };
-        encode_continuation(&image)?;
-        let plan = lower_effect(
-            effect,
-            &LoweringContext {
-                principal,
-                capabilities,
-                expected_revision,
-                command_id: CommandId::new(format!("leselang-command-{sequence}"))
-                    .expect("generated command identifier is valid"),
-                idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
-                    .expect("generated idempotency key is valid"),
-                origin: CommandOrigin::Leselang,
-                confirmation: if matches!(effect, Effect::RuntimeDeploy { .. }) {
-                    Confirmation::Confirmed
-                } else {
-                    Confirmation::NotRequired
-                },
-                dry_run: false,
-            },
-        )
-        .map_err(|error| Fault {
-            code: "LSV1002".to_string(),
-            message: format!("structured branch lowering failed: {error:?}"),
-        })?;
-        let operation = match plan.operation {
-            PlannedOperation::Query(query) => EffectOperation::Query(query),
-            PlannedOperation::Command(command) => EffectOperation::Command(command),
+        let (required_capability, operation) = match effect {
+            Effect::UiFocus { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::Focus {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            _ => {
+                let plan = lower_effect(
+                    effect,
+                    &LoweringContext {
+                        principal,
+                        capabilities,
+                        expected_revision,
+                        command_id: CommandId::new(format!("leselang-command-{sequence}"))
+                            .expect("generated command identifier is valid"),
+                        idempotency_key: IdempotencyKey::new(format!("leselang-effect-{sequence}"))
+                            .expect("generated idempotency key is valid"),
+                        origin: CommandOrigin::Leselang,
+                        confirmation: if matches!(
+                            effect,
+                            Effect::RuntimeDeploy { .. } | Effect::DebuggerCancel { .. }
+                        ) {
+                            Confirmation::Confirmed
+                        } else {
+                            Confirmation::NotRequired
+                        },
+                        dry_run: false,
+                    },
+                )
+                .map_err(|error| Fault {
+                    code: "LSV1002".to_string(),
+                    message: format!("structured branch lowering failed: {error:?}"),
+                })?;
+                let operation = match plan.operation {
+                    PlannedOperation::Query(query) => EffectOperation::Query(query),
+                    PlannedOperation::Command(command) => EffectOperation::Command(command),
+                };
+                (plan.required_capability, operation)
+            }
         };
         Ok(EffectRequest {
             effect_id: format!("effect-{sequence}"),
-            required_capability: plan.required_capability,
+            required_capability,
             operation,
             continuation: image.clone(),
             budget: ResourceBudget {
@@ -657,7 +716,7 @@ impl Vm {
     }
 
     pub fn restore(&mut self, image: ContinuationImage) -> Result<(), Fault> {
-        validate_image(&image)?;
+        validate_continuation_size(&image)?;
         if let Some(current) = self.pending.get(&image.token) {
             return if current == &image {
                 Ok(())
@@ -732,6 +791,7 @@ impl Vm {
             Effect::RuntimeRefresh { .. }
                 | Effect::RuntimeCapabilitiesRefresh { .. }
                 | Effect::RuntimeDeploy { .. }
+                | Effect::DebuggerCancel { .. }
         ) {
             return fault(
                 "LSV2110",
@@ -1057,6 +1117,11 @@ pub fn encode_continuation(image: &ContinuationImage) -> Result<Vec<u8>, Fault> 
     encode_json_capped(image, MAX_CONTINUATION_BYTES, "continuation")
 }
 
+pub(crate) fn validate_continuation_size(image: &ContinuationImage) -> Result<(), Fault> {
+    validate_image(image)?;
+    validate_json_size_capped(image, MAX_CONTINUATION_BYTES, "continuation")
+}
+
 fn encode_json_capped<T: Serialize>(
     value: &T,
     limit: usize,
@@ -1076,6 +1141,27 @@ fn encode_json_capped<T: Serialize>(
         });
     }
     Ok(writer.output)
+}
+
+fn validate_json_size_capped<T: Serialize>(
+    value: &T,
+    limit: usize,
+    label: &str,
+) -> Result<(), Fault> {
+    let mut writer = CappedCounter::new(limit);
+    if let Err(error) = serde_json::to_writer(&mut writer, value) {
+        if writer.overflowed {
+            return Err(Fault {
+                code: "LSV3002".to_string(),
+                message: format!("{label} exceeds {limit} bytes"),
+            });
+        }
+        return Err(Fault {
+            code: "LSV3001".to_string(),
+            message: format!("failed to encode {label}: {error}"),
+        });
+    }
+    Ok(())
 }
 
 pub fn decode_continuation(bytes: &[u8]) -> Result<ContinuationImage, Fault> {
@@ -1123,6 +1209,8 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::RuntimeRefresh { .. } => Type::RuntimeRefresh,
         Effect::RuntimeCapabilitiesRefresh { .. } => Type::RuntimeCapabilitiesRefresh,
         Effect::RuntimeDeploy { .. } => Type::RuntimeDeploy,
+        Effect::DebuggerCancel { .. } => Type::DebuggerCancel,
+        Effect::UiFocus { .. } => Type::UiFocus,
         Effect::All { .. } => {
             return Err(Fault {
                 code: "LSV2015".to_string(),
@@ -1323,6 +1411,44 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                         && command_pipeline_kind == pipeline_kind
                         && command_target == target
                 )
+        }
+        (Effect::DebuggerCancel { session_id }, EffectOperation::Command(command)) => {
+            validate_effect_identity(
+                command.schema_version,
+                &command.principal,
+                &command.capabilities,
+                &request.required_capability,
+                CAPABILITY_DEBUGGER_CONTROL,
+            )?;
+            command.command_id
+                == CommandId::new(format!("leselang-command-{token_suffix}"))
+                    .expect("canonical command identifier is valid")
+                && command.idempotency_key.as_str() == format!("leselang-effect-{token_suffix}")
+                && command.expected_revision == request.continuation.expected_revision
+                && command.origin == CommandOrigin::Leselang
+                && command.confirmation == Confirmation::Confirmed
+                && !command.dry_run
+                && matches!(
+                    &command.command,
+                    Command::DebuggerCancel {
+                        session_id: command_session_id,
+                    } if command_session_id == session_id
+                )
+        }
+        (Effect::UiFocus { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::Focus {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
         }
         _ => false,
     };
@@ -1597,6 +1723,13 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::RuntimeRefresh { .. }
         | Value::RuntimeCapabilitiesRefresh { .. }
         | Value::RuntimeDeploy { .. } => Ok(1),
+        Value::DebuggerCancel { result }
+            if validate_debugger_session_id(&result.session_id).is_ok()
+                && result.observed_at_ms <= i64::MAX as u64 =>
+        {
+            Ok(1)
+        }
+        Value::UiFocus { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::Structured { fields } if (2..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
             let mut names = BTreeSet::new();
             let mut output_items = 0usize;
@@ -1844,6 +1977,41 @@ fn step_from_effect_result(
         {
             Step::Done(Value::RuntimeDeploy { result })
         }
+        (
+            Effect::DebuggerCancel { session_id },
+            Type::DebuggerCancel,
+            Some(EffectOperation::Command(command)),
+            EffectResult::DebuggerCancel(result),
+        ) if result.session_id == *session_id
+            && result.command_id == command.command_id
+            && result.observed_at_ms <= i64::MAX as u64 =>
+        {
+            Step::Done(Value::DebuggerCancel { result })
+        }
+        (
+            Effect::UiFocus { node_id },
+            Type::UiFocus,
+            operation,
+            EffectResult::Presentation(PresentationResult::Focus {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::Focus {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiFocus {
+                node_id: result_node_id,
+            })
+        }
         _ => fault("LSV2103", "effect result does not match pending effect"),
     }
 }
@@ -1874,6 +2042,40 @@ impl Write for CappedWriter {
             ));
         }
         self.output.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+struct CappedCounter {
+    bytes: usize,
+    limit: usize,
+    overflowed: bool,
+}
+
+impl CappedCounter {
+    fn new(limit: usize) -> Self {
+        Self {
+            bytes: 0,
+            limit,
+            overflowed: false,
+        }
+    }
+}
+
+impl Write for CappedCounter {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if self.bytes.saturating_add(buffer.len()) > self.limit {
+            self.overflowed = true;
+            return Err(io::Error::new(
+                io::ErrorKind::FileTooLarge,
+                "encoded value exceeds limit",
+            ));
+        }
+        self.bytes += buffer.len();
         Ok(buffer.len())
     }
 
@@ -2075,6 +2277,84 @@ mod tests {
                 role: None,
             }
         );
+    }
+
+    #[test]
+    fn ui_focus_uses_a_local_presentation_envelope_and_reenters_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI focus effect");
+        };
+        assert_eq!(request.required_capability, CAPABILITY_UI_PRESENTATION);
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI focus must not become a query or command");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::Focus { node_id }
+                if node_id == "runtime-a:refresh"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::Focus {
+                    node_id: "runtime-a:refresh".into(),
+                }),
+            ),
+            Step::Done(Value::UiFocus {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn ui_focus_requires_presentation_capability_and_rejects_torn_operations() {
+        let program = lower(&parse(
+            "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        assert!(matches!(
+            vm.start(
+                &program,
+                Principal {
+                    id: "desktop-operator".to_string(),
+                },
+                CapabilitySet::default(),
+                None,
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSH2001"
+        ));
+
+        let Step::Effect(mut request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI focus effect");
+        };
+        let EffectOperation::Presentation(presentation) = &mut request.operation else {
+            panic!("UI focus must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::Focus {
+            node_id: "other-action".into(),
+        };
+        assert!(validate_effect_request(&request).is_err());
     }
 
     #[test]
@@ -3102,6 +3382,49 @@ mod tests {
     }
 
     #[test]
+    fn debugger_cancel_is_confirmed_correlated_and_restart_safe() {
+        let journal = TempJournal::new("debugger-cancel-language");
+        let program = lower(&parse(
+            "fn main() = debugger.cancel(session_id: \"session-a\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]),
+            Some(Revision(7)),
+        ) else {
+            panic!("expected debugger cancellation effect");
+        };
+        let EffectOperation::Command(command) = &request.operation else {
+            panic!("expected debugger cancellation command");
+        };
+        assert_eq!(command.confirmation, Confirmation::Confirmed);
+        assert!(matches!(
+            command.command,
+            Command::DebuggerCancel { ref session_id } if session_id == "session-a"
+        ));
+        drop(vm);
+
+        let mut recovered = Vm::open_journal(journal.path(), DEFAULT_FUEL).unwrap();
+        let lease = recovered.claim_effect(1_000, 50).unwrap().unwrap();
+        let result = DebuggerCancelResult {
+            command_id: command.command_id.clone(),
+            session_id: "session-a".into(),
+            observed_at_ms: 1_001,
+        };
+        let completed = recovered.acknowledge_effect(
+            &lease,
+            1_001,
+            EffectResult::DebuggerCancel(result.clone()),
+        );
+        assert_eq!(completed, Step::Done(Value::DebuggerCancel { result }));
+    }
+
+    #[test]
     fn completion_consumes_once_and_duplicate_delivery_is_idempotent() {
         let mut vm = Vm::default();
         let request = start(&mut vm, Some(Revision(7)));
@@ -3377,6 +3700,20 @@ mod tests {
             None,
         );
         assert!(matches!(step, Step::Fault(Fault { ref code, .. }) if code == "LSV3002"));
+
+        let mut source_vm = Vm::default();
+        let mut oversized_image = start(&mut source_vm, None).continuation;
+        oversized_image.pending_effect = Effect::RuntimeList {
+            filter: RuntimeListFilter {
+                environment: Some(large_value),
+                cluster: None,
+                role: None,
+            },
+        };
+        assert_eq!(
+            Vm::default().restore(oversized_image).unwrap_err().code,
+            "LSV3002"
+        );
     }
 
     #[test]

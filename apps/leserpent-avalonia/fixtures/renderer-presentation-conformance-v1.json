@@ -1,0 +1,616 @@
+{
+  "schema_version": 1,
+  "previous": {
+    "schema_version": 1,
+    "revision": 1,
+    "root": {
+      "id": "fleet-root",
+      "kind": "column",
+      "runtime_id": null,
+      "debugger_session_id": null,
+      "text": null,
+      "accessibility": {
+        "label": {
+          "key": "fleet.root",
+          "fallback": "Runtime fleet"
+        },
+        "description": null
+      },
+      "action": null,
+      "children": [
+        {
+          "id": "fleet-title",
+          "kind": "heading",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "fleet.title",
+            "fallback": "Runtimes"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "fleet-revision",
+          "kind": "text",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "fleet.revision",
+            "fallback": "Revision 1"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "runtime-runtime-a",
+          "kind": "runtime_card",
+          "runtime_id": "runtime-a",
+          "debugger_session_id": null,
+          "text": null,
+          "accessibility": {
+            "label": {
+              "key": "fleet.runtime.card",
+              "fallback": "Runtime A"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "runtime-runtime-a-name",
+              "kind": "heading",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.name",
+                "fallback": "Runtime A"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-status",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.status",
+                "fallback": "Never requested"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.refresh",
+                "fallback": "Refresh"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.refresh",
+                  "fallback": "Refresh runtime"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_refresh",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-capabilities-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.capabilities.refresh",
+                "fallback": "Refresh capabilities"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.capabilities.refresh",
+                  "fallback": "Refresh runtime capabilities"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_capabilities_refresh",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "patch": {
+    "schema_version": 1,
+    "from_revision": 1,
+    "to_revision": 2,
+    "operations": [
+      {
+        "kind": "insert",
+        "parent_id": "fleet-root",
+        "index": 3,
+        "node": {
+          "id": "runtime-runtime-b",
+          "kind": "runtime_card",
+          "runtime_id": "runtime-b",
+          "debugger_session_id": null,
+          "text": null,
+          "accessibility": {
+            "label": {
+              "key": "fleet.runtime.card",
+              "fallback": "Runtime B"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "runtime-runtime-b-name",
+              "kind": "heading",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.name",
+                "fallback": "Runtime B"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-status",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.status",
+                "fallback": "Never requested"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.refresh",
+                "fallback": "Refresh"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.refresh",
+                  "fallback": "Refresh runtime"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_refresh",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-capabilities-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.capabilities.refresh",
+                "fallback": "Refresh capabilities"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.capabilities.refresh",
+                  "fallback": "Refresh runtime capabilities"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_capabilities_refresh",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            }
+          ]
+        }
+      },
+      {
+        "kind": "update",
+        "node": {
+          "id": "fleet-revision",
+          "kind": "text",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "fleet.revision",
+            "fallback": "Revision 2"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        }
+      }
+    ]
+  },
+  "next": {
+    "schema_version": 1,
+    "revision": 2,
+    "root": {
+      "id": "fleet-root",
+      "kind": "column",
+      "runtime_id": null,
+      "debugger_session_id": null,
+      "text": null,
+      "accessibility": {
+        "label": {
+          "key": "fleet.root",
+          "fallback": "Runtime fleet"
+        },
+        "description": null
+      },
+      "action": null,
+      "children": [
+        {
+          "id": "fleet-title",
+          "kind": "heading",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "fleet.title",
+            "fallback": "Runtimes"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "fleet-revision",
+          "kind": "text",
+          "runtime_id": null,
+          "debugger_session_id": null,
+          "text": {
+            "key": "fleet.revision",
+            "fallback": "Revision 2"
+          },
+          "accessibility": {
+            "label": null,
+            "description": null
+          },
+          "action": null,
+          "children": []
+        },
+        {
+          "id": "runtime-runtime-a",
+          "kind": "runtime_card",
+          "runtime_id": "runtime-a",
+          "debugger_session_id": null,
+          "text": null,
+          "accessibility": {
+            "label": {
+              "key": "fleet.runtime.card",
+              "fallback": "Runtime A"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "runtime-runtime-a-name",
+              "kind": "heading",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.name",
+                "fallback": "Runtime A"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-status",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.status",
+                "fallback": "Never requested"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.refresh",
+                "fallback": "Refresh"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.refresh",
+                  "fallback": "Refresh runtime"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_refresh",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-a-capabilities-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.capabilities.refresh",
+                "fallback": "Refresh capabilities"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.capabilities.refresh",
+                  "fallback": "Refresh runtime capabilities"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_capabilities_refresh",
+                "runtime_id": "runtime-a"
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "runtime-runtime-b",
+          "kind": "runtime_card",
+          "runtime_id": "runtime-b",
+          "debugger_session_id": null,
+          "text": null,
+          "accessibility": {
+            "label": {
+              "key": "fleet.runtime.card",
+              "fallback": "Runtime B"
+            },
+            "description": null
+          },
+          "action": null,
+          "children": [
+            {
+              "id": "runtime-runtime-b-name",
+              "kind": "heading",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.name",
+                "fallback": "Runtime B"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-status",
+              "kind": "text",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.status",
+                "fallback": "Never requested"
+              },
+              "accessibility": {
+                "label": null,
+                "description": null
+              },
+              "action": null,
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-inspect",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.inspect",
+                "fallback": "Inspect"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.inspect",
+                  "fallback": "Inspect runtime"
+                },
+                "description": {
+                  "key": "fleet.runtime.inspect.description",
+                  "fallback": "Open the read-only runtime workspace"
+                }
+              },
+              "action": {
+                "kind": "runtime_inspect",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.refresh",
+                "fallback": "Refresh"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.refresh",
+                  "fallback": "Refresh runtime"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_refresh",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            },
+            {
+              "id": "runtime-runtime-b-capabilities-refresh",
+              "kind": "action",
+              "runtime_id": null,
+              "debugger_session_id": null,
+              "text": {
+                "key": "fleet.runtime.capabilities.refresh",
+                "fallback": "Refresh capabilities"
+              },
+              "accessibility": {
+                "label": {
+                  "key": "fleet.runtime.capabilities.refresh",
+                  "fallback": "Refresh runtime capabilities"
+                },
+                "description": null
+              },
+              "action": {
+                "kind": "runtime_capabilities_refresh",
+                "runtime_id": "runtime-b"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "presentation_operation": {
+    "kind": "focus",
+    "node_id": "runtime-runtime-a-inspect"
+  }
+}

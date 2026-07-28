@@ -50,6 +50,9 @@ and migration bridge. It is not the semantic center of the 2.0 system.
 9. No control-plane decision path may be introduced in a frontend language.
    Rust owns policy, authorization, idempotency, revision, and effect
    semantics.
+10. Frontends may request a canonical Leselang representation only by sending
+    a bounded semantic intent to Rust. They cannot own quoting, formatting, or
+    fallback source templates.
 
 These rules define atomic replaceability. Replacing GUI interaction with CLI or
 Leselang may change presentation and transport, but not control semantics.
@@ -397,6 +400,15 @@ The network driver is isolated behind the `leserpent-adapters/native-ssh`
 feature so ordinary `leserpentd` builds retain the policy adapter without
 linking an unused SSH client stack.
 
+The policy admits exactly `user` or `system` install profiles. User-profile
+installers execute directly; system-profile activation and retirement use only
+the fixed `/usr/bin/sudo -n -- <validated-staging-path> <fixed-action>` form.
+No password is sent to sudo, no secret enters argv, and unavailable target-side
+authorization fails closed instead of prompting. A physical Ubuntu proof used
+a temporary NOPASSWD rule restricted to the bootstrap staging prefix and the
+two native actions, then removed that rule and verified noninteractive sudo was
+again denied.
+
 The target-side `bootstrap-install-v1` executable contract now shares a strict
 64 KiB installer wire with the SSH adapter. It verifies the running artifact's
 SHA-256, writes an immutable private generation containing the executable,
@@ -408,9 +420,9 @@ idempotent installation without token output.
 
 Installer responses distinguish `installed` from `ready`. The SSH adapter
 rejects `installed`, so copied files can never be mistaken for a live daemon.
-Native launchd/systemd publication and activation plus an authenticated endpoint
-health proof must complete before the installer may emit `ready`; those service
-layers and the real SSH host proof remain the next boundary.
+Native launchd/systemd publication, activation, authenticated endpoint health,
+and pinned-SSH proofs now cover both systemd-user and privileged systemd-system
+profiles. WinRM remains the deferred cross-platform boundary.
 
 The generation now also owns a target-generated self-signed TLS identity for
 the requested endpoint SAN. Both certificate and private key remain in the
@@ -624,16 +636,23 @@ The intended source ownership is:
 | --- | --- |
 | `leselang-syntax` | lexer, parser, lossless syntax tree, diagnostics |
 | `leselang-hir` | names, types, effect declarations, validated functions |
-| `leselang-vm` | stackless evaluator, continuation images, deterministic steps |
+| `leselang-vm` | stackless evaluator, continuation images, deterministic query/command/presentation steps |
 | `leselang-observe` | validated, sanitized VM/runtime projections for UI consumers |
-| `leselang-command` | operation DSL lowering into `CommandPlan` |
-| `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch` |
+| `leselang-command` | control-plane DSL lowering into `CommandPlan` and explicit rejection of frontend-local effects |
+| `leselang-ui` | pure UI DSL lowering into `UiDocument` and `UiPatch`, semantic event/effect round trips, typed presentation operations, and bounded canonical export intents |
 | `leserpent-domain` | validated IDs, commands, queries, events, revisions, capabilities, bootstrap state, and plan authorization |
 | `leserpent-runtime` | transactions, scheduling, policy, replay, projections |
 | `leserpent-protocol` | IPC, HTTP, WebSocket, bootstrap wire, schema, compatibility, and shared transport safety |
 | `leserpent-adapters` | typed Gewyvern health, status, deployment, discovery, and native secret-store integrations |
 | `leserpent-cli` | native CLI parsing and rendering |
 | `leserpentd` | local and remote runtime host |
+
+The remote desktop uses authenticated `POST /v1/leselang-export` for pure
+code-equivalence previews. This route does not dispatch commands or queries. It
+strictly decodes a versioned semantic intent, delegates validation and canonical
+round-trip generation to `leselang-ui` and `leselang-hir`, and returns either
+source or a bounded typed failure. Avalonia disables export on failure rather
+than recreating Leselang syntax in C#.
 
 Crates may initially be introduced behind one workspace package, but these
 ownership boundaries must exist before frontend migration begins.
@@ -1637,6 +1656,22 @@ Every GUI action must support:
 - replay through CLI or Leselang
 - audit correlation by command and effect ID
 
+The first complete semantic-action round trip now covers runtime inspect,
+runtime refresh, capability refresh, parameterized deployment, and debugger
+cancellation. `UiEvent` lowers to the same typed HIR effect as textual Leselang;
+Rust prints its canonical source and can reconstruct an equivalent event from
+that effect and the current document. This closes business-action parity for
+the current `UiAction` enum.
+
+Presentation parity has started on a separate, non-command path.
+`ui.focus(node_id: ...)` lowers to a capability-gated VM
+`PresentationEnvelope`, then to renderer-neutral
+`UiPresentationOperation::Focus`. It cannot become a `CommandPlan`. Avalonia
+validates the semantic target, resolves the stable node ID, applies native
+focus, and returns explicit failure classes without activating the target.
+Selection, scrolling, navigation, windows, waits, and assertions remain
+unimplemented rather than being approximated with coordinates or scripts.
+
 ## Process And Transport Boundaries
 
 Desktop deployments should run `leserpentd` separately and connect through a
@@ -1939,6 +1974,21 @@ performance contract executable for runtime cold open, command-query latency,
 effect enqueue throughput, UI document/patch/codec cost, .NET workspace-log
 incremental merge cost, and release binary size. Budgets intentionally detect disaster regressions rather than compare
 unrelated CPUs or filesystems; exact measurements are retained per host class.
+The same shelf now treats the language itself as a first-class workload. A
+fixed maximum-width 64-branch program separately measures syntax parsing, HIR
+lowering, stackless VM effect startup, and the complete source-to-effects
+pipeline. It also verifies the exact source, token, branch, and effect counts,
+so an accidentally shortened or vacuous workload cannot pass a timing budget.
+The common unescaped-string path copies directly, HIR name sets use one bounded
+allocation, and ephemeral continuation-size validation counts encoded bytes
+without retaining a throwaway JSON buffer. Durable journals still perform the
+single encoding needed for persistence.
+The renderer-neutral diff kernel now recognizes unchanged node topology in
+linear time and emits only shallow updates without cloning and repeatedly
+searching a working tree. Insert, remove, or move topology still uses the
+general convergence-checked algorithm. The fixed benchmark requires the
+two-operation workload to remain within four times document-generation p50, so
+the former quadratic path cannot hide beneath the absolute disaster budget.
 
 Accessibility is a cross-boundary proof, not a renderer assumption. Rust rejects
 unlabelled actions in the neutral IR; Avalonia then audits realized Automation

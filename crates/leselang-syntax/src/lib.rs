@@ -606,8 +606,12 @@ fn decode_string(source: &str) -> Result<String, &'static str> {
     if source.len() < 2 || !source.starts_with('"') || !source.ends_with('"') {
         return Err("unterminated string literal");
     }
-    let mut output = String::new();
-    let mut chars = source[1..source.len() - 1].chars();
+    let body = &source[1..source.len() - 1];
+    if !body.as_bytes().contains(&b'\\') {
+        return Ok(body.to_string());
+    }
+    let mut output = String::with_capacity(body.len());
+    let mut chars = body.chars();
     while let Some(character) = chars.next() {
         if character != '\\' {
             output.push(character);

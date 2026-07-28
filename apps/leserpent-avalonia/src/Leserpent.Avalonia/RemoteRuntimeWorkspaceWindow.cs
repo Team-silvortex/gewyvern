@@ -11,6 +11,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
 {
     private readonly AvaloniaDocumentRenderer renderer;
     private readonly RemoteWorkspaceClient client;
+    private readonly RemoteLeselangClient leselangClient;
     private readonly CancellationTokenSource lifetime = new();
     private readonly string principal;
     private readonly TextBlock statusText = new()
@@ -111,6 +112,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
         RuntimeId = runtime.Id;
         this.principal = principal;
         client = new RemoteWorkspaceClient(options);
+        leselangClient = new RemoteLeselangClient(options);
         renderer = new AvaloniaDocumentRenderer(actionInvoked);
         Width = 760;
         Height = 620;
@@ -246,6 +248,7 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
             workspaceLeselangWindow?.Close();
             lifetime.Cancel();
             client.Dispose();
+            leselangClient.Dispose();
             lifetime.Dispose();
         };
     }
@@ -653,7 +656,9 @@ internal sealed class RemoteRuntimeWorkspaceWindow : Window
                 Padding = new Thickness(20),
                 Child = new LeselangExportControl(
                     "runtime-workspace-query",
-                    RemoteLeselangExport.Workspace(RuntimeId)),
+                    cancellationToken => leselangClient.ExportWorkspaceAsync(
+                        RuntimeId,
+                        cancellationToken)),
             },
         };
         preview.Closed += (_, _) =>

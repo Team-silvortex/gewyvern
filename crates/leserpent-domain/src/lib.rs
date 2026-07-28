@@ -715,7 +715,7 @@ impl CommandPlan {
                     )
                 }
                 Command::DebuggerCancel { session_id } => {
-                    if validated_identifier("session_id", session_id.clone()).is_err() {
+                    if validate_debugger_session_id(session_id).is_err() {
                         return Err(CommandPlanError::InvalidDebuggerSessionId);
                     }
                     (
@@ -1728,6 +1728,11 @@ fn validated_identifier(field: &'static str, value: String) -> Result<String, Do
     valid
         .then_some(value)
         .ok_or(DomainError::InvalidIdentifier { field })
+}
+
+/// Validates the debugger session identity shared by language, UI, and plan boundaries.
+pub fn validate_debugger_session_id(session_id: &str) -> Result<(), DomainError> {
+    validated_identifier("session_id", session_id.to_string()).map(|_| ())
 }
 
 /// Validates the deployment fields shared by language, CLI, plan, and runtime boundaries.

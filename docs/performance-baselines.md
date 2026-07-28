@@ -49,6 +49,25 @@ compose at `2.099 ms` p50 and `321,424` allocated bytes per iteration. The
 for timing/allocation ratios of `0.142 / 0.095`, while preserving a 256-entry
 result. These ratios are same-host signals, not cross-machine promises.
 
+The `2026-07-28` macOS arm64 UI diff optimization adds an O(n) path for
+unchanged node topology while retaining the general insert/remove/move
+algorithm. On the fixed 1,539-node, two-operation workload, patch-plus-apply p50
+fell from `14.536 ms` to a three-run range of `2.104-2.242 ms` (median
+`2.110 ms`, about 85.5% lower). The benchmark now requires exactly two patch
+operations and caps patch p50 at four times document-generation p50, preventing
+the former O(n²) behavior from hiding under the broad absolute budget.
+
+The same date adds a first-class Leselang language workload: a 5,371-byte,
+1,674-token program containing the maximum 64 declared `all` branches, sampled
+500 times across parsing, HIR lowering, ephemeral VM start, and the complete
+pipeline. Three alternating detached-HEAD/current pairs produced medians of
+`0.0778/0.0451 ms` for parse, `0.0422/0.0285 ms` for HIR,
+`0.4283/0.2076 ms` for VM start, and `0.5229/0.2974 ms` end to end. The
+respective reductions are about 42%, 33%, 52%, and 43%. The optimized paths
+avoid per-character decoding for ordinary unescaped strings, replace
+per-entry tree allocations during name deduplication, and validate ephemeral
+continuation encoding size without materializing discarded JSON bytes.
+
 Measurement notes:
 
 - date: `2026-05-20`

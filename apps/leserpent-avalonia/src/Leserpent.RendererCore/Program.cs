@@ -76,6 +76,25 @@ public sealed class SemanticRenderer
         };
     }
 
+    public UiPresentationValidation ValidatePresentationOperation(
+        UiPresentationOperation operation)
+    {
+        if (!IsIdentifier(operation.NodeId))
+        {
+            return UiPresentationValidation.UnknownTarget;
+        }
+        var node = Find(Document.Root, operation.NodeId);
+        if (node is null)
+        {
+            return UiPresentationValidation.UnknownTarget;
+        }
+        return operation.Kind == UiPresentationOperationKind.Focus
+            && node.Kind == UiNodeKind.Action
+            && node.Action is not null
+                ? UiPresentationValidation.Valid
+                : UiPresentationValidation.UnfocusableTarget;
+    }
+
     private void ApplyOperation(UiPatchOperation operation)
     {
         switch (operation.Kind)
@@ -351,6 +370,7 @@ public sealed class RendererFixture
     public required UiDocument Previous { get; set; }
     public required UiPatch Patch { get; set; }
     public required UiDocument Next { get; set; }
+    public UiPresentationOperation? PresentationOperation { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -425,6 +445,13 @@ public sealed class UiEvent
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class UiPresentationOperation
+{
+    public UiPresentationOperationKind Kind { get; set; }
+    public required string NodeId { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class UiPatch
 {
     public int SchemaVersion { get; set; }
@@ -483,6 +510,19 @@ public enum UiEventKind
     [JsonStringEnumMemberName("submit")] Submit,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<UiPresentationOperationKind>))]
+public enum UiPresentationOperationKind
+{
+    [JsonStringEnumMemberName("focus")] Focus,
+}
+
+public enum UiPresentationValidation
+{
+    Valid,
+    UnknownTarget,
+    UnfocusableTarget,
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<PatchKind>))]
 public enum PatchKind
 {
@@ -497,4 +537,5 @@ public enum PatchKind
 [JsonSerializable(typeof(RendererFixture))]
 [JsonSerializable(typeof(UiDocument))]
 [JsonSerializable(typeof(UiEvent))]
+[JsonSerializable(typeof(UiPresentationOperation))]
 public partial class RendererJsonContext : JsonSerializerContext;

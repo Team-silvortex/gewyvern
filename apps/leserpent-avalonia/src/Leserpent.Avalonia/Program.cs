@@ -42,9 +42,9 @@ internal static class Program
         }
         if (args is ["--verify-leselang-gui-export"])
         {
-            RemoteLeselangExport.VerifyContract();
+            RemoteLeselangClient.VerifyContract();
             Console.WriteLine(
-                "GUI Leselang export valid: refresh=true, capabilities=true, deployment=true, workspace_queries=true, optional_target=true, canonical_escape=true, execution=false");
+                "GUI Leselang export protocol valid: rust_authority=true, authenticated_route=true, strict_decode=true, execution=false");
             return 0;
         }
         if (args is ["--verify-remote-mutation-fence"])

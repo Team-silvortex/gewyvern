@@ -136,7 +136,9 @@ impl SshBootstrapHostPolicy {
         let endpoint = endpoint.into();
         validate_https_origin(&endpoint)?;
         let install_profile = install_profile.into();
-        validate_id("bootstrap install profile", &install_profile)?;
+        if !matches!(install_profile.as_str(), "system" | "user") {
+            return Err("bootstrap install profile must be system or user".into());
+        }
         if session_credential_handle.parts().0 != "leserpentd" {
             return Err("session credential handle must use the leserpentd vault provider".into());
         }
@@ -568,7 +570,9 @@ impl SshBootstrapTransport for NativeSshBootstrapTransport {
         let payload = encode_bootstrap_installer_request(&request)
             .map_err(|_| SshBootstrapTransportError::Transport)?;
         let staging_path = job.artifact.staging_path(job.bootstrap_id);
-        let command = format!("{staging_path} bootstrap-activate-v1");
+        let command =
+            native_installer_command(&staging_path, "bootstrap-activate-v1", job.install_profile)
+                .map_err(|_| SshBootstrapTransportError::Transport)?;
         let stdout = self
             .client
             .execute(NativeSshJob {
@@ -608,7 +612,12 @@ impl SshBootstrapRetirementTransport for NativeSshBootstrapTransport {
         let staging_path = job
             .artifact
             .retirement_staging_path(&job.request.retirement_id);
-        let command = format!("{staging_path} bootstrap-retire-v1");
+        let command = native_installer_command(
+            &staging_path,
+            "bootstrap-retire-v1",
+            &job.request.install_profile,
+        )
+        .map_err(|_| SshBootstrapRetirementTransportError::InvalidRequest)?;
         let stdout = self
             .client
             .execute(NativeSshJob {
@@ -688,6 +697,24 @@ fn validate_installer_readiness(
         tls_ca_pem: response.tls_ca_pem,
         tls_ca_sha256: response.tls_ca_sha256,
     })
+}
+
+#[cfg(feature = "native-ssh")]
+fn native_installer_command(
+    staging_path: &str,
+    action: &str,
+    install_profile: &str,
+) -> Result<String, ()> {
+    if !valid_staging_prefix(staging_path)
+        || !matches!(action, "bootstrap-activate-v1" | "bootstrap-retire-v1")
+    {
+        return Err(());
+    }
+    match install_profile {
+        "user" => Ok(format!("{staging_path} {action}")),
+        "system" => Ok(format!("/usr/bin/sudo -n -- {staging_path} {action}")),
+        _ => Err(()),
+    }
 }
 
 fn load_secret(store: &dyn SecretStore, key: &str) -> Result<SecretValue, &'static str> {
@@ -1370,6 +1397,71 @@ mod tests {
         assert_eq!(
             artifact.retirement_staging_path("retire-bootstrap-1"),
             "/tmp/leserpent-bootstrap-retire-retire-bootstrap-1.stage"
+        );
+    }
+
+    #[cfg(feature = "native-ssh")]
+    #[test]
+    fn native_system_profile_requires_fixed_noninteractive_sudo() {
+        assert_eq!(
+            native_installer_command(
+                "/tmp/leserpent-bootstrap-bootstrap-1.stage",
+                "bootstrap-activate-v1",
+                "user",
+            ),
+            Ok("/tmp/leserpent-bootstrap-bootstrap-1.stage bootstrap-activate-v1".into())
+        );
+        assert_eq!(
+            native_installer_command(
+                "/tmp/leserpent-bootstrap-retire-retire-1.stage",
+                "bootstrap-retire-v1",
+                "system",
+            ),
+            Ok(
+                "/usr/bin/sudo -n -- /tmp/leserpent-bootstrap-retire-retire-1.stage bootstrap-retire-v1"
+                    .into()
+            )
+        );
+        assert!(
+            native_installer_command(
+                "/tmp/leserpent-bootstrap;touch-pwned",
+                "bootstrap-activate-v1",
+                "system",
+            )
+            .is_err()
+        );
+        assert!(
+            native_installer_command(
+                "/tmp/leserpent-bootstrap.stage",
+                "unexpected-action",
+                "system",
+            )
+            .is_err()
+        );
+        assert!(
+            native_installer_command(
+                "/tmp/leserpent-bootstrap.stage",
+                "bootstrap-activate-v1",
+                "portable",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn bootstrap_policy_rejects_unsupported_install_profiles() {
+        assert!(
+            SshBootstrapHostPolicy::new(
+                target(),
+                "deployer",
+                "SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDE",
+                DaemonId::new("daemon-portable").unwrap(),
+                "https://host.example:7443",
+                CredentialHandle::new("vault:leserpentd:portable-session").unwrap(),
+                CredentialHandle::new("vault:leserpent-ca:portable-trust").unwrap(),
+                "portable",
+            )
+            .is_err()
         );
     }
 }

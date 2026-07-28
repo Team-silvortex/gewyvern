@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use leselang_command::{
-    LoweringContext, LoweringError, plan_debugger_cancel, plan_runtime_capabilities_refresh,
-    plan_runtime_deploy, plan_runtime_inspect, plan_runtime_refresh,
+use leselang_command::{LoweringContext, LoweringError, lower_effect};
+use leselang_hir::{Effect, HirBranch, Type, canonical_source, validate_ui_node_id};
+use leserpent_domain::{
+    CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
 };
-use leserpent_domain::{CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId};
 use serde::{Deserialize, Serialize};
 
 pub const UI_SCHEMA_VERSION: u32 = 1;
@@ -20,6 +20,188 @@ pub const MAX_DEBUGGER_DISPLAY_BYTES: usize = 512;
 pub const MAX_DEBUGGER_DEADLINE_REMAINING_MS: u64 = 24 * 60 * 60 * 1_000;
 pub const MAX_UI_FORM_FIELDS: usize = 16;
 pub const MAX_UI_FORM_VALUE_BYTES: usize = 256;
+pub const LESELANG_EXPORT_SCHEMA_VERSION: u32 = 1;
+pub const MAX_LESELANG_EXPORT_BYTES: usize = 8 * 1024;
+pub const MAX_LESELANG_SOURCE_BYTES: usize = 4 * 1024;
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LeselangExportRequest {
+    pub schema_version: u32,
+    pub intent: LeselangExportIntent,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum LeselangExportIntent {
+    RuntimeRefresh {
+        runtime_id: String,
+    },
+    RuntimeCapabilitiesRefresh {
+        runtime_id: String,
+    },
+    RuntimeDeploy {
+        runtime_id: String,
+        pipeline_kind: String,
+        target: Option<String>,
+    },
+    RuntimeWorkspace {
+        runtime_id: String,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LeselangExportResponse {
+    pub schema_version: u32,
+    pub source: Option<String>,
+    pub error: Option<LeselangExportFailure>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LeselangExportFailure {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LeselangExportError {
+    PayloadTooLarge,
+    InvalidRequest,
+    UnsupportedSchema,
+    InvalidIntent,
+    CanonicalizationFailed,
+}
+
+impl LeselangExportError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::PayloadTooLarge => "payload_too_large",
+            Self::InvalidRequest => "invalid_request",
+            Self::UnsupportedSchema => "unsupported_schema",
+            Self::InvalidIntent => "invalid_intent",
+            Self::CanonicalizationFailed => "canonicalization_failed",
+        }
+    }
+
+    pub fn message(&self) -> &'static str {
+        match self {
+            Self::PayloadTooLarge => "Leselang export request exceeds the protocol limit",
+            Self::InvalidRequest => "Leselang export request is invalid",
+            Self::UnsupportedSchema => "Leselang export schema version is unsupported",
+            Self::InvalidIntent => "Leselang export intent is invalid",
+            Self::CanonicalizationFailed => "Leselang canonical source generation failed",
+        }
+    }
+}
+
+impl LeselangExportResponse {
+    pub fn success(source: String) -> Self {
+        Self {
+            schema_version: LESELANG_EXPORT_SCHEMA_VERSION,
+            source: Some(source),
+            error: None,
+        }
+    }
+
+    pub fn failure(error: &LeselangExportError) -> Self {
+        Self {
+            schema_version: LESELANG_EXPORT_SCHEMA_VERSION,
+            source: None,
+            error: Some(LeselangExportFailure {
+                code: error.code().to_string(),
+                message: error.message().to_string(),
+            }),
+        }
+    }
+}
+
+pub fn decode_leselang_export_request(
+    payload: &[u8],
+) -> Result<LeselangExportRequest, LeselangExportError> {
+    if payload.len() > MAX_LESELANG_EXPORT_BYTES {
+        return Err(LeselangExportError::PayloadTooLarge);
+    }
+    let request = serde_json::from_slice::<LeselangExportRequest>(payload)
+        .map_err(|_| LeselangExportError::InvalidRequest)?;
+    if request.schema_version != LESELANG_EXPORT_SCHEMA_VERSION {
+        return Err(LeselangExportError::UnsupportedSchema);
+    }
+    Ok(request)
+}
+
+pub fn encode_leselang_export_response(
+    response: &LeselangExportResponse,
+) -> Result<Vec<u8>, LeselangExportError> {
+    let payload =
+        serde_json::to_vec(response).map_err(|_| LeselangExportError::CanonicalizationFailed)?;
+    if payload.len() > MAX_LESELANG_EXPORT_BYTES {
+        return Err(LeselangExportError::PayloadTooLarge);
+    }
+    Ok(payload)
+}
+
+pub fn export_intent_leselang(
+    intent: &LeselangExportIntent,
+) -> Result<String, LeselangExportError> {
+    let runtime_id = match intent {
+        LeselangExportIntent::RuntimeRefresh { runtime_id }
+        | LeselangExportIntent::RuntimeCapabilitiesRefresh { runtime_id }
+        | LeselangExportIntent::RuntimeDeploy { runtime_id, .. }
+        | LeselangExportIntent::RuntimeWorkspace { runtime_id } => {
+            RuntimeId::new(runtime_id.clone()).map_err(|_| LeselangExportError::InvalidIntent)?
+        }
+    };
+    let effect = match intent {
+        LeselangExportIntent::RuntimeRefresh { .. } => Effect::RuntimeRefresh { runtime_id },
+        LeselangExportIntent::RuntimeCapabilitiesRefresh { .. } => {
+            Effect::RuntimeCapabilitiesRefresh { runtime_id }
+        }
+        LeselangExportIntent::RuntimeDeploy {
+            pipeline_kind,
+            target,
+            ..
+        } => {
+            validate_deployment_intent(pipeline_kind, target.as_deref())
+                .map_err(|_| LeselangExportError::InvalidIntent)?;
+            Effect::RuntimeDeploy {
+                runtime_id,
+                pipeline_kind: pipeline_kind.clone(),
+                target: target.clone(),
+            }
+        }
+        LeselangExportIntent::RuntimeWorkspace { .. } => Effect::All {
+            branches: vec![
+                HirBranch {
+                    name: "inspect".into(),
+                    effect: Effect::RuntimeInspect {
+                        runtime_id: runtime_id.clone(),
+                    },
+                    result_type: Type::RuntimeInspect,
+                },
+                HirBranch {
+                    name: "history".into(),
+                    effect: Effect::RuntimeHistory {
+                        runtime_id: runtime_id.clone(),
+                    },
+                    result_type: Type::RuntimeHistory,
+                },
+                HirBranch {
+                    name: "logs".into(),
+                    effect: Effect::RuntimeLogs { runtime_id },
+                    result_type: Type::RuntimeLogs,
+                },
+            ],
+        },
+    };
+    let source =
+        canonical_source(&effect).map_err(|_| LeselangExportError::CanonicalizationFailed)?;
+    if source.len() > MAX_LESELANG_SOURCE_BYTES {
+        return Err(LeselangExportError::PayloadTooLarge);
+    }
+    Ok(source)
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
@@ -110,6 +292,8 @@ pub enum DebuggerEffectKind {
     RuntimeRefresh,
     RuntimeCapabilitiesRefresh,
     RuntimeDeploy,
+    DebuggerCancel,
+    UiFocus,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -216,6 +400,12 @@ pub enum UiEventKind {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum UiPresentationOperation {
+    Focus { node_id: NodeId },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct UiPatch {
     pub schema_version: u32,
@@ -298,9 +488,17 @@ pub enum UiError {
     EventTargetHasNoAction {
         node_id: String,
     },
+    EffectHasNoEvent,
     InvalidForm,
     InvalidFormInput {
         field: String,
+    },
+    InvalidAutomationEffect,
+    UnknownPresentationTarget {
+        node_id: String,
+    },
+    UnfocusablePresentationTarget {
+        node_id: String,
     },
     Lowering(LoweringError),
 }
@@ -308,12 +506,7 @@ pub enum UiError {
 impl NodeId {
     pub fn new(value: impl Into<String>) -> Result<Self, UiError> {
         let value = value.into();
-        if value.is_empty()
-            || value.len() > 128
-            || !value.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':')
-            })
-        {
+        if !validate_ui_node_id(&value) {
             return Err(UiError::InvalidNodeId);
         }
         Ok(Self(value))
@@ -870,7 +1063,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
     if let Some(effect) = &projection.pending_effect {
         NodeId::new(&effect.effect_id)?;
         let binding_valid = match effect.kind {
-            DebuggerEffectKind::RuntimeList => effect.runtime_id.is_none(),
+            DebuggerEffectKind::RuntimeList
+            | DebuggerEffectKind::DebuggerCancel
+            | DebuggerEffectKind::UiFocus => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
             | DebuggerEffectKind::RuntimeHistory
             | DebuggerEffectKind::RuntimeLogs
@@ -968,6 +1163,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeRefresh => "runtime refresh",
             DebuggerEffectKind::RuntimeCapabilitiesRefresh => "runtime capabilities refresh",
             DebuggerEffectKind::RuntimeDeploy => "runtime deploy",
+            DebuggerEffectKind::DebuggerCancel => "debugger cancel",
+            DebuggerEffectKind::UiFocus => "UI focus",
         };
         children.push(text_node(
             &format!("{prefix}-pending-effect"),
@@ -1059,6 +1256,16 @@ pub fn plan_event(
             expected: context.expected_revision,
         });
     }
+    let effect = effect_for_validated_event(document, event)?;
+    lower_effect(&effect, context).map_err(UiError::Lowering)
+}
+
+pub fn effect_for_event(document: &UiDocument, event: &UiEvent) -> Result<Effect, UiError> {
+    validate_document(document)?;
+    effect_for_validated_event(document, event)
+}
+
+fn effect_for_validated_event(document: &UiDocument, event: &UiEvent) -> Result<Effect, UiError> {
     let node =
         find_node(&document.root, &event.node_id).ok_or_else(|| UiError::UnknownEventTarget {
             node_id: event.node_id.as_str().to_string(),
@@ -1067,17 +1274,23 @@ pub fn plan_event(
         (UiEventKind::Activate, Some(UiAction::RuntimeInspect { runtime_id }))
             if event.values.is_empty() =>
         {
-            plan_runtime_inspect(runtime_id, context).map_err(UiError::Lowering)
+            Ok(Effect::RuntimeInspect {
+                runtime_id: runtime_id.clone(),
+            })
         }
         (UiEventKind::Activate, Some(UiAction::RuntimeRefresh { runtime_id }))
             if event.values.is_empty() =>
         {
-            plan_runtime_refresh(runtime_id, context).map_err(UiError::Lowering)
+            Ok(Effect::RuntimeRefresh {
+                runtime_id: runtime_id.clone(),
+            })
         }
         (UiEventKind::Activate, Some(UiAction::RuntimeCapabilitiesRefresh { runtime_id }))
             if event.values.is_empty() =>
         {
-            plan_runtime_capabilities_refresh(runtime_id, context).map_err(UiError::Lowering)
+            Ok(Effect::RuntimeCapabilitiesRefresh {
+                runtime_id: runtime_id.clone(),
+            })
         }
         (UiEventKind::Submit, Some(UiAction::RuntimeDeploy { runtime_id, form })) => {
             validate_form_values(form, &event.values)?;
@@ -1089,22 +1302,155 @@ pub fn plan_event(
                         field: "pipeline_kind".into(),
                     })?;
             let target = event.values.get("target").filter(|value| !value.is_empty());
-            plan_runtime_deploy(
-                runtime_id,
-                pipeline_kind,
-                target.map(String::as_str),
-                context,
-            )
-            .map_err(UiError::Lowering)
+            Ok(Effect::RuntimeDeploy {
+                runtime_id: runtime_id.clone(),
+                pipeline_kind: pipeline_kind.clone(),
+                target: target.cloned(),
+            })
         }
         (UiEventKind::Activate, Some(UiAction::DebuggerCancel { session_id }))
             if event.values.is_empty() =>
         {
-            plan_debugger_cancel(session_id, context).map_err(UiError::Lowering)
+            Ok(Effect::DebuggerCancel {
+                session_id: session_id.clone(),
+            })
         }
         _ => Err(UiError::EventTargetHasNoAction {
             node_id: event.node_id.as_str().to_string(),
         }),
+    }
+}
+
+pub fn export_event_leselang(document: &UiDocument, event: &UiEvent) -> Result<String, UiError> {
+    let effect = effect_for_event(document, event)?;
+    canonical_source(&effect).map_err(|_| UiError::InvalidAutomationEffect)
+}
+
+pub fn presentation_operation_for_effect(
+    document: &UiDocument,
+    effect: &Effect,
+) -> Result<UiPresentationOperation, UiError> {
+    let Effect::UiFocus { node_id } = effect else {
+        return Err(UiError::InvalidAutomationEffect);
+    };
+    let operation = UiPresentationOperation::Focus {
+        node_id: NodeId::new(node_id.clone())?,
+    };
+    validate_presentation_operation(document, &operation)?;
+    Ok(operation)
+}
+
+pub fn effect_for_presentation_operation(
+    document: &UiDocument,
+    operation: &UiPresentationOperation,
+) -> Result<Effect, UiError> {
+    validate_presentation_operation(document, operation)?;
+    let UiPresentationOperation::Focus { node_id } = operation;
+    Ok(Effect::UiFocus {
+        node_id: node_id.as_str().to_string(),
+    })
+}
+
+pub fn validate_presentation_operation(
+    document: &UiDocument,
+    operation: &UiPresentationOperation,
+) -> Result<(), UiError> {
+    validate_document(document)?;
+    let UiPresentationOperation::Focus { node_id } = operation;
+    let node =
+        find_node(&document.root, node_id).ok_or_else(|| UiError::UnknownPresentationTarget {
+            node_id: node_id.as_str().to_string(),
+        })?;
+    if node.kind != UiNodeKind::Action || node.action.is_none() {
+        return Err(UiError::UnfocusablePresentationTarget {
+            node_id: node_id.as_str().to_string(),
+        });
+    }
+    Ok(())
+}
+
+pub fn export_presentation_leselang(
+    document: &UiDocument,
+    operation: &UiPresentationOperation,
+) -> Result<String, UiError> {
+    let effect = effect_for_presentation_operation(document, operation)?;
+    canonical_source(&effect).map_err(|_| UiError::InvalidAutomationEffect)
+}
+
+pub fn event_for_effect(document: &UiDocument, effect: &Effect) -> Result<UiEvent, UiError> {
+    validate_document(document)?;
+    let event = find_event_for_effect(&document.root, effect).ok_or(UiError::EffectHasNoEvent)?;
+    match effect_for_validated_event(document, &event) {
+        Ok(round_trip) if round_trip == *effect => Ok(event),
+        _ => Err(UiError::InvalidAutomationEffect),
+    }
+}
+
+fn find_event_for_effect(node: &UiNode, effect: &Effect) -> Option<UiEvent> {
+    if let Some((kind, values)) = node
+        .action
+        .as_ref()
+        .and_then(|action| event_payload_for_effect(action, effect))
+    {
+        return Some(UiEvent {
+            node_id: node.id.clone(),
+            kind,
+            values,
+        });
+    }
+    node.children
+        .iter()
+        .find_map(|child| find_event_for_effect(child, effect))
+}
+
+fn event_payload_for_effect(
+    action: &UiAction,
+    effect: &Effect,
+) -> Option<(UiEventKind, BTreeMap<String, String>)> {
+    let empty = || (UiEventKind::Activate, BTreeMap::new());
+    match (action, effect) {
+        (
+            UiAction::RuntimeInspect {
+                runtime_id: action_id,
+            },
+            Effect::RuntimeInspect { runtime_id },
+        ) if action_id == runtime_id => Some(empty()),
+        (
+            UiAction::RuntimeRefresh {
+                runtime_id: action_id,
+            },
+            Effect::RuntimeRefresh { runtime_id },
+        ) if action_id == runtime_id => Some(empty()),
+        (
+            UiAction::RuntimeCapabilitiesRefresh {
+                runtime_id: action_id,
+            },
+            Effect::RuntimeCapabilitiesRefresh { runtime_id },
+        ) if action_id == runtime_id => Some(empty()),
+        (
+            UiAction::RuntimeDeploy {
+                runtime_id: action_id,
+                ..
+            },
+            Effect::RuntimeDeploy {
+                runtime_id,
+                pipeline_kind,
+                target,
+            },
+        ) if action_id == runtime_id => {
+            let mut values = BTreeMap::from([("pipeline_kind".to_string(), pipeline_kind.clone())]);
+            if let Some(target) = target {
+                values.insert("target".to_string(), target.clone());
+            }
+            Some((UiEventKind::Submit, values))
+        }
+        (
+            UiAction::DebuggerCancel {
+                session_id: action_id,
+            },
+            Effect::DebuggerCancel { session_id },
+        ) if action_id == session_id => Some(empty()),
+        _ => None,
     }
 }
 
@@ -1155,6 +1501,19 @@ pub fn diff(previous: &UiDocument, next: &UiDocument) -> Result<UiPatch, UiError
     if previous.root.id != next.root.id {
         return Err(UiError::InvalidPatch {
             reason: "root node identity cannot change",
+        });
+    }
+    if same_topology(&previous.root, &next.root) {
+        let mut operations = Vec::new();
+        collect_shallow_updates(&previous.root, &next.root, &mut operations);
+        if operations.len() > MAX_UI_PATCH_OPERATIONS {
+            return Err(UiError::PatchLimitExceeded);
+        }
+        return Ok(UiPatch {
+            schema_version: UI_SCHEMA_VERSION,
+            from_revision: previous.revision,
+            to_revision: next.revision,
+            operations,
         });
     }
     let old = index_document(previous);
@@ -1213,6 +1572,31 @@ pub fn diff(previous: &UiDocument, next: &UiDocument) -> Result<UiPatch, UiError
         to_revision: next.revision,
         operations,
     })
+}
+
+fn same_topology(previous: &UiNode, next: &UiNode) -> bool {
+    previous.id == next.id
+        && previous.children.len() == next.children.len()
+        && previous
+            .children
+            .iter()
+            .zip(&next.children)
+            .all(|(previous, next)| same_topology(previous, next))
+}
+
+fn collect_shallow_updates(
+    previous: &UiNode,
+    next: &UiNode,
+    operations: &mut Vec<UiPatchOperation>,
+) {
+    if shallow_node(previous) != shallow_node(next) {
+        let mut node = next.clone();
+        node.children.clear();
+        operations.push(UiPatchOperation::Update { node });
+    }
+    for (previous, next) in previous.children.iter().zip(&next.children) {
+        collect_shallow_updates(previous, next, operations);
+    }
 }
 
 fn reconcile_children(
@@ -2016,6 +2400,60 @@ mod tests {
     }
 
     #[test]
+    fn focus_presentation_round_trips_without_becoming_an_action_event() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::Focus {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiFocus {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.focus(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+    }
+
+    #[test]
+    fn focus_presentation_rejects_missing_and_noninteractive_nodes() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::Focus {
+                    node_id: NodeId::new("missing-action").unwrap(),
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget {
+                node_id: "missing-action".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::Focus {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: "fleet-title".into(),
+            })
+        );
+    }
+
+    #[test]
     fn declared_action_lowers_to_shared_command_plan() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let plan = plan_event(
@@ -2083,6 +2521,37 @@ mod tests {
             Query::RuntimeInspect { runtime_id } if runtime_id.as_str() == "runtime-a"
         ));
         assert_eq!(plan.required_capability, CAPABILITY_RUNTIME_READ);
+    }
+
+    #[test]
+    fn activation_actions_round_trip_through_hir_and_canonical_leselang() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        for (node_id, expected_source) in [
+            (
+                "runtime-runtime-a-inspect",
+                "fn main() = runtime.inspect(runtime_id: \"runtime-a\")\n",
+            ),
+            (
+                "runtime-runtime-a-refresh",
+                "fn main() = runtime.refresh(runtime_id: \"runtime-a\")\n",
+            ),
+            (
+                "runtime-runtime-a-capabilities-refresh",
+                "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")\n",
+            ),
+        ] {
+            let event = UiEvent {
+                node_id: NodeId::new(node_id).unwrap(),
+                kind: UiEventKind::Activate,
+                values: BTreeMap::new(),
+            };
+            let effect = effect_for_event(&document, &event).unwrap();
+            assert_eq!(event_for_effect(&document, &effect).unwrap(), event);
+            assert_eq!(
+                export_event_leselang(&document, &event).unwrap(),
+                expected_source
+            );
+        }
     }
 
     #[test]
@@ -2225,6 +2694,28 @@ mod tests {
                     && pipeline_kind == "http/request"
                     && target.as_deref() == Some("pid:42")
         ));
+        let event = UiEvent {
+            node_id: node_id.clone(),
+            kind: UiEventKind::Submit,
+            values: valid_values.clone(),
+        };
+        let effect = effect_for_event(&document, &event).unwrap();
+        assert_eq!(event_for_effect(&document, &effect).unwrap(), event);
+        assert_eq!(
+            export_event_leselang(&document, &event).unwrap(),
+            "fn main() = runtime.deploy(\n  runtime_id: \"runtime-a\",\n  pipeline_kind: \"http/request\",\n  target: \"pid:42\",\n)\n"
+        );
+        assert_eq!(
+            event_for_effect(
+                &document,
+                &Effect::RuntimeDeploy {
+                    runtime_id: RuntimeId::new("runtime-a").unwrap(),
+                    pipeline_kind: "bad kind".into(),
+                    target: None,
+                },
+            ),
+            Err(UiError::InvalidAutomationEffect)
+        );
 
         for values in [
             BTreeMap::new(),
@@ -2386,6 +2877,17 @@ mod tests {
             command.command,
             Command::DebuggerCancel { ref session_id } if session_id == "session-a"
         ));
+        let cancel_event = event_for_effect(
+            &previous,
+            &Effect::DebuggerCancel {
+                session_id: "session-a".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            export_event_leselang(&previous, &cancel_event).unwrap(),
+            "fn main() = debugger.cancel(session_id: \"session-a\")\n"
+        );
         let patch = diff(&previous, &next).unwrap();
         assert_eq!(apply_patch(&previous, &patch).unwrap(), next);
         assert!(
@@ -2485,6 +2987,23 @@ mod tests {
             ),
             Err(UiError::EventRevisionMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn same_topology_diff_emits_only_shallow_updates() {
+        let previous = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let next = fleet_document(&fleet(2, &[("runtime-a", "Renamed Runtime")])).unwrap();
+
+        assert!(same_topology(&previous.root, &next.root));
+        let patch = diff(&previous, &next).unwrap();
+        assert!(!patch.operations.is_empty());
+        assert!(
+            patch
+                .operations
+                .iter()
+                .all(|operation| matches!(operation, UiPatchOperation::Update { .. }))
+        );
+        assert_eq!(apply_patch(&previous, &patch).unwrap(), next);
     }
 
     #[test]
@@ -2610,6 +3129,62 @@ mod tests {
         assert_eq!(
             decode_patch(&serde_json::to_vec(&invalid_node).unwrap()),
             Err(UiError::InvalidNodeId)
+        );
+    }
+
+    #[test]
+    fn bounded_leselang_export_protocol_is_rust_canonical_and_strict() {
+        let intents = [
+            LeselangExportIntent::RuntimeRefresh {
+                runtime_id: "runtime-a".into(),
+            },
+            LeselangExportIntent::RuntimeCapabilitiesRefresh {
+                runtime_id: "runtime-a".into(),
+            },
+            LeselangExportIntent::RuntimeDeploy {
+                runtime_id: "runtime-a".into(),
+                pipeline_kind: "http/request".into(),
+                target: Some("label:\"a\"\\b".into()),
+            },
+            LeselangExportIntent::RuntimeWorkspace {
+                runtime_id: "runtime-a".into(),
+            },
+        ];
+        for intent in intents {
+            let request = LeselangExportRequest {
+                schema_version: LESELANG_EXPORT_SCHEMA_VERSION,
+                intent: intent.clone(),
+            };
+            let encoded = serde_json::to_vec(&request).unwrap();
+            assert_eq!(decode_leselang_export_request(&encoded).unwrap(), request);
+            let source = export_intent_leselang(&intent).unwrap();
+            assert!(source.starts_with("fn main() = "));
+            assert!(source.len() <= MAX_LESELANG_SOURCE_BYTES);
+        }
+
+        assert_eq!(
+            export_intent_leselang(&LeselangExportIntent::RuntimeDeploy {
+                runtime_id: "runtime-a".into(),
+                pipeline_kind: "bad kind".into(),
+                target: None,
+            }),
+            Err(LeselangExportError::InvalidIntent)
+        );
+        assert_eq!(
+            decode_leselang_export_request(
+                br#"{"schema_version":1,"intent":{"kind":"runtime_refresh","runtime_id":"runtime-a","unexpected":true}}"#
+            ),
+            Err(LeselangExportError::InvalidRequest)
+        );
+        assert_eq!(
+            decode_leselang_export_request(
+                br#"{"schema_version":2,"intent":{"kind":"runtime_refresh","runtime_id":"runtime-a"}}"#
+            ),
+            Err(LeselangExportError::UnsupportedSchema)
+        );
+        assert_eq!(
+            decode_leselang_export_request(&vec![b' '; MAX_LESELANG_EXPORT_BYTES + 1]),
+            Err(LeselangExportError::PayloadTooLarge)
         );
     }
 }

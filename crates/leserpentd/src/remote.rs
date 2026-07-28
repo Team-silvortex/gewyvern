@@ -6,6 +6,10 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use leselang_ui::{
+    LeselangExportResponse, MAX_LESELANG_EXPORT_BYTES, decode_leselang_export_request,
+    encode_leselang_export_response, export_intent_leselang,
+};
 use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, encode_bootstrap_response};
 use leserpent_protocol::bootstrap_retirement_control::{
     MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES, encode_daemon_retirement_response,
@@ -259,6 +263,7 @@ impl RemoteServer {
         let retirement_route = prefix.starts_with(b"POST /v1/retirement HTTP/1.1\r\n");
         let daemon_retirement_route =
             prefix.starts_with(b"POST /v1/daemon-retirement HTTP/1.1\r\n");
+        let leselang_export_route = prefix.starts_with(b"POST /v1/leselang-export HTTP/1.1\r\n");
         let mut stream = PrefixedStream::new(prefix, stream);
         let (status, body) = match read_http_request(&mut stream, &self.token) {
             Ok(HttpRequest {
@@ -333,6 +338,22 @@ impl RemoteServer {
                         .map_err(|error| error.to_string())?,
                 )
             }
+            Ok(HttpRequest {
+                route: HttpRoute::LeselangExport,
+                body,
+            }) => {
+                let response = match decode_leselang_export_request(&body)
+                    .and_then(|request| export_intent_leselang(&request.intent))
+                {
+                    Ok(source) => LeselangExportResponse::success(source),
+                    Err(error) => LeselangExportResponse::failure(&error),
+                };
+                (
+                    HttpStatus::Ok,
+                    encode_leselang_export_response(&response)
+                        .map_err(|error| error.message().to_string())?,
+                )
+            }
             Err(error) => {
                 let body = if bootstrap_route {
                     encode_bootstrap_response(&bootstrap_error(None, error.code, error.message))
@@ -354,6 +375,11 @@ impl RemoteServer {
                         error.message,
                     ))
                     .map_err(|error| error.to_string())?
+                } else if leselang_export_route {
+                    encode_leselang_export_response(&LeselangExportResponse::failure(
+                        &leselang_ui::LeselangExportError::InvalidRequest,
+                    ))
+                    .map_err(|error| error.message().to_string())?
                 } else {
                     encode_response(&error_response(error.code, error.message))
                         .map_err(|error| error.to_string())?
@@ -438,6 +464,7 @@ enum HttpRoute {
     Provisioning,
     Retirement,
     DaemonRetirement,
+    LeselangExport,
 }
 
 #[derive(Debug)]
@@ -550,6 +577,7 @@ fn read_http_request(
         "/v1/provisioning" => HttpRoute::Provisioning,
         "/v1/retirement" => HttpRoute::Retirement,
         "/v1/daemon-retirement" => HttpRoute::DaemonRetirement,
+        "/v1/leselang-export" => HttpRoute::LeselangExport,
         _ => {
             return Err(HttpError {
                 status: HttpStatus::NotFound,
@@ -580,6 +608,7 @@ fn read_http_request(
         HttpRoute::Provisioning => MAX_PROVISIONING_PROTOCOL_BYTES,
         HttpRoute::Retirement => MAX_RETIREMENT_PROTOCOL_BYTES,
         HttpRoute::DaemonRetirement => MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES,
+        HttpRoute::LeselangExport => MAX_LESELANG_EXPORT_BYTES,
     };
     if content_length > limit {
         return Err(HttpError {
@@ -946,6 +975,13 @@ mod tests {
         .unwrap();
         assert_eq!(daemon_retirement.route, HttpRoute::DaemonRetirement);
         assert_eq!(daemon_retirement.body, b"{}");
+        let leselang_export = read_http_request(
+            &mut Cursor::new(request_at(TOKEN, "/v1/leselang-export", b"{}")),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(leselang_export.route, HttpRoute::LeselangExport);
+        assert_eq!(leselang_export.body, b"{}");
 
         let wrong_token = read_http_request(
             &mut Cursor::new(request("fedcba9876543210fedcba9876543210", &health_body())),
@@ -1048,6 +1084,83 @@ mod tests {
             .status,
             HttpStatus::PayloadTooLarge
         ));
+        let oversized_leselang_export = format!(
+            "POST /v1/leselang-export HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            MAX_LESELANG_EXPORT_BYTES + 1
+        );
+        assert!(matches!(
+            read_http_request(
+                &mut Cursor::new(oversized_leselang_export.into_bytes()),
+                TOKEN.as_bytes()
+            )
+            .unwrap_err()
+            .status,
+            HttpStatus::PayloadTooLarge
+        ));
+    }
+
+    #[test]
+    fn authenticated_leselang_export_uses_rust_canonical_source_over_real_tls() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("leselang-export", "crt");
+        let key_path = temp_path("leselang-export", "key");
+        let database_path = temp_path("leselang-export", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap();
+        let address = server.local_addr().unwrap();
+        let body = serde_json::to_vec(&leselang_ui::LeselangExportRequest {
+            schema_version: leselang_ui::LESELANG_EXPORT_SCHEMA_VERSION,
+            intent: leselang_ui::LeselangExportIntent::RuntimeDeploy {
+                runtime_id: "runtime-a".into(),
+                pipeline_kind: "http/request".into(),
+                target: Some("label:\"a\"\\b".into()),
+            },
+        })
+        .unwrap();
+        let client = tls_post_client(address, cert.der().clone(), "/v1/leselang-export", body);
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let response = client.join().unwrap();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let body_start = find_header_end(&response).unwrap();
+        let decoded =
+            serde_json::from_slice::<leselang_ui::LeselangExportResponse>(&response[body_start..])
+                .unwrap();
+        let source = decoded.source.unwrap();
+        assert!(decoded.error.is_none());
+        let parsed = leselang_syntax::parse(&source);
+        let program = leselang_hir::lower(&parsed).unwrap();
+        assert!(matches!(
+            program.function.effect,
+            leselang_hir::Effect::RuntimeDeploy {
+                runtime_id,
+                pipeline_kind,
+                target: Some(target),
+            } if runtime_id.as_str() == "runtime-a"
+                && pipeline_kind == "http/request"
+                && target == "label:\"a\"\\b"
+        ));
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
     }
 
     #[test]

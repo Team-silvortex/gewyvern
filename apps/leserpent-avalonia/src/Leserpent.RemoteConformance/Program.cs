@@ -8,12 +8,6 @@ if (args is ["--benchmark-workspace-logs"])
     return 0;
 }
 
-if (args is ["--export-workspace-leselang", var exportRuntimeId])
-{
-    Console.Write(RemoteLeselangExport.Workspace(exportRuntimeId));
-    return 0;
-}
-
 if (args is ["--credential-resolve", var credentialOrigin])
 {
     var endpoint = RemoteClientOptions.ParseEndpoint(credentialOrigin);
@@ -160,7 +154,7 @@ if (args.Length is 4 or 6 && args[0] == "--connect")
 
 if (args.Length != 0)
 {
-    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --refresh-capabilities RUNTIME_ID | --inspect RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN | --export-workspace-leselang RUNTIME_ID]");
+    Console.Error.WriteLine("usage: Leserpent.RemoteConformance [--connect HTTPS_ORIGIN CA_PATH CACHE_PATH [--refresh RUNTIME_ID | --refresh-capabilities RUNTIME_ID | --inspect RUNTIME_ID] | --credential-resolve HTTPS_ORIGIN]");
     return 2;
 }
 
@@ -168,7 +162,7 @@ var snapshot = RemoteEventCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.SnapshotJ
 var fixtureHealth = RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(Fixtures.HealthJson));
 var fixtureReceipt = RemoteUnregistrationReceiptCodec.Decode(
     Encoding.UTF8.GetBytes(Fixtures.UnregistrationReceiptJson));
-RemoteLeselangExport.VerifyContract();
+RemoteLeselangClient.VerifyContract();
 RemoteTopologyStateMachine.VerifyContract();
 Require(fixtureHealth is
 {

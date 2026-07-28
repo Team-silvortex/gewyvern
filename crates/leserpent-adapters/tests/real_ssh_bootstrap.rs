@@ -70,7 +70,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
         config.endpoint.clone(),
         session_handle.clone(),
         trust_handle.clone(),
-        "user",
+        config.install_profile.clone(),
     )
     .unwrap();
     let trust = Arc::new(FileBootstrapTrustStore::new(&config.trust_root).unwrap());
@@ -163,7 +163,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
         artifact: &artifact,
         daemon_id: &rollback_daemon_id,
         endpoint: &config.endpoint,
-        install_profile: "user",
+        install_profile: &config.install_profile,
     });
     assert_eq!(rollback, Err(SshBootstrapTransportError::InstallerRejected));
 
@@ -195,7 +195,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
             artifact: &artifact,
             daemon_id: &daemon_id,
             endpoint: &config.endpoint,
-            install_profile: "user",
+            install_profile: &config.install_profile,
         })
         .expect("replay the ready deployment before retirement");
     let retirement_request = BootstrapRetirementRequest::new(
@@ -203,7 +203,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
         bootstrap_id.clone(),
         daemon_id.clone(),
         deployment.generation,
-        "user",
+        config.install_profile.clone(),
     )
     .unwrap();
 
@@ -215,7 +215,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
             daemon_id: daemon_id.clone(),
             endpoint: config.endpoint.clone(),
             generation: retirement_request.generation.clone(),
-            install_profile: "user".into(),
+            install_profile: config.install_profile.clone(),
             session_credential_handle: session_handle.clone(),
             trust_credential_handle: trust_handle.clone(),
         })
@@ -284,7 +284,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
         artifact: &artifact,
         daemon_id: &retirement_request.daemon_id,
         endpoint: &config.endpoint,
-        install_profile: "user",
+        install_profile: &config.install_profile,
     });
     if let Ok(resurrected) = &resurrection {
         let cleanup = BootstrapRetirementRequest::new(
@@ -292,7 +292,7 @@ fn real_ssh_bootstrap_binds_trust_before_session_authority() {
             retirement_request.bootstrap_id.clone(),
             retirement_request.daemon_id.clone(),
             resurrected.generation.clone(),
-            "user",
+            config.install_profile.clone(),
         )
         .unwrap();
         let _ = retirement_transport.retire(SshBootstrapRetirementJob {
@@ -351,6 +351,7 @@ struct RealSshConfig {
     rollback_bootstrap_id: String,
     rollback_daemon_id: String,
     rollback_session_token: String,
+    install_profile: String,
 }
 
 impl RealSshConfig {
@@ -372,6 +373,8 @@ impl RealSshConfig {
             rollback_bootstrap_id: required("LESERPENT_REAL_ROLLBACK_BOOTSTRAP_ID"),
             rollback_daemon_id: required("LESERPENT_REAL_ROLLBACK_DAEMON_ID"),
             rollback_session_token: required("LESERPENT_REAL_ROLLBACK_SESSION_TOKEN"),
+            install_profile: env::var("LESERPENT_REAL_SSH_INSTALL_PROFILE")
+                .unwrap_or_else(|_| "user".into()),
         }
     }
 }

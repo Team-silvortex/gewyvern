@@ -24,6 +24,7 @@ pub struct LoweringContext {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LoweringError {
     StructuredEffectRequiresExpansion,
+    FrontendLocalEffect,
     MissingCapability { capability: &'static str },
     InvalidInput { field: &'static str },
 }
@@ -72,6 +73,9 @@ pub fn lower_effect(
     effect: &Effect,
     context: &LoweringContext,
 ) -> Result<CommandPlan, LoweringError> {
+    if matches!(effect, Effect::UiFocus { .. }) {
+        return Err(LoweringError::FrontendLocalEffect);
+    }
     let required_capability = match effect {
         Effect::RuntimeList { .. }
         | Effect::RuntimeInspect { .. }
@@ -81,6 +85,8 @@ pub fn lower_effect(
             CAPABILITY_RUNTIME_REFRESH
         }
         Effect::RuntimeDeploy { .. } => CAPABILITY_RUNTIME_DEPLOY,
+        Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL,
+        Effect::UiFocus { .. } => unreachable!("frontend-local effects returned before lowering"),
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
     };
     if !context.capabilities.contains(required_capability) {
@@ -102,6 +108,8 @@ pub fn lower_effect(
             pipeline_kind,
             target,
         } => plan_runtime_deploy(runtime_id, pipeline_kind, target.as_deref(), context)?,
+        Effect::DebuggerCancel { session_id } => plan_debugger_cancel(session_id, context)?,
+        Effect::UiFocus { .. } => unreachable!("frontend-local effects returned before lowering"),
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
     };
     Ok(plan)
@@ -361,6 +369,18 @@ mod tests {
     }
 
     #[test]
+    fn frontend_presentation_effect_cannot_become_a_control_plane_plan() {
+        let program = lower(&parse(
+            "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            lower_effect(&program.function.effect, &context(CommandOrigin::Leselang)),
+            Err(LoweringError::FrontendLocalEffect)
+        );
+    }
+
+    #[test]
     fn runtime_refresh_lowers_to_frontend_neutral_command_semantics() {
         let program = lower(&parse(
             "fn main() = runtime.refresh(runtime_id: \"runtime-a\")",
@@ -523,6 +543,28 @@ mod tests {
         );
         context.dry_run = true;
         assert!(lower_effect(&program.function.effect, &context).is_ok());
+    }
+
+    #[test]
+    fn debugger_cancel_language_effect_uses_the_shared_control_plan() {
+        let program = lower(&parse(
+            "fn main() = debugger.cancel(session_id: \"session-a\")",
+        ))
+        .unwrap();
+        let mut context = context(CommandOrigin::Leselang);
+        context.capabilities = CapabilitySet::new([CAPABILITY_DEBUGGER_CONTROL]);
+        context.confirmation = Confirmation::Confirmed;
+        context.dry_run = false;
+        let plan = lower_effect(&program.function.effect, &context).unwrap();
+        assert_eq!(plan.required_capability, CAPABILITY_DEBUGGER_CONTROL);
+        assert!(matches!(
+            plan.operation,
+            PlannedOperation::Command(CommandEnvelope {
+                origin: CommandOrigin::Leselang,
+                command: Command::DebuggerCancel { ref session_id },
+                ..
+            }) if session_id == "session-a"
+        ));
     }
 
     #[test]

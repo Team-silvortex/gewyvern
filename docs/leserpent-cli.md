@@ -180,6 +180,12 @@ share one strict 64 KiB protocol. Optional `--wait`, `--count`, and
 `--interval-ms` have the same bounded progress behavior as runtime retirement,
 and human output never includes the credential handle.
 
+For a policy-bound `system` install profile, the native SSH adapter invokes only
+the validated bootstrap artifact through `/usr/bin/sudo -n --`; it never passes
+a sudo password or session secret in argv. The target must pre-authorize that
+native action, otherwise deployment or retirement fails without an interactive
+prompt. The default `user` profile executes without elevation.
+
 Exit code `0` means success, `2` means local usage/configuration/transport
 failure, and `3` means the daemon returned a protocol error. Provisioning or
 either retirement operation's terminal failure returns `4`; bounded waiting

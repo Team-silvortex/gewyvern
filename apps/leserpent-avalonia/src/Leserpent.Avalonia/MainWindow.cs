@@ -115,9 +115,41 @@ internal sealed class MainWindow : Window
     {
         var nodeId = renderer.FirstRealizedActionNodeId
             ?? throw new InvalidDataException("focus probe requires a realized action");
-        if (!renderer.TryFocusNode(nodeId) || renderer.FocusedNodeId != nodeId)
+        var applied = renderer.ApplyPresentation(new UiPresentationOperation
         {
-            throw new InvalidDataException("focus probe could not focus its action node");
+            Kind = UiPresentationOperationKind.Focus,
+            NodeId = nodeId,
+        });
+        if (!applied.Applied
+            || applied.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang presentation focus could not focus its action node");
+        }
+        var missing = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Focus,
+            NodeId = "missing-presentation-target",
+        });
+        if (missing.Applied
+            || missing.FailureCode != PresentationAutomationFailureCode.UnknownTarget)
+        {
+            throw new InvalidDataException(
+                "Leselang presentation focus accepted a missing target");
+        }
+        var nonActionNodeId = FindFirstNonActionNodeId(renderer.Document.Root)
+            ?? throw new InvalidDataException("focus probe requires a non-action node");
+        var unfocusable = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Focus,
+            NodeId = nonActionNodeId,
+        });
+        if (unfocusable.Applied
+            || unfocusable.FailureCode != PresentationAutomationFailureCode.UnfocusableTarget)
+        {
+            throw new InvalidDataException(
+                "Leselang presentation focus accepted an unfocusable target");
         }
         renderer.Mount(renderer.Document);
         if (!renderer.IsFocusRestorePending)
@@ -125,6 +157,22 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException("focus restoration was not scheduled after mount");
         }
         return nodeId;
+    }
+
+    private static string? FindFirstNonActionNodeId(UiNode node)
+    {
+        if (node.Kind != UiNodeKind.Action)
+        {
+            return node.Id;
+        }
+        foreach (var child in node.Children)
+        {
+            if (FindFirstNonActionNodeId(child) is { } nodeId)
+            {
+                return nodeId;
+            }
+        }
+        return null;
     }
 
     public void CompleteFocusRetentionProbe(string nodeId)

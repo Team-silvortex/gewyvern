@@ -147,7 +147,7 @@ internal sealed class LeserpentApp : Application
                                     window.CompleteFocusRetentionProbe(nodeId);
                                     window.ProbeRemovedFocusTarget(nodeId);
                                     Console.WriteLine(
-                                        $"Avalonia focus retention valid: node={nodeId}, remount=true, patch_update=true, restored=true, removed_target_safe=true");
+                                        $"Avalonia focus retention valid: node={nodeId}, leselang_presentation=true, missing_target_rejected=true, unfocusable_target_rejected=true, remount=true, patch_update=true, restored=true, removed_target_safe=true");
                                     desktop.Shutdown(0);
                                 },
                                 TimeSpan.FromMilliseconds(200));

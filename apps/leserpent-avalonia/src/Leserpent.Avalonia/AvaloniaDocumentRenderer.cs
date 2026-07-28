@@ -62,6 +62,20 @@ internal sealed record AccessibilityAudit(
     int HelpTexts,
     double MinimumContrastRatio);
 
+internal enum PresentationAutomationFailureCode
+{
+    None,
+    UnknownTarget,
+    UnfocusableTarget,
+    TargetUnrealized,
+    FocusRejected,
+}
+
+internal sealed record PresentationAutomationResult(
+    bool Applied,
+    string NodeId,
+    PresentationAutomationFailureCode FailureCode);
+
 internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 {
     private readonly Dictionary<string, RenderedNode> nodes = new(StringComparer.Ordinal);
@@ -105,6 +119,40 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         nodes.TryGetValue(nodeId, out var node)
         && node.TryGetRealizedControl(out var control)
         && control!.Focus();
+
+    public PresentationAutomationResult ApplyPresentation(
+        UiPresentationOperation operation)
+    {
+        var validation = semanticRenderer.ValidatePresentationOperation(operation);
+        if (validation != UiPresentationValidation.Valid)
+        {
+            return new PresentationAutomationResult(
+                false,
+                operation.NodeId,
+                validation == UiPresentationValidation.UnknownTarget
+                    ? PresentationAutomationFailureCode.UnknownTarget
+                    : PresentationAutomationFailureCode.UnfocusableTarget);
+        }
+        if (!nodes.TryGetValue(operation.NodeId, out var node)
+            || !node.TryGetRealizedControl(out var control))
+        {
+            return new PresentationAutomationResult(
+                false,
+                operation.NodeId,
+                PresentationAutomationFailureCode.TargetUnrealized);
+        }
+        if (!control!.Focus())
+        {
+            return new PresentationAutomationResult(
+                false,
+                operation.NodeId,
+                PresentationAutomationFailureCode.FocusRejected);
+        }
+        return new PresentationAutomationResult(
+            true,
+            operation.NodeId,
+            PresentationAutomationFailureCode.None);
+    }
 
     public UiEvent CreateFormSubmission(
         string nodeId,

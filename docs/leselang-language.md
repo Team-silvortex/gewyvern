@@ -10,7 +10,8 @@ vertical slice parses, lowers, authorizes, suspends,
 serializes, restores, and resumes the read-only
 `runtime.list`, `runtime.inspect`, `runtime.history`, and `runtime.logs` effects
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
-explicitly confirmed `runtime.deploy` command effects.
+explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
+plus the frontend-local `ui.focus` presentation effect.
 
 ## Canonical Program
 
@@ -83,6 +84,39 @@ confirmation and lowers to `Confirmation::Confirmed`. Pipeline kind and target
 are bounded before execution. Principal and idempotency identity come from the
 VM host, and only the durable control runtime may materialize the fixed
 `gewyvern.deployment.submit` adapter effect.
+
+Debugger cancellation is a separate VM-authority operation:
+
+```leselang
+fn main() = debugger.cancel(session_id: "session-a")
+```
+
+`debugger.cancel` requires `debugger.control`, a valid session identifier, an
+expected debugger revision, and explicit confirmation. It lowers through the
+same `CommandPlan` as the renderer-neutral debugger action. The source VM
+persists the command before dispatch and resumes from a typed, command-correlated
+and token-free cancellation result; the target VM remains the only authority
+that may cancel its continuation.
+
+The first presentation operation is stable-node focus:
+
+```leselang
+fn main() = ui.focus(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.focus` requires `ui.presentation`. The VM emits a typed
+`PresentationEnvelope` containing the principal, capability set, and validated
+node ID; it never converts this effect into a domain query or command.
+`leselang-command` rejects presentation effects explicitly. A renderer must
+validate the target against its current `UiDocument`, require a focusable
+semantic action node, and return a typed result only after native focus succeeds.
+Missing, noninteractive, unrealized, or platform-rejected targets fail without
+activating the action or changing control-plane state.
+
+Every atomic HIR effect has one Rust-owned canonical source representation.
+Parsing and lowering that source must reproduce the same effect. GUI event
+export uses this printer instead of maintaining a frontend-specific language
+template.
 
 ## Grammar
 
@@ -169,11 +203,13 @@ effect request for unauthorized code.
 
 ## Execution Protocol
 
-Authorized atomic effects first lower through `leselang-command` into a pure
-`CommandPlan`. The plan owns the required capability and either a versioned
+Authorized control-plane effects first lower through `leselang-command` into a
+pure `CommandPlan`. The plan owns the required capability and either a versioned
 `QueryEnvelope` or `CommandEnvelope`; frontend origin is audit metadata and does
-not select a different implementation. The VM owns continuation and journal
-lifecycle, but it does not privately construct domain command semantics.
+not select a different implementation. Frontend-local effects instead become a
+typed `PresentationEnvelope` and are rejected by command lowering. The VM owns
+continuation and journal lifecycle, but it does not privately construct domain
+command semantics or reinterpret presentation operations as commands.
 `CommandPlan` JSON carries its own schema version, round-trips canonically, and
 is rejected before decoding when it exceeds 64 KiB.
 
@@ -186,10 +222,11 @@ The stackless VM advances through six protocol states:
 - `Failed`: terminal classified effect failure or exhausted semantic retries
 - `Fault`: evaluation stopped with a stable VM diagnostic
 
-For the current slice, `start` emits one typed query or command operation. The
-operation carries a continuation token and expected revision. Read-only queries
-may use the direct embedded `resume` path. Mutating commands must be leased and
-completed through `acknowledge_effect`; direct mutation resume fails closed.
+For the current slice, `start` emits one typed query, command, or presentation
+operation. The operation carries a continuation token and expected revision.
+Read-only queries and successfully applied local presentation operations may use
+the direct embedded `resume` path. Mutating commands must be leased and completed
+through `acknowledge_effect`; direct mutation resume fails closed.
 
 `Vm::start_timed` accepts scheduler `now_ms` and a bounded timeout, persists the
 resulting absolute deadline, and requires `resume_at`, `claim_effect`, or

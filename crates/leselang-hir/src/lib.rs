@@ -1,14 +1,17 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
-use leselang_syntax::{Expression, Span, SyntaxTree};
+use leselang_syntax::{Expression, Span, SyntaxTree, format as format_syntax, parse};
 use leserpent_domain::{
-    CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ, CAPABILITY_RUNTIME_REFRESH, CapabilitySet,
-    DomainError, RuntimeId, RuntimeListFilter, validate_deployment_intent,
+    CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
+    CAPABILITY_RUNTIME_REFRESH, CapabilitySet, DomainError, RuntimeId, RuntimeListFilter,
+    validate_debugger_session_id, validate_deployment_intent,
 };
 use serde::{Deserialize, Serialize};
 
 pub const MAX_ALL_BRANCHES: usize = 64;
 pub const MAX_BRANCH_NAME_BYTES: usize = 64;
+pub const MAX_UI_NODE_ID_BYTES: usize = 128;
+pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HirProgram {
@@ -56,6 +59,12 @@ pub enum Effect {
         pipeline_kind: String,
         target: Option<String>,
     },
+    DebuggerCancel {
+        session_id: String,
+    },
+    UiFocus {
+        node_id: String,
+    },
     All {
         branches: Vec<HirBranch>,
     },
@@ -71,6 +80,8 @@ pub enum Type {
     RuntimeRefresh,
     RuntimeCapabilitiesRefresh,
     RuntimeDeploy,
+    DebuggerCancel,
+    UiFocus,
     Structured,
 }
 
@@ -79,6 +90,13 @@ pub struct Diagnostic {
     pub code: String,
     pub message: String,
     pub span: Option<Span>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CanonicalSourceError {
+    Syntax(Vec<leselang_syntax::Diagnostic>),
+    InvalidEffect(Vec<Diagnostic>),
+    RoundTripMismatch,
 }
 
 pub fn lower(tree: &SyntaxTree) -> Result<HirProgram, Vec<Diagnostic>> {
@@ -137,7 +155,9 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "runtime.logs"
         | "runtime.refresh"
         | "runtime.refresh_capabilities"
-        | "runtime.deploy" => lower_runtime_effect(callee, arguments, *span),
+        | "runtime.deploy"
+        | "debugger.cancel"
+        | "ui.focus" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -147,16 +167,18 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
     }
 }
 
-fn lower_runtime_effect(
+fn lower_atomic_effect(
     callee: &str,
     arguments: &[leselang_syntax::NamedArgument],
     span: Span,
 ) -> Result<LoweredEffect, Vec<Diagnostic>> {
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::with_capacity(arguments.len());
     let mut filter = RuntimeListFilter::default();
     let mut runtime_id = None;
     let mut pipeline_kind = None;
     let mut target = None;
+    let mut session_id = None;
+    let mut node_id = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
         if !seen.insert(argument.name.as_str()) {
@@ -212,6 +234,26 @@ fn lower_runtime_effect(
                 Some(value) => target = Some(value),
                 None => target = None,
             },
+            ("debugger.cancel", "session_id") => match value {
+                Some(value) if validate_debugger_session_id(&value).is_ok() => {
+                    session_id = Some(value);
+                }
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1110".to_string(),
+                    message: "debugger.cancel session_id must be a valid identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.focus", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1112".to_string(),
+                    message: "ui.focus node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             _ => diagnostics.push(Diagnostic {
                 code: "LSH1103".to_string(),
                 message: format!("unknown {callee} argument '{}'", argument.name),
@@ -240,6 +282,20 @@ fn lower_runtime_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1108".to_string(),
             message: "runtime.deploy requires pipeline_kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "debugger.cancel" && session_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1111".to_string(),
+            message: "debugger.cancel requires session_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.focus" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1113".to_string(),
+            message: "ui.focus requires node_id".to_string(),
             span: Some(span),
         });
     }
@@ -321,6 +377,20 @@ fn lower_runtime_effect(
             Type::RuntimeDeploy,
             CAPABILITY_RUNTIME_DEPLOY,
         ),
+        "debugger.cancel" => (
+            Effect::DebuggerCancel {
+                session_id: session_id.expect("validated debugger session identifier"),
+            },
+            Type::DebuggerCancel,
+            CAPABILITY_DEBUGGER_CONTROL,
+        ),
+        "ui.focus" => (
+            Effect::UiFocus {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiFocus,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         _ => unreachable!("unknown effects returned above"),
     };
     Ok(LoweredEffect {
@@ -328,6 +398,124 @@ fn lower_runtime_effect(
         result_type,
         required_capabilities: vec![required_capability.to_string()],
     })
+}
+
+pub fn canonical_source(effect: &Effect) -> Result<String, CanonicalSourceError> {
+    let source = format!("fn main() = {}", canonical_effect_source(effect, 0));
+    let formatted = format_syntax(&parse(&source)).map_err(CanonicalSourceError::Syntax)?;
+    let round_trip = lower(&parse(&formatted)).map_err(CanonicalSourceError::InvalidEffect)?;
+    if round_trip.function.effect != *effect {
+        return Err(CanonicalSourceError::RoundTripMismatch);
+    }
+    Ok(formatted)
+}
+
+fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
+    match effect {
+        Effect::RuntimeList { filter } => format!(
+            "runtime.list(\n{}environment: {},\n{}cluster: {},\n{}role: {},\n{})",
+            indent(depth + 1),
+            optional_string(filter.environment.as_deref()),
+            indent(depth + 1),
+            optional_string(filter.cluster.as_deref()),
+            indent(depth + 1),
+            optional_string(filter.role.as_deref()),
+            indent(depth),
+        ),
+        Effect::RuntimeInspect { runtime_id } => {
+            atomic_identifier_source("runtime.inspect", "runtime_id", runtime_id.as_str(), depth)
+        }
+        Effect::RuntimeHistory { runtime_id } => {
+            atomic_identifier_source("runtime.history", "runtime_id", runtime_id.as_str(), depth)
+        }
+        Effect::RuntimeLogs { runtime_id } => {
+            atomic_identifier_source("runtime.logs", "runtime_id", runtime_id.as_str(), depth)
+        }
+        Effect::RuntimeRefresh { runtime_id } => {
+            atomic_identifier_source("runtime.refresh", "runtime_id", runtime_id.as_str(), depth)
+        }
+        Effect::RuntimeCapabilitiesRefresh { runtime_id } => atomic_identifier_source(
+            "runtime.refresh_capabilities",
+            "runtime_id",
+            runtime_id.as_str(),
+            depth,
+        ),
+        Effect::RuntimeDeploy {
+            runtime_id,
+            pipeline_kind,
+            target,
+        } => format!(
+            "runtime.deploy(\n{}runtime_id: {},\n{}pipeline_kind: {},\n{}target: {},\n{})",
+            indent(depth + 1),
+            quote(runtime_id.as_str()),
+            indent(depth + 1),
+            quote(pipeline_kind),
+            indent(depth + 1),
+            optional_string(target.as_deref()),
+            indent(depth),
+        ),
+        Effect::DebuggerCancel { session_id } => {
+            atomic_identifier_source("debugger.cancel", "session_id", session_id, depth)
+        }
+        Effect::UiFocus { node_id } => {
+            atomic_identifier_source("ui.focus", "node_id", node_id, depth)
+        }
+        Effect::All { branches } => {
+            let mut source = String::from("all(\n");
+            for branch in branches {
+                source.push_str(&indent(depth + 1));
+                source.push_str(&branch.name);
+                source.push_str(": ");
+                source.push_str(&canonical_effect_source(&branch.effect, depth + 1));
+                source.push_str(",\n");
+            }
+            source.push_str(&indent(depth));
+            source.push(')');
+            source
+        }
+    }
+}
+
+pub fn validate_ui_node_id(node_id: &str) -> bool {
+    !node_id.is_empty()
+        && node_id.len() <= MAX_UI_NODE_ID_BYTES
+        && node_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
+
+fn atomic_identifier_source(callee: &str, argument: &str, value: &str, depth: usize) -> String {
+    format!(
+        "{callee}(\n{}{argument}: {},\n{})",
+        indent(depth + 1),
+        quote(value),
+        indent(depth),
+    )
+}
+
+fn optional_string(value: Option<&str>) -> String {
+    value.map_or_else(|| "none".to_string(), quote)
+}
+
+fn quote(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+    output
+}
+
+fn indent(depth: usize) -> String {
+    "  ".repeat(depth)
 }
 
 fn lower_all(
@@ -341,7 +529,7 @@ fn lower_all(
             span: Some(span),
         }]);
     }
-    let mut names = BTreeSet::new();
+    let mut names = HashSet::with_capacity(arguments.len());
     let mut branches = Vec::with_capacity(arguments.len());
     let mut capabilities = Vec::new();
     let mut diagnostics = Vec::new();
@@ -604,6 +792,106 @@ mod tests {
             assert!(
                 lower(&parse(source)).is_err(),
                 "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn debugger_cancel_lowers_and_canonical_source_round_trips() {
+        let program = lower(&parse(
+            "fn main() = debugger.cancel(session_id: \"session-a\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::DebuggerCancel);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_DEBUGGER_CONTROL]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::DebuggerCancel { ref session_id } if session_id == "session-a"
+        ));
+
+        let source = canonical_source(&program.function.effect).unwrap();
+        assert_eq!(
+            source,
+            "fn main() = debugger.cancel(session_id: \"session-a\")\n"
+        );
+        assert_eq!(
+            lower(&parse(&source)).unwrap().function.effect,
+            program.function.effect
+        );
+
+        for source in [
+            "fn main() = debugger.cancel()",
+            "fn main() = debugger.cancel(session_id: none)",
+            "fn main() = debugger.cancel(session_id: \"bad/session\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        assert!(matches!(
+            canonical_source(&Effect::DebuggerCancel {
+                session_id: "bad/session".into(),
+            }),
+            Err(CanonicalSourceError::InvalidEffect(errors))
+                if errors.iter().any(|error| error.code == "LSH1110")
+        ));
+    }
+
+    #[test]
+    fn ui_focus_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiFocus);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiFocus { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.focus(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.focus()",
+            "fn main() = ui.focus(node_id: none)",
+            "fn main() = ui.focus(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_atomic_effect_has_one_semantically_stable_canonical_source() {
+        for source in [
+            "fn main() = runtime.list(environment: \"prod\", cluster: none, role: \"edge\")",
+            "fn main() = runtime.inspect(runtime_id: \"runtime-a\")",
+            "fn main() = runtime.history(runtime_id: \"runtime-a\")",
+            "fn main() = runtime.logs(runtime_id: \"runtime-a\")",
+            "fn main() = runtime.refresh(runtime_id: \"runtime-a\")",
+            "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")",
+            "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: none)",
+            "fn main() = debugger.cancel(session_id: \"session-a\")",
+            "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+        ] {
+            let effect = lower(&parse(source)).unwrap().function.effect;
+            let canonical = canonical_source(&effect).unwrap();
+            assert_eq!(
+                lower(&parse(&canonical)).unwrap().function.effect,
+                effect,
+                "canonical source changed effect `{source}`"
             );
         }
     }

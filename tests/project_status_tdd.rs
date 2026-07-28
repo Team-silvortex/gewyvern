@@ -45,6 +45,71 @@ fn project_status_catalog_is_protocolized_and_valid() {
 }
 
 #[test]
+fn retained_system_profile_bootstrap_retirement_evidence_is_non_vacuous() {
+    let root = repository_root();
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            root.join("docs/fixtures/leserpent_real_ssh_system_profile_retirement_20260728.json"),
+        )
+        .expect("system-profile bootstrap retirement evidence must exist"),
+    )
+    .expect("system-profile bootstrap retirement evidence must decode");
+
+    assert_eq!(evidence["target"]["os"], "Ubuntu 24.04.4");
+    assert_eq!(evidence["target"]["arch"], "x86_64");
+    assert_eq!(evidence["target"]["service_manager"], "systemd-system");
+    assert_eq!(evidence["target"]["install_profile"], "system");
+    assert_eq!(
+        evidence["transport"]["system_elevation_command"],
+        "/usr/bin/sudo -n --"
+    );
+    assert_eq!(evidence["transport"]["password_over_stdin"], false);
+    assert_eq!(evidence["transport"]["secret_in_argv"], false);
+    assert_eq!(
+        evidence["privilege_policy"]["general_shell_authority"],
+        false
+    );
+    assert_eq!(
+        evidence["privilege_policy"]["general_systemctl_authority"],
+        false
+    );
+    assert_eq!(
+        evidence["privilege_policy"]["policy_removed_after_proof"],
+        true
+    );
+    assert_eq!(
+        evidence["privilege_policy"]["passwordless_sudo_exit_after_revocation"],
+        1
+    );
+    for field in [
+        "service_ready_before_retirement",
+        "session_bound_before_retirement",
+        "trust_persistence_failure_withheld_authority",
+        "one_millisecond_timeout_rejected",
+        "forged_generation_rejected",
+        "identity_bound_retirement_succeeded",
+        "exact_retirement_replay_succeeded",
+        "retired_generation_reinstall_rejected",
+        "system_service_descriptor_absent",
+        "service_inactive",
+        "service_disabled_or_absent",
+        "daemon_process_absent",
+        "endpoint_port_clear",
+        "staging_absent",
+        "remote_source_removed",
+        "local_artifact_removed",
+        "local_trust_root_removed",
+    ] {
+        assert_eq!(
+            evidence["proof"][field], true,
+            "missing proof field {field}"
+        );
+    }
+    assert_eq!(evidence["proof"]["test_identity_residue_after_cleanup"], 0);
+    assert_eq!(evidence["secrets_retained"], false);
+}
+
+#[test]
 fn retained_runtime_deletion_crash_evidence_is_non_vacuous() {
     assert_runtime_deletion_crash_evidence(
         "docs/fixtures/leserpent_runtime_deletion_crash_20260723.json",
@@ -2279,7 +2344,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(bootstrap.maturity, Maturity::Developing);
     assert_eq!(bootstrap.completion, 99);
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
-    assert_eq!(bootstrap.contract.version, "0.26.0");
+    assert_eq!(bootstrap.contract.version, "0.27.0");
     assert!(
         bootstrap
             .contract
@@ -2332,6 +2397,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "post-retirement-residue-audit",
         "retired-generation-reinstall-fence",
         "terminal-retirement-absence-proof",
+        "exact-install-profile-policy",
+        "fixed-noninteractive-system-profile-elevation",
+        "privileged-system-profile-bootstrap-retirement",
+        "system-wide-systemd-retirement-proof",
+        "temporary-sudo-authority-revocation",
+        "system-profile-residue-audit",
         "validated-install-generation-checkpoint",
         "install-profile-authority-binding",
         "legacy-checkpoint-retirement-ineligibility",
@@ -2383,10 +2454,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(bootstrap.blockers.iter().any(|blocker| {
         blocker.id == "cross-platform-bootstrap-installation-incomplete"
-            && blocker.summary.contains("pinned-SSH Linux systemd-user")
+            && blocker.summary.contains("privileged systemd-system")
+            && blocker.summary.contains("only WinRM evidence remains")
     }));
     assert!(bootstrap.evidence.iter().any(|evidence| {
         evidence.path == "docs/fixtures/leserpent_real_ssh_bootstrap_retirement_20260727.json"
+    }));
+    assert!(bootstrap.evidence.iter().any(|evidence| {
+        evidence.path == "docs/fixtures/leserpent_real_ssh_system_profile_retirement_20260728.json"
+            && evidence.state == EvidenceState::Present
     }));
     assert!(
         !bootstrap
@@ -2647,7 +2723,26 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
+    assert_eq!(ui.contract.version, "1.3.0");
+    for surface in [
+        "ui-event-hir-effect-lowering",
+        "hir-effect-ui-event-reverse-mapping",
+        "canonical-event-leselang-export",
+        "current-action-semantic-roundtrip",
+        "same-topology-linear-diff",
+        "relative-patch-performance-fence",
+    ] {
+        assert!(
+            ui.contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing UI performance surface {surface}"
+        );
+    }
     assert!(ui.blockers.is_empty());
+    assert!(ui.next_gate.contains("presentation"));
+    assert!(ui.next_gate.contains("focus"));
 
     let syntax = catalog
         .cells
@@ -2657,7 +2752,73 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(syntax.maturity, Maturity::Mature);
     assert_eq!(syntax.completion, 100);
     assert_eq!(syntax.contract.stability, ContractStability::Stable);
+    assert_eq!(syntax.contract.version, "1.0.1");
+    for surface in [
+        "unescaped-string-fast-path",
+        "bounded-language-pipeline-benchmark",
+    ] {
+        assert!(
+            syntax
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing syntax performance surface {surface}"
+        );
+    }
     assert!(syntax.blockers.is_empty());
+
+    let hir = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
+        .expect("Leserpent language HIR cell must exist");
+    assert_eq!(hir.contract.version, "0.17.0");
+    for surface in [
+        "debugger-cancel-effect",
+        "ui-focus-effect",
+        "ui-presentation-capability",
+        "canonical-effect-roundtrip",
+        "single-allocation-name-deduplication",
+        "bounded-language-pipeline-benchmark",
+    ] {
+        assert!(
+            hir.contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing HIR performance surface {surface}"
+        );
+    }
+
+    let vm = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
+        .expect("Leserpent language VM cell must exist");
+    assert_eq!(vm.contract.version, "1.2.0");
+    for surface in [
+        "typed-debugger-cancel-result",
+        "restart-safe-debugger-cancel-dispatch",
+        "typed-presentation-envelope",
+        "typed-ui-focus-result",
+        "allocation-free-continuation-size-validation",
+        "bounded-language-pipeline-benchmark",
+    ] {
+        assert!(
+            vm.contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing VM performance surface {surface}"
+        );
+    }
+    for cell in [syntax, hir, vm] {
+        assert!(cell.evidence.iter().any(|evidence| {
+            evidence.path == "crates/leselang-vm/examples/language_benchmark.rs"
+                && evidence.state == EvidenceState::Present
+        }));
+    }
 
     let required_boundaries = [
         "boundary-leselang-syntax",

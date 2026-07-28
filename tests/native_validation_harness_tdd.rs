@@ -266,6 +266,7 @@ fn leserpent_transport_proof_covers_contract_parity_and_real_ipc() {
 fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     let harness = read_repo_file("src/validation_harness/leserpent_benchmark.rs");
     let runtime = read_repo_file("crates/leserpent-runtime/examples/runtime_benchmark.rs");
+    let language = read_repo_file("crates/leselang-vm/examples/language_benchmark.rs");
     let ui = read_repo_file("crates/leselang-ui/examples/ui_benchmark.rs");
     let remote =
         read_repo_file("apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Program.cs");
@@ -273,11 +274,15 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
 
     assert!(harness.contains("COLD_OPEN_P95_BUDGET_MS"));
     assert!(harness.contains("EFFECT_ENQUEUE_MIN_PER_SECOND"));
+    assert!(harness.contains("LANGUAGE_FULL_PIPELINE_P50_BUDGET_MS"));
+    assert!(harness.contains("LANGUAGE_PIPELINE_COMPONENT_RATIO_MAX"));
     assert!(harness.contains("UI_PATCH_P50_BUDGET_MS"));
+    assert!(harness.contains("UI_PATCH_TO_DOCUMENT_RATIO_MAX"));
     assert!(harness.contains("RELEASE_BINARY_MAX_BYTES"));
     assert!(harness.contains("REMOTE_INCREMENTAL_P50_BUDGET_MS"));
     assert!(harness.contains("REMOTE_INCREMENTAL_RATIO_MAX"));
     assert!(harness.contains("REMOTE_INCREMENTAL_ALLOCATION_RATIO_MAX"));
+    assert!(harness.contains("language-benchmark.json"));
     assert!(harness.contains("remote-workspace-log-benchmark.json"));
     assert!(harness.contains("run_dotnet_json"));
     assert!(harness.contains("--artifacts-path"));
@@ -288,8 +293,13 @@ fn leserpent_benchmark_proof_has_bounded_native_workloads() {
     assert!(harness.contains("same_host_class_comparison_policy"));
     assert!(runtime.contains("EFFECT_COUNT: usize = 10_000"));
     assert!(runtime.contains("RUNTIME_COUNT: usize = 256"));
+    assert!(language.contains("BRANCH_COUNT: usize = 64"));
+    assert!(language.contains("ITERATIONS: usize = 500"));
+    assert!(language.contains("full_pipeline_p50_ms"));
+    assert!(language.contains("effect_request_count"));
     assert!(ui.contains("RUNTIME_COUNT: usize = 256"));
     assert!(ui.contains("apply_patch"));
+    assert!(ui.contains("patch_operations"));
     assert!(remote.contains("--benchmark-workspace-logs"));
     assert!(remote.contains("full_log_count = fullLogCount"));
     assert!(remote.contains("incremental_log_count = incrementalLogCount"));

@@ -225,6 +225,17 @@ is pruned with its retained continuation. The waiting debugger document now
 declares a session-bound cancel action that lowers through the same shared
 command planner. Rust and .NET reject session rebinding, and Avalonia renders a
 destructive button while emitting only its stable node ID.
+`debugger.cancel(session_id: ...)` is now also a typed Leselang effect with
+`debugger.control`, explicit confirmation, a persisted command-correlated
+dispatch result, and restart-safe re-entry. The renderer-neutral UI maps every
+current action to HIR, exports it through the Rust canonical printer, and maps
+the effect back to an equivalent stable-node event. Presentation automation now
+begins with `ui.focus(node_id: ...)`: HIR and the VM keep it in a dedicated
+`ui.presentation` envelope, command lowering rejects it, `leselang-ui` validates
+the stable interactive target, and Avalonia applies native focus with typed
+missing/unfocusable/unrealized/rejected outcomes. Navigation, waits, assertions,
+selection, and scrolling remain the next slices rather than being approximated
+with coordinate-level scripting.
 
 The first concrete cross-language renderer core now exists under
 `apps/leserpent-avalonia`. Rust emits a bounded versioned JSON fixture and the
@@ -402,9 +413,9 @@ failure, symlink rejection, retained-token conflict, rollback preservation, and
 idempotent replay; a subprocess proof executes the real entry point and confirms
 that stdout contains no token. The SSH adapter rejects the `installed` state.
 
-Native launchd/systemd publication and activation, timeout recovery, a real SSH
-cross-process ready proof, WinRM, CLI commands, and the Avalonia Hub flow remain
-before this gate exits.
+Native launchd/systemd publication and activation, timeout recovery, real SSH
+cross-process ready proofs, CLI commands, and the Avalonia Hub flow are now
+complete. WinRM remains deferred until Windows becomes an active target.
 
 The next service prerequisite is also complete: each immutable generation now
 creates and validates a self-signed endpoint TLS identity. The public CA PEM and
@@ -623,6 +634,17 @@ The target installer also rejects any generation already bound by its bounded
 private retirement index, and terminal replay refuses success if a generation,
 current pointer, or descriptor has reappeared.
 
+The privileged Linux profile has now passed the same physical gate under
+system-wide systemd. Controller policy accepts only `user` or `system`; the
+system path invokes the validated native staging binary through the fixed
+noninteractive `/usr/bin/sudo -n --` prefix and never supplies a sudo password
+or secret argv. The proof used a temporary target rule restricted to the
+bootstrap staging prefix and activate/retire actions, then verified the system
+unit, process, listener, staging files, and test identity residue were absent,
+removed the rule, and confirmed passwordless sudo was denied again. Redacted
+evidence lives in
+`docs/fixtures/leserpent_real_ssh_system_profile_retirement_20260728.json`.
+
 The controller handoff now durably preserves the installer-validated generation
 and policy-bound install profile through `Bootstrapped`, restart recovery, and
 `SessionBound`. New worker settlements fail closed if either authority value is
@@ -650,8 +672,8 @@ protocol/failure/timeout exit codes. Avalonia now provides a separate confirmed
 `Retire daemon` workspace with a source-generated strict codec, no
 client-supplied derived authority, stable identity locking, credential-free
 status, and at most 30 exact-request observations. Hub daemon and Gewyvern
-lifecycle actions remain visibly separate. The remaining evidence gate is
-privileged system-profile retirement and WinRM.
+lifecycle actions remain visibly separate. The privileged system-profile gate
+is complete; WinRM is the remaining deferred evidence gate.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path
@@ -1678,10 +1700,14 @@ through the native platform picker. The UTF-8 payload is prevalidated under 512
 KiB, suggested filenames discard path/control syntax, overwrite requires platform
 confirmation, and failed destinations never expose their path in UI status.
 The workspace query group also exports canonical structured Leselang as one
-`all(inspect, history, logs)` batch. A dedicated .NET machine entry emits only the
-source; the Rust parity test parses it and verifies all three typed read-query HIR
-branches preserve the displayed runtime identity. The UI preview is single-instance
-per workspace and copying never executes the program.
+`all(inspect, history, logs)` batch. The production Avalonia preview now sends a
+strict bounded intent through authenticated `POST /v1/leselang-export`;
+`leserpentd` validates it and calls the Rust HIR canonical printer. A real TLS
+test parses the returned source and verifies all three typed read-query branches
+or the requested mutation preserve their semantic fields. C# contains no
+Leselang source templates, dynamic form requests are debounced and cancellable,
+and export failure never falls back to frontend-generated source. The preview is
+single-instance per workspace and copying never executes the program.
 
 Exit: desktop and one mobile target pass the same semantic conformance suite;
 platform-only presentation differences are documented.
@@ -1807,6 +1833,18 @@ cold start, 256-runtime query latency, 10,000-effect batch throughput, a
 size. Broad fail-closed budgets guard against order-of-magnitude regressions;
 raw macOS arm64 and physical Linux x86_64 results remain separate host-class
 baselines with machine-readable evidence.
+The first post-1.10 optimization replaces repeated whole-tree searches for
+same-topology UI revisions with a linear topology check and shallow-update
+collection. Structural changes retain the original convergence-checked path.
+The 1,539-node reference dropped from `14.536 ms` patch p50 to `2.255 ms` in
+the retained macOS shelf, with the same two patch operations and encoded
+document size.
+The language core now has an equally explicit 64-branch benchmark spanning
+syntax, HIR, VM startup, and the complete source-to-effect path. Alternating
+same-host pre/post runs reduced the four median stages by approximately 42%,
+33%, 52%, and 43%. The shelf rejects changed token, branch, or emitted-effect
+counts and retains its own `language-benchmark.json`, turning Leselang
+performance into a release contract rather than an informal observation.
 The .NET benchmark workload and every .NET parity suite now use proof-local
 artifacts roots as well. A concurrent parity/benchmark run passes without
 source-tree `obj` contention and removes both intermediate graphs afterward.

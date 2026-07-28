@@ -7,8 +7,8 @@ use leselang_ui::{
     runtime_log_document,
 };
 use leselang_vm::{
-    ContinuationImage, DebuggerAuditContext, EffectRequest, Fault, Vm, encode_continuation,
-    validate_effect_request,
+    ContinuationImage, DebuggerAuditContext, DebuggerCancelResult, EffectRequest, Fault, Vm,
+    encode_continuation, validate_effect_request,
 };
 use leserpent_domain::{
     Command, CommandPlanError, Confirmation, MAX_RUNTIME_LOG_MESSAGE_BYTES, PlannedOperation,
@@ -144,6 +144,29 @@ pub fn execute_debugger_cancel(
     })
 }
 
+pub fn execute_debugger_cancel_effect(
+    plan: &CommandPlan,
+    projection: &DebuggerProjection,
+    image: &ContinuationImage,
+    vm: &mut Vm,
+    now_ms: u64,
+) -> Result<DebuggerCancelResult, ObserveError> {
+    let mutation = execute_debugger_cancel(plan, projection, image, vm, now_ms)?;
+    if mutation.status != DebuggerMutationStatus::Applied {
+        return Err(ObserveError::UnexpectedDebuggerStep);
+    }
+    let PlannedOperation::Command(command) = &plan.operation else {
+        return Err(ObserveError::DebuggerSessionMismatch);
+    };
+    Ok(DebuggerCancelResult {
+        command_id: command.command_id.clone(),
+        session_id: mutation.inspection.session_id,
+        observed_at_ms: mutation
+            .audited_at_ms
+            .ok_or(ObserveError::UnexpectedDebuggerStep)?,
+    })
+}
+
 /// Converts one bounded authoritative log window into renderer-neutral state.
 /// Source-specific fields cannot cross this deliberately narrow input type.
 pub fn runtime_log_projection(
@@ -269,6 +292,10 @@ pub fn waiting_debugger_projection(
             Some(runtime_id.clone()),
             "runtime deploy",
         ),
+        Effect::DebuggerCancel { .. } => {
+            (DebuggerEffectKind::DebuggerCancel, None, "debugger cancel")
+        }
+        Effect::UiFocus { .. } => (DebuggerEffectKind::UiFocus, None, "UI focus"),
         Effect::All { .. } => {
             return Err(ObserveError::InvalidEffectRequest(Fault {
                 code: "LSO1001".to_string(),
@@ -624,6 +651,21 @@ mod tests {
         let encoded = serde_json::to_string(&replay).unwrap();
         assert!(!encoded.contains(request.continuation.token.as_str()));
         assert!(!encoded.contains("debugger-effect-a"));
+        assert_eq!(
+            execute_debugger_cancel_effect(
+                &confirmed,
+                &projection,
+                &request.continuation,
+                &mut vm,
+                1_750,
+            )
+            .unwrap(),
+            DebuggerCancelResult {
+                command_id: CommandId::new("debugger-command-a").unwrap(),
+                session_id: "session-a".into(),
+                observed_at_ms: 1_250,
+            }
+        );
     }
 
     #[test]

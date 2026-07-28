@@ -21,6 +21,8 @@ validated EffectRequest -> leselang-observe -> DebuggerProjection
 DebuggerProjection -> debugger_document -> UiDocument
 DebuggerCancel CommandPlan -> inspect/dry-run -> VM cancellation
 UiEvent + UiDocument + LoweringContext -> CommandPlan
+UiEvent + UiDocument -> HIR Effect -> canonical Leselang
+HIR Effect + UiDocument -> equivalent UiEvent
 previous UiDocument + next UiDocument -> UiPatch
 ```
 
@@ -127,12 +129,42 @@ An `activate` event carries no values. A `submit` event may carry only fields
 declared by the target action's parameterized form. Forms bound their field
 count, keys, localization, required state, maximum lengths, and input kinds;
 unknown, missing, oversized, or invalid values fail closed in both Rust and the
-.NET semantic renderer. Deployment submission then uses the same
+.NET semantic renderer. Deployment submission then uses the same HIR effect and
 `leselang-command` normalization path as textual Leselang and the native CLI.
-The lowering context must fence exactly the document revision.
+Runtime inspect, refresh, capability refresh, deployment, and debugger
+cancellation are exhaustively mapped through this path. The reverse mapper
+locates an equivalent stable action node and reconstructs bounded form values,
+while canonical export is owned by Rust HIR rather than a renderer. The
+lowering context must fence exactly the document revision.
+
+Avalonia's production preview follows the same ownership rule. It sends only a
+strict, versioned, bounded semantic intent to the connected daemon's
+authenticated `POST /v1/leselang-export` route. `leserpentd` validates the
+intent, constructs the HIR effect, and returns source only after the Rust
+canonical printer has parsed and lowered it back to the same effect. C# owns
+neither Leselang quoting nor source templates. Parameterized form previews are
+debounced and cancellable; a network or protocol failure disables copying and
+never substitutes a frontend-generated program. This export route is pure and
+cannot execute the represented operation.
 
 Unknown nodes, nodes without actions, stale revisions, missing capabilities,
-and forged runtime or debugger-session bindings fail closed.
+forged runtime or debugger-session bindings, invalid automation effects, and
+effects without an action in the current document fail closed.
+
+Semantic action equivalence is now joined by the first presentation atom:
+`UiPresentationOperation::Focus`. Rust maps it one-to-one to
+`ui.focus(node_id: ...)`, validates that the stable node exists and represents
+an interactive action, and maps it back without creating a `UiEvent` or
+`CommandPlan`. The VM carries it in a capability-gated presentation envelope.
+Avalonia validates the same operation in RendererCore, resolves the stable ID
+through its visual index, and distinguishes unknown, unfocusable, unrealized,
+and platform-rejected targets. Its real-window probe proves native focus,
+remount/patch retention, and safe target removal.
+
+This is not yet complete presentation automation. Selection, scrolling,
+navigation, window lifetime, state waits, and UI assertions remain future typed
+operations; renderers must not emulate them by turning coordinates or arbitrary
+scripts into control-plane commands.
 
 ## Patches
 

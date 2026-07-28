@@ -12,8 +12,8 @@ use crate::{
     DispatchLease, EffectError, EffectRequest, Fault, MAX_CONTINUATION_BYTES,
     MAX_DISPATCH_ATTEMPTS, MAX_DISPATCH_LEASE_MS, MAX_SEMANTIC_RETRIES, MergePlan, RetentionPolicy,
     RetryDisposition, Step, continuation_age_order, encode_json_capped, merge_declared,
-    valid_continuation_token, validate_effect_error, validate_effect_request, validate_image,
-    validate_merge_plan, validate_value,
+    valid_continuation_token, validate_continuation_size, validate_effect_error,
+    validate_effect_request, validate_image, validate_merge_plan, validate_value,
 };
 
 pub const JOURNAL_SCHEMA_VERSION: u32 = 6;
@@ -290,6 +290,7 @@ impl EphemeralJournal {
             return Ok(());
         };
         validate_effect_request(request)?;
+        validate_continuation_size(&request.continuation)?;
         let token = request.continuation.token.clone();
         if let Some(existing) = self.dispatches.get(&token) {
             return if existing.request == *request {
@@ -324,6 +325,9 @@ impl EphemeralJournal {
         plan: &MergePlan,
         branches: &[(&str, &EffectRequest)],
     ) -> Result<(), Fault> {
+        for (_, request) in branches {
+            validate_continuation_size(&request.continuation)?;
+        }
         if self.merge_groups.contains_key(group_token)
             || self.dispatches.contains_key(group_token)
             || branches.iter().any(|(_, request)| {

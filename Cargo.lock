@@ -1076,6 +1076,7 @@ name = "leselang-ui"
 version = "1.10.0"
 dependencies = [
  "leselang-command",
+ "leselang-hir",
  "leserpent-domain",
  "serde",
  "serde_json",
@@ -1172,6 +1173,9 @@ dependencies = [
 name = "leserpentd"
 version = "1.10.0"
 dependencies = [
+ "leselang-hir",
+ "leselang-syntax",
+ "leselang-ui",
  "leserpent-adapters",
  "leserpent-domain",
  "leserpent-protocol",
