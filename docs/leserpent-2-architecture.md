@@ -508,6 +508,27 @@ even when the transport implementation already did so. Legacy deployments,
 client-injected authority fields, policy drift, and forged transport responses
 therefore fail before a successful retirement state can be published.
 
+Runtime journal schema 20 gives that operation its own `daemon_retirement`
+authority namespace rather than reusing Gewyvern runtime retirement. Submission
+reads the `SessionBound` deployment and commits the private planned effect plus
+revision-1 checkpoint in one SQLite transaction. Worker settlement decodes the
+private effect, rebinds every derived authority field to the adapter response,
+and atomically commits the terminal scheduler outcome with a revision-2
+`ServiceRetired` or `Failed` checkpoint. Schema 19 migration rebuilds only the
+authority constraint and preserves existing bootstrap, provisioning, and
+runtime-retirement rows. The configured native bootstrap origin now registers
+both deployment and daemon-retirement adapters.
+
+The product entry is now independently authenticated on both local and remote
+transports. Unix IPC uses the explicit `daemon_retirement_v1` route and HTTPS
+uses `POST /v1/daemon-retirement`; neither aliases the existing runtime
+retirement route. Both return the strict daemon-retirement response envelope,
+remain disabled unless the daemon-retirement adapter is registered, and enforce
+the codec's 64 KiB body limit. Authentication failures preserve the
+operation-specific error envelope and create no checkpoint. A shared
+retirement ID may exist in daemon and Gewyvern runtime retirement namespaces
+without collision because authority lookup always includes the operation kind.
+
 This closes durable handoff recovery but not the product entrypoint. The
 authenticated IPC/HTTPS wire now supports checkpoint query and confirmed
 session bind by bootstrap ID. Bind deliberately accepts no proof fields. A

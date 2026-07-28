@@ -10,7 +10,9 @@ use leserpent_adapters::{
     SshBootstrapHostPolicy,
 };
 #[cfg(feature = "native-ssh")]
-use leserpent_adapters::{NativeSshBootstrapTransport, SshBootstrapAdapter};
+use leserpent_adapters::{
+    NativeSshBootstrapTransport, SshBootstrapAdapter, SshDaemonRetirementAdapter,
+};
 use leserpent_domain::bootstrap::{
     BootstrapTarget, BootstrapTransport, CredentialHandle, DaemonId,
 };
@@ -78,6 +80,35 @@ impl BootstrapOriginConfig {
             validated.artifact,
             NativeSshBootstrapTransport::default(),
         )
+    }
+
+    #[cfg(feature = "native-ssh")]
+    pub fn into_native_adapters(
+        self,
+        secrets: Arc<dyn SecretStore>,
+        trust: Arc<dyn BootstrapTrustStore>,
+    ) -> Result<
+        (
+            SshBootstrapAdapter<NativeSshBootstrapTransport>,
+            SshDaemonRetirementAdapter<NativeSshBootstrapTransport>,
+        ),
+        String,
+    > {
+        let validated = self.validate_and_load()?;
+        let deployment = SshBootstrapAdapter::new(
+            validated.policies.clone(),
+            secrets.clone(),
+            trust,
+            validated.artifact.clone(),
+            NativeSshBootstrapTransport::default(),
+        )?;
+        let retirement = SshDaemonRetirementAdapter::new(
+            validated.policies,
+            secrets,
+            validated.artifact,
+            NativeSshBootstrapTransport::default(),
+        )?;
+        Ok((deployment, retirement))
     }
 
     fn validate_shape(&self) -> Result<(), String> {

@@ -2272,7 +2272,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(bootstrap.maturity, Maturity::Developing);
     assert_eq!(bootstrap.completion, 99);
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
-    assert_eq!(bootstrap.contract.version, "0.22.0");
+    assert_eq!(bootstrap.contract.version, "0.24.0");
     assert!(
         bootstrap
             .contract
@@ -2336,6 +2336,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-daemon-retirement-lifecycle",
         "policy-revalidated-daemon-retirement",
         "transport-response-rebinding",
+        "runtime-schema-20-daemon-retirement-authority",
+        "atomic-daemon-retirement-effect-checkpoint",
+        "restart-safe-daemon-retirement-settlement",
+        "independent-retirement-operation-kind",
+        "checkpoint-derived-submission-effect",
+        "production-daemon-retirement-adapter-registration",
+        "explicit-daemon-retirement-ipc-route",
+        "authenticated-daemon-retirement-https-route",
+        "bounded-daemon-retirement-route-payload",
+        "adapter-registration-daemon-retirement-route-gate",
+        "retirement-operation-namespace-isolation",
+        "daemon-retirement-auth-error-envelope",
     ] {
         assert!(
             bootstrap

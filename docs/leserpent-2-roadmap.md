@@ -633,14 +633,19 @@ target authority from the checkpoint instead of accepting client-supplied
 generation or profile values.
 
 The independent daemon-retirement domain, public command codec, private effect
-codec, and SSH adapter kernel are complete. Public commands cannot contain
-target, daemon, generation, or profile authority; planning derives all four
-from a matching `SessionBound` deployment checkpoint. The adapter resolves only
-the derived SSH target and opaque credential handle, rechecks host policy, and
-revalidates the target response's complete identity binding. The remaining
-product gate is durable authority-checkpoint scheduling plus authenticated
-IPC/HTTPS, CLI, and Avalonia orchestration, followed by privileged
-system-profile and WinRM evidence.
+codec, SSH adapter, and durable scheduler path are complete. Public commands
+cannot contain target, daemon, generation, or profile authority; planning
+derives all four from a matching `SessionBound` deployment checkpoint. Runtime
+journal schema 20 persists daemon retirement under its own authority kind,
+atomically pairs planned checkpoints with effects, and atomically pairs terminal
+checkpoints with scheduler outcomes. The worker revalidates the complete
+response binding, restart replay is covered, and the production bootstrap origin
+registers both deployment and retirement adapters. Explicit authenticated
+`daemon_retirement_v1` IPC and `/v1/daemon-retirement` HTTPS routes are now
+adapter-gated, bounded, operation-specific, and proven not to collide with
+Gewyvern runtime retirement even when IDs match. The remaining product gate is
+native CLI and Avalonia orchestration, followed by privileged system-profile
+and WinRM evidence.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

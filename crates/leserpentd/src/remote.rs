@@ -7,6 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, encode_bootstrap_response};
+use leserpent_protocol::bootstrap_retirement_control::{
+    MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES, encode_daemon_retirement_response,
+};
 use leserpent_protocol::provisioning::{
     MAX_PROVISIONING_PROTOCOL_BYTES, encode_provisioning_response,
 };
@@ -21,6 +24,9 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
+use crate::daemon_retirement_submission::{
+    decode_and_submit as decode_and_submit_daemon_retirement, error as daemon_retirement_error,
+};
 use crate::events::{EventSession, MAX_EVENT_SESSIONS, is_event_upgrade};
 use crate::provisioning_submission::{
     decode_and_submit as decode_and_submit_provisioning, error as provisioning_error,
@@ -97,6 +103,7 @@ pub struct RemoteServer {
     bootstrap_submission_enabled: bool,
     provisioning_submission_enabled: bool,
     retirement_submission_enabled: bool,
+    daemon_retirement_submission_enabled: bool,
 }
 
 impl RemoteServer {
@@ -149,6 +156,7 @@ impl RemoteServer {
             bootstrap_submission_enabled: false,
             provisioning_submission_enabled: false,
             retirement_submission_enabled: false,
+            daemon_retirement_submission_enabled: false,
         })
     }
 
@@ -169,6 +177,11 @@ impl RemoteServer {
 
     pub fn with_retirement_submission(mut self) -> Self {
         self.retirement_submission_enabled = true;
+        self
+    }
+
+    pub fn with_daemon_retirement_submission(mut self) -> Self {
+        self.daemon_retirement_submission_enabled = true;
         self
     }
 
@@ -244,6 +257,8 @@ impl RemoteServer {
         let bootstrap_route = prefix.starts_with(b"POST /v1/bootstrap HTTP/1.1\r\n");
         let provisioning_route = prefix.starts_with(b"POST /v1/provisioning HTTP/1.1\r\n");
         let retirement_route = prefix.starts_with(b"POST /v1/retirement HTTP/1.1\r\n");
+        let daemon_retirement_route =
+            prefix.starts_with(b"POST /v1/daemon-retirement HTTP/1.1\r\n");
         let mut stream = PrefixedStream::new(prefix, stream);
         let (status, body) = match read_http_request(&mut stream, &self.token) {
             Ok(HttpRequest {
@@ -303,6 +318,21 @@ impl RemoteServer {
                     encode_retirement_response(&response).map_err(|error| error.to_string())?,
                 )
             }
+            Ok(HttpRequest {
+                route: HttpRoute::DaemonRetirement,
+                body,
+            }) => {
+                let response = decode_and_submit_daemon_retirement(
+                    runtime,
+                    &body,
+                    self.daemon_retirement_submission_enabled,
+                );
+                (
+                    HttpStatus::Ok,
+                    encode_daemon_retirement_response(&response)
+                        .map_err(|error| error.to_string())?,
+                )
+            }
             Err(error) => {
                 let body = if bootstrap_route {
                     encode_bootstrap_response(&bootstrap_error(None, error.code, error.message))
@@ -317,6 +347,13 @@ impl RemoteServer {
                 } else if retirement_route {
                     encode_retirement_response(&retirement_error(None, error.code, error.message))
                         .map_err(|error| error.to_string())?
+                } else if daemon_retirement_route {
+                    encode_daemon_retirement_response(&daemon_retirement_error(
+                        None,
+                        error.code,
+                        error.message,
+                    ))
+                    .map_err(|error| error.to_string())?
                 } else {
                     encode_response(&error_response(error.code, error.message))
                         .map_err(|error| error.to_string())?
@@ -400,6 +437,7 @@ enum HttpRoute {
     Bootstrap,
     Provisioning,
     Retirement,
+    DaemonRetirement,
 }
 
 #[derive(Debug)]
@@ -511,6 +549,7 @@ fn read_http_request(
         "/v1/bootstrap" => HttpRoute::Bootstrap,
         "/v1/provisioning" => HttpRoute::Provisioning,
         "/v1/retirement" => HttpRoute::Retirement,
+        "/v1/daemon-retirement" => HttpRoute::DaemonRetirement,
         _ => {
             return Err(HttpError {
                 status: HttpStatus::NotFound,
@@ -540,6 +579,7 @@ fn read_http_request(
         HttpRoute::Bootstrap => MAX_BOOTSTRAP_PROTOCOL_BYTES,
         HttpRoute::Provisioning => MAX_PROVISIONING_PROTOCOL_BYTES,
         HttpRoute::Retirement => MAX_RETIREMENT_PROTOCOL_BYTES,
+        HttpRoute::DaemonRetirement => MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES,
     };
     if content_length > limit {
         return Err(HttpError {
@@ -712,6 +752,25 @@ mod tests {
         .unwrap()
     }
 
+    fn daemon_retirement_body(retirement_id: &str, bootstrap_id: &str) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1,
+            "request": {
+                "principal": { "id": "operator-a" },
+                "capabilities": ["host.retire"],
+                "intent": {
+                    "schema_version": 1,
+                    "retirement_id": retirement_id,
+                    "bootstrap_id": bootstrap_id,
+                    "retirement_credential_handle": "vault:ssh:host-example",
+                    "requested_by": "operator-a",
+                    "confirmed": true
+                }
+            }
+        }))
+        .unwrap()
+    }
+
     fn request(token: &str, body: &[u8]) -> Vec<u8> {
         request_at(token, "/v1/wire", body)
     }
@@ -754,6 +813,16 @@ mod tests {
         path: &'static str,
         body: Vec<u8>,
     ) -> thread::JoinHandle<Vec<u8>> {
+        tls_post_client_with_token(address, certificate, path, body, TOKEN)
+    }
+
+    fn tls_post_client_with_token(
+        address: SocketAddr,
+        certificate: rustls::pki_types::CertificateDer<'static>,
+        path: &'static str,
+        body: Vec<u8>,
+        token: &'static str,
+    ) -> thread::JoinHandle<Vec<u8>> {
         thread::spawn(move || {
             let mut roots = RootCertStore::empty();
             roots.add(certificate).unwrap();
@@ -770,7 +839,7 @@ mod tests {
             let socket = TcpStream::connect(address).unwrap();
             socket.set_read_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
             let mut stream = StreamOwned::new(connection, socket);
-            stream.write_all(&request_at(TOKEN, path, &body)).unwrap();
+            stream.write_all(&request_at(token, path, &body)).unwrap();
             read_response(&mut stream)
         })
     }
@@ -870,6 +939,13 @@ mod tests {
         .unwrap();
         assert_eq!(retirement.route, HttpRoute::Retirement);
         assert_eq!(retirement.body, b"{}");
+        let daemon_retirement = read_http_request(
+            &mut Cursor::new(request_at(TOKEN, "/v1/daemon-retirement", b"{}")),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(daemon_retirement.route, HttpRoute::DaemonRetirement);
+        assert_eq!(daemon_retirement.body, b"{}");
 
         let wrong_token = read_http_request(
             &mut Cursor::new(request("fedcba9876543210fedcba9876543210", &health_body())),
@@ -953,6 +1029,19 @@ mod tests {
         assert!(matches!(
             read_http_request(
                 &mut Cursor::new(oversized_retirement.into_bytes()),
+                TOKEN.as_bytes()
+            )
+            .unwrap_err()
+            .status,
+            HttpStatus::PayloadTooLarge
+        ));
+        let oversized_daemon_retirement = format!(
+            "POST /v1/daemon-retirement HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES + 1
+        );
+        assert!(matches!(
+            read_http_request(
+                &mut Cursor::new(oversized_daemon_retirement.into_bytes()),
                 TOKEN.as_bytes()
             )
             .unwrap_err()
@@ -1118,6 +1207,151 @@ mod tests {
         assert_eq!(
             runtime
                 .retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
+    }
+
+    #[test]
+    fn authenticated_daemon_retirement_commits_derived_checkpoint_over_real_tls() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("daemon-retirement", "crt");
+        let key_path = temp_path("daemon-retirement", "key");
+        let database_path = temp_path("daemon-retirement", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        crate::daemon_retirement_submission::seed_bound_deployment(
+            &mut runtime,
+            "bootstrap-remote-retire",
+        );
+        let body = daemon_retirement_body("retire-daemon-remote-1", "bootstrap-remote-retire");
+        let retirement_id =
+            leserpent_domain::retirement::RetirementId::new("retire-daemon-remote-1").unwrap();
+
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap();
+        let unauthorized = tls_post_client_with_token(
+            server.local_addr().unwrap(),
+            cert.der().clone(),
+            "/v1/daemon-retirement",
+            body.clone(),
+            "fedcba9876543210fedcba9876543210",
+        );
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let response = unauthorized.join().unwrap();
+        assert!(response.starts_with(b"HTTP/1.1 401 Unauthorized\r\n"));
+        let body_start = find_header_end(&response).unwrap();
+        let decoded =
+            leserpent_protocol::bootstrap_retirement_control::decode_daemon_retirement_response(
+                &response[body_start..],
+            )
+            .unwrap();
+        assert!(matches!(
+            decoded.response,
+            leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::Error(
+                ref error
+            ) if error.code == "unauthorized"
+        ));
+        assert!(
+            runtime
+                .daemon_retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .is_none()
+        );
+
+        let client = tls_post_client(
+            server.local_addr().unwrap(),
+            cert.der().clone(),
+            "/v1/daemon-retirement",
+            body.clone(),
+        );
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let response = client.join().unwrap();
+        let body_start = find_header_end(&response).unwrap();
+        let decoded =
+            leserpent_protocol::bootstrap_retirement_control::decode_daemon_retirement_response(
+                &response[body_start..],
+            )
+            .unwrap();
+        assert!(matches!(
+            decoded.response,
+            leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::Error(
+                ref error
+            ) if error.code == "daemon_retirement_unavailable"
+        ));
+        assert!(
+            runtime
+                .daemon_retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .is_none()
+        );
+        drop(server);
+
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap()
+        .with_daemon_retirement_submission();
+        let client = tls_post_client(
+            server.local_addr().unwrap(),
+            cert.der().clone(),
+            "/v1/daemon-retirement",
+            body,
+        );
+        for _ in 0..100 {
+            if server.poll_once_strict(&mut runtime).unwrap() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        let response = client.join().unwrap();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let body_start = find_header_end(&response).unwrap();
+        let decoded =
+            leserpent_protocol::bootstrap_retirement_control::decode_daemon_retirement_response(
+                &response[body_start..],
+            )
+            .unwrap();
+        assert!(matches!(
+            decoded.response,
+            leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::State(
+                ref state
+            ) if state.phase
+                == leserpent_domain::bootstrap_retirement::DaemonRetirementPhase::Planned
+        ));
+        assert_eq!(
+            runtime
+                .daemon_retirement_checkpoint(&retirement_id)
                 .unwrap()
                 .unwrap()
                 .revision,

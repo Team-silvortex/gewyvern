@@ -1614,7 +1614,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.22.0",
+        "version": "0.24.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1724,6 +1724,18 @@
           "typed-daemon-retirement-lifecycle",
           "policy-revalidated-daemon-retirement",
           "transport-response-rebinding",
+          "runtime-schema-20-daemon-retirement-authority",
+          "atomic-daemon-retirement-effect-checkpoint",
+          "restart-safe-daemon-retirement-settlement",
+          "independent-retirement-operation-kind",
+          "checkpoint-derived-submission-effect",
+          "production-daemon-retirement-adapter-registration",
+          "explicit-daemon-retirement-ipc-route",
+          "authenticated-daemon-retirement-https-route",
+          "bounded-daemon-retirement-route-payload",
+          "adapter-registration-daemon-retirement-route-gate",
+          "retirement-operation-namespace-isolation",
+          "daemon-retirement-auth-error-envelope",
           "divergent-bootstrap-identity-rejection",
           "native-cli-bootstrap-deploy",
           "ssh-vault-only-cli-submission",
@@ -1774,7 +1786,7 @@
       "blockers": [
         {
           "id": "cross-platform-bootstrap-installation-incomplete",
-          "summary": "The bootstrap install/activate path and identity-bound bootstrap-retire-v1 path now have native macOS process proof plus pinned-SSH Linux systemd-user deployment, forged-generation rejection, retirement, replay, and residue evidence. Product-level authenticated daemon-retirement orchestration, WinRM, and privileged system-profile evidence remain."
+          "summary": "The bootstrap install/activate path and identity-bound bootstrap-retire-v1 path now have native macOS process proof plus pinned-SSH Linux systemd-user deployment, forged-generation rejection, retirement, replay, and residue evidence. Product-level daemon-retirement persistence, scheduling, worker settlement, native adapter registration, authenticated IPC, and authenticated HTTPS are complete; CLI, Avalonia, WinRM, and privileged system-profile evidence remain."
         }
       ],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
@@ -1798,6 +1810,7 @@
         { "kind": "source", "path": "crates/leserpentd/src/bootstrap_session.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/bootstrap_origin.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpentd/src/bootstrap_submission.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpentd/src/daemon_retirement_submission.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent-bootstrap-origin-v1.example.json", "state": "present" },
         { "kind": "test", "path": "tests/leserpent_bridge_packaging_tdd.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpentd/src/wire.rs", "state": "present" },
@@ -1820,7 +1833,7 @@
         { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Persist and schedule the independent daemon-retirement checkpoint, then expose authenticated IPC/HTTPS, CLI, and Avalonia orchestration without conflating it with runtime retirement."
+      "next_gate": "Expose the independently persisted daemon-retirement operation through the native CLI and Avalonia orchestration while preserving its separation from runtime retirement."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",

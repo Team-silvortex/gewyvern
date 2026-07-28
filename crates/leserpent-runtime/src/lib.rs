@@ -2,6 +2,9 @@ use leserpent_domain::bootstrap::{
     BootstrapError, BootstrapId, BootstrapPhase, DaemonSessionProof, DeploymentBootstrap,
     DeploymentBootstrapCheckpoint, DeploymentBootstrapSnapshot,
 };
+use leserpent_domain::bootstrap_retirement::{
+    DaemonRetirementCheckpoint, DaemonRetirementError, DaemonRetirementPhase,
+};
 use leserpent_domain::provisioning::{
     PROVISIONING_SERVICE_PROTOCOL_VERSION, ProvisioningError, ProvisioningId, ProvisioningPhase,
     RuntimeProvisioning, RuntimeProvisioningCheckpoint, RuntimeProvisioningSnapshot,
@@ -342,6 +345,7 @@ pub enum RuntimeError {
     InvalidEffectOutcome(&'static str),
     Domain(DomainError),
     Bootstrap(BootstrapError),
+    DaemonRetirement(DaemonRetirementError),
     Provisioning(ProvisioningError),
     Retirement(RetirementError),
     InvalidSnapshot(DomainSnapshotError),
@@ -360,6 +364,9 @@ impl fmt::Display for RuntimeError {
             }
             Self::Domain(error) => write!(formatter, "domain execution failed: {error}"),
             Self::Bootstrap(error) => write!(formatter, "bootstrap state failed: {error}"),
+            Self::DaemonRetirement(error) => {
+                write!(formatter, "daemon retirement state failed: {error}")
+            }
             Self::Provisioning(error) => {
                 write!(formatter, "runtime provisioning state failed: {error}")
             }
@@ -393,6 +400,7 @@ impl std::error::Error for RuntimeError {
             Self::InvalidPlan(error) => Some(error),
             Self::Domain(error) => Some(error),
             Self::Bootstrap(error) => Some(error),
+            Self::DaemonRetirement(error) => Some(error),
             Self::Provisioning(error) => Some(error),
             Self::Retirement(error) => Some(error),
             Self::InvalidSnapshot(error) => Some(error),
@@ -1327,6 +1335,119 @@ impl ControlRuntime {
             )
             .map_err(RuntimeError::Storage)?;
         Ok(state)
+    }
+
+    pub fn enqueue_daemon_retirement_effect(
+        &mut self,
+        effect_id: &str,
+        kind: &str,
+        payload: &[u8],
+        max_attempts: u32,
+        checkpoint: &DaemonRetirementCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint
+            .validate()
+            .map_err(RuntimeError::DaemonRetirement)?;
+        if checkpoint.revision != 1 || checkpoint.state.phase != DaemonRetirementPhase::Planned {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "daemon retirement submission must begin at planned revision 1",
+            ));
+        }
+        let checkpoint_payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "daemon retirement requires persistent storage".into(),
+            ));
+        };
+        journal
+            .enqueue_effect_with_authority_checkpoint(
+                effect_id,
+                kind,
+                payload,
+                max_attempts,
+                persistence::AUTHORITY_KIND_DAEMON_RETIREMENT,
+                checkpoint.state.retirement_id.as_str(),
+                daemon_retirement_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &checkpoint_payload,
+            )
+            .map_err(RuntimeError::Storage)
+    }
+
+    pub fn daemon_retirement_checkpoint(
+        &mut self,
+        retirement_id: &RetirementId,
+    ) -> Result<Option<DaemonRetirementCheckpoint>, RuntimeError> {
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "daemon retirement requires persistent storage".into(),
+            ));
+        };
+        let Some(record) = journal
+            .authority_checkpoint(
+                persistence::AUTHORITY_KIND_DAEMON_RETIREMENT,
+                retirement_id.as_str(),
+            )
+            .map_err(RuntimeError::Storage)?
+        else {
+            return Ok(None);
+        };
+        let checkpoint: DaemonRetirementCheckpoint = serde_json::from_slice(&record.payload)
+            .map_err(|_| {
+                RuntimeError::Storage("daemon retirement checkpoint is invalid JSON".into())
+            })?;
+        checkpoint.validate().map_err(|error| {
+            RuntimeError::Storage(format!("invalid daemon retirement checkpoint: {error}"))
+        })?;
+        if checkpoint.revision != record.revision
+            || checkpoint.state.retirement_id != *retirement_id
+            || daemon_retirement_phase_label(checkpoint.state.phase) != record.phase
+        {
+            return Err(RuntimeError::Storage(
+                "daemon retirement checkpoint identity or revision diverged".into(),
+            ));
+        }
+        Ok(Some(checkpoint))
+    }
+
+    pub fn complete_daemon_retirement_effect(
+        &mut self,
+        lease: &EffectLease,
+        outcome: &[u8],
+        checkpoint: &DaemonRetirementCheckpoint,
+    ) -> Result<(), RuntimeError> {
+        checkpoint
+            .validate()
+            .map_err(RuntimeError::DaemonRetirement)?;
+        if checkpoint.revision != 2
+            || !matches!(
+                checkpoint.state.phase,
+                DaemonRetirementPhase::ServiceRetired | DaemonRetirementPhase::Failed
+            )
+        {
+            return Err(RuntimeError::InvalidEffectOutcome(
+                "daemon retirement completion requires a terminal revision-2 checkpoint",
+            ));
+        }
+        let payload = serde_json::to_vec(checkpoint)
+            .map_err(|error| RuntimeError::Storage(error.to_string()))?;
+        let Some(journal) = &mut self.journal else {
+            return Err(RuntimeError::Storage(
+                "daemon retirement requires persistent storage".into(),
+            ));
+        };
+        journal
+            .complete_effect_with_authority_checkpoint(
+                lease,
+                outcome,
+                persistence::AUTHORITY_KIND_DAEMON_RETIREMENT,
+                checkpoint.state.retirement_id.as_str(),
+                daemon_retirement_phase_label(checkpoint.state.phase),
+                checkpoint.revision,
+                &payload,
+            )
+            .map_err(RuntimeError::Storage)
     }
 
     pub fn enqueue_provisioning_effect(
@@ -2306,6 +2427,15 @@ fn bootstrap_phase_label(phase: BootstrapPhase) -> &'static str {
     }
 }
 
+fn daemon_retirement_phase_label(phase: DaemonRetirementPhase) -> &'static str {
+    match phase {
+        DaemonRetirementPhase::Planned => "planned",
+        DaemonRetirementPhase::RetiringService => "retiring_service",
+        DaemonRetirementPhase::ServiceRetired => "service_retired",
+        DaemonRetirementPhase::Failed => "failed",
+    }
+}
+
 fn registration_proof_from_ready(
     checkpoint: &RuntimeProvisioningCheckpoint,
 ) -> Result<RuntimeRegistrationProof, RuntimeError> {
@@ -3022,8 +3152,8 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 19);
-        assert_eq!(migration_count, 19);
+        assert_eq!(schema, 20);
+        assert_eq!(migration_count, 20);
         assert_eq!(legacy_timestamp, 0);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3097,7 +3227,7 @@ mod tests {
                  DROP TABLE orchestra_delete_operations;
                  DROP TABLE authority_writer_fence;
                  DELETE FROM runtime_schema_migrations
-                 WHERE version IN (12, 13, 14, 15, 16, 17, 18, 19);
+                 WHERE version IN (12, 13, 14, 15, 16, 17, 18, 19, 20);
                  UPDATE runtime_metadata SET value = 11 WHERE key = 'schema_version';",
             )
             .unwrap();
@@ -3125,7 +3255,86 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!((schema, bootstrap_rows, provisioning_rows), (19, 1, 0));
+        assert_eq!((schema, bootstrap_rows, provisioning_rows), (20, 1, 0));
+        drop(connection);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn schema_19_authority_rows_survive_daemon_retirement_namespace_migration() {
+        use leserpent_domain::bootstrap::{
+            BOOTSTRAP_DOMAIN_SCHEMA_VERSION, BootstrapIntent, BootstrapTarget, BootstrapTransport,
+            CAPABILITY_HOST_BOOTSTRAP, CredentialHandle,
+        };
+
+        let path = temp_journal("v19-daemon-retirement-authority-migration");
+        let bootstrap_id = BootstrapId::new("bootstrap-v19-preserved").unwrap();
+        let bootstrap = DeploymentBootstrap::plan(
+            &Principal {
+                id: "operator-a".into(),
+            },
+            &CapabilitySet::new([CAPABILITY_HOST_BOOTSTRAP]),
+            BootstrapIntent {
+                schema_version: BOOTSTRAP_DOMAIN_SCHEMA_VERSION,
+                bootstrap_id: bootstrap_id.clone(),
+                target: BootstrapTarget {
+                    transport: BootstrapTransport::Ssh,
+                    host: "host.example".into(),
+                    port: 22,
+                },
+                credential_handle: CredentialHandle::new("vault:ssh:host-example").unwrap(),
+                requested_by: "operator-a".into(),
+                confirmed: true,
+            },
+        )
+        .unwrap();
+        let checkpoint = bootstrap.checkpoint(1).unwrap();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        runtime
+            .enqueue_bootstrap_effect(
+                "bootstrap-v19-preserved-effect",
+                "leserpent.host.bootstrap",
+                b"request",
+                3,
+                &checkpoint,
+            )
+            .unwrap();
+        drop(runtime);
+
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 20",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE runtime_metadata SET value = 19 WHERE key = 'schema_version'",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        let mut migrated = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            migrated.bootstrap_checkpoint(&bootstrap_id).unwrap(),
+            Some(checkpoint)
+        );
+        drop(migrated);
+        let connection = Connection::open(&path).unwrap();
+        let state: (i64, i64, i64) = connection
+            .query_row(
+                "SELECT
+                     (SELECT value FROM runtime_metadata WHERE key = 'schema_version'),
+                     (SELECT COUNT(*) FROM runtime_schema_migrations WHERE version = 20),
+                     (SELECT COUNT(*) FROM authority_checkpoints
+                      WHERE operation_kind = 'daemon_bootstrap')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (20, 1, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3180,7 +3389,7 @@ mod tests {
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DROP TABLE authority_writer_fence;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19);
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20);
                  DELETE FROM runtime_schema_migrations WHERE version = 16;
                  DELETE FROM runtime_schema_migrations WHERE version = 15;
                  UPDATE runtime_metadata SET value = 14 WHERE key = 'schema_version';",
@@ -3233,6 +3442,7 @@ mod tests {
                  DROP TABLE orchestra_delete_generation;
                  DROP TABLE orchestra_delete_operations;
                  DROP TABLE authority_writer_fence;
+                 DELETE FROM runtime_schema_migrations WHERE version = 20;
                  DELETE FROM runtime_schema_migrations WHERE version = 19;
                  DELETE FROM runtime_schema_migrations WHERE version = 18;
                  DELETE FROM runtime_schema_migrations WHERE version = 17;
@@ -3259,7 +3469,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
-        assert_eq!(state, (19, 1, 0, 1));
+        assert_eq!(state, (20, 1, 0, 1));
         drop(connection);
         fs::remove_file(path).unwrap();
     }
@@ -3281,7 +3491,7 @@ mod tests {
             .execute_batch(
                 "DROP TABLE orchestra_delete_replay_horizon;
                  DROP TABLE authority_writer_fence;
-                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19);
+                 DELETE FROM runtime_schema_migrations WHERE version IN (17, 18, 19, 20);
                  UPDATE runtime_metadata SET value = 16
                  WHERE key = 'schema_version';",
             )
@@ -3316,7 +3526,7 @@ mod tests {
 
     #[test]
     fn sqlite_journal_rejects_incomplete_current_schema() {
-        let path = temp_journal("incomplete-v19");
+        let path = temp_journal("incomplete-v20");
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
@@ -3331,14 +3541,14 @@ mod tests {
                      outcome BLOB,
                      terminal_error TEXT
                  ) STRICT;
-                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 19);",
+                 INSERT INTO runtime_metadata (key, value) VALUES ('schema_version', 20);",
             )
             .unwrap();
         drop(connection);
 
         assert!(matches!(
             ControlRuntime::open(&path),
-            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 19")
+            Err(RuntimeError::Storage(ref error)) if error.contains("invalid runtime journal schema 20")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3422,6 +3632,12 @@ mod tests {
             .unwrap();
         connection
             .execute(
+                "DELETE FROM runtime_schema_migrations WHERE version = 20",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
                 "DELETE FROM runtime_schema_migrations WHERE version = 19",
                 [],
             )
@@ -3476,7 +3692,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 19);
+        assert_eq!(schema, 20);
         assert_eq!(migration, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -3497,7 +3713,7 @@ mod tests {
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 19 journal kind")
+                if error.contains("invalid runtime journal schema 20 journal kind")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3510,14 +3726,14 @@ mod tests {
             .unwrap()
             .execute(
                 "INSERT INTO runtime_schema_migrations (version, applied_at_unix_ms)
-                 VALUES (20, 0)",
+                 VALUES (21, 0)",
                 [],
             )
             .unwrap();
         assert!(matches!(
             ControlRuntime::open(&path),
             Err(RuntimeError::Storage(ref error))
-                if error.contains("invalid runtime journal schema 19 migration history")
+                if error.contains("invalid runtime journal schema 20 migration history")
         ));
         fs::remove_file(path).unwrap();
     }
@@ -3829,7 +4045,7 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(schema, 19);
+        assert_eq!(schema, 20);
         assert_eq!(generation, 1);
         drop(connection);
         fs::remove_file(path).unwrap();
@@ -4587,7 +4803,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(schema, 19);
+        assert_eq!(schema, 20);
         drop(connection);
         fs::remove_file(path).unwrap();
     }

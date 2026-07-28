@@ -7,6 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use leserpent_protocol::bootstrap::{BootstrapResponseEnvelope, encode_bootstrap_response};
+use leserpent_protocol::bootstrap_retirement_control::{
+    DaemonRetirementResponseEnvelope, encode_daemon_retirement_response,
+};
 use leserpent_protocol::provisioning::{
     ProvisioningResponseEnvelope, encode_provisioning_response,
 };
@@ -19,6 +22,9 @@ use leserpent_runtime::ControlRuntime;
 use serde::Deserialize;
 
 use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
+use crate::daemon_retirement_submission::{
+    decode_and_submit as decode_and_submit_daemon_retirement, error as daemon_retirement_error,
+};
 use crate::provisioning_submission::{
     decode_and_submit as decode_and_submit_provisioning, error as provisioning_error,
 };
@@ -51,6 +57,7 @@ enum IpcRoute {
     BootstrapV1,
     ProvisioningV1,
     RetirementV1,
+    DaemonRetirementV1,
 }
 
 #[derive(Debug)]
@@ -59,6 +66,7 @@ enum IpcResponse {
     Bootstrap(BootstrapResponseEnvelope),
     Provisioning(ProvisioningResponseEnvelope),
     Retirement(RetirementResponseEnvelope),
+    DaemonRetirement(DaemonRetirementResponseEnvelope),
 }
 
 pub struct IpcServer {
@@ -71,6 +79,7 @@ pub struct IpcServer {
     bootstrap_submission_enabled: bool,
     provisioning_submission_enabled: bool,
     retirement_submission_enabled: bool,
+    daemon_retirement_submission_enabled: bool,
 }
 
 impl IpcServer {
@@ -103,6 +112,7 @@ impl IpcServer {
             bootstrap_submission_enabled: false,
             provisioning_submission_enabled: false,
             retirement_submission_enabled: false,
+            daemon_retirement_submission_enabled: false,
         })
     }
 
@@ -123,6 +133,11 @@ impl IpcServer {
 
     pub fn with_retirement_submission(mut self) -> Self {
         self.retirement_submission_enabled = true;
+        self
+    }
+
+    pub fn with_daemon_retirement_submission(mut self) -> Self {
+        self.daemon_retirement_submission_enabled = true;
         self
     }
 
@@ -182,6 +197,9 @@ impl IpcServer {
             IpcResponse::Retirement(response) => {
                 encode_retirement_response(&response).map_err(|error| error.to_string())?
             }
+            IpcResponse::DaemonRetirement(response) => {
+                encode_daemon_retirement_response(&response).map_err(|error| error.to_string())?
+            }
         };
         encoded.push(b'\n');
         stream
@@ -228,6 +246,9 @@ impl IpcServer {
                     "unauthorized",
                     "IPC authentication failed",
                 )),
+                IpcRoute::DaemonRetirementV1 => IpcResponse::DaemonRetirement(
+                    daemon_retirement_error(None, "unauthorized", "IPC authentication failed"),
+                ),
             };
         }
         let request_bytes = match serde_json::to_vec(&authenticated.request) {
@@ -273,6 +294,13 @@ impl IpcServer {
                 &request_bytes,
                 self.retirement_submission_enabled,
             )),
+            IpcRoute::DaemonRetirementV1 => {
+                IpcResponse::DaemonRetirement(decode_and_submit_daemon_retirement(
+                    runtime,
+                    &request_bytes,
+                    self.daemon_retirement_submission_enabled,
+                ))
+            }
         }
     }
 }
@@ -730,6 +758,166 @@ mod tests {
                 leserpent_protocol::retirement::RetirementResponseEnvelope {
                     response:
                         leserpent_protocol::retirement::RetirementResponse::Error(ref error),
+                    ..
+                }
+            ) if error.code == "unauthorized"
+        ));
+
+        drop(enabled);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn explicit_daemon_retirement_route_is_adapter_gated_authenticated_and_durable() {
+        let database = temp_path("daemon-retirement-submit", "sqlite");
+        let disabled_socket = temp_path("daemon-retirement-disabled", "sock");
+        let enabled_socket = temp_path("daemon-retirement-enabled", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        crate::daemon_retirement_submission::seed_bound_deployment(
+            &mut runtime,
+            "bootstrap-ipc-retire",
+        );
+        crate::retirement_submission::seed_registered_runtime(
+            &mut runtime,
+            "provision-ipc-daemon-retire",
+            "runtime-ipc-daemon-retire",
+        );
+        let request = serde_json::json!({
+            "schema_version": 1,
+            "request": {
+                "principal": { "id": "operator-a" },
+                "capabilities": ["host.retire"],
+                "intent": {
+                    "schema_version": 1,
+                    "retirement_id": "retire-daemon-ipc-1",
+                    "bootstrap_id": "bootstrap-ipc-retire",
+                    "retirement_credential_handle": "vault:ssh:host-example",
+                    "requested_by": "operator-a",
+                    "confirmed": true
+                }
+            }
+        });
+        let frame = |token: &str| {
+            serde_json::to_vec(&serde_json::json!({
+                "token": token,
+                "route": "daemon_retirement_v1",
+                "request": request,
+            }))
+            .unwrap()
+            .into_iter()
+            .chain([b'\n'])
+            .collect::<Vec<_>>()
+        };
+        let retirement_id =
+            leserpent_domain::retirement::RetirementId::new("retire-daemon-ipc-1").unwrap();
+
+        let disabled = IpcServer::bind(&disabled_socket, TOKEN).unwrap();
+        assert!(matches!(
+            disabled.dispatch(&frame(TOKEN), &mut runtime),
+            IpcResponse::DaemonRetirement(
+                leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponseEnvelope {
+                    response:
+                        leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::Error(
+                            ref error
+                        ),
+                    ..
+                }
+            ) if error.code == "daemon_retirement_unavailable"
+        ));
+        assert!(
+            runtime
+                .daemon_retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .is_none()
+        );
+        drop(disabled);
+
+        let enabled = IpcServer::bind(&enabled_socket, TOKEN)
+            .unwrap()
+            .with_daemon_retirement_submission();
+        assert!(matches!(
+            enabled.dispatch(&frame(TOKEN), &mut runtime),
+            IpcResponse::DaemonRetirement(
+                leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponseEnvelope {
+                    response:
+                        leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::State(
+                            ref state
+                        ),
+                    ..
+                }
+            ) if state.phase
+                == leserpent_domain::bootstrap_retirement::DaemonRetirementPhase::Planned
+        ));
+        assert_eq!(
+            runtime
+                .daemon_retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+        let runtime_retirement = serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1,
+            "request": {
+                "principal": { "id": "operator-a" },
+                "capabilities": ["runtime.retire"],
+                "intent": {
+                    "schema_version": 1,
+                    "retirement_id": retirement_id,
+                    "provisioning_id": "provision-ipc-daemon-retire",
+                    "runtime_id": "runtime-ipc-daemon-retire",
+                    "target": {
+                        "transport": "ssh",
+                        "host": "runtime.example",
+                        "port": 22
+                    },
+                    "retirement_credential_handle": "vault:ssh:runtime-example",
+                    "requested_by": "operator-a",
+                    "confirmed": true
+                }
+            }
+        }))
+        .unwrap();
+        let runtime_retirement = crate::retirement_submission::decode_and_submit(
+            &mut runtime,
+            &runtime_retirement,
+            true,
+        );
+        assert!(matches!(
+            runtime_retirement.response,
+            leserpent_protocol::retirement::RetirementResponse::State(ref state)
+                if state.phase == leserpent_domain::retirement::RetirementPhase::Planned
+        ));
+        assert_eq!(
+            runtime
+                .retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+        assert_eq!(
+            runtime
+                .daemon_retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap()
+                .state
+                .bootstrap_id
+                .as_str(),
+            "bootstrap-ipc-retire"
+        );
+        assert!(matches!(
+            enabled.dispatch(
+                &frame("fedcba9876543210fedcba9876543210"),
+                &mut runtime
+            ),
+            IpcResponse::DaemonRetirement(
+                leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponseEnvelope {
+                    response:
+                        leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::Error(
+                            ref error
+                        ),
                     ..
                 }
             ) if error.code == "unauthorized"

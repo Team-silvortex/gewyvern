@@ -4,14 +4,20 @@ use std::time::Duration;
 
 pub use leserpent_adapters::{AdapterRegistry, EffectAdapter, EffectContext};
 use leserpent_adapters::{
-    GEWYVERN_PROVISIONING_EFFECT_KIND, GEWYVERN_RETIREMENT_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND,
+    DAEMON_RETIREMENT_EFFECT_KIND, GEWYVERN_PROVISIONING_EFFECT_KIND,
+    GEWYVERN_RETIREMENT_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND,
 };
 use leserpent_domain::bootstrap::{BootstrapPhase, DeploymentBootstrapCheckpoint};
+use leserpent_domain::bootstrap_retirement::{DaemonRetirementCheckpoint, DaemonRetirementPhase};
 use leserpent_domain::provisioning::{ProvisioningPhase, RuntimeProvisioningCheckpoint};
 use leserpent_domain::retirement::{RetirementPhase, RuntimeRetirementCheckpoint};
 use leserpent_protocol::bootstrap::{
     BootstrapRequestEnvelope, BootstrapResponse, decode_bootstrap_request,
     decode_bootstrap_response,
+};
+use leserpent_protocol::bootstrap_retirement_control::{
+    DaemonRetirementEffectEnvelope, DaemonRetirementResponse, DaemonRetirementResponseEnvelope,
+    decode_daemon_retirement_effect, decode_daemon_retirement_response,
 };
 use leserpent_protocol::provisioning::{
     ProvisioningRequestEnvelope, ProvisioningResponse, decode_provisioning_request,
@@ -36,6 +42,7 @@ pub use gewyvern_origin::{GEWYVERN_ORIGIN_CONFIG_SCHEMA_VERSION, GewyvernOriginC
 mod bootstrap_session;
 pub use bootstrap_session::NativeBootstrapSessionVerifier;
 mod bootstrap_submission;
+mod daemon_retirement_submission;
 #[cfg(unix)]
 mod ipc;
 mod provisioning_submission;
@@ -307,6 +314,11 @@ impl DaemonHost {
         retirement_submission::decode_and_submit(&mut self.runtime, bytes, enabled)
     }
 
+    pub fn submit_daemon_retirement(&mut self, bytes: &[u8]) -> DaemonRetirementResponseEnvelope {
+        let enabled = self.registry.contains_kind(DAEMON_RETIREMENT_EFFECT_KIND);
+        daemon_retirement_submission::decode_and_submit(&mut self.runtime, bytes, enabled)
+    }
+
     fn settle_execution(
         &mut self,
         lease: &EffectLease,
@@ -320,6 +332,9 @@ impl DaemonHost {
         }
         if lease.kind == GEWYVERN_RETIREMENT_EFFECT_KIND {
             return self.settle_retirement_execution(lease, outcome);
+        }
+        if lease.kind == DAEMON_RETIREMENT_EFFECT_KIND {
+            return self.settle_daemon_retirement_execution(lease, outcome);
         }
         if lease.kind != HOST_BOOTSTRAP_EFFECT_KIND {
             return self
@@ -448,6 +463,47 @@ impl DaemonHost {
             self.runtime
                 .complete_retirement_effect(lease, &outcome, &checkpoint)?;
         }
+        Ok(WorkerStep::Completed {
+            effect_id: lease.effect_id.clone(),
+            attempt: lease.attempt,
+        })
+    }
+
+    fn settle_daemon_retirement_execution(
+        &mut self,
+        lease: &EffectLease,
+        outcome: Vec<u8>,
+    ) -> Result<WorkerStep, RuntimeError> {
+        let effect = match decode_daemon_retirement_effect(&lease.payload) {
+            Ok(effect) => effect,
+            Err(_) => {
+                self.runtime
+                    .reject_effect(lease, "daemon retirement persisted effect was rejected")?;
+                return Ok(WorkerStep::Rejected {
+                    effect_id: lease.effect_id.clone(),
+                    attempt: lease.attempt,
+                });
+            }
+        };
+        let existing = self
+            .runtime
+            .daemon_retirement_checkpoint(&effect.checkpoint.state.retirement_id)?;
+        let checkpoint =
+            match checkpoint_from_daemon_retirement_effect(&effect, &outcome, existing.as_ref()) {
+                Ok(checkpoint) => checkpoint,
+                Err(error) => {
+                    self.runtime.reject_effect(
+                        lease,
+                        &format!("daemon retirement outcome was rejected: {error}"),
+                    )?;
+                    return Ok(WorkerStep::Rejected {
+                        effect_id: lease.effect_id.clone(),
+                        attempt: lease.attempt,
+                    });
+                }
+            };
+        self.runtime
+            .complete_daemon_retirement_effect(lease, &outcome, &checkpoint)?;
         Ok(WorkerStep::Completed {
             effect_id: lease.effect_id.clone(),
             attempt: lease.attempt,
@@ -600,6 +656,44 @@ fn checkpoint_from_retirement_effect(
     RuntimeRetirementCheckpoint::new(2, state, None).map_err(|error| error.to_string())
 }
 
+fn checkpoint_from_daemon_retirement_effect(
+    effect: &DaemonRetirementEffectEnvelope,
+    outcome: &[u8],
+    existing: Option<&DaemonRetirementCheckpoint>,
+) -> Result<DaemonRetirementCheckpoint, String> {
+    let response = decode_daemon_retirement_response(outcome)
+        .map_err(|_| "invalid daemon retirement response".to_string())?;
+    let DaemonRetirementResponse::State(state) = response.response else {
+        return Err("daemon retirement adapter returned an error envelope as success".into());
+    };
+    let planned = &effect.checkpoint;
+    if state.retirement_id != planned.state.retirement_id
+        || state.bootstrap_id != planned.state.bootstrap_id
+        || state.daemon_id != planned.state.daemon_id
+        || state.target != planned.state.target
+        || state.generation != planned.state.generation
+        || state.install_profile != planned.state.install_profile
+    {
+        return Err("daemon retirement response identity does not match its effect".into());
+    }
+    if !matches!(
+        state.phase,
+        DaemonRetirementPhase::ServiceRetired | DaemonRetirementPhase::Failed
+    ) {
+        return Err(
+            "daemon retirement effect stopped before service retirement was terminal".into(),
+        );
+    }
+    match existing {
+        Some(checkpoint) if checkpoint == planned => {}
+        Some(_) => {
+            return Err("daemon retirement planned checkpoint does not match its effect".into());
+        }
+        None => return Err("daemon retirement planned checkpoint is missing".into()),
+    }
+    DaemonRetirementCheckpoint::new(2, state, None).map_err(|error| error.to_string())
+}
+
 fn sleep_until_stop(duration: Duration, stop: &AtomicBool) {
     let slice = Duration::from_millis(25);
     let mut remaining = duration;
@@ -643,6 +737,10 @@ mod tests {
         CredentialHandle, DaemonBootstrapReceipt, DaemonId, DaemonSessionProof,
         DeploymentBootstrap,
     };
+    use leserpent_domain::bootstrap_retirement::{
+        CAPABILITY_HOST_RETIRE, DAEMON_RETIREMENT_DOMAIN_SCHEMA_VERSION, DaemonRetirement,
+        DaemonRetirementIntent, DaemonRetirementReceipt,
+    };
     use leserpent_domain::provisioning::{
         CAPABILITY_RUNTIME_PROVISION, GewyvernServiceReceipt, PROVISIONING_DOMAIN_SCHEMA_VERSION,
         ProvisioningId, RuntimeProvisioning, RuntimeProvisioningIntent,
@@ -655,6 +753,11 @@ mod tests {
     use leserpent_protocol::bootstrap::{
         BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequest, BootstrapRequestEnvelope,
         BootstrapResponseEnvelope, encode_bootstrap_request, encode_bootstrap_response,
+    };
+    use leserpent_protocol::bootstrap_retirement_control::{
+        DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION, DaemonRetirementRequest,
+        DaemonRetirementRequestEnvelope, DaemonRetirementResponseEnvelope,
+        encode_daemon_retirement_request, encode_daemon_retirement_response,
     };
     use leserpent_protocol::provisioning::{
         PROVISIONING_PROTOCOL_SCHEMA_VERSION, ProvisioningRequest, ProvisioningResponseEnvelope,
@@ -701,6 +804,10 @@ mod tests {
         outcome: Vec<u8>,
     }
 
+    struct FixedDaemonRetirementAdapter {
+        outcome: Vec<u8>,
+    }
+
     struct TrackingProvisioningAdapter {
         called: Arc<AtomicBool>,
     }
@@ -718,6 +825,16 @@ mod tests {
     impl EffectAdapter for FixedRetirementAdapter {
         fn kind(&self) -> &str {
             GEWYVERN_RETIREMENT_EFFECT_KIND
+        }
+
+        fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
+            EffectExecution::Complete(self.outcome.clone())
+        }
+    }
+
+    impl EffectAdapter for FixedDaemonRetirementAdapter {
+        fn kind(&self) -> &str {
+            DAEMON_RETIREMENT_EFFECT_KIND
         }
 
         fn execute(&mut self, _payload: &[u8]) -> EffectExecution {
@@ -847,6 +964,57 @@ mod tests {
         })
         .unwrap();
         (request, outcome, provisioning_id)
+    }
+
+    fn daemon_retirement_request_and_outcome(
+        runtime: &mut ControlRuntime,
+        bootstrap_id: &BootstrapId,
+    ) -> (Vec<u8>, Vec<u8>, RetirementId) {
+        let retirement_id = RetirementId::new("retire-daemon-restart-1").unwrap();
+        let request = DaemonRetirementRequestEnvelope {
+            schema_version: DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+            request: DaemonRetirementRequest {
+                principal: Principal {
+                    id: "operator-a".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_HOST_RETIRE]),
+                intent: DaemonRetirementIntent {
+                    schema_version: DAEMON_RETIREMENT_DOMAIN_SCHEMA_VERSION,
+                    retirement_id: retirement_id.clone(),
+                    bootstrap_id: bootstrap_id.clone(),
+                    retirement_credential_handle: CredentialHandle::new("vault:ssh:host-example")
+                        .unwrap(),
+                    requested_by: "operator-a".into(),
+                    confirmed: true,
+                },
+            },
+        };
+        let deployment = runtime.bootstrap_checkpoint(bootstrap_id).unwrap().unwrap();
+        let mut retirement = DaemonRetirement::plan(
+            &request.request.principal,
+            &request.request.capabilities,
+            request.request.intent.clone(),
+            &deployment,
+        )
+        .unwrap();
+        retirement.begin().unwrap();
+        let planned = retirement.snapshot();
+        let state = retirement
+            .accept_service_retirement(DaemonRetirementReceipt {
+                retirement_id: retirement_id.clone(),
+                bootstrap_id: bootstrap_id.clone(),
+                daemon_id: planned.daemon_id,
+                generation: planned.generation,
+                service_retired: true,
+            })
+            .unwrap();
+        let request = encode_daemon_retirement_request(&request).unwrap();
+        let outcome = encode_daemon_retirement_response(&DaemonRetirementResponseEnvelope {
+            schema_version: DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+            response: DaemonRetirementResponse::State(state),
+        })
+        .unwrap();
+        (request, outcome, retirement_id)
     }
 
     fn retirement_request_and_outcome(
@@ -1498,6 +1666,104 @@ mod tests {
                 .unwrap()
                 .revision,
             3
+        );
+        drop(restarted);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn daemon_retirement_submission_settles_atomically_and_survives_restart() {
+        let path = temp_database("daemon-retirement-restart");
+        let (bootstrap_request, bootstrap_outcome, bootstrap_id) = bootstrap_request_and_outcome();
+        let mut runtime = ControlRuntime::open(&path).unwrap();
+        let submitted =
+            crate::bootstrap_submission::decode_and_submit(&mut runtime, &bootstrap_request, true);
+        assert!(matches!(
+            submitted.response,
+            BootstrapResponse::State(ref state) if state.phase == BootstrapPhase::Planned
+        ));
+        let lease = runtime
+            .claim_effect("bootstrap-seed", Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        let request = decode_bootstrap_request(&lease.payload).unwrap();
+        let existing = runtime.bootstrap_checkpoint(&bootstrap_id).unwrap();
+        let checkpoint =
+            checkpoint_from_bootstrap_effect(&request, &bootstrap_outcome, existing.as_ref())
+                .unwrap();
+        runtime
+            .complete_bootstrap_effect(&lease, &bootstrap_outcome, &checkpoint)
+            .unwrap();
+        runtime
+            .bind_bootstrap_session(
+                &bootstrap_id,
+                DaemonSessionProof {
+                    bootstrap_id: bootstrap_id.clone(),
+                    daemon_id: DaemonId::new("daemon-host-example").unwrap(),
+                    session_credential_handle: CredentialHandle::new(
+                        "vault:leserpentd:host-example",
+                    )
+                    .unwrap(),
+                    trust_credential_handle: CredentialHandle::new(
+                        "vault:leserpent-ca:host-example",
+                    )
+                    .unwrap(),
+                    authority_owned: true,
+                    protocol_schema_version: BOOTSTRAP_SESSION_PROTOCOL_VERSION,
+                },
+            )
+            .unwrap();
+        let (retirement_request, retirement_outcome, retirement_id) =
+            daemon_retirement_request_and_outcome(&mut runtime, &bootstrap_id);
+
+        let mut registry = AdapterRegistry::default();
+        registry
+            .register(FixedDaemonRetirementAdapter {
+                outcome: retirement_outcome,
+            })
+            .unwrap();
+        let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default()).unwrap();
+        let submitted = host.submit_daemon_retirement(&retirement_request);
+        assert!(matches!(
+            submitted.response,
+            DaemonRetirementResponse::State(ref state)
+                if state.phase == DaemonRetirementPhase::Planned
+                    && state.retirement_id == retirement_id
+        ));
+        assert_eq!(
+            host.submit_daemon_retirement(&retirement_request),
+            submitted
+        );
+        assert!(matches!(
+            host.tick().unwrap(),
+            WorkerStep::Completed { attempt: 1, .. }
+        ));
+        let terminal = host
+            .runtime_mut()
+            .daemon_retirement_checkpoint(&retirement_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(terminal.revision, 2);
+        assert_eq!(terminal.state.phase, DaemonRetirementPhase::ServiceRetired);
+        assert!(terminal.retirement_credential_handle.is_none());
+        drop(host);
+
+        let mut restarted = ControlRuntime::open(&path).unwrap();
+        assert_eq!(
+            restarted
+                .daemon_retirement_checkpoint(&retirement_id)
+                .unwrap()
+                .unwrap(),
+            terminal
+        );
+        let replay = crate::daemon_retirement_submission::decode_and_submit(
+            &mut restarted,
+            &retirement_request,
+            true,
+        );
+        assert_eq!(
+            replay.response,
+            DaemonRetirementResponse::State(terminal.state)
         );
         drop(restarted);
         fs::remove_file(path).unwrap();

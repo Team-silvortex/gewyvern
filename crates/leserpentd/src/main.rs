@@ -6,12 +6,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(feature = "native-ssh")]
 use leserpent_adapters::{BootstrapTrustStore, FileBootstrapTrustStore};
 use leserpent_adapters::{
+    DAEMON_RETIREMENT_EFFECT_KIND, GEWYVERN_PROVISIONING_EFFECT_KIND,
+    GEWYVERN_RETIREMENT_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND,
+};
+use leserpent_adapters::{
     EnvironmentSecretStore, GewyvernDeploymentAdapter, GewyvernDiscoveryAdapter,
     GewyvernHealthAdapter, GewyvernStatusRefreshAdapter, GewyvernTarget, PlatformSecretStore,
     SecretKey, SecretStore,
-};
-use leserpent_adapters::{
-    GEWYVERN_PROVISIONING_EFFECT_KIND, GEWYVERN_RETIREMENT_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND,
 };
 use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
@@ -340,7 +341,9 @@ fn run() -> Result<(), String> {
             )
             .map_err(|error| format!("cannot open bootstrap trust store: {error:?}"))?,
         );
-        registry.register(origin.into_native_adapter(secrets, trust)?)?;
+        let (bootstrap, retirement) = origin.into_native_adapters(secrets, trust)?;
+        registry.register(bootstrap)?;
+        registry.register(retirement)?;
     }
     #[cfg(feature = "native-ssh")]
     if let Some(origin) = gewyvern_origin {
@@ -375,6 +378,8 @@ fn run() -> Result<(), String> {
     let bootstrap_submission_enabled = registry.contains_kind(HOST_BOOTSTRAP_EFFECT_KIND);
     let provisioning_submission_enabled = registry.contains_kind(GEWYVERN_PROVISIONING_EFFECT_KIND);
     let retirement_submission_enabled = registry.contains_kind(GEWYVERN_RETIREMENT_EFFECT_KIND);
+    let daemon_retirement_submission_enabled =
+        registry.contains_kind(DAEMON_RETIREMENT_EFFECT_KIND);
     let mut host = DaemonHost::new(runtime, registry, DaemonConfig::default())?;
     let stop = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(SIGINT, Arc::clone(&stop)).map_err(|error| error.to_string())?;
@@ -399,8 +404,13 @@ fn run() -> Result<(), String> {
             } else {
                 server
             };
-            Some(if retirement_submission_enabled {
+            let server = if retirement_submission_enabled {
                 server.with_retirement_submission()
+            } else {
+                server
+            };
+            Some(if daemon_retirement_submission_enabled {
+                server.with_daemon_retirement_submission()
             } else {
                 server
             })
@@ -446,8 +456,13 @@ fn run() -> Result<(), String> {
             } else {
                 server
             };
-            Some(if retirement_submission_enabled {
+            let server = if retirement_submission_enabled {
                 server.with_retirement_submission()
+            } else {
+                server
+            };
+            Some(if daemon_retirement_submission_enabled {
+                server.with_daemon_retirement_submission()
             } else {
                 server
             })
