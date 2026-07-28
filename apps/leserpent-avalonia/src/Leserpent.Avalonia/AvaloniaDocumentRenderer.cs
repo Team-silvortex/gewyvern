@@ -173,7 +173,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 operation.NodeId,
                 PresentationAutomationFailureCode.TargetUnrealized);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertVisible)
+        if (operation.Kind is UiPresentationOperationKind.AssertVisible
+            or UiPresentationOperationKind.WaitVisible)
         {
             var visible = IsControlVisibleInSurface(control!);
             return new PresentationAutomationResult(
@@ -270,7 +271,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         UiPresentationOperation operation,
         CancellationToken cancellationToken = default)
     {
-        if (operation.Kind != UiPresentationOperationKind.WaitRealized)
+        if (operation.Kind is not UiPresentationOperationKind.WaitRealized
+            and not UiPresentationOperationKind.WaitVisible)
         {
             return await Dispatcher.UIThread.InvokeAsync(
                 () => ApplyPresentation(operation));
@@ -282,14 +284,21 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             cancellationToken.ThrowIfCancellationRequested();
             var result = await Dispatcher.UIThread.InvokeAsync(
                 () => ApplyPresentation(operation));
-            if (result.Applied
-                || result.FailureCode != PresentationAutomationFailureCode.TargetUnrealized)
+            var retryable = result.FailureCode
+                == PresentationAutomationFailureCode.TargetUnrealized
+                || operation.Kind == UiPresentationOperationKind.WaitVisible
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetNotVisible;
+            if (result.Applied || !retryable)
             {
                 return result;
             }
 
             var timeout = TimeSpan.FromMilliseconds(
-                operation.TimeoutMs ?? SemanticRenderer.WaitRealizedTimeoutMs);
+                operation.TimeoutMs
+                    ?? (operation.Kind == UiPresentationOperationKind.WaitRealized
+                        ? SemanticRenderer.WaitRealizedTimeoutMs
+                        : SemanticRenderer.WaitVisibleTimeoutMs));
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             if (elapsed >= timeout)
             {

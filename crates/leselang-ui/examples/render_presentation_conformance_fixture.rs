@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use leselang_hir::UI_WAIT_REALIZED_TIMEOUT_MS;
+use leselang_hir::{UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS};
 use leselang_ui::{
     NodeId, UiDocument, UiPatch, UiPresentationOperation, diff, fleet_document,
     validate_presentation_operation,
@@ -23,6 +23,7 @@ struct Fixture<'a> {
     assert_operation: &'a UiPresentationOperation,
     realized_assert_operation: &'a UiPresentationOperation,
     realized_wait_operation: &'a UiPresentationOperation,
+    visible_wait_operation: &'a UiPresentationOperation,
     focused_assert_operation: &'a UiPresentationOperation,
     enabled_assert_operation: &'a UiPresentationOperation,
     text_assert_operation: &'a UiPresentationOperation,
@@ -58,6 +59,10 @@ fn main() {
         node_id: NodeId::new("fleet-title").unwrap(),
         timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS,
     };
+    let visible_wait_operation = UiPresentationOperation::WaitVisible {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+    };
     let focused_assert_operation = UiPresentationOperation::AssertFocused {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
@@ -82,6 +87,7 @@ fn main() {
     validate_presentation_operation(&next, &assert_operation).unwrap();
     validate_presentation_operation(&next, &realized_assert_operation).unwrap();
     validate_presentation_operation(&next, &realized_wait_operation).unwrap();
+    validate_presentation_operation(&next, &visible_wait_operation).unwrap();
     validate_presentation_operation(&next, &focused_assert_operation).unwrap();
     validate_presentation_operation(&next, &enabled_assert_operation).unwrap();
     validate_presentation_operation(&next, &text_assert_operation).unwrap();
@@ -97,6 +103,7 @@ fn main() {
         assert_operation: &assert_operation,
         realized_assert_operation: &realized_assert_operation,
         realized_wait_operation: &realized_wait_operation,
+        visible_wait_operation: &visible_wait_operation,
         focused_assert_operation: &focused_assert_operation,
         enabled_assert_operation: &enabled_assert_operation,
         text_assert_operation: &text_assert_operation,

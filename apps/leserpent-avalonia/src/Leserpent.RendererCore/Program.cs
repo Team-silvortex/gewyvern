@@ -6,6 +6,7 @@ public sealed class SemanticRenderer
 {
     private const int MaxPatchOperations = 8192;
     public const int WaitRealizedTimeoutMs = 2000;
+    public const int WaitVisibleTimeoutMs = 2000;
 
     public UiDocument Document { get; private set; } = null!;
 
@@ -98,9 +99,13 @@ public sealed class SemanticRenderer
         {
             return UiPresentationValidation.InvalidExpectedText;
         }
-        if (operation.Kind == UiPresentationOperationKind.WaitRealized)
+        if (operation.Kind is UiPresentationOperationKind.WaitRealized
+            or UiPresentationOperationKind.WaitVisible)
         {
-            if (operation.TimeoutMs != WaitRealizedTimeoutMs)
+            var requiredTimeout = operation.Kind == UiPresentationOperationKind.WaitRealized
+                ? WaitRealizedTimeoutMs
+                : WaitVisibleTimeoutMs;
+            if (operation.TimeoutMs != requiredTimeout)
             {
                 return UiPresentationValidation.InvalidTimeout;
             }
@@ -128,6 +133,8 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertRealized =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitRealized =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.WaitVisible =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertText
                 when node.Text is not null
@@ -436,6 +443,7 @@ public sealed class RendererFixture
     public UiPresentationOperation? AssertOperation { get; set; }
     public UiPresentationOperation? RealizedAssertOperation { get; set; }
     public UiPresentationOperation? RealizedWaitOperation { get; set; }
+    public UiPresentationOperation? VisibleWaitOperation { get; set; }
     public UiPresentationOperation? FocusedAssertOperation { get; set; }
     public UiPresentationOperation? EnabledAssertOperation { get; set; }
     public UiPresentationOperation? TextAssertOperation { get; set; }
@@ -590,6 +598,7 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_visible")] AssertVisible,
     [JsonStringEnumMemberName("assert_realized")] AssertRealized,
     [JsonStringEnumMemberName("wait_realized")] WaitRealized,
+    [JsonStringEnumMemberName("wait_visible")] WaitVisible,
     [JsonStringEnumMemberName("assert_focused")] AssertFocused,
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
     [JsonStringEnumMemberName("assert_text")] AssertText,

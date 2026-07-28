@@ -630,6 +630,11 @@
     "node_id": "fleet-title",
     "timeout_ms": 2000
   },
+  "visible_wait_operation": {
+    "kind": "wait_visible",
+    "node_id": "fleet-title",
+    "timeout_ms": 2000
+  },
   "focused_assert_operation": {
     "kind": "assert_focused",
     "node_id": "runtime-runtime-a-inspect"

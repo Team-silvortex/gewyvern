@@ -38,6 +38,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.AssertRealized"));
     assert!(core.contains("UiPresentationOperationKind.WaitRealized"));
     assert!(core.contains("WaitRealizedTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitVisible"));
+    assert!(core.contains("WaitVisibleTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertFocused"));
     assert!(core.contains("UiPresentationOperationKind.AssertEnabled"));
     assert!(core.contains("UiPresentationOperationKind.AssertText"));
@@ -71,6 +73,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_realized=true"));
     assert!(app.contains("wait_realized_natural_layout=true"));
     assert!(app.contains("wait_realized_timeout=true"));
+    assert!(app.contains("wait_visible=true"));
+    assert!(app.contains("wait_visible_natural_layout=true"));
+    assert!(app.contains("wait_visible_timeout=true"));
     assert!(app.contains("unrealized_target_rejected=true"));
     assert!(app.contains("assert_focused=true"));
     assert!(app.contains("assert_enabled=true"));
@@ -82,6 +87,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("accessible_description_mismatch_rejected=true"));
     assert!(app.contains("text_mismatch_rejected=true"));
     assert!(conformance.contains("presentation_focus=true"));
+    assert!(conformance.contains("presentation_wait_visible=true"));
 }
 
 #[test]

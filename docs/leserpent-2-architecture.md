@@ -1667,6 +1667,7 @@ Presentation parity uses a separate, non-command path.
 `ui.focus(node_id: ...)`, `ui.scroll_into_view(node_id: ...)`, and
 `ui.assert_visible(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_realized(node_id: ...)`,
+`ui.wait_visible(node_id: ...)`,
 `ui.assert_focused(node_id: ...)`, and
 `ui.assert_enabled(node_id: ...)`, plus
 `ui.assert_text(node_id: ..., expected: ...)` and
@@ -1680,6 +1681,8 @@ operations, visibility assertion checks realized layout and viewport state,
 realization assertion checks the native visual index without forcing
 materialization, and realization wait uses the same predicate with a
 protocol-fixed 2000 ms deadline while yielding the native dispatcher,
+visibility wait independently polls realized layout and viewport intersection
+without invoking bring-into-view,
 focus assertion reads native focus, and enabled assertion reads effective
 native availability without changing it. Text assertion compares bounded,
 control-free expected text against the actual native `TextBlock.Text` or string
@@ -1688,7 +1691,7 @@ nodes and preserves keyboard focus. Accessible-name assertion separately reads
 the native platform automation name for any realized semantic node.
 Accessible-description assertion requires declared semantic description
 metadata and reads the native platform help text exactly. Selection, navigation,
-windows, additional wait predicates, and
+windows, focused/enabled wait predicates, and
 additional state assertions remain unimplemented rather than being
 approximated with coordinates, OCR, or scripts.
 

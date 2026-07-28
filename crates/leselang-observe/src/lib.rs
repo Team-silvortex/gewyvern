@@ -314,6 +314,9 @@ pub fn waiting_debugger_projection(
         Effect::UiWaitRealized { .. } => {
             (DebuggerEffectKind::UiWaitRealized, None, "UI wait realized")
         }
+        Effect::UiWaitVisible { .. } => {
+            (DebuggerEffectKind::UiWaitVisible, None, "UI wait visible")
+        }
         Effect::UiAssertFocused { .. } => (
             DebuggerEffectKind::UiAssertFocused,
             None,

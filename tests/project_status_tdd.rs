@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.45.0");
+    assert_eq!(avalonia.contract.version, "1.46.0");
     assert!(
         avalonia
             .contract
@@ -1721,6 +1721,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "dispatcher-yielding-realization-wait",
         "natural-layout-realization-wait",
         "persistent-unrealized-timeout",
+        "dispatcher-yielding-visibility-wait",
+        "natural-layout-visibility-wait",
+        "persistent-invisible-timeout",
     ] {
         assert!(
             avalonia
@@ -2737,7 +2740,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.12.0");
+    assert_eq!(ui.contract.version, "1.13.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2752,6 +2755,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-realized-presentation-roundtrip",
         "ui-wait-realized-presentation-roundtrip",
         "fixed-realization-wait-timeout",
+        "ui-wait-visible-presentation-roundtrip",
+        "fixed-visibility-wait-timeout",
     ] {
         assert!(
             ui.contract
@@ -2794,7 +2799,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.26.0");
+    assert_eq!(hir.contract.version, "0.27.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -2808,6 +2813,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-realized-effect",
         "ui-wait-realized-effect",
         "fixed-realization-wait-policy",
+        "ui-wait-visible-effect",
+        "fixed-visibility-wait-policy",
         "ui-presentation-capability",
         "canonical-effect-roundtrip",
         "single-allocation-name-deduplication",
@@ -2827,7 +2834,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.11.0");
+    assert_eq!(vm.contract.version, "1.12.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -2843,6 +2850,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-assert-realized-result",
         "typed-ui-wait-realized-result",
         "fixed-ui-realization-wait-deadline",
+        "typed-ui-wait-visible-result",
+        "fixed-ui-visibility-wait-deadline",
         "presentation-operation-identity-binding",
         "allocation-free-continuation-size-validation",
         "bounded-language-pipeline-benchmark",
@@ -2867,7 +2876,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.23.0");
+    assert_eq!(command.contract.version, "0.24.0");
     assert!(
         command
             .contract
@@ -2881,6 +2890,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "realization-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "visibility-wait-command-rejection")
     );
 
     let required_boundaries = [

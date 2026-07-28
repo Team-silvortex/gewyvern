@@ -9,6 +9,8 @@ internal sealed class MainWindow : Window
     private readonly AvaloniaDocumentRenderer renderer;
     private readonly Task<PresentationAutomationResult> initialRealizedWait;
     private readonly Task<PresentationAutomationResult> initialRealizedWaitTimeout;
+    private readonly Task<PresentationAutomationResult> initialVisibleWait;
+    private readonly Task<PresentationAutomationResult> initialVisibleWaitTimeout;
     private readonly TextBlock statusText = new()
     {
         Foreground = LeserpentTheme.Muted,
@@ -28,6 +30,8 @@ internal sealed class MainWindow : Window
     public bool InitialUnrealizedAssertionRejected { get; }
     public bool InitialRealizedWaitCompleted { get; private set; }
     public bool InitialRealizedWaitTimedOut { get; private set; }
+    public bool InitialVisibleWaitCompleted { get; private set; }
+    public bool InitialVisibleWaitTimedOut { get; private set; }
     public int InitialDebuggerCancelButtonCount { get; }
     public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
     public int DisabledActionProbeCount { get; private set; }
@@ -81,6 +85,15 @@ internal sealed class MainWindow : Window
             NodeId = initialUnrealizedNodeId,
             TimeoutMs = SemanticRenderer.WaitRealizedTimeoutMs,
         });
+        var visibleWaitNodeId = fixture.VisibleWaitOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "visibility wait probe requires a semantic target");
+        initialVisibleWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitVisible,
+            NodeId = visibleWaitNodeId,
+            TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
+        });
         var detachedRenderer = new AvaloniaDocumentRenderer(_ => { });
         detachedRenderer.Mount(fixture.Next);
         var detachedUnrealizedNodeId = detachedRenderer.FirstUnrealizedNodeId
@@ -92,6 +105,13 @@ internal sealed class MainWindow : Window
                 Kind = UiPresentationOperationKind.WaitRealized,
                 NodeId = detachedUnrealizedNodeId,
                 TimeoutMs = SemanticRenderer.WaitRealizedTimeoutMs,
+            });
+        initialVisibleWaitTimeout = detachedRenderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitVisible,
+                NodeId = visibleWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
             });
         Title = $"Leserpent / revision {Revision}";
         Content = new Grid
@@ -109,7 +129,7 @@ internal sealed class MainWindow : Window
         };
     }
 
-    public async Task CompleteInitialRealizedWaitProbeAsync()
+    public async Task CompleteInitialWaitProbesAsync()
     {
         var result = await initialRealizedWait;
         InitialRealizedWaitCompleted = result.Applied
@@ -126,6 +146,22 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang realization wait did not reject a persistently unrealized target");
+        }
+        var visibleResult = await initialVisibleWait;
+        InitialVisibleWaitCompleted = visibleResult.Applied
+            && visibleResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialVisibleWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang visibility wait did not observe natural post-layout visibility");
+        }
+        var visibleTimeoutResult = await initialVisibleWaitTimeout;
+        InitialVisibleWaitTimedOut = !visibleTimeoutResult.Applied
+            && visibleTimeoutResult.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        if (!InitialVisibleWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang visibility wait did not reject a persistently invisible target");
         }
     }
 

@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
-    Effect, HirBranch, Type, UI_WAIT_REALIZED_TIMEOUT_MS, canonical_source,
-    validate_ui_expected_text, validate_ui_node_id,
+    Effect, HirBranch, Type, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
+    canonical_source, validate_ui_expected_text, validate_ui_node_id,
 };
 use leserpent_domain::{
     CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
@@ -301,6 +301,7 @@ pub enum DebuggerEffectKind {
     UiAssertVisible,
     UiAssertRealized,
     UiWaitRealized,
+    UiWaitVisible,
     UiAssertFocused,
     UiAssertEnabled,
     UiAssertText,
@@ -419,6 +420,7 @@ pub enum UiPresentationOperation {
     AssertVisible { node_id: NodeId },
     AssertRealized { node_id: NodeId },
     WaitRealized { node_id: NodeId, timeout_ms: u64 },
+    WaitVisible { node_id: NodeId, timeout_ms: u64 },
     AssertFocused { node_id: NodeId },
     AssertEnabled { node_id: NodeId },
     AssertText { node_id: NodeId, expected: String },
@@ -1099,6 +1101,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertVisible
             | DebuggerEffectKind::UiAssertRealized
             | DebuggerEffectKind::UiWaitRealized
+            | DebuggerEffectKind::UiWaitVisible
             | DebuggerEffectKind::UiAssertFocused
             | DebuggerEffectKind::UiAssertEnabled
             | DebuggerEffectKind::UiAssertText
@@ -1207,6 +1210,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertVisible => "UI assert visible",
             DebuggerEffectKind::UiAssertRealized => "UI assert realized",
             DebuggerEffectKind::UiWaitRealized => "UI wait realized",
+            DebuggerEffectKind::UiWaitVisible => "UI wait visible",
             DebuggerEffectKind::UiAssertFocused => "UI assert focused",
             DebuggerEffectKind::UiAssertEnabled => "UI assert enabled",
             DebuggerEffectKind::UiAssertText => "UI assert text",
@@ -1394,6 +1398,10 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS,
         },
+        Effect::UiWaitVisible { node_id } => UiPresentationOperation::WaitVisible {
+            node_id: NodeId::new(node_id.clone())?,
+            timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+        },
         Effect::UiAssertFocused { node_id } => UiPresentationOperation::AssertFocused {
             node_id: NodeId::new(node_id.clone())?,
         },
@@ -1443,6 +1451,9 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::WaitRealized { node_id, .. } => Effect::UiWaitRealized {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::WaitVisible { node_id, .. } => Effect::UiWaitVisible {
+            node_id: node_id.as_str().to_string(),
+        },
         UiPresentationOperation::AssertFocused { node_id } => Effect::UiAssertFocused {
             node_id: node_id.as_str().to_string(),
         },
@@ -1479,6 +1490,7 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertVisible { node_id }
         | UiPresentationOperation::AssertRealized { node_id }
         | UiPresentationOperation::WaitRealized { node_id, .. }
+        | UiPresentationOperation::WaitVisible { node_id, .. }
         | UiPresentationOperation::AssertFocused { node_id }
         | UiPresentationOperation::AssertEnabled { node_id }
         | UiPresentationOperation::AssertText { node_id, .. }
@@ -1494,6 +1506,11 @@ pub fn validate_presentation_operation(
     }
     if let UiPresentationOperation::WaitRealized { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_REALIZED_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitVisible { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_VISIBLE_TIMEOUT_MS
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
@@ -2777,6 +2794,51 @@ mod tests {
                 &UiPresentationOperation::WaitRealized {
                     node_id: NodeId::new("missing-node").unwrap(),
                     timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget { .. })
+        ));
+    }
+
+    #[test]
+    fn visible_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitVisible {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &operation).unwrap();
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitVisible {
+                node_id: "fleet-title".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_visible(node_id: \"fleet-title\")\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitVisible {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitVisible {
+                    node_id: NodeId::new("missing-node").unwrap(),
+                    timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
                 },
             ),
             Err(UiError::UnknownPresentationTarget { .. })

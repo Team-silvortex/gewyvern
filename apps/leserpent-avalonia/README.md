@@ -38,13 +38,14 @@ remains the version-1 compatibility baseline.
 
 The separate candidate fixture carries Rust-generated
 `UiPresentationOperation::Focus`, `ScrollIntoView`, `AssertVisible`,
-`AssertRealized`, `WaitRealized`, and `AssertFocused`, plus `AssertEnabled`, `AssertText`, and
-`AssertAccessibleName` and `AssertAccessibleDescription` values. RendererCore
-strictly round-trips all ten and
-validates valid, missing, noninteractive,
+`AssertRealized`, `WaitRealized`, `WaitVisible`, and `AssertFocused`, plus
+`AssertEnabled`, `AssertText`, `AssertAccessibleName`, and
+`AssertAccessibleDescription` values. RendererCore strictly round-trips all
+eleven and validates valid, missing, noninteractive,
 textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, bring-into-view, viewport-aware visibility, native realization,
-fixed-deadline dispatcher-yielding realization wait, and side-effect-free
+fixed-deadline dispatcher-yielding realization wait, fixed-deadline
+viewport-aware visibility wait without implicit scrolling, plus side-effect-free
 focus, enabled-state, actual displayed-text, and accessibility-name observation
 plus declared accessibility-description observation through its stable visual
 index. Scrolling a noninteractive node must preserve the currently

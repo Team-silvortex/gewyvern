@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by ten presentation atoms.
+Semantic action equivalence is joined by eleven presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action. `UiPresentationOperation::ScrollIntoView`
 maps one-to-one to `ui.scroll_into_view(node_id: ...)` and accepts any existing
@@ -162,6 +162,9 @@ semantic node. `UiPresentationOperation::AssertVisible` maps one-to-one to
 `UiPresentationOperation::WaitRealized` maps one-to-one to
 `ui.wait_realized(node_id: ...)`, accepts any existing semantic node, and
 carries the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::WaitVisible` maps one-to-one to
+`ui.wait_visible(node_id: ...)`, accepts any existing semantic node, and
+carries its own protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertFocused` maps one-to-one to
 `ui.assert_focused(node_id: ...)` and requires an interactive action.
 `UiPresentationOperation::AssertEnabled` maps one-to-one to
@@ -175,11 +178,11 @@ semantic node, and uses the same expected-value bound.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
 semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all ten travel in
+become a `UiEvent` or `CommandPlan`; all eleven travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all ten operations through its stable visual index. Focus
+Avalonia resolves all eleven operations through its stable visual index. Focus
 uses native `Control.Focus()`, while scrolling uses native `BringIntoView()`
 without changing focus or activating an action. Visibility assertion requires
 a realized control that is effectively visible, has nonzero layout bounds, and
@@ -187,7 +190,9 @@ intersects the renderer viewport. Realization assertion succeeds only when the
 visual index resolves the node to a live native control and never forces
 virtualized content to materialize. Realization wait polls that same predicate
 through a cancellable dispatcher-yielding adapter until its fixed deadline; it
-does not call `BringIntoView()` or create controls. Focus assertion reads native
+does not call `BringIntoView()` or create controls. Visibility wait polls the
+complete assertion predicate, including viewport intersection, through the same
+cancellable adapter and never scrolls the target. Focus assertion reads native
 `Control.IsFocused`; enabled assertion reads native effective enabled state,
 including ancestors. Text assertion reads native `TextBlock.Text` or string
 `Button.Content` and uses exact ordinal comparison rather than semantic-IR
@@ -196,14 +201,15 @@ native `AutomationProperties.Name` with exact ordinal comparison. None of the
 assertions mutates the control. Accessible-description assertion independently
 reads native `AutomationProperties.HelpText`, also with exact ordinal
 comparison, and rejects semantic targets that never declared a description.
-The real-window probe covers natural post-layout realization, persistent
-unrealized timeout, native application, unrealized, hidden, unfocused, disabled,
+The real-window probe covers natural post-layout realization and visibility,
+persistent unrealized and invisible timeout, native application, unrealized,
+hidden, unfocused, disabled,
 text-mismatched, accessible-name-mismatched,
 accessible-description-mismatched, missing, textless, and unfocusable targets,
 focus preservation, remount/patch retention, and safe target removal.
 
 This is not yet complete presentation automation. Selection, navigation,
-window lifetime, additional wait predicates, and additional state assertions remain future typed
+window lifetime, focused/enabled wait predicates, and additional state assertions remain future typed
 operations; renderers must not emulate them with coordinates, arbitrary
 scripts, or control-plane commands.
 

@@ -4,8 +4,8 @@ use std::path::Path;
 
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
-    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_REALIZED_TIMEOUT_MS, authorize,
-    validate_ui_expected_text, validate_ui_node_id,
+    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_REALIZED_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, authorize, validate_ui_expected_text, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -110,6 +110,7 @@ pub enum PresentationOperation {
     AssertVisible { node_id: String },
     AssertRealized { node_id: String },
     WaitRealized { node_id: String, timeout_ms: u64 },
+    WaitVisible { node_id: String, timeout_ms: u64 },
     AssertFocused { node_id: String },
     AssertEnabled { node_id: String },
     AssertText { node_id: String, expected: String },
@@ -136,6 +137,7 @@ pub enum PresentationResult {
     AssertVisible { node_id: String },
     AssertRealized { node_id: String },
     WaitRealized { node_id: String, timeout_ms: u64 },
+    WaitVisible { node_id: String, timeout_ms: u64 },
     AssertFocused { node_id: String },
     AssertEnabled { node_id: String },
     AssertText { node_id: String, expected: String },
@@ -401,6 +403,9 @@ pub enum Value {
         node_id: String,
     },
     UiWaitRealized {
+        node_id: String,
+    },
+    UiWaitVisible {
         node_id: String,
     },
     UiAssertFocused {
@@ -758,6 +763,18 @@ impl Vm {
                     operation: PresentationOperation::WaitRealized {
                         node_id: node_id.clone(),
                         timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS,
+                    },
+                }),
+            ),
+            Effect::UiWaitVisible { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitVisible {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -1367,6 +1384,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertVisible { .. } => Type::UiAssertVisible,
         Effect::UiAssertRealized { .. } => Type::UiAssertRealized,
         Effect::UiWaitRealized { .. } => Type::UiWaitRealized,
+        Effect::UiWaitVisible { .. } => Type::UiWaitVisible,
         Effect::UiAssertFocused { .. } => Type::UiAssertFocused,
         Effect::UiAssertEnabled { .. } => Type::UiAssertEnabled,
         Effect::UiAssertText { .. } => Type::UiAssertText,
@@ -1672,6 +1690,24 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id
                     && validate_ui_node_id(operation_node_id)
                     && *timeout_ms == UI_WAIT_REALIZED_TIMEOUT_MS
+            )
+        }
+        (Effect::UiWaitVisible { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitVisible {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_VISIBLE_TIMEOUT_MS
             )
         }
         (Effect::UiAssertFocused { node_id }, EffectOperation::Presentation(presentation)) => {
@@ -2054,6 +2090,7 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiAssertVisible { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertRealized { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitRealized { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitVisible { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertText { node_id, expected }
@@ -2450,6 +2487,34 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiWaitRealized {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiWaitVisible { node_id },
+            Type::UiWaitVisible,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitVisible {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_VISIBLE_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitVisible {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_VISIBLE_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitVisible {
                 node_id: result_node_id,
             })
         }
@@ -3124,6 +3189,59 @@ mod tests {
         presentation.operation = PresentationOperation::WaitRealized {
             node_id: "runtime-a:card".into(),
             timeout_ms: UI_WAIT_REALIZED_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_visible_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI visibility wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI visibility wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitVisible {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:card"
+                && *timeout_ms == UI_WAIT_VISIBLE_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitVisible {
+                    node_id: "runtime-a:card".into(),
+                    timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitVisible {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI visibility wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitVisible {
+            node_id: "runtime-a:card".into(),
+            timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS + 1,
         };
         assert!(validate_effect_request(&torn).is_err());
     }

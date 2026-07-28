@@ -12,8 +12,8 @@ serializes, restores, and resumes the read-only
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
 plus the frontend-local `ui.focus`, `ui.scroll_into_view`,
-`ui.assert_visible`, `ui.assert_realized`, `ui.wait_realized`, `ui.assert_focused`,
-`ui.assert_enabled`, and
+`ui.assert_visible`, `ui.assert_realized`, `ui.wait_realized`,
+`ui.wait_visible`, `ui.assert_focused`, `ui.assert_enabled`, and
 `ui.assert_text`, plus `ui.assert_accessible_name` and
 `ui.assert_accessible_description` presentation effects.
 
@@ -170,6 +170,21 @@ node naturally resolves to a native control before the deadline. Missing nodes
 fail immediately, persistently virtualized nodes time out, and cancellation is
 honored by the host. Waiting never scrolls, focuses, selects, activates, or
 otherwise forces materialization.
+
+Native visibility can likewise be awaited without implicit scrolling:
+
+```leselang
+fn main() = ui.wait_visible(node_id: "runtime-runtime-a")
+```
+
+`ui.wait_visible` requires `ui.presentation` and any existing semantic node.
+Its presentation envelope carries a protocol-fixed 2000 ms deadline and the
+source has no duration argument. The frontend adapter yields its dispatcher
+until the realized control is effectively visible, has nonzero bounds, and
+intersects the renderer viewport. Missing nodes fail immediately; persistently
+unrealized, hidden, zero-size, or off-viewport controls time out. Waiting never
+calls the platform bring-into-view primitive and does not focus, select,
+activate, or force realization.
 
 Native keyboard focus can be asserted without changing it:
 

@@ -80,6 +80,7 @@ pub fn lower_effect(
             | Effect::UiAssertVisible { .. }
             | Effect::UiAssertRealized { .. }
             | Effect::UiWaitRealized { .. }
+            | Effect::UiWaitVisible { .. }
             | Effect::UiAssertFocused { .. }
             | Effect::UiAssertEnabled { .. }
             | Effect::UiAssertText { .. }
@@ -103,6 +104,7 @@ pub fn lower_effect(
         | Effect::UiAssertVisible { .. }
         | Effect::UiAssertRealized { .. }
         | Effect::UiWaitRealized { .. }
+        | Effect::UiWaitVisible { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertText { .. }
@@ -137,6 +139,7 @@ pub fn lower_effect(
         | Effect::UiAssertVisible { .. }
         | Effect::UiAssertRealized { .. }
         | Effect::UiWaitRealized { .. }
+        | Effect::UiWaitVisible { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertText { .. }
@@ -410,6 +413,7 @@ mod tests {
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",

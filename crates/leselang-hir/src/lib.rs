@@ -14,6 +14,7 @@ pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
 pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_VISIBLE_TIMEOUT_MS: u64 = 2_000;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HirProgram {
@@ -79,6 +80,9 @@ pub enum Effect {
     UiWaitRealized {
         node_id: String,
     },
+    UiWaitVisible {
+        node_id: String,
+    },
     UiAssertFocused {
         node_id: String,
     },
@@ -118,6 +122,7 @@ pub enum Type {
     UiAssertVisible,
     UiAssertRealized,
     UiWaitRealized,
+    UiWaitVisible,
     UiAssertFocused,
     UiAssertEnabled,
     UiAssertText,
@@ -203,6 +208,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_visible"
         | "ui.assert_realized"
         | "ui.wait_realized"
+        | "ui.wait_visible"
         | "ui.assert_focused"
         | "ui.assert_enabled"
         | "ui.assert_text"
@@ -341,6 +347,15 @@ fn lower_atomic_effect(
                     message:
                         "ui.wait_realized node_id must be a valid UI node identifier string"
                             .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_visible", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1138".to_string(),
+                    message: "ui.wait_visible node_id must be a valid UI node identifier string"
+                        .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -485,6 +500,13 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1137".to_string(),
             message: "ui.wait_realized requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_visible" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1139".to_string(),
+            message: "ui.wait_visible requires node_id".to_string(),
             span: Some(span),
         });
     }
@@ -667,6 +689,13 @@ fn lower_atomic_effect(
             Type::UiWaitRealized,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_visible" => (
+            Effect::UiWaitVisible {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitVisible,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_focused" => (
             Effect::UiAssertFocused {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -785,6 +814,9 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         }
         Effect::UiWaitRealized { node_id } => {
             atomic_identifier_source("ui.wait_realized", "node_id", node_id, depth)
+        }
+        Effect::UiWaitVisible { node_id } => {
+            atomic_identifier_source("ui.wait_visible", "node_id", node_id, depth)
         }
         Effect::UiAssertFocused { node_id } => {
             atomic_identifier_source("ui.assert_focused", "node_id", node_id, depth)
@@ -1362,6 +1394,38 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_visible_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitVisible);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitVisible { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_visible()",
+            "fn main() = ui.wait_visible(node_id: none)",
+            "fn main() = ui.wait_visible(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_focused_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
@@ -1572,6 +1636,7 @@ mod tests {
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
