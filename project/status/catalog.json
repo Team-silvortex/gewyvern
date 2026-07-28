@@ -1614,7 +1614,7 @@
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.21.0",
+        "version": "0.22.0",
         "stability": "draft",
         "surfaces": [
           "bootstrap-only-capability",
@@ -1717,6 +1717,13 @@
           "install-profile-authority-binding",
           "legacy-checkpoint-retirement-ineligibility",
           "avalonia-retirement-authority-projection",
+          "session-bound-daemon-retirement-admission",
+          "checkpoint-derived-daemon-retirement-authority",
+          "public-retirement-intent-authority-omission",
+          "private-daemon-retirement-effect-v1",
+          "typed-daemon-retirement-lifecycle",
+          "policy-revalidated-daemon-retirement",
+          "transport-response-rebinding",
           "divergent-bootstrap-identity-rejection",
           "native-cli-bootstrap-deploy",
           "ssh-vault-only-cli-submission",
@@ -1774,9 +1781,11 @@
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-domain/src/bootstrap.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-domain/src/bootstrap_retirement.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bootstrap.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bootstrap_installer.rs", "state": "present" },
         { "kind": "source", "path": "crates/leserpent-protocol/src/bootstrap_retirement.rs", "state": "present" },
+        { "kind": "source", "path": "crates/leserpent-protocol/src/bootstrap_retirement_control.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-domain/src/bootstrap.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/src/bootstrap.rs", "state": "present" },
         { "kind": "test", "path": "crates/leserpent-protocol/tests/fixtures/bootstrap-request-v1.json", "state": "present" },
@@ -1811,7 +1820,7 @@
         { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Productize authenticated daemon-retirement orchestration without conflating it with runtime retirement, then retain privileged system-profile and WinRM evidence."
+      "next_gate": "Persist and schedule the independent daemon-retirement checkpoint, then expose authenticated IPC/HTTPS, CLI, and Avalonia orchestration without conflating it with runtime retirement."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",

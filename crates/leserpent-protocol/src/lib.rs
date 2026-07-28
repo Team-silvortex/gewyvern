@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub mod bootstrap;
 pub mod bootstrap_installer;
 pub mod bootstrap_retirement;
+pub mod bootstrap_retirement_control;
 pub mod compatibility_v1;
 pub mod gewyvern_installer;
 pub mod gewyvern_retirement;

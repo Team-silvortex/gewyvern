@@ -8,6 +8,10 @@ use leserpent_domain::bootstrap::{
     BootstrapId, BootstrapPhase, BootstrapTarget, BootstrapTransport, CredentialHandle,
     DaemonBootstrapReceipt, DaemonId, DeploymentBootstrap,
 };
+use leserpent_domain::bootstrap_retirement::{
+    DaemonRetirement, DaemonRetirementReceipt, DaemonRetirementSnapshot,
+};
+use leserpent_domain::retirement::RetirementId;
 use leserpent_protocol::bootstrap::{
     BOOTSTRAP_PROTOCOL_SCHEMA_VERSION, BootstrapRequestEnvelope, BootstrapResponse,
     BootstrapResponseEnvelope, decode_bootstrap_request, encode_bootstrap_response,
@@ -17,11 +21,19 @@ use leserpent_protocol::bootstrap_installer::{
     BootstrapInstallerRequest, BootstrapInstallerServiceState, MAX_BOOTSTRAP_INSTALLER_BYTES,
     decode_bootstrap_installer_response, encode_bootstrap_installer_request,
 };
+use leserpent_protocol::bootstrap_retirement::{
+    BootstrapRetirementRequest, BootstrapRetirementResponse,
+    validate_bootstrap_retirement_response_binding,
+};
 #[cfg(feature = "native-ssh")]
 use leserpent_protocol::bootstrap_retirement::{
-    BootstrapRetirementRequest, BootstrapRetirementResponse, MAX_BOOTSTRAP_RETIREMENT_BYTES,
-    decode_bootstrap_retirement_response, encode_bootstrap_retirement_request,
-    validate_bootstrap_retirement_response_binding,
+    MAX_BOOTSTRAP_RETIREMENT_BYTES, decode_bootstrap_retirement_response,
+    encode_bootstrap_retirement_request,
+};
+use leserpent_protocol::bootstrap_retirement_control::{
+    DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION, DaemonRetirementResponse,
+    DaemonRetirementResponseEnvelope, decode_daemon_retirement_effect,
+    encode_daemon_retirement_response,
 };
 use leserpent_runtime::EffectExecution;
 use ring::digest::{SHA256, digest};
@@ -34,6 +46,7 @@ use crate::{
 };
 
 pub const HOST_BOOTSTRAP_EFFECT_KIND: &str = "leserpent.host.bootstrap";
+pub const DAEMON_RETIREMENT_EFFECT_KIND: &str = "leserpent.daemon.retire";
 pub const MAX_BOOTSTRAP_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Clone)]
@@ -202,7 +215,6 @@ pub trait SshBootstrapTransport: Send {
     ) -> Result<SshBootstrapOutcome, SshBootstrapTransportError>;
 }
 
-#[cfg(feature = "native-ssh")]
 pub struct SshBootstrapRetirementJob<'a> {
     pub request: &'a BootstrapRetirementRequest,
     pub target: &'a BootstrapTarget,
@@ -212,7 +224,6 @@ pub struct SshBootstrapRetirementJob<'a> {
     pub artifact: &'a BootstrapArtifact,
 }
 
-#[cfg(feature = "native-ssh")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SshBootstrapRetirementTransportError {
     InvalidRequest,
@@ -224,7 +235,6 @@ pub enum SshBootstrapRetirementTransportError {
     InvalidResponse,
 }
 
-#[cfg(feature = "native-ssh")]
 impl fmt::Display for SshBootstrapRetirementTransportError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
@@ -239,15 +249,147 @@ impl fmt::Display for SshBootstrapRetirementTransportError {
     }
 }
 
-#[cfg(feature = "native-ssh")]
 impl std::error::Error for SshBootstrapRetirementTransportError {}
 
-#[cfg(feature = "native-ssh")]
 pub trait SshBootstrapRetirementTransport: Send {
     fn retire(
         &mut self,
         job: SshBootstrapRetirementJob<'_>,
     ) -> Result<BootstrapRetirementResponse, SshBootstrapRetirementTransportError>;
+}
+
+pub struct SshDaemonRetirementAdapter<T> {
+    policies: BTreeMap<String, SshBootstrapHostPolicy>,
+    secrets: Arc<dyn SecretStore>,
+    artifact: BootstrapArtifact,
+    transport: T,
+}
+
+impl<T: SshBootstrapRetirementTransport> SshDaemonRetirementAdapter<T> {
+    pub fn new(
+        policies: impl IntoIterator<Item = SshBootstrapHostPolicy>,
+        secrets: Arc<dyn SecretStore>,
+        artifact: BootstrapArtifact,
+        transport: T,
+    ) -> Result<Self, String> {
+        let mut normalized = BTreeMap::new();
+        for policy in policies {
+            if normalized.insert(policy.key(), policy).is_some() {
+                return Err("duplicate SSH daemon retirement target policy".into());
+            }
+        }
+        if normalized.is_empty() {
+            return Err("at least one SSH daemon retirement policy is required".into());
+        }
+        Ok(Self {
+            policies: normalized,
+            secrets,
+            artifact,
+            transport,
+        })
+    }
+
+    fn execute_request(&mut self, payload: &[u8]) -> Result<Vec<u8>, &'static str> {
+        let effect =
+            decode_daemon_retirement_effect(payload).map_err(|_| "invalid retirement effect")?;
+        let mut retirement = DaemonRetirement::resume(&effect.checkpoint)
+            .map_err(|_| "invalid retirement checkpoint")?;
+        retirement
+            .begin()
+            .map_err(|_| "invalid retirement transition")?;
+        let state = retirement.snapshot();
+        if state.target.transport != BootstrapTransport::Ssh {
+            return encode_daemon_retirement_failed(retirement, "transport_not_supported");
+        }
+        let policy = match self.policies.get(&target_key(&state.target)) {
+            Some(policy)
+                if policy.target == state.target
+                    && policy.daemon_id == state.daemon_id
+                    && policy.install_profile == state.install_profile =>
+            {
+                policy
+            }
+            _ => return encode_daemon_retirement_failed(retirement, "target_policy_mismatch"),
+        };
+        let (provider, key) = effect
+            .checkpoint
+            .retirement_credential_handle
+            .as_ref()
+            .ok_or("retirement credential is missing")?
+            .parts();
+        if provider != "ssh" {
+            return encode_daemon_retirement_failed(retirement, "credential_provider_invalid");
+        }
+        let ssh_password = match load_secret(self.secrets.as_ref(), key) {
+            Ok(secret) => secret,
+            Err(code) => return encode_daemon_retirement_failed(retirement, code),
+        };
+        let request = BootstrapRetirementRequest::new(
+            state.retirement_id.as_str(),
+            state.bootstrap_id.clone(),
+            state.daemon_id.clone(),
+            state.generation.clone(),
+            state.install_profile.clone(),
+        )
+        .map_err(|_| "invalid derived retirement authority")?;
+        let response = match self.transport.retire(SshBootstrapRetirementJob {
+            request: &request,
+            target: &state.target,
+            username: &policy.username,
+            host_key_sha256: &policy.host_key_sha256,
+            ssh_password: &ssh_password,
+            artifact: &self.artifact,
+        }) {
+            Ok(response) => response,
+            Err(SshBootstrapRetirementTransportError::Authentication) => {
+                return encode_daemon_retirement_failed(retirement, "authentication_failed");
+            }
+            Err(SshBootstrapRetirementTransportError::HostKeyRejected) => {
+                return encode_daemon_retirement_failed(retirement, "host_key_rejected");
+            }
+            Err(SshBootstrapRetirementTransportError::RetirementRejected) => {
+                return encode_daemon_retirement_failed(retirement, "service_retirement_rejected");
+            }
+            Err(SshBootstrapRetirementTransportError::InvalidResponse) => {
+                return encode_daemon_retirement_failed(retirement, "retirement_response_invalid");
+            }
+            Err(
+                SshBootstrapRetirementTransportError::InvalidRequest
+                | SshBootstrapRetirementTransportError::Transport
+                | SshBootstrapRetirementTransportError::UploadRejected,
+            ) => return encode_daemon_retirement_failed(retirement, "transport_failure"),
+        };
+        if validate_bootstrap_retirement_response_binding(&request, &response).is_err() {
+            return encode_daemon_retirement_failed(retirement, "retirement_response_invalid");
+        }
+        let retirement_id = RetirementId::new(response.retirement_id)
+            .map_err(|_| "retirement response identity is invalid")?;
+        let snapshot = retirement
+            .accept_service_retirement(DaemonRetirementReceipt {
+                retirement_id,
+                bootstrap_id: response.bootstrap_id,
+                daemon_id: response.daemon_id,
+                generation: response.generation,
+                service_retired: response.service_retired,
+            })
+            .map_err(|_| "retirement response identity mismatch")?;
+        encode_daemon_retirement_state(snapshot)
+    }
+}
+
+impl<T: SshBootstrapRetirementTransport> EffectAdapter for SshDaemonRetirementAdapter<T> {
+    fn kind(&self) -> &str {
+        DAEMON_RETIREMENT_EFFECT_KIND
+    }
+
+    fn execute(&mut self, payload: &[u8]) -> EffectExecution {
+        match self.execute_request(payload) {
+            Ok(response) => EffectExecution::Complete(response),
+            Err(error) => EffectExecution::Reject {
+                error: error.into(),
+            },
+        }
+    }
 }
 
 pub struct SshBootstrapAdapter<T> {
@@ -556,6 +698,26 @@ fn load_secret(store: &dyn SecretStore, key: &str) -> Result<SecretValue, &'stat
         .ok_or("credential_not_found")
 }
 
+fn encode_daemon_retirement_failed(
+    mut retirement: DaemonRetirement,
+    code: &'static str,
+) -> Result<Vec<u8>, &'static str> {
+    let snapshot = retirement
+        .record_fault(code)
+        .map_err(|_| "invalid daemon retirement failure state")?;
+    encode_daemon_retirement_state(snapshot)
+}
+
+fn encode_daemon_retirement_state(
+    snapshot: DaemonRetirementSnapshot,
+) -> Result<Vec<u8>, &'static str> {
+    encode_daemon_retirement_response(&DaemonRetirementResponseEnvelope {
+        schema_version: DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+        response: DaemonRetirementResponse::State(snapshot),
+    })
+    .map_err(|_| "daemon retirement response encoding failed")
+}
+
 fn encode_failed(
     mut bootstrap: DeploymentBootstrap,
     code: &'static str,
@@ -627,9 +789,19 @@ mod tests {
     use std::sync::Mutex;
 
     use leserpent_domain::bootstrap::{BOOTSTRAP_DOMAIN_SCHEMA_VERSION, CAPABILITY_HOST_BOOTSTRAP};
+    use leserpent_domain::bootstrap_retirement::{
+        DAEMON_RETIREMENT_CHECKPOINT_SCHEMA_VERSION, DaemonRetirementCheckpoint,
+        DaemonRetirementPhase, DaemonRetirementSnapshot,
+    };
+    use leserpent_domain::retirement::RetirementId;
     use leserpent_domain::{CapabilitySet, Principal};
     use leserpent_protocol::bootstrap::{
         BootstrapRequest, decode_bootstrap_response, encode_bootstrap_request,
+    };
+    use leserpent_protocol::bootstrap_retirement::BOOTSTRAP_RETIREMENT_SCHEMA_VERSION;
+    use leserpent_protocol::bootstrap_retirement_control::{
+        DaemonRetirementEffectEnvelope, decode_daemon_retirement_response,
+        encode_daemon_retirement_effect,
     };
 
     use crate::{BootstrapTrustError, ConfiguredSecretStore, SecretValue};
@@ -934,6 +1106,162 @@ mod tests {
         );
         assert!(state.session_credential_handle.is_none());
         assert!(state.trust_credential_handle.is_none());
+    }
+
+    struct RecordingDaemonRetirementTransport {
+        seen: Arc<Mutex<Vec<(BootstrapRetirementRequest, String)>>>,
+        response: Result<BootstrapRetirementResponse, SshBootstrapRetirementTransportError>,
+    }
+
+    impl SshBootstrapRetirementTransport for RecordingDaemonRetirementTransport {
+        fn retire(
+            &mut self,
+            job: SshBootstrapRetirementJob<'_>,
+        ) -> Result<BootstrapRetirementResponse, SshBootstrapRetirementTransportError> {
+            self.seen
+                .lock()
+                .unwrap()
+                .push((job.request.clone(), job.ssh_password.expose_secret().into()));
+            self.response.clone()
+        }
+    }
+
+    fn daemon_retirement_effect(
+        install_profile: &str,
+        generation: &str,
+    ) -> DaemonRetirementEffectEnvelope {
+        DaemonRetirementEffectEnvelope {
+            schema_version: DAEMON_RETIREMENT_PROTOCOL_SCHEMA_VERSION,
+            checkpoint: DaemonRetirementCheckpoint {
+                schema_version: DAEMON_RETIREMENT_CHECKPOINT_SCHEMA_VERSION,
+                revision: 1,
+                state: DaemonRetirementSnapshot {
+                    retirement_id: RetirementId::new("retire-daemon-1").unwrap(),
+                    bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
+                    daemon_id: DaemonId::new("daemon-host-example").unwrap(),
+                    phase: DaemonRetirementPhase::Planned,
+                    target: target(),
+                    generation: generation.into(),
+                    install_profile: install_profile.into(),
+                    retirement_credential_present: true,
+                    service_retired: false,
+                    fault_code: None,
+                },
+                retirement_credential_handle: Some(
+                    CredentialHandle::new("vault:ssh:host-example").unwrap(),
+                ),
+            },
+        }
+    }
+
+    #[test]
+    fn daemon_retirement_adapter_uses_only_checkpoint_derived_authority() {
+        let effect = daemon_retirement_effect("system", &"a".repeat(64));
+        let response = BootstrapRetirementResponse {
+            schema_version: BOOTSTRAP_RETIREMENT_SCHEMA_VERSION,
+            retirement_id: "retire-daemon-1".into(),
+            bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
+            daemon_id: DaemonId::new("daemon-host-example").unwrap(),
+            generation: "a".repeat(64),
+            service_retired: true,
+            replayed: false,
+        };
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let transport = RecordingDaemonRetirementTransport {
+            seen: seen.clone(),
+            response: Ok(response),
+        };
+        let artifact = BootstrapArtifact::new(
+            Arc::<[u8]>::from(b"native-installer".as_slice()),
+            "/tmp/leserpent-bootstrap",
+        )
+        .unwrap();
+        let mut adapter =
+            SshDaemonRetirementAdapter::new([policy()], secrets(), artifact, transport).unwrap();
+        let execution = adapter.execute(&encode_daemon_retirement_effect(&effect).unwrap());
+        let EffectExecution::Complete(payload) = execution else {
+            panic!("daemon retirement effect must complete");
+        };
+        let response = decode_daemon_retirement_response(&payload).unwrap();
+        let DaemonRetirementResponse::State(state) = response.response else {
+            panic!("daemon retirement response must contain state");
+        };
+        assert_eq!(state.phase, DaemonRetirementPhase::ServiceRetired);
+        assert!(state.service_retired);
+        assert!(!state.retirement_credential_present);
+
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].0.generation, "a".repeat(64));
+        assert_eq!(seen[0].0.install_profile, "system");
+        assert_eq!(seen[0].1, "bootstrap-password");
+    }
+
+    #[test]
+    fn daemon_retirement_policy_drift_fails_before_transport() {
+        let effect = daemon_retirement_effect("user", &"a".repeat(64));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let transport = RecordingDaemonRetirementTransport {
+            seen: seen.clone(),
+            response: Err(SshBootstrapRetirementTransportError::Transport),
+        };
+        let artifact = BootstrapArtifact::new(
+            Arc::<[u8]>::from(b"native-installer".as_slice()),
+            "/tmp/leserpent-bootstrap",
+        )
+        .unwrap();
+        let mut adapter =
+            SshDaemonRetirementAdapter::new([policy()], secrets(), artifact, transport).unwrap();
+        let EffectExecution::Complete(payload) =
+            adapter.execute(&encode_daemon_retirement_effect(&effect).unwrap())
+        else {
+            panic!("policy drift must become a typed failed state");
+        };
+        let response = decode_daemon_retirement_response(&payload).unwrap();
+        let DaemonRetirementResponse::State(state) = response.response else {
+            panic!("daemon retirement response must contain state");
+        };
+        assert_eq!(state.phase, DaemonRetirementPhase::Failed);
+        assert_eq!(state.fault_code.as_deref(), Some("target_policy_mismatch"));
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn daemon_retirement_adapter_revalidates_transport_response_binding() {
+        let effect = daemon_retirement_effect("system", &"a".repeat(64));
+        let transport = RecordingDaemonRetirementTransport {
+            seen: Arc::new(Mutex::new(Vec::new())),
+            response: Ok(BootstrapRetirementResponse {
+                schema_version: BOOTSTRAP_RETIREMENT_SCHEMA_VERSION,
+                retirement_id: "retire-attacker".into(),
+                bootstrap_id: BootstrapId::new("bootstrap-1").unwrap(),
+                daemon_id: DaemonId::new("daemon-host-example").unwrap(),
+                generation: "a".repeat(64),
+                service_retired: true,
+                replayed: false,
+            }),
+        };
+        let artifact = BootstrapArtifact::new(
+            Arc::<[u8]>::from(b"native-installer".as_slice()),
+            "/tmp/leserpent-bootstrap",
+        )
+        .unwrap();
+        let mut adapter =
+            SshDaemonRetirementAdapter::new([policy()], secrets(), artifact, transport).unwrap();
+        let EffectExecution::Complete(payload) =
+            adapter.execute(&encode_daemon_retirement_effect(&effect).unwrap())
+        else {
+            panic!("forged response must become a typed failed state");
+        };
+        let response = decode_daemon_retirement_response(&payload).unwrap();
+        let DaemonRetirementResponse::State(state) = response.response else {
+            panic!("daemon retirement response must contain state");
+        };
+        assert_eq!(state.phase, DaemonRetirementPhase::Failed);
+        assert_eq!(
+            state.fault_code.as_deref(),
+            Some("retirement_response_invalid")
+        );
     }
 
     #[cfg(feature = "native-ssh")]

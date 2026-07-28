@@ -632,9 +632,15 @@ same paired validation, so future CLI and desktop retirement flows can derive
 target authority from the checkpoint instead of accepting client-supplied
 generation or profile values.
 
-The remaining bootstrap product gate is an authenticated daemon-retirement
-workflow for CLI/Avalonia orchestration that remains distinct from Gewyvern
-runtime retirement, followed by privileged system-profile and WinRM evidence.
+The independent daemon-retirement domain, public command codec, private effect
+codec, and SSH adapter kernel are complete. Public commands cannot contain
+target, daemon, generation, or profile authority; planning derives all four
+from a matching `SessionBound` deployment checkpoint. The adapter resolves only
+the derived SSH target and opaque credential handle, rechecks host policy, and
+revalidates the target response's complete identity binding. The remaining
+product gate is durable authority-checkpoint scheduling plus authenticated
+IPC/HTTPS, CLI, and Avalonia orchestration, followed by privileged
+system-profile and WinRM evidence.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path

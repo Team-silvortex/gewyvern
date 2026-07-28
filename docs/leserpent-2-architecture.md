@@ -495,6 +495,19 @@ backward-read compatibility; strict older clients correctly reject the expanded
 new response instead of silently discarding authority. Avalonia's AOT decoder
 preserves the same pair and rejects partial, malformed, or unsupported metadata.
 
+The product-level daemon retirement kernel is now separate from both the target
+`bootstrap-retire-v1` wire and Gewyvern runtime retirement. Its public intent
+contains only retirement/bootstrap IDs, an opaque `vault:ssh:*` handle,
+principal binding, capability, and confirmation. Planning requires the matching
+deployment checkpoint to be `SessionBound`, then derives target, daemon,
+generation, and install profile exclusively from that checkpoint. A separate
+private effect envelope carries the resulting revision-1 authority checkpoint
+to the SSH adapter. The adapter rechecks the configured host policy before
+secret resolution and independently revalidates the low-level response binding
+even when the transport implementation already did so. Legacy deployments,
+client-injected authority fields, policy drift, and forged transport responses
+therefore fail before a successful retirement state can be published.
+
 This closes durable handoff recovery but not the product entrypoint. The
 authenticated IPC/HTTPS wire now supports checkpoint query and confirmed
 session bind by bootstrap ID. Bind deliberately accepts no proof fields. A

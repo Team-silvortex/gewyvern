@@ -16,15 +16,14 @@ mod provisioning;
 mod retirement;
 mod secret;
 
-pub use bootstrap::{
-    BootstrapArtifact, HOST_BOOTSTRAP_EFFECT_KIND, MAX_BOOTSTRAP_ARTIFACT_BYTES,
-    SshBootstrapAdapter, SshBootstrapHostPolicy, SshBootstrapJob, SshBootstrapOutcome,
-    SshBootstrapTransport, SshBootstrapTransportError,
-};
 #[cfg(feature = "native-ssh")]
+pub use bootstrap::NativeSshBootstrapTransport;
 pub use bootstrap::{
-    NativeSshBootstrapTransport, SshBootstrapRetirementJob, SshBootstrapRetirementTransport,
-    SshBootstrapRetirementTransportError,
+    BootstrapArtifact, DAEMON_RETIREMENT_EFFECT_KIND, HOST_BOOTSTRAP_EFFECT_KIND,
+    MAX_BOOTSTRAP_ARTIFACT_BYTES, SshBootstrapAdapter, SshBootstrapHostPolicy, SshBootstrapJob,
+    SshBootstrapOutcome, SshBootstrapRetirementJob, SshBootstrapRetirementTransport,
+    SshBootstrapRetirementTransportError, SshBootstrapTransport, SshBootstrapTransportError,
+    SshDaemonRetirementAdapter,
 };
 pub use bootstrap_trust::{
     BootstrapTrustError, BootstrapTrustRecord, BootstrapTrustStore, FileBootstrapTrustStore,

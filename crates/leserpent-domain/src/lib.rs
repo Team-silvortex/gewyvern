@@ -5,6 +5,7 @@ use http::Uri;
 use serde::{Deserialize, Serialize};
 
 pub mod bootstrap;
+pub mod bootstrap_retirement;
 pub mod provisioning;
 pub mod retirement;
 

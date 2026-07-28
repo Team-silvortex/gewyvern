@@ -2272,7 +2272,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(bootstrap.maturity, Maturity::Developing);
     assert_eq!(bootstrap.completion, 99);
     assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
-    assert_eq!(bootstrap.contract.version, "0.21.0");
+    assert_eq!(bootstrap.contract.version, "0.22.0");
     assert!(
         bootstrap
             .contract
@@ -2329,6 +2329,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "install-profile-authority-binding",
         "legacy-checkpoint-retirement-ineligibility",
         "avalonia-retirement-authority-projection",
+        "session-bound-daemon-retirement-admission",
+        "checkpoint-derived-daemon-retirement-authority",
+        "public-retirement-intent-authority-omission",
+        "private-daemon-retirement-effect-v1",
+        "typed-daemon-retirement-lifecycle",
+        "policy-revalidated-daemon-retirement",
+        "transport-response-rebinding",
     ] {
         assert!(
             bootstrap
