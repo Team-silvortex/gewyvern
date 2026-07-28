@@ -88,11 +88,18 @@ public sealed class SemanticRenderer
         {
             return UiPresentationValidation.UnknownTarget;
         }
-        return operation.Kind == UiPresentationOperationKind.Focus
-            && node.Kind == UiNodeKind.Action
-            && node.Action is not null
-                ? UiPresentationValidation.Valid
-                : UiPresentationValidation.UnfocusableTarget;
+        return operation.Kind switch
+        {
+            UiPresentationOperationKind.Focus
+            or UiPresentationOperationKind.AssertFocused
+                when node.Kind == UiNodeKind.Action && node.Action is not null =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.ScrollIntoView =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertVisible =>
+                UiPresentationValidation.Valid,
+            _ => UiPresentationValidation.UnfocusableTarget,
+        };
     }
 
     private void ApplyOperation(UiPatchOperation operation)
@@ -371,6 +378,9 @@ public sealed class RendererFixture
     public required UiPatch Patch { get; set; }
     public required UiDocument Next { get; set; }
     public UiPresentationOperation? PresentationOperation { get; set; }
+    public UiPresentationOperation? ScrollOperation { get; set; }
+    public UiPresentationOperation? AssertOperation { get; set; }
+    public UiPresentationOperation? FocusedAssertOperation { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -514,6 +524,9 @@ public enum UiEventKind
 public enum UiPresentationOperationKind
 {
     [JsonStringEnumMemberName("focus")] Focus,
+    [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
+    [JsonStringEnumMemberName("assert_visible")] AssertVisible,
+    [JsonStringEnumMemberName("assert_focused")] AssertFocused,
 }
 
 public enum UiPresentationValidation

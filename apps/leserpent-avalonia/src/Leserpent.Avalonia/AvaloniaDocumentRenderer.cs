@@ -68,6 +68,8 @@ internal enum PresentationAutomationFailureCode
     UnknownTarget,
     UnfocusableTarget,
     TargetUnrealized,
+    TargetNotVisible,
+    TargetNotFocused,
     FocusRejected,
 }
 
@@ -141,6 +143,33 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 operation.NodeId,
                 PresentationAutomationFailureCode.TargetUnrealized);
         }
+        if (operation.Kind == UiPresentationOperationKind.AssertVisible)
+        {
+            var visible = IsControlVisibleInSurface(control!);
+            return new PresentationAutomationResult(
+                visible,
+                operation.NodeId,
+                visible
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetNotVisible);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertFocused)
+        {
+            return new PresentationAutomationResult(
+                control!.IsFocused,
+                operation.NodeId,
+                control.IsFocused
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetNotFocused);
+        }
+        if (operation.Kind == UiPresentationOperationKind.ScrollIntoView)
+        {
+            control!.BringIntoView();
+            return new PresentationAutomationResult(
+                true,
+                operation.NodeId,
+                PresentationAutomationFailureCode.None);
+        }
         if (!control!.Focus())
         {
             return new PresentationAutomationResult(
@@ -152,6 +181,30 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             true,
             operation.NodeId,
             PresentationAutomationFailureCode.None);
+    }
+
+    private bool IsControlVisibleInSurface(Control control)
+    {
+        if (!control.IsEffectivelyVisible
+            || control.Bounds.Width <= 0
+            || control.Bounds.Height <= 0
+            || Surface.Bounds.Width <= 0
+            || Surface.Bounds.Height <= 0)
+        {
+            return false;
+        }
+        var origin = control.TranslatePoint(default, Surface);
+        if (origin is not { } translated)
+        {
+            return false;
+        }
+        var controlBounds = new Rect(
+            translated.X,
+            translated.Y,
+            control.Bounds.Width,
+            control.Bounds.Height);
+        var viewport = new Rect(0, 0, Surface.Bounds.Width, Surface.Bounds.Height);
+        return viewport.Intersects(controlBounds);
     }
 
     public UiEvent CreateFormSubmission(

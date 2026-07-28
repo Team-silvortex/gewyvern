@@ -127,6 +127,32 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang presentation focus could not focus its action node");
         }
+        var focused = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFocused,
+            NodeId = nodeId,
+        });
+        if (!focused.Applied
+            || focused.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang focus assertion rejected the focused action");
+        }
+        var otherActionNodeId = FindOtherActionNodeId(renderer.Document.Root, nodeId)
+            ?? throw new InvalidDataException("focus assertion probe requires another action");
+        var unfocused = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFocused,
+            NodeId = otherActionNodeId,
+        });
+        if (unfocused.Applied
+            || unfocused.FailureCode != PresentationAutomationFailureCode.TargetNotFocused
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang focus assertion accepted an unfocused action or changed focus");
+        }
         var missing = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.Focus,
@@ -151,6 +177,64 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang presentation focus accepted an unfocusable target");
         }
+        var scrolled = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.ScrollIntoView,
+            NodeId = nonActionNodeId,
+        });
+        if (!scrolled.Applied
+            || scrolled.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang presentation scroll failed or changed keyboard focus");
+        }
+        var missingScroll = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.ScrollIntoView,
+            NodeId = "missing-presentation-target",
+        });
+        if (missingScroll.Applied
+            || missingScroll.FailureCode != PresentationAutomationFailureCode.UnknownTarget)
+        {
+            throw new InvalidDataException(
+                "Leselang presentation scroll accepted a missing target");
+        }
+        var visible = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertVisible,
+            NodeId = nonActionNodeId,
+        });
+        if (!visible.Applied
+            || visible.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang visibility assertion rejected a visible target or changed focus");
+        }
+        renderer.Surface.IsVisible = false;
+        var hidden = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertVisible,
+            NodeId = nonActionNodeId,
+        });
+        renderer.Surface.IsVisible = true;
+        if (hidden.Applied
+            || hidden.FailureCode != PresentationAutomationFailureCode.TargetNotVisible)
+        {
+            throw new InvalidDataException(
+                "Leselang visibility assertion accepted a hidden target");
+        }
+        var refocused = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Focus,
+            NodeId = nodeId,
+        });
+        if (!refocused.Applied || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang presentation focus did not recover after the hidden assertion probe");
+        }
         renderer.Mount(renderer.Document);
         if (!renderer.IsFocusRestorePending)
         {
@@ -168,6 +252,24 @@ internal sealed class MainWindow : Window
         foreach (var child in node.Children)
         {
             if (FindFirstNonActionNodeId(child) is { } nodeId)
+            {
+                return nodeId;
+            }
+        }
+        return null;
+    }
+
+    private static string? FindOtherActionNodeId(UiNode node, string focusedNodeId)
+    {
+        if (node.Kind == UiNodeKind.Action
+            && node.Action is not null
+            && node.Id != focusedNodeId)
+        {
+            return node.Id;
+        }
+        foreach (var child in node.Children)
+        {
+            if (FindOtherActionNodeId(child, focusedNodeId) is { } nodeId)
             {
                 return nodeId;
             }

@@ -1663,14 +1663,18 @@ Rust prints its canonical source and can reconstruct an equivalent event from
 that effect and the current document. This closes business-action parity for
 the current `UiAction` enum.
 
-Presentation parity has started on a separate, non-command path.
-`ui.focus(node_id: ...)` lowers to a capability-gated VM
-`PresentationEnvelope`, then to renderer-neutral
-`UiPresentationOperation::Focus`. It cannot become a `CommandPlan`. Avalonia
-validates the semantic target, resolves the stable node ID, applies native
-focus, and returns explicit failure classes without activating the target.
-Selection, scrolling, navigation, windows, waits, and assertions remain
-unimplemented rather than being approximated with coordinates or scripts.
+Presentation parity uses a separate, non-command path.
+`ui.focus(node_id: ...)`, `ui.scroll_into_view(node_id: ...)`, and
+`ui.assert_visible(node_id: ...)`, plus `ui.assert_focused(node_id: ...)` lower
+to operation-specific values inside a capability-gated VM
+`PresentationEnvelope`, then to renderer-neutral `UiPresentationOperation`
+variants. None can become a `CommandPlan`. Avalonia validates the semantic
+target and resolves the stable node ID. Focus and scrolling use native
+operations, visibility assertion checks realized layout and viewport state,
+and focus assertion reads native focus without changing it. Scrolling accepts
+noninteractive nodes and preserves keyboard focus. Selection, navigation,
+windows, waits, and additional state assertions remain unimplemented rather
+than being approximated with coordinates or scripts.
 
 ## Process And Transport Boundaries
 

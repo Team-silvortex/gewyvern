@@ -296,6 +296,21 @@ pub fn waiting_debugger_projection(
             (DebuggerEffectKind::DebuggerCancel, None, "debugger cancel")
         }
         Effect::UiFocus { .. } => (DebuggerEffectKind::UiFocus, None, "UI focus"),
+        Effect::UiScrollIntoView { .. } => (
+            DebuggerEffectKind::UiScrollIntoView,
+            None,
+            "UI scroll into view",
+        ),
+        Effect::UiAssertVisible { .. } => (
+            DebuggerEffectKind::UiAssertVisible,
+            None,
+            "UI assert visible",
+        ),
+        Effect::UiAssertFocused { .. } => (
+            DebuggerEffectKind::UiAssertFocused,
+            None,
+            "UI assert focused",
+        ),
         Effect::All { .. } => {
             return Err(ObserveError::InvalidEffectRequest(Fault {
                 code: "LSO1001".to_string(),

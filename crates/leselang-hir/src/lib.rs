@@ -65,6 +65,15 @@ pub enum Effect {
     UiFocus {
         node_id: String,
     },
+    UiScrollIntoView {
+        node_id: String,
+    },
+    UiAssertVisible {
+        node_id: String,
+    },
+    UiAssertFocused {
+        node_id: String,
+    },
     All {
         branches: Vec<HirBranch>,
     },
@@ -82,6 +91,9 @@ pub enum Type {
     RuntimeDeploy,
     DebuggerCancel,
     UiFocus,
+    UiScrollIntoView,
+    UiAssertVisible,
+    UiAssertFocused,
     Structured,
 }
 
@@ -157,7 +169,10 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "runtime.refresh_capabilities"
         | "runtime.deploy"
         | "debugger.cancel"
-        | "ui.focus" => lower_atomic_effect(callee, arguments, *span),
+        | "ui.focus"
+        | "ui.scroll_into_view"
+        | "ui.assert_visible"
+        | "ui.assert_focused" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -254,6 +269,34 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.scroll_into_view", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1114".to_string(),
+                    message:
+                        "ui.scroll_into_view node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_visible", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1116".to_string(),
+                    message: "ui.assert_visible node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_focused", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1118".to_string(),
+                    message: "ui.assert_focused node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             _ => diagnostics.push(Diagnostic {
                 code: "LSH1103".to_string(),
                 message: format!("unknown {callee} argument '{}'", argument.name),
@@ -296,6 +339,27 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1113".to_string(),
             message: "ui.focus requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.scroll_into_view" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1115".to_string(),
+            message: "ui.scroll_into_view requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_visible" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1117".to_string(),
+            message: "ui.assert_visible requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_focused" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1119".to_string(),
+            message: "ui.assert_focused requires node_id".to_string(),
             span: Some(span),
         });
     }
@@ -391,6 +455,27 @@ fn lower_atomic_effect(
             Type::UiFocus,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.scroll_into_view" => (
+            Effect::UiScrollIntoView {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiScrollIntoView,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_visible" => (
+            Effect::UiAssertVisible {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertVisible,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_focused" => (
+            Effect::UiAssertFocused {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertFocused,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         _ => unreachable!("unknown effects returned above"),
     };
     Ok(LoweredEffect {
@@ -459,6 +544,15 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         }
         Effect::UiFocus { node_id } => {
             atomic_identifier_source("ui.focus", "node_id", node_id, depth)
+        }
+        Effect::UiScrollIntoView { node_id } => {
+            atomic_identifier_source("ui.scroll_into_view", "node_id", node_id, depth)
+        }
+        Effect::UiAssertVisible { node_id } => {
+            atomic_identifier_source("ui.assert_visible", "node_id", node_id, depth)
+        }
+        Effect::UiAssertFocused { node_id } => {
+            atomic_identifier_source("ui.assert_focused", "node_id", node_id, depth)
         }
         Effect::All { branches } => {
             let mut source = String::from("all(\n");
@@ -874,6 +968,102 @@ mod tests {
     }
 
     #[test]
+    fn ui_scroll_into_view_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiScrollIntoView);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiScrollIntoView { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.scroll_into_view()",
+            "fn main() = ui.scroll_into_view(node_id: none)",
+            "fn main() = ui.scroll_into_view(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_visible_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertVisible);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertVisible { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_visible()",
+            "fn main() = ui.assert_visible(node_id: none)",
+            "fn main() = ui.assert_visible(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_focused_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertFocused);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertFocused { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_focused()",
+            "fn main() = ui.assert_focused(node_id: none)",
+            "fn main() = ui.assert_focused(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn every_atomic_effect_has_one_semantically_stable_canonical_source() {
         for source in [
             "fn main() = runtime.list(environment: \"prod\", cluster: none, role: \"edge\")",
@@ -885,6 +1075,9 @@ mod tests {
             "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: none)",
             "fn main() = debugger.cancel(session_id: \"session-a\")",
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
         ] {
             let effect = lower(&parse(source)).unwrap().function.effect;
             let canonical = canonical_source(&effect).unwrap();

@@ -612,5 +612,17 @@
   "presentation_operation": {
     "kind": "focus",
     "node_id": "runtime-runtime-a-inspect"
+  },
+  "scroll_operation": {
+    "kind": "scroll_into_view",
+    "node_id": "fleet-title"
+  },
+  "assert_operation": {
+    "kind": "assert_visible",
+    "node_id": "fleet-title"
+  },
+  "focused_assert_operation": {
+    "kind": "assert_focused",
+    "node_id": "runtime-runtime-a-inspect"
   }
 }

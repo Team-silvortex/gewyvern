@@ -73,7 +73,13 @@ pub fn lower_effect(
     effect: &Effect,
     context: &LoweringContext,
 ) -> Result<CommandPlan, LoweringError> {
-    if matches!(effect, Effect::UiFocus { .. }) {
+    if matches!(
+        effect,
+        Effect::UiFocus { .. }
+            | Effect::UiScrollIntoView { .. }
+            | Effect::UiAssertVisible { .. }
+            | Effect::UiAssertFocused { .. }
+    ) {
         return Err(LoweringError::FrontendLocalEffect);
     }
     let required_capability = match effect {
@@ -86,7 +92,12 @@ pub fn lower_effect(
         }
         Effect::RuntimeDeploy { .. } => CAPABILITY_RUNTIME_DEPLOY,
         Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL,
-        Effect::UiFocus { .. } => unreachable!("frontend-local effects returned before lowering"),
+        Effect::UiFocus { .. }
+        | Effect::UiScrollIntoView { .. }
+        | Effect::UiAssertVisible { .. }
+        | Effect::UiAssertFocused { .. } => {
+            unreachable!("frontend-local effects returned before lowering")
+        }
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
     };
     if !context.capabilities.contains(required_capability) {
@@ -109,7 +120,12 @@ pub fn lower_effect(
             target,
         } => plan_runtime_deploy(runtime_id, pipeline_kind, target.as_deref(), context)?,
         Effect::DebuggerCancel { session_id } => plan_debugger_cancel(session_id, context)?,
-        Effect::UiFocus { .. } => unreachable!("frontend-local effects returned before lowering"),
+        Effect::UiFocus { .. }
+        | Effect::UiScrollIntoView { .. }
+        | Effect::UiAssertVisible { .. }
+        | Effect::UiAssertFocused { .. } => {
+            unreachable!("frontend-local effects returned before lowering")
+        }
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
     };
     Ok(plan)
@@ -370,14 +386,18 @@ mod tests {
 
     #[test]
     fn frontend_presentation_effect_cannot_become_a_control_plane_plan() {
-        let program = lower(&parse(
+        for source in [
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
-        ))
-        .unwrap();
-        assert_eq!(
-            lower_effect(&program.function.effect, &context(CommandOrigin::Leselang)),
-            Err(LoweringError::FrontendLocalEffect)
-        );
+            "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
+        ] {
+            let program = lower(&parse(source)).unwrap();
+            assert_eq!(
+                lower_effect(&program.function.effect, &context(CommandOrigin::Leselang)),
+                Err(LoweringError::FrontendLocalEffect)
+            );
+        }
     }
 
     #[test]

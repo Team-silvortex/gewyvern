@@ -24,7 +24,7 @@ fn repo_source(relative: &str) -> String {
 }
 
 #[test]
-fn leselang_focus_is_a_typed_native_presentation_operation() {
+fn leselang_presentation_atoms_are_typed_native_operations() {
     let core = avalonia_source("Leserpent.RendererCore/Program.cs");
     let renderer = avalonia_source("Leserpent.Avalonia/AvaloniaDocumentRenderer.cs");
     let window = avalonia_source("Leserpent.Avalonia/MainWindow.cs");
@@ -33,13 +33,23 @@ fn leselang_focus_is_a_typed_native_presentation_operation() {
 
     assert!(core.contains("public sealed class UiPresentationOperation"));
     assert!(core.contains("UiPresentationOperationKind.Focus"));
+    assert!(core.contains("UiPresentationOperationKind.ScrollIntoView"));
+    assert!(core.contains("UiPresentationOperationKind.AssertVisible"));
+    assert!(core.contains("UiPresentationOperationKind.AssertFocused"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
     assert!(core.contains("UiPresentationValidation.UnfocusableTarget"));
     assert!(renderer.contains("PresentationAutomationResult ApplyPresentation"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetUnrealized"));
     assert!(renderer.contains("PresentationAutomationFailureCode.FocusRejected"));
+    assert!(renderer.contains("control!.BringIntoView()"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotVisible"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotFocused"));
+    assert!(renderer.contains("control.IsEffectivelyVisible"));
     assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
     assert!(app.contains("leselang_presentation=true"));
+    assert!(app.contains("scroll_into_view=true"));
+    assert!(app.contains("assert_visible=true"));
+    assert!(app.contains("assert_focused=true"));
     assert!(conformance.contains("presentation_focus=true"));
 }
 

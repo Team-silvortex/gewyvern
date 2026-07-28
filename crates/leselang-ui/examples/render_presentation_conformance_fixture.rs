@@ -18,6 +18,9 @@ struct Fixture<'a> {
     patch: &'a UiPatch,
     next: &'a UiDocument,
     presentation_operation: &'a UiPresentationOperation,
+    scroll_operation: &'a UiPresentationOperation,
+    assert_operation: &'a UiPresentationOperation,
+    focused_assert_operation: &'a UiPresentationOperation,
 }
 
 fn main() {
@@ -35,13 +38,28 @@ fn main() {
     let presentation_operation = UiPresentationOperation::Focus {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
+    let scroll_operation = UiPresentationOperation::ScrollIntoView {
+        node_id: NodeId::new("fleet-title").unwrap(),
+    };
+    let assert_operation = UiPresentationOperation::AssertVisible {
+        node_id: NodeId::new("fleet-title").unwrap(),
+    };
+    let focused_assert_operation = UiPresentationOperation::AssertFocused {
+        node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+    };
     validate_presentation_operation(&next, &presentation_operation).unwrap();
+    validate_presentation_operation(&next, &scroll_operation).unwrap();
+    validate_presentation_operation(&next, &assert_operation).unwrap();
+    validate_presentation_operation(&next, &focused_assert_operation).unwrap();
     let bytes = serde_json::to_vec_pretty(&Fixture {
         schema_version: 1,
         previous: &previous,
         patch: &patch,
         next: &next,
         presentation_operation: &presentation_operation,
+        scroll_operation: &scroll_operation,
+        assert_operation: &assert_operation,
+        focused_assert_operation: &focused_assert_operation,
     })
     .unwrap();
     if let Some(parent) = output.parent() {

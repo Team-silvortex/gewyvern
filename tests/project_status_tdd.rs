@@ -2723,7 +2723,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.3.0");
+    assert_eq!(ui.contract.version, "1.6.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2742,7 +2742,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }
     assert!(ui.blockers.is_empty());
     assert!(ui.next_gate.contains("presentation"));
-    assert!(ui.next_gate.contains("focus"));
+    assert!(ui.next_gate.contains("navigation"));
 
     let syntax = catalog
         .cells
@@ -2773,10 +2773,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.17.0");
+    assert_eq!(hir.contract.version, "0.20.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
+        "ui-scroll-into-view-effect",
+        "ui-assert-visible-effect",
+        "ui-assert-focused-effect",
         "ui-presentation-capability",
         "canonical-effect-roundtrip",
         "single-allocation-name-deduplication",
@@ -2796,12 +2799,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.2.0");
+    assert_eq!(vm.contract.version, "1.5.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
         "typed-presentation-envelope",
         "typed-ui-focus-result",
+        "typed-ui-scroll-into-view-result",
+        "typed-ui-assert-visible-result",
+        "typed-ui-assert-focused-result",
+        "presentation-operation-identity-binding",
         "allocation-free-continuation-size-validation",
         "bounded-language-pipeline-benchmark",
     ] {

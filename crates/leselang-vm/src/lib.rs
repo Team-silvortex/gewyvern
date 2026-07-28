@@ -105,6 +105,9 @@ pub struct PresentationEnvelope {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PresentationOperation {
     Focus { node_id: String },
+    ScrollIntoView { node_id: String },
+    AssertVisible { node_id: String },
+    AssertFocused { node_id: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -122,6 +125,9 @@ pub enum EffectResult {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PresentationResult {
     Focus { node_id: String },
+    ScrollIntoView { node_id: String },
+    AssertVisible { node_id: String },
+    AssertFocused { node_id: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -370,6 +376,15 @@ pub enum Value {
         result: DebuggerCancelResult,
     },
     UiFocus {
+        node_id: String,
+    },
+    UiScrollIntoView {
+        node_id: String,
+    },
+    UiAssertVisible {
+        node_id: String,
+    },
+    UiAssertFocused {
         node_id: String,
     },
     Structured {
@@ -663,6 +678,39 @@ impl Vm {
                     principal,
                     capabilities,
                     operation: PresentationOperation::Focus {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiScrollIntoView { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::ScrollIntoView {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertVisible { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertVisible {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertFocused { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertFocused {
                         node_id: node_id.clone(),
                     },
                 }),
@@ -1211,6 +1259,9 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::RuntimeDeploy { .. } => Type::RuntimeDeploy,
         Effect::DebuggerCancel { .. } => Type::DebuggerCancel,
         Effect::UiFocus { .. } => Type::UiFocus,
+        Effect::UiScrollIntoView { .. } => Type::UiScrollIntoView,
+        Effect::UiAssertVisible { .. } => Type::UiAssertVisible,
+        Effect::UiAssertFocused { .. } => Type::UiAssertFocused,
         Effect::All { .. } => {
             return Err(Fault {
                 code: "LSV2015".to_string(),
@@ -1446,6 +1497,51 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             matches!(
                 &presentation.operation,
                 PresentationOperation::Focus {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiScrollIntoView { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::ScrollIntoView {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiAssertVisible { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertVisible {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiAssertFocused { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertFocused {
                     node_id: operation_node_id,
                 } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
             )
@@ -1730,6 +1826,9 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             Ok(1)
         }
         Value::UiFocus { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiScrollIntoView { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertVisible { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::Structured { fields } if (2..=MAX_MERGE_BRANCHES).contains(&fields.len()) => {
             let mut names = BTreeSet::new();
             let mut output_items = 0usize;
@@ -2009,6 +2108,78 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiFocus {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiScrollIntoView { node_id },
+            Type::UiScrollIntoView,
+            operation,
+            EffectResult::Presentation(PresentationResult::ScrollIntoView {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::ScrollIntoView {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiScrollIntoView {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiAssertVisible { node_id },
+            Type::UiAssertVisible,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertVisible {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertVisible {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertVisible {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiAssertFocused { node_id },
+            Type::UiAssertFocused,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertFocused {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertFocused {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertFocused {
                 node_id: result_node_id,
             })
         }
@@ -2355,6 +2526,151 @@ mod tests {
             node_id: "other-action".into(),
         };
         assert!(validate_effect_request(&request).is_err());
+    }
+
+    #[test]
+    fn ui_scroll_into_view_uses_a_distinct_typed_presentation_round_trip() {
+        let program = lower(&parse(
+            "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI scroll effect");
+        };
+        assert_eq!(request.required_capability, CAPABILITY_UI_PRESENTATION);
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI scroll must not become a query or command");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::ScrollIntoView { node_id }
+                if node_id == "runtime-a:card"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::ScrollIntoView {
+                    node_id: "runtime-a:card".into(),
+                }),
+            ),
+            Step::Done(Value::UiScrollIntoView {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI scroll must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::Focus {
+            node_id: "runtime-a:card".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_visible_reenters_only_from_its_matching_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI visibility assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI visibility assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertVisible { node_id }
+                if node_id == "runtime-a:card"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertVisible {
+                    node_id: "runtime-a:card".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertVisible {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI visibility assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::ScrollIntoView {
+            node_id: "runtime-a:card".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_focused_reenters_only_from_its_matching_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI focus assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI focus assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertFocused { node_id }
+                if node_id == "runtime-a:refresh"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFocused {
+                    node_id: "runtime-a:refresh".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertFocused {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI focus assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertVisible {
+            node_id: "runtime-a:refresh".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
     }
 
     #[test]

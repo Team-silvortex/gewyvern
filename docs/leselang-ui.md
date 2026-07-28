@@ -151,20 +151,30 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is now joined by the first presentation atom:
-`UiPresentationOperation::Focus`. Rust maps it one-to-one to
-`ui.focus(node_id: ...)`, validates that the stable node exists and represents
-an interactive action, and maps it back without creating a `UiEvent` or
-`CommandPlan`. The VM carries it in a capability-gated presentation envelope.
-Avalonia validates the same operation in RendererCore, resolves the stable ID
-through its visual index, and distinguishes unknown, unfocusable, unrealized,
-and platform-rejected targets. Its real-window probe proves native focus,
-remount/patch retention, and safe target removal.
+Semantic action equivalence is joined by four presentation atoms.
+`UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
+and requires an interactive action. `UiPresentationOperation::ScrollIntoView`
+maps one-to-one to `ui.scroll_into_view(node_id: ...)` and accepts any existing
+semantic node. `UiPresentationOperation::AssertVisible` maps one-to-one to
+`ui.assert_visible(node_id: ...)` and accepts any existing semantic node.
+`UiPresentationOperation::AssertFocused` maps one-to-one to
+`ui.assert_focused(node_id: ...)` and requires an interactive action. None can
+become a `UiEvent` or `CommandPlan`; all four travel in capability-gated
+VM presentation envelopes and return operation-specific typed results.
 
-This is not yet complete presentation automation. Selection, scrolling,
-navigation, window lifetime, state waits, and UI assertions remain future typed
-operations; renderers must not emulate them by turning coordinates or arbitrary
-scripts into control-plane commands.
+Avalonia resolves all four operations through its stable visual index. Focus
+uses native `Control.Focus()`, while scrolling uses native `BringIntoView()`
+without changing focus or activating an action. Visibility assertion requires
+a realized control that is effectively visible, has nonzero layout bounds, and
+intersects the renderer viewport. Focus assertion reads native
+`Control.IsFocused` and never changes focus. The real-window probe covers
+native application, hidden, unfocused, missing, and unfocusable targets, focus
+preservation, remount/patch retention, and safe target removal.
+
+This is not yet complete presentation automation. Selection, navigation,
+window lifetime, and additional state waits or assertions remain future typed
+operations; renderers must not emulate them with coordinates, arbitrary
+scripts, or control-plane commands.
 
 ## Patches
 

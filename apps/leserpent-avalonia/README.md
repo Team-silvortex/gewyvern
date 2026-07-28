@@ -36,10 +36,15 @@ the previous document, applies every incremental operation, and compares its
 semantic tree with the Rust-produced next document. The frozen primary fixture
 remains the version-1 compatibility baseline.
 
-The separate candidate fixture carries a Rust-generated
-`UiPresentationOperation::Focus`. RendererCore strictly round-trips it and
-validates valid, missing, and noninteractive targets before the Avalonia shell
-proves native focus through its stable visual index:
+The separate candidate fixture carries Rust-generated
+`UiPresentationOperation::Focus`, `ScrollIntoView`, `AssertVisible`, and
+`AssertFocused` values. RendererCore strictly round-trips all four and validates
+valid, missing, and noninteractive targets before the Avalonia shell proves
+native focus, bring-into-view, viewport-aware visibility, and side-effect-free
+focus observation through its stable visual index. Scrolling a noninteractive
+node must preserve the currently focused control, hiding the renderer surface
+must make visibility assertion fail, and an unfocused action must make focus
+assertion fail without moving focus:
 
 ```bash
 cargo run --quiet -p leselang-ui \

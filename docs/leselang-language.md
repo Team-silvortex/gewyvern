@@ -11,7 +11,8 @@ serializes, restores, and resumes the read-only
 `runtime.list`, `runtime.inspect`, `runtime.history`, and `runtime.logs` effects
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
-plus the frontend-local `ui.focus` presentation effect.
+plus the frontend-local `ui.focus`, `ui.scroll_into_view`,
+`ui.assert_visible`, and `ui.assert_focused` presentation effects.
 
 ## Canonical Program
 
@@ -112,6 +113,44 @@ validate the target against its current `UiDocument`, require a focusable
 semantic action node, and return a typed result only after native focus succeeds.
 Missing, noninteractive, unrealized, or platform-rejected targets fail without
 activating the action or changing control-plane state.
+
+Stable-node scrolling uses the same presentation boundary:
+
+```leselang
+fn main() = ui.scroll_into_view(node_id: "runtime-runtime-a")
+```
+
+`ui.scroll_into_view` requires `ui.presentation` and accepts any node present in
+the current `UiDocument`, including noninteractive headings and containers. The
+renderer resolves the stable ID and invokes its native bring-into-view
+primitive. Missing or unrealized nodes fail explicitly. Scrolling does not
+focus, select, or activate the node.
+
+Native visibility can be asserted without frontend-side guessing:
+
+```leselang
+fn main() = ui.assert_visible(node_id: "runtime-runtime-a")
+```
+
+`ui.assert_visible` requires `ui.presentation`. The semantic node must exist,
+then the renderer must prove that its native control is realized, effectively
+visible through its ancestor chain, has nonzero layout bounds, and intersects
+the renderer viewport. A hidden, unrealized, missing, or off-viewport target
+does not produce a successful presentation result. The assertion does not
+focus, scroll, select, or activate the target.
+
+Native keyboard focus can be asserted without changing it:
+
+```leselang
+fn main() = ui.assert_focused(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.assert_focused` requires `ui.presentation` and a focusable semantic action
+node in the current `UiDocument`. The renderer must resolve the realized native
+control and return success only when the platform reports that exact control as
+focused. Missing, noninteractive, unrealized, or unfocused targets fail. The
+assertion never calls the platform focus primitive and does not activate,
+scroll, or otherwise mutate the target.
 
 Every atomic HIR effect has one Rust-owned canonical source representation.
 Parsing and lowering that source must reproduce the same effect. GUI event

@@ -46,10 +46,55 @@ var decodedOperation = JsonSerializer.Deserialize(
     operationPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("presentation operation round trip failed");
+var scrollOperation = fixture.ScrollOperation
+    ?? throw new InvalidDataException("presentation fixture contains no scroll operation");
+var scrollPayload = JsonSerializer.SerializeToUtf8Bytes(
+    scrollOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedScrollOperation = JsonSerializer.Deserialize(
+    scrollPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("scroll operation round trip failed");
+var assertOperation = fixture.AssertOperation
+    ?? throw new InvalidDataException("presentation fixture contains no assert operation");
+var assertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    assertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedAssertOperation = JsonSerializer.Deserialize(
+    assertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("assert operation round trip failed");
+var focusedAssertOperation = fixture.FocusedAssertOperation
+    ?? throw new InvalidDataException("presentation fixture contains no focused assert operation");
+var focusedAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    focusedAssertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedFocusedAssertOperation = JsonSerializer.Deserialize(
+    focusedAssertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("focused assert operation round trip failed");
 if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedScrollOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFocusedAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
         Kind = UiPresentationOperationKind.Focus,
+        NodeId = "missing-presentation-target",
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.ScrollIntoView,
+        NodeId = "missing-presentation-target",
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertVisible,
+        NodeId = "missing-presentation-target",
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertFocused,
         NodeId = "missing-presentation-target",
     }) != UiPresentationValidation.UnknownTarget
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
@@ -62,7 +107,7 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_focused=true, strict_codec=true");
 return 0;
 
 static byte[] ReadBoundedFixture(string path)

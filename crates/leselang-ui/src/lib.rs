@@ -294,6 +294,9 @@ pub enum DebuggerEffectKind {
     RuntimeDeploy,
     DebuggerCancel,
     UiFocus,
+    UiScrollIntoView,
+    UiAssertVisible,
+    UiAssertFocused,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -403,6 +406,9 @@ pub enum UiEventKind {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UiPresentationOperation {
     Focus { node_id: NodeId },
+    ScrollIntoView { node_id: NodeId },
+    AssertVisible { node_id: NodeId },
+    AssertFocused { node_id: NodeId },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1065,7 +1071,10 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
         let binding_valid = match effect.kind {
             DebuggerEffectKind::RuntimeList
             | DebuggerEffectKind::DebuggerCancel
-            | DebuggerEffectKind::UiFocus => effect.runtime_id.is_none(),
+            | DebuggerEffectKind::UiFocus
+            | DebuggerEffectKind::UiScrollIntoView
+            | DebuggerEffectKind::UiAssertVisible
+            | DebuggerEffectKind::UiAssertFocused => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
             | DebuggerEffectKind::RuntimeHistory
             | DebuggerEffectKind::RuntimeLogs
@@ -1165,6 +1174,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeDeploy => "runtime deploy",
             DebuggerEffectKind::DebuggerCancel => "debugger cancel",
             DebuggerEffectKind::UiFocus => "UI focus",
+            DebuggerEffectKind::UiScrollIntoView => "UI scroll into view",
+            DebuggerEffectKind::UiAssertVisible => "UI assert visible",
+            DebuggerEffectKind::UiAssertFocused => "UI assert focused",
         };
         children.push(text_node(
             &format!("{prefix}-pending-effect"),
@@ -1330,11 +1342,20 @@ pub fn presentation_operation_for_effect(
     document: &UiDocument,
     effect: &Effect,
 ) -> Result<UiPresentationOperation, UiError> {
-    let Effect::UiFocus { node_id } = effect else {
-        return Err(UiError::InvalidAutomationEffect);
-    };
-    let operation = UiPresentationOperation::Focus {
-        node_id: NodeId::new(node_id.clone())?,
+    let operation = match effect {
+        Effect::UiFocus { node_id } => UiPresentationOperation::Focus {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiScrollIntoView { node_id } => UiPresentationOperation::ScrollIntoView {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiAssertVisible { node_id } => UiPresentationOperation::AssertVisible {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiAssertFocused { node_id } => UiPresentationOperation::AssertFocused {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        _ => return Err(UiError::InvalidAutomationEffect),
     };
     validate_presentation_operation(document, &operation)?;
     Ok(operation)
@@ -1345,9 +1366,19 @@ pub fn effect_for_presentation_operation(
     operation: &UiPresentationOperation,
 ) -> Result<Effect, UiError> {
     validate_presentation_operation(document, operation)?;
-    let UiPresentationOperation::Focus { node_id } = operation;
-    Ok(Effect::UiFocus {
-        node_id: node_id.as_str().to_string(),
+    Ok(match operation {
+        UiPresentationOperation::Focus { node_id } => Effect::UiFocus {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::ScrollIntoView { node_id } => Effect::UiScrollIntoView {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::AssertVisible { node_id } => Effect::UiAssertVisible {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::AssertFocused { node_id } => Effect::UiAssertFocused {
+            node_id: node_id.as_str().to_string(),
+        },
     })
 }
 
@@ -1356,12 +1387,21 @@ pub fn validate_presentation_operation(
     operation: &UiPresentationOperation,
 ) -> Result<(), UiError> {
     validate_document(document)?;
-    let UiPresentationOperation::Focus { node_id } = operation;
+    let node_id = match operation {
+        UiPresentationOperation::Focus { node_id }
+        | UiPresentationOperation::ScrollIntoView { node_id }
+        | UiPresentationOperation::AssertVisible { node_id }
+        | UiPresentationOperation::AssertFocused { node_id } => node_id,
+    };
     let node =
         find_node(&document.root, node_id).ok_or_else(|| UiError::UnknownPresentationTarget {
             node_id: node_id.as_str().to_string(),
         })?;
-    if node.kind != UiNodeKind::Action || node.action.is_none() {
+    if matches!(
+        operation,
+        UiPresentationOperation::Focus { .. } | UiPresentationOperation::AssertFocused { .. }
+    ) && (node.kind != UiNodeKind::Action || node.action.is_none())
+    {
         return Err(UiError::UnfocusablePresentationTarget {
             node_id: node_id.as_str().to_string(),
         });
@@ -2444,6 +2484,120 @@ mod tests {
             validate_presentation_operation(
                 &document,
                 &UiPresentationOperation::Focus {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: "fleet-title".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn scroll_presentation_round_trips_for_noninteractive_nodes() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::ScrollIntoView {
+            node_id: NodeId::new("fleet-title").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiScrollIntoView {
+                node_id: "fleet-title".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.scroll_into_view(node_id: \"fleet-title\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::ScrollIntoView {
+                    node_id: NodeId::new("missing-presentation-target").unwrap(),
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget {
+                node_id: "missing-presentation-target".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn visible_assertion_round_trips_without_frontend_visibility_guessing() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertVisible {
+            node_id: NodeId::new("fleet-title").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertVisible {
+                node_id: "fleet-title".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_visible(node_id: \"fleet-title\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertVisible {
+                    node_id: NodeId::new("missing-presentation-target").unwrap(),
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget {
+                node_id: "missing-presentation-target".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn focused_assertion_round_trips_and_requires_an_interactive_target() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertFocused {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertFocused {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_focused(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFocused {
                     node_id: NodeId::new("fleet-title").unwrap(),
                 },
             ),
