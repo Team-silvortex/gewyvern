@@ -1665,16 +1665,24 @@ the current `UiAction` enum.
 
 Presentation parity uses a separate, non-command path.
 `ui.focus(node_id: ...)`, `ui.scroll_into_view(node_id: ...)`, and
-`ui.assert_visible(node_id: ...)`, plus `ui.assert_focused(node_id: ...)` lower
-to operation-specific values inside a capability-gated VM
+`ui.assert_visible(node_id: ...)`, plus `ui.assert_focused(node_id: ...)` and
+`ui.assert_enabled(node_id: ...)`, plus
+`ui.assert_text(node_id: ..., expected: ...)` and
+`ui.assert_accessible_name(node_id: ..., expected: ...)` lower to
+operation-specific values inside a capability-gated VM
 `PresentationEnvelope`, then to renderer-neutral `UiPresentationOperation`
 variants. None can become a `CommandPlan`. Avalonia validates the semantic
 target and resolves the stable node ID. Focus and scrolling use native
 operations, visibility assertion checks realized layout and viewport state,
-and focus assertion reads native focus without changing it. Scrolling accepts
-noninteractive nodes and preserves keyboard focus. Selection, navigation,
-windows, waits, and additional state assertions remain unimplemented rather
-than being approximated with coordinates or scripts.
+focus assertion reads native focus, and enabled assertion reads effective
+native availability without changing it. Text assertion compares bounded,
+control-free expected text against the actual native `TextBlock.Text` or string
+`Button.Content` with exact ordinal semantics. Scrolling accepts noninteractive
+nodes and preserves keyboard focus. Accessible-name assertion separately reads
+the native platform automation name for any realized semantic node. Selection,
+navigation, windows, waits, and
+additional state assertions remain unimplemented rather than being
+approximated with coordinates, OCR, or scripts.
 
 ## Process And Transport Boundaries
 

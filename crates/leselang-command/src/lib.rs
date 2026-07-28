@@ -79,6 +79,9 @@ pub fn lower_effect(
             | Effect::UiScrollIntoView { .. }
             | Effect::UiAssertVisible { .. }
             | Effect::UiAssertFocused { .. }
+            | Effect::UiAssertEnabled { .. }
+            | Effect::UiAssertText { .. }
+            | Effect::UiAssertAccessibleName { .. }
     ) {
         return Err(LoweringError::FrontendLocalEffect);
     }
@@ -95,7 +98,10 @@ pub fn lower_effect(
         Effect::UiFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
-        | Effect::UiAssertFocused { .. } => {
+        | Effect::UiAssertFocused { .. }
+        | Effect::UiAssertEnabled { .. }
+        | Effect::UiAssertText { .. }
+        | Effect::UiAssertAccessibleName { .. } => {
             unreachable!("frontend-local effects returned before lowering")
         }
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
@@ -123,7 +129,10 @@ pub fn lower_effect(
         Effect::UiFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
-        | Effect::UiAssertFocused { .. } => {
+        | Effect::UiAssertFocused { .. }
+        | Effect::UiAssertEnabled { .. }
+        | Effect::UiAssertText { .. }
+        | Effect::UiAssertAccessibleName { .. } => {
             unreachable!("frontend-local effects returned before lowering")
         }
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
@@ -391,6 +400,9 @@ mod tests {
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
         ] {
             let program = lower(&parse(source)).unwrap();
             assert_eq!(

@@ -624,5 +624,19 @@
   "focused_assert_operation": {
     "kind": "assert_focused",
     "node_id": "runtime-runtime-a-inspect"
+  },
+  "enabled_assert_operation": {
+    "kind": "assert_enabled",
+    "node_id": "runtime-runtime-a-refresh"
+  },
+  "text_assert_operation": {
+    "kind": "assert_text",
+    "node_id": "fleet-title",
+    "expected": "Runtime fleet"
+  },
+  "accessible_name_assert_operation": {
+    "kind": "assert_accessible_name",
+    "node_id": "fleet-title",
+    "expected": "Runtime fleet"
   }
 }

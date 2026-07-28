@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -83,6 +84,18 @@ public sealed class SemanticRenderer
         {
             return UiPresentationValidation.UnknownTarget;
         }
+        if (operation.Kind is UiPresentationOperationKind.AssertText
+            or UiPresentationOperationKind.AssertAccessibleName)
+        {
+            if (!IsExpectedText(operation.Expected))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+        }
+        else if (operation.Expected is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedText;
+        }
         var node = Find(Document.Root, operation.NodeId);
         if (node is null)
         {
@@ -92,15 +105,34 @@ public sealed class SemanticRenderer
         {
             UiPresentationOperationKind.Focus
             or UiPresentationOperationKind.AssertFocused
+            or UiPresentationOperationKind.AssertEnabled
                 when node.Kind == UiNodeKind.Action && node.Action is not null =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.ScrollIntoView =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertVisible =>
                 UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertText
+                when node.Text is not null
+                    && node.Kind is UiNodeKind.Heading
+                        or UiNodeKind.Text
+                        or UiNodeKind.HistoryEntry
+                        or UiNodeKind.LogEntry
+                        or UiNodeKind.DebuggerFrame
+                        or UiNodeKind.Action =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertAccessibleName =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertText =>
+                UiPresentationValidation.TextlessTarget,
             _ => UiPresentationValidation.UnfocusableTarget,
         };
     }
+
+    private static bool IsExpectedText(string? value) =>
+        value is not null
+        && Encoding.UTF8.GetByteCount(value) <= 1024
+        && !value.Any(char.IsControl);
 
     private void ApplyOperation(UiPatchOperation operation)
     {
@@ -381,6 +413,9 @@ public sealed class RendererFixture
     public UiPresentationOperation? ScrollOperation { get; set; }
     public UiPresentationOperation? AssertOperation { get; set; }
     public UiPresentationOperation? FocusedAssertOperation { get; set; }
+    public UiPresentationOperation? EnabledAssertOperation { get; set; }
+    public UiPresentationOperation? TextAssertOperation { get; set; }
+    public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -459,6 +494,7 @@ public sealed class UiPresentationOperation
 {
     public UiPresentationOperationKind Kind { get; set; }
     public required string NodeId { get; set; }
+    public string? Expected { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -527,6 +563,9 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
     [JsonStringEnumMemberName("assert_visible")] AssertVisible,
     [JsonStringEnumMemberName("assert_focused")] AssertFocused,
+    [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
+    [JsonStringEnumMemberName("assert_text")] AssertText,
+    [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
 }
 
 public enum UiPresentationValidation
@@ -534,6 +573,8 @@ public enum UiPresentationValidation
     Valid,
     UnknownTarget,
     UnfocusableTarget,
+    TextlessTarget,
+    InvalidExpectedText,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PatchKind>))]

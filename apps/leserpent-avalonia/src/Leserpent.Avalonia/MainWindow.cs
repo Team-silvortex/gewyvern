@@ -153,6 +153,97 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang focus assertion accepted an unfocused action or changed focus");
         }
+        var enabledNodeId = renderer.FirstRealizedActionNodeIdFor(ActionKind.RuntimeRefresh)
+            ?? throw new InvalidDataException("enabled assertion probe requires a refresh action");
+        var enabled = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertEnabled,
+            NodeId = enabledNodeId,
+        });
+        if (!enabled.Applied
+            || enabled.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang enabled assertion rejected an enabled action or changed focus");
+        }
+        renderer.SetActionAvailability(
+            ActionKind.RuntimeRefresh,
+            false,
+            "Verification action is temporarily unavailable");
+        var disabled = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertEnabled,
+            NodeId = enabledNodeId,
+        });
+        renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null);
+        if (disabled.Applied
+            || disabled.FailureCode != PresentationAutomationFailureCode.TargetNotEnabled
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang enabled assertion accepted a disabled action or changed focus");
+        }
+        var textNode = FindFirstTextNode(renderer.Document.Root)
+            ?? throw new InvalidDataException("text assertion probe requires a text leaf");
+        var expectedText = textNode.Text?.Fallback
+            ?? throw new InvalidDataException("text assertion target has no semantic text");
+        var textMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertText,
+            NodeId = textNode.Id,
+            Expected = expectedText,
+        });
+        if (!textMatched.Applied
+            || textMatched.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang text assertion rejected native display text or changed focus");
+        }
+        var textMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertText,
+            NodeId = textNode.Id,
+            Expected = $"{expectedText} mismatch",
+        });
+        if (textMismatch.Applied
+            || textMismatch.FailureCode != PresentationAutomationFailureCode.TargetTextMismatch
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang text assertion accepted mismatched native display text or changed focus");
+        }
+        var expectedAccessibleName = textNode.Accessibility.Label?.Fallback
+            ?? textNode.Text?.Fallback
+            ?? textNode.Id;
+        var accessibleNameMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertAccessibleName,
+            NodeId = textNode.Id,
+            Expected = expectedAccessibleName,
+        });
+        if (!accessibleNameMatched.Applied
+            || accessibleNameMatched.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible name assertion rejected native automation metadata or changed focus");
+        }
+        var accessibleNameMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertAccessibleName,
+            NodeId = textNode.Id,
+            Expected = $"{expectedAccessibleName} mismatch",
+        });
+        if (accessibleNameMismatch.Applied
+            || accessibleNameMismatch.FailureCode
+                != PresentationAutomationFailureCode.TargetAccessibleNameMismatch
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible name assertion accepted mismatched native metadata or changed focus");
+        }
         var missing = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.Focus,
@@ -254,6 +345,28 @@ internal sealed class MainWindow : Window
             if (FindFirstNonActionNodeId(child) is { } nodeId)
             {
                 return nodeId;
+            }
+        }
+        return null;
+    }
+
+    private static UiNode? FindFirstTextNode(UiNode node)
+    {
+        if (node.Text is not null
+            && node.Kind is UiNodeKind.Heading
+                or UiNodeKind.Text
+                or UiNodeKind.HistoryEntry
+                or UiNodeKind.LogEntry
+                or UiNodeKind.DebuggerFrame
+                or UiNodeKind.Action)
+        {
+            return node;
+        }
+        foreach (var child in node.Children)
+        {
+            if (FindFirstTextNode(child) is { } match)
+            {
+                return match;
             }
         }
         return null;

@@ -12,7 +12,8 @@ serializes, restores, and resumes the read-only
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
 plus the frontend-local `ui.focus`, `ui.scroll_into_view`,
-`ui.assert_visible`, and `ui.assert_focused` presentation effects.
+`ui.assert_visible`, `ui.assert_focused`, `ui.assert_enabled`, and
+`ui.assert_text`, plus `ui.assert_accessible_name` presentation effects.
 
 ## Canonical Program
 
@@ -151,6 +152,49 @@ control and return success only when the platform reports that exact control as
 focused. Missing, noninteractive, unrealized, or unfocused targets fail. The
 assertion never calls the platform focus primitive and does not activate,
 scroll, or otherwise mutate the target.
+
+Native action availability can be asserted without activating the action:
+
+```leselang
+fn main() = ui.assert_enabled(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.assert_enabled` requires `ui.presentation` and an action node in the
+current `UiDocument`. The renderer resolves its realized native control and
+returns success only when the platform reports it effectively enabled,
+including ancestor state. Missing, noninteractive, unrealized, or disabled
+targets fail. The assertion never focuses, activates, or changes availability.
+
+Native displayed text can be asserted without OCR or coordinate inspection:
+
+```leselang
+fn main() = ui.assert_text(
+  node_id: "fleet-title",
+  expected: "Runtime fleet"
+)
+```
+
+`ui.assert_text` requires `ui.presentation`, a text-rendering semantic node,
+and an expected value of at most 1024 UTF-8 bytes with no control characters.
+The VM binds the expected value to the request and result, while the renderer
+reads the realized native `TextBlock.Text` or string `Button.Content` and
+requires an exact ordinal match. Missing, textless, unrealized, or mismatched
+targets fail. The assertion never focuses, activates, scrolls, or changes text.
+
+Native accessibility metadata can be asserted independently of display text:
+
+```leselang
+fn main() = ui.assert_accessible_name(
+  node_id: "fleet-title",
+  expected: "Runtime fleet"
+)
+```
+
+`ui.assert_accessible_name` requires `ui.presentation`, any existing semantic
+node, and the same bounded control-free expected-text contract. The renderer
+must read the realized platform accessibility name and require an exact ordinal
+match. It does not infer success from semantic text, focus, activate, scroll, or
+change accessibility metadata.
 
 Every atomic HIR effect has one Rust-owned canonical source representation.
 Parsing and lowering that source must reproduce the same effect. GUI event

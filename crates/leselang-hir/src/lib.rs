@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 pub const MAX_ALL_BRANCHES: usize = 64;
 pub const MAX_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
+pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -74,6 +75,17 @@ pub enum Effect {
     UiAssertFocused {
         node_id: String,
     },
+    UiAssertEnabled {
+        node_id: String,
+    },
+    UiAssertText {
+        node_id: String,
+        expected: String,
+    },
+    UiAssertAccessibleName {
+        node_id: String,
+        expected: String,
+    },
     All {
         branches: Vec<HirBranch>,
     },
@@ -94,6 +106,9 @@ pub enum Type {
     UiScrollIntoView,
     UiAssertVisible,
     UiAssertFocused,
+    UiAssertEnabled,
+    UiAssertText,
+    UiAssertAccessibleName,
     Structured,
 }
 
@@ -172,7 +187,10 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.focus"
         | "ui.scroll_into_view"
         | "ui.assert_visible"
-        | "ui.assert_focused" => lower_atomic_effect(callee, arguments, *span),
+        | "ui.assert_focused"
+        | "ui.assert_enabled"
+        | "ui.assert_text"
+        | "ui.assert_accessible_name" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -194,6 +212,7 @@ fn lower_atomic_effect(
     let mut target = None;
     let mut session_id = None;
     let mut node_id = None;
+    let mut expected_text = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
         if !seen.insert(argument.name.as_str()) {
@@ -297,6 +316,51 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_enabled", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1120".to_string(),
+                    message: "ui.assert_enabled node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_text", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1122".to_string(),
+                    message: "ui.assert_text node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_text", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1123".to_string(),
+                    message: "ui.assert_text expected must be bounded display text".to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_accessible_name", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1126".to_string(),
+                    message:
+                        "ui.assert_accessible_name node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_accessible_name", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1127".to_string(),
+                    message:
+                        "ui.assert_accessible_name expected must be bounded display text".to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             _ => diagnostics.push(Diagnostic {
                 code: "LSH1103".to_string(),
                 message: format!("unknown {callee} argument '{}'", argument.name),
@@ -360,6 +424,41 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1119".to_string(),
             message: "ui.assert_focused requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_enabled" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1121".to_string(),
+            message: "ui.assert_enabled requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_text" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1124".to_string(),
+            message: "ui.assert_text requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_text" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1125".to_string(),
+            message: "ui.assert_text requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_accessible_name" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1128".to_string(),
+            message: "ui.assert_accessible_name requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_accessible_name" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1129".to_string(),
+            message: "ui.assert_accessible_name requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -476,6 +575,29 @@ fn lower_atomic_effect(
             Type::UiAssertFocused,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_enabled" => (
+            Effect::UiAssertEnabled {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertEnabled,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_text" => (
+            Effect::UiAssertText {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected text"),
+            },
+            Type::UiAssertText,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_accessible_name" => (
+            Effect::UiAssertAccessibleName {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected accessible name"),
+            },
+            Type::UiAssertAccessibleName,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         _ => unreachable!("unknown effects returned above"),
     };
     Ok(LoweredEffect {
@@ -554,6 +676,25 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiAssertFocused { node_id } => {
             atomic_identifier_source("ui.assert_focused", "node_id", node_id, depth)
         }
+        Effect::UiAssertEnabled { node_id } => {
+            atomic_identifier_source("ui.assert_enabled", "node_id", node_id, depth)
+        }
+        Effect::UiAssertText { node_id, expected } => format!(
+            "ui.assert_text(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiAssertAccessibleName { node_id, expected } => format!(
+            "ui.assert_accessible_name(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
         Effect::All { branches } => {
             let mut source = String::from("all(\n");
             for branch in branches {
@@ -576,6 +717,10 @@ pub fn validate_ui_node_id(node_id: &str) -> bool {
         && node_id
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
+
+pub fn validate_ui_expected_text(expected: &str) -> bool {
+    expected.len() <= MAX_UI_EXPECTED_TEXT_BYTES && !expected.chars().any(char::is_control)
 }
 
 fn atomic_identifier_source(callee: &str, argument: &str, value: &str, depth: usize) -> String {
@@ -1064,6 +1209,121 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_enabled_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertEnabled);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertEnabled { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_enabled()",
+            "fn main() = ui.assert_enabled(node_id: none)",
+            "fn main() = ui.assert_enabled(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_text_is_a_capability_gated_bounded_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertText);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertText {
+                ref node_id,
+                ref expected,
+            } if node_id == "fleet-title" && expected == "Runtime fleet"
+        ));
+        let canonical = canonical_source(&program.function.effect).unwrap();
+        assert_eq!(
+            lower(&parse(&canonical)).unwrap().function.effect,
+            program.function.effect
+        );
+
+        for source in [
+            "fn main() = ui.assert_text()",
+            "fn main() = ui.assert_text(node_id: \"fleet-title\")",
+            "fn main() = ui.assert_text(expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_text(node_id: \"bad/node\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: none)",
+            "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"bad\\ntext\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized = format!(
+            "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized)).is_err());
+    }
+
+    #[test]
+    fn ui_assert_accessible_name_is_capability_gated_and_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertAccessibleName);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertAccessibleName {
+                ref node_id,
+                ref expected,
+            } if node_id == "fleet-title" && expected == "Runtime fleet"
+        ));
+        let canonical = canonical_source(&program.function.effect).unwrap();
+        assert_eq!(
+            lower(&parse(&canonical)).unwrap().function.effect,
+            program.function.effect
+        );
+
+        for source in [
+            "fn main() = ui.assert_accessible_name()",
+            "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\")",
+            "fn main() = ui.assert_accessible_name(expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_accessible_name(node_id: \"bad/node\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: none)",
+            "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"bad\\nname\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn every_atomic_effect_has_one_semantically_stable_canonical_source() {
         for source in [
             "fn main() = runtime.list(environment: \"prod\", cluster: none, role: \"edge\")",
@@ -1078,6 +1338,9 @@ mod tests {
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
         ] {
             let effect = lower(&parse(source)).unwrap().function.effect;
             let canonical = canonical_source(&effect).unwrap();

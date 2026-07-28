@@ -1697,6 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
+    assert_eq!(avalonia.contract.version, "1.42.0");
     assert!(
         avalonia
             .contract
@@ -1707,6 +1708,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     for surface in [
         "strict-unregistration-receipt-client",
         "retained-receipt-horizon-binding",
+        "native-enabled-state-assertion",
+        "disabled-target-presentation-rejection",
+        "native-text-assertion",
+        "text-mismatch-presentation-rejection",
+        "native-accessible-name-assertion",
+        "accessible-name-mismatch-presentation-rejection",
     ] {
         assert!(
             avalonia
@@ -2723,7 +2730,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.6.0");
+    assert_eq!(ui.contract.version, "1.9.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2731,6 +2738,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "current-action-semantic-roundtrip",
         "same-topology-linear-diff",
         "relative-patch-performance-fence",
+        "ui-assert-enabled-presentation-roundtrip",
+        "ui-assert-text-presentation-roundtrip",
+        "ui-assert-accessible-name-presentation-roundtrip",
     ] {
         assert!(
             ui.contract
@@ -2773,13 +2783,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.20.0");
+    assert_eq!(hir.contract.version, "0.23.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
         "ui-scroll-into-view-effect",
         "ui-assert-visible-effect",
         "ui-assert-focused-effect",
+        "ui-assert-enabled-effect",
+        "ui-assert-text-effect",
+        "ui-assert-accessible-name-effect",
         "ui-presentation-capability",
         "canonical-effect-roundtrip",
         "single-allocation-name-deduplication",
@@ -2799,7 +2812,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.5.0");
+    assert_eq!(vm.contract.version, "1.8.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -2808,6 +2821,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-scroll-into-view-result",
         "typed-ui-assert-visible-result",
         "typed-ui-assert-focused-result",
+        "typed-ui-assert-enabled-result",
+        "typed-ui-assert-text-result",
+        "typed-ui-assert-accessible-name-result",
         "presentation-operation-identity-binding",
         "allocation-free-continuation-size-validation",
         "bounded-language-pipeline-benchmark",
@@ -2826,6 +2842,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 && evidence.state == EvidenceState::Present
         }));
     }
+
+    let command = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
+        .expect("Leserpent command lowering cell must exist");
+    assert_eq!(command.contract.version, "0.20.0");
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "multi-presentation-effect-rejection")
+    );
 
     let required_boundaries = [
         "boundary-leselang-syntax",

@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
-use leselang_hir::{Effect, HirBranch, Type, canonical_source, validate_ui_node_id};
+use leselang_hir::{
+    Effect, HirBranch, Type, canonical_source, validate_ui_expected_text, validate_ui_node_id,
+};
 use leserpent_domain::{
     CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
 };
@@ -297,6 +299,9 @@ pub enum DebuggerEffectKind {
     UiScrollIntoView,
     UiAssertVisible,
     UiAssertFocused,
+    UiAssertEnabled,
+    UiAssertText,
+    UiAssertAccessibleName,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -409,6 +414,9 @@ pub enum UiPresentationOperation {
     ScrollIntoView { node_id: NodeId },
     AssertVisible { node_id: NodeId },
     AssertFocused { node_id: NodeId },
+    AssertEnabled { node_id: NodeId },
+    AssertText { node_id: NodeId, expected: String },
+    AssertAccessibleName { node_id: NodeId, expected: String },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -506,6 +514,10 @@ pub enum UiError {
     UnfocusablePresentationTarget {
         node_id: String,
     },
+    TextlessPresentationTarget {
+        node_id: String,
+    },
+    InvalidPresentationText,
     Lowering(LoweringError),
 }
 
@@ -1074,7 +1086,10 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiFocus
             | DebuggerEffectKind::UiScrollIntoView
             | DebuggerEffectKind::UiAssertVisible
-            | DebuggerEffectKind::UiAssertFocused => effect.runtime_id.is_none(),
+            | DebuggerEffectKind::UiAssertFocused
+            | DebuggerEffectKind::UiAssertEnabled
+            | DebuggerEffectKind::UiAssertText
+            | DebuggerEffectKind::UiAssertAccessibleName => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
             | DebuggerEffectKind::RuntimeHistory
             | DebuggerEffectKind::RuntimeLogs
@@ -1177,6 +1192,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiScrollIntoView => "UI scroll into view",
             DebuggerEffectKind::UiAssertVisible => "UI assert visible",
             DebuggerEffectKind::UiAssertFocused => "UI assert focused",
+            DebuggerEffectKind::UiAssertEnabled => "UI assert enabled",
+            DebuggerEffectKind::UiAssertText => "UI assert text",
+            DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
         };
         children.push(text_node(
             &format!("{prefix}-pending-effect"),
@@ -1355,6 +1373,19 @@ pub fn presentation_operation_for_effect(
         Effect::UiAssertFocused { node_id } => UiPresentationOperation::AssertFocused {
             node_id: NodeId::new(node_id.clone())?,
         },
+        Effect::UiAssertEnabled { node_id } => UiPresentationOperation::AssertEnabled {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiAssertText { node_id, expected } => UiPresentationOperation::AssertText {
+            node_id: NodeId::new(node_id.clone())?,
+            expected: expected.clone(),
+        },
+        Effect::UiAssertAccessibleName { node_id, expected } => {
+            UiPresentationOperation::AssertAccessibleName {
+                node_id: NodeId::new(node_id.clone())?,
+                expected: expected.clone(),
+            }
+        }
         _ => return Err(UiError::InvalidAutomationEffect),
     };
     validate_presentation_operation(document, &operation)?;
@@ -1379,6 +1410,19 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::AssertFocused { node_id } => Effect::UiAssertFocused {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::AssertEnabled { node_id } => Effect::UiAssertEnabled {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::AssertText { node_id, expected } => Effect::UiAssertText {
+            node_id: node_id.as_str().to_string(),
+            expected: expected.clone(),
+        },
+        UiPresentationOperation::AssertAccessibleName { node_id, expected } => {
+            Effect::UiAssertAccessibleName {
+                node_id: node_id.as_str().to_string(),
+                expected: expected.clone(),
+            }
+        }
     })
 }
 
@@ -1391,18 +1435,45 @@ pub fn validate_presentation_operation(
         UiPresentationOperation::Focus { node_id }
         | UiPresentationOperation::ScrollIntoView { node_id }
         | UiPresentationOperation::AssertVisible { node_id }
-        | UiPresentationOperation::AssertFocused { node_id } => node_id,
+        | UiPresentationOperation::AssertFocused { node_id }
+        | UiPresentationOperation::AssertEnabled { node_id }
+        | UiPresentationOperation::AssertText { node_id, .. }
+        | UiPresentationOperation::AssertAccessibleName { node_id, .. } => node_id,
     };
+    if let UiPresentationOperation::AssertText { expected, .. }
+    | UiPresentationOperation::AssertAccessibleName { expected, .. } = operation
+        && !validate_ui_expected_text(expected)
+    {
+        return Err(UiError::InvalidPresentationText);
+    }
     let node =
         find_node(&document.root, node_id).ok_or_else(|| UiError::UnknownPresentationTarget {
             node_id: node_id.as_str().to_string(),
         })?;
     if matches!(
         operation,
-        UiPresentationOperation::Focus { .. } | UiPresentationOperation::AssertFocused { .. }
+        UiPresentationOperation::Focus { .. }
+            | UiPresentationOperation::AssertFocused { .. }
+            | UiPresentationOperation::AssertEnabled { .. }
     ) && (node.kind != UiNodeKind::Action || node.action.is_none())
     {
         return Err(UiError::UnfocusablePresentationTarget {
+            node_id: node_id.as_str().to_string(),
+        });
+    }
+    if matches!(operation, UiPresentationOperation::AssertText { .. })
+        && (node.text.is_none()
+            || !matches!(
+                node.kind,
+                UiNodeKind::Heading
+                    | UiNodeKind::Text
+                    | UiNodeKind::HistoryEntry
+                    | UiNodeKind::LogEntry
+                    | UiNodeKind::DebuggerFrame
+                    | UiNodeKind::Action
+            ))
+    {
+        return Err(UiError::TextlessPresentationTarget {
             node_id: node_id.as_str().to_string(),
         });
     }
@@ -2604,6 +2675,142 @@ mod tests {
             Err(UiError::UnfocusablePresentationTarget {
                 node_id: "fleet-title".into(),
             })
+        );
+    }
+
+    #[test]
+    fn enabled_assertion_round_trips_and_requires_an_interactive_target() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertEnabled {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertEnabled {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_enabled(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertEnabled {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: "fleet-title".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn text_assertion_round_trips_and_rejects_textless_or_unbounded_targets() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertText {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            expected: "Runtime fleet".into(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertText {
+                node_id: "fleet-title".into(),
+                expected: "Runtime fleet".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        let source = export_presentation_leselang(&document, &operation).unwrap();
+        assert_eq!(source, canonical_source(&effect).unwrap());
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertText {
+                    node_id: document.root.id.clone(),
+                    expected: "Runtime fleet".into(),
+                },
+            ),
+            Err(UiError::TextlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertText {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn accessible_name_assertion_round_trips_for_every_semantic_node() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertAccessibleName {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            expected: "Runtime fleet".into(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertAccessibleName {
+                node_id: "fleet-title".into(),
+                expected: "Runtime fleet".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertAccessibleName {
+                    node_id: document.root.id.clone(),
+                    expected: document.root.id.as_str().into(),
+                },
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertAccessibleName {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "bad\nname".into(),
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
         );
     }
 

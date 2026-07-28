@@ -38,13 +38,18 @@ remains the version-1 compatibility baseline.
 
 The separate candidate fixture carries Rust-generated
 `UiPresentationOperation::Focus`, `ScrollIntoView`, `AssertVisible`, and
-`AssertFocused` values. RendererCore strictly round-trips all four and validates
-valid, missing, and noninteractive targets before the Avalonia shell proves
+`AssertFocused`, plus `AssertEnabled`, `AssertText`, and
+`AssertAccessibleName` values. RendererCore strictly round-trips all seven and
+validates valid, missing, noninteractive,
+textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, bring-into-view, viewport-aware visibility, and side-effect-free
-focus observation through its stable visual index. Scrolling a noninteractive
-node must preserve the currently focused control, hiding the renderer surface
-must make visibility assertion fail, and an unfocused action must make focus
-assertion fail without moving focus:
+focus, enabled-state, actual displayed-text, and accessibility-name observation
+through its stable visual index. Scrolling a noninteractive node must preserve the currently
+focused control, hiding the renderer surface must make visibility assertion
+fail, an unfocused action must make focus assertion fail, a disabled action
+must make enabled assertion fail, and mismatched native text or accessibility
+name must fail exact ordinal comparison without moving focus or activating
+anything:
 
 ```bash
 cargo run --quiet -p leselang-ui \

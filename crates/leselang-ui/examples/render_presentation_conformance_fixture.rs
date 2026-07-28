@@ -21,6 +21,9 @@ struct Fixture<'a> {
     scroll_operation: &'a UiPresentationOperation,
     assert_operation: &'a UiPresentationOperation,
     focused_assert_operation: &'a UiPresentationOperation,
+    enabled_assert_operation: &'a UiPresentationOperation,
+    text_assert_operation: &'a UiPresentationOperation,
+    accessible_name_assert_operation: &'a UiPresentationOperation,
 }
 
 fn main() {
@@ -47,10 +50,24 @@ fn main() {
     let focused_assert_operation = UiPresentationOperation::AssertFocused {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
+    let enabled_assert_operation = UiPresentationOperation::AssertEnabled {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+    };
+    let text_assert_operation = UiPresentationOperation::AssertText {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected: "Runtime fleet".into(),
+    };
+    let accessible_name_assert_operation = UiPresentationOperation::AssertAccessibleName {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected: "Runtime fleet".into(),
+    };
     validate_presentation_operation(&next, &presentation_operation).unwrap();
     validate_presentation_operation(&next, &scroll_operation).unwrap();
     validate_presentation_operation(&next, &assert_operation).unwrap();
     validate_presentation_operation(&next, &focused_assert_operation).unwrap();
+    validate_presentation_operation(&next, &enabled_assert_operation).unwrap();
+    validate_presentation_operation(&next, &text_assert_operation).unwrap();
+    validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     let bytes = serde_json::to_vec_pretty(&Fixture {
         schema_version: 1,
         previous: &previous,
@@ -60,6 +77,9 @@ fn main() {
         scroll_operation: &scroll_operation,
         assert_operation: &assert_operation,
         focused_assert_operation: &focused_assert_operation,
+        enabled_assert_operation: &enabled_assert_operation,
+        text_assert_operation: &text_assert_operation,
+        accessible_name_assert_operation: &accessible_name_assert_operation,
     })
     .unwrap();
     if let Some(parent) = output.parent() {

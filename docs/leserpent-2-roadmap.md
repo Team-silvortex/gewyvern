@@ -232,14 +232,20 @@ current action to HIR, exports it through the Rust canonical printer, and maps
 the effect back to an equivalent stable-node event. Presentation automation now
 includes `ui.focus(node_id: ...)`, `ui.scroll_into_view(node_id: ...)`, and
 `ui.assert_visible(node_id: ...)`, plus
-`ui.assert_focused(node_id: ...)`: HIR and the VM keep each operation in a
-distinct typed `ui.presentation` envelope, command lowering rejects all four,
-and `leselang-ui` round-trips them against the current semantic tree. Avalonia
-applies native focus or bring-into-view, proves scrolling preserves focus,
-checks visibility against native layout and viewport state, and reads native
-focus without mutating it. Navigation, waits, selection, and additional state
-assertions remain the next slices rather than being approximated with
-coordinate-level scripting.
+`ui.assert_focused(node_id: ...)` and
+`ui.assert_enabled(node_id: ...)`, plus
+`ui.assert_text(node_id: ..., expected: ...)` and
+`ui.assert_accessible_name(node_id: ..., expected: ...)`: HIR and the VM keep each
+operation in a distinct typed `ui.presentation` envelope, command lowering
+rejects all seven, and `leselang-ui` round-trips them against the current semantic
+tree. Avalonia applies native focus or bring-into-view, proves scrolling
+preserves focus, checks visibility against native layout and viewport state,
+reads native focus and effective enabled state, and compares actual native text
+and accessibility name exactly without mutating the target. Disabled,
+text-mismatched, and accessible-name-mismatched targets fail with typed native
+presentation results. Navigation, waits, selection, and
+additional state assertions remain the next slices rather than being
+approximated with coordinate-level scripting or OCR.
 
 The first concrete cross-language renderer core now exists under
 `apps/leserpent-avalonia`. Rust emits a bounded versioned JSON fixture and the

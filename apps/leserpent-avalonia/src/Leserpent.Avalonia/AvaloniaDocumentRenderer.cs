@@ -67,9 +67,14 @@ internal enum PresentationAutomationFailureCode
     None,
     UnknownTarget,
     UnfocusableTarget,
+    TextlessTarget,
+    InvalidExpectedText,
     TargetUnrealized,
     TargetNotVisible,
     TargetNotFocused,
+    TargetNotEnabled,
+    TargetTextMismatch,
+    TargetAccessibleNameMismatch,
     FocusRejected,
 }
 
@@ -108,6 +113,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         node.ActionKind == kind
         && node.TryGetRealizedControl(out var control)
         && control is Button);
+    public string? FirstRealizedActionNodeIdFor(ActionKind kind) => nodes.Values.FirstOrDefault(node =>
+        node.ActionKind == kind
+        && node.TryGetRealizedControl(out var control)
+        && control is Button)?.Id;
     public string? FirstRealizedActionNodeId => nodes.Values.FirstOrDefault(node =>
         node.ActionKind is not null
         && node.TryGetRealizedControl(out var control)
@@ -131,9 +140,19 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             return new PresentationAutomationResult(
                 false,
                 operation.NodeId,
-                validation == UiPresentationValidation.UnknownTarget
-                    ? PresentationAutomationFailureCode.UnknownTarget
-                    : PresentationAutomationFailureCode.UnfocusableTarget);
+                validation switch
+                {
+                    UiPresentationValidation.UnknownTarget =>
+                        PresentationAutomationFailureCode.UnknownTarget,
+                    UiPresentationValidation.UnfocusableTarget =>
+                        PresentationAutomationFailureCode.UnfocusableTarget,
+                    UiPresentationValidation.TextlessTarget =>
+                        PresentationAutomationFailureCode.TextlessTarget,
+                    UiPresentationValidation.InvalidExpectedText =>
+                        PresentationAutomationFailureCode.InvalidExpectedText,
+                    _ => throw new InvalidDataException(
+                        "unknown presentation validation result"),
+                });
         }
         if (!nodes.TryGetValue(operation.NodeId, out var node)
             || !node.TryGetRealizedControl(out var control))
@@ -161,6 +180,39 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 control.IsFocused
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetNotFocused);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertEnabled)
+        {
+            return new PresentationAutomationResult(
+                control!.IsEffectivelyEnabled,
+                operation.NodeId,
+                control.IsEffectivelyEnabled
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetNotEnabled);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertText)
+        {
+            var actual = NativeDisplayText(control!);
+            var matched = actual is not null
+                && StringComparer.Ordinal.Equals(actual, operation.Expected);
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetTextMismatch);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertAccessibleName)
+        {
+            var matched = StringComparer.Ordinal.Equals(
+                AutomationProperties.GetName(control!),
+                operation.Expected);
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetAccessibleNameMismatch);
         }
         if (operation.Kind == UiPresentationOperationKind.ScrollIntoView)
         {
@@ -206,6 +258,13 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         var viewport = new Rect(0, 0, Surface.Bounds.Width, Surface.Bounds.Height);
         return viewport.Intersects(controlBounds);
     }
+
+    private static string? NativeDisplayText(Control control) => control switch
+    {
+        TextBlock text => text.Text,
+        Button { Content: string text } => text,
+        _ => null,
+    };
 
     public UiEvent CreateFormSubmission(
         string nodeId,

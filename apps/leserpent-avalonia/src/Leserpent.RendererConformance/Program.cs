@@ -73,10 +73,42 @@ var decodedFocusedAssertOperation = JsonSerializer.Deserialize(
     focusedAssertPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("focused assert operation round trip failed");
+var enabledAssertOperation = fixture.EnabledAssertOperation
+    ?? throw new InvalidDataException("presentation fixture contains no enabled assert operation");
+var enabledAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    enabledAssertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedEnabledAssertOperation = JsonSerializer.Deserialize(
+    enabledAssertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("enabled assert operation round trip failed");
+var textAssertOperation = fixture.TextAssertOperation
+    ?? throw new InvalidDataException("presentation fixture contains no text assert operation");
+var textAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    textAssertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedTextAssertOperation = JsonSerializer.Deserialize(
+    textAssertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("text assert operation round trip failed");
+var accessibleNameAssertOperation = fixture.AccessibleNameAssertOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no accessible name assert operation");
+var accessibleNameAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    accessibleNameAssertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedAccessibleNameAssertOperation = JsonSerializer.Deserialize(
+    accessibleNameAssertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("accessible name assert operation round trip failed");
 if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedScrollOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFocusedAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedEnabledAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedTextAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedAccessibleNameAssertOperation)
+        != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
         Kind = UiPresentationOperationKind.Focus,
@@ -99,15 +131,43 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     }) != UiPresentationValidation.UnknownTarget
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
+        Kind = UiPresentationOperationKind.AssertEnabled,
+        NodeId = "missing-presentation-target",
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
         Kind = UiPresentationOperationKind.Focus,
         NodeId = renderer.Document.Root.Id,
-    }) != UiPresentationValidation.UnfocusableTarget)
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertEnabled,
+        NodeId = renderer.Document.Root.Id,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertText,
+        NodeId = renderer.Document.Root.Id,
+        Expected = "Runtime fleet",
+    }) != UiPresentationValidation.TextlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertText,
+        NodeId = decodedTextAssertOperation.NodeId,
+        Expected = "bad\ntext",
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertAccessibleName,
+        NodeId = decodedAccessibleNameAssertOperation.NodeId,
+        Expected = "bad\nname",
+    }) != UiPresentationValidation.InvalidExpectedText)
 {
     throw new InvalidDataException("presentation operation validation diverged");
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_focused=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_focused=true, presentation_assert_enabled=true, presentation_assert_text=true, presentation_assert_accessible_name=true, strict_codec=true");
 return 0;
 
 static byte[] ReadBoundedFixture(string path)

@@ -36,6 +36,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.ScrollIntoView"));
     assert!(core.contains("UiPresentationOperationKind.AssertVisible"));
     assert!(core.contains("UiPresentationOperationKind.AssertFocused"));
+    assert!(core.contains("UiPresentationOperationKind.AssertEnabled"));
+    assert!(core.contains("UiPresentationOperationKind.AssertText"));
+    assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
     assert!(core.contains("UiPresentationValidation.UnfocusableTarget"));
     assert!(renderer.contains("PresentationAutomationResult ApplyPresentation"));
@@ -44,12 +47,23 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("control!.BringIntoView()"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotVisible"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotFocused"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotEnabled"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetTextMismatch"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetAccessibleNameMismatch"));
     assert!(renderer.contains("control.IsEffectivelyVisible"));
+    assert!(renderer.contains("control!.IsEffectivelyEnabled"));
+    assert!(renderer.contains("StringComparer.Ordinal.Equals(actual, operation.Expected)"));
     assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
     assert!(app.contains("leselang_presentation=true"));
     assert!(app.contains("scroll_into_view=true"));
     assert!(app.contains("assert_visible=true"));
     assert!(app.contains("assert_focused=true"));
+    assert!(app.contains("assert_enabled=true"));
+    assert!(app.contains("disabled_target_rejected=true"));
+    assert!(app.contains("assert_text=true"));
+    assert!(app.contains("assert_accessible_name=true"));
+    assert!(app.contains("accessible_name_mismatch_rejected=true"));
+    assert!(app.contains("text_mismatch_rejected=true"));
     assert!(conformance.contains("presentation_focus=true"));
 }
 

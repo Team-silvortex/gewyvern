@@ -311,6 +311,17 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert focused",
         ),
+        Effect::UiAssertEnabled { .. } => (
+            DebuggerEffectKind::UiAssertEnabled,
+            None,
+            "UI assert enabled",
+        ),
+        Effect::UiAssertText { .. } => (DebuggerEffectKind::UiAssertText, None, "UI assert text"),
+        Effect::UiAssertAccessibleName { .. } => (
+            DebuggerEffectKind::UiAssertAccessibleName,
+            None,
+            "UI assert accessible name",
+        ),
         Effect::All { .. } => {
             return Err(ObserveError::InvalidEffectRequest(Fault {
                 code: "LSO1001".to_string(),

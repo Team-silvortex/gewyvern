@@ -151,28 +151,43 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by four presentation atoms.
+Semantic action equivalence is joined by seven presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action. `UiPresentationOperation::ScrollIntoView`
 maps one-to-one to `ui.scroll_into_view(node_id: ...)` and accepts any existing
 semantic node. `UiPresentationOperation::AssertVisible` maps one-to-one to
 `ui.assert_visible(node_id: ...)` and accepts any existing semantic node.
 `UiPresentationOperation::AssertFocused` maps one-to-one to
-`ui.assert_focused(node_id: ...)` and requires an interactive action. None can
-become a `UiEvent` or `CommandPlan`; all four travel in capability-gated
-VM presentation envelopes and return operation-specific typed results.
+`ui.assert_focused(node_id: ...)` and requires an interactive action.
+`UiPresentationOperation::AssertEnabled` maps one-to-one to
+`ui.assert_enabled(node_id: ...)` and also requires an interactive action.
+`UiPresentationOperation::AssertText` maps one-to-one to
+`ui.assert_text(node_id: ..., expected: ...)`, requires a text-rendering
+semantic node, and carries a control-free expected value of at most 1024 UTF-8
+bytes. `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
+`ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
+semantic node, and uses the same expected-value bound. None can become a
+`UiEvent` or `CommandPlan`; all seven travel in
+capability-gated VM presentation envelopes and return operation-specific typed
+results with operation identity bound across re-entry.
 
-Avalonia resolves all four operations through its stable visual index. Focus
+Avalonia resolves all seven operations through its stable visual index. Focus
 uses native `Control.Focus()`, while scrolling uses native `BringIntoView()`
 without changing focus or activating an action. Visibility assertion requires
 a realized control that is effectively visible, has nonzero layout bounds, and
 intersects the renderer viewport. Focus assertion reads native
-`Control.IsFocused` and never changes focus. The real-window probe covers
-native application, hidden, unfocused, missing, and unfocusable targets, focus
-preservation, remount/patch retention, and safe target removal.
+`Control.IsFocused`; enabled assertion reads native effective enabled state,
+including ancestors. Text assertion reads native `TextBlock.Text` or string
+`Button.Content` and uses exact ordinal comparison rather than semantic-IR
+guessing, coordinates, or OCR. Accessible-name assertion independently reads
+native `AutomationProperties.Name` with exact ordinal comparison. None of the
+assertions mutates the control. The real-window probe covers native application,
+hidden, unfocused, disabled, text-mismatched, accessible-name-mismatched,
+missing, textless, and unfocusable targets, focus preservation, remount/patch
+retention, and safe target removal.
 
 This is not yet complete presentation automation. Selection, navigation,
-window lifetime, and additional state waits or assertions remain future typed
+window lifetime, waits, and additional state assertions remain future typed
 operations; renderers must not emulate them with coordinates, arbitrary
 scripts, or control-plane commands.
 
