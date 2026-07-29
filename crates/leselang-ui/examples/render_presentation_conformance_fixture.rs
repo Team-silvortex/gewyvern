@@ -51,6 +51,7 @@ struct Fixture<'a> {
     form_field_assert_operation: &'a UiPresentationOperation,
     form_field_input_kind_assert_operation: &'a UiPresentationOperation,
     form_field_required_assert_operation: &'a UiPresentationOperation,
+    form_field_max_length_assert_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
 }
@@ -175,6 +176,12 @@ fn main() {
         field: "pipeline_kind".into(),
         required: true,
     };
+    let form_field_max_length_assert_operation =
+        UiPresentationOperation::AssertFormFieldMaxLength {
+            node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            max_length: 128,
+        };
     let accessible_name_assert_operation = UiPresentationOperation::AssertAccessibleName {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "Runtime fleet".into(),
@@ -212,6 +219,7 @@ fn main() {
     validate_presentation_operation(&next, &form_field_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_input_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_required_assert_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_max_length_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_description_assert_operation).unwrap();
     let mut bytes = serde_json::to_vec_pretty(&Fixture {
@@ -247,6 +255,7 @@ fn main() {
         form_field_assert_operation: &form_field_assert_operation,
         form_field_input_kind_assert_operation: &form_field_input_kind_assert_operation,
         form_field_required_assert_operation: &form_field_required_assert_operation,
+        form_field_max_length_assert_operation: &form_field_max_length_assert_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,
     })

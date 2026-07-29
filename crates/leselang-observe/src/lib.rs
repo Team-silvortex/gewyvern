@@ -401,6 +401,11 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert form field required",
         ),
+        Effect::UiAssertFormFieldMaxLength { .. } => (
+            DebuggerEffectKind::UiAssertFormFieldMaxLength,
+            None,
+            "UI assert form field max length",
+        ),
         Effect::UiAssertAccessibleName { .. } => (
             DebuggerEffectKind::UiAssertAccessibleName,
             None,

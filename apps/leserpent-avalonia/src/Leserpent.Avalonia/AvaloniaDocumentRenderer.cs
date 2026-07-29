@@ -80,6 +80,7 @@ internal enum PresentationAutomationFailureCode
     InvalidExpectedActionKind,
     InvalidExpectedInputKind,
     InvalidExpectedRequired,
+    InvalidExpectedMaxLength,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidTimeout,
@@ -101,6 +102,7 @@ internal enum PresentationAutomationFailureCode
     TargetFormFieldMismatch,
     TargetFormFieldInputKindMismatch,
     TargetFormFieldRequiredMismatch,
+    TargetFormFieldMaxLengthMismatch,
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
     TargetSelectionMismatch,
@@ -202,6 +204,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.InvalidExpectedInputKind,
                     UiPresentationValidation.InvalidExpectedRequired =>
                         PresentationAutomationFailureCode.InvalidExpectedRequired,
+                    UiPresentationValidation.InvalidExpectedMaxLength =>
+                        PresentationAutomationFailureCode.InvalidExpectedMaxLength,
                     UiPresentationValidation.InvalidNavigationDirection =>
                         PresentationAutomationFailureCode.InvalidNavigationDirection,
                     UiPresentationValidation.InvalidSelectionState =>
@@ -488,6 +492,32 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 matched
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetFormFieldRequiredMismatch);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertFormFieldMaxLength)
+        {
+            if (node.FormFieldMaxLengths is null)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormless);
+            }
+            if (operation.Field is not { } field
+                || operation.MaxLength is not { } expectedMaxLength
+                || !node.FormFieldMaxLengths.TryGetValue(field, out var actualMaxLength))
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormFieldMissing);
+            }
+            var matched = actualMaxLength == expectedMaxLength;
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch);
         }
         if (operation.Kind == UiPresentationOperationKind.AssertAccessibleName)
         {
@@ -978,7 +1008,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             node.Accessibility.Description?.Fallback,
             FormFieldLabels(node),
             FormFieldInputKinds(node),
-            FormFieldRequired(node));
+            FormFieldRequired(node),
+            FormFieldMaxLengths(node));
 
     private RenderedNode LazyContainer(
         UiNode node,
@@ -1002,7 +1033,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             node.Accessibility.Description?.Fallback,
             FormFieldLabels(node),
             FormFieldInputKinds(node),
-            FormFieldRequired(node));
+            FormFieldRequired(node),
+            FormFieldMaxLengths(node));
 
     private static IReadOnlyDictionary<string, string>? FormFieldLabels(UiNode node) =>
         node.Action?.Form is { } form
@@ -1025,6 +1057,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             ? form.Fields.ToDictionary(
                 field => field.Key,
                 field => field.Required,
+                StringComparer.Ordinal)
+            : null;
+
+    private static IReadOnlyDictionary<string, int>? FormFieldMaxLengths(UiNode node) =>
+        node.Action?.Form is { } form
+            ? form.Fields.ToDictionary(
+                field => field.Key,
+                field => field.MaxLength,
                 StringComparer.Ordinal)
             : null;
 
@@ -1320,7 +1360,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         string? automationDescription,
         IReadOnlyDictionary<string, string>? formFieldLabels,
         IReadOnlyDictionary<string, UiFormInputKind>? formFieldInputKinds,
-        IReadOnlyDictionary<string, bool>? formFieldRequired)
+        IReadOnlyDictionary<string, bool>? formFieldRequired,
+        IReadOnlyDictionary<string, int>? formFieldMaxLengths)
     {
         private Control? control;
         private IChildrenHost? childrenHost;
@@ -1359,6 +1400,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         public IReadOnlyDictionary<string, UiFormInputKind>? FormFieldInputKinds { get; } =
             formFieldInputKinds;
         public IReadOnlyDictionary<string, bool>? FormFieldRequired { get; } = formFieldRequired;
+        public IReadOnlyDictionary<string, int>? FormFieldMaxLengths { get; } =
+            formFieldMaxLengths;
         public bool IsRealized => control is not null;
         public RenderedNode? Parent { get; set; } = parent;
         public List<RenderedNode> Children { get; } = [];

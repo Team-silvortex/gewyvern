@@ -254,10 +254,11 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, plus
 `ui.assert_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
+`ui.assert_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all twenty-eight, and `leselang-ui` round-trips them against the current semantic
+rejects all twenty-nine, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
 manager from a currently focused stable action, resolves first/last through the
@@ -282,13 +283,14 @@ fixed dispatcher-yielding deadline, and compares
 native selected state, waits for native selection mismatch timeout without
 changing selection, and compares actual native text, automation ID, semantic node kind,
 semantic action kind, semantic form field label, input kind, and required state,
-accessibility name, and declared accessibility help text exactly without
+maximum length, accessibility name, and declared accessibility help text exactly without
 mutating the target. Disabled, still-enabled disabled-assertion,
 still-visible hidden-assertion,
 selection-mismatched, selectionless,
 text-mismatched, automation-id-mismatched, node-kind-mismatched,
 action-kind-mismatched, form-field-mismatched,
 form-field-input-kind-mismatched, form-field-required-mismatched,
+form-field-max-length-mismatched,
 accessible-name-mismatched, and
 accessible-description-mismatched targets fail with typed native
 presentation results. Full window close/reopen lifecycle and additional state

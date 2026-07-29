@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 public sealed class SemanticRenderer
 {
     private const int MaxPatchOperations = 8192;
+    private const int MaxFormValueBytes = 256;
     public const int WaitEnabledTimeoutMs = 2000;
     public const int WaitFocusedTimeoutMs = 2000;
     public const int WaitRealizedTimeoutMs = 2000;
@@ -167,6 +168,18 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedRequired;
             }
         }
+        else if (operation.Kind == UiPresentationOperationKind.AssertFormFieldMaxLength)
+        {
+            if (!IsFormFieldKey(operation.Field))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+            if (operation.MaxLength is not { } maxLength
+                || maxLength is < 1 or > MaxFormValueBytes)
+            {
+                return UiPresentationValidation.InvalidExpectedMaxLength;
+            }
+        }
         else if (operation.Field is not null)
         {
             return UiPresentationValidation.InvalidExpectedText;
@@ -180,6 +193,11 @@ public sealed class SemanticRenderer
             && operation.Required is not null)
         {
             return UiPresentationValidation.InvalidExpectedRequired;
+        }
+        if (operation.Kind != UiPresentationOperationKind.AssertFormFieldMaxLength
+            && operation.MaxLength is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedMaxLength;
         }
         if (operation.Kind != UiPresentationOperationKind.AssertNodeKind
             && operation.ExpectedKind is not null)
@@ -302,12 +320,14 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertFormField
             or UiPresentationOperationKind.AssertFormFieldInputKind
             or UiPresentationOperationKind.AssertFormFieldRequired
+            or UiPresentationOperationKind.AssertFormFieldMaxLength
                 when node.Action?.Form is { } form
                     && form.Fields.Any(field => StringComparer.Ordinal.Equals(field.Key, operation.Field)) =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertFormField
             or UiPresentationOperationKind.AssertFormFieldInputKind
             or UiPresentationOperationKind.AssertFormFieldRequired
+            or UiPresentationOperationKind.AssertFormFieldMaxLength
                 when node.Action?.Form is not null =>
                 UiPresentationValidation.UnknownFormField,
             UiPresentationOperationKind.AssertFormField =>
@@ -315,6 +335,8 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertFormFieldInputKind =>
                 UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertFormFieldRequired =>
+                UiPresentationValidation.FormlessTarget,
+            UiPresentationOperationKind.AssertFormFieldMaxLength =>
                 UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertAccessibleDescription
                 when node.Accessibility.Description is not null =>
@@ -494,7 +516,7 @@ public sealed class SemanticRenderer
             ValidateText(field.Placeholder);
             if (!IsIdentifier(field.Key)
                 || !keys.Add(field.Key)
-                || field.MaxLength is < 1 or > 256)
+                || field.MaxLength is < 1 or > MaxFormValueBytes)
             {
                 return false;
             }
@@ -648,6 +670,7 @@ public sealed class RendererFixture
     public UiPresentationOperation? FormFieldAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldInputKindAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldRequiredAssertOperation { get; set; }
+    public UiPresentationOperation? FormFieldMaxLengthAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
 }
@@ -741,6 +764,7 @@ public sealed class UiPresentationOperation
     public string? Field { get; set; }
     public UiFormInputKind? InputKind { get; set; }
     public bool? Required { get; set; }
+    public int? MaxLength { get; set; }
     public UiNodeKind? ExpectedKind { get; set; }
     public ActionKind? ExpectedActionKind { get; set; }
     public int? TimeoutMs { get; set; }
@@ -834,6 +858,7 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
     [JsonStringEnumMemberName("assert_form_field_input_kind")] AssertFormFieldInputKind,
     [JsonStringEnumMemberName("assert_form_field_required")] AssertFormFieldRequired,
+    [JsonStringEnumMemberName("assert_form_field_max_length")] AssertFormFieldMaxLength,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
 }
@@ -869,6 +894,7 @@ public enum UiPresentationValidation
     InvalidExpectedActionKind,
     InvalidExpectedInputKind,
     InvalidExpectedRequired,
+    InvalidExpectedMaxLength,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidTimeout,

@@ -67,6 +67,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.AssertActionKind"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormField"));
     assert!(core.contains("public string? Field { get; set; }"));
+    assert!(core.contains("UiPresentationOperationKind.AssertFormFieldMaxLength"));
+    assert!(core.contains("public int? MaxLength { get; set; }"));
+    assert!(core.contains("UiPresentationValidation.InvalidExpectedMaxLength"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleDescription"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
@@ -98,7 +101,11 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNodeKindMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetActionKindMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMismatch"));
+    assert!(
+        renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch")
+    );
     assert!(renderer.contains("IReadOnlyDictionary<string, string>? FormFieldLabels"));
+    assert!(renderer.contains("IReadOnlyDictionary<string, int>? FormFieldMaxLengths"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedActionKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAccessibleNameMismatch"));
@@ -112,6 +119,20 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("control.IsEffectivelyVisible"));
     assert!(renderer.contains("control!.IsEffectivelyEnabled"));
     assert!(renderer.contains("StringComparer.Ordinal.Equals(actual, operation.Expected)"));
+    assert!(window.contains("private readonly string initialEnabledWaitNodeId"));
+    assert!(
+        !window.contains("private readonly Task<PresentationAutomationResult> initialEnabledWait;")
+    );
+    assert!(
+        !window.contains("private readonly Task<PresentationAutomationResult> initialFocusedWait;")
+    );
+    assert!(!window.contains(
+        "private readonly Task<PresentationAutomationResult> initialFocusedWaitTimeout;"
+    ));
+    assert!(window.contains("var initiallyDisabled = renderer.ApplyPresentation"));
+    assert!(window.contains("var enabledWait = renderer.ApplyPresentationAsync"));
+    assert!(window.contains("var focusedWait = renderer.ApplyPresentationAsync"));
+    assert!(window.contains("var focusedTimeoutResult = await renderer.ApplyPresentationAsync"));
     assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
     assert!(app.contains("leselang_presentation=true"));
     assert!(app.contains("navigate_focus=true"));
@@ -173,6 +194,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("form_field_input_kind_mismatch_rejected="));
     assert!(app.contains("assert_form_field_required="));
     assert!(app.contains("form_field_required_mismatch_rejected="));
+    assert!(app.contains("assert_form_field_max_length="));
+    assert!(app.contains("form_field_max_length_mismatch_rejected="));
     assert!(app.contains("assert_accessible_name=true"));
     assert!(app.contains("accessible_name_mismatch_rejected=true"));
     assert!(app.contains("assert_accessible_description=true"));
@@ -198,6 +221,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_assert_form_field=true"));
     assert!(conformance.contains("presentation_assert_form_field_input_kind=true"));
     assert!(conformance.contains("presentation_assert_form_field_required=true"));
+    assert!(conformance.contains("presentation_assert_form_field_max_length=true"));
 }
 
 #[test]

@@ -208,6 +208,11 @@ pub enum PresentationOperation {
         field: String,
         state: UiFormRequirementState,
     },
+    AssertFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
+    },
     AssertAccessibleName {
         node_id: String,
         expected: String,
@@ -331,6 +336,11 @@ pub enum PresentationResult {
         node_id: String,
         field: String,
         state: UiFormRequirementState,
+    },
+    AssertFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
     },
     AssertAccessibleName {
         node_id: String,
@@ -678,6 +688,11 @@ pub enum Value {
         node_id: String,
         field: String,
         state: UiFormRequirementState,
+    },
+    UiAssertFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
     },
     UiAssertAccessibleName {
         node_id: String,
@@ -1296,6 +1311,23 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiAssertFormFieldMaxLength {
+                node_id,
+                field,
+                max_length,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertFormFieldMaxLength {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        max_length: *max_length,
+                    },
+                }),
+            ),
             Effect::UiAssertAccessibleName { node_id, expected } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -1889,6 +1921,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertFormField { .. } => Type::UiAssertFormField,
         Effect::UiAssertFormFieldInputKind { .. } => Type::UiAssertFormFieldInputKind,
         Effect::UiAssertFormFieldRequired { .. } => Type::UiAssertFormFieldRequired,
+        Effect::UiAssertFormFieldMaxLength { .. } => Type::UiAssertFormFieldMaxLength,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
         Effect::All { .. } => {
@@ -2620,6 +2653,34 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiAssertFormFieldMaxLength {
+                node_id,
+                field,
+                max_length,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertFormFieldMaxLength {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    max_length: operation_max_length,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_max_length == max_length
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+            )
+        }
+        (
             Effect::UiAssertAccessibleName { node_id, expected },
             EffectOperation::Presentation(presentation),
         ) => {
@@ -2993,6 +3054,11 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             Ok(1)
         }
         Value::UiAssertFormFieldRequired { node_id, field, .. }
+            if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertFormFieldMaxLength { node_id, field, .. }
             if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
         {
             Ok(1)
@@ -4002,6 +4068,44 @@ fn step_from_effect_result(
                 node_id: result_node_id,
                 field: result_field,
                 state: result_state,
+            })
+        }
+        (
+            Effect::UiAssertFormFieldMaxLength {
+                node_id,
+                field,
+                max_length,
+            },
+            Type::UiAssertFormFieldMaxLength,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertFormFieldMaxLength {
+                node_id: result_node_id,
+                field: result_field,
+                max_length: result_max_length,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_max_length == *max_length
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertFormFieldMaxLength {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            max_length: operation_max_length,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_max_length == max_length
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertFormFieldMaxLength {
+                node_id: result_node_id,
+                field: result_field,
+                max_length: result_max_length,
             })
         }
         (
@@ -5840,6 +5944,63 @@ mod tests {
             node_id: "workspace-runtime-a-deploy".into(),
             field: "target".into(),
             state: UiFormRequirementState::Required,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_form_field_max_length_binds_node_field_length_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form field max length assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI form field max length assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertFormFieldMaxLength {
+                node_id,
+                field,
+                max_length: 128,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFormFieldMaxLength {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    max_length: 128,
+                }),
+            ),
+            Step::Done(Value::UiAssertFormFieldMaxLength {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                max_length: 128,
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field max length assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertFormFieldMaxLength {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "pipeline_kind".into(),
+            max_length: 129,
         };
         assert!(validate_effect_request(&torn).is_err());
     }

@@ -1688,6 +1688,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, plus
 `ui.assert_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
+`ui.assert_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, lower to
 operation-specific values inside a capability-gated VM
@@ -1731,8 +1732,8 @@ identifier. Node-kind assertion compares the expected semantic node kind against
 the stable renderer semantic kind. Action-kind assertion compares the expected
 semantic action kind against the realized node's stable action payload.
 Form-field assertions compare the realized semantic deployment form's field
-label, input kind, and required-state metadata without focusing, typing,
-submitting, or editing the form.
+label, input kind, required-state, and maximum-length metadata without
+focusing, typing, submitting, truncating, or editing the form.
 Scrolling accepts noninteractive nodes and preserves keyboard focus.
 Accessible-name assertion separately reads the native platform automation name
 for any realized semantic node.

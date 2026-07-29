@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 pub const MAX_ALL_BRANCHES: usize = 64;
 pub const MAX_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_UI_FORM_FIELD_KEY_BYTES: usize = 128;
+pub const MAX_UI_FORM_FIELD_MAX_LENGTH: usize = 256;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
@@ -217,6 +218,11 @@ pub enum Effect {
         field: String,
         state: UiFormRequirementState,
     },
+    UiAssertFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
+    },
     UiAssertAccessibleName {
         node_id: String,
         expected: String,
@@ -267,6 +273,7 @@ pub enum Type {
     UiAssertFormField,
     UiAssertFormFieldInputKind,
     UiAssertFormFieldRequired,
+    UiAssertFormFieldMaxLength,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
     Structured,
@@ -370,6 +377,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_form_field"
         | "ui.assert_form_field_input_kind"
         | "ui.assert_form_field_required"
+        | "ui.assert_form_field_max_length"
         | "ui.assert_accessible_name"
         | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
@@ -400,6 +408,7 @@ fn lower_atomic_effect(
     let mut form_field_key = None;
     let mut form_input_kind = None;
     let mut form_requirement_state = None;
+    let mut form_max_length = None;
     let mut expected_text = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
@@ -861,6 +870,39 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_form_field_max_length", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1198".to_string(),
+                    message:
+                        "ui.assert_form_field_max_length node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_max_length", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1199".to_string(),
+                    message:
+                        "ui.assert_form_field_max_length field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_max_length", "max_length") => match value
+                .as_deref()
+                .and_then(parse_form_max_length)
+            {
+                Some(value) => form_max_length = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1200".to_string(),
+                    message:
+                        "ui.assert_form_field_max_length max_length must be a decimal string from 1 to 256"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_accessible_name", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -1224,6 +1266,33 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_form_field_max_length" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1210".to_string(),
+            message: "ui.assert_form_field_max_length requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_max_length"
+        && form_field_key.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1211".to_string(),
+            message: "ui.assert_form_field_max_length requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_max_length"
+        && form_max_length.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1212".to_string(),
+            message: "ui.assert_form_field_max_length requires max_length".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_accessible_name" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1128".to_string(),
@@ -1536,6 +1605,15 @@ fn lower_atomic_effect(
             Type::UiAssertFormFieldRequired,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_form_field_max_length" => (
+            Effect::UiAssertFormFieldMaxLength {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                max_length: form_max_length.expect("validated UI form max length"),
+            },
+            Type::UiAssertFormFieldMaxLength,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_accessible_name" => (
             Effect::UiAssertAccessibleName {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1775,6 +1853,20 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(form_requirement_state_source(*state)),
             indent(depth),
         ),
+        Effect::UiAssertFormFieldMaxLength {
+            node_id,
+            field,
+            max_length,
+        } => format!(
+            "ui.assert_form_field_max_length(\n{}node_id: {},\n{}field: {},\n{}max_length: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(&max_length.to_string()),
+            indent(depth),
+        ),
         Effect::UiAssertAccessibleName { node_id, expected } => format!(
             "ui.assert_accessible_name(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
@@ -1896,6 +1988,20 @@ fn form_requirement_state_source(state: UiFormRequirementState) -> &'static str 
         UiFormRequirementState::Required => "required",
         UiFormRequirementState::Optional => "optional",
     }
+}
+
+fn parse_form_max_length(value: &str) -> Option<usize> {
+    if value.is_empty()
+        || value.len() > 3
+        || value.starts_with('0')
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    let parsed = value.parse::<usize>().ok()?;
+    (1..=MAX_UI_FORM_FIELD_MAX_LENGTH)
+        .contains(&parsed)
+        .then_some(parsed)
 }
 
 pub fn validate_ui_node_id(node_id: &str) -> bool {
@@ -3245,6 +3351,58 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_form_field_max_length_is_capability_gated_and_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiAssertFormFieldMaxLength
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertFormFieldMaxLength {
+                ref node_id,
+                ref field,
+                max_length: 128,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_form_field_max_length(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  max_length: \"128\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_form_field_max_length()",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\")",
+            "fn main() = ui.assert_form_field_max_length(field: \"pipeline_kind\", max_length: \"128\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"bad/node\", field: \"pipeline_kind\", max_length: \"128\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: none, max_length: \"128\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"bad/field\", max_length: \"128\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: none)",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"0\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"001\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"257\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"12x\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_field = format!(
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"{}\", max_length: \"128\")",
+            "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_field)).is_err());
+    }
+
+    #[test]
     fn ui_assert_accessible_name_is_capability_gated_and_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
@@ -3368,6 +3526,7 @@ mod tests {
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

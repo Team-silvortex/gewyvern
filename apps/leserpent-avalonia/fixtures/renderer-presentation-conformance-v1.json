@@ -886,6 +886,12 @@
     "field": "pipeline_kind",
     "required": true
   },
+  "form_field_max_length_assert_operation": {
+    "kind": "assert_form_field_max_length",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "max_length": 128
+  },
   "accessible_name_assert_operation": {
     "kind": "assert_accessible_name",
     "node_id": "fleet-title",

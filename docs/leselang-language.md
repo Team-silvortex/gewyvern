@@ -19,7 +19,8 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`,
 `ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.assert_action_kind`, `ui.assert_form_field`,
-`ui.assert_form_field_input_kind`, `ui.assert_form_field_required`, plus
+`ui.assert_form_field_input_kind`, `ui.assert_form_field_required`,
+`ui.assert_form_field_max_length`, plus
 `ui.assert_accessible_name` and `ui.assert_accessible_description`
 presentation effects.
 
@@ -508,6 +509,27 @@ field required metadata with the expected state; form-less targets, unknown
 fields, unrealized targets, invalid keys, missing states, or mismatched required
 state fail. The assertion never focuses, types, activates, opens, marks, or
 submits the form.
+
+Native deployment form maximum-length metadata can also be asserted without
+touching the form:
+
+```leselang
+fn main() = ui.assert_form_field_max_length(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  max_length: "128"
+)
+```
+
+`ui.assert_form_field_max_length` requires `ui.presentation`, the same semantic
+`runtime_deploy` form action and bounded field key as `ui.assert_form_field`.
+The `max_length` parameter is a decimal string from `1` to `256` with no leading
+zeroes. HIR parses it to a typed integer, and UI IR plus renderer JSON carry it
+as `max_length`. The renderer compares the stable semantic form field maximum
+length with the expected value; form-less targets, unknown fields, unrealized
+targets, invalid keys, missing lengths, malformed lengths, or mismatched limits
+fail. The assertion never focuses, types, activates, opens, edits, or submits
+the form.
 
 Native accessibility metadata can be asserted independently of display text:
 

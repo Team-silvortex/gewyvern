@@ -101,6 +101,7 @@ pub fn lower_effect(
             | Effect::UiAssertFormField { .. }
             | Effect::UiAssertFormFieldInputKind { .. }
             | Effect::UiAssertFormFieldRequired { .. }
+            | Effect::UiAssertFormFieldMaxLength { .. }
             | Effect::UiAssertAccessibleName { .. }
             | Effect::UiAssertAccessibleDescription { .. }
     ) {
@@ -142,6 +143,7 @@ pub fn lower_effect(
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }
+        | Effect::UiAssertFormFieldMaxLength { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -194,6 +196,7 @@ pub fn lower_effect(
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }
+        | Effect::UiAssertFormFieldMaxLength { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -485,6 +488,7 @@ mod tests {
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
+            "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

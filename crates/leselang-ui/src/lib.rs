@@ -329,6 +329,7 @@ pub enum DebuggerEffectKind {
     UiAssertFormField,
     UiAssertFormFieldInputKind,
     UiAssertFormFieldRequired,
+    UiAssertFormFieldMaxLength,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
 }
@@ -553,6 +554,11 @@ pub enum UiPresentationOperation {
         node_id: NodeId,
         field: String,
         required: bool,
+    },
+    AssertFormFieldMaxLength {
+        node_id: NodeId,
+        field: String,
+        max_length: usize,
     },
     AssertAccessibleName {
         node_id: NodeId,
@@ -1313,6 +1319,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertFormField
             | DebuggerEffectKind::UiAssertFormFieldInputKind
             | DebuggerEffectKind::UiAssertFormFieldRequired
+            | DebuggerEffectKind::UiAssertFormFieldMaxLength
             | DebuggerEffectKind::UiAssertAccessibleName
             | DebuggerEffectKind::UiAssertAccessibleDescription => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
@@ -1440,6 +1447,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertFormField => "UI assert form field",
             DebuggerEffectKind::UiAssertFormFieldInputKind => "UI assert form field input kind",
             DebuggerEffectKind::UiAssertFormFieldRequired => "UI assert form field required",
+            DebuggerEffectKind::UiAssertFormFieldMaxLength => "UI assert form field max length",
             DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
             DebuggerEffectKind::UiAssertAccessibleDescription => "UI assert accessible description",
         };
@@ -1815,6 +1823,15 @@ pub fn presentation_operation_for_effect(
             field: field.clone(),
             required: hir_form_requirement_state_to_required(*state),
         },
+        Effect::UiAssertFormFieldMaxLength {
+            node_id,
+            field,
+            max_length,
+        } => UiPresentationOperation::AssertFormFieldMaxLength {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            max_length: *max_length,
+        },
         Effect::UiAssertAccessibleName { node_id, expected } => {
             UiPresentationOperation::AssertAccessibleName {
                 node_id: NodeId::new(node_id.clone())?,
@@ -1950,6 +1967,15 @@ pub fn effect_for_presentation_operation(
             field: field.clone(),
             state: required_to_hir_form_requirement_state(*required),
         },
+        UiPresentationOperation::AssertFormFieldMaxLength {
+            node_id,
+            field,
+            max_length,
+        } => Effect::UiAssertFormFieldMaxLength {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            max_length: *max_length,
+        },
         UiPresentationOperation::AssertAccessibleName { node_id, expected } => {
             Effect::UiAssertAccessibleName {
                 node_id: node_id.as_str().to_string(),
@@ -1997,6 +2023,7 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertFormField { node_id, .. }
         | UiPresentationOperation::AssertFormFieldInputKind { node_id, .. }
         | UiPresentationOperation::AssertFormFieldRequired { node_id, .. }
+        | UiPresentationOperation::AssertFormFieldMaxLength { node_id, .. }
         | UiPresentationOperation::AssertAccessibleName { node_id, .. }
         | UiPresentationOperation::AssertAccessibleDescription { node_id, .. } => node_id,
     };
@@ -2010,8 +2037,14 @@ pub fn validate_presentation_operation(
     }
     if let UiPresentationOperation::AssertFormField { field, .. }
     | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
-    | UiPresentationOperation::AssertFormFieldRequired { field, .. } = operation
+    | UiPresentationOperation::AssertFormFieldRequired { field, .. }
+    | UiPresentationOperation::AssertFormFieldMaxLength { field, .. } = operation
         && !validate_ui_form_field_key(field)
+    {
+        return Err(UiError::InvalidPresentationText);
+    }
+    if let UiPresentationOperation::AssertFormFieldMaxLength { max_length, .. } = operation
+        && !(1..=MAX_UI_FORM_VALUE_BYTES).contains(max_length)
     {
         return Err(UiError::InvalidPresentationText);
     }
@@ -2109,7 +2142,8 @@ pub fn validate_presentation_operation(
     }
     if let UiPresentationOperation::AssertFormField { field, .. }
     | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
-    | UiPresentationOperation::AssertFormFieldRequired { field, .. } = operation
+    | UiPresentationOperation::AssertFormFieldRequired { field, .. }
+    | UiPresentationOperation::AssertFormFieldMaxLength { field, .. } = operation
     {
         let Some(UiAction::RuntimeDeploy { form, .. }) = &node.action else {
             return Err(UiError::FormlessPresentationTarget {
@@ -4476,6 +4510,118 @@ mod tests {
                     node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
                     field: "bad/field".into(),
                     required: true,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn form_field_max_length_assertion_round_trips_for_deployment_forms() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let operation = UiPresentationOperation::AssertFormFieldMaxLength {
+            node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            max_length: 128,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertFormFieldMaxLength {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                max_length: 128,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            effect_for_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldMaxLength {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "target".into(),
+                    max_length: MAX_UI_FORM_VALUE_BYTES,
+                },
+            )
+            .unwrap(),
+            Effect::UiAssertFormFieldMaxLength {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "target".into(),
+                max_length: MAX_UI_FORM_VALUE_BYTES,
+            }
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldMaxLength {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "missing".into(),
+                    max_length: 128,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldMaxLength {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    max_length: 128,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldMaxLength {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "bad/field".into(),
+                    max_length: 128,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldMaxLength {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "pipeline_kind".into(),
+                    max_length: 0,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldMaxLength {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "pipeline_kind".into(),
+                    max_length: MAX_UI_FORM_VALUE_BYTES + 1,
                 },
             ),
             Err(UiError::InvalidPresentationText)

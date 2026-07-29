@@ -12,13 +12,11 @@ internal sealed class MainWindow : Window
     private readonly Task<PresentationAutomationResult> initialRealizedWaitTimeout;
     private readonly Task<PresentationAutomationResult> initialVisibleWait;
     private readonly Task<PresentationAutomationResult> initialVisibleWaitTimeout;
-    private readonly Task<PresentationAutomationResult> initialEnabledWait;
     private readonly Task<PresentationAutomationResult> initialEnabledWaitTimeout;
-    private readonly Task<PresentationAutomationResult> initialFocusedWait;
-    private readonly Task<PresentationAutomationResult> initialFocusedWaitTimeout;
     private readonly Task<PresentationAutomationResult> initialSelectionWait;
     private readonly Task<PresentationAutomationResult> initialSelectionWaitTimeout;
     private readonly Task<PresentationAutomationResult> initialWindowOpenWait;
+    private readonly string initialEnabledWaitNodeId;
     private readonly string initialFocusedWaitNodeId;
     private readonly string initialFocusedWaitTimeoutNodeId;
     private readonly string initialSelectionAssertNodeId;
@@ -78,6 +76,8 @@ internal sealed class MainWindow : Window
     public bool FormFieldInputKindMismatchRejected { get; private set; }
     public bool FormFieldRequiredAssertCompleted { get; private set; }
     public bool FormFieldRequiredMismatchRejected { get; private set; }
+    public bool FormFieldMaxLengthAssertCompleted { get; private set; }
+    public bool FormFieldMaxLengthMismatchRejected { get; private set; }
     public bool DisabledAssertCompleted { get; private set; }
     public bool DisabledMismatchRejected { get; private set; }
     public bool HiddenAssertCompleted { get; private set; }
@@ -163,19 +163,13 @@ internal sealed class MainWindow : Window
             NodeId = visibleWaitNodeId,
             TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
         });
-        var enabledWaitNodeId = fixture.EnabledWaitOperation?.NodeId
+        initialEnabledWaitNodeId = fixture.EnabledWaitOperation?.NodeId
             ?? throw new InvalidDataException(
                 "enabled wait probe requires an action target");
         renderer.SetActionAvailability(
             ActionKind.RuntimeRefresh,
             false,
             "Verification action is temporarily unavailable");
-        initialEnabledWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
-        {
-            Kind = UiPresentationOperationKind.WaitEnabled,
-            NodeId = enabledWaitNodeId,
-            TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
-        });
         var detachedRenderer = new AvaloniaDocumentRenderer(_ => { });
         detachedRenderer.Mount(fixture.Next);
         detachedRenderer.SetActionAvailability(
@@ -203,7 +197,7 @@ internal sealed class MainWindow : Window
             new UiPresentationOperation
             {
                 Kind = UiPresentationOperationKind.WaitEnabled,
-                NodeId = enabledWaitNodeId,
+                NodeId = initialEnabledWaitNodeId,
                 TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
             });
         initialFocusedWaitNodeId = fixture.FocusedWaitOperation?.NodeId
@@ -214,20 +208,6 @@ internal sealed class MainWindow : Window
                 initialFocusedWaitNodeId)
             ?? throw new InvalidDataException(
                 "focused wait timeout probe requires another action target");
-        initialFocusedWait = renderer.ApplyPresentationAsync(
-            new UiPresentationOperation
-            {
-                Kind = UiPresentationOperationKind.WaitFocused,
-                NodeId = initialFocusedWaitNodeId,
-                TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
-            });
-        initialFocusedWaitTimeout = renderer.ApplyPresentationAsync(
-            new UiPresentationOperation
-            {
-                Kind = UiPresentationOperationKind.WaitFocused,
-                NodeId = initialFocusedWaitTimeoutNodeId,
-                TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
-            });
         initialSelectionAssertNodeId = fixture.SelectionAssertOperation?.NodeId
             ?? throw new InvalidDataException(
                 "selection assertion probe requires a selectable target");
@@ -301,12 +281,36 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang window-open wait did not observe the native window");
         }
+        var initiallyDisabled = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertDisabled,
+            NodeId = initialEnabledWaitNodeId,
+        });
+        if (!initiallyDisabled.Applied
+            || initiallyDisabled.FailureCode != PresentationAutomationFailureCode.None)
+        {
+            throw new InvalidDataException(
+                "Leselang enabled wait probe target did not start disabled");
+        }
+        var enabledWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitEnabled,
+            NodeId = initialEnabledWaitNodeId,
+            TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
+        });
         DispatcherTimer.RunOnce(
             () => renderer.SetActionAvailability(
                 ActionKind.RuntimeRefresh,
                 true,
                 null),
             TimeSpan.FromMilliseconds(50));
+        var focusedWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFocused,
+                NodeId = initialFocusedWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
+            });
         DispatcherTimer.RunOnce(
             () =>
             {
@@ -356,7 +360,7 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang visibility wait did not reject a persistently invisible target");
         }
-        var enabledResult = await initialEnabledWait;
+        var enabledResult = await enabledWait;
         InitialEnabledWaitCompleted = enabledResult.Applied
             && enabledResult.FailureCode == PresentationAutomationFailureCode.None;
         if (!InitialEnabledWaitCompleted)
@@ -423,7 +427,7 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang disabled wait did not reject a persistently enabled target");
         }
-        var focusedResult = await initialFocusedWait;
+        var focusedResult = await focusedWait;
         InitialFocusedWaitCompleted = focusedResult.Applied
             && focusedResult.FailureCode == PresentationAutomationFailureCode.None;
         if (!InitialFocusedWaitCompleted)
@@ -431,7 +435,13 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang focused wait did not observe an external focus transition");
         }
-        var focusedTimeoutResult = await initialFocusedWaitTimeout;
+        var focusedTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFocused,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+                TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
+            });
         var timeoutTargetRealized = renderer.ApplyPresentation(
             new UiPresentationOperation
             {
@@ -457,7 +467,14 @@ internal sealed class MainWindow : Window
         if (!InitialFocusedWaitTimedOut)
         {
             throw new InvalidDataException(
-                "Leselang focused wait changed focus or did not reject a persistently unfocused realized target");
+                "Leselang focused wait changed focus or did not reject a persistently unfocused realized target: "
+                + $"result_applied={focusedTimeoutResult.Applied}, "
+                + $"result_failure={focusedTimeoutResult.FailureCode}, "
+                + $"timeout_target_realized={timeoutTargetRealized.Applied}, "
+                + $"timeout_target_focus_failure={timeoutTargetFocused.FailureCode}, "
+                + $"focused_node={renderer.FocusedNodeId ?? "<none>"}, "
+                + $"expected_focus={initialFocusedWaitNodeId}, "
+                + $"timeout_target={initialFocusedWaitTimeoutNodeId}");
         }
         var selectionResult = await initialSelectionWait;
         InitialSelectionWaitCompleted = selectionResult.Applied
@@ -970,6 +987,40 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang form field required assertion accepted mismatched form metadata or changed focus");
+        }
+        var formFieldMaxLengthMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldMaxLength,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            MaxLength = formField.MaxLength,
+        });
+        FormFieldMaxLengthAssertCompleted = formFieldMaxLengthMatched.Applied
+            && formFieldMaxLengthMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldMaxLengthAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field max length assertion rejected stable form metadata or changed focus");
+        }
+        var mismatchedMaxLength = formField.MaxLength == 1
+            ? 2
+            : formField.MaxLength - 1;
+        var formFieldMaxLengthMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldMaxLength,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            MaxLength = mismatchedMaxLength,
+        });
+        FormFieldMaxLengthMismatchRejected = !formFieldMaxLengthMismatch.Applied
+            && formFieldMaxLengthMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldMaxLengthMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang form field max length assertion accepted mismatched form metadata or changed focus");
         }
         var expectedAccessibleName = textNode.Accessibility.Label?.Fallback
             ?? textNode.Text?.Fallback
