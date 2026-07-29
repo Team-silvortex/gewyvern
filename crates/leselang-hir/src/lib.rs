@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 pub const MAX_ALL_BRANCHES: usize = 64;
 pub const MAX_BRANCH_NAME_BYTES: usize = 64;
+pub const MAX_UI_FORM_FIELD_KEY_BYTES: usize = 128;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
@@ -18,6 +19,7 @@ pub const UI_WAIT_FOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_SELECTION_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_VISIBLE_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_WINDOW_OPEN_TIMEOUT_MS: u64 = 2_000;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -147,6 +149,9 @@ pub enum Effect {
     UiAssertWindowOpen {
         node_id: String,
     },
+    UiWaitWindowOpen {
+        node_id: String,
+    },
     UiWaitFocused {
         node_id: String,
     },
@@ -182,6 +187,11 @@ pub enum Effect {
     UiAssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    UiAssertFormField {
+        node_id: String,
+        field: String,
+        expected: String,
     },
     UiAssertAccessibleName {
         node_id: String,
@@ -219,6 +229,7 @@ pub enum Type {
     UiWaitEnabled,
     UiWaitDisabled,
     UiAssertWindowOpen,
+    UiWaitWindowOpen,
     UiWaitFocused,
     UiAssertFocused,
     UiAssertEnabled,
@@ -229,6 +240,7 @@ pub enum Type {
     UiAssertAutomationId,
     UiAssertNodeKind,
     UiAssertActionKind,
+    UiAssertFormField,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
     Structured,
@@ -318,6 +330,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.wait_enabled"
         | "ui.wait_disabled"
         | "ui.assert_window_open"
+        | "ui.wait_window_open"
         | "ui.wait_focused"
         | "ui.assert_focused"
         | "ui.assert_enabled"
@@ -328,6 +341,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_automation_id"
         | "ui.assert_node_kind"
         | "ui.assert_action_kind"
+        | "ui.assert_form_field"
         | "ui.assert_accessible_name"
         | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
@@ -355,6 +369,7 @@ fn lower_atomic_effect(
     let mut selection_state = None;
     let mut semantic_node_kind = None;
     let mut semantic_action_kind = None;
+    let mut form_field_key = None;
     let mut expected_text = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
@@ -556,6 +571,16 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_window_open", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1178".to_string(),
+                    message:
+                        "ui.wait_window_open node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.wait_focused", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -709,6 +734,34 @@ fn lower_atomic_effect(
                 None => diagnostics.push(Diagnostic {
                     code: "LSH1165".to_string(),
                     message: "ui.assert_action_kind kind must be a known semantic UI action kind"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1180".to_string(),
+                    message:
+                        "ui.assert_form_field node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1181".to_string(),
+                    message: "ui.assert_form_field field must be a valid UI form field key"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1182".to_string(),
+                    message: "ui.assert_form_field expected must be bounded display text"
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -881,6 +934,13 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_window_open" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1179".to_string(),
+            message: "ui.wait_window_open requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.wait_focused" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1143".to_string(),
@@ -991,6 +1051,27 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1167".to_string(),
             message: "ui.assert_action_kind requires kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1183".to_string(),
+            message: "ui.assert_form_field requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field" && form_field_key.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1184".to_string(),
+            message: "ui.assert_form_field requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1185".to_string(),
+            message: "ui.assert_form_field requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -1196,6 +1277,13 @@ fn lower_atomic_effect(
             Type::UiAssertWindowOpen,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_window_open" => (
+            Effect::UiWaitWindowOpen {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitWindowOpen,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.wait_focused" => (
             Effect::UiWaitFocused {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1270,6 +1358,15 @@ fn lower_atomic_effect(
                 expected_kind: semantic_action_kind.expect("validated UI semantic action kind"),
             },
             Type::UiAssertActionKind,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_form_field" => (
+            Effect::UiAssertFormField {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                expected: expected_text.expect("validated UI expected form field label"),
+            },
+            Type::UiAssertFormField,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_accessible_name" => (
@@ -1400,6 +1497,9 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiAssertWindowOpen { node_id } => {
             atomic_identifier_source("ui.assert_window_open", "node_id", node_id, depth)
         }
+        Effect::UiWaitWindowOpen { node_id } => {
+            atomic_identifier_source("ui.wait_window_open", "node_id", node_id, depth)
+        }
         Effect::UiWaitFocused { node_id } => {
             atomic_identifier_source("ui.wait_focused", "node_id", node_id, depth)
         }
@@ -1464,6 +1564,20 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(node_id),
             indent(depth + 1),
             quote(semantic_action_kind_source(*expected_kind)),
+            indent(depth),
+        ),
+        Effect::UiAssertFormField {
+            node_id,
+            field,
+            expected,
+        } => format!(
+            "ui.assert_form_field(\n{}node_id: {},\n{}field: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(expected),
             indent(depth),
         ),
         Effect::UiAssertAccessibleName { node_id, expected } => format!(
@@ -1565,6 +1679,14 @@ pub fn validate_ui_node_id(node_id: &str) -> bool {
         && node_id
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
+
+pub fn validate_ui_form_field_key(field: &str) -> bool {
+    !field.is_empty()
+        && field.len() <= MAX_UI_FORM_FIELD_KEY_BYTES
+        && field
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 
 pub fn validate_ui_expected_text(expected: &str) -> bool {
@@ -2345,6 +2467,38 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_window_open_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitWindowOpen);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitWindowOpen { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_window_open()",
+            "fn main() = ui.wait_window_open(node_id: none)",
+            "fn main() = ui.wait_window_open(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_wait_focused_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
@@ -2704,6 +2858,59 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_form_field_is_capability_gated_and_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertFormField);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertFormField {
+                ref node_id,
+                ref field,
+                ref expected,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && expected == "Pipeline kind"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_form_field(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  expected: \"Pipeline kind\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_form_field()",
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\")",
+            "fn main() = ui.assert_form_field(field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+            "fn main() = ui.assert_form_field(node_id: \"bad/node\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: none, expected: \"Pipeline kind\")",
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"bad/field\", expected: \"Pipeline kind\")",
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: none)",
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"bad\\nfield\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_field = format!(
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"{}\", expected: \"Pipeline kind\")",
+            "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_field)).is_err());
+        let oversized_expected = format!(
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_expected)).is_err());
+    }
+
+    #[test]
     fn ui_assert_accessible_name_is_capability_gated_and_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
@@ -2813,6 +3020,7 @@ mod tests {
             "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
@@ -2823,6 +3031,7 @@ mod tests {
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

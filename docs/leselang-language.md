@@ -15,10 +15,10 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_visible`, `ui.assert_hidden`, `ui.wait_hidden`, `ui.assert_realized`,
 `ui.wait_realized`, `ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
 `ui.assert_enabled`, `ui.assert_disabled`, `ui.wait_enabled`,
-`ui.wait_disabled`, `ui.assert_window_open`, `ui.assert_selection`,
-`ui.wait_selection`, `ui.assert_text`,
+`ui.wait_disabled`, `ui.assert_window_open`, `ui.wait_window_open`,
+`ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`,
 `ui.assert_automation_id`, and
-`ui.assert_node_kind`, `ui.assert_action_kind`, plus
+`ui.assert_node_kind`, `ui.assert_action_kind`, `ui.assert_form_field`, plus
 `ui.assert_accessible_name` and `ui.assert_accessible_description` presentation
 effects.
 
@@ -332,6 +332,19 @@ succeeds only when that control and the renderer surface belong to the same
 native window visual tree. Missing or unrealized targets fail. The assertion
 never opens, closes, activates, focuses, scrolls, selects, or submits anything.
 
+The same native window attachment can be waited for with a protocol-fixed
+deadline:
+
+```leselang
+fn main() = ui.wait_window_open(node_id: "runtime-runtime-a")
+```
+
+`ui.wait_window_open` uses the same target semantics as
+`ui.assert_window_open`, but waits up to the fixed 2000 ms window-open deadline
+for the target control and renderer surface to share a native window visual
+tree. It never opens, closes, activates, focuses, scrolls, selects, or submits
+anything.
+
 Native selection state can be asserted without activating or focusing a control:
 
 ```leselang
@@ -432,6 +445,26 @@ compares it with the stable semantic action payload for the realized node.
 Missing, actionless, unrealized, invalid-kind, or mismatched targets fail. The
 assertion never focuses, activates, scrolls, submits a form, or changes action
 metadata.
+
+Native deployment form metadata can be asserted without submitting the form:
+
+```leselang
+fn main() = ui.assert_form_field(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  expected: "Pipeline kind"
+)
+```
+
+`ui.assert_form_field` requires `ui.presentation`, a semantic
+`runtime_deploy` action with a bounded form, a form field key of at most 128
+ASCII bytes (`A-Z`, `a-z`, `0-9`, `_`, `-`, or `.`), and the same bounded
+control-free expected-text contract used by text and accessibility assertions.
+The VM binds `node_id`, `field`, and `expected` to the request and result. The
+renderer compares the stable semantic field label fallback with the expected
+value; form-less targets, unknown fields, unrealized targets, invalid keys, or
+mismatched labels fail. The assertion never focuses, types, activates, opens, or
+submits the form.
 
 Native accessibility metadata can be asserted independently of display text:
 

@@ -40,14 +40,16 @@ The separate candidate fixture carries Rust-generated
 `UiPresentationOperation::Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
 `AssertHidden`, `WaitHidden`, `AssertRealized`, `WaitRealized`, `WaitVisible`,
 `AssertFocused`, and `WaitFocused`, plus `AssertEnabled`, `AssertDisabled`,
-`WaitEnabled`, `WaitDisabled`, `AssertWindowOpen`, `AssertSelection`,
+`WaitEnabled`, `WaitDisabled`, `AssertWindowOpen`, `WaitWindowOpen`,
+`AssertSelection`,
 `WaitSelection`, `AssertText`,
 `AssertAutomationId`,
 `AssertNodeKind`,
 `AssertActionKind`,
+`AssertFormField`,
 `AssertAccessibleName`, and
 `AssertAccessibleDescription` values. RendererCore strictly round-trips all
-twenty-four and validates valid, missing, noninteractive,
+twenty-six and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -61,6 +63,7 @@ viewport-aware visibility wait without implicit scrolling, plus side-effect-free
 focus, external focus waiting without implicit focus mutation, enabled-state,
 disabled-state, external enablement waiting, external disablement waiting with a
 persistent enabled timeout, native window-open visual-tree membership,
+dispatcher-yielding window-open waiting,
 native selected/unselected observation,
 dispatcher-yielding selection wait, actual displayed-text, and
 automation-id, node-kind, action-kind, accessibility-name, and declared accessibility-description

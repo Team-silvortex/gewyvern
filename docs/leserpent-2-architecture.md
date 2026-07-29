@@ -1678,12 +1678,14 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_enabled(node_id: ...)`, plus
 `ui.wait_disabled(node_id: ...)`, plus
 `ui.assert_window_open(node_id: ...)`, plus
+`ui.wait_window_open(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
 `ui.assert_node_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_kind(node_id: ..., kind: ...)`, plus
+`ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, lower to
 operation-specific values inside a capability-gated VM
@@ -1713,7 +1715,9 @@ without changing availability or activating the action. Disabled wait polls the
 inverse native predicate with the same fixed deadline, without changing
 availability or activating the action. Window-open assertion verifies the
 realized target and renderer surface share one native `Window` visual tree
-without opening, closing, activating, or focusing it. Selection
+without opening, closing, activating, or focusing it. Window-open wait polls that
+same native-window membership predicate until the fixed deadline, also without
+opening, closing, activating, or focusing it. Selection
 assertion reads native selected state, and selection wait polls that same
 predicate until the fixed deadline without selecting, focusing, or activating
 the target. Text

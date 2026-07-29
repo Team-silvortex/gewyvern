@@ -43,7 +43,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.WaitEnabled"));
     assert!(core.contains("UiPresentationOperationKind.WaitDisabled"));
     assert!(core.contains("UiPresentationOperationKind.AssertWindowOpen"));
+    assert!(core.contains("UiPresentationOperationKind.WaitWindowOpen"));
     assert!(core.contains("WaitEnabledTimeoutMs = 2000"));
+    assert!(core.contains("WaitWindowOpenTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.WaitFocused"));
     assert!(core.contains("WaitFocusedTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.NavigateFocus"));
@@ -63,6 +65,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.AssertAutomationId"));
     assert!(core.contains("UiPresentationOperationKind.AssertNodeKind"));
     assert!(core.contains("UiPresentationOperationKind.AssertActionKind"));
+    assert!(core.contains("UiPresentationOperationKind.AssertFormField"));
+    assert!(core.contains("public string? Field { get; set; }"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleDescription"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
@@ -93,6 +97,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAutomationIdMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNodeKindMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetActionKindMismatch"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMismatch"));
+    assert!(renderer.contains("IReadOnlyDictionary<string, string>? FormFieldLabels"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedActionKind"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAccessibleNameMismatch"));
@@ -137,6 +143,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_disabled_external_transition="));
     assert!(app.contains("wait_disabled_timeout="));
     assert!(app.contains("assert_window_open="));
+    assert!(app.contains("wait_window_open="));
     assert!(app.contains("wait_focused=true"));
     assert!(app.contains("wait_focused_external_transition=true"));
     assert!(app.contains("wait_focused_timeout=true"));
@@ -160,6 +167,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("node_kind_mismatch_rejected=true"));
     assert!(app.contains("assert_action_kind="));
     assert!(app.contains("action_kind_mismatch_rejected="));
+    assert!(app.contains("assert_form_field="));
+    assert!(app.contains("form_field_mismatch_rejected="));
     assert!(app.contains("assert_accessible_name=true"));
     assert!(app.contains("accessible_name_mismatch_rejected=true"));
     assert!(app.contains("assert_accessible_description=true"));
@@ -174,6 +183,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_wait_enabled=true"));
     assert!(conformance.contains("presentation_wait_disabled=true"));
     assert!(conformance.contains("presentation_assert_window_open=true"));
+    assert!(conformance.contains("presentation_wait_window_open=true"));
     assert!(conformance.contains("presentation_wait_focused=true"));
     assert!(conformance.contains("presentation_assert_selection=true"));
     assert!(conformance.contains("presentation_wait_selection=true"));
@@ -181,6 +191,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_assert_automation_id=true"));
     assert!(conformance.contains("presentation_assert_node_kind=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
+    assert!(conformance.contains("presentation_assert_form_field=true"));
 }
 
 #[test]

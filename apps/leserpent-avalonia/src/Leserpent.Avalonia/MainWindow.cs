@@ -18,11 +18,13 @@ internal sealed class MainWindow : Window
     private readonly Task<PresentationAutomationResult> initialFocusedWaitTimeout;
     private readonly Task<PresentationAutomationResult> initialSelectionWait;
     private readonly Task<PresentationAutomationResult> initialSelectionWaitTimeout;
+    private readonly Task<PresentationAutomationResult> initialWindowOpenWait;
     private readonly string initialFocusedWaitNodeId;
     private readonly string initialFocusedWaitTimeoutNodeId;
     private readonly string initialSelectionAssertNodeId;
     private readonly string initialSelectionWaitNodeId;
     private readonly string initialWindowOpenAssertNodeId;
+    private readonly string initialWindowOpenWaitNodeId;
     private int invokedActionCount;
     private readonly TextBlock statusText = new()
     {
@@ -53,6 +55,7 @@ internal sealed class MainWindow : Window
     public bool InitialDisabledWaitCompleted { get; private set; }
     public bool InitialDisabledWaitTimedOut { get; private set; }
     public bool WindowOpenAssertCompleted { get; private set; }
+    public bool WindowOpenWaitCompleted { get; private set; }
     public bool InitialFocusedWaitCompleted { get; private set; }
     public bool InitialFocusedWaitTimedOut { get; private set; }
     public bool InitialSelectionWaitCompleted { get; private set; }
@@ -69,6 +72,8 @@ internal sealed class MainWindow : Window
     public bool FocusNavigationDidNotActivate { get; private set; }
     public bool ActionKindAssertCompleted { get; private set; }
     public bool ActionKindMismatchRejected { get; private set; }
+    public bool FormFieldAssertCompleted { get; private set; }
+    public bool FormFieldMismatchRejected { get; private set; }
     public bool DisabledAssertCompleted { get; private set; }
     public bool DisabledMismatchRejected { get; private set; }
     public bool HiddenAssertCompleted { get; private set; }
@@ -236,6 +241,16 @@ internal sealed class MainWindow : Window
         initialWindowOpenAssertNodeId = fixture.WindowOpenAssertOperation?.NodeId
             ?? throw new InvalidDataException(
                 "window-open assertion probe requires a semantic target");
+        initialWindowOpenWaitNodeId = fixture.WindowOpenWaitOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "window-open wait probe requires a semantic target");
+        initialWindowOpenWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitWindowOpen,
+                NodeId = initialWindowOpenWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitWindowOpenTimeoutMs,
+            });
         initialSelectionWaitTimeout = detachedRenderer.ApplyPresentationAsync(
             new UiPresentationOperation
             {
@@ -273,6 +288,14 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang window-open assertion did not observe the native window");
+        }
+        var windowOpenWait = await initialWindowOpenWait;
+        WindowOpenWaitCompleted = windowOpenWait.Applied
+            && windowOpenWait.FailureCode == PresentationAutomationFailureCode.None;
+        if (!WindowOpenWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang window-open wait did not observe the native window");
         }
         DispatcherTimer.RunOnce(
             () => renderer.SetActionAvailability(
@@ -841,6 +864,46 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang action kind assertion accepted a mismatched semantic action kind or changed focus");
+        }
+        var formActionNodeId = renderer.FirstRealizedActionNodeIdFor(ActionKind.RuntimeDeploy)
+            ?? throw new InvalidDataException(
+                "form field assertion probe requires a realized deployment form action");
+        var formActionNode = FindNode(renderer.Document.Root, formActionNodeId)
+            ?? throw new InvalidDataException("form field assertion probe target was not found");
+        var formField = formActionNode.Action?.Form?.Fields.FirstOrDefault()
+            ?? throw new InvalidDataException(
+                "form field assertion probe requires form field metadata");
+        var expectedFormFieldLabel = formField.Label.Fallback;
+        var formFieldMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormField,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            Expected = expectedFormFieldLabel,
+        });
+        FormFieldAssertCompleted = formFieldMatched.Applied
+            && formFieldMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field assertion rejected stable form metadata or changed focus");
+        }
+        var formFieldMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormField,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            Expected = $"{expectedFormFieldLabel} mismatch",
+        });
+        FormFieldMismatchRejected = !formFieldMismatch.Applied
+            && formFieldMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetFormFieldMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang form field assertion accepted mismatched form metadata or changed focus");
         }
         var expectedAccessibleName = textNode.Accessibility.Label?.Fallback
             ?? textNode.Text?.Fallback

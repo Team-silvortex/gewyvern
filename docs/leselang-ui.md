@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by twenty-four presentation atoms.
+Semantic action equivalence is joined by twenty-six presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -193,6 +193,9 @@ the protocol-fixed 2000 ms deadline.
 the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertWindowOpen` maps one-to-one to
 `ui.assert_window_open(node_id: ...)` and accepts any existing semantic node.
+`UiPresentationOperation::WaitWindowOpen` maps one-to-one to
+`ui.wait_window_open(node_id: ...)`, accepts any existing semantic node, and
+carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertSelection` maps one-to-one to
 `ui.assert_selection(node_id: ..., state: ...)`, requires a semantic node with
 selection metadata, and admits only `selected` or `unselected`.
@@ -211,17 +214,20 @@ node, and carries a stable semantic renderer kind.
 `UiPresentationOperation::AssertActionKind` maps one-to-one to
 `ui.assert_action_kind(node_id: ..., kind: ...)`, requires a semantic action
 node, and carries the stable semantic action payload kind as
-`expected_action_kind`. `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
+`expected_action_kind`. `UiPresentationOperation::AssertFormField` maps
+one-to-one to `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`,
+requires a semantic deployment form action, validates the bounded form field key,
+and compares the stable semantic field label fallback. `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and uses the same expected-value bound.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
 semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all twenty-four travel in
+become a `UiEvent` or `CommandPlan`; all twenty-six travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all twenty-four operations through its stable visual index. Focus
+Avalonia resolves all twenty-six operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -255,6 +261,9 @@ changing availability or invoking the action.
 Window-open assertion resolves the same stable visual index and succeeds only
 when the realized target and renderer surface are attached to the same native
 `Window` visual tree; it never calls native activation, open, close, or focus.
+Window-open wait polls that same native-window membership predicate through the
+cancellable dispatcher-yielding adapter until its fixed deadline and also never
+calls native activation, open, close, or focus.
 Selection assertion reads the native selected state of the realized selectable
 control, while selection wait polls that same predicate through the cancellable
 adapter until the protocol-fixed deadline. Mismatched, selectionless, or native
@@ -267,7 +276,9 @@ and requires it to match the expected stable node identifier exactly.
 Node-kind assertion compares the stable semantic renderer kind and uses no
 guessing, coordinates, or OCR. Action-kind assertion compares the expected
 semantic action kind with the realized node's stable action payload and never
-activates or focuses the target. Accessible-name assertion independently reads
+activates or focuses the target. Form-field assertion reads the realized node's
+stable semantic deployment form metadata, compares the declared field label
+fallback exactly, and never types into or submits the form. Accessible-name assertion independently reads
 native `AutomationProperties.Name` with exact ordinal comparison. None of the
 assertions mutates the control. Accessible-description assertion independently
 reads native `AutomationProperties.HelpText`, also with exact ordinal
@@ -281,7 +292,8 @@ disabled-wait timeout, external focus transition and persistent
 realized-unfocused timeout without implicit focus mutation, native forward and
 backward focus navigation, stable destination reporting, failure focus
 preservation, and
-zero action activation, native window-open assertion,
+zero action activation, native window-open assertion, dispatcher-yielding
+window-open wait,
 native selected/unselected assertion, dispatcher-yielding
 selection wait, persistent selection mismatch timeout,
 text-mismatched, automation-id-mismatched, node-kind-mismatched,

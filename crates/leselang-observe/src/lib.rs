@@ -314,9 +314,7 @@ pub fn waiting_debugger_projection(
         Effect::UiAssertHidden { .. } => {
             (DebuggerEffectKind::UiAssertHidden, None, "UI assert hidden")
         }
-        Effect::UiWaitHidden { .. } => {
-            (DebuggerEffectKind::UiWaitHidden, None, "UI wait hidden")
-        }
+        Effect::UiWaitHidden { .. } => (DebuggerEffectKind::UiWaitHidden, None, "UI wait hidden"),
         Effect::UiAssertRealized { .. } => (
             DebuggerEffectKind::UiAssertRealized,
             None,
@@ -338,6 +336,11 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertWindowOpen,
             None,
             "UI assert window open",
+        ),
+        Effect::UiWaitWindowOpen { .. } => (
+            DebuggerEffectKind::UiWaitWindowOpen,
+            None,
+            "UI wait window open",
         ),
         Effect::UiWaitFocused { .. } => {
             (DebuggerEffectKind::UiWaitFocused, None, "UI wait focused")
@@ -382,6 +385,11 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertActionKind,
             None,
             "UI assert action kind",
+        ),
+        Effect::UiAssertFormField { .. } => (
+            DebuggerEffectKind::UiAssertFormField,
+            None,
+            "UI assert form field",
         ),
         Effect::UiAssertAccessibleName { .. } => (
             DebuggerEffectKind::UiAssertAccessibleName,

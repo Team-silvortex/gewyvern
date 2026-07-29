@@ -6,8 +6,9 @@ use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
     CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_ENABLED_TIMEOUT_MS,
     UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState, UiSemanticActionKind,
-    UiSemanticNodeKind, authorize, validate_ui_expected_text, validate_ui_node_id,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
+    UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind, authorize,
+    validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -149,6 +150,10 @@ pub enum PresentationOperation {
     AssertWindowOpen {
         node_id: String,
     },
+    WaitWindowOpen {
+        node_id: String,
+        timeout_ms: u64,
+    },
     WaitFocused {
         node_id: String,
         timeout_ms: u64,
@@ -186,6 +191,11 @@ pub enum PresentationOperation {
     AssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    AssertFormField {
+        node_id: String,
+        field: String,
+        expected: String,
     },
     AssertAccessibleName {
         node_id: String,
@@ -254,6 +264,10 @@ pub enum PresentationResult {
     AssertWindowOpen {
         node_id: String,
     },
+    WaitWindowOpen {
+        node_id: String,
+        timeout_ms: u64,
+    },
     WaitFocused {
         node_id: String,
         timeout_ms: u64,
@@ -291,6 +305,11 @@ pub enum PresentationResult {
     AssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    AssertFormField {
+        node_id: String,
+        field: String,
+        expected: String,
     },
     AssertAccessibleName {
         node_id: String,
@@ -585,6 +604,9 @@ pub enum Value {
     UiAssertWindowOpen {
         node_id: String,
     },
+    UiWaitWindowOpen {
+        node_id: String,
+    },
     UiWaitFocused {
         node_id: String,
     },
@@ -620,6 +642,11 @@ pub enum Value {
     UiAssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    UiAssertFormField {
+        node_id: String,
+        field: String,
+        expected: String,
     },
     UiAssertAccessibleName {
         node_id: String,
@@ -1051,6 +1078,18 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiWaitWindowOpen { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitWindowOpen {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiWaitFocused { node_id } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -1172,6 +1211,23 @@ impl Vm {
                     operation: PresentationOperation::AssertActionKind {
                         node_id: node_id.clone(),
                         expected_kind: *expected_kind,
+                    },
+                }),
+            ),
+            Effect::UiAssertFormField {
+                node_id,
+                field,
+                expected,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertFormField {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        expected: expected.clone(),
                     },
                 }),
             ),
@@ -1753,6 +1809,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitVisible { .. } => Type::UiWaitVisible,
         Effect::UiWaitEnabled { .. } => Type::UiWaitEnabled,
         Effect::UiAssertWindowOpen { .. } => Type::UiAssertWindowOpen,
+        Effect::UiWaitWindowOpen { .. } => Type::UiWaitWindowOpen,
         Effect::UiWaitFocused { .. } => Type::UiWaitFocused,
         Effect::UiAssertFocused { .. } => Type::UiAssertFocused,
         Effect::UiAssertEnabled { .. } => Type::UiAssertEnabled,
@@ -1764,6 +1821,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertAutomationId { .. } => Type::UiAssertAutomationId,
         Effect::UiAssertNodeKind { .. } => Type::UiAssertNodeKind,
         Effect::UiAssertActionKind { .. } => Type::UiAssertActionKind,
+        Effect::UiAssertFormField { .. } => Type::UiAssertFormField,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
         Effect::All { .. } => {
@@ -2176,10 +2234,7 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     && *timeout_ms == UI_WAIT_ENABLED_TIMEOUT_MS
             )
         }
-        (
-            Effect::UiAssertWindowOpen { node_id },
-            EffectOperation::Presentation(presentation),
-        ) => {
+        (Effect::UiAssertWindowOpen { node_id }, EffectOperation::Presentation(presentation)) => {
             validate_effect_identity(
                 presentation.schema_version,
                 &presentation.principal,
@@ -2193,6 +2248,24 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     node_id: operation_node_id,
                 } if operation_node_id == node_id
                     && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiWaitWindowOpen { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitWindowOpen {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
             )
         }
         (Effect::UiWaitFocused { node_id }, EffectOperation::Presentation(presentation)) => {
@@ -2392,6 +2465,35 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id
                     && operation_expected_kind == expected_kind
                     && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiAssertFormField {
+                node_id,
+                field,
+                expected,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertFormField {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    expected: operation_expected,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+                    && validate_ui_expected_text(operation_expected)
             )
         }
         (
@@ -2733,6 +2835,7 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiWaitEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitDisabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertWindowOpen { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitWindowOpen { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
@@ -2751,6 +2854,16 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         }
         Value::UiAssertNodeKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertActionKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertFormField {
+            node_id,
+            field,
+            expected,
+        } if validate_ui_node_id(node_id)
+            && validate_ui_form_field_key(field)
+            && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
         Value::UiAssertAccessibleName { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
         {
@@ -3336,6 +3449,34 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiWaitWindowOpen { node_id },
+            Type::UiWaitWindowOpen,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitWindowOpen {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitWindowOpen {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitWindowOpen {
+                node_id: result_node_id,
+            })
+        }
+        (
             Effect::UiWaitFocused { node_id },
             Type::UiWaitFocused,
             operation,
@@ -3614,6 +3755,44 @@ fn step_from_effect_result(
             Step::Done(Value::UiAssertActionKind {
                 node_id: result_node_id,
                 expected_kind: result_expected_kind,
+            })
+        }
+        (
+            Effect::UiAssertFormField {
+                node_id,
+                field,
+                expected,
+            },
+            Type::UiAssertFormField,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertFormField {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_expected == *expected
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertFormField {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            expected: operation_expected,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_expected == expected
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertFormField {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
             })
         }
         (
@@ -4713,6 +4892,59 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_window_open_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI window-open wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI window-open wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitWindowOpen {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:card"
+                && *timeout_ms == UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitWindowOpen {
+                    node_id: "runtime-a:card".into(),
+                    timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitWindowOpen {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI window-open wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitWindowOpen {
+            node_id: "runtime-a:card".into(),
+            timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
     fn ui_wait_focused_reenters_only_from_its_fixed_bounded_presentation_result() {
         let program = lower(&parse(
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
@@ -5226,6 +5458,65 @@ mod tests {
         presentation.operation = PresentationOperation::AssertActionKind {
             node_id: "runtime-a:refresh".into(),
             expected_kind: UiSemanticActionKind::RuntimeDeploy,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_form_field_binds_node_field_expected_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form field assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI form field assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertFormField {
+                node_id,
+                field,
+                expected,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && expected == "Pipeline kind"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFormField {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    expected: "Pipeline kind".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: "Pipeline kind".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertFormField {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "target".into(),
+            expected: "Pipeline kind".into(),
         };
         assert!(validate_effect_request(&torn).is_err());
     }

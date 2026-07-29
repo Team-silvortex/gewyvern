@@ -244,16 +244,18 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_enabled(node_id: ...)`, plus
 `ui.wait_disabled(node_id: ...)`, plus
 `ui.assert_window_open(node_id: ...)`, plus
+`ui.wait_window_open(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
 `ui.assert_node_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_kind(node_id: ..., kind: ...)`, plus
+`ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all twenty-four, and `leselang-ui` round-trips them against the current semantic
+rejects all twenty-six, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
 manager from a currently focused stable action, resolves first/last through the
@@ -273,7 +275,8 @@ native enablement without changing action availability, positively asserts
 disabled action state without changing availability, waits for external native
 disablement with the same fixed deadline while preserving availability and
 action state, proves the target is attached to the same native window visual
-tree without activating it, and compares
+tree without activating it, waits for that same native window membership with a
+fixed dispatcher-yielding deadline, and compares
 native selected state, waits for native selection mismatch timeout without
 changing selection, and compares actual native text, automation ID, semantic node kind,
 semantic action kind,

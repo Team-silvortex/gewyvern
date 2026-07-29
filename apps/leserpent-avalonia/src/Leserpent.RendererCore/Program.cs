@@ -10,6 +10,7 @@ public sealed class SemanticRenderer
     public const int WaitRealizedTimeoutMs = 2000;
     public const int WaitSelectionTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
+    public const int WaitWindowOpenTimeoutMs = 2000;
 
     public UiDocument Document { get; private set; } = null!;
 
@@ -90,6 +91,7 @@ public sealed class SemanticRenderer
             return UiPresentationValidation.UnknownTarget;
         }
         if (operation.Kind is UiPresentationOperationKind.AssertText
+            or UiPresentationOperationKind.AssertFormField
             or UiPresentationOperationKind.AssertAccessibleName
             or UiPresentationOperationKind.AssertAccessibleDescription)
         {
@@ -136,6 +138,17 @@ public sealed class SemanticRenderer
         {
             return UiPresentationValidation.InvalidExpectedText;
         }
+        if (operation.Kind == UiPresentationOperationKind.AssertFormField)
+        {
+            if (!IsFormFieldKey(operation.Field))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+        }
+        else if (operation.Field is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedText;
+        }
         if (operation.Kind != UiPresentationOperationKind.AssertNodeKind
             && operation.ExpectedKind is not null)
         {
@@ -174,6 +187,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitHidden
             or UiPresentationOperationKind.WaitEnabled
             or UiPresentationOperationKind.WaitDisabled
+            or UiPresentationOperationKind.WaitWindowOpen
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.WaitSelection)
         {
@@ -184,6 +198,7 @@ public sealed class SemanticRenderer
                 UiPresentationOperationKind.WaitHidden => WaitVisibleTimeoutMs,
                 UiPresentationOperationKind.WaitEnabled => WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitDisabled => WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitWindowOpen => WaitWindowOpenTimeoutMs,
                 UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection => WaitSelectionTimeoutMs,
                 _ => throw new InvalidOperationException("unknown wait operation"),
@@ -231,6 +246,8 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertWindowOpen =>
                 UiPresentationValidation.Valid,
+            UiPresentationOperationKind.WaitWindowOpen =>
+                UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection
                 when node.Selection is not null =>
@@ -250,6 +267,15 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertNodeKind =>
                 UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertFormField
+                when node.Action?.Form is { } form
+                    && form.Fields.Any(field => StringComparer.Ordinal.Equals(field.Key, operation.Field)) =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertFormField
+                when node.Action?.Form is not null =>
+                UiPresentationValidation.UnknownFormField,
+            UiPresentationOperationKind.AssertFormField =>
+                UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertAccessibleDescription
                 when node.Accessibility.Description is not null =>
                 UiPresentationValidation.Valid,
@@ -268,6 +294,11 @@ public sealed class SemanticRenderer
         value is not null
         && Encoding.UTF8.GetByteCount(value) <= 1024
         && !value.Any(char.IsControl);
+
+    private static bool IsFormFieldKey(string? value) =>
+        value is { Length: > 0 and <= 128 }
+        && value.All(character => char.IsAsciiLetterOrDigit(character)
+            || character is '-' or '_' or '.');
 
     private void ApplyOperation(UiPatchOperation operation)
     {
@@ -563,6 +594,7 @@ public sealed class RendererFixture
     public UiPresentationOperation? EnabledWaitOperation { get; set; }
     public UiPresentationOperation? DisabledWaitOperation { get; set; }
     public UiPresentationOperation? WindowOpenAssertOperation { get; set; }
+    public UiPresentationOperation? WindowOpenWaitOperation { get; set; }
     public UiPresentationOperation? FocusedWaitOperation { get; set; }
     public UiPresentationOperation? FocusedAssertOperation { get; set; }
     public UiPresentationOperation? EnabledAssertOperation { get; set; }
@@ -573,6 +605,7 @@ public sealed class RendererFixture
     public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
     public UiPresentationOperation? NodeKindAssertOperation { get; set; }
     public UiPresentationOperation? ActionKindAssertOperation { get; set; }
+    public UiPresentationOperation? FormFieldAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
 }
@@ -663,6 +696,7 @@ public sealed class UiPresentationOperation
     public UiFocusNavigationDirection? Direction { get; set; }
     public UiSelectionState? State { get; set; }
     public string? Expected { get; set; }
+    public string? Field { get; set; }
     public UiNodeKind? ExpectedKind { get; set; }
     public ActionKind? ExpectedActionKind { get; set; }
     public int? TimeoutMs { get; set; }
@@ -742,6 +776,7 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("wait_enabled")] WaitEnabled,
     [JsonStringEnumMemberName("wait_disabled")] WaitDisabled,
     [JsonStringEnumMemberName("assert_window_open")] AssertWindowOpen,
+    [JsonStringEnumMemberName("wait_window_open")] WaitWindowOpen,
     [JsonStringEnumMemberName("wait_focused")] WaitFocused,
     [JsonStringEnumMemberName("assert_focused")] AssertFocused,
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
@@ -752,6 +787,7 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
+    [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
 }
@@ -779,6 +815,8 @@ public enum UiPresentationValidation
     UnfocusableTarget,
     TextlessTarget,
     DescriptionlessTarget,
+    FormlessTarget,
+    UnknownFormField,
     SelectionlessTarget,
     InvalidExpectedText,
     InvalidExpectedKind,

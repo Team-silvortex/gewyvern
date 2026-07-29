@@ -4,9 +4,9 @@ use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
     Effect, HirBranch, Type, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
-    UiFocusNavigationDirection, UiSelectionState, UiSemanticActionKind as HirUiSemanticActionKind,
-    UiSemanticNodeKind as HirUiSemanticNodeKind, canonical_source, validate_ui_expected_text,
-    validate_ui_node_id,
+    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState,
+    UiSemanticActionKind as HirUiSemanticActionKind, UiSemanticNodeKind as HirUiSemanticNodeKind,
+    canonical_source, validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
 };
 use leserpent_domain::{
     CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
@@ -317,12 +317,14 @@ pub enum DebuggerEffectKind {
     UiAssertDisabled,
     UiWaitDisabled,
     UiAssertWindowOpen,
+    UiWaitWindowOpen,
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
     UiAssertAutomationId,
     UiAssertNodeKind,
     UiAssertActionKind,
+    UiAssertFormField,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
 }
@@ -504,6 +506,10 @@ pub enum UiPresentationOperation {
     AssertWindowOpen {
         node_id: NodeId,
     },
+    WaitWindowOpen {
+        node_id: NodeId,
+        timeout_ms: u64,
+    },
     AssertSelection {
         node_id: NodeId,
         state: UiSelectionState,
@@ -528,6 +534,11 @@ pub enum UiPresentationOperation {
     AssertActionKind {
         node_id: NodeId,
         expected_action_kind: UiActionKind,
+    },
+    AssertFormField {
+        node_id: NodeId,
+        field: String,
+        expected: String,
     },
     AssertAccessibleName {
         node_id: NodeId,
@@ -637,6 +648,13 @@ pub enum UiError {
     TextlessPresentationTarget {
         node_id: String,
     },
+    FormlessPresentationTarget {
+        node_id: String,
+    },
+    UnknownFormField {
+        node_id: String,
+        field: String,
+    },
     DescriptionlessPresentationTarget {
         node_id: String,
     },
@@ -689,6 +707,99 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
             RefreshStatus::Ready => "Ready",
             RefreshStatus::Failed => "Refresh failed",
         };
+        let mut card_children = vec![
+            text_node(
+                &format!("{prefix}-name"),
+                UiNodeKind::Heading,
+                "fleet.runtime.name",
+                &runtime.name,
+            )?,
+            text_node(
+                &format!("{prefix}-status"),
+                UiNodeKind::Text,
+                "fleet.runtime.status",
+                status,
+            )?,
+            UiNode {
+                id: NodeId::new(format!("{prefix}-inspect"))?,
+                kind: UiNodeKind::Action,
+                runtime_id: None,
+                debugger_session_id: None,
+                text: Some(localized("fleet.runtime.inspect", "Inspect")?),
+                accessibility: Accessibility {
+                    label: Some(localized("fleet.runtime.inspect", "Inspect runtime")?),
+                    description: Some(localized(
+                        "fleet.runtime.inspect.description",
+                        "Open the read-only runtime workspace",
+                    )?),
+                },
+                selection: None,
+                action: Some(UiAction::RuntimeInspect {
+                    runtime_id: runtime.id.clone(),
+                }),
+                children: Vec::new(),
+            },
+            UiNode {
+                id: NodeId::new(format!("{prefix}-refresh"))?,
+                kind: UiNodeKind::Action,
+                runtime_id: None,
+                debugger_session_id: None,
+                text: Some(localized("fleet.runtime.refresh", "Refresh")?),
+                accessibility: Accessibility {
+                    label: Some(localized("fleet.runtime.refresh", "Refresh runtime")?),
+                    description: None,
+                },
+                selection: None,
+                action: Some(UiAction::RuntimeRefresh {
+                    runtime_id: runtime.id.clone(),
+                }),
+                children: Vec::new(),
+            },
+            UiNode {
+                id: NodeId::new(format!("{prefix}-capabilities-refresh"))?,
+                kind: UiNodeKind::Action,
+                runtime_id: None,
+                debugger_session_id: None,
+                text: Some(localized(
+                    "fleet.runtime.capabilities.refresh",
+                    "Refresh capabilities",
+                )?),
+                accessibility: Accessibility {
+                    label: Some(localized(
+                        "fleet.runtime.capabilities.refresh",
+                        "Refresh runtime capabilities",
+                    )?),
+                    description: None,
+                },
+                selection: None,
+                action: Some(UiAction::RuntimeCapabilitiesRefresh {
+                    runtime_id: runtime.id.clone(),
+                }),
+                children: Vec::new(),
+            },
+        ];
+        if runtime.capabilities.authenticated_deployment {
+            card_children.push(UiNode {
+                id: NodeId::new(format!("{prefix}-deploy"))?,
+                kind: UiNodeKind::Action,
+                runtime_id: None,
+                debugger_session_id: None,
+                text: Some(localized("fleet.runtime.deploy", "Deploy pipeline")?),
+                accessibility: Accessibility {
+                    label: Some(localized("fleet.runtime.deploy", "Deploy pipeline")?),
+                    description: Some(localized(
+                        "fleet.runtime.deploy.description",
+                        "Opens a bounded deployment form and requires explicit confirmation",
+                    )?),
+                },
+                selection: None,
+                action: Some(UiAction::RuntimeDeploy {
+                    runtime_id: runtime.id.clone(),
+                    form: deployment_form()?,
+                }),
+                children: Vec::new(),
+            });
+        }
         children.push(UiNode {
             id: NodeId::new(prefix.clone())?,
             kind: UiNodeKind::RuntimeCard,
@@ -707,77 +818,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                 },
             }),
             action: None,
-            children: vec![
-                text_node(
-                    &format!("{prefix}-name"),
-                    UiNodeKind::Heading,
-                    "fleet.runtime.name",
-                    &runtime.name,
-                )?,
-                text_node(
-                    &format!("{prefix}-status"),
-                    UiNodeKind::Text,
-                    "fleet.runtime.status",
-                    status,
-                )?,
-                UiNode {
-                    id: NodeId::new(format!("{prefix}-inspect"))?,
-                    kind: UiNodeKind::Action,
-                    runtime_id: None,
-                    debugger_session_id: None,
-                    text: Some(localized("fleet.runtime.inspect", "Inspect")?),
-                    accessibility: Accessibility {
-                        label: Some(localized("fleet.runtime.inspect", "Inspect runtime")?),
-                        description: Some(localized(
-                            "fleet.runtime.inspect.description",
-                            "Open the read-only runtime workspace",
-                        )?),
-                    },
-                    selection: None,
-                    action: Some(UiAction::RuntimeInspect {
-                        runtime_id: runtime.id.clone(),
-                    }),
-                    children: Vec::new(),
-                },
-                UiNode {
-                    id: NodeId::new(format!("{prefix}-refresh"))?,
-                    kind: UiNodeKind::Action,
-                    runtime_id: None,
-                    debugger_session_id: None,
-                    text: Some(localized("fleet.runtime.refresh", "Refresh")?),
-                    accessibility: Accessibility {
-                        label: Some(localized("fleet.runtime.refresh", "Refresh runtime")?),
-                        description: None,
-                    },
-                    selection: None,
-                    action: Some(UiAction::RuntimeRefresh {
-                        runtime_id: runtime.id.clone(),
-                    }),
-                    children: Vec::new(),
-                },
-                UiNode {
-                    id: NodeId::new(format!("{prefix}-capabilities-refresh"))?,
-                    kind: UiNodeKind::Action,
-                    runtime_id: None,
-                    debugger_session_id: None,
-                    text: Some(localized(
-                        "fleet.runtime.capabilities.refresh",
-                        "Refresh capabilities",
-                    )?),
-                    accessibility: Accessibility {
-                        label: Some(localized(
-                            "fleet.runtime.capabilities.refresh",
-                            "Refresh runtime capabilities",
-                        )?),
-                        description: None,
-                    },
-                    selection: None,
-                    action: Some(UiAction::RuntimeCapabilitiesRefresh {
-                        runtime_id: runtime.id.clone(),
-                    }),
-                    children: Vec::new(),
-                },
-            ],
+            children: card_children,
         });
     }
     let document = UiDocument {
@@ -1248,12 +1289,14 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertDisabled
             | DebuggerEffectKind::UiWaitDisabled
             | DebuggerEffectKind::UiAssertWindowOpen
+            | DebuggerEffectKind::UiWaitWindowOpen
             | DebuggerEffectKind::UiAssertSelection
             | DebuggerEffectKind::UiWaitSelection
             | DebuggerEffectKind::UiAssertText
             | DebuggerEffectKind::UiAssertAutomationId
             | DebuggerEffectKind::UiAssertNodeKind
             | DebuggerEffectKind::UiAssertActionKind
+            | DebuggerEffectKind::UiAssertFormField
             | DebuggerEffectKind::UiAssertAccessibleName
             | DebuggerEffectKind::UiAssertAccessibleDescription => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
@@ -1371,12 +1414,14 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertDisabled => "UI assert disabled",
             DebuggerEffectKind::UiWaitDisabled => "UI wait disabled",
             DebuggerEffectKind::UiAssertWindowOpen => "UI assert window open",
+            DebuggerEffectKind::UiWaitWindowOpen => "UI wait window open",
             DebuggerEffectKind::UiAssertSelection => "UI assert selection",
             DebuggerEffectKind::UiWaitSelection => "UI wait selection",
             DebuggerEffectKind::UiAssertText => "UI assert text",
             DebuggerEffectKind::UiAssertAutomationId => "UI assert automation id",
             DebuggerEffectKind::UiAssertNodeKind => "UI assert node kind",
             DebuggerEffectKind::UiAssertActionKind => "UI assert action kind",
+            DebuggerEffectKind::UiAssertFormField => "UI assert form field",
             DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
             DebuggerEffectKind::UiAssertAccessibleDescription => "UI assert accessible description",
         };
@@ -1659,6 +1704,10 @@ pub fn presentation_operation_for_effect(
         Effect::UiAssertWindowOpen { node_id } => UiPresentationOperation::AssertWindowOpen {
             node_id: NodeId::new(node_id.clone())?,
         },
+        Effect::UiWaitWindowOpen { node_id } => UiPresentationOperation::WaitWindowOpen {
+            node_id: NodeId::new(node_id.clone())?,
+            timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+        },
         Effect::UiAssertSelection { node_id, state } => UiPresentationOperation::AssertSelection {
             node_id: NodeId::new(node_id.clone())?,
             state: *state,
@@ -1691,6 +1740,15 @@ pub fn presentation_operation_for_effect(
         } => UiPresentationOperation::AssertActionKind {
             node_id: NodeId::new(node_id.clone())?,
             expected_action_kind: hir_action_kind_to_ui(*expected_kind),
+        },
+        Effect::UiAssertFormField {
+            node_id,
+            field,
+            expected,
+        } => UiPresentationOperation::AssertFormField {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            expected: expected.clone(),
         },
         Effect::UiAssertAccessibleName { node_id, expected } => {
             UiPresentationOperation::AssertAccessibleName {
@@ -1765,6 +1823,9 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::AssertWindowOpen { node_id } => Effect::UiAssertWindowOpen {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::WaitWindowOpen { node_id, .. } => Effect::UiWaitWindowOpen {
+            node_id: node_id.as_str().to_string(),
+        },
         UiPresentationOperation::AssertSelection { node_id, state } => Effect::UiAssertSelection {
             node_id: node_id.as_str().to_string(),
             state: *state,
@@ -1796,6 +1857,15 @@ pub fn effect_for_presentation_operation(
         } => Effect::UiAssertActionKind {
             node_id: node_id.as_str().to_string(),
             expected_kind: ui_action_kind_to_hir(*expected_action_kind),
+        },
+        UiPresentationOperation::AssertFormField {
+            node_id,
+            field,
+            expected,
+        } => Effect::UiAssertFormField {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            expected: expected.clone(),
         },
         UiPresentationOperation::AssertAccessibleName { node_id, expected } => {
             Effect::UiAssertAccessibleName {
@@ -1834,19 +1904,27 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertDisabled { node_id }
         | UiPresentationOperation::WaitDisabled { node_id, .. }
         | UiPresentationOperation::AssertWindowOpen { node_id }
+        | UiPresentationOperation::WaitWindowOpen { node_id, .. }
         | UiPresentationOperation::AssertSelection { node_id, .. }
         | UiPresentationOperation::WaitSelection { node_id, .. }
         | UiPresentationOperation::AssertText { node_id, .. }
         | UiPresentationOperation::AssertAutomationId { node_id, .. }
         | UiPresentationOperation::AssertNodeKind { node_id, .. }
         | UiPresentationOperation::AssertActionKind { node_id, .. }
+        | UiPresentationOperation::AssertFormField { node_id, .. }
         | UiPresentationOperation::AssertAccessibleName { node_id, .. }
         | UiPresentationOperation::AssertAccessibleDescription { node_id, .. } => node_id,
     };
     if let UiPresentationOperation::AssertText { expected, .. }
+    | UiPresentationOperation::AssertFormField { expected, .. }
     | UiPresentationOperation::AssertAccessibleName { expected, .. }
     | UiPresentationOperation::AssertAccessibleDescription { expected, .. } = operation
         && !validate_ui_expected_text(expected)
+    {
+        return Err(UiError::InvalidPresentationText);
+    }
+    if let UiPresentationOperation::AssertFormField { field, .. } = operation
+        && !validate_ui_form_field_key(field)
     {
         return Err(UiError::InvalidPresentationText);
     }
@@ -1877,6 +1955,11 @@ pub fn validate_presentation_operation(
     }
     if let UiPresentationOperation::WaitDisabled { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_ENABLED_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitWindowOpen { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
@@ -1936,6 +2019,23 @@ pub fn validate_presentation_operation(
         return Err(UiError::TextlessPresentationTarget {
             node_id: node_id.as_str().to_string(),
         });
+    }
+    if let UiPresentationOperation::AssertFormField { field, .. } = operation {
+        let Some(UiAction::RuntimeDeploy { form, .. }) = &node.action else {
+            return Err(UiError::FormlessPresentationTarget {
+                node_id: node_id.as_str().to_string(),
+            });
+        };
+        if !form
+            .fields
+            .iter()
+            .any(|candidate| candidate.key == field.as_str())
+        {
+            return Err(UiError::UnknownFormField {
+                node_id: node_id.as_str().to_string(),
+                field: field.clone(),
+            });
+        }
     }
     if matches!(
         operation,
@@ -3523,6 +3623,51 @@ mod tests {
     }
 
     #[test]
+    fn window_open_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitWindowOpen {
+            node_id: NodeId::new("runtime-runtime-a").unwrap(),
+            timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &operation).unwrap();
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitWindowOpen {
+                node_id: "runtime-runtime-a".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_window_open(node_id: \"runtime-runtime-a\")\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitWindowOpen {
+                    node_id: NodeId::new("runtime-runtime-a").unwrap(),
+                    timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitWindowOpen {
+                    node_id: NodeId::new("missing-node").unwrap(),
+                    timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget { .. })
+        ));
+    }
+
+    #[test]
     fn focused_wait_round_trips_with_the_fixed_bounded_policy() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::WaitFocused {
@@ -3995,6 +4140,91 @@ mod tests {
             Err(UiError::UnfocusablePresentationTarget {
                 node_id: document.root.id.as_str().into(),
             })
+        );
+    }
+
+    #[test]
+    fn form_field_assertion_round_trips_for_deployment_forms() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let operation = UiPresentationOperation::AssertFormField {
+            node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            expected: "Pipeline kind".into(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: "Pipeline kind".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormField {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "missing".into(),
+                    expected: "Pipeline kind".into(),
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormField {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    expected: "Pipeline kind".into(),
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormField {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "bad/field".into(),
+                    expected: "Pipeline kind".into(),
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormField {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "pipeline_kind".into(),
+                    expected: "bad\nlabel".into(),
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
         );
     }
 

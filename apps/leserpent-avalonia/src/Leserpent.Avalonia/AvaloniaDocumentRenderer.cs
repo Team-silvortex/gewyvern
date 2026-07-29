@@ -72,6 +72,8 @@ internal enum PresentationAutomationFailureCode
     UnfocusableTarget,
     TextlessTarget,
     DescriptionlessTarget,
+    FormlessTarget,
+    UnknownFormField,
     SelectionlessTarget,
     InvalidExpectedText,
     InvalidExpectedKind,
@@ -92,6 +94,9 @@ internal enum PresentationAutomationFailureCode
     TargetAutomationIdMismatch,
     TargetNodeKindMismatch,
     TargetActionKindMismatch,
+    TargetFormless,
+    TargetFormFieldMissing,
+    TargetFormFieldMismatch,
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
     TargetSelectionMismatch,
@@ -177,6 +182,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.TextlessTarget,
                     UiPresentationValidation.DescriptionlessTarget =>
                         PresentationAutomationFailureCode.DescriptionlessTarget,
+                    UiPresentationValidation.FormlessTarget =>
+                        PresentationAutomationFailureCode.FormlessTarget,
+                    UiPresentationValidation.UnknownFormField =>
+                        PresentationAutomationFailureCode.UnknownFormField,
                     UiPresentationValidation.SelectionlessTarget =>
                         PresentationAutomationFailureCode.SelectionlessTarget,
                     UiPresentationValidation.InvalidExpectedText =>
@@ -317,7 +326,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetStillEnabled);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertWindowOpen)
+        if (operation.Kind is UiPresentationOperationKind.AssertWindowOpen
+            or UiPresentationOperationKind.WaitWindowOpen)
         {
             var targetWindow = control!.GetVisualAncestors().OfType<Window>().FirstOrDefault();
             var surfaceWindow = Surface.GetVisualAncestors().OfType<Window>().FirstOrDefault();
@@ -393,6 +403,31 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 matched
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetActionKindMismatch);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertFormField)
+        {
+            if (node.FormFieldLabels is null)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormless);
+            }
+            if (operation.Field is not { } field
+                || !node.FormFieldLabels.TryGetValue(field, out var actual))
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormFieldMissing);
+            }
+            var matched = StringComparer.Ordinal.Equals(actual, operation.Expected);
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetFormFieldMismatch);
         }
         if (operation.Kind == UiPresentationOperationKind.AssertAccessibleName)
         {
@@ -475,6 +510,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitHidden
             and not UiPresentationOperationKind.WaitEnabled
             and not UiPresentationOperationKind.WaitDisabled
+            and not UiPresentationOperationKind.WaitWindowOpen
             and not UiPresentationOperationKind.WaitFocused
             and not UiPresentationOperationKind.WaitSelection)
         {
@@ -506,6 +542,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetStillEnabled;
             retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitWindowOpen
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetWindowUnavailable;
+            retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitFocused
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetNotFocused;
@@ -531,6 +571,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitDisabled =>
                     SemanticRenderer.WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitWindowOpen =>
+                    SemanticRenderer.WaitWindowOpenTimeoutMs,
                 UiPresentationOperationKind.WaitFocused =>
                     SemanticRenderer.WaitFocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection =>
@@ -873,7 +915,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             node.Selection?.State,
             AutomationName(node),
             node.Accessibility.Label is not null,
-            node.Accessibility.Description?.Fallback);
+            node.Accessibility.Description?.Fallback,
+            FormFieldLabels(node));
 
     private RenderedNode LazyContainer(
         UiNode node,
@@ -894,7 +937,16 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             node.Selection?.State,
             AutomationName(node),
             node.Accessibility.Label is not null,
-            node.Accessibility.Description?.Fallback);
+            node.Accessibility.Description?.Fallback,
+            FormFieldLabels(node));
+
+    private static IReadOnlyDictionary<string, string>? FormFieldLabels(UiNode node) =>
+        node.Action?.Form is { } form
+            ? form.Fields.ToDictionary(
+                field => field.Key,
+                field => field.Label.Fallback,
+                StringComparer.Ordinal)
+            : null;
 
     private static TextBlock BuildHeading(UiNode node) => new()
     {
@@ -1185,7 +1237,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         UiSelectionState? selectionState,
         string automationName,
         bool hasExplicitLabel,
-        string? automationDescription)
+        string? automationDescription,
+        IReadOnlyDictionary<string, string>? formFieldLabels)
     {
         private Control? control;
         private IChildrenHost? childrenHost;
@@ -1220,6 +1273,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         public string AutomationName { get; } = automationName;
         public bool HasExplicitLabel { get; } = hasExplicitLabel;
         public string? AutomationDescription { get; } = automationDescription;
+        public IReadOnlyDictionary<string, string>? FormFieldLabels { get; } = formFieldLabels;
         public bool IsRealized => control is not null;
         public RenderedNode? Parent { get; set; } = parent;
         public List<RenderedNode> Children { get; } = [];

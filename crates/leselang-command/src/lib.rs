@@ -87,6 +87,7 @@ pub fn lower_effect(
             | Effect::UiWaitEnabled { .. }
             | Effect::UiWaitDisabled { .. }
             | Effect::UiAssertWindowOpen { .. }
+            | Effect::UiWaitWindowOpen { .. }
             | Effect::UiWaitFocused { .. }
             | Effect::UiAssertFocused { .. }
             | Effect::UiAssertEnabled { .. }
@@ -97,6 +98,7 @@ pub fn lower_effect(
             | Effect::UiAssertAutomationId { .. }
             | Effect::UiAssertNodeKind { .. }
             | Effect::UiAssertActionKind { .. }
+            | Effect::UiAssertFormField { .. }
             | Effect::UiAssertAccessibleName { .. }
             | Effect::UiAssertAccessibleDescription { .. }
     ) {
@@ -124,6 +126,7 @@ pub fn lower_effect(
         | Effect::UiWaitEnabled { .. }
         | Effect::UiWaitDisabled { .. }
         | Effect::UiAssertWindowOpen { .. }
+        | Effect::UiWaitWindowOpen { .. }
         | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
@@ -134,6 +137,7 @@ pub fn lower_effect(
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiAssertFormField { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -172,6 +176,7 @@ pub fn lower_effect(
         | Effect::UiWaitEnabled { .. }
         | Effect::UiWaitDisabled { .. }
         | Effect::UiAssertWindowOpen { .. }
+        | Effect::UiWaitWindowOpen { .. }
         | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
@@ -182,6 +187,7 @@ pub fn lower_effect(
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiAssertFormField { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -459,6 +465,7 @@ mod tests {
             "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
@@ -469,6 +476,7 @@ mod tests {
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {
