@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 internal sealed class MainWindow : Window
 {
@@ -11,6 +12,17 @@ internal sealed class MainWindow : Window
     private readonly Task<PresentationAutomationResult> initialRealizedWaitTimeout;
     private readonly Task<PresentationAutomationResult> initialVisibleWait;
     private readonly Task<PresentationAutomationResult> initialVisibleWaitTimeout;
+    private readonly Task<PresentationAutomationResult> initialEnabledWait;
+    private readonly Task<PresentationAutomationResult> initialEnabledWaitTimeout;
+    private readonly Task<PresentationAutomationResult> initialFocusedWait;
+    private readonly Task<PresentationAutomationResult> initialFocusedWaitTimeout;
+    private readonly Task<PresentationAutomationResult> initialSelectionWait;
+    private readonly Task<PresentationAutomationResult> initialSelectionWaitTimeout;
+    private readonly string initialFocusedWaitNodeId;
+    private readonly string initialFocusedWaitTimeoutNodeId;
+    private readonly string initialSelectionAssertNodeId;
+    private readonly string initialSelectionWaitNodeId;
+    private int invokedActionCount;
     private readonly TextBlock statusText = new()
     {
         Foreground = LeserpentTheme.Muted,
@@ -28,10 +40,25 @@ internal sealed class MainWindow : Window
     public int InitialUnrealizedNodeCount { get; }
     public int UnrealizedNodeCount => renderer.UnrealizedNodeCount;
     public bool InitialUnrealizedAssertionRejected { get; }
+    public bool InitialUnrealizedNavigationRejected { get; }
     public bool InitialRealizedWaitCompleted { get; private set; }
     public bool InitialRealizedWaitTimedOut { get; private set; }
     public bool InitialVisibleWaitCompleted { get; private set; }
     public bool InitialVisibleWaitTimedOut { get; private set; }
+    public bool InitialEnabledWaitCompleted { get; private set; }
+    public bool InitialEnabledWaitTimedOut { get; private set; }
+    public bool InitialFocusedWaitCompleted { get; private set; }
+    public bool InitialFocusedWaitTimedOut { get; private set; }
+    public bool InitialSelectionWaitCompleted { get; private set; }
+    public bool InitialSelectionWaitTimedOut { get; private set; }
+    public bool SelectionAssertCompleted { get; private set; }
+    public bool SelectionMismatchRejected { get; private set; }
+    public bool SelectionlessTargetRejected { get; private set; }
+    public bool SelectionProbePreservedFocus { get; private set; }
+    public bool FocusNavigationForwardCompleted { get; private set; }
+    public bool FocusNavigationBackwardCompleted { get; private set; }
+    public bool FocusNavigationFailuresPreservedFocus { get; private set; }
+    public bool FocusNavigationDidNotActivate { get; private set; }
     public int InitialDebuggerCancelButtonCount { get; }
     public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
     public int DisabledActionProbeCount { get; private set; }
@@ -63,6 +90,25 @@ internal sealed class MainWindow : Window
         VirtualizedHostCount = renderer.VirtualizedHostCount;
         InitialUnrealizedVirtualItemCount = renderer.UnrealizedVirtualItemCount;
         InitialUnrealizedNodeCount = renderer.UnrealizedNodeCount;
+        var initialUnrealizedActionNodeId = renderer.FirstUnrealizedActionNodeId
+            ?? throw new InvalidDataException(
+                "focus navigation probe requires a pre-layout unrealized action");
+        var initialUnrealizedNavigation = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.NavigateFocus,
+                NodeId = initialUnrealizedActionNodeId,
+                Direction = UiFocusNavigationDirection.Next,
+            });
+        InitialUnrealizedNavigationRejected =
+            !initialUnrealizedNavigation.Applied
+            && initialUnrealizedNavigation.FailureCode
+                == PresentationAutomationFailureCode.TargetUnrealized;
+        if (!InitialUnrealizedNavigationRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang focus navigation accepted a pre-layout unrealized action");
+        }
         var initialUnrealizedNodeId = renderer.FirstUnrealizedNodeId
             ?? throw new InvalidDataException(
                 "realization assertion probe requires a pre-layout virtualized semantic node");
@@ -94,8 +140,25 @@ internal sealed class MainWindow : Window
             NodeId = visibleWaitNodeId,
             TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
         });
+        var enabledWaitNodeId = fixture.EnabledWaitOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "enabled wait probe requires an action target");
+        renderer.SetActionAvailability(
+            ActionKind.RuntimeRefresh,
+            false,
+            "Verification action is temporarily unavailable");
+        initialEnabledWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitEnabled,
+            NodeId = enabledWaitNodeId,
+            TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
+        });
         var detachedRenderer = new AvaloniaDocumentRenderer(_ => { });
         detachedRenderer.Mount(fixture.Next);
+        detachedRenderer.SetActionAvailability(
+            ActionKind.RuntimeRefresh,
+            false,
+            "Verification action remains unavailable");
         var detachedUnrealizedNodeId = detachedRenderer.FirstUnrealizedNodeId
             ?? throw new InvalidDataException(
                 "realization wait timeout probe requires a detached unrealized node");
@@ -112,6 +175,57 @@ internal sealed class MainWindow : Window
                 Kind = UiPresentationOperationKind.WaitVisible,
                 NodeId = visibleWaitNodeId,
                 TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
+            });
+        initialEnabledWaitTimeout = detachedRenderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitEnabled,
+                NodeId = enabledWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
+            });
+        initialFocusedWaitNodeId = fixture.FocusedWaitOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "focused wait probe requires an action target");
+        initialFocusedWaitTimeoutNodeId = FindOtherActionNodeId(
+                renderer.Document.Root,
+                initialFocusedWaitNodeId)
+            ?? throw new InvalidDataException(
+                "focused wait timeout probe requires another action target");
+        initialFocusedWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFocused,
+                NodeId = initialFocusedWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
+            });
+        initialFocusedWaitTimeout = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFocused,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+                TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
+            });
+        initialSelectionAssertNodeId = fixture.SelectionAssertOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "selection assertion probe requires a selectable target");
+        initialSelectionWaitNodeId = fixture.SelectionWaitOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "selection wait probe requires a selectable target");
+        initialSelectionWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitSelection,
+                NodeId = initialSelectionWaitNodeId,
+                State = UiSelectionState.Unselected,
+                TimeoutMs = SemanticRenderer.WaitSelectionTimeoutMs,
+            });
+        initialSelectionWaitTimeout = detachedRenderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitSelection,
+                NodeId = initialSelectionWaitNodeId,
+                State = UiSelectionState.Selected,
+                TimeoutMs = SemanticRenderer.WaitSelectionTimeoutMs,
             });
         Title = $"Leserpent / revision {Revision}";
         Content = new Grid
@@ -131,6 +245,29 @@ internal sealed class MainWindow : Window
 
     public async Task CompleteInitialWaitProbesAsync()
     {
+        DispatcherTimer.RunOnce(
+            () => renderer.SetActionAvailability(
+                ActionKind.RuntimeRefresh,
+                true,
+                null),
+            TimeSpan.FromMilliseconds(50));
+        DispatcherTimer.RunOnce(
+            () =>
+            {
+                var focused = renderer.ApplyPresentation(new UiPresentationOperation
+                {
+                    Kind = UiPresentationOperationKind.Focus,
+                    NodeId = initialFocusedWaitNodeId,
+                });
+                if (!focused.Applied
+                    || focused.FailureCode
+                        != PresentationAutomationFailureCode.None)
+                {
+                    throw new InvalidDataException(
+                        "focused wait probe could not apply its external focus transition");
+                }
+            },
+            TimeSpan.FromMilliseconds(50));
         var result = await initialRealizedWait;
         InitialRealizedWaitCompleted = result.Applied
             && result.FailureCode == PresentationAutomationFailureCode.None;
@@ -162,6 +299,75 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang visibility wait did not reject a persistently invisible target");
+        }
+        var enabledResult = await initialEnabledWait;
+        InitialEnabledWaitCompleted = enabledResult.Applied
+            && enabledResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialEnabledWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang enabled wait did not observe an external availability transition");
+        }
+        var enabledTimeoutResult = await initialEnabledWaitTimeout;
+        InitialEnabledWaitTimedOut = !enabledTimeoutResult.Applied
+            && enabledTimeoutResult.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        if (!InitialEnabledWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang enabled wait did not reject a persistently disabled target");
+        }
+        var focusedResult = await initialFocusedWait;
+        InitialFocusedWaitCompleted = focusedResult.Applied
+            && focusedResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialFocusedWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang focused wait did not observe an external focus transition");
+        }
+        var focusedTimeoutResult = await initialFocusedWaitTimeout;
+        var timeoutTargetRealized = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertRealized,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+            });
+        var timeoutTargetFocused = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFocused,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+            });
+        InitialFocusedWaitTimedOut = !focusedTimeoutResult.Applied
+            && focusedTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && timeoutTargetRealized.Applied
+            && timeoutTargetRealized.FailureCode
+                == PresentationAutomationFailureCode.None
+            && !timeoutTargetFocused.Applied
+            && timeoutTargetFocused.FailureCode
+                == PresentationAutomationFailureCode.TargetNotFocused
+            && renderer.FocusedNodeId == initialFocusedWaitNodeId;
+        if (!InitialFocusedWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang focused wait changed focus or did not reject a persistently unfocused realized target");
+        }
+        var selectionResult = await initialSelectionWait;
+        InitialSelectionWaitCompleted = selectionResult.Applied
+            && selectionResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialSelectionWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang selection wait did not observe native unselected state");
+        }
+        var selectionTimeoutResult = await initialSelectionWaitTimeout;
+        InitialSelectionWaitTimedOut = !selectionTimeoutResult.Applied
+            && selectionTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut;
+        if (!InitialSelectionWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang selection wait did not reject a persistently unmatched selection state");
         }
     }
 
@@ -234,6 +440,50 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang focus assertion rejected the focused action");
         }
+        var actionCountBeforeNavigation = invokedActionCount;
+        var navigatedForward = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.NavigateFocus,
+            NodeId = nodeId,
+            Direction = UiFocusNavigationDirection.Next,
+        });
+        if (!navigatedForward.Applied
+            || navigatedForward.FailureCode != PresentationAutomationFailureCode.None
+            || navigatedForward.FocusedNodeId is not { } forwardNodeId
+            || forwardNodeId == nodeId
+            || renderer.FocusedNodeId != forwardNodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang native forward focus navigation did not return its stable destination");
+        }
+        FocusNavigationForwardCompleted = true;
+        var navigatedBackward = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.NavigateFocus,
+            NodeId = forwardNodeId,
+            Direction = UiFocusNavigationDirection.Previous,
+        });
+        if (!navigatedBackward.Applied
+            || navigatedBackward.FailureCode != PresentationAutomationFailureCode.None
+            || navigatedBackward.FocusedNodeId is not { } backwardNodeId
+            || backwardNodeId == forwardNodeId
+            || renderer.FocusedNodeId != backwardNodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang native backward focus navigation did not return its stable destination");
+        }
+        FocusNavigationBackwardCompleted = true;
+        if (!renderer.TryFocusNode(nodeId) || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "focus navigation probe could not restore its original action");
+        }
+        FocusNavigationDidNotActivate = invokedActionCount == actionCountBeforeNavigation;
+        if (!FocusNavigationDidNotActivate)
+        {
+            throw new InvalidDataException(
+                "Leselang focus navigation activated an action");
+        }
         var otherActionNodeId = FindOtherActionNodeId(renderer.Document.Root, nodeId)
             ?? throw new InvalidDataException("focus assertion probe requires another action");
         var unfocused = renderer.ApplyPresentation(new UiPresentationOperation
@@ -247,6 +497,20 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang focus assertion accepted an unfocused action or changed focus");
+        }
+        var unfocusedNavigation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.NavigateFocus,
+            NodeId = otherActionNodeId,
+            Direction = UiFocusNavigationDirection.Previous,
+        });
+        if (unfocusedNavigation.Applied
+            || unfocusedNavigation.FailureCode
+                != PresentationAutomationFailureCode.TargetNotFocused
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang focus navigation accepted an unfocused source or changed focus");
         }
         var enabledNodeId = renderer.FirstRealizedActionNodeIdFor(ActionKind.RuntimeRefresh)
             ?? throw new InvalidDataException("enabled assertion probe requires a refresh action");
@@ -372,6 +636,35 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang accessible description assertion accepted mismatched native metadata or changed focus");
         }
+        var selectionMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertSelection,
+            NodeId = initialSelectionAssertNodeId,
+            State = UiSelectionState.Selected,
+        });
+        SelectionAssertCompleted = selectionMatched.Applied
+            && selectionMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!SelectionAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang selection assertion rejected native selected state or changed focus");
+        }
+        var selectionMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertSelection,
+            NodeId = initialSelectionWaitNodeId,
+            State = UiSelectionState.Selected,
+        });
+        SelectionMismatchRejected = !selectionMismatch.Applied
+            && selectionMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetSelectionMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!SelectionMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang selection assertion accepted mismatched native selection or changed focus");
+        }
         var missing = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.Focus,
@@ -385,6 +678,21 @@ internal sealed class MainWindow : Window
         }
         var nonActionNodeId = FindFirstNonActionNodeId(renderer.Document.Root)
             ?? throw new InvalidDataException("focus probe requires a non-action node");
+        var selectionlessTarget = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertSelection,
+            NodeId = nonActionNodeId,
+            State = UiSelectionState.Selected,
+        });
+        SelectionlessTargetRejected = !selectionlessTarget.Applied
+            && selectionlessTarget.FailureCode
+                == PresentationAutomationFailureCode.SelectionlessTarget
+            && renderer.FocusedNodeId == nodeId;
+        if (!SelectionlessTargetRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang selection assertion accepted a selectionless target or changed focus");
+        }
         var unfocusable = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.Focus,
@@ -395,6 +703,35 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang presentation focus accepted an unfocusable target");
+        }
+        var missingNavigation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.NavigateFocus,
+            NodeId = "missing-presentation-target",
+            Direction = UiFocusNavigationDirection.Next,
+        });
+        var unfocusableNavigation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.NavigateFocus,
+            NodeId = nonActionNodeId,
+            Direction = UiFocusNavigationDirection.Next,
+        });
+        FocusNavigationFailuresPreservedFocus =
+            !missingNavigation.Applied
+            && missingNavigation.FailureCode
+                == PresentationAutomationFailureCode.UnknownTarget
+            && !unfocusableNavigation.Applied
+            && unfocusableNavigation.FailureCode
+                == PresentationAutomationFailureCode.UnfocusableTarget
+            && InitialUnrealizedNavigationRejected
+            && !unfocusedNavigation.Applied
+            && unfocusedNavigation.FailureCode
+                == PresentationAutomationFailureCode.TargetNotFocused
+            && renderer.FocusedNodeId == nodeId;
+        if (!FocusNavigationFailuresPreservedFocus)
+        {
+            throw new InvalidDataException(
+                "Leselang focus navigation failure changed focus or lost a typed failure");
         }
         var scrolled = renderer.ApplyPresentation(new UiPresentationOperation
         {
@@ -448,6 +785,15 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang realization assertion lost its pre-layout rejection evidence or changed focus");
+        }
+        SelectionProbePreservedFocus = SelectionAssertCompleted
+            && SelectionMismatchRejected
+            && SelectionlessTargetRejected
+            && renderer.FocusedNodeId == nodeId;
+        if (!SelectionProbePreservedFocus)
+        {
+            throw new InvalidDataException(
+                "Leselang selection probes changed keyboard focus or lost typed failure evidence");
         }
         renderer.Surface.IsVisible = false;
         var hidden = renderer.ApplyPresentation(new UiPresentationOperation
@@ -639,6 +985,7 @@ internal sealed class MainWindow : Window
 
     private void OnActionInvoked(string nodeId)
     {
+        invokedActionCount++;
         statusText.Text = $"Action node emitted: {nodeId}";
         statusText.Foreground = LeserpentTheme.Accent;
     }
@@ -698,6 +1045,10 @@ internal sealed class MainWindow : Window
                 Key = node.Accessibility.Description.Key,
                 Fallback = node.Accessibility.Description.Fallback,
             },
+        },
+        Selection = node.Selection is null ? null : new UiSelection
+        {
+            State = node.Selection.State,
         },
         Action = node.Action is null ? null : new UiAction
         {

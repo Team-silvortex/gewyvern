@@ -40,6 +40,16 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("WaitRealizedTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.WaitVisible"));
     assert!(core.contains("WaitVisibleTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitEnabled"));
+    assert!(core.contains("WaitEnabledTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitFocused"));
+    assert!(core.contains("WaitFocusedTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.NavigateFocus"));
+    assert!(core.contains("UiFocusNavigationDirection"));
+    assert!(core.contains("UiPresentationOperationKind.AssertSelection"));
+    assert!(core.contains("UiPresentationOperationKind.WaitSelection"));
+    assert!(core.contains("UiSelectionState"));
+    assert!(core.contains("WaitSelectionTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertFocused"));
     assert!(core.contains("UiPresentationOperationKind.AssertEnabled"));
     assert!(core.contains("UiPresentationOperationKind.AssertText"));
@@ -47,12 +57,15 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleDescription"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
     assert!(core.contains("UiPresentationValidation.UnfocusableTarget"));
+    assert!(core.contains("UiPresentationValidation.SelectionlessTarget"));
     assert!(renderer.contains("PresentationAutomationResult ApplyPresentation"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetUnrealized"));
     assert!(renderer.contains("PresentationAutomationFailureCode.WaitTimedOut"));
     assert!(renderer.contains("ApplyPresentationAsync"));
     assert!(renderer.contains("Task.Delay("));
     assert!(renderer.contains("PresentationAutomationFailureCode.FocusRejected"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.NavigationRejected"));
+    assert!(renderer.contains("focusManager?.TryMoveFocus("));
     assert!(renderer.contains("control!.BringIntoView()"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotVisible"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNotFocused"));
@@ -62,11 +75,21 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(
         renderer.contains("PresentationAutomationFailureCode.TargetAccessibleDescriptionMismatch")
     );
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetSelectionMismatch"));
+    assert!(renderer.contains("NativeSelectionState"));
+    assert!(renderer.contains("ListBoxItem"));
+    assert!(renderer.contains("list.SelectedItem = item"));
     assert!(renderer.contains("control.IsEffectivelyVisible"));
     assert!(renderer.contains("control!.IsEffectivelyEnabled"));
     assert!(renderer.contains("StringComparer.Ordinal.Equals(actual, operation.Expected)"));
     assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
     assert!(app.contains("leselang_presentation=true"));
+    assert!(app.contains("navigate_focus=true"));
+    assert!(app.contains("navigate_focus_forward="));
+    assert!(app.contains("navigate_focus_backward="));
+    assert!(app.contains("navigate_focus_stable_destination=true"));
+    assert!(app.contains("navigate_focus_failure_preserved_focus="));
+    assert!(app.contains("navigate_focus_no_activation="));
     assert!(app.contains("scroll_into_view=true"));
     assert!(app.contains("assert_visible=true"));
     assert!(app.contains("assert_realized=true"));
@@ -76,6 +99,19 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_visible=true"));
     assert!(app.contains("wait_visible_natural_layout=true"));
     assert!(app.contains("wait_visible_timeout=true"));
+    assert!(app.contains("wait_enabled=true"));
+    assert!(app.contains("wait_enabled_external_transition=true"));
+    assert!(app.contains("wait_enabled_timeout=true"));
+    assert!(app.contains("wait_focused=true"));
+    assert!(app.contains("wait_focused_external_transition=true"));
+    assert!(app.contains("wait_focused_timeout=true"));
+    assert!(app.contains("wait_focused_no_focus_mutation=true"));
+    assert!(app.contains("assert_selection="));
+    assert!(app.contains("wait_selection="));
+    assert!(app.contains("wait_selection_timeout="));
+    assert!(app.contains("selection_mismatch_rejected="));
+    assert!(app.contains("selectionless_target_rejected="));
+    assert!(app.contains("selection_focus_preserved="));
     assert!(app.contains("unrealized_target_rejected=true"));
     assert!(app.contains("assert_focused=true"));
     assert!(app.contains("assert_enabled=true"));
@@ -87,7 +123,12 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("accessible_description_mismatch_rejected=true"));
     assert!(app.contains("text_mismatch_rejected=true"));
     assert!(conformance.contains("presentation_focus=true"));
+    assert!(conformance.contains("presentation_navigate_focus=true"));
     assert!(conformance.contains("presentation_wait_visible=true"));
+    assert!(conformance.contains("presentation_wait_enabled=true"));
+    assert!(conformance.contains("presentation_wait_focused=true"));
+    assert!(conformance.contains("presentation_assert_selection=true"));
+    assert!(conformance.contains("presentation_wait_selection=true"));
 }
 
 #[test]

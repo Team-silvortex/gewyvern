@@ -5,7 +5,10 @@ using System.Text.Json.Serialization;
 public sealed class SemanticRenderer
 {
     private const int MaxPatchOperations = 8192;
+    public const int WaitEnabledTimeoutMs = 2000;
+    public const int WaitFocusedTimeoutMs = 2000;
     public const int WaitRealizedTimeoutMs = 2000;
+    public const int WaitSelectionTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
 
     public UiDocument Document { get; private set; } = null!;
@@ -99,12 +102,44 @@ public sealed class SemanticRenderer
         {
             return UiPresentationValidation.InvalidExpectedText;
         }
-        if (operation.Kind is UiPresentationOperationKind.WaitRealized
-            or UiPresentationOperationKind.WaitVisible)
+        if (operation.Kind == UiPresentationOperationKind.NavigateFocus)
         {
-            var requiredTimeout = operation.Kind == UiPresentationOperationKind.WaitRealized
-                ? WaitRealizedTimeoutMs
-                : WaitVisibleTimeoutMs;
+            if (operation.Direction is null)
+            {
+                return UiPresentationValidation.InvalidNavigationDirection;
+            }
+        }
+        else if (operation.Direction is not null)
+        {
+            return UiPresentationValidation.InvalidNavigationDirection;
+        }
+        if (operation.Kind is UiPresentationOperationKind.AssertSelection
+            or UiPresentationOperationKind.WaitSelection)
+        {
+            if (operation.State is null)
+            {
+                return UiPresentationValidation.InvalidSelectionState;
+            }
+        }
+        else if (operation.State is not null)
+        {
+            return UiPresentationValidation.InvalidSelectionState;
+        }
+        if (operation.Kind is UiPresentationOperationKind.WaitRealized
+            or UiPresentationOperationKind.WaitVisible
+            or UiPresentationOperationKind.WaitEnabled
+            or UiPresentationOperationKind.WaitFocused
+            or UiPresentationOperationKind.WaitSelection)
+        {
+            var requiredTimeout = operation.Kind switch
+            {
+                UiPresentationOperationKind.WaitRealized => WaitRealizedTimeoutMs,
+                UiPresentationOperationKind.WaitVisible => WaitVisibleTimeoutMs,
+                UiPresentationOperationKind.WaitEnabled => WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
+                UiPresentationOperationKind.WaitSelection => WaitSelectionTimeoutMs,
+                _ => throw new InvalidOperationException("unknown wait operation"),
+            };
             if (operation.TimeoutMs != requiredTimeout)
             {
                 return UiPresentationValidation.InvalidTimeout;
@@ -122,8 +157,11 @@ public sealed class SemanticRenderer
         return operation.Kind switch
         {
             UiPresentationOperationKind.Focus
+            or UiPresentationOperationKind.NavigateFocus
             or UiPresentationOperationKind.AssertFocused
             or UiPresentationOperationKind.AssertEnabled
+            or UiPresentationOperationKind.WaitEnabled
+            or UiPresentationOperationKind.WaitFocused
                 when node.Kind == UiNodeKind.Action && node.Action is not null =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.ScrollIntoView =>
@@ -135,6 +173,10 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.WaitRealized =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitVisible =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertSelection
+            or UiPresentationOperationKind.WaitSelection
+                when node.Selection is not null =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertText
                 when node.Text is not null
@@ -152,6 +194,9 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertAccessibleDescription =>
                 UiPresentationValidation.DescriptionlessTarget,
+            UiPresentationOperationKind.AssertSelection
+            or UiPresentationOperationKind.WaitSelection =>
+                UiPresentationValidation.SelectionlessTarget,
             UiPresentationOperationKind.AssertText =>
                 UiPresentationValidation.TextlessTarget,
             _ => UiPresentationValidation.UnfocusableTarget,
@@ -214,6 +259,7 @@ public sealed class SemanticRenderer
                 target.DebuggerSessionId = operation.Node.DebuggerSessionId;
                 target.Text = operation.Node.Text;
                 target.Accessibility = operation.Node.Accessibility;
+                target.Selection = operation.Node.Selection;
                 target.Action = operation.Node.Action;
                 break;
             default:
@@ -394,6 +440,10 @@ public sealed class SemanticRenderer
             Label = Clone(node.Accessibility.Label),
             Description = Clone(node.Accessibility.Description),
         },
+        Selection = node.Selection is null ? null : new UiSelection
+        {
+            State = node.Selection.State,
+        },
         Action = node.Action is null ? null : new UiAction
         {
             Kind = node.Action.Kind,
@@ -439,13 +489,18 @@ public sealed class RendererFixture
     public required UiPatch Patch { get; set; }
     public required UiDocument Next { get; set; }
     public UiPresentationOperation? PresentationOperation { get; set; }
+    public UiPresentationOperation? NavigationOperation { get; set; }
     public UiPresentationOperation? ScrollOperation { get; set; }
     public UiPresentationOperation? AssertOperation { get; set; }
     public UiPresentationOperation? RealizedAssertOperation { get; set; }
     public UiPresentationOperation? RealizedWaitOperation { get; set; }
     public UiPresentationOperation? VisibleWaitOperation { get; set; }
+    public UiPresentationOperation? EnabledWaitOperation { get; set; }
+    public UiPresentationOperation? FocusedWaitOperation { get; set; }
     public UiPresentationOperation? FocusedAssertOperation { get; set; }
     public UiPresentationOperation? EnabledAssertOperation { get; set; }
+    public UiPresentationOperation? SelectionAssertOperation { get; set; }
+    public UiPresentationOperation? SelectionWaitOperation { get; set; }
     public UiPresentationOperation? TextAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
@@ -468,6 +523,7 @@ public sealed class UiNode
     public string? DebuggerSessionId { get; set; }
     public LocalizedText? Text { get; set; }
     public required Accessibility Accessibility { get; set; }
+    public UiSelection? Selection { get; set; }
     public UiAction? Action { get; set; }
     public required List<UiNode> Children { get; set; }
 }
@@ -484,6 +540,12 @@ public sealed class Accessibility
 {
     public LocalizedText? Label { get; set; }
     public LocalizedText? Description { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class UiSelection
+{
+    public UiSelectionState State { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -527,6 +589,8 @@ public sealed class UiPresentationOperation
 {
     public UiPresentationOperationKind Kind { get; set; }
     public required string NodeId { get; set; }
+    public UiFocusNavigationDirection? Direction { get; set; }
+    public UiSelectionState? State { get; set; }
     public string? Expected { get; set; }
     public int? TimeoutMs { get; set; }
 }
@@ -594,16 +658,35 @@ public enum UiEventKind
 public enum UiPresentationOperationKind
 {
     [JsonStringEnumMemberName("focus")] Focus,
+    [JsonStringEnumMemberName("navigate_focus")] NavigateFocus,
     [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
     [JsonStringEnumMemberName("assert_visible")] AssertVisible,
     [JsonStringEnumMemberName("assert_realized")] AssertRealized,
     [JsonStringEnumMemberName("wait_realized")] WaitRealized,
     [JsonStringEnumMemberName("wait_visible")] WaitVisible,
+    [JsonStringEnumMemberName("wait_enabled")] WaitEnabled,
+    [JsonStringEnumMemberName("wait_focused")] WaitFocused,
     [JsonStringEnumMemberName("assert_focused")] AssertFocused,
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
+    [JsonStringEnumMemberName("assert_selection")] AssertSelection,
+    [JsonStringEnumMemberName("wait_selection")] WaitSelection,
     [JsonStringEnumMemberName("assert_text")] AssertText,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<UiFocusNavigationDirection>))]
+public enum UiFocusNavigationDirection
+{
+    [JsonStringEnumMemberName("next")] Next,
+    [JsonStringEnumMemberName("previous")] Previous,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<UiSelectionState>))]
+public enum UiSelectionState
+{
+    [JsonStringEnumMemberName("selected")] Selected,
+    [JsonStringEnumMemberName("unselected")] Unselected,
 }
 
 public enum UiPresentationValidation
@@ -613,7 +696,10 @@ public enum UiPresentationValidation
     UnfocusableTarget,
     TextlessTarget,
     DescriptionlessTarget,
+    SelectionlessTarget,
     InvalidExpectedText,
+    InvalidNavigationDirection,
+    InvalidSelectionState,
     InvalidTimeout,
 }
 

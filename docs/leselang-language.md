@@ -11,10 +11,11 @@ serializes, restores, and resumes the read-only
 `runtime.list`, `runtime.inspect`, `runtime.history`, and `runtime.logs` effects
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
-plus the frontend-local `ui.focus`, `ui.scroll_into_view`,
+plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_visible`, `ui.assert_realized`, `ui.wait_realized`,
-`ui.wait_visible`, `ui.assert_focused`, `ui.assert_enabled`, and
-`ui.assert_text`, plus `ui.assert_accessible_name` and
+`ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
+`ui.assert_enabled`, `ui.wait_enabled`, `ui.assert_selection`,
+`ui.wait_selection`, and `ui.assert_text`, plus `ui.assert_accessible_name` and
 `ui.assert_accessible_description` presentation effects.
 
 ## Canonical Program
@@ -117,6 +118,25 @@ semantic action node, and return a typed result only after native focus succeeds
 Missing, noninteractive, unrealized, or platform-rejected targets fail without
 activating the action or changing control-plane state.
 
+Native sequential focus navigation is a distinct typed operation:
+
+```leselang
+fn main() = ui.navigate_focus(
+  node_id: "runtime-runtime-a-inspect",
+  direction: "next",
+)
+```
+
+`ui.navigate_focus` requires `ui.presentation`, a currently focused, realized
+semantic action, and an exact `next` or `previous` direction. The renderer asks
+its native focus manager to traverse from that stable start node and succeeds
+only when another realized semantic action receives focus. Its typed result
+binds the requested start and direction to the actual stable destination; it
+does not assume that virtualized platform tab order is symmetric. Missing,
+noninteractive, unrealized, or unfocused starts and rejected navigation fail
+without activating any action. The operation has no coordinate, key-event, or
+control-plane fallback.
+
 Stable-node scrolling uses the same presentation boundary:
 
 ```leselang
@@ -199,6 +219,20 @@ focused. Missing, noninteractive, unrealized, or unfocused targets fail. The
 assertion never calls the platform focus primitive and does not activate,
 scroll, or otherwise mutate the target.
 
+Native keyboard focus can also be awaited without taking it:
+
+```leselang
+fn main() = ui.wait_focused(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.wait_focused` requires `ui.presentation` and a focusable semantic action
+node. Its presentation envelope carries a protocol-fixed 2000 ms deadline and
+the source has no duration argument. Missing or noninteractive nodes fail
+immediately; persistently unrealized or unfocused actions time out. The
+frontend adapter only observes native focus while yielding its dispatcher and
+never calls the platform focus primitive, activates, scrolls, or otherwise
+mutates the target.
+
 Native action availability can be asserted without activating the action:
 
 ```leselang
@@ -210,6 +244,53 @@ current `UiDocument`. The renderer resolves its realized native control and
 returns success only when the platform reports it effectively enabled,
 including ancestor state. Missing, noninteractive, unrealized, or disabled
 targets fail. The assertion never focuses, activates, or changes availability.
+
+Native action availability can also be awaited without changing it:
+
+```leselang
+fn main() = ui.wait_enabled(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.wait_enabled` requires `ui.presentation` and a semantic action node. Its
+presentation envelope carries a protocol-fixed 2000 ms deadline and the source
+has no duration argument. The frontend adapter yields its dispatcher until the
+realized native control becomes effectively enabled, including ancestor state.
+Missing or noninteractive nodes fail immediately; persistently unrealized or
+disabled actions time out. Waiting never enables, focuses, activates, scrolls,
+or otherwise mutates the target.
+
+Native selection state can be asserted without activating or focusing a control:
+
+```leselang
+fn main() = ui.assert_selection(
+  node_id: "runtime-runtime-a",
+  state: "selected",
+)
+```
+
+`ui.assert_selection` requires `ui.presentation`, a semantic node that declares
+selection metadata, and one of the exact states `selected` or `unselected`. The
+renderer resolves the stable ID and reads its native selected state rather than
+trusting the semantic default. Missing, selectionless, unrealized, nonselectable,
+or mismatched targets fail with typed presentation errors. The assertion never
+focuses, activates, scrolls, or changes selection.
+
+Native selection state can also be awaited without changing it:
+
+```leselang
+fn main() = ui.wait_selection(
+  node_id: "runtime-runtime-b",
+  state: "unselected",
+)
+```
+
+`ui.wait_selection` carries the protocol-fixed 2000 ms deadline and the source
+has no duration argument. The VM binds the node and selection state to the
+request and result across re-entry. The frontend adapter yields its dispatcher
+until the realized native selectable reaches the requested state. Missing or
+selectionless nodes fail immediately; persistently unrealized, nonselectable, or
+mismatched controls time out. Waiting never selects, focuses, activates, scrolls,
+or otherwise mutates the target.
 
 Native displayed text can be asserted without OCR or coordinate inspection:
 

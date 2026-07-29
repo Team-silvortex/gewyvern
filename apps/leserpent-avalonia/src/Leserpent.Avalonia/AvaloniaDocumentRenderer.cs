@@ -4,8 +4,10 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Leserpent.Avalonia;
 
 internal static class LeserpentTheme
@@ -70,9 +72,13 @@ internal enum PresentationAutomationFailureCode
     UnfocusableTarget,
     TextlessTarget,
     DescriptionlessTarget,
+    SelectionlessTarget,
     InvalidExpectedText,
+    InvalidNavigationDirection,
+    InvalidSelectionState,
     InvalidTimeout,
     TargetUnrealized,
+    TargetNotSelectable,
     WaitTimedOut,
     TargetNotVisible,
     TargetNotFocused,
@@ -80,13 +86,16 @@ internal enum PresentationAutomationFailureCode
     TargetTextMismatch,
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
+    TargetSelectionMismatch,
     FocusRejected,
+    NavigationRejected,
 }
 
 internal sealed record PresentationAutomationResult(
     bool Applied,
     string NodeId,
-    PresentationAutomationFailureCode FailureCode);
+    PresentationAutomationFailureCode FailureCode,
+    string? FocusedNodeId = null);
 
 internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 {
@@ -108,6 +117,9 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
     public int UnrealizedNodeCount => nodes.Values.Count(node => !node.IsRealized);
     public string? FirstUnrealizedNodeId =>
         nodes.Values.FirstOrDefault(node => !node.IsRealized)?.Id;
+    public string? FirstUnrealizedActionNodeId => nodes.Values.FirstOrDefault(node =>
+        node.ActionKind is not null
+        && !node.IsRealized)?.Id;
     public int RealizedDebuggerCancelButtonCount => nodes.Values.Count(node =>
         node.ActionKind is ActionKind.DebuggerCancel
         && node.TryGetRealizedControl(out var control)
@@ -157,8 +169,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.TextlessTarget,
                     UiPresentationValidation.DescriptionlessTarget =>
                         PresentationAutomationFailureCode.DescriptionlessTarget,
+                    UiPresentationValidation.SelectionlessTarget =>
+                        PresentationAutomationFailureCode.SelectionlessTarget,
                     UiPresentationValidation.InvalidExpectedText =>
                         PresentationAutomationFailureCode.InvalidExpectedText,
+                    UiPresentationValidation.InvalidNavigationDirection =>
+                        PresentationAutomationFailureCode.InvalidNavigationDirection,
+                    UiPresentationValidation.InvalidSelectionState =>
+                        PresentationAutomationFailureCode.InvalidSelectionState,
                     UiPresentationValidation.InvalidTimeout =>
                         PresentationAutomationFailureCode.InvalidTimeout,
                     _ => throw new InvalidDataException(
@@ -172,6 +190,45 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 false,
                 operation.NodeId,
                 PresentationAutomationFailureCode.TargetUnrealized);
+        }
+        if (operation.Kind == UiPresentationOperationKind.NavigateFocus)
+        {
+            if (!control!.IsFocused)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetNotFocused);
+            }
+            var direction = operation.Direction switch
+            {
+                UiFocusNavigationDirection.Next => NavigationDirection.Next,
+                UiFocusNavigationDirection.Previous => NavigationDirection.Previous,
+                _ => throw new InvalidDataException(
+                    "validated focus navigation has no direction"),
+            };
+            var focusManager = TopLevel.GetTopLevel(control)?.FocusManager;
+            var moved = focusManager?.TryMoveFocus(
+                direction,
+                new FindNextElementOptions { FocusedElement = control }) == true;
+            var destination = nodes.Values.FirstOrDefault(rendered =>
+                rendered.ActionKind is not null
+                && rendered.TryGetRealizedControl(out var realized)
+                && realized!.IsFocused
+                && !ReferenceEquals(realized, control));
+            if (!moved || destination is null)
+            {
+                _ = control.Focus();
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.NavigationRejected);
+            }
+            return new PresentationAutomationResult(
+                true,
+                operation.NodeId,
+                PresentationAutomationFailureCode.None,
+                destination.Id);
         }
         if (operation.Kind is UiPresentationOperationKind.AssertVisible
             or UiPresentationOperationKind.WaitVisible)
@@ -192,7 +249,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 operation.NodeId,
                 PresentationAutomationFailureCode.None);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertFocused)
+        if (operation.Kind is UiPresentationOperationKind.AssertFocused
+            or UiPresentationOperationKind.WaitFocused)
         {
             return new PresentationAutomationResult(
                 control!.IsFocused,
@@ -201,7 +259,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetNotFocused);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertEnabled)
+        if (operation.Kind is UiPresentationOperationKind.AssertEnabled
+            or UiPresentationOperationKind.WaitEnabled)
         {
             return new PresentationAutomationResult(
                 control!.IsEffectivelyEnabled,
@@ -209,6 +268,25 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 control.IsEffectivelyEnabled
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetNotEnabled);
+        }
+        if (operation.Kind is UiPresentationOperationKind.AssertSelection
+            or UiPresentationOperationKind.WaitSelection)
+        {
+            var selectionState = NativeSelectionState(control!);
+            if (selectionState is null)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetNotSelectable);
+            }
+            var matched = selectionState == operation.State;
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetSelectionMismatch);
         }
         if (operation.Kind == UiPresentationOperationKind.AssertText)
         {
@@ -272,7 +350,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         CancellationToken cancellationToken = default)
     {
         if (operation.Kind is not UiPresentationOperationKind.WaitRealized
-            and not UiPresentationOperationKind.WaitVisible)
+            and not UiPresentationOperationKind.WaitVisible
+            and not UiPresentationOperationKind.WaitEnabled
+            and not UiPresentationOperationKind.WaitFocused
+            and not UiPresentationOperationKind.WaitSelection)
         {
             return await Dispatcher.UIThread.InvokeAsync(
                 () => ApplyPresentation(operation));
@@ -289,16 +370,41 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 || operation.Kind == UiPresentationOperationKind.WaitVisible
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetNotVisible;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitEnabled
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetNotEnabled;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitFocused
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetNotFocused;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitSelection
+                    && result.FailureCode
+                        is PresentationAutomationFailureCode.TargetNotSelectable
+                            or PresentationAutomationFailureCode.TargetSelectionMismatch;
             if (result.Applied || !retryable)
             {
                 return result;
             }
 
+            var defaultTimeoutMs = operation.Kind switch
+            {
+                UiPresentationOperationKind.WaitRealized =>
+                    SemanticRenderer.WaitRealizedTimeoutMs,
+                UiPresentationOperationKind.WaitVisible =>
+                    SemanticRenderer.WaitVisibleTimeoutMs,
+                UiPresentationOperationKind.WaitEnabled =>
+                    SemanticRenderer.WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitFocused =>
+                    SemanticRenderer.WaitFocusedTimeoutMs,
+                UiPresentationOperationKind.WaitSelection =>
+                    SemanticRenderer.WaitSelectionTimeoutMs,
+                _ => throw new InvalidOperationException(
+                    "unknown asynchronous presentation wait"),
+            };
             var timeout = TimeSpan.FromMilliseconds(
-                operation.TimeoutMs
-                    ?? (operation.Kind == UiPresentationOperationKind.WaitRealized
-                        ? SemanticRenderer.WaitRealizedTimeoutMs
-                        : SemanticRenderer.WaitVisibleTimeoutMs));
+                operation.TimeoutMs ?? defaultTimeoutMs);
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             if (elapsed >= timeout)
             {
@@ -345,6 +451,18 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         Button { Content: string text } => text,
         _ => null,
     };
+
+    private static UiSelectionState? NativeSelectionState(Control control)
+    {
+        var item = control is ListBoxItem direct
+            ? direct
+            : control.GetVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
+        if (item is null)
+        {
+            return null;
+        }
+        return item.IsSelected ? UiSelectionState.Selected : UiSelectionState.Unselected;
+    }
 
     public UiEvent CreateFormSubmission(
         string nodeId,
@@ -616,6 +734,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             false,
             false,
             node.Action?.Kind,
+            node.Selection?.State,
             AutomationName(node),
             node.Accessibility.Label is not null,
             node.Accessibility.Description?.Fallback);
@@ -635,6 +754,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             true,
             virtualized,
             node.Action?.Kind,
+            node.Selection?.State,
             AutomationName(node),
             node.Accessibility.Label is not null,
             node.Accessibility.Description?.Fallback);
@@ -914,6 +1034,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 
     private static VirtualizedItemViewModel Hosted(RenderedNode node) => new(
         node.Id,
+        node.SelectionState,
         () => node.Control);
 
     private sealed class RenderedNode(
@@ -923,6 +1044,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         bool canContainChildren,
         bool usesVirtualizedHost,
         ActionKind? actionKind,
+        UiSelectionState? selectionState,
         string automationName,
         bool hasExplicitLabel,
         string? automationDescription)
@@ -955,6 +1077,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         public bool CanContainChildren { get; } = canContainChildren;
         public bool UsesVirtualizedHost { get; } = usesVirtualizedHost;
         public ActionKind? ActionKind { get; } = actionKind;
+        public UiSelectionState? SelectionState { get; } = selectionState;
         public string AutomationName { get; } = automationName;
         public bool HasExplicitLabel { get; } = hasExplicitLabel;
         public string? AutomationDescription { get; } = automationDescription;
@@ -1049,8 +1172,17 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         public bool IsVirtualized => true;
         public bool IsVirtualizationActive => list.ItemsPanelRoot is VirtualizingStackPanel;
         public VirtualizedItemViewModel this[int index] => items[index];
-        public void Add(VirtualizedItemViewModel item) => items.Add(item);
-        public void Insert(int index, VirtualizedItemViewModel item) => items.Insert(index, item);
+        public void Add(VirtualizedItemViewModel item)
+        {
+            items.Add(item);
+            ApplySelection(item);
+        }
+
+        public void Insert(int index, VirtualizedItemViewModel item)
+        {
+            items.Insert(index, item);
+            ApplySelection(item);
+        }
 
         public VirtualizedItemViewModel RemoveAt(int index)
         {
@@ -1060,5 +1192,17 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         }
 
         public void Clear() => items.Clear();
+
+        private void ApplySelection(VirtualizedItemViewModel item)
+        {
+            if (item.SelectionState == UiSelectionState.Selected)
+            {
+                list.SelectedItem = item;
+            }
+            else if (ReferenceEquals(list.SelectedItem, item))
+            {
+                list.SelectedItem = null;
+            }
+        }
     }
 }

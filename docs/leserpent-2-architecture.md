@@ -1664,12 +1664,16 @@ that effect and the current document. This closes business-action parity for
 the current `UiAction` enum.
 
 Presentation parity uses a separate, non-command path.
-`ui.focus(node_id: ...)`, `ui.scroll_into_view(node_id: ...)`, and
+`ui.focus(node_id: ...)`,
+`ui.navigate_focus(node_id: ..., direction: "next"|"previous")`,
+`ui.scroll_into_view(node_id: ...)`, and
 `ui.assert_visible(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_realized(node_id: ...)`,
 `ui.wait_visible(node_id: ...)`,
 `ui.assert_focused(node_id: ...)`, and
+`ui.wait_focused(node_id: ...)`, plus
 `ui.assert_enabled(node_id: ...)`, plus
+`ui.wait_enabled(node_id: ...)`, plus
 `ui.assert_text(node_id: ..., expected: ...)` and
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, lower to
@@ -1677,21 +1681,31 @@ operation-specific values inside a capability-gated VM
 `PresentationEnvelope`, then to renderer-neutral `UiPresentationOperation`
 variants. None can become a `CommandPlan`. Avalonia validates the semantic
 target and resolves the stable node ID. Focus and scrolling use native
-operations, visibility assertion checks realized layout and viewport state,
+operations. Sequential focus navigation requires a currently focused stable
+action, delegates the typed direction to the native focus manager, and binds
+the result to the actual distinct stable action destination without activating
+it or assuming symmetric virtualized tab order. Visibility assertion checks
+realized layout and viewport state,
 realization assertion checks the native visual index without forcing
 materialization, and realization wait uses the same predicate with a
 protocol-fixed 2000 ms deadline while yielding the native dispatcher,
 visibility wait independently polls realized layout and viewport intersection
 without invoking bring-into-view,
-focus assertion reads native focus, and enabled assertion reads effective
-native availability without changing it. Text assertion compares bounded,
+focus assertion reads native focus, focused wait polls the same predicate
+without invoking native focus, and enabled assertion reads effective
+native availability without changing it. Enabled wait polls that same native
+predicate without changing availability or activating the action. Selection
+assertion reads native selected state, and selection wait polls that same
+predicate until the fixed deadline without selecting, focusing, or activating
+the target. Text
+assertion compares bounded,
 control-free expected text against the actual native `TextBlock.Text` or string
 `Button.Content` with exact ordinal semantics. Scrolling accepts noninteractive
 nodes and preserves keyboard focus. Accessible-name assertion separately reads
 the native platform automation name for any realized semantic node.
 Accessible-description assertion requires declared semantic description
-metadata and reads the native platform help text exactly. Selection, navigation,
-windows, focused/enabled wait predicates, and
+metadata and reads the native platform help text exactly. Additional navigation
+modes, windows, and
 additional state assertions remain unimplemented rather than being
 approximated with coordinates, OCR, or scripts.
 

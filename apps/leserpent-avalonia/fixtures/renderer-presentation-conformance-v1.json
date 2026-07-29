@@ -63,6 +63,9 @@
             },
             "description": null
           },
+          "selection": {
+            "state": "selected"
+          },
           "action": null,
           "children": [
             {
@@ -192,6 +195,9 @@
               "fallback": "Runtime B"
             },
             "description": null
+          },
+          "selection": {
+            "state": "unselected"
           },
           "action": null,
           "children": [
@@ -383,6 +389,9 @@
             },
             "description": null
           },
+          "selection": {
+            "state": "selected"
+          },
           "action": null,
           "children": [
             {
@@ -501,6 +510,9 @@
             },
             "description": null
           },
+          "selection": {
+            "state": "unselected"
+          },
           "action": null,
           "children": [
             {
@@ -613,6 +625,11 @@
     "kind": "focus",
     "node_id": "runtime-runtime-a-inspect"
   },
+  "navigation_operation": {
+    "kind": "navigate_focus",
+    "node_id": "runtime-runtime-a-inspect",
+    "direction": "next"
+  },
   "scroll_operation": {
     "kind": "scroll_into_view",
     "node_id": "fleet-title"
@@ -635,6 +652,16 @@
     "node_id": "fleet-title",
     "timeout_ms": 2000
   },
+  "enabled_wait_operation": {
+    "kind": "wait_enabled",
+    "node_id": "runtime-runtime-a-refresh",
+    "timeout_ms": 2000
+  },
+  "focused_wait_operation": {
+    "kind": "wait_focused",
+    "node_id": "runtime-runtime-a-inspect",
+    "timeout_ms": 2000
+  },
   "focused_assert_operation": {
     "kind": "assert_focused",
     "node_id": "runtime-runtime-a-inspect"
@@ -642,6 +669,17 @@
   "enabled_assert_operation": {
     "kind": "assert_enabled",
     "node_id": "runtime-runtime-a-refresh"
+  },
+  "selection_assert_operation": {
+    "kind": "assert_selection",
+    "node_id": "runtime-runtime-a",
+    "state": "selected"
+  },
+  "selection_wait_operation": {
+    "kind": "wait_selection",
+    "node_id": "runtime-runtime-b",
+    "state": "unselected",
+    "timeout_ms": 2000
   },
   "text_assert_operation": {
     "kind": "assert_text",

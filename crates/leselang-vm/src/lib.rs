@@ -4,8 +4,10 @@ use std::path::Path;
 
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
-    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_REALIZED_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, authorize, validate_ui_expected_text, validate_ui_node_id,
+    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_ENABLED_TIMEOUT_MS,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState, authorize,
+    validate_ui_expected_text, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -105,17 +107,65 @@ pub struct PresentationEnvelope {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PresentationOperation {
-    Focus { node_id: String },
-    ScrollIntoView { node_id: String },
-    AssertVisible { node_id: String },
-    AssertRealized { node_id: String },
-    WaitRealized { node_id: String, timeout_ms: u64 },
-    WaitVisible { node_id: String, timeout_ms: u64 },
-    AssertFocused { node_id: String },
-    AssertEnabled { node_id: String },
-    AssertText { node_id: String, expected: String },
-    AssertAccessibleName { node_id: String, expected: String },
-    AssertAccessibleDescription { node_id: String, expected: String },
+    Focus {
+        node_id: String,
+    },
+    NavigateFocus {
+        node_id: String,
+        direction: UiFocusNavigationDirection,
+    },
+    ScrollIntoView {
+        node_id: String,
+    },
+    AssertVisible {
+        node_id: String,
+    },
+    AssertRealized {
+        node_id: String,
+    },
+    WaitRealized {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    WaitVisible {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    WaitEnabled {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    WaitFocused {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    AssertFocused {
+        node_id: String,
+    },
+    AssertEnabled {
+        node_id: String,
+    },
+    AssertSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
+    WaitSelection {
+        node_id: String,
+        state: UiSelectionState,
+        timeout_ms: u64,
+    },
+    AssertText {
+        node_id: String,
+        expected: String,
+    },
+    AssertAccessibleName {
+        node_id: String,
+        expected: String,
+    },
+    AssertAccessibleDescription {
+        node_id: String,
+        expected: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -132,17 +182,66 @@ pub enum EffectResult {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PresentationResult {
-    Focus { node_id: String },
-    ScrollIntoView { node_id: String },
-    AssertVisible { node_id: String },
-    AssertRealized { node_id: String },
-    WaitRealized { node_id: String, timeout_ms: u64 },
-    WaitVisible { node_id: String, timeout_ms: u64 },
-    AssertFocused { node_id: String },
-    AssertEnabled { node_id: String },
-    AssertText { node_id: String, expected: String },
-    AssertAccessibleName { node_id: String, expected: String },
-    AssertAccessibleDescription { node_id: String, expected: String },
+    Focus {
+        node_id: String,
+    },
+    NavigateFocus {
+        node_id: String,
+        direction: UiFocusNavigationDirection,
+        focused_node_id: String,
+    },
+    ScrollIntoView {
+        node_id: String,
+    },
+    AssertVisible {
+        node_id: String,
+    },
+    AssertRealized {
+        node_id: String,
+    },
+    WaitRealized {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    WaitVisible {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    WaitEnabled {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    WaitFocused {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    AssertFocused {
+        node_id: String,
+    },
+    AssertEnabled {
+        node_id: String,
+    },
+    AssertSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
+    WaitSelection {
+        node_id: String,
+        state: UiSelectionState,
+        timeout_ms: u64,
+    },
+    AssertText {
+        node_id: String,
+        expected: String,
+    },
+    AssertAccessibleName {
+        node_id: String,
+        expected: String,
+    },
+    AssertAccessibleDescription {
+        node_id: String,
+        expected: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -393,6 +492,11 @@ pub enum Value {
     UiFocus {
         node_id: String,
     },
+    UiNavigateFocus {
+        node_id: String,
+        direction: UiFocusNavigationDirection,
+        focused_node_id: String,
+    },
     UiScrollIntoView {
         node_id: String,
     },
@@ -408,11 +512,25 @@ pub enum Value {
     UiWaitVisible {
         node_id: String,
     },
+    UiWaitEnabled {
+        node_id: String,
+    },
+    UiWaitFocused {
+        node_id: String,
+    },
     UiAssertFocused {
         node_id: String,
     },
     UiAssertEnabled {
         node_id: String,
+    },
+    UiAssertSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
+    UiWaitSelection {
+        node_id: String,
+        state: UiSelectionState,
     },
     UiAssertText {
         node_id: String,
@@ -721,6 +839,18 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiNavigateFocus { node_id, direction } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::NavigateFocus {
+                        node_id: node_id.clone(),
+                        direction: *direction,
+                    },
+                }),
+            ),
             Effect::UiScrollIntoView { node_id } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -778,6 +908,30 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiWaitEnabled { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitEnabled {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+                    },
+                }),
+            ),
+            Effect::UiWaitFocused { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitFocused {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiAssertFocused { node_id } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -797,6 +951,31 @@ impl Vm {
                     capabilities,
                     operation: PresentationOperation::AssertEnabled {
                         node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertSelection { node_id, state } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertSelection {
+                        node_id: node_id.clone(),
+                        state: *state,
+                    },
+                }),
+            ),
+            Effect::UiWaitSelection { node_id, state } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitSelection {
+                        node_id: node_id.clone(),
+                        state: *state,
+                        timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -1380,13 +1559,18 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::RuntimeDeploy { .. } => Type::RuntimeDeploy,
         Effect::DebuggerCancel { .. } => Type::DebuggerCancel,
         Effect::UiFocus { .. } => Type::UiFocus,
+        Effect::UiNavigateFocus { .. } => Type::UiNavigateFocus,
         Effect::UiScrollIntoView { .. } => Type::UiScrollIntoView,
         Effect::UiAssertVisible { .. } => Type::UiAssertVisible,
         Effect::UiAssertRealized { .. } => Type::UiAssertRealized,
         Effect::UiWaitRealized { .. } => Type::UiWaitRealized,
         Effect::UiWaitVisible { .. } => Type::UiWaitVisible,
+        Effect::UiWaitEnabled { .. } => Type::UiWaitEnabled,
+        Effect::UiWaitFocused { .. } => Type::UiWaitFocused,
         Effect::UiAssertFocused { .. } => Type::UiAssertFocused,
         Effect::UiAssertEnabled { .. } => Type::UiAssertEnabled,
+        Effect::UiAssertSelection { .. } => Type::UiAssertSelection,
+        Effect::UiWaitSelection { .. } => Type::UiWaitSelection,
         Effect::UiAssertText { .. } => Type::UiAssertText,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
@@ -1629,6 +1813,27 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
             )
         }
+        (
+            Effect::UiNavigateFocus { node_id, direction },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::NavigateFocus {
+                    node_id: operation_node_id,
+                    direction: operation_direction,
+                } if operation_node_id == node_id
+                    && operation_direction == direction
+                    && validate_ui_node_id(operation_node_id)
+            )
+        }
         (Effect::UiScrollIntoView { node_id }, EffectOperation::Presentation(presentation)) => {
             validate_effect_identity(
                 presentation.schema_version,
@@ -1710,6 +1915,42 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     && *timeout_ms == UI_WAIT_VISIBLE_TIMEOUT_MS
             )
         }
+        (Effect::UiWaitEnabled { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitEnabled {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_ENABLED_TIMEOUT_MS
+            )
+        }
+        (Effect::UiWaitFocused { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitFocused {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_FOCUSED_TIMEOUT_MS
+            )
+        }
         (Effect::UiAssertFocused { node_id }, EffectOperation::Presentation(presentation)) => {
             validate_effect_identity(
                 presentation.schema_version,
@@ -1738,6 +1979,50 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 PresentationOperation::AssertEnabled {
                     node_id: operation_node_id,
                 } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiAssertSelection { node_id, state },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertSelection {
+                    node_id: operation_node_id,
+                    state: operation_state,
+                } if operation_node_id == node_id
+                    && operation_state == state
+                    && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiWaitSelection { node_id, state },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitSelection {
+                    node_id: operation_node_id,
+                    state: operation_state,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_state == state
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_SELECTION_TIMEOUT_MS
             )
         }
         (
@@ -2086,13 +2371,22 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             Ok(1)
         }
         Value::UiFocus { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiNavigateFocus {
+            node_id,
+            focused_node_id,
+            ..
+        } if validate_ui_node_id(node_id) && validate_ui_node_id(focused_node_id) => Ok(1),
         Value::UiScrollIntoView { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertVisible { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertRealized { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitRealized { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitVisible { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertText { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
         {
@@ -2391,6 +2685,38 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiNavigateFocus { node_id, direction },
+            Type::UiNavigateFocus,
+            operation,
+            EffectResult::Presentation(PresentationResult::NavigateFocus {
+                node_id: result_node_id,
+                direction: result_direction,
+                focused_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && result_direction == *direction
+            && validate_ui_node_id(&focused_node_id)
+            && focused_node_id != result_node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::NavigateFocus {
+                            node_id: operation_node_id,
+                            direction: operation_direction,
+                        },
+                        ..
+                    }) if operation_node_id == node_id && operation_direction == direction
+                )
+            }) =>
+        {
+            Step::Done(Value::UiNavigateFocus {
+                node_id: result_node_id,
+                direction: result_direction,
+                focused_node_id,
+            })
+        }
+        (
             Effect::UiScrollIntoView { node_id },
             Type::UiScrollIntoView,
             operation,
@@ -2519,6 +2845,62 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiWaitEnabled { node_id },
+            Type::UiWaitEnabled,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitEnabled {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_ENABLED_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitEnabled {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_ENABLED_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitEnabled {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiWaitFocused { node_id },
+            Type::UiWaitFocused,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitFocused {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_FOCUSED_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitFocused {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_FOCUSED_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitFocused {
+                node_id: result_node_id,
+            })
+        }
+        (
             Effect::UiAssertFocused { node_id },
             Type::UiAssertFocused,
             operation,
@@ -2564,6 +2946,67 @@ fn step_from_effect_result(
         {
             Step::Done(Value::UiAssertEnabled {
                 node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiAssertSelection { node_id, state },
+            Type::UiAssertSelection,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertSelection {
+                node_id: result_node_id,
+                state: result_state,
+            }),
+        ) if result_node_id == *node_id
+            && result_state == *state
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertSelection {
+                            node_id: operation_node_id,
+                            state: operation_state,
+                        },
+                        ..
+                    }) if operation_node_id == node_id && operation_state == state
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertSelection {
+                node_id: result_node_id,
+                state: result_state,
+            })
+        }
+        (
+            Effect::UiWaitSelection { node_id, state },
+            Type::UiWaitSelection,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitSelection {
+                node_id: result_node_id,
+                state: result_state,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_state == *state
+            && timeout_ms == UI_WAIT_SELECTION_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitSelection {
+                            node_id: operation_node_id,
+                            state: operation_state,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_state == state
+                        && *operation_timeout_ms == UI_WAIT_SELECTION_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitSelection {
+                node_id: result_node_id,
+                state: result_state,
             })
         }
         (
@@ -2996,6 +3439,111 @@ mod tests {
     }
 
     #[test]
+    fn ui_focus_navigation_binds_start_direction_and_actual_destination() {
+        let program = lower(&parse(
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: \"next\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI focus navigation effect");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI focus navigation must use a presentation envelope");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::NavigateFocus {
+                node_id,
+                direction: UiFocusNavigationDirection::Next,
+            } if node_id == "runtime-a:inspect"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::NavigateFocus {
+                    node_id: "runtime-a:inspect".into(),
+                    direction: UiFocusNavigationDirection::Next,
+                    focused_node_id: "runtime-a:refresh".into(),
+                }),
+            ),
+            Step::Done(Value::UiNavigateFocus {
+                node_id: "runtime-a:inspect".into(),
+                direction: UiFocusNavigationDirection::Next,
+                focused_node_id: "runtime-a:refresh".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn ui_focus_navigation_rejects_torn_requests_and_results() {
+        let program = lower(&parse(
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: \"next\")",
+        ))
+        .unwrap();
+        let start = |vm: &mut Vm| {
+            let Step::Effect(request) = vm.start(
+                &program,
+                Principal {
+                    id: "desktop-operator".to_string(),
+                },
+                CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+                None,
+            ) else {
+                panic!("expected UI focus navigation effect");
+            };
+            *request
+        };
+
+        let mut vm = Vm::default();
+        let mut torn = start(&mut vm);
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI focus navigation must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::NavigateFocus {
+            node_id: "runtime-a:inspect".into(),
+            direction: UiFocusNavigationDirection::Previous,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let mut vm = Vm::default();
+        let request = start(&mut vm);
+        assert!(matches!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::NavigateFocus {
+                    node_id: "runtime-a:inspect".into(),
+                    direction: UiFocusNavigationDirection::Previous,
+                    focused_node_id: "runtime-a:refresh".into(),
+                }),
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSV2103"
+        ));
+
+        let mut vm = Vm::default();
+        let request = start(&mut vm);
+        assert!(matches!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::NavigateFocus {
+                    node_id: "runtime-a:inspect".into(),
+                    direction: UiFocusNavigationDirection::Next,
+                    focused_node_id: "runtime-a:inspect".into(),
+                }),
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSV2103"
+        ));
+    }
+
+    #[test]
     fn ui_scroll_into_view_uses_a_distinct_typed_presentation_round_trip() {
         let program = lower(&parse(
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
@@ -3247,6 +3795,112 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_enabled_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI enabled wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI enabled wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitEnabled {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:refresh"
+                && *timeout_ms == UI_WAIT_ENABLED_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitEnabled {
+                    node_id: "runtime-a:refresh".into(),
+                    timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitEnabled {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI enabled wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitEnabled {
+            node_id: "runtime-a:refresh".into(),
+            timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_focused_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI focused wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI focused wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitFocused {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:refresh"
+                && *timeout_ms == UI_WAIT_FOCUSED_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFocused {
+                    node_id: "runtime-a:refresh".into(),
+                    timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFocused {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI focused wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitFocused {
+            node_id: "runtime-a:refresh".into(),
+            timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
     fn ui_assert_focused_reenters_only_from_its_matching_presentation_result() {
         let program = lower(&parse(
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
@@ -3340,6 +3994,119 @@ mod tests {
             node_id: "runtime-a:refresh".into(),
         };
         assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_selection_binds_node_state_timeout_and_reentry_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"selected\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI selection wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI selection wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitSelection {
+                node_id,
+                state: UiSelectionState::Selected,
+                timeout_ms,
+            } if node_id == "runtime-a:card"
+                && *timeout_ms == UI_WAIT_SELECTION_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitSelection {
+                    node_id: "runtime-a:card".into(),
+                    state: UiSelectionState::Selected,
+                    timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitSelection {
+                node_id: "runtime-a:card".into(),
+                state: UiSelectionState::Selected,
+            })
+        );
+
+        let mut vm = Vm::default();
+        let Step::Effect(mut torn) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI selection wait");
+        };
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI selection wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitSelection {
+            node_id: "runtime-a:card".into(),
+            state: UiSelectionState::Unselected,
+            timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI selection wait");
+        };
+        assert!(matches!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitSelection {
+                    node_id: "runtime-a:card".into(),
+                    state: UiSelectionState::Unselected,
+                    timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
+                }),
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSV2103"
+        ));
+
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI selection wait");
+        };
+        assert!(matches!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitSelection {
+                    node_id: "runtime-a:card".into(),
+                    state: UiSelectionState::Selected,
+                    timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS + 1,
+                }),
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSV2103"
+        ));
     }
 
     #[test]

@@ -46,6 +46,15 @@ var decodedOperation = JsonSerializer.Deserialize(
     operationPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("presentation operation round trip failed");
+var navigationOperation = fixture.NavigationOperation
+    ?? throw new InvalidDataException("presentation fixture contains no navigation operation");
+var navigationPayload = JsonSerializer.SerializeToUtf8Bytes(
+    navigationOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedNavigationOperation = JsonSerializer.Deserialize(
+    navigationPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("navigation operation round trip failed");
 var scrollOperation = fixture.ScrollOperation
     ?? throw new InvalidDataException("presentation fixture contains no scroll operation");
 var scrollPayload = JsonSerializer.SerializeToUtf8Bytes(
@@ -91,6 +100,24 @@ var decodedVisibleWaitOperation = JsonSerializer.Deserialize(
     visibleWaitPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("visible wait operation round trip failed");
+var enabledWaitOperation = fixture.EnabledWaitOperation
+    ?? throw new InvalidDataException("presentation fixture contains no enabled wait operation");
+var enabledWaitPayload = JsonSerializer.SerializeToUtf8Bytes(
+    enabledWaitOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedEnabledWaitOperation = JsonSerializer.Deserialize(
+    enabledWaitPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("enabled wait operation round trip failed");
+var focusedWaitOperation = fixture.FocusedWaitOperation
+    ?? throw new InvalidDataException("presentation fixture contains no focused wait operation");
+var focusedWaitPayload = JsonSerializer.SerializeToUtf8Bytes(
+    focusedWaitOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedFocusedWaitOperation = JsonSerializer.Deserialize(
+    focusedWaitPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("focused wait operation round trip failed");
 var focusedAssertOperation = fixture.FocusedAssertOperation
     ?? throw new InvalidDataException("presentation fixture contains no focused assert operation");
 var focusedAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
@@ -109,6 +136,24 @@ var decodedEnabledAssertOperation = JsonSerializer.Deserialize(
     enabledAssertPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("enabled assert operation round trip failed");
+var selectionAssertOperation = fixture.SelectionAssertOperation
+    ?? throw new InvalidDataException("presentation fixture contains no selection assert operation");
+var selectionAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    selectionAssertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedSelectionAssertOperation = JsonSerializer.Deserialize(
+    selectionAssertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("selection assert operation round trip failed");
+var selectionWaitOperation = fixture.SelectionWaitOperation
+    ?? throw new InvalidDataException("presentation fixture contains no selection wait operation");
+var selectionWaitPayload = JsonSerializer.SerializeToUtf8Bytes(
+    selectionWaitOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedSelectionWaitOperation = JsonSerializer.Deserialize(
+    selectionWaitPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("selection wait operation round trip failed");
 var textAssertOperation = fixture.TextAssertOperation
     ?? throw new InvalidDataException("presentation fixture contains no text assert operation");
 var textAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
@@ -139,6 +184,8 @@ var decodedAccessibleDescriptionAssertOperation = JsonSerializer.Deserialize(
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("accessible description assert operation round trip failed");
 if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedNavigationOperation)
+        != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedScrollOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedRealizedAssertOperation)
@@ -147,8 +194,14 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedVisibleWaitOperation)
         != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedEnabledWaitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFocusedWaitOperation)
+        != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFocusedAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedEnabledAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedSelectionAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedSelectionWaitOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedTextAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedAccessibleNameAssertOperation)
         != UiPresentationValidation.Valid
@@ -159,6 +212,29 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
         Kind = UiPresentationOperationKind.Focus,
         NodeId = "missing-presentation-target",
     }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.NavigateFocus,
+        NodeId = "missing-presentation-target",
+        Direction = UiFocusNavigationDirection.Next,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.NavigateFocus,
+        NodeId = renderer.Document.Root.Id,
+        Direction = UiFocusNavigationDirection.Previous,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.NavigateFocus,
+        NodeId = decodedNavigationOperation.NodeId,
+    }) != UiPresentationValidation.InvalidNavigationDirection
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.Focus,
+        NodeId = decodedOperation.NodeId,
+        Direction = UiFocusNavigationDirection.Next,
+    }) != UiPresentationValidation.InvalidNavigationDirection
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
         Kind = UiPresentationOperationKind.ScrollIntoView,
@@ -200,6 +276,42 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     }) != UiPresentationValidation.InvalidTimeout
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
+        Kind = UiPresentationOperationKind.WaitEnabled,
+        NodeId = "missing-presentation-target",
+        TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitEnabled,
+        NodeId = renderer.Document.Root.Id,
+        TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitEnabled,
+        NodeId = decodedEnabledWaitOperation.NodeId,
+        TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFocused,
+        NodeId = "missing-presentation-target",
+        TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFocused,
+        NodeId = renderer.Document.Root.Id,
+        TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFocused,
+        NodeId = decodedFocusedWaitOperation.NodeId,
+        TimeoutMs = SemanticRenderer.WaitFocusedTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
         Kind = UiPresentationOperationKind.AssertRealized,
         NodeId = decodedRealizedAssertOperation.NodeId,
         TimeoutMs = SemanticRenderer.WaitRealizedTimeoutMs,
@@ -224,6 +336,36 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
         Kind = UiPresentationOperationKind.AssertEnabled,
         NodeId = renderer.Document.Root.Id,
     }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertSelection,
+        NodeId = "missing-presentation-target",
+        State = UiSelectionState.Selected,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertSelection,
+        NodeId = decodedSelectionAssertOperation.NodeId,
+    }) != UiPresentationValidation.InvalidSelectionState
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertEnabled,
+        NodeId = decodedEnabledAssertOperation.NodeId,
+        State = UiSelectionState.Selected,
+    }) != UiPresentationValidation.InvalidSelectionState
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertSelection,
+        NodeId = "fleet-title",
+        State = UiSelectionState.Selected,
+    }) != UiPresentationValidation.SelectionlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitSelection,
+        NodeId = decodedSelectionWaitOperation.NodeId,
+        State = UiSelectionState.Unselected,
+        TimeoutMs = SemanticRenderer.WaitSelectionTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
         Kind = UiPresentationOperationKind.AssertText,
@@ -259,7 +401,7 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_assert_focused=true, presentation_assert_enabled=true, presentation_assert_text=true, presentation_assert_accessible_name=true, presentation_assert_accessible_description=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_navigate_focus=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_assert_enabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_assert_accessible_name=true, presentation_assert_accessible_description=true, strict_codec=true");
 return 0;
 
 static byte[] ReadBoundedFixture(string path)

@@ -37,22 +37,30 @@ semantic tree with the Rust-produced next document. The frozen primary fixture
 remains the version-1 compatibility baseline.
 
 The separate candidate fixture carries Rust-generated
-`UiPresentationOperation::Focus`, `ScrollIntoView`, `AssertVisible`,
-`AssertRealized`, `WaitRealized`, `WaitVisible`, and `AssertFocused`, plus
-`AssertEnabled`, `AssertText`, `AssertAccessibleName`, and
+`UiPresentationOperation::Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
+`AssertRealized`, `WaitRealized`, `WaitVisible`, `AssertFocused`, and
+`WaitFocused`, plus `AssertEnabled`, `WaitEnabled`, `AssertSelection`,
+`WaitSelection`, `AssertText`,
+`AssertAccessibleName`, and
 `AssertAccessibleDescription` values. RendererCore strictly round-trips all
-eleven and validates valid, missing, noninteractive,
-textless, and invalid-expected-text targets before the Avalonia shell proves
-native focus, bring-into-view, viewport-aware visibility, native realization,
+sixteen and validates valid, missing, noninteractive,
+selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
+native focus, typed native sequential focus navigation with stable destination
+reporting and no action activation, bring-into-view, viewport-aware visibility,
+native realization,
 fixed-deadline dispatcher-yielding realization wait, fixed-deadline
 viewport-aware visibility wait without implicit scrolling, plus side-effect-free
-focus, enabled-state, actual displayed-text, and accessibility-name observation
-plus declared accessibility-description observation through its stable visual
+focus, external focus waiting without implicit focus mutation, enabled-state,
+external enablement waiting, native selected/unselected observation,
+dispatcher-yielding selection wait, actual displayed-text, and
+accessibility-name observation plus declared accessibility-description
+observation through its stable visual
 index. Scrolling a noninteractive node must preserve the currently
 focused control, hiding the renderer surface must make visibility assertion
 fail, an unfocused action must make focus assertion fail, a disabled action
-must make enabled assertion fail, and mismatched native text or accessibility
-name must fail exact ordinal comparison without moving focus or activating
+must make enabled assertion fail, selection mismatch must fail without changing
+focus, and mismatched native text or accessibility name must fail exact ordinal
+comparison without moving focus or activating
 anything:
 
 ```bash
@@ -270,8 +278,13 @@ revision, or reconnect controls. Verify the breakpoint contract with
 Document remounts and incremental patches preserve keyboard focus by stable UI
 node ID when the focused control still exists, including replacement of an
 updated action control. A removed action clears the pending target rather than
-transferring focus to another mutation control. Verify all paths against real
-Avalonia controls with
+transferring focus to another mutation control. The same probe verifies
+`ui.navigate_focus` in both native sequential directions, binds each result to
+the actual stable destination, rejects missing, noninteractive, unrealized, or
+unfocused starts without changing focus, never activates a button, and verifies
+native selected/unselected assertions plus dispatcher-yielding selection wait
+and mismatch timeout without mutating focus or selection. Verify all paths
+against real Avalonia controls with
 `dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-focus-retention apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json`.
 
 Run the named accessibility shelf across all real-control fixtures:

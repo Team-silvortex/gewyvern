@@ -1,7 +1,11 @@
 use std::fs;
 use std::path::PathBuf;
 
-use leselang_hir::{UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS};
+use leselang_hir::{
+    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
+    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UiFocusNavigationDirection,
+    UiSelectionState,
+};
 use leselang_ui::{
     NodeId, UiDocument, UiPatch, UiPresentationOperation, diff, fleet_document,
     validate_presentation_operation,
@@ -19,13 +23,18 @@ struct Fixture<'a> {
     patch: &'a UiPatch,
     next: &'a UiDocument,
     presentation_operation: &'a UiPresentationOperation,
+    navigation_operation: &'a UiPresentationOperation,
     scroll_operation: &'a UiPresentationOperation,
     assert_operation: &'a UiPresentationOperation,
     realized_assert_operation: &'a UiPresentationOperation,
     realized_wait_operation: &'a UiPresentationOperation,
     visible_wait_operation: &'a UiPresentationOperation,
+    enabled_wait_operation: &'a UiPresentationOperation,
+    focused_wait_operation: &'a UiPresentationOperation,
     focused_assert_operation: &'a UiPresentationOperation,
     enabled_assert_operation: &'a UiPresentationOperation,
+    selection_assert_operation: &'a UiPresentationOperation,
+    selection_wait_operation: &'a UiPresentationOperation,
     text_assert_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
@@ -46,6 +55,10 @@ fn main() {
     let presentation_operation = UiPresentationOperation::Focus {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
+    let navigation_operation = UiPresentationOperation::NavigateFocus {
+        node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+        direction: UiFocusNavigationDirection::Next,
+    };
     let scroll_operation = UiPresentationOperation::ScrollIntoView {
         node_id: NodeId::new("fleet-title").unwrap(),
     };
@@ -63,11 +76,28 @@ fn main() {
         node_id: NodeId::new("fleet-title").unwrap(),
         timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
     };
+    let enabled_wait_operation = UiPresentationOperation::WaitEnabled {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+    };
+    let focused_wait_operation = UiPresentationOperation::WaitFocused {
+        node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+        timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
+    };
     let focused_assert_operation = UiPresentationOperation::AssertFocused {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
     let enabled_assert_operation = UiPresentationOperation::AssertEnabled {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+    };
+    let selection_assert_operation = UiPresentationOperation::AssertSelection {
+        node_id: NodeId::new("runtime-runtime-a").unwrap(),
+        state: UiSelectionState::Selected,
+    };
+    let selection_wait_operation = UiPresentationOperation::WaitSelection {
+        node_id: NodeId::new("runtime-runtime-b").unwrap(),
+        state: UiSelectionState::Unselected,
+        timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
     };
     let text_assert_operation = UiPresentationOperation::AssertText {
         node_id: NodeId::new("fleet-title").unwrap(),
@@ -83,13 +113,18 @@ fn main() {
             expected: "Open the read-only runtime workspace".into(),
         };
     validate_presentation_operation(&next, &presentation_operation).unwrap();
+    validate_presentation_operation(&next, &navigation_operation).unwrap();
     validate_presentation_operation(&next, &scroll_operation).unwrap();
     validate_presentation_operation(&next, &assert_operation).unwrap();
     validate_presentation_operation(&next, &realized_assert_operation).unwrap();
     validate_presentation_operation(&next, &realized_wait_operation).unwrap();
     validate_presentation_operation(&next, &visible_wait_operation).unwrap();
+    validate_presentation_operation(&next, &enabled_wait_operation).unwrap();
+    validate_presentation_operation(&next, &focused_wait_operation).unwrap();
     validate_presentation_operation(&next, &focused_assert_operation).unwrap();
     validate_presentation_operation(&next, &enabled_assert_operation).unwrap();
+    validate_presentation_operation(&next, &selection_assert_operation).unwrap();
+    validate_presentation_operation(&next, &selection_wait_operation).unwrap();
     validate_presentation_operation(&next, &text_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_description_assert_operation).unwrap();
@@ -99,13 +134,18 @@ fn main() {
         patch: &patch,
         next: &next,
         presentation_operation: &presentation_operation,
+        navigation_operation: &navigation_operation,
         scroll_operation: &scroll_operation,
         assert_operation: &assert_operation,
         realized_assert_operation: &realized_assert_operation,
         realized_wait_operation: &realized_wait_operation,
         visible_wait_operation: &visible_wait_operation,
+        enabled_wait_operation: &enabled_wait_operation,
+        focused_wait_operation: &focused_wait_operation,
         focused_assert_operation: &focused_assert_operation,
         enabled_assert_operation: &enabled_assert_operation,
+        selection_assert_operation: &selection_assert_operation,
+        selection_wait_operation: &selection_wait_operation,
         text_assert_operation: &text_assert_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,

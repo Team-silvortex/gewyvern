@@ -151,9 +151,14 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by eleven presentation atoms.
+Semantic action equivalence is joined by sixteen presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
-and requires an interactive action. `UiPresentationOperation::ScrollIntoView`
+and requires an interactive action.
+`UiPresentationOperation::NavigateFocus` maps one-to-one to
+`ui.navigate_focus(node_id: ..., direction: ...)`, requires a currently
+focused interactive action, admits only `next` or `previous`, and returns the
+actual stable destination rather than inferring it from semantic-tree order.
+`UiPresentationOperation::ScrollIntoView`
 maps one-to-one to `ui.scroll_into_view(node_id: ...)` and accepts any existing
 semantic node. `UiPresentationOperation::AssertVisible` maps one-to-one to
 `ui.assert_visible(node_id: ...)` and accepts any existing semantic node.
@@ -167,8 +172,20 @@ carries the protocol-fixed 2000 ms deadline.
 carries its own protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertFocused` maps one-to-one to
 `ui.assert_focused(node_id: ...)` and requires an interactive action.
+`UiPresentationOperation::WaitFocused` maps one-to-one to
+`ui.wait_focused(node_id: ...)`, requires an interactive action, and carries
+the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertEnabled` maps one-to-one to
 `ui.assert_enabled(node_id: ...)` and also requires an interactive action.
+`UiPresentationOperation::WaitEnabled` maps one-to-one to
+`ui.wait_enabled(node_id: ...)`, requires an interactive action, and carries
+the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::AssertSelection` maps one-to-one to
+`ui.assert_selection(node_id: ..., state: ...)`, requires a semantic node with
+selection metadata, and admits only `selected` or `unselected`.
+`UiPresentationOperation::WaitSelection` maps one-to-one to
+`ui.wait_selection(node_id: ..., state: ...)`, requires the same selectable
+semantic node, and carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertText` maps one-to-one to
 `ui.assert_text(node_id: ..., expected: ...)`, requires a text-rendering
 semantic node, and carries a control-free expected value of at most 1024 UTF-8
@@ -178,12 +195,17 @@ semantic node, and uses the same expected-value bound.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
 semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all eleven travel in
+become a `UiEvent` or `CommandPlan`; all sixteen travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all eleven operations through its stable visual index. Focus
-uses native `Control.Focus()`, while scrolling uses native `BringIntoView()`
+Avalonia resolves all sixteen operations through its stable visual index. Focus
+uses native `Control.Focus()`. Focus navigation requires the declared start to
+own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
+direction, and accepts only a distinct realized action from the same index.
+The actual destination is returned, navigation never activates an action, and
+missing, noninteractive, unrealized, or unfocused starts fail without changing
+focus. Scrolling uses native `BringIntoView()`
 without changing focus or activating an action. Visibility assertion requires
 a realized control that is effectively visible, has nonzero layout bounds, and
 intersects the renderer viewport. Realization assertion succeeds only when the
@@ -193,8 +215,16 @@ through a cancellable dispatcher-yielding adapter until its fixed deadline; it
 does not call `BringIntoView()` or create controls. Visibility wait polls the
 complete assertion predicate, including viewport intersection, through the same
 cancellable adapter and never scrolls the target. Focus assertion reads native
-`Control.IsFocused`; enabled assertion reads native effective enabled state,
-including ancestors. Text assertion reads native `TextBlock.Text` or string
+`Control.IsFocused`; focused wait polls that same predicate without invoking
+`Control.Focus()`. Enabled assertion reads native effective enabled state,
+including ancestors. Enabled wait polls that same predicate through the
+cancellable adapter without changing availability or invoking the action.
+Selection assertion reads the native selected state of the realized selectable
+control, while selection wait polls that same predicate through the cancellable
+adapter until the protocol-fixed deadline. Mismatched, selectionless, or native
+nonselectable targets fail with typed presentation errors and never focus,
+activate, scroll, or select the target. Text
+assertion reads native `TextBlock.Text` or string
 `Button.Content` and uses exact ordinal comparison rather than semantic-IR
 guessing, coordinates, or OCR. Accessible-name assertion independently reads
 native `AutomationProperties.Name` with exact ordinal comparison. None of the
@@ -203,13 +233,18 @@ reads native `AutomationProperties.HelpText`, also with exact ordinal
 comparison, and rejects semantic targets that never declared a description.
 The real-window probe covers natural post-layout realization and visibility,
 persistent unrealized and invisible timeout, native application, unrealized,
-hidden, unfocused, disabled,
+hidden, unfocused, disabled, external enablement transition and persistent
+disabled timeout, external focus transition and persistent realized-unfocused
+timeout without implicit focus mutation, native forward and backward focus
+navigation, stable destination reporting, failure focus preservation, and
+zero action activation, native selected/unselected assertion, dispatcher-yielding
+selection wait, persistent selection mismatch timeout,
 text-mismatched, accessible-name-mismatched,
 accessible-description-mismatched, missing, textless, and unfocusable targets,
 focus preservation, remount/patch retention, and safe target removal.
 
-This is not yet complete presentation automation. Selection, navigation,
-window lifetime, focused/enabled wait predicates, and additional state assertions remain future typed
+This is not yet complete presentation automation. Window lifetime, additional
+navigation modes, and additional state assertions remain future typed
 operations; renderers must not emulate them with coordinates, arbitrary
 scripts, or control-plane commands.
 

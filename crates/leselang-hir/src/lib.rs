@@ -13,8 +13,25 @@ pub const MAX_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
+pub const UI_WAIT_ENABLED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_FOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_SELECTION_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_VISIBLE_TIMEOUT_MS: u64 = 2_000;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFocusNavigationDirection {
+    Next,
+    Previous,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiSelectionState {
+    Selected,
+    Unselected,
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HirProgram {
@@ -68,6 +85,10 @@ pub enum Effect {
     UiFocus {
         node_id: String,
     },
+    UiNavigateFocus {
+        node_id: String,
+        direction: UiFocusNavigationDirection,
+    },
     UiScrollIntoView {
         node_id: String,
     },
@@ -83,11 +104,25 @@ pub enum Effect {
     UiWaitVisible {
         node_id: String,
     },
+    UiWaitEnabled {
+        node_id: String,
+    },
+    UiWaitFocused {
+        node_id: String,
+    },
     UiAssertFocused {
         node_id: String,
     },
     UiAssertEnabled {
         node_id: String,
+    },
+    UiAssertSelection {
+        node_id: String,
+        state: UiSelectionState,
+    },
+    UiWaitSelection {
+        node_id: String,
+        state: UiSelectionState,
     },
     UiAssertText {
         node_id: String,
@@ -118,13 +153,18 @@ pub enum Type {
     RuntimeDeploy,
     DebuggerCancel,
     UiFocus,
+    UiNavigateFocus,
     UiScrollIntoView,
     UiAssertVisible,
     UiAssertRealized,
     UiWaitRealized,
     UiWaitVisible,
+    UiWaitEnabled,
+    UiWaitFocused,
     UiAssertFocused,
     UiAssertEnabled,
+    UiAssertSelection,
+    UiWaitSelection,
     UiAssertText,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
@@ -204,13 +244,18 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "runtime.deploy"
         | "debugger.cancel"
         | "ui.focus"
+        | "ui.navigate_focus"
         | "ui.scroll_into_view"
         | "ui.assert_visible"
         | "ui.assert_realized"
         | "ui.wait_realized"
         | "ui.wait_visible"
+        | "ui.wait_enabled"
+        | "ui.wait_focused"
         | "ui.assert_focused"
         | "ui.assert_enabled"
+        | "ui.assert_selection"
+        | "ui.wait_selection"
         | "ui.assert_text"
         | "ui.assert_accessible_name"
         | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
@@ -235,6 +280,8 @@ fn lower_atomic_effect(
     let mut target = None;
     let mut session_id = None;
     let mut node_id = None;
+    let mut focus_navigation_direction = None;
+    let mut selection_state = None;
     let mut expected_text = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
@@ -311,6 +358,30 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.navigate_focus", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1144".to_string(),
+                    message:
+                        "ui.navigate_focus node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.navigate_focus", "direction") => match value.as_deref() {
+                Some("next") => {
+                    focus_navigation_direction = Some(UiFocusNavigationDirection::Next);
+                }
+                Some("previous") => {
+                    focus_navigation_direction = Some(UiFocusNavigationDirection::Previous);
+                }
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1145".to_string(),
+                    message: "ui.navigate_focus direction must be \"next\" or \"previous\""
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.scroll_into_view", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -359,6 +430,24 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_enabled", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1140".to_string(),
+                    message: "ui.wait_enabled node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_focused", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1142".to_string(),
+                    message: "ui.wait_focused node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_focused", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -373,6 +462,46 @@ fn lower_atomic_effect(
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1120".to_string(),
                     message: "ui.assert_enabled node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_selection", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1148".to_string(),
+                    message:
+                        "ui.assert_selection node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_selection", "state") => match value.as_deref() {
+                Some("selected") => selection_state = Some(UiSelectionState::Selected),
+                Some("unselected") => selection_state = Some(UiSelectionState::Unselected),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1149".to_string(),
+                    message: "ui.assert_selection state must be \"selected\" or \"unselected\""
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_selection", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1152".to_string(),
+                    message:
+                        "ui.wait_selection node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_selection", "state") => match value.as_deref() {
+                Some("selected") => selection_state = Some(UiSelectionState::Selected),
+                Some("unselected") => selection_state = Some(UiSelectionState::Unselected),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1153".to_string(),
+                    message: "ui.wait_selection state must be \"selected\" or \"unselected\""
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -475,6 +604,23 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.navigate_focus" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1146".to_string(),
+            message: "ui.navigate_focus requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.navigate_focus"
+        && focus_navigation_direction.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1147".to_string(),
+            message: "ui.navigate_focus requires direction".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.scroll_into_view" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1115".to_string(),
@@ -510,6 +656,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_enabled" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1141".to_string(),
+            message: "ui.wait_enabled requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_focused" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1143".to_string(),
+            message: "ui.wait_focused requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_focused" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1119".to_string(),
@@ -521,6 +681,34 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1121".to_string(),
             message: "ui.assert_enabled requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_selection" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1150".to_string(),
+            message: "ui.assert_selection requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_selection" && selection_state.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1151".to_string(),
+            message: "ui.assert_selection requires state".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_selection" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1154".to_string(),
+            message: "ui.wait_selection requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_selection" && selection_state.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1155".to_string(),
+            message: "ui.wait_selection requires state".to_string(),
             span: Some(span),
         });
     }
@@ -661,6 +849,15 @@ fn lower_atomic_effect(
             Type::UiFocus,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.navigate_focus" => (
+            Effect::UiNavigateFocus {
+                node_id: node_id.expect("validated UI node identifier"),
+                direction: focus_navigation_direction
+                    .expect("validated UI focus navigation direction"),
+            },
+            Type::UiNavigateFocus,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.scroll_into_view" => (
             Effect::UiScrollIntoView {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -696,6 +893,20 @@ fn lower_atomic_effect(
             Type::UiWaitVisible,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_enabled" => (
+            Effect::UiWaitEnabled {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitEnabled,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_focused" => (
+            Effect::UiWaitFocused {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitFocused,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_focused" => (
             Effect::UiAssertFocused {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -708,6 +919,22 @@ fn lower_atomic_effect(
                 node_id: node_id.expect("validated UI node identifier"),
             },
             Type::UiAssertEnabled,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_selection" => (
+            Effect::UiAssertSelection {
+                node_id: node_id.expect("validated UI node identifier"),
+                state: selection_state.expect("validated UI selection state"),
+            },
+            Type::UiAssertSelection,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_selection" => (
+            Effect::UiWaitSelection {
+                node_id: node_id.expect("validated UI node identifier"),
+                state: selection_state.expect("validated UI selection state"),
+            },
+            Type::UiWaitSelection,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_text" => (
@@ -803,6 +1030,17 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiFocus { node_id } => {
             atomic_identifier_source("ui.focus", "node_id", node_id, depth)
         }
+        Effect::UiNavigateFocus { node_id, direction } => format!(
+            "ui.navigate_focus(\n{}node_id: {},\n{}direction: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(match direction {
+                UiFocusNavigationDirection::Next => "next",
+                UiFocusNavigationDirection::Previous => "previous",
+            }),
+            indent(depth),
+        ),
         Effect::UiScrollIntoView { node_id } => {
             atomic_identifier_source("ui.scroll_into_view", "node_id", node_id, depth)
         }
@@ -818,12 +1056,34 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiWaitVisible { node_id } => {
             atomic_identifier_source("ui.wait_visible", "node_id", node_id, depth)
         }
+        Effect::UiWaitEnabled { node_id } => {
+            atomic_identifier_source("ui.wait_enabled", "node_id", node_id, depth)
+        }
+        Effect::UiWaitFocused { node_id } => {
+            atomic_identifier_source("ui.wait_focused", "node_id", node_id, depth)
+        }
         Effect::UiAssertFocused { node_id } => {
             atomic_identifier_source("ui.assert_focused", "node_id", node_id, depth)
         }
         Effect::UiAssertEnabled { node_id } => {
             atomic_identifier_source("ui.assert_enabled", "node_id", node_id, depth)
         }
+        Effect::UiAssertSelection { node_id, state } => format!(
+            "ui.assert_selection(\n{}node_id: {},\n{}state: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(selection_state_source(*state)),
+            indent(depth),
+        ),
+        Effect::UiWaitSelection { node_id, state } => format!(
+            "ui.wait_selection(\n{}node_id: {},\n{}state: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(selection_state_source(*state)),
+            indent(depth),
+        ),
         Effect::UiAssertText { node_id, expected } => format!(
             "ui.assert_text(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
@@ -861,6 +1121,13 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             source.push(')');
             source
         }
+    }
+}
+
+fn selection_state_source(state: UiSelectionState) -> &'static str {
+    match state {
+        UiSelectionState::Selected => "selected",
+        UiSelectionState::Unselected => "unselected",
     }
 }
 
@@ -1266,6 +1533,44 @@ mod tests {
     }
 
     #[test]
+    fn ui_navigate_focus_is_a_typed_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: \"next\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiNavigateFocus);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiNavigateFocus {
+                ref node_id,
+                direction: UiFocusNavigationDirection::Next,
+            } if node_id == "runtime-a:inspect"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.navigate_focus(\n  node_id: \"runtime-a:inspect\",\n  direction: \"next\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.navigate_focus(direction: \"next\")",
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\")",
+            "fn main() = ui.navigate_focus(node_id: none, direction: \"next\")",
+            "fn main() = ui.navigate_focus(node_id: \"bad/node\", direction: \"next\")",
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: none)",
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: \"left\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_scroll_into_view_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
@@ -1426,6 +1731,70 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_enabled_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitEnabled);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitEnabled { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_enabled()",
+            "fn main() = ui.wait_enabled(node_id: none)",
+            "fn main() = ui.wait_enabled(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_focused_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitFocused);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitFocused { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_focused()",
+            "fn main() = ui.wait_focused(node_id: none)",
+            "fn main() = ui.wait_focused(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "{source} should fail lowering"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_focused_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
@@ -1481,6 +1850,73 @@ mod tests {
             "fn main() = ui.assert_enabled()",
             "fn main() = ui.assert_enabled(node_id: none)",
             "fn main() = ui.assert_enabled(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_selection_assert_and_wait_are_typed_canonical_presentation_effects() {
+        let assert_program = lower(&parse(
+            "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
+        ))
+        .unwrap();
+        assert_eq!(assert_program.function.result_type, Type::UiAssertSelection);
+        assert_eq!(
+            assert_program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            assert_program.function.effect,
+            Effect::UiAssertSelection {
+                ref node_id,
+                state: UiSelectionState::Selected,
+            } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&assert_program.function.effect).unwrap(),
+            "fn main() = ui.assert_selection(\n  node_id: \"runtime-a:card\",\n  state: \"selected\",\n)\n"
+        );
+
+        let wait_program = lower(&parse(
+            "fn main() = ui.wait_selection(node_id: \"runtime-b:card\", state: \"unselected\")",
+        ))
+        .unwrap();
+        assert_eq!(wait_program.function.result_type, Type::UiWaitSelection);
+        assert_eq!(
+            wait_program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            wait_program.function.effect,
+            Effect::UiWaitSelection {
+                ref node_id,
+                state: UiSelectionState::Unselected,
+            } if node_id == "runtime-b:card"
+        ));
+        assert_eq!(
+            canonical_source(&wait_program.function.effect).unwrap(),
+            "fn main() = ui.wait_selection(\n  node_id: \"runtime-b:card\",\n  state: \"unselected\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_selection()",
+            "fn main() = ui.assert_selection(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_selection(state: \"selected\")",
+            "fn main() = ui.assert_selection(node_id: none, state: \"selected\")",
+            "fn main() = ui.assert_selection(node_id: \"bad/node\", state: \"selected\")",
+            "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: none)",
+            "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"maybe\")",
+            "fn main() = ui.wait_selection()",
+            "fn main() = ui.wait_selection(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_selection(state: \"selected\")",
+            "fn main() = ui.wait_selection(node_id: none, state: \"selected\")",
+            "fn main() = ui.wait_selection(node_id: \"bad/node\", state: \"selected\")",
+            "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: none)",
+            "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"maybe\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
@@ -1632,13 +2068,18 @@ mod tests {
             "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: none)",
             "fn main() = debugger.cancel(session_id: \"session-a\")",
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:refresh\", direction: \"previous\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
+            "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",

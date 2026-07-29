@@ -296,6 +296,11 @@ pub fn waiting_debugger_projection(
             (DebuggerEffectKind::DebuggerCancel, None, "debugger cancel")
         }
         Effect::UiFocus { .. } => (DebuggerEffectKind::UiFocus, None, "UI focus"),
+        Effect::UiNavigateFocus { .. } => (
+            DebuggerEffectKind::UiNavigateFocus,
+            None,
+            "UI navigate focus",
+        ),
         Effect::UiScrollIntoView { .. } => (
             DebuggerEffectKind::UiScrollIntoView,
             None,
@@ -317,6 +322,12 @@ pub fn waiting_debugger_projection(
         Effect::UiWaitVisible { .. } => {
             (DebuggerEffectKind::UiWaitVisible, None, "UI wait visible")
         }
+        Effect::UiWaitEnabled { .. } => {
+            (DebuggerEffectKind::UiWaitEnabled, None, "UI wait enabled")
+        }
+        Effect::UiWaitFocused { .. } => {
+            (DebuggerEffectKind::UiWaitFocused, None, "UI wait focused")
+        }
         Effect::UiAssertFocused { .. } => (
             DebuggerEffectKind::UiAssertFocused,
             None,
@@ -326,6 +337,16 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertEnabled,
             None,
             "UI assert enabled",
+        ),
+        Effect::UiAssertSelection { .. } => (
+            DebuggerEffectKind::UiAssertSelection,
+            None,
+            "UI assert selection",
+        ),
+        Effect::UiWaitSelection { .. } => (
+            DebuggerEffectKind::UiWaitSelection,
+            None,
+            "UI wait selection",
         ),
         Effect::UiAssertText { .. } => (DebuggerEffectKind::UiAssertText, None, "UI assert text"),
         Effect::UiAssertAccessibleName { .. } => (

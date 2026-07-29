@@ -2,8 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
-    Effect, HirBranch, Type, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
-    canonical_source, validate_ui_expected_text, validate_ui_node_id,
+    Effect, HirBranch, Type, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
+    UiFocusNavigationDirection, UiSelectionState, canonical_source, validate_ui_expected_text,
+    validate_ui_node_id,
 };
 use leserpent_domain::{
     CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
@@ -227,6 +229,8 @@ pub struct UiNode {
     pub debugger_session_id: Option<String>,
     pub text: Option<LocalizedText>,
     pub accessibility: Accessibility,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<UiSelection>,
     pub action: Option<UiAction>,
     pub children: Vec<UiNode>,
 }
@@ -297,13 +301,18 @@ pub enum DebuggerEffectKind {
     RuntimeDeploy,
     DebuggerCancel,
     UiFocus,
+    UiNavigateFocus,
     UiScrollIntoView,
     UiAssertVisible,
     UiAssertRealized,
     UiWaitRealized,
     UiWaitVisible,
+    UiWaitEnabled,
+    UiWaitFocused,
     UiAssertFocused,
     UiAssertEnabled,
+    UiAssertSelection,
+    UiWaitSelection,
     UiAssertText,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
@@ -358,6 +367,12 @@ pub struct LocalizedText {
 pub struct Accessibility {
     pub label: Option<LocalizedText>,
     pub description: Option<LocalizedText>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiSelection {
+    pub state: UiSelectionState,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -415,17 +430,65 @@ pub enum UiEventKind {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UiPresentationOperation {
-    Focus { node_id: NodeId },
-    ScrollIntoView { node_id: NodeId },
-    AssertVisible { node_id: NodeId },
-    AssertRealized { node_id: NodeId },
-    WaitRealized { node_id: NodeId, timeout_ms: u64 },
-    WaitVisible { node_id: NodeId, timeout_ms: u64 },
-    AssertFocused { node_id: NodeId },
-    AssertEnabled { node_id: NodeId },
-    AssertText { node_id: NodeId, expected: String },
-    AssertAccessibleName { node_id: NodeId, expected: String },
-    AssertAccessibleDescription { node_id: NodeId, expected: String },
+    Focus {
+        node_id: NodeId,
+    },
+    NavigateFocus {
+        node_id: NodeId,
+        direction: UiFocusNavigationDirection,
+    },
+    ScrollIntoView {
+        node_id: NodeId,
+    },
+    AssertVisible {
+        node_id: NodeId,
+    },
+    AssertRealized {
+        node_id: NodeId,
+    },
+    WaitRealized {
+        node_id: NodeId,
+        timeout_ms: u64,
+    },
+    WaitVisible {
+        node_id: NodeId,
+        timeout_ms: u64,
+    },
+    WaitEnabled {
+        node_id: NodeId,
+        timeout_ms: u64,
+    },
+    WaitFocused {
+        node_id: NodeId,
+        timeout_ms: u64,
+    },
+    AssertFocused {
+        node_id: NodeId,
+    },
+    AssertEnabled {
+        node_id: NodeId,
+    },
+    AssertSelection {
+        node_id: NodeId,
+        state: UiSelectionState,
+    },
+    WaitSelection {
+        node_id: NodeId,
+        state: UiSelectionState,
+        timeout_ms: u64,
+    },
+    AssertText {
+        node_id: NodeId,
+        expected: String,
+    },
+    AssertAccessibleName {
+        node_id: NodeId,
+        expected: String,
+    },
+    AssertAccessibleDescription {
+        node_id: NodeId,
+        expected: String,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -529,6 +592,9 @@ pub enum UiError {
     DescriptionlessPresentationTarget {
         node_id: String,
     },
+    SelectionlessPresentationTarget {
+        node_id: String,
+    },
     InvalidPresentationText,
     InvalidPresentationTimeout,
     Lowering(LoweringError),
@@ -566,6 +632,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
             &format!("Revision {}", revision.0),
         )?,
     ];
+    let selected_runtime_id = runtimes.first().map(|runtime| runtime.id.clone());
     for runtime in runtimes {
         let prefix = format!("runtime-{}", runtime.id.as_str());
         let status = match runtime.refresh_status {
@@ -584,6 +651,13 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                 label: Some(localized("fleet.runtime.card", &runtime.name)?),
                 description: None,
             },
+            selection: Some(UiSelection {
+                state: if selected_runtime_id.as_ref() == Some(&runtime.id) {
+                    UiSelectionState::Selected
+                } else {
+                    UiSelectionState::Unselected
+                },
+            }),
             action: None,
             children: vec![
                 text_node(
@@ -611,6 +685,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                             "Open the read-only runtime workspace",
                         )?),
                     },
+                    selection: None,
                     action: Some(UiAction::RuntimeInspect {
                         runtime_id: runtime.id.clone(),
                     }),
@@ -626,6 +701,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                         label: Some(localized("fleet.runtime.refresh", "Refresh runtime")?),
                         description: None,
                     },
+                    selection: None,
                     action: Some(UiAction::RuntimeRefresh {
                         runtime_id: runtime.id.clone(),
                     }),
@@ -647,6 +723,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                         )?),
                         description: None,
                     },
+                    selection: None,
                     action: Some(UiAction::RuntimeCapabilitiesRefresh {
                         runtime_id: runtime.id.clone(),
                     }),
@@ -668,6 +745,7 @@ pub fn fleet_document(result: &QueryResult) -> Result<UiDocument, UiError> {
                 label: Some(localized("fleet.root", "Runtime fleet")?),
                 description: None,
             },
+            selection: None,
             action: None,
             children,
         },
@@ -736,6 +814,7 @@ pub fn runtime_workspace_document(
                 ),
             )?),
             accessibility: Accessibility::default(),
+            selection: None,
             action: None,
             children: Vec::new(),
         });
@@ -762,6 +841,7 @@ pub fn runtime_workspace_document(
                 label: Some(localized("runtime.workspace", &runtime.name)?),
                 description: None,
             },
+            selection: None,
             action: None,
             children: vec![
                 text_node(
@@ -808,6 +888,7 @@ pub fn runtime_workspace_document(
                         )?),
                         description: None,
                     },
+                    selection: None,
                     action: None,
                     children: capability_children,
                 },
@@ -821,6 +902,7 @@ pub fn runtime_workspace_document(
                         label: Some(localized("runtime.workspace.refresh", "Refresh runtime")?),
                         description: None,
                     },
+                    selection: None,
                     action: Some(UiAction::RuntimeRefresh {
                         runtime_id: runtime.id.clone(),
                     }),
@@ -842,6 +924,7 @@ pub fn runtime_workspace_document(
                         )?),
                         description: None,
                     },
+                    selection: None,
                     action: Some(UiAction::RuntimeCapabilitiesRefresh {
                         runtime_id: runtime.id.clone(),
                     }),
@@ -857,6 +940,7 @@ pub fn runtime_workspace_document(
                         label: Some(localized("runtime.history.title", "Runtime history")?),
                         description: None,
                     },
+                    selection: None,
                     action: None,
                     children: history_children,
                 },
@@ -941,6 +1025,7 @@ fn capability_nodes(
                     "Opens a bounded deployment form and requires explicit confirmation",
                 )?),
             },
+            selection: None,
             action: Some(UiAction::RuntimeDeploy {
                 runtime_id: runtime_id.clone(),
                 form: deployment_form()?,
@@ -1014,6 +1099,7 @@ pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocum
                 &format!("[{level}] {}", entry.display),
             )?),
             accessibility: Accessibility::default(),
+            selection: None,
             action: None,
             children: Vec::new(),
         });
@@ -1043,6 +1129,7 @@ pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocum
                 )?),
                 description: None,
             },
+            selection: None,
             action: None,
             children: vec![
                 text_node(
@@ -1067,6 +1154,7 @@ pub fn runtime_log_document(projection: &RuntimeLogProjection) -> Result<UiDocum
                         label: Some(localized("runtime.logs.entries", "Runtime log entries")?),
                         description: None,
                     },
+                    selection: None,
                     action: None,
                     children: entries,
                 },
@@ -1097,13 +1185,18 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeList
             | DebuggerEffectKind::DebuggerCancel
             | DebuggerEffectKind::UiFocus
+            | DebuggerEffectKind::UiNavigateFocus
             | DebuggerEffectKind::UiScrollIntoView
             | DebuggerEffectKind::UiAssertVisible
             | DebuggerEffectKind::UiAssertRealized
             | DebuggerEffectKind::UiWaitRealized
             | DebuggerEffectKind::UiWaitVisible
+            | DebuggerEffectKind::UiWaitEnabled
+            | DebuggerEffectKind::UiWaitFocused
             | DebuggerEffectKind::UiAssertFocused
             | DebuggerEffectKind::UiAssertEnabled
+            | DebuggerEffectKind::UiAssertSelection
+            | DebuggerEffectKind::UiWaitSelection
             | DebuggerEffectKind::UiAssertText
             | DebuggerEffectKind::UiAssertAccessibleName
             | DebuggerEffectKind::UiAssertAccessibleDescription => effect.runtime_id.is_none(),
@@ -1142,6 +1235,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
                 &format!("[pc {}] {}", frame.instruction, frame.display),
             )?),
             accessibility: Accessibility::default(),
+            selection: None,
             action: None,
             children: Vec::new(),
         });
@@ -1206,13 +1300,18 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeDeploy => "runtime deploy",
             DebuggerEffectKind::DebuggerCancel => "debugger cancel",
             DebuggerEffectKind::UiFocus => "UI focus",
+            DebuggerEffectKind::UiNavigateFocus => "UI navigate focus",
             DebuggerEffectKind::UiScrollIntoView => "UI scroll into view",
             DebuggerEffectKind::UiAssertVisible => "UI assert visible",
             DebuggerEffectKind::UiAssertRealized => "UI assert realized",
             DebuggerEffectKind::UiWaitRealized => "UI wait realized",
             DebuggerEffectKind::UiWaitVisible => "UI wait visible",
+            DebuggerEffectKind::UiWaitEnabled => "UI wait enabled",
+            DebuggerEffectKind::UiWaitFocused => "UI wait focused",
             DebuggerEffectKind::UiAssertFocused => "UI assert focused",
             DebuggerEffectKind::UiAssertEnabled => "UI assert enabled",
+            DebuggerEffectKind::UiAssertSelection => "UI assert selection",
+            DebuggerEffectKind::UiWaitSelection => "UI wait selection",
             DebuggerEffectKind::UiAssertText => "UI assert text",
             DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
             DebuggerEffectKind::UiAssertAccessibleDescription => "UI assert accessible description",
@@ -1236,6 +1335,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
                 )?),
                 description: None,
             },
+            selection: None,
             action: Some(UiAction::DebuggerCancel {
                 session_id: projection.session_id.clone(),
             }),
@@ -1252,6 +1352,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             label: Some(localized("debugger.frames", "Debugger logical frames")?),
             description: None,
         },
+        selection: None,
         action: None,
         children: frames,
     });
@@ -1280,6 +1381,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
                 )?),
                 description: None,
             },
+            selection: None,
             action: None,
             children,
         },
@@ -1385,6 +1487,10 @@ pub fn presentation_operation_for_effect(
         Effect::UiFocus { node_id } => UiPresentationOperation::Focus {
             node_id: NodeId::new(node_id.clone())?,
         },
+        Effect::UiNavigateFocus { node_id, direction } => UiPresentationOperation::NavigateFocus {
+            node_id: NodeId::new(node_id.clone())?,
+            direction: *direction,
+        },
         Effect::UiScrollIntoView { node_id } => UiPresentationOperation::ScrollIntoView {
             node_id: NodeId::new(node_id.clone())?,
         },
@@ -1402,11 +1508,28 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
         },
+        Effect::UiWaitEnabled { node_id } => UiPresentationOperation::WaitEnabled {
+            node_id: NodeId::new(node_id.clone())?,
+            timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+        },
+        Effect::UiWaitFocused { node_id } => UiPresentationOperation::WaitFocused {
+            node_id: NodeId::new(node_id.clone())?,
+            timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
+        },
         Effect::UiAssertFocused { node_id } => UiPresentationOperation::AssertFocused {
             node_id: NodeId::new(node_id.clone())?,
         },
         Effect::UiAssertEnabled { node_id } => UiPresentationOperation::AssertEnabled {
             node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiAssertSelection { node_id, state } => UiPresentationOperation::AssertSelection {
+            node_id: NodeId::new(node_id.clone())?,
+            state: *state,
+        },
+        Effect::UiWaitSelection { node_id, state } => UiPresentationOperation::WaitSelection {
+            node_id: NodeId::new(node_id.clone())?,
+            state: *state,
+            timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
         },
         Effect::UiAssertText { node_id, expected } => UiPresentationOperation::AssertText {
             node_id: NodeId::new(node_id.clone())?,
@@ -1439,6 +1562,10 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::Focus { node_id } => Effect::UiFocus {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::NavigateFocus { node_id, direction } => Effect::UiNavigateFocus {
+            node_id: node_id.as_str().to_string(),
+            direction: *direction,
+        },
         UiPresentationOperation::ScrollIntoView { node_id } => Effect::UiScrollIntoView {
             node_id: node_id.as_str().to_string(),
         },
@@ -1454,11 +1581,25 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::WaitVisible { node_id, .. } => Effect::UiWaitVisible {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::WaitEnabled { node_id, .. } => Effect::UiWaitEnabled {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::WaitFocused { node_id, .. } => Effect::UiWaitFocused {
+            node_id: node_id.as_str().to_string(),
+        },
         UiPresentationOperation::AssertFocused { node_id } => Effect::UiAssertFocused {
             node_id: node_id.as_str().to_string(),
         },
         UiPresentationOperation::AssertEnabled { node_id } => Effect::UiAssertEnabled {
             node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::AssertSelection { node_id, state } => Effect::UiAssertSelection {
+            node_id: node_id.as_str().to_string(),
+            state: *state,
+        },
+        UiPresentationOperation::WaitSelection { node_id, state, .. } => Effect::UiWaitSelection {
+            node_id: node_id.as_str().to_string(),
+            state: *state,
         },
         UiPresentationOperation::AssertText { node_id, expected } => Effect::UiAssertText {
             node_id: node_id.as_str().to_string(),
@@ -1486,13 +1627,18 @@ pub fn validate_presentation_operation(
     validate_document(document)?;
     let node_id = match operation {
         UiPresentationOperation::Focus { node_id }
+        | UiPresentationOperation::NavigateFocus { node_id, .. }
         | UiPresentationOperation::ScrollIntoView { node_id }
         | UiPresentationOperation::AssertVisible { node_id }
         | UiPresentationOperation::AssertRealized { node_id }
         | UiPresentationOperation::WaitRealized { node_id, .. }
         | UiPresentationOperation::WaitVisible { node_id, .. }
+        | UiPresentationOperation::WaitEnabled { node_id, .. }
+        | UiPresentationOperation::WaitFocused { node_id, .. }
         | UiPresentationOperation::AssertFocused { node_id }
         | UiPresentationOperation::AssertEnabled { node_id }
+        | UiPresentationOperation::AssertSelection { node_id, .. }
+        | UiPresentationOperation::WaitSelection { node_id, .. }
         | UiPresentationOperation::AssertText { node_id, .. }
         | UiPresentationOperation::AssertAccessibleName { node_id, .. }
         | UiPresentationOperation::AssertAccessibleDescription { node_id, .. } => node_id,
@@ -1514,6 +1660,21 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
+    if let UiPresentationOperation::WaitEnabled { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_ENABLED_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitFocused { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_FOCUSED_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitSelection { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_SELECTION_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
     let node =
         find_node(&document.root, node_id).ok_or_else(|| UiError::UnknownPresentationTarget {
             node_id: node_id.as_str().to_string(),
@@ -1521,11 +1682,24 @@ pub fn validate_presentation_operation(
     if matches!(
         operation,
         UiPresentationOperation::Focus { .. }
+            | UiPresentationOperation::NavigateFocus { .. }
             | UiPresentationOperation::AssertFocused { .. }
             | UiPresentationOperation::AssertEnabled { .. }
+            | UiPresentationOperation::WaitEnabled { .. }
+            | UiPresentationOperation::WaitFocused { .. }
     ) && (node.kind != UiNodeKind::Action || node.action.is_none())
     {
         return Err(UiError::UnfocusablePresentationTarget {
+            node_id: node_id.as_str().to_string(),
+        });
+    }
+    if matches!(
+        operation,
+        UiPresentationOperation::AssertSelection { .. }
+            | UiPresentationOperation::WaitSelection { .. }
+    ) && node.selection.is_none()
+    {
+        return Err(UiError::SelectionlessPresentationTarget {
             node_id: node_id.as_str().to_string(),
         });
     }
@@ -2274,6 +2448,7 @@ fn text_node(id: &str, kind: UiNodeKind, key: &str, fallback: &str) -> Result<Ui
         debugger_session_id: None,
         text: Some(localized(key, fallback)?),
         accessibility: Accessibility::default(),
+        selection: None,
         action: None,
         children: Vec::new(),
     })
@@ -2351,6 +2526,7 @@ type ShallowNode<'a> = (
     &'a Option<String>,
     &'a Option<LocalizedText>,
     &'a Accessibility,
+    &'a Option<UiSelection>,
     &'a Option<UiAction>,
 );
 
@@ -2362,6 +2538,7 @@ fn shallow_node(node: &UiNode) -> ShallowNode<'_> {
         &node.debugger_session_id,
         &node.text,
         &node.accessibility,
+        &node.selection,
         &node.action,
     )
 }
@@ -2642,6 +2819,60 @@ mod tests {
     }
 
     #[test]
+    fn focus_navigation_round_trips_with_an_explicit_start_and_direction() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::NavigateFocus {
+            node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+            direction: UiFocusNavigationDirection::Next,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiNavigateFocus {
+                node_id: "runtime-runtime-a-inspect".into(),
+                direction: UiFocusNavigationDirection::Next,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.navigate_focus(\n  node_id: \"runtime-runtime-a-inspect\",\n  direction: \"next\",\n)\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+    }
+
+    #[test]
+    fn focus_navigation_rejects_missing_and_noninteractive_start_nodes() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::NavigateFocus {
+                    node_id: NodeId::new("missing-action").unwrap(),
+                    direction: UiFocusNavigationDirection::Next,
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget { .. })
+        ));
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::NavigateFocus {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    direction: UiFocusNavigationDirection::Previous,
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget { .. })
+        ));
+    }
+
+    #[test]
     fn scroll_presentation_round_trips_for_noninteractive_nodes() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::ScrollIntoView {
@@ -2846,6 +3077,96 @@ mod tests {
     }
 
     #[test]
+    fn enabled_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitEnabled {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &operation).unwrap();
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitEnabled {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_enabled(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitEnabled {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitEnabled {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget { .. })
+        ));
+    }
+
+    #[test]
+    fn focused_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitFocused {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &operation).unwrap();
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitFocused {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_focused(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFocused {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFocused {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget { .. })
+        ));
+    }
+
+    #[test]
     fn focused_assertion_round_trips_and_requires_an_interactive_target() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::AssertFocused {
@@ -2916,6 +3237,86 @@ mod tests {
                 },
             ),
             Err(UiError::UnfocusablePresentationTarget {
+                node_id: "fleet-title".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn selection_assertion_and_wait_round_trip_for_selectable_nodes() {
+        let document = fleet_document(&fleet(
+            1,
+            &[("runtime-a", "Runtime A"), ("runtime-b", "Runtime B")],
+        ))
+        .unwrap();
+        let selected_operation = UiPresentationOperation::AssertSelection {
+            node_id: NodeId::new("runtime-runtime-a").unwrap(),
+            state: UiSelectionState::Selected,
+        };
+        let selected_effect =
+            effect_for_presentation_operation(&document, &selected_operation).unwrap();
+        assert_eq!(
+            selected_effect,
+            Effect::UiAssertSelection {
+                node_id: "runtime-runtime-a".into(),
+                state: UiSelectionState::Selected,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &selected_effect).unwrap(),
+            selected_operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &selected_operation).unwrap(),
+            "fn main() = ui.assert_selection(\n  node_id: \"runtime-runtime-a\",\n  state: \"selected\",\n)\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &selected_effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+
+        let unselected_wait = UiPresentationOperation::WaitSelection {
+            node_id: NodeId::new("runtime-runtime-b").unwrap(),
+            state: UiSelectionState::Unselected,
+            timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
+        };
+        let unselected_effect =
+            effect_for_presentation_operation(&document, &unselected_wait).unwrap();
+        assert_eq!(
+            unselected_effect,
+            Effect::UiWaitSelection {
+                node_id: "runtime-runtime-b".into(),
+                state: UiSelectionState::Unselected,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &unselected_effect).unwrap(),
+            unselected_wait
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &unselected_wait).unwrap(),
+            "fn main() = ui.wait_selection(\n  node_id: \"runtime-runtime-b\",\n  state: \"unselected\",\n)\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitSelection {
+                    node_id: NodeId::new("runtime-runtime-b").unwrap(),
+                    state: UiSelectionState::Unselected,
+                    timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertSelection {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    state: UiSelectionState::Selected,
+                },
+            ),
+            Err(UiError::SelectionlessPresentationTarget {
                 node_id: "fleet-title".into(),
             })
         );

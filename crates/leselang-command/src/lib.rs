@@ -76,13 +76,18 @@ pub fn lower_effect(
     if matches!(
         effect,
         Effect::UiFocus { .. }
+            | Effect::UiNavigateFocus { .. }
             | Effect::UiScrollIntoView { .. }
             | Effect::UiAssertVisible { .. }
             | Effect::UiAssertRealized { .. }
             | Effect::UiWaitRealized { .. }
             | Effect::UiWaitVisible { .. }
+            | Effect::UiWaitEnabled { .. }
+            | Effect::UiWaitFocused { .. }
             | Effect::UiAssertFocused { .. }
             | Effect::UiAssertEnabled { .. }
+            | Effect::UiAssertSelection { .. }
+            | Effect::UiWaitSelection { .. }
             | Effect::UiAssertText { .. }
             | Effect::UiAssertAccessibleName { .. }
             | Effect::UiAssertAccessibleDescription { .. }
@@ -100,13 +105,18 @@ pub fn lower_effect(
         Effect::RuntimeDeploy { .. } => CAPABILITY_RUNTIME_DEPLOY,
         Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL,
         Effect::UiFocus { .. }
+        | Effect::UiNavigateFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
         | Effect::UiAssertRealized { .. }
         | Effect::UiWaitRealized { .. }
         | Effect::UiWaitVisible { .. }
+        | Effect::UiWaitEnabled { .. }
+        | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
+        | Effect::UiAssertSelection { .. }
+        | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
@@ -135,13 +145,18 @@ pub fn lower_effect(
         } => plan_runtime_deploy(runtime_id, pipeline_kind, target.as_deref(), context)?,
         Effect::DebuggerCancel { session_id } => plan_debugger_cancel(session_id, context)?,
         Effect::UiFocus { .. }
+        | Effect::UiNavigateFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
         | Effect::UiAssertRealized { .. }
         | Effect::UiWaitRealized { .. }
         | Effect::UiWaitVisible { .. }
+        | Effect::UiWaitEnabled { .. }
+        | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
+        | Effect::UiAssertSelection { .. }
+        | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
@@ -409,13 +424,18 @@ mod tests {
     fn frontend_presentation_effect_cannot_become_a_control_plane_plan() {
         for source in [
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:refresh\", direction: \"next\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
+            "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
