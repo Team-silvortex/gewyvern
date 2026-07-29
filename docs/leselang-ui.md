@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by twenty-six presentation atoms.
+Semantic action equivalence is joined by twenty-eight presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -217,17 +217,26 @@ node, and carries the stable semantic action payload kind as
 `expected_action_kind`. `UiPresentationOperation::AssertFormField` maps
 one-to-one to `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`,
 requires a semantic deployment form action, validates the bounded form field key,
-and compares the stable semantic field label fallback. `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
+and compares the stable semantic field label fallback.
+`UiPresentationOperation::AssertFormFieldInputKind` maps one-to-one to
+`ui.assert_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, requires
+the same semantic deployment form action and bounded field key, and compares the
+stable semantic form input kind (`path_token` or `trimmed_text`).
+`UiPresentationOperation::AssertFormFieldRequired` maps one-to-one to
+`ui.assert_form_field_required(node_id: ..., field: ..., state: ...)`, requires
+the same semantic deployment form action and bounded field key, and compares the
+stable semantic required state (`required` or `optional`).
+`UiPresentationOperation::AssertAccessibleName` maps one-to-one to
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and uses the same expected-value bound.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
 semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all twenty-six travel in
+become a `UiEvent` or `CommandPlan`; all twenty-eight travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all twenty-six operations through its stable visual index. Focus
+Avalonia resolves all twenty-eight operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -278,7 +287,13 @@ guessing, coordinates, or OCR. Action-kind assertion compares the expected
 semantic action kind with the realized node's stable action payload and never
 activates or focuses the target. Form-field assertion reads the realized node's
 stable semantic deployment form metadata, compares the declared field label
-fallback exactly, and never types into or submits the form. Accessible-name assertion independently reads
+fallback exactly, and never types into or submits the form. Form-field input-kind
+assertion reads the same stable semantic deployment form metadata, compares the
+declared field input kind exactly, and never types into or submits the form.
+Form-field required assertion reads the same stable semantic deployment form
+metadata, compares the declared required bit exactly, and never types into,
+submits, marks, or otherwise edits the form.
+Accessible-name assertion independently reads
 native `AutomationProperties.Name` with exact ordinal comparison. None of the
 assertions mutates the control. Accessible-description assertion independently
 reads native `AutomationProperties.HelpText`, also with exact ordinal
@@ -297,7 +312,9 @@ window-open wait,
 native selected/unselected assertion, dispatcher-yielding
 selection wait, persistent selection mismatch timeout,
 text-mismatched, automation-id-mismatched, node-kind-mismatched,
-action-kind-mismatched, accessible-name-mismatched,
+action-kind-mismatched, form-field-label-mismatched,
+form-field-input-kind-mismatched, form-field-required-mismatched,
+accessible-name-mismatched,
 accessible-description-mismatched, still-enabled disabled-assertion mismatch,
 still-visible hidden-assertion mismatch, missing, textless, and unfocusable
 targets, focus preservation, remount/patch retention, and safe target removal.

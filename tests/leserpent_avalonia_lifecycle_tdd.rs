@@ -169,6 +169,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("action_kind_mismatch_rejected="));
     assert!(app.contains("assert_form_field="));
     assert!(app.contains("form_field_mismatch_rejected="));
+    assert!(app.contains("assert_form_field_input_kind="));
+    assert!(app.contains("form_field_input_kind_mismatch_rejected="));
+    assert!(app.contains("assert_form_field_required="));
+    assert!(app.contains("form_field_required_mismatch_rejected="));
     assert!(app.contains("assert_accessible_name=true"));
     assert!(app.contains("accessible_name_mismatch_rejected=true"));
     assert!(app.contains("assert_accessible_description=true"));
@@ -192,6 +196,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_assert_node_kind=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
     assert!(conformance.contains("presentation_assert_form_field=true"));
+    assert!(conformance.contains("presentation_assert_form_field_input_kind=true"));
+    assert!(conformance.contains("presentation_assert_form_field_required=true"));
 }
 
 #[test]

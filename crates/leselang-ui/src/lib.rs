@@ -4,9 +4,11 @@ use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
     Effect, HirBranch, Type, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
-    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState,
-    UiSemanticActionKind as HirUiSemanticActionKind, UiSemanticNodeKind as HirUiSemanticNodeKind,
-    canonical_source, validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
+    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
+    UiFormInputKind as HirUiFormInputKind, UiFormRequirementState as HirUiFormRequirementState,
+    UiSelectionState, UiSemanticActionKind as HirUiSemanticActionKind,
+    UiSemanticNodeKind as HirUiSemanticNodeKind, canonical_source, validate_ui_expected_text,
+    validate_ui_form_field_key, validate_ui_node_id,
 };
 use leserpent_domain::{
     CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
@@ -325,6 +327,8 @@ pub enum DebuggerEffectKind {
     UiAssertNodeKind,
     UiAssertActionKind,
     UiAssertFormField,
+    UiAssertFormFieldInputKind,
+    UiAssertFormFieldRequired,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
 }
@@ -539,6 +543,16 @@ pub enum UiPresentationOperation {
         node_id: NodeId,
         field: String,
         expected: String,
+    },
+    AssertFormFieldInputKind {
+        node_id: NodeId,
+        field: String,
+        input_kind: UiFormInputKind,
+    },
+    AssertFormFieldRequired {
+        node_id: NodeId,
+        field: String,
+        required: bool,
     },
     AssertAccessibleName {
         node_id: NodeId,
@@ -1297,6 +1311,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertNodeKind
             | DebuggerEffectKind::UiAssertActionKind
             | DebuggerEffectKind::UiAssertFormField
+            | DebuggerEffectKind::UiAssertFormFieldInputKind
+            | DebuggerEffectKind::UiAssertFormFieldRequired
             | DebuggerEffectKind::UiAssertAccessibleName
             | DebuggerEffectKind::UiAssertAccessibleDescription => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
@@ -1422,6 +1438,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertNodeKind => "UI assert node kind",
             DebuggerEffectKind::UiAssertActionKind => "UI assert action kind",
             DebuggerEffectKind::UiAssertFormField => "UI assert form field",
+            DebuggerEffectKind::UiAssertFormFieldInputKind => "UI assert form field input kind",
+            DebuggerEffectKind::UiAssertFormFieldRequired => "UI assert form field required",
             DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
             DebuggerEffectKind::UiAssertAccessibleDescription => "UI assert accessible description",
         };
@@ -1644,6 +1662,35 @@ fn ui_action_kind_to_hir(kind: UiActionKind) -> HirUiSemanticActionKind {
     }
 }
 
+fn hir_form_input_kind_to_ui(kind: HirUiFormInputKind) -> UiFormInputKind {
+    match kind {
+        HirUiFormInputKind::PathToken => UiFormInputKind::PathToken,
+        HirUiFormInputKind::TrimmedText => UiFormInputKind::TrimmedText,
+    }
+}
+
+fn ui_form_input_kind_to_hir(kind: UiFormInputKind) -> HirUiFormInputKind {
+    match kind {
+        UiFormInputKind::PathToken => HirUiFormInputKind::PathToken,
+        UiFormInputKind::TrimmedText => HirUiFormInputKind::TrimmedText,
+    }
+}
+
+fn hir_form_requirement_state_to_required(state: HirUiFormRequirementState) -> bool {
+    match state {
+        HirUiFormRequirementState::Required => true,
+        HirUiFormRequirementState::Optional => false,
+    }
+}
+
+fn required_to_hir_form_requirement_state(required: bool) -> HirUiFormRequirementState {
+    if required {
+        HirUiFormRequirementState::Required
+    } else {
+        HirUiFormRequirementState::Optional
+    }
+}
+
 pub fn presentation_operation_for_effect(
     document: &UiDocument,
     effect: &Effect,
@@ -1749,6 +1796,24 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             field: field.clone(),
             expected: expected.clone(),
+        },
+        Effect::UiAssertFormFieldInputKind {
+            node_id,
+            field,
+            input_kind,
+        } => UiPresentationOperation::AssertFormFieldInputKind {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            input_kind: hir_form_input_kind_to_ui(*input_kind),
+        },
+        Effect::UiAssertFormFieldRequired {
+            node_id,
+            field,
+            state,
+        } => UiPresentationOperation::AssertFormFieldRequired {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            required: hir_form_requirement_state_to_required(*state),
         },
         Effect::UiAssertAccessibleName { node_id, expected } => {
             UiPresentationOperation::AssertAccessibleName {
@@ -1867,6 +1932,24 @@ pub fn effect_for_presentation_operation(
             field: field.clone(),
             expected: expected.clone(),
         },
+        UiPresentationOperation::AssertFormFieldInputKind {
+            node_id,
+            field,
+            input_kind,
+        } => Effect::UiAssertFormFieldInputKind {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            input_kind: ui_form_input_kind_to_hir(*input_kind),
+        },
+        UiPresentationOperation::AssertFormFieldRequired {
+            node_id,
+            field,
+            required,
+        } => Effect::UiAssertFormFieldRequired {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            state: required_to_hir_form_requirement_state(*required),
+        },
         UiPresentationOperation::AssertAccessibleName { node_id, expected } => {
             Effect::UiAssertAccessibleName {
                 node_id: node_id.as_str().to_string(),
@@ -1912,6 +1995,8 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertNodeKind { node_id, .. }
         | UiPresentationOperation::AssertActionKind { node_id, .. }
         | UiPresentationOperation::AssertFormField { node_id, .. }
+        | UiPresentationOperation::AssertFormFieldInputKind { node_id, .. }
+        | UiPresentationOperation::AssertFormFieldRequired { node_id, .. }
         | UiPresentationOperation::AssertAccessibleName { node_id, .. }
         | UiPresentationOperation::AssertAccessibleDescription { node_id, .. } => node_id,
     };
@@ -1923,7 +2008,9 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationText);
     }
-    if let UiPresentationOperation::AssertFormField { field, .. } = operation
+    if let UiPresentationOperation::AssertFormField { field, .. }
+    | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
+    | UiPresentationOperation::AssertFormFieldRequired { field, .. } = operation
         && !validate_ui_form_field_key(field)
     {
         return Err(UiError::InvalidPresentationText);
@@ -2020,7 +2107,10 @@ pub fn validate_presentation_operation(
             node_id: node_id.as_str().to_string(),
         });
     }
-    if let UiPresentationOperation::AssertFormField { field, .. } = operation {
+    if let UiPresentationOperation::AssertFormField { field, .. }
+    | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
+    | UiPresentationOperation::AssertFormFieldRequired { field, .. } = operation
+    {
         let Some(UiAction::RuntimeDeploy { form, .. }) = &node.action else {
             return Err(UiError::FormlessPresentationTarget {
                 node_id: node_id.as_str().to_string(),
@@ -4222,6 +4312,170 @@ mod tests {
                     node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
                     field: "pipeline_kind".into(),
                     expected: "bad\nlabel".into(),
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn form_field_input_kind_assertion_round_trips_for_deployment_forms() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let operation = UiPresentationOperation::AssertFormFieldInputKind {
+            node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            input_kind: UiFormInputKind::PathToken,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertFormFieldInputKind {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                input_kind: HirUiFormInputKind::PathToken,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldInputKind {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "missing".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldInputKind {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldInputKind {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "bad/field".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn form_field_required_assertion_round_trips_for_deployment_forms() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let operation = UiPresentationOperation::AssertFormFieldRequired {
+            node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            required: true,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertFormFieldRequired {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                state: HirUiFormRequirementState::Required,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            effect_for_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldRequired {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "target".into(),
+                    required: false,
+                },
+            )
+            .unwrap(),
+            Effect::UiAssertFormFieldRequired {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "target".into(),
+                state: HirUiFormRequirementState::Optional,
+            }
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldRequired {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "missing".into(),
+                    required: true,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldRequired {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    required: true,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertFormFieldRequired {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "bad/field".into(),
+                    required: true,
                 },
             ),
             Err(UiError::InvalidPresentationText)

@@ -874,6 +874,18 @@
     "field": "pipeline_kind",
     "expected": "Pipeline kind"
   },
+  "form_field_input_kind_assert_operation": {
+    "kind": "assert_form_field_input_kind",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "input_kind": "path_token"
+  },
+  "form_field_required_assert_operation": {
+    "kind": "assert_form_field_required",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "required": true
+  },
   "accessible_name_assert_operation": {
     "kind": "assert_accessible_name",
     "node_id": "fleet-title",

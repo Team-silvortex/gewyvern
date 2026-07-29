@@ -391,6 +391,16 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert form field",
         ),
+        Effect::UiAssertFormFieldInputKind { .. } => (
+            DebuggerEffectKind::UiAssertFormFieldInputKind,
+            None,
+            "UI assert form field input kind",
+        ),
+        Effect::UiAssertFormFieldRequired { .. } => (
+            DebuggerEffectKind::UiAssertFormFieldRequired,
+            None,
+            "UI assert form field required",
+        ),
         Effect::UiAssertAccessibleName { .. } => (
             DebuggerEffectKind::UiAssertAccessibleName,
             None,

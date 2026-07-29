@@ -74,6 +74,10 @@ internal sealed class MainWindow : Window
     public bool ActionKindMismatchRejected { get; private set; }
     public bool FormFieldAssertCompleted { get; private set; }
     public bool FormFieldMismatchRejected { get; private set; }
+    public bool FormFieldInputKindAssertCompleted { get; private set; }
+    public bool FormFieldInputKindMismatchRejected { get; private set; }
+    public bool FormFieldRequiredAssertCompleted { get; private set; }
+    public bool FormFieldRequiredMismatchRejected { get; private set; }
     public bool DisabledAssertCompleted { get; private set; }
     public bool DisabledMismatchRejected { get; private set; }
     public bool HiddenAssertCompleted { get; private set; }
@@ -905,6 +909,68 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang form field assertion accepted mismatched form metadata or changed focus");
         }
+        var formFieldInputKindMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldInputKind,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            InputKind = formField.InputKind,
+        });
+        FormFieldInputKindAssertCompleted = formFieldInputKindMatched.Applied
+            && formFieldInputKindMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldInputKindAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field input kind assertion rejected stable form metadata or changed focus");
+        }
+        var formFieldInputKindMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldInputKind,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            InputKind = MismatchedInputKind(formField.InputKind),
+        });
+        FormFieldInputKindMismatchRejected = !formFieldInputKindMismatch.Applied
+            && formFieldInputKindMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetFormFieldInputKindMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldInputKindMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang form field input kind assertion accepted mismatched form metadata or changed focus");
+        }
+        var formFieldRequiredMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldRequired,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            Required = formField.Required,
+        });
+        FormFieldRequiredAssertCompleted = formFieldRequiredMatched.Applied
+            && formFieldRequiredMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldRequiredAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field required assertion rejected stable form metadata or changed focus");
+        }
+        var formFieldRequiredMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldRequired,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            Required = !formField.Required,
+        });
+        FormFieldRequiredMismatchRejected = !formFieldRequiredMismatch.Applied
+            && formFieldRequiredMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetFormFieldRequiredMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldRequiredMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang form field required assertion accepted mismatched form metadata or changed focus");
+        }
         var expectedAccessibleName = textNode.Accessibility.Label?.Fallback
             ?? textNode.Text?.Fallback
             ?? textNode.Id;
@@ -1258,6 +1324,13 @@ internal sealed class MainWindow : Window
     {
         ActionKind.RuntimeInspect => ActionKind.RuntimeRefresh,
         _ => ActionKind.RuntimeInspect,
+    };
+
+    private static UiFormInputKind MismatchedInputKind(UiFormInputKind kind) => kind switch
+    {
+        UiFormInputKind.PathToken => UiFormInputKind.TrimmedText,
+        UiFormInputKind.TrimmedText => UiFormInputKind.PathToken,
+        _ => UiFormInputKind.PathToken,
     };
 
     public void CompleteFocusRetentionProbe(string nodeId)

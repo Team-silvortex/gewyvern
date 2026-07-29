@@ -7,8 +7,9 @@ use leselang_hir::{
     CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_ENABLED_TIMEOUT_MS,
     UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
     UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
-    UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind, authorize,
-    validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
+    UiFormInputKind, UiFormRequirementState, UiSelectionState, UiSemanticActionKind,
+    UiSemanticNodeKind, authorize, validate_ui_expected_text, validate_ui_form_field_key,
+    validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -197,6 +198,16 @@ pub enum PresentationOperation {
         field: String,
         expected: String,
     },
+    AssertFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+    },
+    AssertFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
+    },
     AssertAccessibleName {
         node_id: String,
         expected: String,
@@ -310,6 +321,16 @@ pub enum PresentationResult {
         node_id: String,
         field: String,
         expected: String,
+    },
+    AssertFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+    },
+    AssertFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
     },
     AssertAccessibleName {
         node_id: String,
@@ -647,6 +668,16 @@ pub enum Value {
         node_id: String,
         field: String,
         expected: String,
+    },
+    UiAssertFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+    },
+    UiAssertFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
     },
     UiAssertAccessibleName {
         node_id: String,
@@ -1228,6 +1259,40 @@ impl Vm {
                         node_id: node_id.clone(),
                         field: field.clone(),
                         expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertFormFieldInputKind {
+                node_id,
+                field,
+                input_kind,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertFormFieldInputKind {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        input_kind: *input_kind,
+                    },
+                }),
+            ),
+            Effect::UiAssertFormFieldRequired {
+                node_id,
+                field,
+                state,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertFormFieldRequired {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        state: *state,
                     },
                 }),
             ),
@@ -1822,6 +1887,8 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertNodeKind { .. } => Type::UiAssertNodeKind,
         Effect::UiAssertActionKind { .. } => Type::UiAssertActionKind,
         Effect::UiAssertFormField { .. } => Type::UiAssertFormField,
+        Effect::UiAssertFormFieldInputKind { .. } => Type::UiAssertFormFieldInputKind,
+        Effect::UiAssertFormFieldRequired { .. } => Type::UiAssertFormFieldRequired,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
         Effect::All { .. } => {
@@ -2497,6 +2564,62 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiAssertFormFieldInputKind {
+                node_id,
+                field,
+                input_kind,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertFormFieldInputKind {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    input_kind: operation_input_kind,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_input_kind == input_kind
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+            )
+        }
+        (
+            Effect::UiAssertFormFieldRequired {
+                node_id,
+                field,
+                state,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertFormFieldRequired {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    state: operation_state,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_state == state
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+            )
+        }
+        (
             Effect::UiAssertAccessibleName { node_id, expected },
             EffectOperation::Presentation(presentation),
         ) => {
@@ -2861,6 +2984,16 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         } if validate_ui_node_id(node_id)
             && validate_ui_form_field_key(field)
             && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertFormFieldInputKind { node_id, field, .. }
+            if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertFormFieldRequired { node_id, field, .. }
+            if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
         {
             Ok(1)
         }
@@ -3793,6 +3926,82 @@ fn step_from_effect_result(
                 node_id: result_node_id,
                 field: result_field,
                 expected: result_expected,
+            })
+        }
+        (
+            Effect::UiAssertFormFieldInputKind {
+                node_id,
+                field,
+                input_kind,
+            },
+            Type::UiAssertFormFieldInputKind,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertFormFieldInputKind {
+                node_id: result_node_id,
+                field: result_field,
+                input_kind: result_input_kind,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_input_kind == *input_kind
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertFormFieldInputKind {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            input_kind: operation_input_kind,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_input_kind == input_kind
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertFormFieldInputKind {
+                node_id: result_node_id,
+                field: result_field,
+                input_kind: result_input_kind,
+            })
+        }
+        (
+            Effect::UiAssertFormFieldRequired {
+                node_id,
+                field,
+                state,
+            },
+            Type::UiAssertFormFieldRequired,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertFormFieldRequired {
+                node_id: result_node_id,
+                field: result_field,
+                state: result_state,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_state == *state
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertFormFieldRequired {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            state: operation_state,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_state == state
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertFormFieldRequired {
+                node_id: result_node_id,
+                field: result_field,
+                state: result_state,
             })
         }
         (
@@ -5517,6 +5726,120 @@ mod tests {
             node_id: "workspace-runtime-a-deploy".into(),
             field: "target".into(),
             expected: "Pipeline kind".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_form_field_input_kind_binds_node_field_kind_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form field input kind assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI form field input kind assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertFormFieldInputKind {
+                node_id,
+                field,
+                input_kind: UiFormInputKind::PathToken,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFormFieldInputKind {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                }),
+            ),
+            Step::Done(Value::UiAssertFormFieldInputKind {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                input_kind: UiFormInputKind::PathToken,
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field input kind assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertFormFieldInputKind {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "target".into(),
+            input_kind: UiFormInputKind::PathToken,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_form_field_required_binds_node_field_state_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form field required assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI form field required assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertFormFieldRequired {
+                node_id,
+                field,
+                state: UiFormRequirementState::Required,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFormFieldRequired {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    state: UiFormRequirementState::Required,
+                }),
+            ),
+            Step::Done(Value::UiAssertFormFieldRequired {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                state: UiFormRequirementState::Required,
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field required assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertFormFieldRequired {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "target".into(),
+            state: UiFormRequirementState::Required,
         };
         assert!(validate_effect_request(&torn).is_err());
     }

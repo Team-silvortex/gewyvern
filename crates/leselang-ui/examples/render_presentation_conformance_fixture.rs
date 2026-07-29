@@ -8,8 +8,8 @@ use leselang_hir::{
     UiFocusNavigationDirection, UiSelectionState,
 };
 use leselang_ui::{
-    NodeId, UiActionKind, UiDocument, UiPatch, UiPresentationOperation, diff, fleet_document,
-    validate_presentation_operation,
+    NodeId, UiActionKind, UiDocument, UiFormInputKind, UiPatch, UiPresentationOperation, diff,
+    fleet_document, validate_presentation_operation,
 };
 use leserpent_domain::{
     CAPABILITY_RUNTIME_READ, CapabilitySet, InMemoryControlPlane, Principal, Query, QueryEnvelope,
@@ -49,6 +49,8 @@ struct Fixture<'a> {
     node_kind_assert_operation: &'a UiPresentationOperation,
     action_kind_assert_operation: &'a UiPresentationOperation,
     form_field_assert_operation: &'a UiPresentationOperation,
+    form_field_input_kind_assert_operation: &'a UiPresentationOperation,
+    form_field_required_assert_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
 }
@@ -162,6 +164,17 @@ fn main() {
         field: "pipeline_kind".into(),
         expected: "Pipeline kind".into(),
     };
+    let form_field_input_kind_assert_operation =
+        UiPresentationOperation::AssertFormFieldInputKind {
+            node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            input_kind: UiFormInputKind::PathToken,
+        };
+    let form_field_required_assert_operation = UiPresentationOperation::AssertFormFieldRequired {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        required: true,
+    };
     let accessible_name_assert_operation = UiPresentationOperation::AssertAccessibleName {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "Runtime fleet".into(),
@@ -197,6 +210,8 @@ fn main() {
     validate_presentation_operation(&next, &node_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_assert_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_input_kind_assert_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_required_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_description_assert_operation).unwrap();
     let mut bytes = serde_json::to_vec_pretty(&Fixture {
@@ -230,6 +245,8 @@ fn main() {
         node_kind_assert_operation: &node_kind_assert_operation,
         action_kind_assert_operation: &action_kind_assert_operation,
         form_field_assert_operation: &form_field_assert_operation,
+        form_field_input_kind_assert_operation: &form_field_input_kind_assert_operation,
+        form_field_required_assert_operation: &form_field_required_assert_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,
     })

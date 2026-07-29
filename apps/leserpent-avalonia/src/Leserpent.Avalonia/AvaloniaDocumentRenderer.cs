@@ -78,6 +78,8 @@ internal enum PresentationAutomationFailureCode
     InvalidExpectedText,
     InvalidExpectedKind,
     InvalidExpectedActionKind,
+    InvalidExpectedInputKind,
+    InvalidExpectedRequired,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidTimeout,
@@ -97,6 +99,8 @@ internal enum PresentationAutomationFailureCode
     TargetFormless,
     TargetFormFieldMissing,
     TargetFormFieldMismatch,
+    TargetFormFieldInputKindMismatch,
+    TargetFormFieldRequiredMismatch,
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
     TargetSelectionMismatch,
@@ -194,6 +198,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.InvalidExpectedKind,
                     UiPresentationValidation.InvalidExpectedActionKind =>
                         PresentationAutomationFailureCode.InvalidExpectedActionKind,
+                    UiPresentationValidation.InvalidExpectedInputKind =>
+                        PresentationAutomationFailureCode.InvalidExpectedInputKind,
+                    UiPresentationValidation.InvalidExpectedRequired =>
+                        PresentationAutomationFailureCode.InvalidExpectedRequired,
                     UiPresentationValidation.InvalidNavigationDirection =>
                         PresentationAutomationFailureCode.InvalidNavigationDirection,
                     UiPresentationValidation.InvalidSelectionState =>
@@ -428,6 +436,58 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 matched
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetFormFieldMismatch);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertFormFieldInputKind)
+        {
+            if (node.FormFieldInputKinds is null)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormless);
+            }
+            if (operation.Field is not { } field
+                || operation.InputKind is not { } expectedInputKind
+                || !node.FormFieldInputKinds.TryGetValue(field, out var actualInputKind))
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormFieldMissing);
+            }
+            var matched = actualInputKind == expectedInputKind;
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetFormFieldInputKindMismatch);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertFormFieldRequired)
+        {
+            if (node.FormFieldRequired is null)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormless);
+            }
+            if (operation.Field is not { } field
+                || operation.Required is not { } expectedRequired
+                || !node.FormFieldRequired.TryGetValue(field, out var actualRequired))
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetFormFieldMissing);
+            }
+            var matched = actualRequired == expectedRequired;
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetFormFieldRequiredMismatch);
         }
         if (operation.Kind == UiPresentationOperationKind.AssertAccessibleName)
         {
@@ -916,7 +976,9 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             AutomationName(node),
             node.Accessibility.Label is not null,
             node.Accessibility.Description?.Fallback,
-            FormFieldLabels(node));
+            FormFieldLabels(node),
+            FormFieldInputKinds(node),
+            FormFieldRequired(node));
 
     private RenderedNode LazyContainer(
         UiNode node,
@@ -938,13 +1000,31 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             AutomationName(node),
             node.Accessibility.Label is not null,
             node.Accessibility.Description?.Fallback,
-            FormFieldLabels(node));
+            FormFieldLabels(node),
+            FormFieldInputKinds(node),
+            FormFieldRequired(node));
 
     private static IReadOnlyDictionary<string, string>? FormFieldLabels(UiNode node) =>
         node.Action?.Form is { } form
             ? form.Fields.ToDictionary(
                 field => field.Key,
                 field => field.Label.Fallback,
+                StringComparer.Ordinal)
+            : null;
+
+    private static IReadOnlyDictionary<string, UiFormInputKind>? FormFieldInputKinds(UiNode node) =>
+        node.Action?.Form is { } form
+            ? form.Fields.ToDictionary(
+                field => field.Key,
+                field => field.InputKind,
+                StringComparer.Ordinal)
+            : null;
+
+    private static IReadOnlyDictionary<string, bool>? FormFieldRequired(UiNode node) =>
+        node.Action?.Form is { } form
+            ? form.Fields.ToDictionary(
+                field => field.Key,
+                field => field.Required,
                 StringComparer.Ordinal)
             : null;
 
@@ -1238,7 +1318,9 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         string automationName,
         bool hasExplicitLabel,
         string? automationDescription,
-        IReadOnlyDictionary<string, string>? formFieldLabels)
+        IReadOnlyDictionary<string, string>? formFieldLabels,
+        IReadOnlyDictionary<string, UiFormInputKind>? formFieldInputKinds,
+        IReadOnlyDictionary<string, bool>? formFieldRequired)
     {
         private Control? control;
         private IChildrenHost? childrenHost;
@@ -1274,6 +1356,9 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         public bool HasExplicitLabel { get; } = hasExplicitLabel;
         public string? AutomationDescription { get; } = automationDescription;
         public IReadOnlyDictionary<string, string>? FormFieldLabels { get; } = formFieldLabels;
+        public IReadOnlyDictionary<string, UiFormInputKind>? FormFieldInputKinds { get; } =
+            formFieldInputKinds;
+        public IReadOnlyDictionary<string, bool>? FormFieldRequired { get; } = formFieldRequired;
         public bool IsRealized => control is not null;
         public RenderedNode? Parent { get; set; } = parent;
         public List<RenderedNode> Children { get; } = [];

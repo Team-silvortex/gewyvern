@@ -63,6 +63,20 @@ pub enum UiSemanticActionKind {
     DebuggerCancel,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFormInputKind {
+    PathToken,
+    TrimmedText,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiFormRequirementState {
+    Required,
+    Optional,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HirProgram {
     pub function: HirFunction,
@@ -193,6 +207,16 @@ pub enum Effect {
         field: String,
         expected: String,
     },
+    UiAssertFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+    },
+    UiAssertFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
+    },
     UiAssertAccessibleName {
         node_id: String,
         expected: String,
@@ -241,6 +265,8 @@ pub enum Type {
     UiAssertNodeKind,
     UiAssertActionKind,
     UiAssertFormField,
+    UiAssertFormFieldInputKind,
+    UiAssertFormFieldRequired,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
     Structured,
@@ -342,6 +368,8 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_node_kind"
         | "ui.assert_action_kind"
         | "ui.assert_form_field"
+        | "ui.assert_form_field_input_kind"
+        | "ui.assert_form_field_required"
         | "ui.assert_accessible_name"
         | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
@@ -370,6 +398,8 @@ fn lower_atomic_effect(
     let mut semantic_node_kind = None;
     let mut semantic_action_kind = None;
     let mut form_field_key = None;
+    let mut form_input_kind = None;
+    let mut form_requirement_state = None;
     let mut expected_text = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
@@ -766,6 +796,71 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_form_field_input_kind", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1186".to_string(),
+                    message:
+                        "ui.assert_form_field_input_kind node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_input_kind", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1187".to_string(),
+                    message:
+                        "ui.assert_form_field_input_kind field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_input_kind", "kind") => match value
+                .as_deref()
+                .and_then(parse_form_input_kind)
+            {
+                Some(value) => form_input_kind = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1188".to_string(),
+                    message:
+                        "ui.assert_form_field_input_kind kind must be a known UI form input kind"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_required", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1192".to_string(),
+                    message:
+                        "ui.assert_form_field_required node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_required", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1193".to_string(),
+                    message:
+                        "ui.assert_form_field_required field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_required", "state") => match value
+                .as_deref()
+                .and_then(parse_form_requirement_state)
+            {
+                Some(value) => form_requirement_state = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1194".to_string(),
+                    message: "ui.assert_form_field_required state must be required or optional"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_accessible_name", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -1075,6 +1170,60 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_form_field_input_kind" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1189".to_string(),
+            message: "ui.assert_form_field_input_kind requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_input_kind"
+        && form_field_key.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1190".to_string(),
+            message: "ui.assert_form_field_input_kind requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_input_kind"
+        && form_input_kind.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1191".to_string(),
+            message: "ui.assert_form_field_input_kind requires kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_required" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1195".to_string(),
+            message: "ui.assert_form_field_required requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_required"
+        && form_field_key.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1196".to_string(),
+            message: "ui.assert_form_field_required requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_required"
+        && form_requirement_state.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1197".to_string(),
+            message: "ui.assert_form_field_required requires state".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_accessible_name" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1128".to_string(),
@@ -1369,6 +1518,24 @@ fn lower_atomic_effect(
             Type::UiAssertFormField,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_form_field_input_kind" => (
+            Effect::UiAssertFormFieldInputKind {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                input_kind: form_input_kind.expect("validated UI form input kind"),
+            },
+            Type::UiAssertFormFieldInputKind,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_form_field_required" => (
+            Effect::UiAssertFormFieldRequired {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                state: form_requirement_state.expect("validated UI form requirement state"),
+            },
+            Type::UiAssertFormFieldRequired,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_accessible_name" => (
             Effect::UiAssertAccessibleName {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1580,6 +1747,34 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(expected),
             indent(depth),
         ),
+        Effect::UiAssertFormFieldInputKind {
+            node_id,
+            field,
+            input_kind,
+        } => format!(
+            "ui.assert_form_field_input_kind(\n{}node_id: {},\n{}field: {},\n{}kind: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(form_input_kind_source(*input_kind)),
+            indent(depth),
+        ),
+        Effect::UiAssertFormFieldRequired {
+            node_id,
+            field,
+            state,
+        } => format!(
+            "ui.assert_form_field_required(\n{}node_id: {},\n{}field: {},\n{}state: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(form_requirement_state_source(*state)),
+            indent(depth),
+        ),
         Effect::UiAssertAccessibleName { node_id, expected } => format!(
             "ui.assert_accessible_name(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
@@ -1670,6 +1865,36 @@ fn semantic_action_kind_source(kind: UiSemanticActionKind) -> &'static str {
         UiSemanticActionKind::RuntimeCapabilitiesRefresh => "runtime_capabilities_refresh",
         UiSemanticActionKind::RuntimeDeploy => "runtime_deploy",
         UiSemanticActionKind::DebuggerCancel => "debugger_cancel",
+    }
+}
+
+fn parse_form_input_kind(value: &str) -> Option<UiFormInputKind> {
+    Some(match value {
+        "path_token" => UiFormInputKind::PathToken,
+        "trimmed_text" => UiFormInputKind::TrimmedText,
+        _ => return None,
+    })
+}
+
+fn form_input_kind_source(kind: UiFormInputKind) -> &'static str {
+    match kind {
+        UiFormInputKind::PathToken => "path_token",
+        UiFormInputKind::TrimmedText => "trimmed_text",
+    }
+}
+
+fn parse_form_requirement_state(value: &str) -> Option<UiFormRequirementState> {
+    Some(match value {
+        "required" => UiFormRequirementState::Required,
+        "optional" => UiFormRequirementState::Optional,
+        _ => return None,
+    })
+}
+
+fn form_requirement_state_source(state: UiFormRequirementState) -> &'static str {
+    match state {
+        UiFormRequirementState::Required => "required",
+        UiFormRequirementState::Optional => "optional",
     }
 }
 
@@ -2911,6 +3136,115 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_form_field_input_kind_is_capability_gated_and_enum_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiAssertFormFieldInputKind
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertFormFieldInputKind {
+                ref node_id,
+                ref field,
+                input_kind: UiFormInputKind::PathToken,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_form_field_input_kind(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  kind: \"path_token\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_form_field_input_kind()",
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\")",
+            "fn main() = ui.assert_form_field_input_kind(field: \"pipeline_kind\", kind: \"path_token\")",
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"bad/node\", field: \"pipeline_kind\", kind: \"path_token\")",
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: none, kind: \"path_token\")",
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"bad/field\", kind: \"path_token\")",
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: none)",
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"free_text\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_field = format!(
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"{}\", kind: \"trimmed_text\")",
+            "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_field)).is_err());
+    }
+
+    #[test]
+    fn ui_assert_form_field_required_is_capability_gated_and_enum_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiAssertFormFieldRequired
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertFormFieldRequired {
+                ref node_id,
+                ref field,
+                state: UiFormRequirementState::Required,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_form_field_required(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  state: \"required\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_form_field_required()",
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\")",
+            "fn main() = ui.assert_form_field_required(field: \"pipeline_kind\", state: \"required\")",
+            "fn main() = ui.assert_form_field_required(node_id: \"bad/node\", field: \"pipeline_kind\", state: \"required\")",
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: none, state: \"required\")",
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"bad/field\", state: \"required\")",
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: none)",
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"maybe\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let optional = lower(&parse(
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"target\", state: \"optional\")",
+        ))
+        .unwrap();
+        assert!(matches!(
+            optional.function.effect,
+            Effect::UiAssertFormFieldRequired {
+                state: UiFormRequirementState::Optional,
+                ..
+            }
+        ));
+        let oversized_field = format!(
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"{}\", state: \"optional\")",
+            "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_field)).is_err());
+    }
+
+    #[test]
     fn ui_assert_accessible_name_is_capability_gated_and_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
@@ -3032,6 +3366,8 @@ mod tests {
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+            "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
+            "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

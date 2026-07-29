@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.61.0");
+    assert_eq!(avalonia.contract.version, "1.63.0");
     assert!(
         avalonia
             .contract
@@ -1727,6 +1727,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "action-kind-mismatch-presentation-rejection",
         "semantic-form-field-assertion",
         "form-field-mismatch-presentation-rejection",
+        "semantic-form-field-input-kind-assertion",
+        "form-field-input-kind-mismatch-presentation-rejection",
+        "semantic-form-field-required-assertion",
+        "form-field-required-mismatch-presentation-rejection",
         "native-accessible-name-assertion",
         "accessible-name-mismatch-presentation-rejection",
         "native-accessible-description-assertion",
@@ -2781,7 +2785,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.28.0");
+    assert_eq!(ui.contract.version, "1.30.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2800,6 +2804,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-action-kind-presentation-roundtrip",
         "ui-assert-form-field-presentation-roundtrip",
         "form-field-target-validation",
+        "ui-assert-form-field-input-kind-presentation-roundtrip",
+        "form-field-input-kind-target-validation",
+        "ui-assert-form-field-required-presentation-roundtrip",
+        "form-field-required-target-validation",
         "ui-assert-accessible-name-presentation-roundtrip",
         "ui-assert-accessible-description-presentation-roundtrip",
         "ui-assert-realized-presentation-roundtrip",
@@ -2865,7 +2873,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.42.0");
+    assert_eq!(hir.contract.version, "0.44.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -2885,6 +2893,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-node-kind-effect",
         "ui-assert-action-kind-effect",
         "ui-assert-form-field-effect",
+        "ui-assert-form-field-input-kind-effect",
+        "ui-assert-form-field-required-effect",
         "ui-assert-accessible-name-effect",
         "ui-assert-accessible-description-effect",
         "ui-assert-realized-effect",
@@ -2906,6 +2916,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-wait-focused-effect",
         "fixed-focused-wait-policy",
         "ui-presentation-capability",
+        "typed-form-input-kind",
+        "typed-form-requirement-state",
         "bounded-form-field-key-validation",
         "canonical-effect-roundtrip",
         "single-allocation-name-deduplication",
@@ -2925,7 +2937,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.27.0");
+    assert_eq!(vm.contract.version, "1.29.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -2954,6 +2966,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "action-kind-request-result-binding",
         "typed-ui-assert-form-field-result",
         "form-field-request-result-binding",
+        "typed-ui-assert-form-field-input-kind-result",
+        "form-field-input-kind-request-result-binding",
+        "typed-ui-assert-form-field-required-result",
+        "form-field-required-request-result-binding",
         "typed-ui-assert-accessible-name-result",
         "typed-ui-assert-accessible-description-result",
         "typed-ui-assert-realized-result",
@@ -2994,7 +3010,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.38.0");
+    assert_eq!(command.contract.version, "0.40.0");
     assert!(
         command
             .contract
@@ -3043,6 +3059,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "form-field-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "form-field-input-kind-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "form-field-required-command-rejection")
     );
     assert!(
         command

@@ -18,9 +18,10 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.wait_disabled`, `ui.assert_window_open`, `ui.wait_window_open`,
 `ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`,
 `ui.assert_automation_id`, and
-`ui.assert_node_kind`, `ui.assert_action_kind`, `ui.assert_form_field`, plus
-`ui.assert_accessible_name` and `ui.assert_accessible_description` presentation
-effects.
+`ui.assert_node_kind`, `ui.assert_action_kind`, `ui.assert_form_field`,
+`ui.assert_form_field_input_kind`, `ui.assert_form_field_required`, plus
+`ui.assert_accessible_name` and `ui.assert_accessible_description`
+presentation effects.
 
 ## Canonical Program
 
@@ -464,6 +465,48 @@ The VM binds `node_id`, `field`, and `expected` to the request and result. The
 renderer compares the stable semantic field label fallback with the expected
 value; form-less targets, unknown fields, unrealized targets, invalid keys, or
 mismatched labels fail. The assertion never focuses, types, activates, opens, or
+submits the form.
+
+Native deployment form input semantics can also be asserted without submitting
+the form:
+
+```leselang
+fn main() = ui.assert_form_field_input_kind(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  kind: "path_token"
+)
+```
+
+`ui.assert_form_field_input_kind` requires `ui.presentation`, the same semantic
+`runtime_deploy` form action and bounded field key as `ui.assert_form_field`,
+and a typed `kind` of either `path_token` or `trimmed_text`. The VM binds
+`node_id`, `field`, and `kind` to the request and result. The renderer compares
+the stable semantic field input kind with the expected kind; form-less targets,
+unknown fields, unrealized targets, invalid keys, missing kinds, or mismatched
+input kinds fail. The assertion never focuses, types, activates, opens, or
+submits the form.
+
+Native deployment form required-state metadata can also be asserted without
+touching the form:
+
+```leselang
+fn main() = ui.assert_form_field_required(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  state: "required"
+)
+```
+
+`ui.assert_form_field_required` requires `ui.presentation`, the same semantic
+`runtime_deploy` form action and bounded field key as `ui.assert_form_field`,
+and a typed `state` of either `required` or `optional`. The VM binds `node_id`,
+`field`, and `state` to the request and result. The UI IR and renderer exchange
+this as a boolean `required` bit, but Leselang source keeps the explicit enum to
+avoid generic boolean literals. The renderer compares the stable semantic form
+field required metadata with the expected state; form-less targets, unknown
+fields, unrealized targets, invalid keys, missing states, or mismatched required
+state fail. The assertion never focuses, types, activates, opens, marks, or
 submits the form.
 
 Native accessibility metadata can be asserted independently of display text:

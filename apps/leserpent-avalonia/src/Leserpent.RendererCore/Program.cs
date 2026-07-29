@@ -145,9 +145,41 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedText;
             }
         }
+        else if (operation.Kind == UiPresentationOperationKind.AssertFormFieldInputKind)
+        {
+            if (!IsFormFieldKey(operation.Field))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+            if (operation.InputKind is null)
+            {
+                return UiPresentationValidation.InvalidExpectedInputKind;
+            }
+        }
+        else if (operation.Kind == UiPresentationOperationKind.AssertFormFieldRequired)
+        {
+            if (!IsFormFieldKey(operation.Field))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+            if (operation.Required is null)
+            {
+                return UiPresentationValidation.InvalidExpectedRequired;
+            }
+        }
         else if (operation.Field is not null)
         {
             return UiPresentationValidation.InvalidExpectedText;
+        }
+        if (operation.Kind != UiPresentationOperationKind.AssertFormFieldInputKind
+            && operation.InputKind is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedInputKind;
+        }
+        if (operation.Kind != UiPresentationOperationKind.AssertFormFieldRequired
+            && operation.Required is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedRequired;
         }
         if (operation.Kind != UiPresentationOperationKind.AssertNodeKind
             && operation.ExpectedKind is not null)
@@ -268,13 +300,21 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertNodeKind =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertFormField
+            or UiPresentationOperationKind.AssertFormFieldInputKind
+            or UiPresentationOperationKind.AssertFormFieldRequired
                 when node.Action?.Form is { } form
                     && form.Fields.Any(field => StringComparer.Ordinal.Equals(field.Key, operation.Field)) =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertFormField
+            or UiPresentationOperationKind.AssertFormFieldInputKind
+            or UiPresentationOperationKind.AssertFormFieldRequired
                 when node.Action?.Form is not null =>
                 UiPresentationValidation.UnknownFormField,
             UiPresentationOperationKind.AssertFormField =>
+                UiPresentationValidation.FormlessTarget,
+            UiPresentationOperationKind.AssertFormFieldInputKind =>
+                UiPresentationValidation.FormlessTarget,
+            UiPresentationOperationKind.AssertFormFieldRequired =>
                 UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertAccessibleDescription
                 when node.Accessibility.Description is not null =>
@@ -606,6 +646,8 @@ public sealed class RendererFixture
     public UiPresentationOperation? NodeKindAssertOperation { get; set; }
     public UiPresentationOperation? ActionKindAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldAssertOperation { get; set; }
+    public UiPresentationOperation? FormFieldInputKindAssertOperation { get; set; }
+    public UiPresentationOperation? FormFieldRequiredAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
 }
@@ -697,6 +739,8 @@ public sealed class UiPresentationOperation
     public UiSelectionState? State { get; set; }
     public string? Expected { get; set; }
     public string? Field { get; set; }
+    public UiFormInputKind? InputKind { get; set; }
+    public bool? Required { get; set; }
     public UiNodeKind? ExpectedKind { get; set; }
     public ActionKind? ExpectedActionKind { get; set; }
     public int? TimeoutMs { get; set; }
@@ -788,6 +832,8 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
     [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
+    [JsonStringEnumMemberName("assert_form_field_input_kind")] AssertFormFieldInputKind,
+    [JsonStringEnumMemberName("assert_form_field_required")] AssertFormFieldRequired,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
 }
@@ -821,6 +867,8 @@ public enum UiPresentationValidation
     InvalidExpectedText,
     InvalidExpectedKind,
     InvalidExpectedActionKind,
+    InvalidExpectedInputKind,
+    InvalidExpectedRequired,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidTimeout,
