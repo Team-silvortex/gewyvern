@@ -74,6 +74,8 @@ internal enum PresentationAutomationFailureCode
     DescriptionlessTarget,
     SelectionlessTarget,
     InvalidExpectedText,
+    InvalidExpectedKind,
+    InvalidExpectedActionKind,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidTimeout,
@@ -84,6 +86,9 @@ internal enum PresentationAutomationFailureCode
     TargetNotFocused,
     TargetNotEnabled,
     TargetTextMismatch,
+    TargetAutomationIdMismatch,
+    TargetNodeKindMismatch,
+    TargetActionKindMismatch,
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
     TargetSelectionMismatch,
@@ -173,6 +178,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.SelectionlessTarget,
                     UiPresentationValidation.InvalidExpectedText =>
                         PresentationAutomationFailureCode.InvalidExpectedText,
+                    UiPresentationValidation.InvalidExpectedKind =>
+                        PresentationAutomationFailureCode.InvalidExpectedKind,
+                    UiPresentationValidation.InvalidExpectedActionKind =>
+                        PresentationAutomationFailureCode.InvalidExpectedActionKind,
                     UiPresentationValidation.InvalidNavigationDirection =>
                         PresentationAutomationFailureCode.InvalidNavigationDirection,
                     UiPresentationValidation.InvalidSelectionState =>
@@ -200,22 +209,36 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     operation.NodeId,
                     PresentationAutomationFailureCode.TargetNotFocused);
             }
-            var direction = operation.Direction switch
+            var focusManager = TopLevel.GetTopLevel(control)?.FocusManager;
+            if (focusManager is null)
             {
-                UiFocusNavigationDirection.Next => NavigationDirection.Next,
-                UiFocusNavigationDirection.Previous => NavigationDirection.Previous,
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.NavigationRejected);
+            }
+            RenderedNode? destination = null;
+            var moved = operation.Direction switch
+            {
+                UiFocusNavigationDirection.Next => focusManager.TryMoveFocus(
+                    NavigationDirection.Next,
+                    new FindNextElementOptions { FocusedElement = control }),
+                UiFocusNavigationDirection.Previous => focusManager.TryMoveFocus(
+                    NavigationDirection.Previous,
+                    new FindNextElementOptions { FocusedElement = control }),
+                UiFocusNavigationDirection.First => FocusBoundaryAction(
+                    control,
+                    first: true) is { } firstDestination
+                    && (destination = firstDestination) is not null,
+                UiFocusNavigationDirection.Last => FocusBoundaryAction(
+                    control,
+                    first: false) is { } lastDestination
+                    && (destination = lastDestination) is not null,
                 _ => throw new InvalidDataException(
                     "validated focus navigation has no direction"),
             };
-            var focusManager = TopLevel.GetTopLevel(control)?.FocusManager;
-            var moved = focusManager?.TryMoveFocus(
-                direction,
-                new FindNextElementOptions { FocusedElement = control }) == true;
-            var destination = nodes.Values.FirstOrDefault(rendered =>
-                rendered.ActionKind is not null
-                && rendered.TryGetRealizedControl(out var realized)
-                && realized!.IsFocused
-                && !ReferenceEquals(realized, control));
+            destination ??= FocusedActionExcept(control);
+            moved = moved || destination is not null;
             if (!moved || destination is null)
             {
                 _ = control.Focus();
@@ -300,6 +323,38 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetTextMismatch);
         }
+        if (operation.Kind == UiPresentationOperationKind.AssertAutomationId)
+        {
+            var matched = StringComparer.Ordinal.Equals(
+                AutomationProperties.GetAutomationId(control!),
+                operation.Expected);
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetAutomationIdMismatch);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertNodeKind)
+        {
+            var matched = node.Kind == operation.ExpectedKind;
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetNodeKindMismatch);
+        }
+        if (operation.Kind == UiPresentationOperationKind.AssertActionKind)
+        {
+            var matched = node.ActionKind == operation.ExpectedActionKind;
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetActionKindMismatch);
+        }
         if (operation.Kind == UiPresentationOperationKind.AssertAccessibleName)
         {
             var matched = StringComparer.Ordinal.Equals(
@@ -343,6 +398,33 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             true,
             operation.NodeId,
             PresentationAutomationFailureCode.None);
+    }
+
+    private RenderedNode? FocusedActionExcept(Control excluded) =>
+        nodes.Values.FirstOrDefault(rendered =>
+            rendered.ActionKind is not null
+            && rendered.TryGetRealizedControl(out var realized)
+            && realized!.IsFocused
+            && !ReferenceEquals(realized, excluded));
+
+    private RenderedNode? FocusBoundaryAction(Control source, bool first)
+    {
+        var candidates = first ? nodes.Values : nodes.Values.Reverse();
+        foreach (var candidate in candidates)
+        {
+            if (candidate.ActionKind is null
+                || !candidate.TryGetRealizedControl(out var target)
+                || target is null
+                || ReferenceEquals(target, source))
+            {
+                continue;
+            }
+            if (target.IsFocused || target.Focus())
+            {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     public async Task<PresentationAutomationResult> ApplyPresentationAsync(
@@ -729,6 +811,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         RenderedNode? parent,
         Func<Control> factory) => new(
             node.Id,
+            node.Kind,
             () => (InitializeControl(factory(), node), null),
             parent,
             false,
@@ -745,6 +828,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         bool virtualized,
         Func<(Control Control, IChildrenHost ChildrenHost)> factory) => new(
             node.Id,
+            node.Kind,
             () =>
             {
                 var shell = factory();
@@ -1039,6 +1123,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
 
     private sealed class RenderedNode(
         string id,
+        UiNodeKind kind,
         Func<(Control Control, IChildrenHost? ChildrenHost)> shellFactory,
         RenderedNode? parent,
         bool canContainChildren,
@@ -1053,6 +1138,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         private IChildrenHost? childrenHost;
 
         public string Id { get; } = id;
+        public UiNodeKind Kind { get; } = kind;
         public Control Control
         {
             get

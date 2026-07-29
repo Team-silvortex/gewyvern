@@ -24,6 +24,8 @@ pub const UI_WAIT_VISIBLE_TIMEOUT_MS: u64 = 2_000;
 pub enum UiFocusNavigationDirection {
     Next,
     Previous,
+    First,
+    Last,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -31,6 +33,32 @@ pub enum UiFocusNavigationDirection {
 pub enum UiSelectionState {
     Selected,
     Unselected,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiSemanticNodeKind {
+    Column,
+    Heading,
+    Text,
+    RuntimeCard,
+    RuntimeWorkspace,
+    Section,
+    HistoryEntry,
+    LogEntry,
+    DebuggerWorkspace,
+    DebuggerFrame,
+    Action,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiSemanticActionKind {
+    RuntimeInspect,
+    RuntimeRefresh,
+    RuntimeCapabilitiesRefresh,
+    RuntimeDeploy,
+    DebuggerCancel,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -128,6 +156,18 @@ pub enum Effect {
         node_id: String,
         expected: String,
     },
+    UiAssertAutomationId {
+        node_id: String,
+        expected: String,
+    },
+    UiAssertNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+    },
+    UiAssertActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
+    },
     UiAssertAccessibleName {
         node_id: String,
         expected: String,
@@ -166,6 +206,9 @@ pub enum Type {
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
+    UiAssertAutomationId,
+    UiAssertNodeKind,
+    UiAssertActionKind,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
     Structured,
@@ -257,6 +300,9 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_selection"
         | "ui.wait_selection"
         | "ui.assert_text"
+        | "ui.assert_automation_id"
+        | "ui.assert_node_kind"
+        | "ui.assert_action_kind"
         | "ui.assert_accessible_name"
         | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
@@ -282,6 +328,8 @@ fn lower_atomic_effect(
     let mut node_id = None;
     let mut focus_navigation_direction = None;
     let mut selection_state = None;
+    let mut semantic_node_kind = None;
+    let mut semantic_action_kind = None;
     let mut expected_text = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
@@ -375,10 +423,17 @@ fn lower_atomic_effect(
                 Some("previous") => {
                     focus_navigation_direction = Some(UiFocusNavigationDirection::Previous);
                 }
+                Some("first") => {
+                    focus_navigation_direction = Some(UiFocusNavigationDirection::First);
+                }
+                Some("last") => {
+                    focus_navigation_direction = Some(UiFocusNavigationDirection::Last);
+                }
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1145".to_string(),
-                    message: "ui.navigate_focus direction must be \"next\" or \"previous\""
-                        .to_string(),
+                    message:
+                        "ui.navigate_focus direction must be \"next\", \"previous\", \"first\", or \"last\""
+                            .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -520,6 +575,70 @@ fn lower_atomic_effect(
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1123".to_string(),
                     message: "ui.assert_text expected must be bounded display text".to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_automation_id", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1156".to_string(),
+                    message:
+                        "ui.assert_automation_id node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_automation_id", "expected") => match value {
+                Some(value) if validate_ui_node_id(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1157".to_string(),
+                    message:
+                        "ui.assert_automation_id expected must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_node_kind", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1160".to_string(),
+                    message:
+                        "ui.assert_node_kind node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_node_kind", "kind") => match value
+                .as_deref()
+                .and_then(parse_semantic_node_kind)
+            {
+                Some(value) => semantic_node_kind = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1161".to_string(),
+                    message: "ui.assert_node_kind kind must be a known semantic UI node kind"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_action_kind", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1164".to_string(),
+                    message:
+                        "ui.assert_action_kind node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_action_kind", "kind") => match value
+                .as_deref()
+                .and_then(parse_semantic_action_kind)
+            {
+                Some(value) => semantic_action_kind = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1165".to_string(),
+                    message: "ui.assert_action_kind kind must be a known semantic UI action kind"
+                        .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -723,6 +842,49 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1125".to_string(),
             message: "ui.assert_text requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_automation_id" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1158".to_string(),
+            message: "ui.assert_automation_id requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_automation_id" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1159".to_string(),
+            message: "ui.assert_automation_id requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_node_kind" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1162".to_string(),
+            message: "ui.assert_node_kind requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_node_kind" && semantic_node_kind.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1163".to_string(),
+            message: "ui.assert_node_kind requires kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_action_kind" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1166".to_string(),
+            message: "ui.assert_action_kind requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_action_kind" && semantic_action_kind.is_none() && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1167".to_string(),
+            message: "ui.assert_action_kind requires kind".to_string(),
             span: Some(span),
         });
     }
@@ -945,6 +1107,30 @@ fn lower_atomic_effect(
             Type::UiAssertText,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_automation_id" => (
+            Effect::UiAssertAutomationId {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected automation identifier"),
+            },
+            Type::UiAssertAutomationId,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_node_kind" => (
+            Effect::UiAssertNodeKind {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected_kind: semantic_node_kind.expect("validated UI semantic node kind"),
+            },
+            Type::UiAssertNodeKind,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_action_kind" => (
+            Effect::UiAssertActionKind {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected_kind: semantic_action_kind.expect("validated UI semantic action kind"),
+            },
+            Type::UiAssertActionKind,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_accessible_name" => (
             Effect::UiAssertAccessibleName {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1038,6 +1224,8 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(match direction {
                 UiFocusNavigationDirection::Next => "next",
                 UiFocusNavigationDirection::Previous => "previous",
+                UiFocusNavigationDirection::First => "first",
+                UiFocusNavigationDirection::Last => "last",
             }),
             indent(depth),
         ),
@@ -1092,6 +1280,36 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(expected),
             indent(depth),
         ),
+        Effect::UiAssertAutomationId { node_id, expected } => format!(
+            "ui.assert_automation_id(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiAssertNodeKind {
+            node_id,
+            expected_kind,
+        } => format!(
+            "ui.assert_node_kind(\n{}node_id: {},\n{}kind: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(semantic_node_kind_source(*expected_kind)),
+            indent(depth),
+        ),
+        Effect::UiAssertActionKind {
+            node_id,
+            expected_kind,
+        } => format!(
+            "ui.assert_action_kind(\n{}node_id: {},\n{}kind: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(semantic_action_kind_source(*expected_kind)),
+            indent(depth),
+        ),
         Effect::UiAssertAccessibleName { node_id, expected } => format!(
             "ui.assert_accessible_name(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
@@ -1128,6 +1346,60 @@ fn selection_state_source(state: UiSelectionState) -> &'static str {
     match state {
         UiSelectionState::Selected => "selected",
         UiSelectionState::Unselected => "unselected",
+    }
+}
+
+fn parse_semantic_node_kind(value: &str) -> Option<UiSemanticNodeKind> {
+    Some(match value {
+        "column" => UiSemanticNodeKind::Column,
+        "heading" => UiSemanticNodeKind::Heading,
+        "text" => UiSemanticNodeKind::Text,
+        "runtime_card" => UiSemanticNodeKind::RuntimeCard,
+        "runtime_workspace" => UiSemanticNodeKind::RuntimeWorkspace,
+        "section" => UiSemanticNodeKind::Section,
+        "history_entry" => UiSemanticNodeKind::HistoryEntry,
+        "log_entry" => UiSemanticNodeKind::LogEntry,
+        "debugger_workspace" => UiSemanticNodeKind::DebuggerWorkspace,
+        "debugger_frame" => UiSemanticNodeKind::DebuggerFrame,
+        "action" => UiSemanticNodeKind::Action,
+        _ => return None,
+    })
+}
+
+fn semantic_node_kind_source(kind: UiSemanticNodeKind) -> &'static str {
+    match kind {
+        UiSemanticNodeKind::Column => "column",
+        UiSemanticNodeKind::Heading => "heading",
+        UiSemanticNodeKind::Text => "text",
+        UiSemanticNodeKind::RuntimeCard => "runtime_card",
+        UiSemanticNodeKind::RuntimeWorkspace => "runtime_workspace",
+        UiSemanticNodeKind::Section => "section",
+        UiSemanticNodeKind::HistoryEntry => "history_entry",
+        UiSemanticNodeKind::LogEntry => "log_entry",
+        UiSemanticNodeKind::DebuggerWorkspace => "debugger_workspace",
+        UiSemanticNodeKind::DebuggerFrame => "debugger_frame",
+        UiSemanticNodeKind::Action => "action",
+    }
+}
+
+fn parse_semantic_action_kind(value: &str) -> Option<UiSemanticActionKind> {
+    Some(match value {
+        "runtime_inspect" => UiSemanticActionKind::RuntimeInspect,
+        "runtime_refresh" => UiSemanticActionKind::RuntimeRefresh,
+        "runtime_capabilities_refresh" => UiSemanticActionKind::RuntimeCapabilitiesRefresh,
+        "runtime_deploy" => UiSemanticActionKind::RuntimeDeploy,
+        "debugger_cancel" => UiSemanticActionKind::DebuggerCancel,
+        _ => return None,
+    })
+}
+
+fn semantic_action_kind_source(kind: UiSemanticActionKind) -> &'static str {
+    match kind {
+        UiSemanticActionKind::RuntimeInspect => "runtime_inspect",
+        UiSemanticActionKind::RuntimeRefresh => "runtime_refresh",
+        UiSemanticActionKind::RuntimeCapabilitiesRefresh => "runtime_capabilities_refresh",
+        UiSemanticActionKind::RuntimeDeploy => "runtime_deploy",
+        UiSemanticActionKind::DebuggerCancel => "debugger_cancel",
     }
 }
 
@@ -1554,6 +1826,32 @@ mod tests {
             canonical_source(&program.function.effect).unwrap(),
             "fn main() = ui.navigate_focus(\n  node_id: \"runtime-a:inspect\",\n  direction: \"next\",\n)\n"
         );
+        let first_program = lower(&parse(
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: \"first\")",
+        ))
+        .unwrap();
+        assert!(matches!(
+            first_program.function.effect,
+            Effect::UiNavigateFocus {
+                direction: UiFocusNavigationDirection::First,
+                ..
+            }
+        ));
+        assert_eq!(
+            canonical_source(&first_program.function.effect).unwrap(),
+            "fn main() = ui.navigate_focus(\n  node_id: \"runtime-a:inspect\",\n  direction: \"first\",\n)\n"
+        );
+        let last_program = lower(&parse(
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: \"last\")",
+        ))
+        .unwrap();
+        assert!(matches!(
+            last_program.function.effect,
+            Effect::UiNavigateFocus {
+                direction: UiFocusNavigationDirection::Last,
+                ..
+            }
+        ));
 
         for source in [
             "fn main() = ui.navigate_focus(direction: \"next\")",
@@ -1970,6 +2268,126 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_automation_id_is_capability_gated_and_identifier_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertAutomationId);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertAutomationId {
+                ref node_id,
+                ref expected,
+            } if node_id == "fleet-title" && expected == "fleet-title"
+        ));
+        let canonical = canonical_source(&program.function.effect).unwrap();
+        assert_eq!(
+            lower(&parse(&canonical)).unwrap().function.effect,
+            program.function.effect
+        );
+
+        for source in [
+            "fn main() = ui.assert_automation_id()",
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\")",
+            "fn main() = ui.assert_automation_id(expected: \"fleet-title\")",
+            "fn main() = ui.assert_automation_id(node_id: \"bad/node\", expected: \"fleet-title\")",
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: none)",
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized = format!(
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"{}\")",
+            "x".repeat(MAX_UI_NODE_ID_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized)).is_err());
+    }
+
+    #[test]
+    fn ui_assert_node_kind_is_capability_gated_and_enum_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertNodeKind);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertNodeKind {
+                ref node_id,
+                expected_kind: UiSemanticNodeKind::Heading,
+            } if node_id == "fleet-title"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_node_kind(\n  node_id: \"fleet-title\",\n  kind: \"heading\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_node_kind()",
+            "fn main() = ui.assert_node_kind(node_id: \"fleet-title\")",
+            "fn main() = ui.assert_node_kind(kind: \"heading\")",
+            "fn main() = ui.assert_node_kind(node_id: \"bad/node\", kind: \"heading\")",
+            "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: none)",
+            "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"button\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_action_kind_is_capability_gated_and_enum_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertActionKind);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertActionKind {
+                ref node_id,
+                expected_kind: UiSemanticActionKind::RuntimeRefresh,
+            } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_action_kind(\n  node_id: \"runtime-a:refresh\",\n  kind: \"runtime_refresh\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_action_kind()",
+            "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_action_kind(kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_action_kind(node_id: \"bad/node\", kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: none)",
+            "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime.delete\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_accessible_name_is_capability_gated_and_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
@@ -2081,6 +2499,9 @@ mod tests {
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
+            "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+            "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

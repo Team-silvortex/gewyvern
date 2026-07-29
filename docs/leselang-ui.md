@@ -151,13 +151,14 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by sixteen presentation atoms.
+Semantic action equivalence is joined by nineteen presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
 `ui.navigate_focus(node_id: ..., direction: ...)`, requires a currently
-focused interactive action, admits only `next` or `previous`, and returns the
-actual stable destination rather than inferring it from semantic-tree order.
+focused interactive action, admits only `next`, `previous`, `first`, or `last`,
+and returns the actual stable destination rather than inferring it from
+semantic-tree order.
 `UiPresentationOperation::ScrollIntoView`
 maps one-to-one to `ui.scroll_into_view(node_id: ...)` and accepts any existing
 semantic node. `UiPresentationOperation::AssertVisible` maps one-to-one to
@@ -189,23 +190,33 @@ semantic node, and carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertText` maps one-to-one to
 `ui.assert_text(node_id: ..., expected: ...)`, requires a text-rendering
 semantic node, and carries a control-free expected value of at most 1024 UTF-8
-bytes. `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
+bytes. `UiPresentationOperation::AssertAutomationId` maps one-to-one to
+`ui.assert_automation_id(node_id: ..., expected: ...)`, accepts every existing
+semantic node, and carries an expected value that must itself be a valid UI
+node identifier. `UiPresentationOperation::AssertNodeKind` maps one-to-one to
+`ui.assert_node_kind(node_id: ..., kind: ...)`, accepts every existing semantic
+node, and carries a stable semantic renderer kind.
+`UiPresentationOperation::AssertActionKind` maps one-to-one to
+`ui.assert_action_kind(node_id: ..., kind: ...)`, requires a semantic action
+node, and carries the stable semantic action payload kind as
+`expected_action_kind`. `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and uses the same expected-value bound.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
 semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all sixteen travel in
+become a `UiEvent` or `CommandPlan`; all nineteen travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all sixteen operations through its stable visual index. Focus
+Avalonia resolves all nineteen operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
 The actual destination is returned, navigation never activates an action, and
 missing, noninteractive, unrealized, or unfocused starts fail without changing
-focus. Scrolling uses native `BringIntoView()`
+focus. First and last navigation resolve the renderer's stable visual-index
+action boundary and then use native focus on that destination. Scrolling uses native `BringIntoView()`
 without changing focus or activating an action. Visibility assertion requires
 a realized control that is effectively visible, has nonzero layout bounds, and
 intersects the renderer viewport. Realization assertion succeeds only when the
@@ -226,7 +237,12 @@ nonselectable targets fail with typed presentation errors and never focus,
 activate, scroll, or select the target. Text
 assertion reads native `TextBlock.Text` or string
 `Button.Content` and uses exact ordinal comparison rather than semantic-IR
-guessing, coordinates, or OCR. Accessible-name assertion independently reads
+fallback text. Automation ID assertion reads native platform automation identity
+and requires it to match the expected stable node identifier exactly.
+Node-kind assertion compares the stable semantic renderer kind and uses no
+guessing, coordinates, or OCR. Action-kind assertion compares the expected
+semantic action kind with the realized node's stable action payload and never
+activates or focuses the target. Accessible-name assertion independently reads
 native `AutomationProperties.Name` with exact ordinal comparison. None of the
 assertions mutates the control. Accessible-description assertion independently
 reads native `AutomationProperties.HelpText`, also with exact ordinal
@@ -239,7 +255,8 @@ timeout without implicit focus mutation, native forward and backward focus
 navigation, stable destination reporting, failure focus preservation, and
 zero action activation, native selected/unselected assertion, dispatcher-yielding
 selection wait, persistent selection mismatch timeout,
-text-mismatched, accessible-name-mismatched,
+text-mismatched, automation-id-mismatched, node-kind-mismatched,
+action-kind-mismatched, accessible-name-mismatched,
 accessible-description-mismatched, missing, textless, and unfocusable targets,
 focus preservation, remount/patch retention, and safe target removal.
 

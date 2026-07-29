@@ -1665,7 +1665,7 @@ the current `UiAction` enum.
 
 Presentation parity uses a separate, non-command path.
 `ui.focus(node_id: ...)`,
-`ui.navigate_focus(node_id: ..., direction: "next"|"previous")`,
+`ui.navigate_focus(node_id: ..., direction: "next"|"previous"|"first"|"last")`,
 `ui.scroll_into_view(node_id: ...)`, and
 `ui.assert_visible(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_realized(node_id: ...)`,
@@ -1674,7 +1674,12 @@ Presentation parity uses a separate, non-command path.
 `ui.wait_focused(node_id: ...)`, plus
 `ui.assert_enabled(node_id: ...)`, plus
 `ui.wait_enabled(node_id: ...)`, plus
-`ui.assert_text(node_id: ..., expected: ...)` and
+`ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
+`ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
+`ui.assert_text(node_id: ..., expected: ...)`, plus
+`ui.assert_automation_id(node_id: ..., expected: ...)`, plus
+`ui.assert_node_kind(node_id: ..., kind: ...)`, plus
+`ui.assert_action_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, lower to
 operation-specific values inside a capability-gated VM
@@ -1682,9 +1687,10 @@ operation-specific values inside a capability-gated VM
 variants. None can become a `CommandPlan`. Avalonia validates the semantic
 target and resolves the stable node ID. Focus and scrolling use native
 operations. Sequential focus navigation requires a currently focused stable
-action, delegates the typed direction to the native focus manager, and binds
-the result to the actual distinct stable action destination without activating
-it or assuming symmetric virtualized tab order. Visibility assertion checks
+action, delegates `next` and `previous` to the native focus manager, resolves
+`first` and `last` through the stable visual-index action boundary with native
+focus, and binds the result to the actual distinct stable action destination
+without activating it or assuming symmetric virtualized tab order. Visibility assertion checks
 realized layout and viewport state,
 realization assertion checks the native visual index without forcing
 materialization, and realization wait uses the same predicate with a
@@ -1700,12 +1706,16 @@ predicate until the fixed deadline without selecting, focusing, or activating
 the target. Text
 assertion compares bounded,
 control-free expected text against the actual native `TextBlock.Text` or string
-`Button.Content` with exact ordinal semantics. Scrolling accepts noninteractive
-nodes and preserves keyboard focus. Accessible-name assertion separately reads
-the native platform automation name for any realized semantic node.
+`Button.Content` with exact ordinal semantics. Automation ID assertion compares
+the realized platform automation identity against the expected stable UI node
+identifier. Node-kind assertion compares the expected semantic node kind against
+the stable renderer semantic kind. Action-kind assertion compares the expected
+semantic action kind against the realized node's stable action payload.
+Scrolling accepts noninteractive nodes and preserves keyboard focus.
+Accessible-name assertion separately reads the native platform automation name
+for any realized semantic node.
 Accessible-description assertion requires declared semantic description
-metadata and reads the native platform help text exactly. Additional navigation
-modes, windows, and
+metadata and reads the native platform help text exactly. Window lifecycle and
 additional state assertions remain unimplemented rather than being
 approximated with coordinates, OCR, or scripts.
 

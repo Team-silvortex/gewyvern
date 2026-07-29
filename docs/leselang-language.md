@@ -15,8 +15,10 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_visible`, `ui.assert_realized`, `ui.wait_realized`,
 `ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
 `ui.assert_enabled`, `ui.wait_enabled`, `ui.assert_selection`,
-`ui.wait_selection`, and `ui.assert_text`, plus `ui.assert_accessible_name` and
-`ui.assert_accessible_description` presentation effects.
+`ui.wait_selection`, `ui.assert_text`, `ui.assert_automation_id`, and
+`ui.assert_node_kind`, `ui.assert_action_kind`, plus
+`ui.assert_accessible_name` and `ui.assert_accessible_description` presentation
+effects.
 
 ## Canonical Program
 
@@ -128,11 +130,13 @@ fn main() = ui.navigate_focus(
 ```
 
 `ui.navigate_focus` requires `ui.presentation`, a currently focused, realized
-semantic action, and an exact `next` or `previous` direction. The renderer asks
-its native focus manager to traverse from that stable start node and succeeds
-only when another realized semantic action receives focus. Its typed result
-binds the requested start and direction to the actual stable destination; it
-does not assume that virtualized platform tab order is symmetric. Missing,
+semantic action, and an exact `next`, `previous`, `first`, or `last`
+direction. For sequential movement the renderer asks its native focus manager
+to traverse from that stable start node; for boundary movement it resolves the
+first or last realized action in its stable visual index and then applies native
+focus to that control. Its typed result binds the requested start and direction
+to the actual stable destination; it does not assume that virtualized platform
+tab order is symmetric or that first/last equal source-tree order. Missing,
 noninteractive, unrealized, or unfocused starts and rejected navigation fail
 without activating any action. The operation has no coordinate, key-event, or
 control-plane fallback.
@@ -307,6 +311,58 @@ The VM binds the expected value to the request and result, while the renderer
 reads the realized native `TextBlock.Text` or string `Button.Content` and
 requires an exact ordinal match. Missing, textless, unrealized, or mismatched
 targets fail. The assertion never focuses, activates, scrolls, or changes text.
+
+Native automation identity can be asserted independently of display text:
+
+```leselang
+fn main() = ui.assert_automation_id(
+  node_id: "fleet-title",
+  expected: "fleet-title"
+)
+```
+
+`ui.assert_automation_id` requires `ui.presentation`, any existing semantic
+node, and an expected value that is itself a valid UI node identifier. The VM
+binds the expected automation ID to the request and result, while the renderer
+reads the realized platform automation ID and requires an exact ordinal match.
+Missing, unrealized, invalid-expected, or mismatched targets fail. The
+assertion never focuses, activates, scrolls, or changes automation metadata.
+
+Native semantic node kind can be asserted before model-driven automation:
+
+```leselang
+fn main() = ui.assert_node_kind(
+  node_id: "fleet-title",
+  kind: "heading"
+)
+```
+
+`ui.assert_node_kind` requires `ui.presentation`, any existing semantic node,
+and a bounded semantic kind. The accepted values are `column`, `heading`,
+`text`, `runtime_card`, `runtime_workspace`, `section`, `history_entry`,
+`log_entry`, `debugger_workspace`, `debugger_frame`, and `action`. The VM binds
+the expected kind to the request and result, while the renderer compares it
+with the stable semantic renderer kind for the realized node. Missing,
+unrealized, invalid-kind, or mismatched targets fail. The assertion never
+focuses, activates, scrolls, or changes semantic metadata.
+
+Native semantic action kind can be asserted before activation:
+
+```leselang
+fn main() = ui.assert_action_kind(
+  node_id: "runtime-runtime-a-refresh",
+  kind: "runtime_refresh"
+)
+```
+
+`ui.assert_action_kind` requires `ui.presentation` and a semantic action node.
+The accepted values are `runtime_inspect`, `runtime_refresh`,
+`runtime_capabilities_refresh`, `runtime_deploy`, and `debugger_cancel`. The VM
+binds the expected action kind to the request and result, while the renderer
+compares it with the stable semantic action payload for the realized node.
+Missing, actionless, unrealized, invalid-kind, or mismatched targets fail. The
+assertion never focuses, activates, scrolls, submits a form, or changes action
+metadata.
 
 Native accessibility metadata can be asserted independently of display text:
 

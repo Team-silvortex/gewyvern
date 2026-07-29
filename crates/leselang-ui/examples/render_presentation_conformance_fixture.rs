@@ -7,7 +7,7 @@ use leselang_hir::{
     UiSelectionState,
 };
 use leselang_ui::{
-    NodeId, UiDocument, UiPatch, UiPresentationOperation, diff, fleet_document,
+    NodeId, UiActionKind, UiDocument, UiPatch, UiPresentationOperation, diff, fleet_document,
     validate_presentation_operation,
 };
 use leserpent_domain::{
@@ -24,6 +24,8 @@ struct Fixture<'a> {
     next: &'a UiDocument,
     presentation_operation: &'a UiPresentationOperation,
     navigation_operation: &'a UiPresentationOperation,
+    navigation_first_operation: &'a UiPresentationOperation,
+    navigation_last_operation: &'a UiPresentationOperation,
     scroll_operation: &'a UiPresentationOperation,
     assert_operation: &'a UiPresentationOperation,
     realized_assert_operation: &'a UiPresentationOperation,
@@ -36,6 +38,9 @@ struct Fixture<'a> {
     selection_assert_operation: &'a UiPresentationOperation,
     selection_wait_operation: &'a UiPresentationOperation,
     text_assert_operation: &'a UiPresentationOperation,
+    automation_id_assert_operation: &'a UiPresentationOperation,
+    node_kind_assert_operation: &'a UiPresentationOperation,
+    action_kind_assert_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
 }
@@ -58,6 +63,14 @@ fn main() {
     let navigation_operation = UiPresentationOperation::NavigateFocus {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
         direction: UiFocusNavigationDirection::Next,
+    };
+    let navigation_first_operation = UiPresentationOperation::NavigateFocus {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        direction: UiFocusNavigationDirection::First,
+    };
+    let navigation_last_operation = UiPresentationOperation::NavigateFocus {
+        node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+        direction: UiFocusNavigationDirection::Last,
     };
     let scroll_operation = UiPresentationOperation::ScrollIntoView {
         node_id: NodeId::new("fleet-title").unwrap(),
@@ -103,6 +116,18 @@ fn main() {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "Runtime fleet".into(),
     };
+    let automation_id_assert_operation = UiPresentationOperation::AssertAutomationId {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected: "fleet-title".into(),
+    };
+    let node_kind_assert_operation = UiPresentationOperation::AssertNodeKind {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected_kind: leselang_ui::UiNodeKind::Heading,
+    };
+    let action_kind_assert_operation = UiPresentationOperation::AssertActionKind {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        expected_action_kind: UiActionKind::RuntimeRefresh,
+    };
     let accessible_name_assert_operation = UiPresentationOperation::AssertAccessibleName {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "Runtime fleet".into(),
@@ -114,6 +139,8 @@ fn main() {
         };
     validate_presentation_operation(&next, &presentation_operation).unwrap();
     validate_presentation_operation(&next, &navigation_operation).unwrap();
+    validate_presentation_operation(&next, &navigation_first_operation).unwrap();
+    validate_presentation_operation(&next, &navigation_last_operation).unwrap();
     validate_presentation_operation(&next, &scroll_operation).unwrap();
     validate_presentation_operation(&next, &assert_operation).unwrap();
     validate_presentation_operation(&next, &realized_assert_operation).unwrap();
@@ -126,6 +153,9 @@ fn main() {
     validate_presentation_operation(&next, &selection_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_wait_operation).unwrap();
     validate_presentation_operation(&next, &text_assert_operation).unwrap();
+    validate_presentation_operation(&next, &automation_id_assert_operation).unwrap();
+    validate_presentation_operation(&next, &node_kind_assert_operation).unwrap();
+    validate_presentation_operation(&next, &action_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_description_assert_operation).unwrap();
     let mut bytes = serde_json::to_vec_pretty(&Fixture {
@@ -135,6 +165,8 @@ fn main() {
         next: &next,
         presentation_operation: &presentation_operation,
         navigation_operation: &navigation_operation,
+        navigation_first_operation: &navigation_first_operation,
+        navigation_last_operation: &navigation_last_operation,
         scroll_operation: &scroll_operation,
         assert_operation: &assert_operation,
         realized_assert_operation: &realized_assert_operation,
@@ -147,6 +179,9 @@ fn main() {
         selection_assert_operation: &selection_assert_operation,
         selection_wait_operation: &selection_wait_operation,
         text_assert_operation: &text_assert_operation,
+        automation_id_assert_operation: &automation_id_assert_operation,
+        node_kind_assert_operation: &node_kind_assert_operation,
+        action_kind_assert_operation: &action_kind_assert_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,
     })

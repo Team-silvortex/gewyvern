@@ -89,6 +89,9 @@ pub fn lower_effect(
             | Effect::UiAssertSelection { .. }
             | Effect::UiWaitSelection { .. }
             | Effect::UiAssertText { .. }
+            | Effect::UiAssertAutomationId { .. }
+            | Effect::UiAssertNodeKind { .. }
+            | Effect::UiAssertActionKind { .. }
             | Effect::UiAssertAccessibleName { .. }
             | Effect::UiAssertAccessibleDescription { .. }
     ) {
@@ -118,6 +121,9 @@ pub fn lower_effect(
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
+        | Effect::UiAssertAutomationId { .. }
+        | Effect::UiAssertNodeKind { .. }
+        | Effect::UiAssertActionKind { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -158,6 +164,9 @@ pub fn lower_effect(
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
+        | Effect::UiAssertAutomationId { .. }
+        | Effect::UiAssertNodeKind { .. }
+        | Effect::UiAssertActionKind { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -437,6 +446,9 @@ mod tests {
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
+            "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+            "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

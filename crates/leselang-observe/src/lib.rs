@@ -349,6 +349,21 @@ pub fn waiting_debugger_projection(
             "UI wait selection",
         ),
         Effect::UiAssertText { .. } => (DebuggerEffectKind::UiAssertText, None, "UI assert text"),
+        Effect::UiAssertAutomationId { .. } => (
+            DebuggerEffectKind::UiAssertAutomationId,
+            None,
+            "UI assert automation id",
+        ),
+        Effect::UiAssertNodeKind { .. } => (
+            DebuggerEffectKind::UiAssertNodeKind,
+            None,
+            "UI assert node kind",
+        ),
+        Effect::UiAssertActionKind { .. } => (
+            DebuggerEffectKind::UiAssertActionKind,
+            None,
+            "UI assert action kind",
+        ),
         Effect::UiAssertAccessibleName { .. } => (
             DebuggerEffectKind::UiAssertAccessibleName,
             None,

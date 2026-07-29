@@ -231,7 +231,7 @@ dispatch result, and restart-safe re-entry. The renderer-neutral UI maps every
 current action to HIR, exports it through the Rust canonical printer, and maps
 the effect back to an equivalent stable-node event. Presentation automation now
 includes `ui.focus(node_id: ...)`,
-`ui.navigate_focus(node_id: ..., direction: "next"|"previous")`,
+`ui.navigate_focus(node_id: ..., direction: "next"|"previous"|"first"|"last")`,
 `ui.scroll_into_view(node_id: ...)`, and
 `ui.assert_visible(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_realized(node_id: ...)`,
@@ -242,16 +242,21 @@ includes `ui.focus(node_id: ...)`,
 `ui.wait_enabled(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
-`ui.assert_text(node_id: ..., expected: ...)` and
+`ui.assert_text(node_id: ..., expected: ...)`, plus
+`ui.assert_automation_id(node_id: ..., expected: ...)`, plus
+`ui.assert_node_kind(node_id: ..., kind: ...)`, plus
+`ui.assert_action_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all sixteen, and `leselang-ui` round-trips them against the current semantic
+rejects all nineteen, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
-manager from a currently focused stable action, returns the actual stable
-destination, and proves both directions, failure focus preservation, and zero
-action activation. It checks visibility against native layout and viewport state,
+manager from a currently focused stable action, resolves first/last through the
+stable visual-index action boundary with native focus, returns the actual stable
+destination, and proves next, previous, first, and last navigation, failure
+focus preservation, and zero action activation. It checks visibility against
+native layout and viewport state,
 checks realization directly against the native visual index without forcing it,
 waits up to the protocol-fixed 2000 ms for natural realization while yielding
 the native dispatcher, waits independently for viewport-aware native visibility
@@ -259,13 +264,15 @@ without scrolling, reads native focus, waits for external native focus without
 invoking the focus primitive, reads effective enabled state, waits for external
 native enablement without changing action availability, and compares
 native selected state, waits for native selection mismatch timeout without
-changing selection, and compares actual native text, accessibility name, and
-declared accessibility help text exactly without mutating the target. Disabled,
-selection-mismatched, selectionless, text-mismatched,
-accessible-name-mismatched, and
+changing selection, and compares actual native text, automation ID, semantic node kind,
+semantic action kind,
+accessibility name, and declared accessibility help text exactly without
+mutating the target. Disabled, selection-mismatched, selectionless,
+text-mismatched, automation-id-mismatched, node-kind-mismatched,
+action-kind-mismatched, accessible-name-mismatched, and
 accessible-description-mismatched targets fail with typed native
-presentation results. Additional navigation modes and additional state
-assertions remain the next slices rather than being
+presentation results. Window lifecycle and additional state assertions remain
+the next slices rather than being
 approximated with coordinate-level scripting or OCR.
 
 The first concrete cross-language renderer core now exists under

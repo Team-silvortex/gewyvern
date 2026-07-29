@@ -41,19 +41,24 @@ The separate candidate fixture carries Rust-generated
 `AssertRealized`, `WaitRealized`, `WaitVisible`, `AssertFocused`, and
 `WaitFocused`, plus `AssertEnabled`, `WaitEnabled`, `AssertSelection`,
 `WaitSelection`, `AssertText`,
+`AssertAutomationId`,
+`AssertNodeKind`,
+`AssertActionKind`,
 `AssertAccessibleName`, and
 `AssertAccessibleDescription` values. RendererCore strictly round-trips all
-sixteen and validates valid, missing, noninteractive,
+nineteen and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
-reporting and no action activation, bring-into-view, viewport-aware visibility,
+reporting for next and previous, stable visual-index boundary navigation for
+first and last, all with no action activation,
+bring-into-view, viewport-aware visibility,
 native realization,
 fixed-deadline dispatcher-yielding realization wait, fixed-deadline
 viewport-aware visibility wait without implicit scrolling, plus side-effect-free
 focus, external focus waiting without implicit focus mutation, enabled-state,
 external enablement waiting, native selected/unselected observation,
 dispatcher-yielding selection wait, actual displayed-text, and
-accessibility-name observation plus declared accessibility-description
+automation-id, node-kind, action-kind, accessibility-name, and declared accessibility-description
 observation through its stable visual
 index. Scrolling a noninteractive node must preserve the currently
 focused control, hiding the renderer surface must make visibility assertion
@@ -279,9 +284,10 @@ Document remounts and incremental patches preserve keyboard focus by stable UI
 node ID when the focused control still exists, including replacement of an
 updated action control. A removed action clears the pending target rather than
 transferring focus to another mutation control. The same probe verifies
-`ui.navigate_focus` in both native sequential directions, binds each result to
-the actual stable destination, rejects missing, noninteractive, unrealized, or
-unfocused starts without changing focus, never activates a button, and verifies
+`ui.navigate_focus` in next, previous, first, and last native directions, binds
+each result to the actual stable destination, rejects missing, noninteractive,
+unrealized, or unfocused starts without changing focus, never activates a
+button, and verifies
 native selected/unselected assertions plus dispatcher-yielding selection wait
 and mismatch timeout without mutating focus or selection. Verify all paths
 against real Avalonia controls with

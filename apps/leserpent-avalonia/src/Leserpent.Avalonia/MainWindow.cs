@@ -57,8 +57,12 @@ internal sealed class MainWindow : Window
     public bool SelectionProbePreservedFocus { get; private set; }
     public bool FocusNavigationForwardCompleted { get; private set; }
     public bool FocusNavigationBackwardCompleted { get; private set; }
+    public bool FocusNavigationFirstCompleted { get; private set; }
+    public bool FocusNavigationLastCompleted { get; private set; }
     public bool FocusNavigationFailuresPreservedFocus { get; private set; }
     public bool FocusNavigationDidNotActivate { get; private set; }
+    public bool ActionKindAssertCompleted { get; private set; }
+    public bool ActionKindMismatchRejected { get; private set; }
     public int InitialDebuggerCancelButtonCount { get; }
     public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
     public int DisabledActionProbeCount { get; private set; }
@@ -473,6 +477,38 @@ internal sealed class MainWindow : Window
                 "Leselang native backward focus navigation did not return its stable destination");
         }
         FocusNavigationBackwardCompleted = true;
+        var navigatedLast = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.NavigateFocus,
+            NodeId = backwardNodeId,
+            Direction = UiFocusNavigationDirection.Last,
+        });
+        if (!navigatedLast.Applied
+            || navigatedLast.FailureCode != PresentationAutomationFailureCode.None
+            || navigatedLast.FocusedNodeId is not { } lastNodeId
+            || lastNodeId == backwardNodeId
+            || renderer.FocusedNodeId != lastNodeId)
+        {
+            throw new InvalidDataException(
+                $"Leselang native last focus navigation did not return its stable destination: applied={navigatedLast.Applied}, failure={navigatedLast.FailureCode}, result={navigatedLast.FocusedNodeId ?? "none"}, focused={renderer.FocusedNodeId ?? "none"}");
+        }
+        FocusNavigationLastCompleted = true;
+        var navigatedFirst = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.NavigateFocus,
+            NodeId = lastNodeId,
+            Direction = UiFocusNavigationDirection.First,
+        });
+        if (!navigatedFirst.Applied
+            || navigatedFirst.FailureCode != PresentationAutomationFailureCode.None
+            || navigatedFirst.FocusedNodeId is not { } firstNodeId
+            || firstNodeId == lastNodeId
+            || renderer.FocusedNodeId != firstNodeId)
+        {
+            throw new InvalidDataException(
+                $"Leselang native first focus navigation did not return its stable destination: applied={navigatedFirst.Applied}, failure={navigatedFirst.FailureCode}, result={navigatedFirst.FocusedNodeId ?? "none"}, focused={renderer.FocusedNodeId ?? "none"}");
+        }
+        FocusNavigationFirstCompleted = true;
         if (!renderer.TryFocusNode(nodeId) || renderer.FocusedNodeId != nodeId)
         {
             throw new InvalidDataException(
@@ -572,6 +608,96 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang text assertion accepted mismatched native display text or changed focus");
+        }
+        var automationIdMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertAutomationId,
+            NodeId = textNode.Id,
+            Expected = textNode.Id,
+        });
+        if (!automationIdMatched.Applied
+            || automationIdMatched.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang automation id assertion rejected native automation identity or changed focus");
+        }
+        var automationIdMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertAutomationId,
+            NodeId = textNode.Id,
+            Expected = $"{textNode.Id}-mismatch",
+        });
+        if (automationIdMismatch.Applied
+            || automationIdMismatch.FailureCode
+                != PresentationAutomationFailureCode.TargetAutomationIdMismatch
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang automation id assertion accepted mismatched native identity or changed focus");
+        }
+        var nodeKindMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertNodeKind,
+            NodeId = textNode.Id,
+            ExpectedKind = textNode.Kind,
+        });
+        if (!nodeKindMatched.Applied
+            || nodeKindMatched.FailureCode != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang node kind assertion rejected the stable semantic renderer kind or changed focus");
+        }
+        var mismatchedNodeKind = textNode.Kind == UiNodeKind.Text
+            ? UiNodeKind.Heading
+            : UiNodeKind.Text;
+        var nodeKindMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertNodeKind,
+            NodeId = textNode.Id,
+            ExpectedKind = mismatchedNodeKind,
+        });
+        if (nodeKindMismatch.Applied
+            || nodeKindMismatch.FailureCode
+                != PresentationAutomationFailureCode.TargetNodeKindMismatch
+            || renderer.FocusedNodeId != nodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang node kind assertion accepted a mismatched semantic renderer kind or changed focus");
+        }
+        var focusedActionNode = FindNode(renderer.Document.Root, nodeId)
+            ?? throw new InvalidDataException("action kind probe target was not found");
+        var expectedActionKind = focusedActionNode.Action?.Kind
+            ?? throw new InvalidDataException("action kind probe requires an action target");
+        var actionKindMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionKind,
+            NodeId = nodeId,
+            ExpectedActionKind = expectedActionKind,
+        });
+        ActionKindAssertCompleted = actionKindMatched.Applied
+            && actionKindMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!ActionKindAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action kind assertion rejected the stable semantic action kind or changed focus");
+        }
+        var actionKindMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionKind,
+            NodeId = nodeId,
+            ExpectedActionKind = MismatchedActionKind(expectedActionKind),
+        });
+        ActionKindMismatchRejected = !actionKindMismatch.Applied
+            && actionKindMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetActionKindMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!ActionKindMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang action kind assertion accepted a mismatched semantic action kind or changed focus");
         }
         var expectedAccessibleName = textNode.Accessibility.Label?.Fallback
             ?? textNode.Text?.Fallback
@@ -897,6 +1023,12 @@ internal sealed class MainWindow : Window
         }
         return null;
     }
+
+    private static ActionKind MismatchedActionKind(ActionKind kind) => kind switch
+    {
+        ActionKind.RuntimeInspect => ActionKind.RuntimeRefresh,
+        _ => ActionKind.RuntimeInspect,
+    };
 
     public void CompleteFocusRetentionProbe(string nodeId)
     {

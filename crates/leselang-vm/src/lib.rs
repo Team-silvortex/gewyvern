@@ -6,8 +6,8 @@ use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
     CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type, UI_WAIT_ENABLED_TIMEOUT_MS,
     UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState, authorize,
-    validate_ui_expected_text, validate_ui_node_id,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState, UiSemanticActionKind,
+    UiSemanticNodeKind, authorize, validate_ui_expected_text, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -158,6 +158,18 @@ pub enum PresentationOperation {
         node_id: String,
         expected: String,
     },
+    AssertAutomationId {
+        node_id: String,
+        expected: String,
+    },
+    AssertNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+    },
+    AssertActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
+    },
     AssertAccessibleName {
         node_id: String,
         expected: String,
@@ -233,6 +245,18 @@ pub enum PresentationResult {
     AssertText {
         node_id: String,
         expected: String,
+    },
+    AssertAutomationId {
+        node_id: String,
+        expected: String,
+    },
+    AssertNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+    },
+    AssertActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
     },
     AssertAccessibleName {
         node_id: String,
@@ -535,6 +559,18 @@ pub enum Value {
     UiAssertText {
         node_id: String,
         expected: String,
+    },
+    UiAssertAutomationId {
+        node_id: String,
+        expected: String,
+    },
+    UiAssertNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+    },
+    UiAssertActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
     },
     UiAssertAccessibleName {
         node_id: String,
@@ -988,6 +1024,48 @@ impl Vm {
                     operation: PresentationOperation::AssertText {
                         node_id: node_id.clone(),
                         expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertAutomationId { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertAutomationId {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertNodeKind {
+                node_id,
+                expected_kind,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertNodeKind {
+                        node_id: node_id.clone(),
+                        expected_kind: *expected_kind,
+                    },
+                }),
+            ),
+            Effect::UiAssertActionKind {
+                node_id,
+                expected_kind,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertActionKind {
+                        node_id: node_id.clone(),
+                        expected_kind: *expected_kind,
                     },
                 }),
             ),
@@ -1572,6 +1650,9 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertSelection { .. } => Type::UiAssertSelection,
         Effect::UiWaitSelection { .. } => Type::UiWaitSelection,
         Effect::UiAssertText { .. } => Type::UiAssertText,
+        Effect::UiAssertAutomationId { .. } => Type::UiAssertAutomationId,
+        Effect::UiAssertNodeKind { .. } => Type::UiAssertNodeKind,
+        Effect::UiAssertActionKind { .. } => Type::UiAssertActionKind,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
         Effect::All { .. } => {
@@ -2048,6 +2129,76 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiAssertAutomationId { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertAutomationId {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_node_id(operation_expected)
+            )
+        }
+        (
+            Effect::UiAssertNodeKind {
+                node_id,
+                expected_kind,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertNodeKind {
+                    node_id: operation_node_id,
+                    expected_kind: operation_expected_kind,
+                } if operation_node_id == node_id
+                    && operation_expected_kind == expected_kind
+                    && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiAssertActionKind {
+                node_id,
+                expected_kind,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertActionKind {
+                    node_id: operation_node_id,
+                    expected_kind: operation_expected_kind,
+                } if operation_node_id == node_id
+                    && operation_expected_kind == expected_kind
+                    && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
             Effect::UiAssertAccessibleName { node_id, expected },
             EffectOperation::Presentation(presentation),
         ) => {
@@ -2392,6 +2543,13 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(1)
         }
+        Value::UiAssertAutomationId { node_id, expected }
+            if validate_ui_node_id(node_id) && validate_ui_node_id(expected) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertNodeKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertActionKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertAccessibleName { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
         {
@@ -3038,6 +3196,98 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiAssertAutomationId { node_id, expected },
+            Type::UiAssertAutomationId,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertAutomationId {
+                node_id: result_node_id,
+                expected: result_expected,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertAutomationId {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                        },
+                        ..
+                    }) if operation_node_id == node_id && operation_expected == expected
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertAutomationId {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiAssertNodeKind {
+                node_id,
+                expected_kind,
+            },
+            Type::UiAssertNodeKind,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertNodeKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected_kind == *expected_kind
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertNodeKind {
+                            node_id: operation_node_id,
+                            expected_kind: operation_expected_kind,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected_kind == expected_kind
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertNodeKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+            })
+        }
+        (
+            Effect::UiAssertActionKind {
+                node_id,
+                expected_kind,
+            },
+            Type::UiAssertActionKind,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertActionKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected_kind == *expected_kind
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertActionKind {
+                            node_id: operation_node_id,
+                            expected_kind: operation_expected_kind,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected_kind == expected_kind
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertActionKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+            })
+        }
+        (
             Effect::UiAssertAccessibleName { node_id, expected },
             Type::UiAssertAccessibleName,
             operation,
@@ -3479,6 +3729,90 @@ mod tests {
                 node_id: "runtime-a:inspect".into(),
                 direction: UiFocusNavigationDirection::Next,
                 focused_node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let program = lower(&parse(
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:inspect\", direction: \"last\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI focus navigation effect");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI focus navigation must use a presentation envelope");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::NavigateFocus {
+                node_id,
+                direction: UiFocusNavigationDirection::Last,
+            } if node_id == "runtime-a:inspect"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::NavigateFocus {
+                    node_id: "runtime-a:inspect".into(),
+                    direction: UiFocusNavigationDirection::Last,
+                    focused_node_id: "runtime-a:deploy".into(),
+                }),
+            ),
+            Step::Done(Value::UiNavigateFocus {
+                node_id: "runtime-a:inspect".into(),
+                direction: UiFocusNavigationDirection::Last,
+                focused_node_id: "runtime-a:deploy".into(),
+            })
+        );
+
+        let program = lower(&parse(
+            "fn main() = ui.navigate_focus(node_id: \"runtime-a:deploy\", direction: \"first\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI focus navigation effect");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI focus navigation must use a presentation envelope");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::NavigateFocus {
+                node_id,
+                direction: UiFocusNavigationDirection::First,
+            } if node_id == "runtime-a:deploy"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::NavigateFocus {
+                    node_id: "runtime-a:deploy".into(),
+                    direction: UiFocusNavigationDirection::First,
+                    focused_node_id: "runtime-a:inspect".into(),
+                }),
+            ),
+            Step::Done(Value::UiNavigateFocus {
+                node_id: "runtime-a:deploy".into(),
+                direction: UiFocusNavigationDirection::First,
+                focused_node_id: "runtime-a:inspect".into(),
             })
         );
     }
@@ -4156,6 +4490,163 @@ mod tests {
         presentation.operation = PresentationOperation::AssertText {
             node_id: "fleet-title".into(),
             expected: "Forged text".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_automation_id_binds_expected_id_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI automation id assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI automation id assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertAutomationId { node_id, expected }
+                if node_id == "fleet-title" && expected == "fleet-title"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertAutomationId {
+                    node_id: "fleet-title".into(),
+                    expected: "fleet-title".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertAutomationId {
+                node_id: "fleet-title".into(),
+                expected: "fleet-title".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI automation id assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertAutomationId {
+            node_id: "fleet-title".into(),
+            expected: "forged-id".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_node_kind_binds_expected_kind_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI node kind assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI node kind assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertNodeKind {
+                node_id,
+                expected_kind: UiSemanticNodeKind::Heading,
+            } if node_id == "fleet-title"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertNodeKind {
+                    node_id: "fleet-title".into(),
+                    expected_kind: UiSemanticNodeKind::Heading,
+                }),
+            ),
+            Step::Done(Value::UiAssertNodeKind {
+                node_id: "fleet-title".into(),
+                expected_kind: UiSemanticNodeKind::Heading,
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI node kind assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertNodeKind {
+            node_id: "fleet-title".into(),
+            expected_kind: UiSemanticNodeKind::Text,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_action_kind_binds_expected_kind_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI action kind assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI action kind assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertActionKind {
+                node_id,
+                expected_kind: UiSemanticActionKind::RuntimeRefresh,
+            } if node_id == "runtime-a:refresh"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertActionKind {
+                    node_id: "runtime-a:refresh".into(),
+                    expected_kind: UiSemanticActionKind::RuntimeRefresh,
+                }),
+            ),
+            Step::Done(Value::UiAssertActionKind {
+                node_id: "runtime-a:refresh".into(),
+                expected_kind: UiSemanticActionKind::RuntimeRefresh,
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI action kind assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertActionKind {
+            node_id: "runtime-a:refresh".into(),
+            expected_kind: UiSemanticActionKind::RuntimeDeploy,
         };
         assert!(validate_effect_request(&torn).is_err());
     }

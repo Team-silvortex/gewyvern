@@ -98,9 +98,53 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedText;
             }
         }
+        else if (operation.Kind == UiPresentationOperationKind.AssertAutomationId)
+        {
+            if (operation.Expected is not { } expected
+                || !IsIdentifier(expected))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+        }
+        else if (operation.Kind == UiPresentationOperationKind.AssertNodeKind)
+        {
+            if (operation.Expected is not null)
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+            if (operation.ExpectedKind is null)
+            {
+                return UiPresentationValidation.InvalidExpectedKind;
+            }
+        }
+        else if (operation.Kind == UiPresentationOperationKind.AssertActionKind)
+        {
+            if (operation.Expected is not null)
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+            if (operation.ExpectedKind is not null)
+            {
+                return UiPresentationValidation.InvalidExpectedKind;
+            }
+            if (operation.ExpectedActionKind is null)
+            {
+                return UiPresentationValidation.InvalidExpectedActionKind;
+            }
+        }
         else if (operation.Expected is not null)
         {
             return UiPresentationValidation.InvalidExpectedText;
+        }
+        if (operation.Kind != UiPresentationOperationKind.AssertNodeKind
+            && operation.ExpectedKind is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedKind;
+        }
+        if (operation.Kind != UiPresentationOperationKind.AssertActionKind
+            && operation.ExpectedActionKind is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedActionKind;
         }
         if (operation.Kind == UiPresentationOperationKind.NavigateFocus)
         {
@@ -162,6 +206,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.AssertEnabled
             or UiPresentationOperationKind.WaitEnabled
             or UiPresentationOperationKind.WaitFocused
+            or UiPresentationOperationKind.AssertActionKind
                 when node.Kind == UiNodeKind.Action && node.Action is not null =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.ScrollIntoView =>
@@ -188,6 +233,10 @@ public sealed class SemanticRenderer
                         or UiNodeKind.Action =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertAccessibleName =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertAutomationId =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertNodeKind =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertAccessibleDescription
                 when node.Accessibility.Description is not null =>
@@ -490,6 +539,8 @@ public sealed class RendererFixture
     public required UiDocument Next { get; set; }
     public UiPresentationOperation? PresentationOperation { get; set; }
     public UiPresentationOperation? NavigationOperation { get; set; }
+    public UiPresentationOperation? NavigationFirstOperation { get; set; }
+    public UiPresentationOperation? NavigationLastOperation { get; set; }
     public UiPresentationOperation? ScrollOperation { get; set; }
     public UiPresentationOperation? AssertOperation { get; set; }
     public UiPresentationOperation? RealizedAssertOperation { get; set; }
@@ -502,6 +553,9 @@ public sealed class RendererFixture
     public UiPresentationOperation? SelectionAssertOperation { get; set; }
     public UiPresentationOperation? SelectionWaitOperation { get; set; }
     public UiPresentationOperation? TextAssertOperation { get; set; }
+    public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
+    public UiPresentationOperation? NodeKindAssertOperation { get; set; }
+    public UiPresentationOperation? ActionKindAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
 }
@@ -592,6 +646,8 @@ public sealed class UiPresentationOperation
     public UiFocusNavigationDirection? Direction { get; set; }
     public UiSelectionState? State { get; set; }
     public string? Expected { get; set; }
+    public UiNodeKind? ExpectedKind { get; set; }
+    public ActionKind? ExpectedActionKind { get; set; }
     public int? TimeoutMs { get; set; }
 }
 
@@ -671,6 +727,9 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,
     [JsonStringEnumMemberName("wait_selection")] WaitSelection,
     [JsonStringEnumMemberName("assert_text")] AssertText,
+    [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
+    [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
+    [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
 }
@@ -680,6 +739,8 @@ public enum UiFocusNavigationDirection
 {
     [JsonStringEnumMemberName("next")] Next,
     [JsonStringEnumMemberName("previous")] Previous,
+    [JsonStringEnumMemberName("first")] First,
+    [JsonStringEnumMemberName("last")] Last,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<UiSelectionState>))]
@@ -698,6 +759,8 @@ public enum UiPresentationValidation
     DescriptionlessTarget,
     SelectionlessTarget,
     InvalidExpectedText,
+    InvalidExpectedKind,
+    InvalidExpectedActionKind,
     InvalidNavigationDirection,
     InvalidSelectionState,
     InvalidTimeout,

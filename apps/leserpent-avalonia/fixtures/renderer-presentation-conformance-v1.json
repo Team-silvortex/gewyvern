@@ -630,6 +630,16 @@
     "node_id": "runtime-runtime-a-inspect",
     "direction": "next"
   },
+  "navigation_first_operation": {
+    "kind": "navigate_focus",
+    "node_id": "runtime-runtime-a-refresh",
+    "direction": "first"
+  },
+  "navigation_last_operation": {
+    "kind": "navigate_focus",
+    "node_id": "runtime-runtime-a-inspect",
+    "direction": "last"
+  },
   "scroll_operation": {
     "kind": "scroll_into_view",
     "node_id": "fleet-title"
@@ -685,6 +695,21 @@
     "kind": "assert_text",
     "node_id": "fleet-title",
     "expected": "Runtime fleet"
+  },
+  "automation_id_assert_operation": {
+    "kind": "assert_automation_id",
+    "node_id": "fleet-title",
+    "expected": "fleet-title"
+  },
+  "node_kind_assert_operation": {
+    "kind": "assert_node_kind",
+    "node_id": "fleet-title",
+    "expected_kind": "heading"
+  },
+  "action_kind_assert_operation": {
+    "kind": "assert_action_kind",
+    "node_id": "runtime-runtime-a-refresh",
+    "expected_action_kind": "runtime_refresh"
   },
   "accessible_name_assert_operation": {
     "kind": "assert_accessible_name",

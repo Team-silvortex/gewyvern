@@ -4,7 +4,8 @@ use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
     Effect, HirBranch, Type, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
-    UiFocusNavigationDirection, UiSelectionState, canonical_source, validate_ui_expected_text,
+    UiFocusNavigationDirection, UiSelectionState, UiSemanticActionKind as HirUiSemanticActionKind,
+    UiSemanticNodeKind as HirUiSemanticNodeKind, canonical_source, validate_ui_expected_text,
     validate_ui_node_id,
 };
 use leserpent_domain::{
@@ -314,6 +315,9 @@ pub enum DebuggerEffectKind {
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
+    UiAssertAutomationId,
+    UiAssertNodeKind,
+    UiAssertActionKind,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
 }
@@ -383,6 +387,16 @@ pub enum UiAction {
     RuntimeCapabilitiesRefresh { runtime_id: RuntimeId },
     RuntimeDeploy { runtime_id: RuntimeId, form: UiForm },
     DebuggerCancel { session_id: String },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiActionKind {
+    RuntimeInspect,
+    RuntimeRefresh,
+    RuntimeCapabilitiesRefresh,
+    RuntimeDeploy,
+    DebuggerCancel,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -480,6 +494,18 @@ pub enum UiPresentationOperation {
     AssertText {
         node_id: NodeId,
         expected: String,
+    },
+    AssertAutomationId {
+        node_id: NodeId,
+        expected: String,
+    },
+    AssertNodeKind {
+        node_id: NodeId,
+        expected_kind: UiNodeKind,
+    },
+    AssertActionKind {
+        node_id: NodeId,
+        expected_action_kind: UiActionKind,
     },
     AssertAccessibleName {
         node_id: NodeId,
@@ -1198,6 +1224,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertSelection
             | DebuggerEffectKind::UiWaitSelection
             | DebuggerEffectKind::UiAssertText
+            | DebuggerEffectKind::UiAssertAutomationId
+            | DebuggerEffectKind::UiAssertNodeKind
+            | DebuggerEffectKind::UiAssertActionKind
             | DebuggerEffectKind::UiAssertAccessibleName
             | DebuggerEffectKind::UiAssertAccessibleDescription => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
@@ -1313,6 +1342,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertSelection => "UI assert selection",
             DebuggerEffectKind::UiWaitSelection => "UI wait selection",
             DebuggerEffectKind::UiAssertText => "UI assert text",
+            DebuggerEffectKind::UiAssertAutomationId => "UI assert automation id",
+            DebuggerEffectKind::UiAssertNodeKind => "UI assert node kind",
+            DebuggerEffectKind::UiAssertActionKind => "UI assert action kind",
             DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
             DebuggerEffectKind::UiAssertAccessibleDescription => "UI assert accessible description",
         };
@@ -1479,6 +1511,62 @@ pub fn export_event_leselang(document: &UiDocument, event: &UiEvent) -> Result<S
     canonical_source(&effect).map_err(|_| UiError::InvalidAutomationEffect)
 }
 
+fn hir_node_kind_to_ui(kind: HirUiSemanticNodeKind) -> UiNodeKind {
+    match kind {
+        HirUiSemanticNodeKind::Column => UiNodeKind::Column,
+        HirUiSemanticNodeKind::Heading => UiNodeKind::Heading,
+        HirUiSemanticNodeKind::Text => UiNodeKind::Text,
+        HirUiSemanticNodeKind::RuntimeCard => UiNodeKind::RuntimeCard,
+        HirUiSemanticNodeKind::RuntimeWorkspace => UiNodeKind::RuntimeWorkspace,
+        HirUiSemanticNodeKind::Section => UiNodeKind::Section,
+        HirUiSemanticNodeKind::HistoryEntry => UiNodeKind::HistoryEntry,
+        HirUiSemanticNodeKind::LogEntry => UiNodeKind::LogEntry,
+        HirUiSemanticNodeKind::DebuggerWorkspace => UiNodeKind::DebuggerWorkspace,
+        HirUiSemanticNodeKind::DebuggerFrame => UiNodeKind::DebuggerFrame,
+        HirUiSemanticNodeKind::Action => UiNodeKind::Action,
+    }
+}
+
+fn ui_node_kind_to_hir(kind: UiNodeKind) -> HirUiSemanticNodeKind {
+    match kind {
+        UiNodeKind::Column => HirUiSemanticNodeKind::Column,
+        UiNodeKind::Heading => HirUiSemanticNodeKind::Heading,
+        UiNodeKind::Text => HirUiSemanticNodeKind::Text,
+        UiNodeKind::RuntimeCard => HirUiSemanticNodeKind::RuntimeCard,
+        UiNodeKind::RuntimeWorkspace => HirUiSemanticNodeKind::RuntimeWorkspace,
+        UiNodeKind::Section => HirUiSemanticNodeKind::Section,
+        UiNodeKind::HistoryEntry => HirUiSemanticNodeKind::HistoryEntry,
+        UiNodeKind::LogEntry => HirUiSemanticNodeKind::LogEntry,
+        UiNodeKind::DebuggerWorkspace => HirUiSemanticNodeKind::DebuggerWorkspace,
+        UiNodeKind::DebuggerFrame => HirUiSemanticNodeKind::DebuggerFrame,
+        UiNodeKind::Action => HirUiSemanticNodeKind::Action,
+    }
+}
+
+fn hir_action_kind_to_ui(kind: HirUiSemanticActionKind) -> UiActionKind {
+    match kind {
+        HirUiSemanticActionKind::RuntimeInspect => UiActionKind::RuntimeInspect,
+        HirUiSemanticActionKind::RuntimeRefresh => UiActionKind::RuntimeRefresh,
+        HirUiSemanticActionKind::RuntimeCapabilitiesRefresh => {
+            UiActionKind::RuntimeCapabilitiesRefresh
+        }
+        HirUiSemanticActionKind::RuntimeDeploy => UiActionKind::RuntimeDeploy,
+        HirUiSemanticActionKind::DebuggerCancel => UiActionKind::DebuggerCancel,
+    }
+}
+
+fn ui_action_kind_to_hir(kind: UiActionKind) -> HirUiSemanticActionKind {
+    match kind {
+        UiActionKind::RuntimeInspect => HirUiSemanticActionKind::RuntimeInspect,
+        UiActionKind::RuntimeRefresh => HirUiSemanticActionKind::RuntimeRefresh,
+        UiActionKind::RuntimeCapabilitiesRefresh => {
+            HirUiSemanticActionKind::RuntimeCapabilitiesRefresh
+        }
+        UiActionKind::RuntimeDeploy => HirUiSemanticActionKind::RuntimeDeploy,
+        UiActionKind::DebuggerCancel => HirUiSemanticActionKind::DebuggerCancel,
+    }
+}
+
 pub fn presentation_operation_for_effect(
     document: &UiDocument,
     effect: &Effect,
@@ -1534,6 +1622,26 @@ pub fn presentation_operation_for_effect(
         Effect::UiAssertText { node_id, expected } => UiPresentationOperation::AssertText {
             node_id: NodeId::new(node_id.clone())?,
             expected: expected.clone(),
+        },
+        Effect::UiAssertAutomationId { node_id, expected } => {
+            UiPresentationOperation::AssertAutomationId {
+                node_id: NodeId::new(node_id.clone())?,
+                expected: expected.clone(),
+            }
+        }
+        Effect::UiAssertNodeKind {
+            node_id,
+            expected_kind,
+        } => UiPresentationOperation::AssertNodeKind {
+            node_id: NodeId::new(node_id.clone())?,
+            expected_kind: hir_node_kind_to_ui(*expected_kind),
+        },
+        Effect::UiAssertActionKind {
+            node_id,
+            expected_kind,
+        } => UiPresentationOperation::AssertActionKind {
+            node_id: NodeId::new(node_id.clone())?,
+            expected_action_kind: hir_action_kind_to_ui(*expected_kind),
         },
         Effect::UiAssertAccessibleName { node_id, expected } => {
             UiPresentationOperation::AssertAccessibleName {
@@ -1605,6 +1713,26 @@ pub fn effect_for_presentation_operation(
             node_id: node_id.as_str().to_string(),
             expected: expected.clone(),
         },
+        UiPresentationOperation::AssertAutomationId { node_id, expected } => {
+            Effect::UiAssertAutomationId {
+                node_id: node_id.as_str().to_string(),
+                expected: expected.clone(),
+            }
+        }
+        UiPresentationOperation::AssertNodeKind {
+            node_id,
+            expected_kind,
+        } => Effect::UiAssertNodeKind {
+            node_id: node_id.as_str().to_string(),
+            expected_kind: ui_node_kind_to_hir(*expected_kind),
+        },
+        UiPresentationOperation::AssertActionKind {
+            node_id,
+            expected_action_kind,
+        } => Effect::UiAssertActionKind {
+            node_id: node_id.as_str().to_string(),
+            expected_kind: ui_action_kind_to_hir(*expected_action_kind),
+        },
         UiPresentationOperation::AssertAccessibleName { node_id, expected } => {
             Effect::UiAssertAccessibleName {
                 node_id: node_id.as_str().to_string(),
@@ -1640,6 +1768,9 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertSelection { node_id, .. }
         | UiPresentationOperation::WaitSelection { node_id, .. }
         | UiPresentationOperation::AssertText { node_id, .. }
+        | UiPresentationOperation::AssertAutomationId { node_id, .. }
+        | UiPresentationOperation::AssertNodeKind { node_id, .. }
+        | UiPresentationOperation::AssertActionKind { node_id, .. }
         | UiPresentationOperation::AssertAccessibleName { node_id, .. }
         | UiPresentationOperation::AssertAccessibleDescription { node_id, .. } => node_id,
     };
@@ -1647,6 +1778,11 @@ pub fn validate_presentation_operation(
     | UiPresentationOperation::AssertAccessibleName { expected, .. }
     | UiPresentationOperation::AssertAccessibleDescription { expected, .. } = operation
         && !validate_ui_expected_text(expected)
+    {
+        return Err(UiError::InvalidPresentationText);
+    }
+    if let UiPresentationOperation::AssertAutomationId { expected, .. } = operation
+        && !validate_ui_node_id(expected)
     {
         return Err(UiError::InvalidPresentationText);
     }
@@ -1687,6 +1823,7 @@ pub fn validate_presentation_operation(
             | UiPresentationOperation::AssertEnabled { .. }
             | UiPresentationOperation::WaitEnabled { .. }
             | UiPresentationOperation::WaitFocused { .. }
+            | UiPresentationOperation::AssertActionKind { .. }
     ) && (node.kind != UiNodeKind::Action || node.action.is_none())
     {
         return Err(UiError::UnfocusablePresentationTarget {
@@ -2789,6 +2926,28 @@ mod tests {
             event_for_effect(&document, &effect),
             Err(UiError::EffectHasNoEvent)
         );
+        let first_operation = UiPresentationOperation::NavigateFocus {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            direction: UiFocusNavigationDirection::First,
+        };
+        assert_eq!(
+            export_presentation_leselang(&document, &first_operation).unwrap(),
+            "fn main() = ui.navigate_focus(\n  node_id: \"runtime-runtime-a-refresh\",\n  direction: \"first\",\n)\n"
+        );
+        assert_eq!(
+            presentation_operation_for_effect(
+                &document,
+                &Effect::UiNavigateFocus {
+                    node_id: "runtime-runtime-a-refresh".into(),
+                    direction: UiFocusNavigationDirection::Last,
+                },
+            )
+            .unwrap(),
+            UiPresentationOperation::NavigateFocus {
+                node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                direction: UiFocusNavigationDirection::Last,
+            }
+        );
     }
 
     #[test]
@@ -3417,6 +3576,145 @@ mod tests {
                 },
             ),
             Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn automation_id_assertion_round_trips_for_every_semantic_node() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertAutomationId {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            expected: "fleet-title".into(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertAutomationId {
+                node_id: "fleet-title".into(),
+                expected: "fleet-title".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertAutomationId {
+                    node_id: document.root.id.clone(),
+                    expected: document.root.id.as_str().into(),
+                },
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertAutomationId {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "bad/node".into(),
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn node_kind_assertion_round_trips_for_every_semantic_node() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertNodeKind {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            expected_kind: UiNodeKind::Heading,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertNodeKind {
+                node_id: "fleet-title".into(),
+                expected_kind: HirUiSemanticNodeKind::Heading,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertNodeKind {
+                    node_id: document.root.id.clone(),
+                    expected_kind: UiNodeKind::Column,
+                },
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn action_kind_assertion_round_trips_for_semantic_action_nodes() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertActionKind {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            expected_action_kind: UiActionKind::RuntimeRefresh,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertActionKind {
+                node_id: "runtime-runtime-a-refresh".into(),
+                expected_kind: HirUiSemanticActionKind::RuntimeRefresh,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertActionKind {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    expected_action_kind: UiActionKind::RuntimeDeploy,
+                },
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertActionKind {
+                    node_id: document.root.id.clone(),
+                    expected_action_kind: UiActionKind::RuntimeRefresh,
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
         );
     }
 
