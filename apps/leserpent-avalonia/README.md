@@ -38,25 +38,30 @@ remains the version-1 compatibility baseline.
 
 The separate candidate fixture carries Rust-generated
 `UiPresentationOperation::Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
-`AssertRealized`, `WaitRealized`, `WaitVisible`, `AssertFocused`, and
-`WaitFocused`, plus `AssertEnabled`, `WaitEnabled`, `AssertSelection`,
+`AssertHidden`, `WaitHidden`, `AssertRealized`, `WaitRealized`, `WaitVisible`,
+`AssertFocused`, and `WaitFocused`, plus `AssertEnabled`, `AssertDisabled`,
+`WaitEnabled`, `WaitDisabled`, `AssertWindowOpen`, `AssertSelection`,
 `WaitSelection`, `AssertText`,
 `AssertAutomationId`,
 `AssertNodeKind`,
 `AssertActionKind`,
 `AssertAccessibleName`, and
 `AssertAccessibleDescription` values. RendererCore strictly round-trips all
-nineteen and validates valid, missing, noninteractive,
+twenty-four and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
 first and last, all with no action activation,
 bring-into-view, viewport-aware visibility,
+native hidden-state assertion, dispatcher-yielding hidden wait with external
+hidden transition and persistent visible timeout,
 native realization,
 fixed-deadline dispatcher-yielding realization wait, fixed-deadline
 viewport-aware visibility wait without implicit scrolling, plus side-effect-free
 focus, external focus waiting without implicit focus mutation, enabled-state,
-external enablement waiting, native selected/unselected observation,
+disabled-state, external enablement waiting, external disablement waiting with a
+persistent enabled timeout, native window-open visual-tree membership,
+native selected/unselected observation,
 dispatcher-yielding selection wait, actual displayed-text, and
 automation-id, node-kind, action-kind, accessibility-name, and declared accessibility-description
 observation through its stable visual
@@ -288,6 +293,7 @@ transferring focus to another mutation control. The same probe verifies
 each result to the actual stable destination, rejects missing, noninteractive,
 unrealized, or unfocused starts without changing focus, never activates a
 button, and verifies
+native hidden-state assertion and visible-target mismatch rejection,
 native selected/unselected assertions plus dispatcher-yielding selection wait
 and mismatch timeout without mutating focus or selection. Verify all paths
 against real Avalonia controls with

@@ -28,13 +28,18 @@ struct Fixture<'a> {
     navigation_last_operation: &'a UiPresentationOperation,
     scroll_operation: &'a UiPresentationOperation,
     assert_operation: &'a UiPresentationOperation,
+    hidden_assert_operation: &'a UiPresentationOperation,
+    hidden_wait_operation: &'a UiPresentationOperation,
     realized_assert_operation: &'a UiPresentationOperation,
     realized_wait_operation: &'a UiPresentationOperation,
     visible_wait_operation: &'a UiPresentationOperation,
     enabled_wait_operation: &'a UiPresentationOperation,
+    disabled_wait_operation: &'a UiPresentationOperation,
+    window_open_assert_operation: &'a UiPresentationOperation,
     focused_wait_operation: &'a UiPresentationOperation,
     focused_assert_operation: &'a UiPresentationOperation,
     enabled_assert_operation: &'a UiPresentationOperation,
+    disabled_assert_operation: &'a UiPresentationOperation,
     selection_assert_operation: &'a UiPresentationOperation,
     selection_wait_operation: &'a UiPresentationOperation,
     text_assert_operation: &'a UiPresentationOperation,
@@ -78,6 +83,13 @@ fn main() {
     let assert_operation = UiPresentationOperation::AssertVisible {
         node_id: NodeId::new("fleet-title").unwrap(),
     };
+    let hidden_assert_operation = UiPresentationOperation::AssertHidden {
+        node_id: NodeId::new("fleet-title").unwrap(),
+    };
+    let hidden_wait_operation = UiPresentationOperation::WaitHidden {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+    };
     let realized_assert_operation = UiPresentationOperation::AssertRealized {
         node_id: NodeId::new("fleet-title").unwrap(),
     };
@@ -93,6 +105,13 @@ fn main() {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
         timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
     };
+    let disabled_wait_operation = UiPresentationOperation::WaitDisabled {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+    };
+    let window_open_assert_operation = UiPresentationOperation::AssertWindowOpen {
+        node_id: NodeId::new("fleet-title").unwrap(),
+    };
     let focused_wait_operation = UiPresentationOperation::WaitFocused {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
         timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
@@ -101,6 +120,9 @@ fn main() {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
     let enabled_assert_operation = UiPresentationOperation::AssertEnabled {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+    };
+    let disabled_assert_operation = UiPresentationOperation::AssertDisabled {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
     };
     let selection_assert_operation = UiPresentationOperation::AssertSelection {
@@ -143,13 +165,18 @@ fn main() {
     validate_presentation_operation(&next, &navigation_last_operation).unwrap();
     validate_presentation_operation(&next, &scroll_operation).unwrap();
     validate_presentation_operation(&next, &assert_operation).unwrap();
+    validate_presentation_operation(&next, &hidden_assert_operation).unwrap();
+    validate_presentation_operation(&next, &hidden_wait_operation).unwrap();
     validate_presentation_operation(&next, &realized_assert_operation).unwrap();
     validate_presentation_operation(&next, &realized_wait_operation).unwrap();
     validate_presentation_operation(&next, &visible_wait_operation).unwrap();
     validate_presentation_operation(&next, &enabled_wait_operation).unwrap();
+    validate_presentation_operation(&next, &disabled_wait_operation).unwrap();
+    validate_presentation_operation(&next, &window_open_assert_operation).unwrap();
     validate_presentation_operation(&next, &focused_wait_operation).unwrap();
     validate_presentation_operation(&next, &focused_assert_operation).unwrap();
     validate_presentation_operation(&next, &enabled_assert_operation).unwrap();
+    validate_presentation_operation(&next, &disabled_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_wait_operation).unwrap();
     validate_presentation_operation(&next, &text_assert_operation).unwrap();
@@ -169,13 +196,18 @@ fn main() {
         navigation_last_operation: &navigation_last_operation,
         scroll_operation: &scroll_operation,
         assert_operation: &assert_operation,
+        hidden_assert_operation: &hidden_assert_operation,
+        hidden_wait_operation: &hidden_wait_operation,
         realized_assert_operation: &realized_assert_operation,
         realized_wait_operation: &realized_wait_operation,
         visible_wait_operation: &visible_wait_operation,
         enabled_wait_operation: &enabled_wait_operation,
+        disabled_wait_operation: &disabled_wait_operation,
+        window_open_assert_operation: &window_open_assert_operation,
         focused_wait_operation: &focused_wait_operation,
         focused_assert_operation: &focused_assert_operation,
         enabled_assert_operation: &enabled_assert_operation,
+        disabled_assert_operation: &disabled_assert_operation,
         selection_assert_operation: &selection_assert_operation,
         selection_wait_operation: &selection_wait_operation,
         text_assert_operation: &text_assert_operation,

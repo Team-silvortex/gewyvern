@@ -79,13 +79,18 @@ pub fn lower_effect(
             | Effect::UiNavigateFocus { .. }
             | Effect::UiScrollIntoView { .. }
             | Effect::UiAssertVisible { .. }
+            | Effect::UiAssertHidden { .. }
+            | Effect::UiWaitHidden { .. }
             | Effect::UiAssertRealized { .. }
             | Effect::UiWaitRealized { .. }
             | Effect::UiWaitVisible { .. }
             | Effect::UiWaitEnabled { .. }
+            | Effect::UiWaitDisabled { .. }
+            | Effect::UiAssertWindowOpen { .. }
             | Effect::UiWaitFocused { .. }
             | Effect::UiAssertFocused { .. }
             | Effect::UiAssertEnabled { .. }
+            | Effect::UiAssertDisabled { .. }
             | Effect::UiAssertSelection { .. }
             | Effect::UiWaitSelection { .. }
             | Effect::UiAssertText { .. }
@@ -111,13 +116,18 @@ pub fn lower_effect(
         | Effect::UiNavigateFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
+        | Effect::UiAssertHidden { .. }
+        | Effect::UiWaitHidden { .. }
         | Effect::UiAssertRealized { .. }
         | Effect::UiWaitRealized { .. }
         | Effect::UiWaitVisible { .. }
         | Effect::UiWaitEnabled { .. }
+        | Effect::UiWaitDisabled { .. }
+        | Effect::UiAssertWindowOpen { .. }
         | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
+        | Effect::UiAssertDisabled { .. }
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
@@ -154,13 +164,18 @@ pub fn lower_effect(
         | Effect::UiNavigateFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
+        | Effect::UiAssertHidden { .. }
+        | Effect::UiWaitHidden { .. }
         | Effect::UiAssertRealized { .. }
         | Effect::UiWaitRealized { .. }
         | Effect::UiWaitVisible { .. }
         | Effect::UiWaitEnabled { .. }
+        | Effect::UiWaitDisabled { .. }
+        | Effect::UiAssertWindowOpen { .. }
         | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
         | Effect::UiAssertEnabled { .. }
+        | Effect::UiAssertDisabled { .. }
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
@@ -436,13 +451,18 @@ mod tests {
             "fn main() = ui.navigate_focus(node_id: \"runtime-a:refresh\", direction: \"next\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_hidden(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_hidden(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",

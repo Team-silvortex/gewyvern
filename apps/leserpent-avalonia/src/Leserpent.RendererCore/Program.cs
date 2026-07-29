@@ -171,7 +171,9 @@ public sealed class SemanticRenderer
         }
         if (operation.Kind is UiPresentationOperationKind.WaitRealized
             or UiPresentationOperationKind.WaitVisible
+            or UiPresentationOperationKind.WaitHidden
             or UiPresentationOperationKind.WaitEnabled
+            or UiPresentationOperationKind.WaitDisabled
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.WaitSelection)
         {
@@ -179,7 +181,9 @@ public sealed class SemanticRenderer
             {
                 UiPresentationOperationKind.WaitRealized => WaitRealizedTimeoutMs,
                 UiPresentationOperationKind.WaitVisible => WaitVisibleTimeoutMs,
+                UiPresentationOperationKind.WaitHidden => WaitVisibleTimeoutMs,
                 UiPresentationOperationKind.WaitEnabled => WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitDisabled => WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection => WaitSelectionTimeoutMs,
                 _ => throw new InvalidOperationException("unknown wait operation"),
@@ -204,7 +208,9 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.NavigateFocus
             or UiPresentationOperationKind.AssertFocused
             or UiPresentationOperationKind.AssertEnabled
+            or UiPresentationOperationKind.AssertDisabled
             or UiPresentationOperationKind.WaitEnabled
+            or UiPresentationOperationKind.WaitDisabled
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.AssertActionKind
                 when node.Kind == UiNodeKind.Action && node.Action is not null =>
@@ -213,11 +219,17 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertVisible =>
                 UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertHidden =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.WaitHidden =>
+                UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertRealized =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitRealized =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitVisible =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertWindowOpen =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection
@@ -543,13 +555,18 @@ public sealed class RendererFixture
     public UiPresentationOperation? NavigationLastOperation { get; set; }
     public UiPresentationOperation? ScrollOperation { get; set; }
     public UiPresentationOperation? AssertOperation { get; set; }
+    public UiPresentationOperation? HiddenAssertOperation { get; set; }
+    public UiPresentationOperation? HiddenWaitOperation { get; set; }
     public UiPresentationOperation? RealizedAssertOperation { get; set; }
     public UiPresentationOperation? RealizedWaitOperation { get; set; }
     public UiPresentationOperation? VisibleWaitOperation { get; set; }
     public UiPresentationOperation? EnabledWaitOperation { get; set; }
+    public UiPresentationOperation? DisabledWaitOperation { get; set; }
+    public UiPresentationOperation? WindowOpenAssertOperation { get; set; }
     public UiPresentationOperation? FocusedWaitOperation { get; set; }
     public UiPresentationOperation? FocusedAssertOperation { get; set; }
     public UiPresentationOperation? EnabledAssertOperation { get; set; }
+    public UiPresentationOperation? DisabledAssertOperation { get; set; }
     public UiPresentationOperation? SelectionAssertOperation { get; set; }
     public UiPresentationOperation? SelectionWaitOperation { get; set; }
     public UiPresentationOperation? TextAssertOperation { get; set; }
@@ -717,13 +734,18 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("navigate_focus")] NavigateFocus,
     [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
     [JsonStringEnumMemberName("assert_visible")] AssertVisible,
+    [JsonStringEnumMemberName("assert_hidden")] AssertHidden,
+    [JsonStringEnumMemberName("wait_hidden")] WaitHidden,
     [JsonStringEnumMemberName("assert_realized")] AssertRealized,
     [JsonStringEnumMemberName("wait_realized")] WaitRealized,
     [JsonStringEnumMemberName("wait_visible")] WaitVisible,
     [JsonStringEnumMemberName("wait_enabled")] WaitEnabled,
+    [JsonStringEnumMemberName("wait_disabled")] WaitDisabled,
+    [JsonStringEnumMemberName("assert_window_open")] AssertWindowOpen,
     [JsonStringEnumMemberName("wait_focused")] WaitFocused,
     [JsonStringEnumMemberName("assert_focused")] AssertFocused,
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
+    [JsonStringEnumMemberName("assert_disabled")] AssertDisabled,
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,
     [JsonStringEnumMemberName("wait_selection")] WaitSelection,
     [JsonStringEnumMemberName("assert_text")] AssertText,

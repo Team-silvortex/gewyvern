@@ -22,6 +22,7 @@ internal sealed class MainWindow : Window
     private readonly string initialFocusedWaitTimeoutNodeId;
     private readonly string initialSelectionAssertNodeId;
     private readonly string initialSelectionWaitNodeId;
+    private readonly string initialWindowOpenAssertNodeId;
     private int invokedActionCount;
     private readonly TextBlock statusText = new()
     {
@@ -45,8 +46,13 @@ internal sealed class MainWindow : Window
     public bool InitialRealizedWaitTimedOut { get; private set; }
     public bool InitialVisibleWaitCompleted { get; private set; }
     public bool InitialVisibleWaitTimedOut { get; private set; }
+    public bool InitialHiddenWaitCompleted { get; private set; }
+    public bool InitialHiddenWaitTimedOut { get; private set; }
     public bool InitialEnabledWaitCompleted { get; private set; }
     public bool InitialEnabledWaitTimedOut { get; private set; }
+    public bool InitialDisabledWaitCompleted { get; private set; }
+    public bool InitialDisabledWaitTimedOut { get; private set; }
+    public bool WindowOpenAssertCompleted { get; private set; }
     public bool InitialFocusedWaitCompleted { get; private set; }
     public bool InitialFocusedWaitTimedOut { get; private set; }
     public bool InitialSelectionWaitCompleted { get; private set; }
@@ -63,6 +69,10 @@ internal sealed class MainWindow : Window
     public bool FocusNavigationDidNotActivate { get; private set; }
     public bool ActionKindAssertCompleted { get; private set; }
     public bool ActionKindMismatchRejected { get; private set; }
+    public bool DisabledAssertCompleted { get; private set; }
+    public bool DisabledMismatchRejected { get; private set; }
+    public bool HiddenAssertCompleted { get; private set; }
+    public bool VisibleMismatchRejected { get; private set; }
     public int InitialDebuggerCancelButtonCount { get; }
     public int DebuggerCancelButtonCount => renderer.RealizedDebuggerCancelButtonCount;
     public int DisabledActionProbeCount { get; private set; }
@@ -223,6 +233,9 @@ internal sealed class MainWindow : Window
                 State = UiSelectionState.Unselected,
                 TimeoutMs = SemanticRenderer.WaitSelectionTimeoutMs,
             });
+        initialWindowOpenAssertNodeId = fixture.WindowOpenAssertOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "window-open assertion probe requires a semantic target");
         initialSelectionWaitTimeout = detachedRenderer.ApplyPresentationAsync(
             new UiPresentationOperation
             {
@@ -249,6 +262,18 @@ internal sealed class MainWindow : Window
 
     public async Task CompleteInitialWaitProbesAsync()
     {
+        var windowOpen = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertWindowOpen,
+            NodeId = initialWindowOpenAssertNodeId,
+        });
+        WindowOpenAssertCompleted = windowOpen.Applied
+            && windowOpen.FailureCode == PresentationAutomationFailureCode.None;
+        if (!WindowOpenAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang window-open assertion did not observe the native window");
+        }
         DispatcherTimer.RunOnce(
             () => renderer.SetActionAvailability(
                 ActionKind.RuntimeRefresh,
@@ -320,6 +345,57 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang enabled wait did not reject a persistently disabled target");
         }
+        var disabledWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitDisabled,
+            NodeId = enabledResult.NodeId,
+            TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => renderer.SetActionAvailability(
+                ActionKind.RuntimeRefresh,
+                false,
+                "Verification action is temporarily unavailable"),
+            TimeSpan.FromMilliseconds(50));
+        var disabledWaitResult = await disabledWait;
+        InitialDisabledWaitCompleted = disabledWaitResult.Applied
+            && disabledWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null);
+        if (!InitialDisabledWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang disabled wait did not observe an external availability transition");
+        }
+        var restoredAvailability = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertEnabled,
+            NodeId = enabledResult.NodeId,
+        });
+        if (!restoredAvailability.Applied
+            || restoredAvailability.FailureCode != PresentationAutomationFailureCode.None)
+        {
+            throw new InvalidDataException(
+                "Leselang disabled wait did not restore the enabled probe target");
+        }
+        var disabledTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitDisabled,
+                NodeId = enabledResult.NodeId,
+                TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs,
+            });
+        InitialDisabledWaitTimedOut = !disabledTimeoutResult.Applied
+            && disabledTimeoutResult.FailureCode == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertEnabled,
+                NodeId = enabledResult.NodeId,
+            }).Applied;
+        if (!InitialDisabledWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang disabled wait did not reject a persistently enabled target");
+        }
         var focusedResult = await initialFocusedWait;
         InitialFocusedWaitCompleted = focusedResult.Applied
             && focusedResult.FailureCode == PresentationAutomationFailureCode.None;
@@ -372,6 +448,54 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang selection wait did not reject a persistently unmatched selection state");
+        }
+        var hiddenWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitHidden,
+            NodeId = visibleResult.NodeId,
+            TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => renderer.Surface.IsVisible = false,
+            TimeSpan.FromMilliseconds(50));
+        var hiddenWaitResult = await hiddenWait;
+        InitialHiddenWaitCompleted = hiddenWaitResult.Applied
+            && hiddenWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        renderer.Surface.IsVisible = true;
+        if (!InitialHiddenWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang hidden wait did not observe an external hidden transition");
+        }
+        var restoredVisibility = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertVisible,
+            NodeId = visibleResult.NodeId,
+        });
+        if (!restoredVisibility.Applied
+            || restoredVisibility.FailureCode != PresentationAutomationFailureCode.None)
+        {
+            throw new InvalidDataException(
+                "Leselang hidden wait did not restore the visible probe target");
+        }
+        var hiddenTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitHidden,
+                NodeId = visibleResult.NodeId,
+                TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
+            });
+        InitialHiddenWaitTimedOut = !hiddenTimeoutResult.Applied
+            && hiddenTimeoutResult.FailureCode == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertVisible,
+                NodeId = visibleResult.NodeId,
+            }).Applied;
+        if (!InitialHiddenWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang hidden wait did not reject a persistently visible target");
         }
     }
 
@@ -571,13 +695,32 @@ internal sealed class MainWindow : Window
             Kind = UiPresentationOperationKind.AssertEnabled,
             NodeId = enabledNodeId,
         });
+        var disabledAssert = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertDisabled,
+            NodeId = enabledNodeId,
+        });
+        DisabledAssertCompleted = disabledAssert.Applied
+            && disabledAssert.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
         renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null);
+        var disabledMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertDisabled,
+            NodeId = enabledNodeId,
+        });
+        DisabledMismatchRejected = !disabledMismatch.Applied
+            && disabledMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetStillEnabled
+            && renderer.FocusedNodeId == nodeId;
         if (disabled.Applied
             || disabled.FailureCode != PresentationAutomationFailureCode.TargetNotEnabled
+            || !DisabledAssertCompleted
+            || !DisabledMismatchRejected
             || renderer.FocusedNodeId != nodeId)
         {
             throw new InvalidDataException(
-                "Leselang enabled assertion accepted a disabled action or changed focus");
+                "Leselang enabled/disabled assertion accepted the wrong action state or changed focus");
         }
         var textNode = FindFirstTextNode(renderer.Document.Root)
             ?? throw new InvalidDataException("text assertion probe requires a text leaf");
@@ -894,6 +1037,20 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang visibility assertion rejected a visible target or changed focus");
         }
+        var visibleMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertHidden,
+            NodeId = nonActionNodeId,
+        });
+        VisibleMismatchRejected = !visibleMismatch.Applied
+            && visibleMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetStillVisible
+            && renderer.FocusedNodeId == nodeId;
+        if (!VisibleMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang hidden assertion accepted a visible target or changed focus");
+        }
         var realized = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertRealized,
@@ -922,17 +1079,27 @@ internal sealed class MainWindow : Window
                 "Leselang selection probes changed keyboard focus or lost typed failure evidence");
         }
         renderer.Surface.IsVisible = false;
+        var focusAfterExternalHide = renderer.FocusedNodeId;
         var hidden = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertVisible,
             NodeId = nonActionNodeId,
         });
+        var hiddenAssert = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertHidden,
+            NodeId = nonActionNodeId,
+        });
+        HiddenAssertCompleted = hiddenAssert.Applied
+            && hiddenAssert.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == focusAfterExternalHide;
         renderer.Surface.IsVisible = true;
         if (hidden.Applied
-            || hidden.FailureCode != PresentationAutomationFailureCode.TargetNotVisible)
+            || hidden.FailureCode != PresentationAutomationFailureCode.TargetNotVisible
+            || !HiddenAssertCompleted)
         {
             throw new InvalidDataException(
-                "Leselang visibility assertion accepted a hidden target");
+                "Leselang visibility assertion accepted a hidden target or hidden assertion rejected it");
         }
         var refocused = renderer.ApplyPresentation(new UiPresentationOperation
         {

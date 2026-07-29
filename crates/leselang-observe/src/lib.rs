@@ -311,6 +311,12 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert visible",
         ),
+        Effect::UiAssertHidden { .. } => {
+            (DebuggerEffectKind::UiAssertHidden, None, "UI assert hidden")
+        }
+        Effect::UiWaitHidden { .. } => {
+            (DebuggerEffectKind::UiWaitHidden, None, "UI wait hidden")
+        }
         Effect::UiAssertRealized { .. } => (
             DebuggerEffectKind::UiAssertRealized,
             None,
@@ -325,6 +331,14 @@ pub fn waiting_debugger_projection(
         Effect::UiWaitEnabled { .. } => {
             (DebuggerEffectKind::UiWaitEnabled, None, "UI wait enabled")
         }
+        Effect::UiWaitDisabled { .. } => {
+            (DebuggerEffectKind::UiWaitDisabled, None, "UI wait disabled")
+        }
+        Effect::UiAssertWindowOpen { .. } => (
+            DebuggerEffectKind::UiAssertWindowOpen,
+            None,
+            "UI assert window open",
+        ),
         Effect::UiWaitFocused { .. } => {
             (DebuggerEffectKind::UiWaitFocused, None, "UI wait focused")
         }
@@ -337,6 +351,11 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertEnabled,
             None,
             "UI assert enabled",
+        ),
+        Effect::UiAssertDisabled { .. } => (
+            DebuggerEffectKind::UiAssertDisabled,
+            None,
+            "UI assert disabled",
         ),
         Effect::UiAssertSelection { .. } => (
             DebuggerEffectKind::UiAssertSelection,

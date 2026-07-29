@@ -123,6 +123,12 @@ pub enum Effect {
     UiAssertVisible {
         node_id: String,
     },
+    UiAssertHidden {
+        node_id: String,
+    },
+    UiWaitHidden {
+        node_id: String,
+    },
     UiAssertRealized {
         node_id: String,
     },
@@ -135,6 +141,12 @@ pub enum Effect {
     UiWaitEnabled {
         node_id: String,
     },
+    UiWaitDisabled {
+        node_id: String,
+    },
+    UiAssertWindowOpen {
+        node_id: String,
+    },
     UiWaitFocused {
         node_id: String,
     },
@@ -142,6 +154,9 @@ pub enum Effect {
         node_id: String,
     },
     UiAssertEnabled {
+        node_id: String,
+    },
+    UiAssertDisabled {
         node_id: String,
     },
     UiAssertSelection {
@@ -196,13 +211,18 @@ pub enum Type {
     UiNavigateFocus,
     UiScrollIntoView,
     UiAssertVisible,
+    UiAssertHidden,
+    UiWaitHidden,
     UiAssertRealized,
     UiWaitRealized,
     UiWaitVisible,
     UiWaitEnabled,
+    UiWaitDisabled,
+    UiAssertWindowOpen,
     UiWaitFocused,
     UiAssertFocused,
     UiAssertEnabled,
+    UiAssertDisabled,
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
@@ -290,13 +310,18 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.navigate_focus"
         | "ui.scroll_into_view"
         | "ui.assert_visible"
+        | "ui.assert_hidden"
+        | "ui.wait_hidden"
         | "ui.assert_realized"
         | "ui.wait_realized"
         | "ui.wait_visible"
         | "ui.wait_enabled"
+        | "ui.wait_disabled"
+        | "ui.assert_window_open"
         | "ui.wait_focused"
         | "ui.assert_focused"
         | "ui.assert_enabled"
+        | "ui.assert_disabled"
         | "ui.assert_selection"
         | "ui.wait_selection"
         | "ui.assert_text"
@@ -456,6 +481,24 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_hidden", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1170".to_string(),
+                    message: "ui.assert_hidden node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_hidden", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1172".to_string(),
+                    message: "ui.wait_hidden node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_realized", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -494,6 +537,25 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_disabled", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1174".to_string(),
+                    message: "ui.wait_disabled node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_window_open", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1176".to_string(),
+                    message:
+                        "ui.assert_window_open node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.wait_focused", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -517,6 +579,15 @@ fn lower_atomic_effect(
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1120".to_string(),
                     message: "ui.assert_enabled node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_disabled", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1168".to_string(),
+                    message: "ui.assert_disabled node_id must be a valid UI node identifier string"
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -754,6 +825,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_hidden" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1171".to_string(),
+            message: "ui.assert_hidden requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_hidden" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1173".to_string(),
+            message: "ui.wait_hidden requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_realized" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1135".to_string(),
@@ -782,6 +867,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_disabled" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1175".to_string(),
+            message: "ui.wait_disabled requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_window_open" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1177".to_string(),
+            message: "ui.assert_window_open requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.wait_focused" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1143".to_string(),
@@ -800,6 +899,13 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1121".to_string(),
             message: "ui.assert_enabled requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_disabled" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1169".to_string(),
+            message: "ui.assert_disabled requires node_id".to_string(),
             span: Some(span),
         });
     }
@@ -1034,6 +1140,20 @@ fn lower_atomic_effect(
             Type::UiAssertVisible,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_hidden" => (
+            Effect::UiAssertHidden {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertHidden,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_hidden" => (
+            Effect::UiWaitHidden {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitHidden,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_realized" => (
             Effect::UiAssertRealized {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1062,6 +1182,20 @@ fn lower_atomic_effect(
             Type::UiWaitEnabled,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_disabled" => (
+            Effect::UiWaitDisabled {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitDisabled,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_window_open" => (
+            Effect::UiAssertWindowOpen {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertWindowOpen,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.wait_focused" => (
             Effect::UiWaitFocused {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1081,6 +1215,13 @@ fn lower_atomic_effect(
                 node_id: node_id.expect("validated UI node identifier"),
             },
             Type::UiAssertEnabled,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_disabled" => (
+            Effect::UiAssertDisabled {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertDisabled,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_selection" => (
@@ -1235,6 +1376,12 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiAssertVisible { node_id } => {
             atomic_identifier_source("ui.assert_visible", "node_id", node_id, depth)
         }
+        Effect::UiAssertHidden { node_id } => {
+            atomic_identifier_source("ui.assert_hidden", "node_id", node_id, depth)
+        }
+        Effect::UiWaitHidden { node_id } => {
+            atomic_identifier_source("ui.wait_hidden", "node_id", node_id, depth)
+        }
         Effect::UiAssertRealized { node_id } => {
             atomic_identifier_source("ui.assert_realized", "node_id", node_id, depth)
         }
@@ -1247,6 +1394,12 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiWaitEnabled { node_id } => {
             atomic_identifier_source("ui.wait_enabled", "node_id", node_id, depth)
         }
+        Effect::UiWaitDisabled { node_id } => {
+            atomic_identifier_source("ui.wait_disabled", "node_id", node_id, depth)
+        }
+        Effect::UiAssertWindowOpen { node_id } => {
+            atomic_identifier_source("ui.assert_window_open", "node_id", node_id, depth)
+        }
         Effect::UiWaitFocused { node_id } => {
             atomic_identifier_source("ui.wait_focused", "node_id", node_id, depth)
         }
@@ -1255,6 +1408,9 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         }
         Effect::UiAssertEnabled { node_id } => {
             atomic_identifier_source("ui.assert_enabled", "node_id", node_id, depth)
+        }
+        Effect::UiAssertDisabled { node_id } => {
+            atomic_identifier_source("ui.assert_disabled", "node_id", node_id, depth)
         }
         Effect::UiAssertSelection { node_id, state } => format!(
             "ui.assert_selection(\n{}node_id: {},\n{}state: {},\n{})",
@@ -1933,6 +2089,70 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_hidden_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_hidden(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertHidden);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertHidden { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_hidden(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_hidden()",
+            "fn main() = ui.assert_hidden(node_id: none)",
+            "fn main() = ui.assert_hidden(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_hidden_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_hidden(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitHidden);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitHidden { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_hidden(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_hidden()",
+            "fn main() = ui.wait_hidden(node_id: none)",
+            "fn main() = ui.wait_hidden(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_realized_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
@@ -2061,6 +2281,70 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_disabled_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitDisabled);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitDisabled { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_disabled()",
+            "fn main() = ui.wait_disabled(node_id: none)",
+            "fn main() = ui.wait_disabled(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_window_open_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertWindowOpen);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertWindowOpen { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_window_open()",
+            "fn main() = ui.assert_window_open(node_id: none)",
+            "fn main() = ui.assert_window_open(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_wait_focused_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
@@ -2148,6 +2432,38 @@ mod tests {
             "fn main() = ui.assert_enabled()",
             "fn main() = ui.assert_enabled(node_id: none)",
             "fn main() = ui.assert_enabled(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_disabled_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertDisabled);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertDisabled { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_disabled()",
+            "fn main() = ui.assert_disabled(node_id: none)",
+            "fn main() = ui.assert_disabled(node_id: \"bad/node\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
@@ -2489,13 +2805,18 @@ mod tests {
             "fn main() = ui.navigate_focus(node_id: \"runtime-a:refresh\", direction: \"previous\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_visible(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_hidden(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_hidden(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_realized(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",

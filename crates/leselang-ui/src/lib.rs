@@ -305,6 +305,8 @@ pub enum DebuggerEffectKind {
     UiNavigateFocus,
     UiScrollIntoView,
     UiAssertVisible,
+    UiAssertHidden,
+    UiWaitHidden,
     UiAssertRealized,
     UiWaitRealized,
     UiWaitVisible,
@@ -312,6 +314,9 @@ pub enum DebuggerEffectKind {
     UiWaitFocused,
     UiAssertFocused,
     UiAssertEnabled,
+    UiAssertDisabled,
+    UiWaitDisabled,
+    UiAssertWindowOpen,
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
@@ -457,6 +462,13 @@ pub enum UiPresentationOperation {
     AssertVisible {
         node_id: NodeId,
     },
+    AssertHidden {
+        node_id: NodeId,
+    },
+    WaitHidden {
+        node_id: NodeId,
+        timeout_ms: u64,
+    },
     AssertRealized {
         node_id: NodeId,
     },
@@ -480,6 +492,16 @@ pub enum UiPresentationOperation {
         node_id: NodeId,
     },
     AssertEnabled {
+        node_id: NodeId,
+    },
+    AssertDisabled {
+        node_id: NodeId,
+    },
+    WaitDisabled {
+        node_id: NodeId,
+        timeout_ms: u64,
+    },
+    AssertWindowOpen {
         node_id: NodeId,
     },
     AssertSelection {
@@ -1214,6 +1236,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiNavigateFocus
             | DebuggerEffectKind::UiScrollIntoView
             | DebuggerEffectKind::UiAssertVisible
+            | DebuggerEffectKind::UiAssertHidden
+            | DebuggerEffectKind::UiWaitHidden
             | DebuggerEffectKind::UiAssertRealized
             | DebuggerEffectKind::UiWaitRealized
             | DebuggerEffectKind::UiWaitVisible
@@ -1221,6 +1245,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiWaitFocused
             | DebuggerEffectKind::UiAssertFocused
             | DebuggerEffectKind::UiAssertEnabled
+            | DebuggerEffectKind::UiAssertDisabled
+            | DebuggerEffectKind::UiWaitDisabled
+            | DebuggerEffectKind::UiAssertWindowOpen
             | DebuggerEffectKind::UiAssertSelection
             | DebuggerEffectKind::UiWaitSelection
             | DebuggerEffectKind::UiAssertText
@@ -1332,6 +1359,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiNavigateFocus => "UI navigate focus",
             DebuggerEffectKind::UiScrollIntoView => "UI scroll into view",
             DebuggerEffectKind::UiAssertVisible => "UI assert visible",
+            DebuggerEffectKind::UiAssertHidden => "UI assert hidden",
+            DebuggerEffectKind::UiWaitHidden => "UI wait hidden",
             DebuggerEffectKind::UiAssertRealized => "UI assert realized",
             DebuggerEffectKind::UiWaitRealized => "UI wait realized",
             DebuggerEffectKind::UiWaitVisible => "UI wait visible",
@@ -1339,6 +1368,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiWaitFocused => "UI wait focused",
             DebuggerEffectKind::UiAssertFocused => "UI assert focused",
             DebuggerEffectKind::UiAssertEnabled => "UI assert enabled",
+            DebuggerEffectKind::UiAssertDisabled => "UI assert disabled",
+            DebuggerEffectKind::UiWaitDisabled => "UI wait disabled",
+            DebuggerEffectKind::UiAssertWindowOpen => "UI assert window open",
             DebuggerEffectKind::UiAssertSelection => "UI assert selection",
             DebuggerEffectKind::UiWaitSelection => "UI wait selection",
             DebuggerEffectKind::UiAssertText => "UI assert text",
@@ -1585,6 +1617,13 @@ pub fn presentation_operation_for_effect(
         Effect::UiAssertVisible { node_id } => UiPresentationOperation::AssertVisible {
             node_id: NodeId::new(node_id.clone())?,
         },
+        Effect::UiAssertHidden { node_id } => UiPresentationOperation::AssertHidden {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiWaitHidden { node_id } => UiPresentationOperation::WaitHidden {
+            node_id: NodeId::new(node_id.clone())?,
+            timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+        },
         Effect::UiAssertRealized { node_id } => UiPresentationOperation::AssertRealized {
             node_id: NodeId::new(node_id.clone())?,
         },
@@ -1608,6 +1647,16 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
         },
         Effect::UiAssertEnabled { node_id } => UiPresentationOperation::AssertEnabled {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiAssertDisabled { node_id } => UiPresentationOperation::AssertDisabled {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiWaitDisabled { node_id } => UiPresentationOperation::WaitDisabled {
+            node_id: NodeId::new(node_id.clone())?,
+            timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+        },
+        Effect::UiAssertWindowOpen { node_id } => UiPresentationOperation::AssertWindowOpen {
             node_id: NodeId::new(node_id.clone())?,
         },
         Effect::UiAssertSelection { node_id, state } => UiPresentationOperation::AssertSelection {
@@ -1680,6 +1729,12 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::AssertVisible { node_id } => Effect::UiAssertVisible {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::AssertHidden { node_id } => Effect::UiAssertHidden {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::WaitHidden { node_id, .. } => Effect::UiWaitHidden {
+            node_id: node_id.as_str().to_string(),
+        },
         UiPresentationOperation::AssertRealized { node_id } => Effect::UiAssertRealized {
             node_id: node_id.as_str().to_string(),
         },
@@ -1699,6 +1754,15 @@ pub fn effect_for_presentation_operation(
             node_id: node_id.as_str().to_string(),
         },
         UiPresentationOperation::AssertEnabled { node_id } => Effect::UiAssertEnabled {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::AssertDisabled { node_id } => Effect::UiAssertDisabled {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::WaitDisabled { node_id, .. } => Effect::UiWaitDisabled {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::AssertWindowOpen { node_id } => Effect::UiAssertWindowOpen {
             node_id: node_id.as_str().to_string(),
         },
         UiPresentationOperation::AssertSelection { node_id, state } => Effect::UiAssertSelection {
@@ -1758,6 +1822,8 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::NavigateFocus { node_id, .. }
         | UiPresentationOperation::ScrollIntoView { node_id }
         | UiPresentationOperation::AssertVisible { node_id }
+        | UiPresentationOperation::AssertHidden { node_id }
+        | UiPresentationOperation::WaitHidden { node_id, .. }
         | UiPresentationOperation::AssertRealized { node_id }
         | UiPresentationOperation::WaitRealized { node_id, .. }
         | UiPresentationOperation::WaitVisible { node_id, .. }
@@ -1765,6 +1831,9 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::WaitFocused { node_id, .. }
         | UiPresentationOperation::AssertFocused { node_id }
         | UiPresentationOperation::AssertEnabled { node_id }
+        | UiPresentationOperation::AssertDisabled { node_id }
+        | UiPresentationOperation::WaitDisabled { node_id, .. }
+        | UiPresentationOperation::AssertWindowOpen { node_id }
         | UiPresentationOperation::AssertSelection { node_id, .. }
         | UiPresentationOperation::WaitSelection { node_id, .. }
         | UiPresentationOperation::AssertText { node_id, .. }
@@ -1796,7 +1865,17 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
+    if let UiPresentationOperation::WaitHidden { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_VISIBLE_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
     if let UiPresentationOperation::WaitEnabled { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_ENABLED_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitDisabled { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_ENABLED_TIMEOUT_MS
     {
         return Err(UiError::InvalidPresentationTimeout);
@@ -1821,7 +1900,9 @@ pub fn validate_presentation_operation(
             | UiPresentationOperation::NavigateFocus { .. }
             | UiPresentationOperation::AssertFocused { .. }
             | UiPresentationOperation::AssertEnabled { .. }
+            | UiPresentationOperation::AssertDisabled { .. }
             | UiPresentationOperation::WaitEnabled { .. }
+            | UiPresentationOperation::WaitDisabled { .. }
             | UiPresentationOperation::WaitFocused { .. }
             | UiPresentationOperation::AssertActionKind { .. }
     ) && (node.kind != UiNodeKind::Action || node.action.is_none())
@@ -3108,6 +3189,89 @@ mod tests {
     }
 
     #[test]
+    fn hidden_assertion_round_trips_without_frontend_visibility_guessing() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertHidden {
+            node_id: NodeId::new("fleet-title").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertHidden {
+                node_id: "fleet-title".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_hidden(node_id: \"fleet-title\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertHidden {
+                    node_id: NodeId::new("missing-presentation-target").unwrap(),
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget {
+                node_id: "missing-presentation-target".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn hidden_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitHidden {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &operation).unwrap();
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitHidden {
+                node_id: "fleet-title".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_hidden(node_id: \"fleet-title\")\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitHidden {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitHidden {
+                    node_id: NodeId::new("missing-node").unwrap(),
+                    timeout_ms: UI_WAIT_VISIBLE_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget { .. })
+        ));
+    }
+
+    #[test]
     fn realized_assertion_round_trips_without_frontend_realization_guessing() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::AssertRealized {
@@ -3281,6 +3445,84 @@ mod tests {
     }
 
     #[test]
+    fn disabled_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitDisabled {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &operation).unwrap();
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitDisabled {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_disabled(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitDisabled {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitDisabled {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget { .. })
+        ));
+    }
+
+    #[test]
+    fn window_open_assertion_round_trips_for_any_existing_semantic_node() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertWindowOpen {
+            node_id: NodeId::new("runtime-runtime-a").unwrap(),
+        };
+        validate_presentation_operation(&document, &operation).unwrap();
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertWindowOpen {
+                node_id: "runtime-runtime-a".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_window_open(node_id: \"runtime-runtime-a\")\n"
+        );
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertWindowOpen {
+                    node_id: NodeId::new("missing-node").unwrap(),
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget { .. })
+        ));
+    }
+
+    #[test]
     fn focused_wait_round_trips_with_the_fixed_bounded_policy() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::WaitFocused {
@@ -3392,6 +3634,44 @@ mod tests {
             validate_presentation_operation(
                 &document,
                 &UiPresentationOperation::AssertEnabled {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: "fleet-title".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn disabled_assertion_round_trips_and_requires_an_interactive_target() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertDisabled {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertDisabled {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_disabled(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertDisabled {
                     node_id: NodeId::new("fleet-title").unwrap(),
                 },
             ),

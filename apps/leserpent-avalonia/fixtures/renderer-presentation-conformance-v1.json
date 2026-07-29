@@ -648,6 +648,15 @@
     "kind": "assert_visible",
     "node_id": "fleet-title"
   },
+  "hidden_assert_operation": {
+    "kind": "assert_hidden",
+    "node_id": "fleet-title"
+  },
+  "hidden_wait_operation": {
+    "kind": "wait_hidden",
+    "node_id": "fleet-title",
+    "timeout_ms": 2000
+  },
   "realized_assert_operation": {
     "kind": "assert_realized",
     "node_id": "fleet-title"
@@ -667,6 +676,15 @@
     "node_id": "runtime-runtime-a-refresh",
     "timeout_ms": 2000
   },
+  "disabled_wait_operation": {
+    "kind": "wait_disabled",
+    "node_id": "runtime-runtime-a-refresh",
+    "timeout_ms": 2000
+  },
+  "window_open_assert_operation": {
+    "kind": "assert_window_open",
+    "node_id": "fleet-title"
+  },
   "focused_wait_operation": {
     "kind": "wait_focused",
     "node_id": "runtime-runtime-a-inspect",
@@ -678,6 +696,10 @@
   },
   "enabled_assert_operation": {
     "kind": "assert_enabled",
+    "node_id": "runtime-runtime-a-refresh"
+  },
+  "disabled_assert_operation": {
+    "kind": "assert_disabled",
     "node_id": "runtime-runtime-a-refresh"
   },
   "selection_assert_operation": {

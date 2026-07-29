@@ -1667,13 +1667,17 @@ Presentation parity uses a separate, non-command path.
 `ui.focus(node_id: ...)`,
 `ui.navigate_focus(node_id: ..., direction: "next"|"previous"|"first"|"last")`,
 `ui.scroll_into_view(node_id: ...)`, and
-`ui.assert_visible(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
+`ui.assert_visible(node_id: ...)`, plus `ui.assert_hidden(node_id: ...)`,
+plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_realized(node_id: ...)`,
 `ui.wait_visible(node_id: ...)`,
 `ui.assert_focused(node_id: ...)`, and
 `ui.wait_focused(node_id: ...)`, plus
 `ui.assert_enabled(node_id: ...)`, plus
+`ui.assert_disabled(node_id: ...)`, plus
 `ui.wait_enabled(node_id: ...)`, plus
+`ui.wait_disabled(node_id: ...)`, plus
+`ui.assert_window_open(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
@@ -1691,7 +1695,10 @@ action, delegates `next` and `previous` to the native focus manager, resolves
 `first` and `last` through the stable visual-index action boundary with native
 focus, and binds the result to the actual distinct stable action destination
 without activating it or assuming symmetric virtualized tab order. Visibility assertion checks
-realized layout and viewport state,
+realized layout and viewport state, hidden assertion uses that same native
+predicate after realization and succeeds only when it is false, hidden wait
+polls that same false predicate until the fixed deadline without scrolling,
+hiding, focusing, or forcing realization,
 realization assertion checks the native visual index without forcing
 materialization, and realization wait uses the same predicate with a
 protocol-fixed 2000 ms deadline while yielding the native dispatcher,
@@ -1699,8 +1706,14 @@ visibility wait independently polls realized layout and viewport intersection
 without invoking bring-into-view,
 focus assertion reads native focus, focused wait polls the same predicate
 without invoking native focus, and enabled assertion reads effective
-native availability without changing it. Enabled wait polls that same native
-predicate without changing availability or activating the action. Selection
+native availability without changing it. Disabled assertion reads the same
+native predicate and succeeds only when the action is effectively unavailable,
+without changing availability. Enabled wait polls that same native predicate
+without changing availability or activating the action. Disabled wait polls the
+inverse native predicate with the same fixed deadline, without changing
+availability or activating the action. Window-open assertion verifies the
+realized target and renderer surface share one native `Window` visual tree
+without opening, closing, activating, or focusing it. Selection
 assertion reads native selected state, and selection wait polls that same
 predicate until the fixed deadline without selecting, focusing, or activating
 the target. Text
@@ -1715,8 +1728,8 @@ Scrolling accepts noninteractive nodes and preserves keyboard focus.
 Accessible-name assertion separately reads the native platform automation name
 for any realized semantic node.
 Accessible-description assertion requires declared semantic description
-metadata and reads the native platform help text exactly. Window lifecycle and
-additional state assertions remain unimplemented rather than being
+metadata and reads the native platform help text exactly. Full window
+close/reopen lifecycle and additional state assertions remain unimplemented rather than being
 approximated with coordinates, OCR, or scripts.
 
 ## Process And Transport Boundaries

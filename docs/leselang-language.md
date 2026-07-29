@@ -12,10 +12,12 @@ serializes, restores, and resumes the read-only
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
 plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
-`ui.assert_visible`, `ui.assert_realized`, `ui.wait_realized`,
-`ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
-`ui.assert_enabled`, `ui.wait_enabled`, `ui.assert_selection`,
-`ui.wait_selection`, `ui.assert_text`, `ui.assert_automation_id`, and
+`ui.assert_visible`, `ui.assert_hidden`, `ui.wait_hidden`, `ui.assert_realized`,
+`ui.wait_realized`, `ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
+`ui.assert_enabled`, `ui.assert_disabled`, `ui.wait_enabled`,
+`ui.wait_disabled`, `ui.assert_window_open`, `ui.assert_selection`,
+`ui.wait_selection`, `ui.assert_text`,
+`ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.assert_action_kind`, plus
 `ui.assert_accessible_name` and `ui.assert_accessible_description` presentation
 effects.
@@ -166,6 +168,33 @@ the renderer viewport. A hidden, unrealized, missing, or off-viewport target
 does not produce a successful presentation result. The assertion does not
 focus, scroll, select, or activate the target.
 
+Native hidden state can be asserted as a positive predicate:
+
+```leselang
+fn main() = ui.assert_hidden(node_id: "runtime-runtime-a")
+```
+
+`ui.assert_hidden` requires `ui.presentation` and any existing semantic node.
+The renderer must first resolve the stable node to a realized native control,
+then succeeds only when the same viewport-aware visibility predicate used by
+`ui.assert_visible` is false. A missing or unrealized target fails separately,
+and a still-visible target fails with a typed presentation result. The assertion
+does not scroll, focus, select, hide, or activate the target.
+
+Native hidden state can also be awaited without causing it:
+
+```leselang
+fn main() = ui.wait_hidden(node_id: "runtime-runtime-a")
+```
+
+`ui.wait_hidden` requires `ui.presentation` and any existing semantic node. Its
+presentation envelope carries a protocol-fixed 2000 ms deadline and the source
+has no duration argument. The frontend adapter yields its dispatcher until the
+same viewport-aware native visibility predicate used by `ui.assert_visible` is
+false. Missing nodes fail immediately; persistently unrealized or still-visible
+controls time out. Waiting never scrolls, focuses, selects, hides, activates, or
+forces realization.
+
 Native control realization can be asserted independently of visibility:
 
 ```leselang
@@ -249,6 +278,19 @@ returns success only when the platform reports it effectively enabled,
 including ancestor state. Missing, noninteractive, unrealized, or disabled
 targets fail. The assertion never focuses, activates, or changes availability.
 
+Native disabled state has its own positive assertion:
+
+```leselang
+fn main() = ui.assert_disabled(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.assert_disabled` requires `ui.presentation` and an action node in the
+current `UiDocument`. The renderer resolves its realized native control and
+returns success only when the platform reports it effectively disabled,
+including ancestor state. Missing, noninteractive, unrealized, or still-enabled
+targets fail. The assertion never focuses, activates, scrolls, enables,
+disables, or submits the target.
+
 Native action availability can also be awaited without changing it:
 
 ```leselang
@@ -262,6 +304,33 @@ realized native control becomes effectively enabled, including ancestor state.
 Missing or noninteractive nodes fail immediately; persistently unrealized or
 disabled actions time out. Waiting never enables, focuses, activates, scrolls,
 or otherwise mutates the target.
+
+Native disabled action state can also be awaited without causing it:
+
+```leselang
+fn main() = ui.wait_disabled(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.wait_disabled` requires `ui.presentation` and a semantic action node. Its
+presentation envelope carries the same protocol-fixed 2000 ms deadline as
+enabled wait, and the source has no duration argument. The frontend adapter
+yields its dispatcher until the realized native control becomes effectively
+disabled, including ancestor state. Missing or noninteractive nodes fail
+immediately; persistently unrealized or still-enabled actions time out. Waiting
+never disables, enables, focuses, activates, scrolls, or otherwise mutates the
+target.
+
+Native window attachment can be asserted without activating a window:
+
+```leselang
+fn main() = ui.assert_window_open(node_id: "runtime-runtime-a")
+```
+
+`ui.assert_window_open` requires `ui.presentation` and any existing semantic
+node. The renderer resolves the stable node to a realized native control and
+succeeds only when that control and the renderer surface belong to the same
+native window visual tree. Missing or unrealized targets fail. The assertion
+never opens, closes, activates, focuses, scrolls, selects, or submits anything.
 
 Native selection state can be asserted without activating or focusing a control:
 
