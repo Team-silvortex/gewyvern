@@ -237,6 +237,15 @@ var decodedTextAssertOperation = JsonSerializer.Deserialize(
     textAssertPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("text assert operation round trip failed");
+var textWaitOperation = fixture.TextWaitOperation
+    ?? throw new InvalidDataException("presentation fixture contains no text wait operation");
+var textWaitPayload = JsonSerializer.SerializeToUtf8Bytes(
+    textWaitOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedTextWaitOperation = JsonSerializer.Deserialize(
+    textWaitPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("text wait operation round trip failed");
 var automationIdAssertOperation = fixture.AutomationIdAssertOperation
     ?? throw new InvalidDataException(
         "presentation fixture contains no automation id assert operation");
@@ -278,6 +287,17 @@ var decodedActionUnavailableReasonAssertOperation = JsonSerializer.Deserialize(
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException(
         "action unavailable reason assert operation round trip failed");
+var actionUnavailableReasonWaitOperation = fixture.ActionUnavailableReasonWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no action unavailable reason wait operation");
+var actionUnavailableReasonWaitPayload = JsonSerializer.SerializeToUtf8Bytes(
+    actionUnavailableReasonWaitOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedActionUnavailableReasonWaitOperation = JsonSerializer.Deserialize(
+    actionUnavailableReasonWaitPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException(
+        "action unavailable reason wait operation round trip failed");
 var formFieldAssertOperation = fixture.FormFieldAssertOperation
     ?? throw new InvalidDataException(
         "presentation fixture contains no form field assert operation");
@@ -415,6 +435,7 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     || renderer.ValidatePresentationOperation(decodedSelectionAssertOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedSelectionWaitOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedTextAssertOperation) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedTextWaitOperation) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedAutomationIdAssertOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedNodeKindAssertOperation)
@@ -427,6 +448,14 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     {
         Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
         NodeId = decodedActionUnavailableReasonAssertOperation.NodeId,
+    }) != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedActionUnavailableReasonWaitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+        NodeId = decodedActionUnavailableReasonWaitOperation.NodeId,
+        TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
     }) != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFormFieldAssertOperation)
         != UiPresentationValidation.Valid
@@ -690,6 +719,27 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     }) != UiPresentationValidation.InvalidExpectedText
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
+        Kind = UiPresentationOperationKind.WaitText,
+        NodeId = renderer.Document.Root.Id,
+        Expected = "Runtime fleet",
+        TimeoutMs = SemanticRenderer.WaitTextTimeoutMs,
+    }) != UiPresentationValidation.TextlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitText,
+        NodeId = decodedTextWaitOperation.NodeId,
+        Expected = "bad\ntext",
+        TimeoutMs = SemanticRenderer.WaitTextTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitText,
+        NodeId = decodedTextWaitOperation.NodeId,
+        Expected = decodedTextWaitOperation.Expected,
+        TimeoutMs = SemanticRenderer.WaitTextTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
         Kind = UiPresentationOperationKind.AssertAutomationId,
         NodeId = decodedAutomationIdAssertOperation.NodeId,
         Expected = "bad/node",
@@ -753,6 +803,41 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
         Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
         NodeId = decodedActionUnavailableReasonAssertOperation.NodeId,
         ExpectedActionKind = ActionKind.RuntimeRefresh,
+    }) != UiPresentationValidation.InvalidExpectedActionKind
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+        NodeId = "missing-presentation-target",
+        Expected = decodedActionUnavailableReasonWaitOperation.Expected,
+        TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+        NodeId = renderer.Document.Root.Id,
+        Expected = decodedActionUnavailableReasonWaitOperation.Expected,
+        TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+        NodeId = decodedActionUnavailableReasonWaitOperation.NodeId,
+        Expected = "bad\nreason",
+        TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+        NodeId = decodedActionUnavailableReasonWaitOperation.NodeId,
+        Expected = decodedActionUnavailableReasonWaitOperation.Expected,
+        TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+        NodeId = decodedActionUnavailableReasonWaitOperation.NodeId,
+        ExpectedActionKind = ActionKind.RuntimeRefresh,
+        TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
     }) != UiPresentationValidation.InvalidExpectedActionKind
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
@@ -984,7 +1069,7 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_assert_action_kind=true, presentation_assert_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_assert_accessible_description=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_assert_action_kind=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_assert_accessible_description=true, strict_codec=true");
 return 0;
 
 static byte[] ReadBoundedFixture(string path)

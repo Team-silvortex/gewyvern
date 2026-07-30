@@ -371,6 +371,7 @@ pub fn waiting_debugger_projection(
             "UI wait selection",
         ),
         Effect::UiAssertText { .. } => (DebuggerEffectKind::UiAssertText, None, "UI assert text"),
+        Effect::UiWaitText { .. } => (DebuggerEffectKind::UiWaitText, None, "UI wait text"),
         Effect::UiAssertAutomationId { .. } => (
             DebuggerEffectKind::UiAssertAutomationId,
             None,
@@ -390,6 +391,11 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertActionUnavailableReason,
             None,
             "UI assert action unavailable reason",
+        ),
+        Effect::UiWaitActionUnavailableReason { .. } => (
+            DebuggerEffectKind::UiWaitActionUnavailableReason,
+            None,
+            "UI wait action unavailable reason",
         ),
         Effect::UiAssertFormField { .. } => (
             DebuggerEffectKind::UiAssertFormField,

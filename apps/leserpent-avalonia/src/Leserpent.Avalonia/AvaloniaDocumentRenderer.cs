@@ -374,7 +374,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetSelectionMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertText)
+        if (operation.Kind is UiPresentationOperationKind.AssertText
+            or UiPresentationOperationKind.WaitText)
         {
             var actual = NativeDisplayText(control!);
             var matched = actual is not null
@@ -418,7 +419,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetActionKindMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertActionUnavailableReason)
+        if (operation.Kind is UiPresentationOperationKind.AssertActionUnavailableReason
+            or UiPresentationOperationKind.WaitActionUnavailableReason)
         {
             var availability = AvailabilityFor(node);
             var actualReason = availability.IsEnabled
@@ -641,9 +643,11 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitHidden
             and not UiPresentationOperationKind.WaitEnabled
             and not UiPresentationOperationKind.WaitDisabled
+            and not UiPresentationOperationKind.WaitActionUnavailableReason
             and not UiPresentationOperationKind.WaitWindowOpen
             and not UiPresentationOperationKind.WaitFocused
-            and not UiPresentationOperationKind.WaitSelection)
+            and not UiPresentationOperationKind.WaitSelection
+            and not UiPresentationOperationKind.WaitText)
         {
             return await Dispatcher.UIThread.InvokeAsync(
                 () => ApplyPresentation(operation));
@@ -673,6 +677,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetStillEnabled;
             retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitActionUnavailableReason
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetActionUnavailableReasonMismatch;
+            retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitWindowOpen
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetWindowUnavailable;
@@ -685,6 +693,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     && result.FailureCode
                         is PresentationAutomationFailureCode.TargetNotSelectable
                             or PresentationAutomationFailureCode.TargetSelectionMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitText
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetTextMismatch;
             if (result.Applied || !retryable)
             {
                 return result;
@@ -702,12 +714,16 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitDisabled =>
                     SemanticRenderer.WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitActionUnavailableReason =>
+                    SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen =>
                     SemanticRenderer.WaitWindowOpenTimeoutMs,
                 UiPresentationOperationKind.WaitFocused =>
                     SemanticRenderer.WaitFocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection =>
                     SemanticRenderer.WaitSelectionTimeoutMs,
+                UiPresentationOperationKind.WaitText =>
+                    SemanticRenderer.WaitTextTimeoutMs,
                 _ => throw new InvalidOperationException(
                     "unknown asynchronous presentation wait"),
             };

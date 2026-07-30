@@ -95,10 +95,12 @@ pub fn lower_effect(
             | Effect::UiAssertSelection { .. }
             | Effect::UiWaitSelection { .. }
             | Effect::UiAssertText { .. }
+            | Effect::UiWaitText { .. }
             | Effect::UiAssertAutomationId { .. }
             | Effect::UiAssertNodeKind { .. }
             | Effect::UiAssertActionKind { .. }
             | Effect::UiAssertActionUnavailableReason { .. }
+            | Effect::UiWaitActionUnavailableReason { .. }
             | Effect::UiAssertFormField { .. }
             | Effect::UiAssertFormFieldInputKind { .. }
             | Effect::UiAssertFormFieldRequired { .. }
@@ -139,10 +141,12 @@ pub fn lower_effect(
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
+        | Effect::UiWaitText { .. }
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
+        | Effect::UiWaitActionUnavailableReason { .. }
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }
@@ -194,10 +198,12 @@ pub fn lower_effect(
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
+        | Effect::UiWaitText { .. }
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
+        | Effect::UiWaitActionUnavailableReason { .. }
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }
@@ -488,10 +494,12 @@ mod tests {
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",

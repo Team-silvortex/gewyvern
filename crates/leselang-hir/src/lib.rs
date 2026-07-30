@@ -16,9 +16,11 @@ pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
 pub const UI_WAIT_ENABLED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_SELECTION_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_TEXT_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_VISIBLE_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_WINDOW_OPEN_TIMEOUT_MS: u64 = 2_000;
 
@@ -191,6 +193,10 @@ pub enum Effect {
         node_id: String,
         expected: String,
     },
+    UiWaitText {
+        node_id: String,
+        expected: String,
+    },
     UiAssertAutomationId {
         node_id: String,
         expected: String,
@@ -204,6 +210,10 @@ pub enum Effect {
         expected_kind: UiSemanticActionKind,
     },
     UiAssertActionUnavailableReason {
+        node_id: String,
+        expected: Option<String>,
+    },
+    UiWaitActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
     },
@@ -276,10 +286,12 @@ pub enum Type {
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
+    UiWaitText,
     UiAssertAutomationId,
     UiAssertNodeKind,
     UiAssertActionKind,
     UiAssertActionUnavailableReason,
+    UiWaitActionUnavailableReason,
     UiAssertFormField,
     UiAssertFormFieldInputKind,
     UiAssertFormFieldRequired,
@@ -382,10 +394,12 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_selection"
         | "ui.wait_selection"
         | "ui.assert_text"
+        | "ui.wait_text"
         | "ui.assert_automation_id"
         | "ui.assert_node_kind"
         | "ui.assert_action_kind"
         | "ui.assert_action_unavailable_reason"
+        | "ui.wait_action_unavailable_reason"
         | "ui.assert_form_field"
         | "ui.assert_form_field_input_kind"
         | "ui.assert_form_field_required"
@@ -728,6 +742,23 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_text", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1223".to_string(),
+                    message: "ui.wait_text node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_text", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1224".to_string(),
+                    message: "ui.wait_text expected must be bounded display text".to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_automation_id", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -811,6 +842,29 @@ fn lower_atomic_effect(
                     code: "LSH1169".to_string(),
                     message:
                         "ui.assert_action_unavailable_reason expected must be bounded display text or none"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_action_unavailable_reason", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1219".to_string(),
+                    message:
+                        "ui.wait_action_unavailable_reason node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_action_unavailable_reason", "expected") => match &argument.value {
+                Expression::String { value, .. } if validate_ui_expected_text(value) => {
+                    action_unavailable_reason_expected = Some(Some(value.clone()));
+                }
+                Expression::None { .. } => action_unavailable_reason_expected = Some(None),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1220".to_string(),
+                    message:
+                        "ui.wait_action_unavailable_reason expected must be bounded display text or none"
                             .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1219,6 +1273,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_text" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1225".to_string(),
+            message: "ui.wait_text requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_text" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1226".to_string(),
+            message: "ui.wait_text requires expected".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_automation_id" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1158".to_string(),
@@ -1279,6 +1347,24 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1171".to_string(),
             message: "ui.assert_action_unavailable_reason requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_action_unavailable_reason" && node_id.is_none() && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1221".to_string(),
+            message: "ui.wait_action_unavailable_reason requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_action_unavailable_reason"
+        && action_unavailable_reason_expected.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1222".to_string(),
+            message: "ui.wait_action_unavailable_reason requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -1672,6 +1758,14 @@ fn lower_atomic_effect(
             Type::UiAssertText,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_text" => (
+            Effect::UiWaitText {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected text"),
+            },
+            Type::UiWaitText,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_automation_id" => (
             Effect::UiAssertAutomationId {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1703,6 +1797,15 @@ fn lower_atomic_effect(
                     .expect("validated UI action unavailable reason"),
             },
             Type::UiAssertActionUnavailableReason,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_action_unavailable_reason" => (
+            Effect::UiWaitActionUnavailableReason {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: action_unavailable_reason_expected
+                    .expect("validated UI action unavailable reason"),
+            },
+            Type::UiWaitActionUnavailableReason,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field" => (
@@ -1917,6 +2020,14 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(expected),
             indent(depth),
         ),
+        Effect::UiWaitText { node_id, expected } => format!(
+            "ui.wait_text(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
         Effect::UiAssertAutomationId { node_id, expected } => format!(
             "ui.assert_automation_id(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
@@ -1949,6 +2060,14 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         ),
         Effect::UiAssertActionUnavailableReason { node_id, expected } => format!(
             "ui.assert_action_unavailable_reason(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            optional_string(expected.as_deref()),
+            indent(depth),
+        ),
+        Effect::UiWaitActionUnavailableReason { node_id, expected } => format!(
+            "ui.wait_action_unavailable_reason(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
             quote(node_id),
             indent(depth + 1),
@@ -3227,6 +3346,54 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_text_is_a_capability_gated_bounded_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitText);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitText {
+                ref node_id,
+                ref expected,
+            } if node_id == "fleet-title" && expected == "Runtime fleet"
+        ));
+        let canonical = canonical_source(&program.function.effect).unwrap();
+        assert_eq!(
+            canonical,
+            "fn main() = ui.wait_text(\n  node_id: \"fleet-title\",\n  expected: \"Runtime fleet\",\n)\n"
+        );
+        assert_eq!(
+            lower(&parse(&canonical)).unwrap().function.effect,
+            program.function.effect
+        );
+
+        for source in [
+            "fn main() = ui.wait_text()",
+            "fn main() = ui.wait_text(node_id: \"fleet-title\")",
+            "fn main() = ui.wait_text(expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_text(node_id: \"bad/node\", expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: none)",
+            "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"bad\\ntext\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized = format!(
+            "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized)).is_err());
+    }
+
+    #[test]
     fn ui_assert_automation_id_is_capability_gated_and_identifier_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
@@ -3404,6 +3571,69 @@ mod tests {
         }
         let oversized_expected = format!(
             "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_expected)).is_err());
+    }
+
+    #[test]
+    fn ui_wait_action_unavailable_reason_is_capability_gated_and_optional() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiWaitActionUnavailableReason
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiWaitActionUnavailableReason {
+                node_id: "runtime-a:refresh".into(),
+                expected: Some("Verification action is temporarily unavailable".into()),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_action_unavailable_reason(\n  node_id: \"runtime-a:refresh\",\n  expected: \"Verification action is temporarily unavailable\",\n)\n"
+        );
+        let absent = lower(&parse(
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: none)",
+        ))
+        .unwrap()
+        .function
+        .effect;
+        assert_eq!(
+            absent,
+            Effect::UiWaitActionUnavailableReason {
+                node_id: "runtime-a:refresh".into(),
+                expected: None,
+            }
+        );
+        assert_eq!(
+            canonical_source(&absent).unwrap(),
+            "fn main() = ui.wait_action_unavailable_reason(\n  node_id: \"runtime-a:refresh\",\n  expected: none,\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_action_unavailable_reason()",
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_action_unavailable_reason(expected: \"Verification action is temporarily unavailable\")",
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"bad/node\", expected: \"Verification action is temporarily unavailable\")",
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"bad\nreason\")",
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: runtime.list())",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_expected = format!(
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"{}\")",
             "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
         );
         assert!(lower(&parse(&oversized_expected)).is_err());
@@ -3814,10 +4044,12 @@ mod tests {
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
+            "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",

@@ -853,6 +853,12 @@
     "node_id": "fleet-title",
     "expected": "Runtime fleet"
   },
+  "text_wait_operation": {
+    "kind": "wait_text",
+    "node_id": "fleet-title",
+    "expected": "Runtime fleet",
+    "timeout_ms": 2000
+  },
   "automation_id_assert_operation": {
     "kind": "assert_automation_id",
     "node_id": "fleet-title",
@@ -872,6 +878,12 @@
     "kind": "assert_action_unavailable_reason",
     "node_id": "runtime-runtime-a-refresh",
     "expected": "Verification action is temporarily unavailable"
+  },
+  "action_unavailable_reason_wait_operation": {
+    "kind": "wait_action_unavailable_reason",
+    "node_id": "runtime-runtime-a-refresh",
+    "expected": "Verification action is temporarily unavailable",
+    "timeout_ms": 2000
   },
   "form_field_assert_operation": {
     "kind": "assert_form_field",

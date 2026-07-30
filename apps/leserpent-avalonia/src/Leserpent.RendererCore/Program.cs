@@ -7,9 +7,11 @@ public sealed class SemanticRenderer
     private const int MaxPatchOperations = 8192;
     private const int MaxFormValueBytes = 256;
     public const int WaitEnabledTimeoutMs = 2000;
+    public const int WaitActionUnavailableReasonTimeoutMs = 2000;
     public const int WaitFocusedTimeoutMs = 2000;
     public const int WaitRealizedTimeoutMs = 2000;
     public const int WaitSelectionTimeoutMs = 2000;
+    public const int WaitTextTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
     public const int WaitWindowOpenTimeoutMs = 2000;
 
@@ -92,6 +94,7 @@ public sealed class SemanticRenderer
             return UiPresentationValidation.UnknownTarget;
         }
         if (operation.Kind is UiPresentationOperationKind.AssertText
+            or UiPresentationOperationKind.WaitText
             or UiPresentationOperationKind.AssertFormField
             or UiPresentationOperationKind.AssertAccessibleName
             or UiPresentationOperationKind.AssertAccessibleDescription)
@@ -136,6 +139,7 @@ public sealed class SemanticRenderer
             }
         }
         else if (operation.Kind is UiPresentationOperationKind.AssertActionUnavailableReason
+            or UiPresentationOperationKind.WaitActionUnavailableReason
             or UiPresentationOperationKind.AssertFormFieldPlaceholder)
         {
             if (operation.Expected is not null && !IsExpectedText(operation.Expected))
@@ -252,9 +256,11 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitHidden
             or UiPresentationOperationKind.WaitEnabled
             or UiPresentationOperationKind.WaitDisabled
+            or UiPresentationOperationKind.WaitActionUnavailableReason
             or UiPresentationOperationKind.WaitWindowOpen
             or UiPresentationOperationKind.WaitFocused
-            or UiPresentationOperationKind.WaitSelection)
+            or UiPresentationOperationKind.WaitSelection
+            or UiPresentationOperationKind.WaitText)
         {
             var requiredTimeout = operation.Kind switch
             {
@@ -263,9 +269,12 @@ public sealed class SemanticRenderer
                 UiPresentationOperationKind.WaitHidden => WaitVisibleTimeoutMs,
                 UiPresentationOperationKind.WaitEnabled => WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitDisabled => WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitActionUnavailableReason =>
+                    WaitActionUnavailableReasonTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen => WaitWindowOpenTimeoutMs,
                 UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection => WaitSelectionTimeoutMs,
+                UiPresentationOperationKind.WaitText => WaitTextTimeoutMs,
                 _ => throw new InvalidOperationException("unknown wait operation"),
             };
             if (operation.TimeoutMs != requiredTimeout)
@@ -294,6 +303,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.AssertActionKind
             or UiPresentationOperationKind.AssertActionUnavailableReason
+            or UiPresentationOperationKind.WaitActionUnavailableReason
                 when node.Kind == UiNodeKind.Action && node.Action is not null =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.ScrollIntoView =>
@@ -319,6 +329,7 @@ public sealed class SemanticRenderer
                 when node.Selection is not null =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertText
+            or UiPresentationOperationKind.WaitText
                 when node.Text is not null
                     && node.Kind is UiNodeKind.Heading
                         or UiNodeKind.Text
@@ -366,7 +377,8 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection =>
                 UiPresentationValidation.SelectionlessTarget,
-            UiPresentationOperationKind.AssertText =>
+            UiPresentationOperationKind.AssertText
+            or UiPresentationOperationKind.WaitText =>
                 UiPresentationValidation.TextlessTarget,
             _ => UiPresentationValidation.UnfocusableTarget,
         };
@@ -684,10 +696,12 @@ public sealed class RendererFixture
     public UiPresentationOperation? SelectionAssertOperation { get; set; }
     public UiPresentationOperation? SelectionWaitOperation { get; set; }
     public UiPresentationOperation? TextAssertOperation { get; set; }
+    public UiPresentationOperation? TextWaitOperation { get; set; }
     public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
     public UiPresentationOperation? NodeKindAssertOperation { get; set; }
     public UiPresentationOperation? ActionKindAssertOperation { get; set; }
     public UiPresentationOperation? ActionUnavailableReasonAssertOperation { get; set; }
+    public UiPresentationOperation? ActionUnavailableReasonWaitOperation { get; set; }
     public UiPresentationOperation? FormFieldAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldInputKindAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldRequiredAssertOperation { get; set; }
@@ -874,10 +888,12 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,
     [JsonStringEnumMemberName("wait_selection")] WaitSelection,
     [JsonStringEnumMemberName("assert_text")] AssertText,
+    [JsonStringEnumMemberName("wait_text")] WaitText,
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
     [JsonStringEnumMemberName("assert_action_unavailable_reason")] AssertActionUnavailableReason,
+    [JsonStringEnumMemberName("wait_action_unavailable_reason")] WaitActionUnavailableReason,
     [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
     [JsonStringEnumMemberName("assert_form_field_input_kind")] AssertFormFieldInputKind,
     [JsonStringEnumMemberName("assert_form_field_required")] AssertFormFieldRequired,

@@ -58,6 +58,8 @@ internal sealed class MainWindow : Window
     public bool InitialFocusedWaitTimedOut { get; private set; }
     public bool InitialSelectionWaitCompleted { get; private set; }
     public bool InitialSelectionWaitTimedOut { get; private set; }
+    public bool InitialTextWaitCompleted { get; private set; }
+    public bool InitialTextWaitTimedOut { get; private set; }
     public bool SelectionAssertCompleted { get; private set; }
     public bool SelectionMismatchRejected { get; private set; }
     public bool SelectionlessTargetRejected { get; private set; }
@@ -71,6 +73,9 @@ internal sealed class MainWindow : Window
     public bool ActionKindAssertCompleted { get; private set; }
     public bool ActionKindMismatchRejected { get; private set; }
     public bool ActionUnavailableReasonAssertCompleted { get; private set; }
+    public bool ActionUnavailableReasonWaitCompleted { get; private set; }
+    public bool ActionUnavailableReasonWaitClearedCompleted { get; private set; }
+    public bool ActionUnavailableReasonWaitTimedOut { get; private set; }
     public bool ActionUnavailableReasonMismatchRejected { get; private set; }
     public bool FormFieldAssertCompleted { get; private set; }
     public bool FormFieldMismatchRejected { get; private set; }
@@ -265,6 +270,7 @@ internal sealed class MainWindow : Window
 
     public async Task CompleteInitialWaitProbesAsync()
     {
+        const string unavailableReason = "Verification action is temporarily unavailable";
         var windowOpen = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertWindowOpen,
@@ -390,7 +396,7 @@ internal sealed class MainWindow : Window
             () => renderer.SetActionAvailability(
                 ActionKind.RuntimeRefresh,
                 false,
-                "Verification action is temporarily unavailable"),
+                unavailableReason),
             TimeSpan.FromMilliseconds(50));
         var disabledWaitResult = await disabledWait;
         InitialDisabledWaitCompleted = disabledWaitResult.Applied
@@ -431,6 +437,71 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang disabled wait did not reject a persistently enabled target");
         }
+        var actionUnavailableReasonWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+                NodeId = enabledResult.NodeId,
+                Expected = unavailableReason,
+                TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
+            });
+        DispatcherTimer.RunOnce(
+            () => renderer.SetActionAvailability(
+                ActionKind.RuntimeRefresh,
+                false,
+                unavailableReason),
+            TimeSpan.FromMilliseconds(50));
+        var actionUnavailableReasonWaitResult = await actionUnavailableReasonWait;
+        ActionUnavailableReasonWaitCompleted = actionUnavailableReasonWaitResult.Applied
+            && actionUnavailableReasonWaitResult.FailureCode
+                == PresentationAutomationFailureCode.None;
+        if (!ActionUnavailableReasonWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action-unavailable-reason wait did not observe an external reason transition");
+        }
+        var actionUnavailableReasonClearWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+                NodeId = enabledResult.NodeId,
+                TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
+            });
+        DispatcherTimer.RunOnce(
+            () => renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null),
+            TimeSpan.FromMilliseconds(50));
+        var actionUnavailableReasonClearResult = await actionUnavailableReasonClearWait;
+        ActionUnavailableReasonWaitClearedCompleted =
+            actionUnavailableReasonClearResult.Applied
+            && actionUnavailableReasonClearResult.FailureCode
+                == PresentationAutomationFailureCode.None;
+        if (!ActionUnavailableReasonWaitClearedCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action-unavailable-reason wait did not observe reason clearing");
+        }
+        var actionUnavailableReasonTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionUnavailableReason,
+                NodeId = enabledResult.NodeId,
+                Expected = unavailableReason,
+                TimeoutMs = SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
+            });
+        ActionUnavailableReasonWaitTimedOut =
+            !actionUnavailableReasonTimeoutResult.Applied
+            && actionUnavailableReasonTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
+                NodeId = enabledResult.NodeId,
+            }).Applied;
+        if (!ActionUnavailableReasonWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang action-unavailable-reason wait did not reject a persistent mismatch");
+        }
         var focusedResult = await focusedWait;
         InitialFocusedWaitCompleted = focusedResult.Applied
             && focusedResult.FailureCode == PresentationAutomationFailureCode.None;
@@ -438,6 +509,20 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang focused wait did not observe an external focus transition");
+        }
+        var restoredFocusedBaseline = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.Focus,
+                NodeId = initialFocusedWaitNodeId,
+            });
+        if (!restoredFocusedBaseline.Applied
+            || restoredFocusedBaseline.FailureCode
+                != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != initialFocusedWaitNodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang focused wait probe could not restore its focus baseline");
         }
         var focusedTimeoutResult = await renderer.ApplyPresentationAsync(
             new UiPresentationOperation
@@ -496,6 +581,48 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang selection wait did not reject a persistently unmatched selection state");
+        }
+        var textWaitNode = FindFirstTextNode(renderer.Document.Root)
+            ?? throw new InvalidDataException("text wait probe requires a text leaf");
+        var textWaitExpected = $"{textWaitNode.Text!.Fallback} ready";
+        var textWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitText,
+            NodeId = textWaitNode.Id,
+            Expected = textWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitTextTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchTextFallback(textWaitNode.Id, textWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var textWaitResult = await textWait;
+        InitialTextWaitCompleted = textWaitResult.Applied
+            && textWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialTextWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang text wait did not observe an external text transition");
+        }
+        var textWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitText,
+                NodeId = textWaitNode.Id,
+                Expected = $"{textWaitExpected} mismatch",
+                TimeoutMs = SemanticRenderer.WaitTextTimeoutMs,
+            });
+        InitialTextWaitTimedOut = !textWaitTimeoutResult.Applied
+            && textWaitTimeoutResult.FailureCode == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertText,
+                NodeId = textWaitNode.Id,
+                Expected = textWaitExpected,
+            }).Applied;
+        if (!InitialTextWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang text wait did not reject a persistent text mismatch");
         }
         var hiddenWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
         {
@@ -1452,6 +1579,33 @@ internal sealed class MainWindow : Window
         UiFormInputKind.TrimmedText => UiFormInputKind.PathToken,
         _ => UiFormInputKind.PathToken,
     };
+
+    private void PatchTextFallback(string nodeId, string fallback)
+    {
+        var source = FindNode(renderer.Document.Root, nodeId)
+            ?? throw new InvalidDataException("text wait probe target was not found");
+        var replacement = CloneShallow(source);
+        if (replacement.Text is null)
+        {
+            throw new InvalidDataException("text wait probe target has no semantic text");
+        }
+        replacement.Text.Fallback = fallback;
+        var revision = renderer.Document.Revision;
+        renderer.Apply(new UiPatch
+        {
+            SchemaVersion = 1,
+            FromRevision = revision,
+            ToRevision = checked(revision + 1),
+            Operations =
+            [
+                new UiPatchOperation
+                {
+                    Kind = PatchKind.Update,
+                    Node = replacement,
+                },
+            ],
+        });
+    }
 
     public void CompleteFocusRetentionProbe(string nodeId)
     {

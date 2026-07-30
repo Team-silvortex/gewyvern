@@ -3,8 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use leselang_hir::{
-    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
-    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
+    UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
     UiFocusNavigationDirection, UiSelectionState,
 };
 use leselang_ui::{
@@ -45,10 +46,12 @@ struct Fixture<'a> {
     selection_assert_operation: &'a UiPresentationOperation,
     selection_wait_operation: &'a UiPresentationOperation,
     text_assert_operation: &'a UiPresentationOperation,
+    text_wait_operation: &'a UiPresentationOperation,
     automation_id_assert_operation: &'a UiPresentationOperation,
     node_kind_assert_operation: &'a UiPresentationOperation,
     action_kind_assert_operation: &'a UiPresentationOperation,
     action_unavailable_reason_assert_operation: &'a UiPresentationOperation,
+    action_unavailable_reason_wait_operation: &'a UiPresentationOperation,
     form_field_assert_operation: &'a UiPresentationOperation,
     form_field_input_kind_assert_operation: &'a UiPresentationOperation,
     form_field_required_assert_operation: &'a UiPresentationOperation,
@@ -150,6 +153,11 @@ fn main() {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "Runtime fleet".into(),
     };
+    let text_wait_operation = UiPresentationOperation::WaitText {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected: "Runtime fleet".into(),
+        timeout_ms: UI_WAIT_TEXT_TIMEOUT_MS,
+    };
     let automation_id_assert_operation = UiPresentationOperation::AssertAutomationId {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "fleet-title".into(),
@@ -166,6 +174,12 @@ fn main() {
         UiPresentationOperation::AssertActionUnavailableReason {
             node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
             expected: Some("Verification action is temporarily unavailable".into()),
+        };
+    let action_unavailable_reason_wait_operation =
+        UiPresentationOperation::WaitActionUnavailableReason {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            expected: Some("Verification action is temporarily unavailable".into()),
+            timeout_ms: UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
         };
     let form_field_assert_operation = UiPresentationOperation::AssertFormField {
         node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
@@ -226,10 +240,12 @@ fn main() {
     validate_presentation_operation(&next, &selection_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_wait_operation).unwrap();
     validate_presentation_operation(&next, &text_assert_operation).unwrap();
+    validate_presentation_operation(&next, &text_wait_operation).unwrap();
     validate_presentation_operation(&next, &automation_id_assert_operation).unwrap();
     validate_presentation_operation(&next, &node_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_unavailable_reason_assert_operation).unwrap();
+    validate_presentation_operation(&next, &action_unavailable_reason_wait_operation).unwrap();
     validate_presentation_operation(&next, &form_field_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_input_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_required_assert_operation).unwrap();
@@ -264,10 +280,12 @@ fn main() {
         selection_assert_operation: &selection_assert_operation,
         selection_wait_operation: &selection_wait_operation,
         text_assert_operation: &text_assert_operation,
+        text_wait_operation: &text_wait_operation,
         automation_id_assert_operation: &automation_id_assert_operation,
         node_kind_assert_operation: &node_kind_assert_operation,
         action_kind_assert_operation: &action_kind_assert_operation,
         action_unavailable_reason_assert_operation: &action_unavailable_reason_assert_operation,
+        action_unavailable_reason_wait_operation: &action_unavailable_reason_wait_operation,
         form_field_assert_operation: &form_field_assert_operation,
         form_field_input_kind_assert_operation: &form_field_input_kind_assert_operation,
         form_field_required_assert_operation: &form_field_required_assert_operation,

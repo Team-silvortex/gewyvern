@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by thirty-one presentation atoms.
+Semantic action equivalence is joined by thirty-three presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -205,7 +205,10 @@ semantic node, and carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertText` maps one-to-one to
 `ui.assert_text(node_id: ..., expected: ...)`, requires a text-rendering
 semantic node, and carries a control-free expected value of at most 1024 UTF-8
-bytes. `UiPresentationOperation::AssertAutomationId` maps one-to-one to
+bytes. `UiPresentationOperation::WaitText` maps one-to-one to
+`ui.wait_text(node_id: ..., expected: ...)`, requires the same text-rendering
+semantic node, and carries the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::AssertAutomationId` maps one-to-one to
 `ui.assert_automation_id(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and carries an expected value that must itself be a valid UI
 node identifier. `UiPresentationOperation::AssertNodeKind` maps one-to-one to
@@ -219,6 +222,10 @@ maps one-to-one to
 `ui.assert_action_unavailable_reason(node_id: ..., expected: ...)`, requires a
 semantic action node, and compares the configured action unavailable reason or
 absence without conflating it with accessibility help text.
+`UiPresentationOperation::WaitActionUnavailableReason` maps one-to-one to
+`ui.wait_action_unavailable_reason(node_id: ..., expected: ...)`, requires the
+same semantic action node, and carries the protocol-fixed 2000 ms deadline while
+waiting for the configured action unavailable reason or absence.
 `UiPresentationOperation::AssertFormField` maps one-to-one to
 `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, requires a
 semantic deployment form action, validates the bounded form field key, and
@@ -247,11 +254,11 @@ semantic node, and uses the same expected-value bound.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
 semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all thirty-one travel in
+become a `UiEvent` or `CommandPlan`; all thirty-three travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all thirty-one operations through its stable visual index. Focus
+Avalonia resolves all thirty-three operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -295,7 +302,10 @@ nonselectable targets fail with typed presentation errors and never focus,
 activate, scroll, or select the target. Text
 assertion reads native `TextBlock.Text` or string
 `Button.Content` and uses exact ordinal comparison rather than semantic-IR
-fallback text. Automation ID assertion reads native platform automation identity
+fallback text. Text wait polls that same native displayed-text predicate through
+the cancellable dispatcher-yielding adapter until the protocol-fixed deadline,
+observing semantic patch driven text transitions without focusing, scrolling, or
+rewriting text. Automation ID assertion reads native platform automation identity
 and requires it to match the expected stable node identifier exactly.
 Node-kind assertion compares the stable semantic renderer kind and uses no
 guessing, coordinates, or OCR. Action-kind assertion compares the expected
@@ -317,6 +327,10 @@ never types into, submits, edits, or otherwise mutates the form.
 Action-unavailable-reason assertion reads renderer-maintained action
 availability state, compares the declared unavailable reason or its absence
 exactly, and never focuses, activates, clicks, or rewrites the action.
+Action-unavailable-reason wait polls that same renderer-maintained action
+availability state through the cancellable dispatcher-yielding adapter until the
+protocol-fixed deadline. It observes external reason transitions and clearing,
+but never focuses, activates, clicks, or rewrites the action.
 Accessible-name assertion independently reads
 native `AutomationProperties.Name` with exact ordinal comparison. None of the
 assertions mutates the control. Accessible-description assertion independently
@@ -335,8 +349,11 @@ zero action activation, native window-open assertion, dispatcher-yielding
 window-open wait,
 native selected/unselected assertion, dispatcher-yielding
 selection wait, persistent selection mismatch timeout,
-text-mismatched, automation-id-mismatched, node-kind-mismatched,
+text-mismatched, external text transition, persistent text mismatch timeout,
+automation-id-mismatched, node-kind-mismatched,
 action-kind-mismatched, action-unavailable-reason-mismatched,
+external action-unavailable-reason transition, reason clearing, persistent
+action-unavailable-reason mismatch timeout,
 form-field-label-mismatched,
 form-field-input-kind-mismatched, form-field-required-mismatched,
 form-field-max-length-mismatched,

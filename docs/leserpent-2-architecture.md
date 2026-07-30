@@ -1682,10 +1682,12 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
+`ui.wait_text(node_id: ..., expected: ...)`, plus
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
 `ui.assert_node_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_unavailable_reason(node_id: ..., expected: ...)`, plus
+`ui.wait_action_unavailable_reason(node_id: ..., expected: ...)`, plus
 `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, plus
 `ui.assert_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus

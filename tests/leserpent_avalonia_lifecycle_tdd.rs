@@ -62,10 +62,14 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.AssertHidden"));
     assert!(core.contains("UiPresentationOperationKind.WaitHidden"));
     assert!(core.contains("UiPresentationOperationKind.AssertText"));
+    assert!(core.contains("UiPresentationOperationKind.WaitText"));
+    assert!(core.contains("WaitTextTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertAutomationId"));
     assert!(core.contains("UiPresentationOperationKind.AssertNodeKind"));
     assert!(core.contains("UiPresentationOperationKind.AssertActionKind"));
     assert!(core.contains("UiPresentationOperationKind.AssertActionUnavailableReason"));
+    assert!(core.contains("UiPresentationOperationKind.WaitActionUnavailableReason"));
+    assert!(core.contains("WaitActionUnavailableReasonTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormField"));
     assert!(core.contains("public string? Field { get; set; }"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormFieldMaxLength"));
@@ -106,6 +110,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
         renderer
             .contains("PresentationAutomationFailureCode.TargetActionUnavailableReasonMismatch")
     );
+    assert!(renderer.contains("UiPresentationOperationKind.WaitActionUnavailableReason"));
+    assert!(renderer.contains("WaitActionUnavailableReasonTimeoutMs"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMismatch"));
     assert!(
         renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch")
@@ -125,6 +131,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("control.IsEffectivelyVisible"));
     assert!(renderer.contains("control!.IsEffectivelyEnabled"));
     assert!(renderer.contains("StringComparer.Ordinal.Equals(actual, operation.Expected)"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitText"));
+    assert!(renderer.contains("WaitTextTimeoutMs"));
     assert!(window.contains("private readonly string initialEnabledWaitNodeId"));
     assert!(
         !window.contains("private readonly Task<PresentationAutomationResult> initialEnabledWait;")
@@ -137,6 +145,13 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     ));
     assert!(window.contains("var initiallyDisabled = renderer.ApplyPresentation"));
     assert!(window.contains("var enabledWait = renderer.ApplyPresentationAsync"));
+    assert!(window.contains("InitialTextWaitCompleted"));
+    assert!(window.contains("InitialTextWaitTimedOut"));
+    assert!(window.contains("PatchTextFallback("));
+    assert!(window.contains("var actionUnavailableReasonWait = renderer.ApplyPresentationAsync"));
+    assert!(window.contains("ActionUnavailableReasonWaitCompleted"));
+    assert!(window.contains("ActionUnavailableReasonWaitClearedCompleted"));
+    assert!(window.contains("ActionUnavailableReasonWaitTimedOut"));
     assert!(window.contains("var focusedWait = renderer.ApplyPresentationAsync"));
     assert!(window.contains("var focusedTimeoutResult = await renderer.ApplyPresentationAsync"));
     assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
@@ -188,6 +203,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("enabled_target_disabled_assertion_rejected="));
     assert!(app.contains("disabled_target_rejected=true"));
     assert!(app.contains("assert_text=true"));
+    assert!(app.contains("wait_text="));
+    assert!(app.contains("wait_text_timeout="));
     assert!(app.contains("assert_automation_id=true"));
     assert!(app.contains("automation_id_mismatch_rejected=true"));
     assert!(app.contains("assert_node_kind=true"));
@@ -195,6 +212,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("assert_action_kind="));
     assert!(app.contains("action_kind_mismatch_rejected="));
     assert!(app.contains("assert_action_unavailable_reason="));
+    assert!(app.contains("wait_action_unavailable_reason="));
+    assert!(app.contains("wait_action_unavailable_reason_cleared="));
+    assert!(app.contains("wait_action_unavailable_reason_timeout="));
     assert!(app.contains("action_unavailable_reason_mismatch_rejected="));
     assert!(app.contains("assert_form_field="));
     assert!(app.contains("form_field_mismatch_rejected="));
@@ -227,8 +247,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_assert_disabled=true"));
     assert!(conformance.contains("presentation_assert_automation_id=true"));
     assert!(conformance.contains("presentation_assert_node_kind=true"));
+    assert!(conformance.contains("presentation_wait_text=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
     assert!(conformance.contains("presentation_assert_action_unavailable_reason=true"));
+    assert!(conformance.contains("presentation_wait_action_unavailable_reason=true"));
     assert!(conformance.contains("presentation_assert_form_field=true"));
     assert!(conformance.contains("presentation_assert_form_field_input_kind=true"));
     assert!(conformance.contains("presentation_assert_form_field_required=true"));

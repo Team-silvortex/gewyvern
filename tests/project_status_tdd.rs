@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.66.0");
+    assert_eq!(avalonia.contract.version, "1.68.0");
     assert!(
         avalonia
             .contract
@@ -1719,6 +1719,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "persistent-visible-hidden-wait-timeout",
         "native-text-assertion",
         "text-mismatch-presentation-rejection",
+        "dispatcher-yielding-text-wait",
+        "external-text-transition-wait",
+        "persistent-text-mismatch-timeout",
         "native-automation-id-assertion",
         "automation-id-mismatch-presentation-rejection",
         "semantic-node-kind-assertion",
@@ -1727,6 +1730,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "action-kind-mismatch-presentation-rejection",
         "semantic-action-unavailable-reason-assertion",
         "action-unavailable-reason-mismatch-presentation-rejection",
+        "dispatcher-yielding-action-unavailable-reason-wait",
+        "external-action-unavailable-reason-transition-wait",
+        "persistent-action-unavailable-reason-timeout",
         "semantic-form-field-assertion",
         "form-field-mismatch-presentation-rejection",
         "semantic-form-field-input-kind-assertion",
@@ -2791,7 +2797,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.33.0");
+    assert_eq!(ui.contract.version, "1.35.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2805,10 +2811,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-wait-hidden-presentation-roundtrip",
         "fixed-hidden-wait-timeout",
         "ui-assert-text-presentation-roundtrip",
+        "ui-wait-text-presentation-roundtrip",
+        "fixed-text-wait-timeout",
         "ui-assert-automation-id-presentation-roundtrip",
         "ui-assert-node-kind-presentation-roundtrip",
         "ui-assert-action-kind-presentation-roundtrip",
         "ui-assert-action-unavailable-reason-presentation-roundtrip",
+        "ui-wait-action-unavailable-reason-presentation-roundtrip",
+        "fixed-action-unavailable-reason-wait-timeout",
         "action-unavailable-reason-target-validation",
         "ui-assert-form-field-presentation-roundtrip",
         "form-field-target-validation",
@@ -2885,7 +2895,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.47.0");
+    assert_eq!(hir.contract.version, "0.49.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -2901,10 +2911,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-enabled-effect",
         "ui-assert-disabled-effect",
         "ui-assert-text-effect",
+        "ui-wait-text-effect",
+        "fixed-text-wait-policy",
         "ui-assert-automation-id-effect",
         "ui-assert-node-kind-effect",
         "ui-assert-action-kind-effect",
         "ui-assert-action-unavailable-reason-effect",
+        "ui-wait-action-unavailable-reason-effect",
+        "fixed-action-unavailable-reason-wait-policy",
         "ui-assert-form-field-effect",
         "ui-assert-form-field-input-kind-effect",
         "ui-assert-form-field-required-effect",
@@ -2955,7 +2969,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.32.0");
+    assert_eq!(vm.contract.version, "1.34.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -2976,6 +2990,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-assert-enabled-result",
         "typed-ui-assert-disabled-result",
         "typed-ui-assert-text-result",
+        "typed-ui-wait-text-result",
+        "text-wait-request-result-binding",
+        "fixed-ui-text-wait-deadline",
         "typed-ui-assert-automation-id-result",
         "automation-id-request-result-binding",
         "typed-ui-assert-node-kind-result",
@@ -2984,6 +3001,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "action-kind-request-result-binding",
         "typed-ui-assert-action-unavailable-reason-result",
         "action-unavailable-reason-request-result-binding",
+        "typed-ui-wait-action-unavailable-reason-result",
+        "action-unavailable-reason-wait-request-result-binding",
+        "fixed-ui-action-unavailable-reason-wait-deadline",
         "typed-ui-assert-form-field-result",
         "form-field-request-result-binding",
         "typed-ui-assert-form-field-input-kind-result",
@@ -3034,7 +3054,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.43.0");
+    assert_eq!(command.contract.version, "0.45.0");
     assert!(
         command
             .contract
@@ -3146,6 +3166,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "action-unavailable-reason-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "text-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "action-unavailable-reason-wait-command-rejection")
     );
     assert!(
         command

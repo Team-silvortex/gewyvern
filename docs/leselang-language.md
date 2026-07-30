@@ -16,14 +16,15 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.wait_realized`, `ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
 `ui.assert_enabled`, `ui.assert_disabled`, `ui.wait_enabled`,
 `ui.wait_disabled`, `ui.assert_window_open`, `ui.wait_window_open`,
-`ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`,
+`ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`, `ui.wait_text`,
 `ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.assert_action_kind`,
-`ui.assert_action_unavailable_reason`, `ui.assert_form_field`,
+`ui.assert_action_unavailable_reason`,
+`ui.wait_action_unavailable_reason`, `ui.assert_form_field`,
 `ui.assert_form_field_input_kind`, `ui.assert_form_field_required`,
 `ui.assert_form_field_max_length`, `ui.assert_form_field_placeholder`, plus
-`ui.assert_accessible_name` and `ui.assert_accessible_description` presentation
-effects.
+`ui.assert_accessible_name` and `ui.assert_accessible_description`
+presentation effects.
 
 ## Canonical Program
 
@@ -397,6 +398,23 @@ reads the realized native `TextBlock.Text` or string `Button.Content` and
 requires an exact ordinal match. Missing, textless, unrealized, or mismatched
 targets fail. The assertion never focuses, activates, scrolls, or changes text.
 
+Native displayed text can also be awaited as a synchronous language effect:
+
+```leselang
+fn main() = ui.wait_text(
+  node_id: "fleet-title",
+  expected: "Runtime fleet ready"
+)
+```
+
+`ui.wait_text` requires `ui.presentation`, the same text-rendering semantic node
+contract as `ui.assert_text`, and the same bounded expected display text. Its
+presentation envelope carries a protocol-fixed 2000 ms deadline; source has no
+duration argument. The frontend adapter yields its dispatcher until native
+displayed text exactly matches the expected value. Missing or textless nodes fail
+immediately, persistent mismatches time out, and waiting never focuses,
+activates, scrolls, types, or changes text.
+
 Native automation identity can be asserted independently of display text:
 
 ```leselang
@@ -467,6 +485,25 @@ compares the stable action availability reason configured for that semantic
 action or its absence exactly; actionless targets, unrealized targets, invalid
 reason text, or mismatched reasons fail. The assertion never focuses, activates,
 scrolls, submits a form, or changes action availability.
+
+The same action availability reason can be awaited while a daemon, topology
+poll, or local deployment policy updates native control state:
+
+```leselang
+fn main() = ui.wait_action_unavailable_reason(
+  node_id: "runtime-runtime-a-refresh",
+  expected: none
+)
+```
+
+`ui.wait_action_unavailable_reason` requires `ui.presentation` and a semantic
+action node. Its presentation envelope carries a protocol-fixed 2000 ms
+deadline; source has no duration argument. The `expected` parameter has the same
+bounded text-or-`none` contract as the assertion. The frontend adapter yields its
+dispatcher until the renderer-maintained action unavailable reason exactly
+matches the expected value or absence. Missing or actionless nodes fail
+immediately, persistent mismatches time out, and waiting never focuses,
+activates, scrolls, submits a form, or rewrites action availability.
 
 Native deployment form metadata can be asserted without submitting the form:
 
