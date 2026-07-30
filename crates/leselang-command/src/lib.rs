@@ -106,8 +106,11 @@ pub fn lower_effect(
             | Effect::UiAssertFormFieldRequired { .. }
             | Effect::UiAssertFormFieldMaxLength { .. }
             | Effect::UiAssertFormFieldPlaceholder { .. }
+            | Effect::UiWaitFormFieldPlaceholder { .. }
             | Effect::UiAssertAccessibleName { .. }
+            | Effect::UiWaitAccessibleName { .. }
             | Effect::UiAssertAccessibleDescription { .. }
+            | Effect::UiWaitAccessibleDescription { .. }
     ) {
         return Err(LoweringError::FrontendLocalEffect);
     }
@@ -152,8 +155,11 @@ pub fn lower_effect(
         | Effect::UiAssertFormFieldRequired { .. }
         | Effect::UiAssertFormFieldMaxLength { .. }
         | Effect::UiAssertFormFieldPlaceholder { .. }
+        | Effect::UiWaitFormFieldPlaceholder { .. }
         | Effect::UiAssertAccessibleName { .. }
-        | Effect::UiAssertAccessibleDescription { .. } => {
+        | Effect::UiWaitAccessibleName { .. }
+        | Effect::UiAssertAccessibleDescription { .. }
+        | Effect::UiWaitAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
         }
         Effect::All { .. } => return Err(LoweringError::StructuredEffectRequiresExpansion),
@@ -209,8 +215,11 @@ pub fn lower_effect(
         | Effect::UiAssertFormFieldRequired { .. }
         | Effect::UiAssertFormFieldMaxLength { .. }
         | Effect::UiAssertFormFieldPlaceholder { .. }
+        | Effect::UiWaitFormFieldPlaceholder { .. }
         | Effect::UiAssertAccessibleName { .. }
-        | Effect::UiAssertAccessibleDescription { .. } => {
+        | Effect::UiWaitAccessibleName { .. }
+        | Effect::UiAssertAccessibleDescription { .. }
+        | Effect::UiWaitAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
         }
         Effect::All { .. } => unreachable!("structured effects returned before lowering"),
@@ -505,8 +514,11 @@ mod tests {
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
             "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
             "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {
             let program = lower(&parse(source)).unwrap();
             assert_eq!(

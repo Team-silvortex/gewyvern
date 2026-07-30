@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by thirty-three presentation atoms.
+Semantic action equivalence is joined by thirty-six presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -248,17 +248,30 @@ bounded decimal string in Leselang source.
 requires the same semantic deployment form action and bounded field key, and
 compares the stable semantic placeholder fallback or absence. Its `expected`
 payload may be bounded text or `none` in Leselang source.
+`UiPresentationOperation::WaitFormFieldPlaceholder` maps one-to-one to
+`ui.wait_form_field_placeholder(node_id: ..., field: ..., expected: ...)`,
+requires the same semantic deployment form action and bounded field key, accepts
+bounded text or `none`, and carries the protocol-fixed 2000 ms deadline while
+waiting for the stable semantic placeholder fallback or absence.
 `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and uses the same expected-value bound.
+`UiPresentationOperation::WaitAccessibleName` maps one-to-one to
+`ui.wait_accessible_name(node_id: ..., expected: ...)`, accepts every existing
+semantic node, uses the same expected-value bound, and carries the
+protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
-semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all thirty-three travel in
+semantic node with an explicitly declared accessibility description.
+`UiPresentationOperation::WaitAccessibleDescription` maps one-to-one to
+`ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
+explicit accessibility description metadata, uses the same expected-value bound,
+and carries the protocol-fixed 2000 ms deadline. None can
+become a `UiEvent` or `CommandPlan`; all thirty-six travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all thirty-three operations through its stable visual index. Focus
+Avalonia resolves all thirty-six operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -324,6 +337,10 @@ submits, edits, truncates, or otherwise mutates the form.
 Form-field placeholder assertion reads the same stable semantic deployment form
 metadata, compares the declared placeholder fallback or its absence exactly, and
 never types into, submits, edits, or otherwise mutates the form.
+Form-field placeholder wait polls that same stable semantic deployment form
+metadata through the cancellable dispatcher-yielding adapter until the
+protocol-fixed deadline, observing external placeholder transitions without
+typing into, submitting, editing, or otherwise mutating the form.
 Action-unavailable-reason assertion reads renderer-maintained action
 availability state, compares the declared unavailable reason or its absence
 exactly, and never focuses, activates, clicks, or rewrites the action.
@@ -333,9 +350,17 @@ protocol-fixed deadline. It observes external reason transitions and clearing,
 but never focuses, activates, clicks, or rewrites the action.
 Accessible-name assertion independently reads
 native `AutomationProperties.Name` with exact ordinal comparison. None of the
-assertions mutates the control. Accessible-description assertion independently
+assertions mutates the control. Accessible-name wait polls the same native
+`AutomationProperties.Name` predicate through the cancellable
+dispatcher-yielding adapter until its fixed deadline, observing external
+automation-name transitions without focusing, scrolling, rewriting text, or
+mutating metadata. Accessible-description assertion independently
 reads native `AutomationProperties.HelpText`, also with exact ordinal
 comparison, and rejects semantic targets that never declared a description.
+Accessible-description wait polls the same native HelpText predicate through the
+cancellable dispatcher-yielding adapter until its fixed deadline, observing
+external automation-description transitions without focus, scrolling, rewriting
+text, or mutating metadata.
 The real-window probe covers natural post-layout realization and visibility,
 persistent unrealized and invisible timeout, external hidden transition and
 persistent visible hidden-wait timeout, native application, unrealized,
@@ -357,9 +382,12 @@ action-unavailable-reason mismatch timeout,
 form-field-label-mismatched,
 form-field-input-kind-mismatched, form-field-required-mismatched,
 form-field-max-length-mismatched,
-form-field-placeholder-mismatched,
-accessible-name-mismatched,
-accessible-description-mismatched, still-enabled disabled-assertion mismatch,
+form-field-placeholder-mismatched, external form-field-placeholder transition,
+persistent form-field-placeholder mismatch timeout,
+accessible-name-mismatched, external accessible-name transition,
+persistent accessible-name mismatch timeout,
+accessible-description-mismatched, external accessible-description transition,
+persistent accessible-description mismatch timeout, still-enabled disabled-assertion mismatch,
 still-visible hidden-assertion mismatch, missing, textless, and unfocusable
 targets, focus preservation, remount/patch retention, and safe target removal.
 

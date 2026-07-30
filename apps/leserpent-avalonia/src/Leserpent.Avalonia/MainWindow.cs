@@ -60,6 +60,12 @@ internal sealed class MainWindow : Window
     public bool InitialSelectionWaitTimedOut { get; private set; }
     public bool InitialTextWaitCompleted { get; private set; }
     public bool InitialTextWaitTimedOut { get; private set; }
+    public bool InitialAccessibleNameWaitCompleted { get; private set; }
+    public bool InitialAccessibleNameWaitTimedOut { get; private set; }
+    public bool InitialAccessibleDescriptionWaitCompleted { get; private set; }
+    public bool InitialAccessibleDescriptionWaitTimedOut { get; private set; }
+    public bool InitialFormFieldPlaceholderWaitCompleted { get; private set; }
+    public bool InitialFormFieldPlaceholderWaitTimedOut { get; private set; }
     public bool SelectionAssertCompleted { get; private set; }
     public bool SelectionMismatchRejected { get; private set; }
     public bool SelectionlessTargetRejected { get; private set; }
@@ -624,6 +630,157 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang text wait did not reject a persistent text mismatch");
         }
+        var accessibleNameWaitExpected = $"{textWaitExpected} accessible";
+        var accessibleNameWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitAccessibleName,
+            NodeId = textWaitNode.Id,
+            Expected = accessibleNameWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitAccessibleNameTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchTextFallback(textWaitNode.Id, accessibleNameWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var accessibleNameWaitResult = await accessibleNameWait;
+        InitialAccessibleNameWaitCompleted = accessibleNameWaitResult.Applied
+            && accessibleNameWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialAccessibleNameWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible-name wait did not observe an external automation-name transition");
+        }
+        var accessibleNameWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitAccessibleName,
+                NodeId = textWaitNode.Id,
+                Expected = $"{accessibleNameWaitExpected} mismatch",
+                TimeoutMs = SemanticRenderer.WaitAccessibleNameTimeoutMs,
+            });
+        InitialAccessibleNameWaitTimedOut = !accessibleNameWaitTimeoutResult.Applied
+            && accessibleNameWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertAccessibleName,
+                NodeId = textWaitNode.Id,
+                Expected = accessibleNameWaitExpected,
+            }).Applied;
+        if (!InitialAccessibleNameWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible-name wait did not reject a persistent automation-name mismatch");
+        }
+        var accessibleDescriptionWaitNode = FindFirstDescriptionNode(renderer.Document.Root)
+            ?? throw new InvalidDataException(
+                "accessible description wait probe requires explicit semantic metadata");
+        var accessibleDescriptionWaitExpected =
+            $"{accessibleDescriptionWaitNode.Accessibility.Description!.Fallback} ready";
+        var accessibleDescriptionWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitAccessibleDescription,
+            NodeId = accessibleDescriptionWaitNode.Id,
+            Expected = accessibleDescriptionWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitAccessibleDescriptionTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchAccessibilityDescriptionFallback(
+                accessibleDescriptionWaitNode.Id,
+                accessibleDescriptionWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var accessibleDescriptionWaitResult = await accessibleDescriptionWait;
+        InitialAccessibleDescriptionWaitCompleted = accessibleDescriptionWaitResult.Applied
+            && accessibleDescriptionWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialAccessibleDescriptionWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible-description wait did not observe an external automation-description transition");
+        }
+        var accessibleDescriptionWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitAccessibleDescription,
+                NodeId = accessibleDescriptionWaitNode.Id,
+                Expected = $"{accessibleDescriptionWaitExpected} mismatch",
+                TimeoutMs = SemanticRenderer.WaitAccessibleDescriptionTimeoutMs,
+            });
+        InitialAccessibleDescriptionWaitTimedOut = !accessibleDescriptionWaitTimeoutResult.Applied
+            && accessibleDescriptionWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertAccessibleDescription,
+                NodeId = accessibleDescriptionWaitNode.Id,
+                Expected = accessibleDescriptionWaitExpected,
+            }).Applied;
+        if (!InitialAccessibleDescriptionWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang accessible-description wait did not reject a persistent automation-description mismatch");
+        }
+        var formFieldPlaceholderWaitNodeId =
+            renderer.FirstRealizedActionNodeIdFor(ActionKind.RuntimeDeploy)
+            ?? throw new InvalidDataException(
+                "form field placeholder wait probe requires a realized deploy action");
+        var formFieldPlaceholderWaitNode =
+            FindNode(renderer.Document.Root, formFieldPlaceholderWaitNodeId)
+            ?? throw new InvalidDataException(
+                "form field placeholder wait probe target was not found");
+        var formFieldPlaceholderWaitField =
+            formFieldPlaceholderWaitNode.Action?.Form?.Fields
+                .FirstOrDefault(field => field.Placeholder is not null)
+            ?? throw new InvalidDataException(
+                "form field placeholder wait probe requires placeholder metadata");
+        var formFieldPlaceholderWaitExpected =
+            $"{formFieldPlaceholderWaitField.Placeholder!.Fallback} ready";
+        var formFieldPlaceholderWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitFormFieldPlaceholder,
+            NodeId = formFieldPlaceholderWaitNodeId,
+            Field = formFieldPlaceholderWaitField.Key,
+            Expected = formFieldPlaceholderWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitFormFieldPlaceholderTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchFormFieldPlaceholder(
+                formFieldPlaceholderWaitNodeId,
+                formFieldPlaceholderWaitField.Key,
+                formFieldPlaceholderWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var formFieldPlaceholderWaitResult = await formFieldPlaceholderWait;
+        InitialFormFieldPlaceholderWaitCompleted = formFieldPlaceholderWaitResult.Applied
+            && formFieldPlaceholderWaitResult.FailureCode
+                == PresentationAutomationFailureCode.None;
+        if (!InitialFormFieldPlaceholderWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field placeholder wait did not observe an external form metadata transition");
+        }
+        var formFieldPlaceholderWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFormFieldPlaceholder,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                Expected = $"{formFieldPlaceholderWaitExpected} mismatch",
+                TimeoutMs = SemanticRenderer.WaitFormFieldPlaceholderTimeoutMs,
+            });
+        InitialFormFieldPlaceholderWaitTimedOut =
+            !formFieldPlaceholderWaitTimeoutResult.Applied
+            && formFieldPlaceholderWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFormFieldPlaceholder,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                Expected = formFieldPlaceholderWaitExpected,
+            }).Applied;
+        if (!InitialFormFieldPlaceholderWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang form field placeholder wait did not reject a persistent placeholder mismatch");
+        }
         var hiddenWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.WaitHidden,
@@ -642,10 +799,11 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang hidden wait did not observe an external hidden transition");
         }
-        var restoredVisibility = renderer.ApplyPresentation(new UiPresentationOperation
+        var restoredVisibility = await renderer.ApplyPresentationAsync(new UiPresentationOperation
         {
-            Kind = UiPresentationOperationKind.AssertVisible,
+            Kind = UiPresentationOperationKind.WaitVisible,
             NodeId = visibleResult.NodeId,
+            TimeoutMs = SemanticRenderer.WaitVisibleTimeoutMs,
         });
         if (!restoredVisibility.Applied
             || restoredVisibility.FailureCode != PresentationAutomationFailureCode.None)
@@ -1607,6 +1765,72 @@ internal sealed class MainWindow : Window
         });
     }
 
+    private void PatchAccessibilityDescriptionFallback(string nodeId, string fallback)
+    {
+        var source = FindNode(renderer.Document.Root, nodeId)
+            ?? throw new InvalidDataException(
+                "accessible description wait probe target was not found");
+        var replacement = CloneShallow(source);
+        if (replacement.Accessibility.Description is null)
+        {
+            throw new InvalidDataException(
+                "accessible description wait probe target has no semantic description");
+        }
+        replacement.Accessibility.Description.Fallback = fallback;
+        var revision = renderer.Document.Revision;
+        renderer.Apply(new UiPatch
+        {
+            SchemaVersion = 1,
+            FromRevision = revision,
+            ToRevision = checked(revision + 1),
+            Operations =
+            [
+                new UiPatchOperation
+                {
+                    Kind = PatchKind.Update,
+                    Node = replacement,
+                },
+            ],
+        });
+    }
+
+    private void PatchFormFieldPlaceholder(string nodeId, string fieldKey, string? fallback)
+    {
+        var source = FindNode(renderer.Document.Root, nodeId)
+            ?? throw new InvalidDataException(
+                "form field placeholder wait probe target was not found");
+        var replacement = CloneShallow(source);
+        var form = replacement.Action?.Form
+            ?? throw new InvalidDataException(
+                "form field placeholder wait probe target has no form metadata");
+        var field = form.Fields.FirstOrDefault(candidate =>
+            StringComparer.Ordinal.Equals(candidate.Key, fieldKey))
+            ?? throw new InvalidDataException(
+                "form field placeholder wait probe field was not found");
+        field.Placeholder = fallback is null
+            ? null
+            : new LocalizedText
+            {
+                Key = field.Placeholder?.Key ?? $"runtime.deploy.form.{fieldKey}.placeholder",
+                Fallback = fallback,
+            };
+        var revision = renderer.Document.Revision;
+        renderer.Apply(new UiPatch
+        {
+            SchemaVersion = 1,
+            FromRevision = revision,
+            ToRevision = checked(revision + 1),
+            Operations =
+            [
+                new UiPatchOperation
+                {
+                    Kind = PatchKind.Update,
+                    Node = replacement,
+                },
+            ],
+        });
+    }
+
     public void CompleteFocusRetentionProbe(string nodeId)
     {
         if (renderer.IsFocusRestorePending || renderer.FocusedNodeId != nodeId)
@@ -1737,23 +1961,15 @@ internal sealed class MainWindow : Window
         Kind = node.Kind,
         RuntimeId = node.RuntimeId,
         DebuggerSessionId = node.DebuggerSessionId,
-        Text = node.Text is null ? null : new LocalizedText
-        {
-            Key = node.Text.Key,
-            Fallback = node.Text.Fallback,
-        },
+        Text = node.Text is null ? null : CloneLocalizedText(node.Text),
         Accessibility = new Accessibility
         {
-            Label = node.Accessibility.Label is null ? null : new LocalizedText
-            {
-                Key = node.Accessibility.Label.Key,
-                Fallback = node.Accessibility.Label.Fallback,
-            },
-            Description = node.Accessibility.Description is null ? null : new LocalizedText
-            {
-                Key = node.Accessibility.Description.Key,
-                Fallback = node.Accessibility.Description.Fallback,
-            },
+            Label = node.Accessibility.Label is null
+                ? null
+                : CloneLocalizedText(node.Accessibility.Label),
+            Description = node.Accessibility.Description is null
+                ? null
+                : CloneLocalizedText(node.Accessibility.Description),
         },
         Selection = node.Selection is null ? null : new UiSelection
         {
@@ -1764,7 +1980,31 @@ internal sealed class MainWindow : Window
             Kind = node.Action.Kind,
             RuntimeId = node.Action.RuntimeId,
             SessionId = node.Action.SessionId,
+            Form = node.Action.Form is null ? null : CloneForm(node.Action.Form),
         },
         Children = [],
+    };
+
+    private static UiForm CloneForm(UiForm form) => new()
+    {
+        Title = CloneLocalizedText(form.Title),
+        SubmitLabel = CloneLocalizedText(form.SubmitLabel),
+        Fields = form.Fields.Select(field => new UiFormField
+        {
+            Key = field.Key,
+            Label = CloneLocalizedText(field.Label),
+            Placeholder = field.Placeholder is null
+                ? null
+                : CloneLocalizedText(field.Placeholder),
+            Required = field.Required,
+            MaxLength = field.MaxLength,
+            InputKind = field.InputKind,
+        }).ToList(),
+    };
+
+    private static LocalizedText CloneLocalizedText(LocalizedText text) => new()
+    {
+        Key = text.Key,
+        Fallback = text.Fallback,
     };
 }

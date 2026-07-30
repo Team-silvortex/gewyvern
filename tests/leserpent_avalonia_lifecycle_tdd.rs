@@ -64,6 +64,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.AssertText"));
     assert!(core.contains("UiPresentationOperationKind.WaitText"));
     assert!(core.contains("WaitTextTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitAccessibleName"));
+    assert!(core.contains("WaitAccessibleNameTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitAccessibleDescription"));
+    assert!(core.contains("WaitAccessibleDescriptionTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertAutomationId"));
     assert!(core.contains("UiPresentationOperationKind.AssertNodeKind"));
     assert!(core.contains("UiPresentationOperationKind.AssertActionKind"));
@@ -76,6 +80,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("public int? MaxLength { get; set; }"));
     assert!(core.contains("UiPresentationValidation.InvalidExpectedMaxLength"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormFieldPlaceholder"));
+    assert!(core.contains("UiPresentationOperationKind.WaitFormFieldPlaceholder"));
+    assert!(core.contains("WaitFormFieldPlaceholderTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleDescription"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
@@ -133,6 +139,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("StringComparer.Ordinal.Equals(actual, operation.Expected)"));
     assert!(renderer.contains("UiPresentationOperationKind.WaitText"));
     assert!(renderer.contains("WaitTextTimeoutMs"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitAccessibleName"));
+    assert!(renderer.contains("WaitAccessibleNameTimeoutMs"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitAccessibleDescription"));
+    assert!(renderer.contains("WaitAccessibleDescriptionTimeoutMs"));
     assert!(window.contains("private readonly string initialEnabledWaitNodeId"));
     assert!(
         !window.contains("private readonly Task<PresentationAutomationResult> initialEnabledWait;")
@@ -147,6 +157,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(window.contains("var enabledWait = renderer.ApplyPresentationAsync"));
     assert!(window.contains("InitialTextWaitCompleted"));
     assert!(window.contains("InitialTextWaitTimedOut"));
+    assert!(window.contains("InitialAccessibleNameWaitCompleted"));
+    assert!(window.contains("InitialAccessibleNameWaitTimedOut"));
     assert!(window.contains("PatchTextFallback("));
     assert!(window.contains("var actionUnavailableReasonWait = renderer.ApplyPresentationAsync"));
     assert!(window.contains("ActionUnavailableReasonWaitCompleted"));
@@ -205,6 +217,12 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("assert_text=true"));
     assert!(app.contains("wait_text="));
     assert!(app.contains("wait_text_timeout="));
+    assert!(app.contains("wait_accessible_name="));
+    assert!(app.contains("wait_accessible_name_timeout="));
+    assert!(app.contains("wait_accessible_description="));
+    assert!(app.contains("wait_accessible_description_timeout="));
+    assert!(app.contains("wait_form_field_placeholder="));
+    assert!(app.contains("wait_form_field_placeholder_timeout="));
     assert!(app.contains("assert_automation_id=true"));
     assert!(app.contains("automation_id_mismatch_rejected=true"));
     assert!(app.contains("assert_node_kind=true"));
@@ -248,6 +266,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_assert_automation_id=true"));
     assert!(conformance.contains("presentation_assert_node_kind=true"));
     assert!(conformance.contains("presentation_wait_text=true"));
+    assert!(conformance.contains("presentation_wait_accessible_name=true"));
+    assert!(conformance.contains("presentation_wait_accessible_description=true"));
+    assert!(conformance.contains("presentation_wait_form_field_placeholder=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
     assert!(conformance.contains("presentation_assert_action_unavailable_reason=true"));
     assert!(conformance.contains("presentation_wait_action_unavailable_reason=true"));

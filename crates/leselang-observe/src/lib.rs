@@ -422,15 +422,30 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert form field placeholder",
         ),
+        Effect::UiWaitFormFieldPlaceholder { .. } => (
+            DebuggerEffectKind::UiWaitFormFieldPlaceholder,
+            None,
+            "UI wait form field placeholder",
+        ),
         Effect::UiAssertAccessibleName { .. } => (
             DebuggerEffectKind::UiAssertAccessibleName,
             None,
             "UI assert accessible name",
         ),
+        Effect::UiWaitAccessibleName { .. } => (
+            DebuggerEffectKind::UiWaitAccessibleName,
+            None,
+            "UI wait accessible name",
+        ),
         Effect::UiAssertAccessibleDescription { .. } => (
             DebuggerEffectKind::UiAssertAccessibleDescription,
             None,
             "UI assert accessible description",
+        ),
+        Effect::UiWaitAccessibleDescription { .. } => (
+            DebuggerEffectKind::UiWaitAccessibleDescription,
+            None,
+            "UI wait accessible description",
         ),
         Effect::All { .. } => {
             return Err(ObserveError::InvalidEffectRequest(Fault {

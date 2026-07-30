@@ -1693,8 +1693,11 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
 `ui.assert_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.assert_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
+`ui.wait_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
-`ui.assert_accessible_description(node_id: ..., expected: ...)`, lower to
+`ui.wait_accessible_name(node_id: ..., expected: ...)`, plus
+`ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
+`ui.wait_accessible_description(node_id: ..., expected: ...)`, lower to
 operation-specific values inside a capability-gated VM
 `PresentationEnvelope`, then to renderer-neutral `UiPresentationOperation`
 variants. None can become a `CommandPlan`. Avalonia validates the semantic

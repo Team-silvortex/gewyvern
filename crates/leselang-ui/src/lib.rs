@@ -2,8 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
-    Effect, HirBranch, Type, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
-    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
+    Effect, HirBranch, Type, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
+    UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
+    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
     UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
     UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
     UiFormInputKind as HirUiFormInputKind, UiFormRequirementState as HirUiFormRequirementState,
@@ -335,8 +337,11 @@ pub enum DebuggerEffectKind {
     UiAssertFormFieldRequired,
     UiAssertFormFieldMaxLength,
     UiAssertFormFieldPlaceholder,
+    UiWaitFormFieldPlaceholder,
     UiAssertAccessibleName,
+    UiWaitAccessibleName,
     UiAssertAccessibleDescription,
+    UiWaitAccessibleDescription,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -584,13 +589,29 @@ pub enum UiPresentationOperation {
         field: String,
         expected: Option<String>,
     },
+    WaitFormFieldPlaceholder {
+        node_id: NodeId,
+        field: String,
+        expected: Option<String>,
+        timeout_ms: u64,
+    },
     AssertAccessibleName {
         node_id: NodeId,
         expected: String,
     },
+    WaitAccessibleName {
+        node_id: NodeId,
+        expected: String,
+        timeout_ms: u64,
+    },
     AssertAccessibleDescription {
         node_id: NodeId,
         expected: String,
+    },
+    WaitAccessibleDescription {
+        node_id: NodeId,
+        expected: String,
+        timeout_ms: u64,
     },
 }
 
@@ -1348,8 +1369,11 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertFormFieldRequired
             | DebuggerEffectKind::UiAssertFormFieldMaxLength
             | DebuggerEffectKind::UiAssertFormFieldPlaceholder
+            | DebuggerEffectKind::UiWaitFormFieldPlaceholder
             | DebuggerEffectKind::UiAssertAccessibleName
-            | DebuggerEffectKind::UiAssertAccessibleDescription => effect.runtime_id.is_none(),
+            | DebuggerEffectKind::UiWaitAccessibleName
+            | DebuggerEffectKind::UiAssertAccessibleDescription
+            | DebuggerEffectKind::UiWaitAccessibleDescription => effect.runtime_id.is_none(),
             DebuggerEffectKind::RuntimeInspect
             | DebuggerEffectKind::RuntimeHistory
             | DebuggerEffectKind::RuntimeLogs
@@ -1484,8 +1508,11 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertFormFieldRequired => "UI assert form field required",
             DebuggerEffectKind::UiAssertFormFieldMaxLength => "UI assert form field max length",
             DebuggerEffectKind::UiAssertFormFieldPlaceholder => "UI assert form field placeholder",
+            DebuggerEffectKind::UiWaitFormFieldPlaceholder => "UI wait form field placeholder",
             DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
+            DebuggerEffectKind::UiWaitAccessibleName => "UI wait accessible name",
             DebuggerEffectKind::UiAssertAccessibleDescription => "UI assert accessible description",
+            DebuggerEffectKind::UiWaitAccessibleDescription => "UI wait accessible description",
         };
         children.push(text_node(
             &format!("{prefix}-pending-effect"),
@@ -1895,16 +1922,40 @@ pub fn presentation_operation_for_effect(
             field: field.clone(),
             expected: expected.clone(),
         },
+        Effect::UiWaitFormFieldPlaceholder {
+            node_id,
+            field,
+            expected,
+        } => UiPresentationOperation::WaitFormFieldPlaceholder {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            expected: expected.clone(),
+            timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+        },
         Effect::UiAssertAccessibleName { node_id, expected } => {
             UiPresentationOperation::AssertAccessibleName {
                 node_id: NodeId::new(node_id.clone())?,
                 expected: expected.clone(),
             }
         }
+        Effect::UiWaitAccessibleName { node_id, expected } => {
+            UiPresentationOperation::WaitAccessibleName {
+                node_id: NodeId::new(node_id.clone())?,
+                expected: expected.clone(),
+                timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+            }
+        }
         Effect::UiAssertAccessibleDescription { node_id, expected } => {
             UiPresentationOperation::AssertAccessibleDescription {
                 node_id: NodeId::new(node_id.clone())?,
                 expected: expected.clone(),
+            }
+        }
+        Effect::UiWaitAccessibleDescription { node_id, expected } => {
+            UiPresentationOperation::WaitAccessibleDescription {
+                node_id: NodeId::new(node_id.clone())?,
+                expected: expected.clone(),
+                timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
             }
         }
         _ => return Err(UiError::InvalidAutomationEffect),
@@ -2066,18 +2117,40 @@ pub fn effect_for_presentation_operation(
             field: field.clone(),
             expected: expected.clone(),
         },
+        UiPresentationOperation::WaitFormFieldPlaceholder {
+            node_id,
+            field,
+            expected,
+            ..
+        } => Effect::UiWaitFormFieldPlaceholder {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            expected: expected.clone(),
+        },
         UiPresentationOperation::AssertAccessibleName { node_id, expected } => {
             Effect::UiAssertAccessibleName {
                 node_id: node_id.as_str().to_string(),
                 expected: expected.clone(),
             }
         }
+        UiPresentationOperation::WaitAccessibleName {
+            node_id, expected, ..
+        } => Effect::UiWaitAccessibleName {
+            node_id: node_id.as_str().to_string(),
+            expected: expected.clone(),
+        },
         UiPresentationOperation::AssertAccessibleDescription { node_id, expected } => {
             Effect::UiAssertAccessibleDescription {
                 node_id: node_id.as_str().to_string(),
                 expected: expected.clone(),
             }
         }
+        UiPresentationOperation::WaitAccessibleDescription {
+            node_id, expected, ..
+        } => Effect::UiWaitAccessibleDescription {
+            node_id: node_id.as_str().to_string(),
+            expected: expected.clone(),
+        },
     })
 }
 
@@ -2118,19 +2191,28 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertFormFieldRequired { node_id, .. }
         | UiPresentationOperation::AssertFormFieldMaxLength { node_id, .. }
         | UiPresentationOperation::AssertFormFieldPlaceholder { node_id, .. }
+        | UiPresentationOperation::WaitFormFieldPlaceholder { node_id, .. }
         | UiPresentationOperation::AssertAccessibleName { node_id, .. }
-        | UiPresentationOperation::AssertAccessibleDescription { node_id, .. } => node_id,
+        | UiPresentationOperation::WaitAccessibleName { node_id, .. }
+        | UiPresentationOperation::AssertAccessibleDescription { node_id, .. }
+        | UiPresentationOperation::WaitAccessibleDescription { node_id, .. } => node_id,
     };
     if let UiPresentationOperation::AssertText { expected, .. }
     | UiPresentationOperation::WaitText { expected, .. }
     | UiPresentationOperation::AssertFormField { expected, .. }
     | UiPresentationOperation::AssertAccessibleName { expected, .. }
-    | UiPresentationOperation::AssertAccessibleDescription { expected, .. } = operation
+    | UiPresentationOperation::WaitAccessibleName { expected, .. }
+    | UiPresentationOperation::AssertAccessibleDescription { expected, .. }
+    | UiPresentationOperation::WaitAccessibleDescription { expected, .. } = operation
         && !validate_ui_expected_text(expected)
     {
         return Err(UiError::InvalidPresentationText);
     }
     if let UiPresentationOperation::AssertFormFieldPlaceholder {
+        expected: Some(expected),
+        ..
+    }
+    | UiPresentationOperation::WaitFormFieldPlaceholder {
         expected: Some(expected),
         ..
     }
@@ -2150,7 +2232,8 @@ pub fn validate_presentation_operation(
     | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
     | UiPresentationOperation::AssertFormFieldRequired { field, .. }
     | UiPresentationOperation::AssertFormFieldMaxLength { field, .. }
-    | UiPresentationOperation::AssertFormFieldPlaceholder { field, .. } = operation
+    | UiPresentationOperation::AssertFormFieldPlaceholder { field, .. }
+    | UiPresentationOperation::WaitFormFieldPlaceholder { field, .. } = operation
         && !validate_ui_form_field_key(field)
     {
         return Err(UiError::InvalidPresentationText);
@@ -2215,6 +2298,21 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
+    if let UiPresentationOperation::WaitAccessibleName { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitAccessibleDescription { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitFormFieldPlaceholder { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
     let node =
         find_node(&document.root, node_id).ok_or_else(|| UiError::UnknownPresentationTarget {
             node_id: node_id.as_str().to_string(),
@@ -2270,7 +2368,8 @@ pub fn validate_presentation_operation(
     | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
     | UiPresentationOperation::AssertFormFieldRequired { field, .. }
     | UiPresentationOperation::AssertFormFieldMaxLength { field, .. }
-    | UiPresentationOperation::AssertFormFieldPlaceholder { field, .. } = operation
+    | UiPresentationOperation::AssertFormFieldPlaceholder { field, .. }
+    | UiPresentationOperation::WaitFormFieldPlaceholder { field, .. } = operation
     {
         let Some(UiAction::RuntimeDeploy { form, .. }) = &node.action else {
             return Err(UiError::FormlessPresentationTarget {
@@ -2291,6 +2390,7 @@ pub fn validate_presentation_operation(
     if matches!(
         operation,
         UiPresentationOperation::AssertAccessibleDescription { .. }
+            | UiPresentationOperation::WaitAccessibleDescription { .. }
     ) && node.accessibility.description.is_none()
     {
         return Err(UiError::DescriptionlessPresentationTarget {
@@ -4256,6 +4356,80 @@ mod tests {
     }
 
     #[test]
+    fn accessible_name_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitAccessibleName {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            expected: "Runtime fleet".into(),
+            timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitAccessibleName {
+                node_id: "fleet-title".into(),
+                expected: "Runtime fleet".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAccessibleName {
+                    node_id: document.root.id.clone(),
+                    expected: document.root.id.as_str().into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+                },
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAccessibleName {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "Runtime fleet".into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAccessibleName {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "bad\nname".into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAccessibleName {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected: "x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
     fn text_wait_round_trips_with_the_fixed_bounded_policy() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::WaitText {
@@ -5088,6 +5262,125 @@ mod tests {
     }
 
     #[test]
+    fn form_field_placeholder_wait_round_trips_with_the_fixed_optional_policy() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let operation = UiPresentationOperation::WaitFormFieldPlaceholder {
+            node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            expected: Some("http/request".into()),
+            timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: Some("http/request".into()),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            effect_for_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldPlaceholder {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "target".into(),
+                    expected: None,
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                },
+            )
+            .unwrap(),
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "target".into(),
+                expected: None,
+            }
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldPlaceholder {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "missing".into(),
+                    expected: Some("http/request".into()),
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldPlaceholder {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    expected: Some("http/request".into()),
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldPlaceholder {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "bad/field".into(),
+                    expected: Some("http/request".into()),
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldPlaceholder {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "pipeline_kind".into(),
+                    expected: Some("http/request".into()),
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldPlaceholder {
+                    node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+                    field: "pipeline_kind".into(),
+                    expected: Some("x".repeat(leselang_hir::MAX_UI_EXPECTED_TEXT_BYTES + 1)),
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
     fn accessible_description_assertion_requires_declared_semantic_metadata() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::AssertAccessibleDescription {
@@ -5132,6 +5425,71 @@ mod tests {
                 &UiPresentationOperation::AssertAccessibleDescription {
                     node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
                     expected: "bad\ndescription".into(),
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn accessible_description_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitAccessibleDescription {
+            node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+            expected: "Open the read-only runtime workspace".into(),
+            timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitAccessibleDescription {
+                node_id: "runtime-runtime-a-inspect".into(),
+                expected: "Open the read-only runtime workspace".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            canonical_source(&effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAccessibleDescription {
+                    node_id: document.root.id.clone(),
+                    expected: "description".into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::DescriptionlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAccessibleDescription {
+                    node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+                    expected: "Open the read-only runtime workspace".into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitAccessibleDescription {
+                    node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+                    expected: "bad\ndescription".into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
                 },
             ),
             Err(UiError::InvalidPresentationText)

@@ -17,6 +17,9 @@ pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
 pub const UI_WAIT_ENABLED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_SELECTION_TIMEOUT_MS: u64 = 2_000;
@@ -242,11 +245,24 @@ pub enum Effect {
         field: String,
         expected: Option<String>,
     },
+    UiWaitFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
+    },
     UiAssertAccessibleName {
         node_id: String,
         expected: String,
     },
+    UiWaitAccessibleName {
+        node_id: String,
+        expected: String,
+    },
     UiAssertAccessibleDescription {
+        node_id: String,
+        expected: String,
+    },
+    UiWaitAccessibleDescription {
         node_id: String,
         expected: String,
     },
@@ -297,8 +313,11 @@ pub enum Type {
     UiAssertFormFieldRequired,
     UiAssertFormFieldMaxLength,
     UiAssertFormFieldPlaceholder,
+    UiWaitFormFieldPlaceholder,
     UiAssertAccessibleName,
+    UiWaitAccessibleName,
     UiAssertAccessibleDescription,
+    UiWaitAccessibleDescription,
     Structured,
 }
 
@@ -405,8 +424,11 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_form_field_required"
         | "ui.assert_form_field_max_length"
         | "ui.assert_form_field_placeholder"
+        | "ui.wait_form_field_placeholder"
         | "ui.assert_accessible_name"
-        | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
+        | "ui.wait_accessible_name"
+        | "ui.assert_accessible_description"
+        | "ui.wait_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
         _ => Err(vec![Diagnostic {
             code: "LSH1003".to_string(),
@@ -1028,6 +1050,39 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_form_field_placeholder", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1235".to_string(),
+                    message:
+                        "ui.wait_form_field_placeholder node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_placeholder", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1236".to_string(),
+                    message:
+                        "ui.wait_form_field_placeholder field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_placeholder", "expected") => match &argument.value {
+                Expression::String { value, .. } if validate_ui_expected_text(value) => {
+                    form_placeholder_expected = Some(Some(value.clone()));
+                }
+                Expression::None { .. } => form_placeholder_expected = Some(None),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1237".to_string(),
+                    message:
+                        "ui.wait_form_field_placeholder expected must be bounded display text or none"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_accessible_name", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -1047,6 +1102,25 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_accessible_name", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1227".to_string(),
+                    message:
+                        "ui.wait_accessible_name node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_accessible_name", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1228".to_string(),
+                    message: "ui.wait_accessible_name expected must be bounded display text"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_accessible_description", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -1060,6 +1134,24 @@ fn lower_atomic_effect(
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1131".to_string(),
                     message: "ui.assert_accessible_description expected must be bounded display text"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_accessible_description", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1231".to_string(),
+                    message: "ui.wait_accessible_description node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_accessible_description", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1232".to_string(),
+                    message: "ui.wait_accessible_description expected must be bounded display text"
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1497,6 +1589,33 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_form_field_placeholder" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1238".to_string(),
+            message: "ui.wait_form_field_placeholder requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_placeholder"
+        && form_field_key.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1239".to_string(),
+            message: "ui.wait_form_field_placeholder requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_placeholder"
+        && form_placeholder_expected.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1240".to_string(),
+            message: "ui.wait_form_field_placeholder requires expected".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_accessible_name" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1128".to_string(),
@@ -1508,6 +1627,20 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1129".to_string(),
             message: "ui.assert_accessible_name requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_accessible_name" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1229".to_string(),
+            message: "ui.wait_accessible_name requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_accessible_name" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1230".to_string(),
+            message: "ui.wait_accessible_name requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -1525,6 +1658,23 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1133".to_string(),
             message: "ui.assert_accessible_description requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_accessible_description" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1233".to_string(),
+            message: "ui.wait_accessible_description requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_accessible_description"
+        && expected_text.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1234".to_string(),
+            message: "ui.wait_accessible_description requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -1853,6 +2003,15 @@ fn lower_atomic_effect(
             Type::UiAssertFormFieldPlaceholder,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_form_field_placeholder" => (
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                expected: form_placeholder_expected.expect("validated UI form placeholder"),
+            },
+            Type::UiWaitFormFieldPlaceholder,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_accessible_name" => (
             Effect::UiAssertAccessibleName {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1861,12 +2020,28 @@ fn lower_atomic_effect(
             Type::UiAssertAccessibleName,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_accessible_name" => (
+            Effect::UiWaitAccessibleName {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected accessible name"),
+            },
+            Type::UiWaitAccessibleName,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_accessible_description" => (
             Effect::UiAssertAccessibleDescription {
                 node_id: node_id.expect("validated UI node identifier"),
                 expected: expected_text.expect("validated UI expected accessible description"),
             },
             Type::UiAssertAccessibleDescription,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_accessible_description" => (
+            Effect::UiWaitAccessibleDescription {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected accessible description"),
+            },
+            Type::UiWaitAccessibleDescription,
             CAPABILITY_UI_PRESENTATION,
         ),
         _ => unreachable!("unknown effects returned above"),
@@ -2144,6 +2319,20 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             optional_string(expected.as_deref()),
             indent(depth),
         ),
+        Effect::UiWaitFormFieldPlaceholder {
+            node_id,
+            field,
+            expected,
+        } => format!(
+            "ui.wait_form_field_placeholder(\n{}node_id: {},\n{}field: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            optional_string(expected.as_deref()),
+            indent(depth),
+        ),
         Effect::UiAssertAccessibleName { node_id, expected } => format!(
             "ui.assert_accessible_name(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
@@ -2152,8 +2341,24 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(expected),
             indent(depth),
         ),
+        Effect::UiWaitAccessibleName { node_id, expected } => format!(
+            "ui.wait_accessible_name(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
         Effect::UiAssertAccessibleDescription { node_id, expected } => format!(
             "ui.assert_accessible_description(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiWaitAccessibleDescription { node_id, expected } => format!(
+            "ui.wait_accessible_description(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
             quote(node_id),
             indent(depth + 1),
@@ -3927,6 +4132,79 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_form_field_placeholder_is_capability_gated_optional_and_fixed_deadline() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiWaitFormFieldPlaceholder
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: Some("http/request".into()),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_form_field_placeholder(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  expected: \"http/request\",\n)\n"
+        );
+        let absent = lower(&parse(
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: none)",
+        ))
+        .unwrap()
+        .function
+        .effect;
+        assert_eq!(
+            absent,
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: None,
+            }
+        );
+        assert_eq!(
+            canonical_source(&absent).unwrap(),
+            "fn main() = ui.wait_form_field_placeholder(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  expected: none,\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_form_field_placeholder()",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\")",
+            "fn main() = ui.wait_form_field_placeholder(field: \"pipeline_kind\", expected: \"http/request\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"bad/node\", field: \"pipeline_kind\", expected: \"http/request\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: none, expected: \"http/request\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"bad/field\", expected: \"http/request\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"bad\nplaceholder\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: runtime.list())",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_field = format!(
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"{}\", expected: \"http/request\")",
+            "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_field)).is_err());
+        let oversized_expected = format!(
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_expected)).is_err());
+    }
+
+    #[test]
     fn ui_assert_accessible_name_is_capability_gated_and_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
@@ -3963,6 +4241,49 @@ mod tests {
                 "source should fail: {source}"
             );
         }
+    }
+
+    #[test]
+    fn ui_wait_accessible_name_is_capability_gated_bounded_and_fixed_deadline() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitAccessibleName);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitAccessibleName {
+                ref node_id,
+                ref expected,
+            } if node_id == "fleet-title" && expected == "Runtime fleet"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_accessible_name(\n  node_id: \"fleet-title\",\n  expected: \"Runtime fleet\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_accessible_name()",
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\")",
+            "fn main() = ui.wait_accessible_name(expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_accessible_name(node_id: \"bad/node\", expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: none)",
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: \"bad\\nname\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized = format!(
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized)).is_err());
     }
 
     #[test]
@@ -4014,6 +4335,58 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_accessible_description_is_capability_gated_bounded_and_fixed_deadline() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiWaitAccessibleDescription
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitAccessibleDescription {
+                ref node_id,
+                ref expected,
+            } if node_id == "runtime-runtime-a-inspect"
+                && expected == "Open the read-only runtime workspace"
+        ));
+        let canonical = canonical_source(&program.function.effect).unwrap();
+        assert_eq!(
+            lower(&parse(&canonical)).unwrap().function.effect,
+            program.function.effect
+        );
+        assert_eq!(
+            canonical,
+            "fn main() = ui.wait_accessible_description(\n  node_id: \"runtime-runtime-a-inspect\",\n  expected: \"Open the read-only runtime workspace\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_accessible_description()",
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\")",
+            "fn main() = ui.wait_accessible_description(expected: \"description\")",
+            "fn main() = ui.wait_accessible_description(node_id: \"bad/node\", expected: \"description\")",
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: none)",
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"bad\\ndescription\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized = format!(
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized)).is_err());
+    }
+
+    #[test]
     fn every_atomic_effect_has_one_semantically_stable_canonical_source() {
         for source in [
             "fn main() = runtime.list(environment: \"prod\", cluster: none, role: \"edge\")",
@@ -4055,8 +4428,11 @@ mod tests {
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
             "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
             "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {
             let effect = lower(&parse(source)).unwrap().function.effect;
             let canonical = canonical_source(&effect).unwrap();

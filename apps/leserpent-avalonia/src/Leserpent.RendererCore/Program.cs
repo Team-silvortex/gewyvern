@@ -12,6 +12,9 @@ public sealed class SemanticRenderer
     public const int WaitRealizedTimeoutMs = 2000;
     public const int WaitSelectionTimeoutMs = 2000;
     public const int WaitTextTimeoutMs = 2000;
+    public const int WaitAccessibleNameTimeoutMs = 2000;
+    public const int WaitAccessibleDescriptionTimeoutMs = 2000;
+    public const int WaitFormFieldPlaceholderTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
     public const int WaitWindowOpenTimeoutMs = 2000;
 
@@ -97,7 +100,9 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitText
             or UiPresentationOperationKind.AssertFormField
             or UiPresentationOperationKind.AssertAccessibleName
-            or UiPresentationOperationKind.AssertAccessibleDescription)
+            or UiPresentationOperationKind.WaitAccessibleName
+            or UiPresentationOperationKind.AssertAccessibleDescription
+            or UiPresentationOperationKind.WaitAccessibleDescription)
         {
             if (!IsExpectedText(operation.Expected))
             {
@@ -140,7 +145,8 @@ public sealed class SemanticRenderer
         }
         else if (operation.Kind is UiPresentationOperationKind.AssertActionUnavailableReason
             or UiPresentationOperationKind.WaitActionUnavailableReason
-            or UiPresentationOperationKind.AssertFormFieldPlaceholder)
+            or UiPresentationOperationKind.AssertFormFieldPlaceholder
+            or UiPresentationOperationKind.WaitFormFieldPlaceholder)
         {
             if (operation.Expected is not null && !IsExpectedText(operation.Expected))
             {
@@ -192,7 +198,8 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedMaxLength;
             }
         }
-        else if (operation.Kind == UiPresentationOperationKind.AssertFormFieldPlaceholder)
+        else if (operation.Kind is UiPresentationOperationKind.AssertFormFieldPlaceholder
+            or UiPresentationOperationKind.WaitFormFieldPlaceholder)
         {
             if (!IsFormFieldKey(operation.Field))
             {
@@ -260,7 +267,10 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitWindowOpen
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.WaitSelection
-            or UiPresentationOperationKind.WaitText)
+            or UiPresentationOperationKind.WaitText
+            or UiPresentationOperationKind.WaitAccessibleName
+            or UiPresentationOperationKind.WaitAccessibleDescription
+            or UiPresentationOperationKind.WaitFormFieldPlaceholder)
         {
             var requiredTimeout = operation.Kind switch
             {
@@ -275,6 +285,11 @@ public sealed class SemanticRenderer
                 UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection => WaitSelectionTimeoutMs,
                 UiPresentationOperationKind.WaitText => WaitTextTimeoutMs,
+                UiPresentationOperationKind.WaitAccessibleName => WaitAccessibleNameTimeoutMs,
+                UiPresentationOperationKind.WaitAccessibleDescription =>
+                    WaitAccessibleDescriptionTimeoutMs,
+                UiPresentationOperationKind.WaitFormFieldPlaceholder =>
+                    WaitFormFieldPlaceholderTimeoutMs,
                 _ => throw new InvalidOperationException("unknown wait operation"),
             };
             if (operation.TimeoutMs != requiredTimeout)
@@ -338,7 +353,8 @@ public sealed class SemanticRenderer
                         or UiNodeKind.DebuggerFrame
                         or UiNodeKind.Action =>
                 UiPresentationValidation.Valid,
-            UiPresentationOperationKind.AssertAccessibleName =>
+            UiPresentationOperationKind.AssertAccessibleName
+            or UiPresentationOperationKind.WaitAccessibleName =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertAutomationId =>
                 UiPresentationValidation.Valid,
@@ -349,6 +365,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.AssertFormFieldRequired
             or UiPresentationOperationKind.AssertFormFieldMaxLength
             or UiPresentationOperationKind.AssertFormFieldPlaceholder
+            or UiPresentationOperationKind.WaitFormFieldPlaceholder
                 when node.Action?.Form is { } form
                     && form.Fields.Any(field => StringComparer.Ordinal.Equals(field.Key, operation.Field)) =>
                 UiPresentationValidation.Valid,
@@ -357,6 +374,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.AssertFormFieldRequired
             or UiPresentationOperationKind.AssertFormFieldMaxLength
             or UiPresentationOperationKind.AssertFormFieldPlaceholder
+            or UiPresentationOperationKind.WaitFormFieldPlaceholder
                 when node.Action?.Form is not null =>
                 UiPresentationValidation.UnknownFormField,
             UiPresentationOperationKind.AssertFormField =>
@@ -369,10 +387,14 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertFormFieldPlaceholder =>
                 UiPresentationValidation.FormlessTarget,
+            UiPresentationOperationKind.WaitFormFieldPlaceholder =>
+                UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertAccessibleDescription
+            or UiPresentationOperationKind.WaitAccessibleDescription
                 when node.Accessibility.Description is not null =>
                 UiPresentationValidation.Valid,
-            UiPresentationOperationKind.AssertAccessibleDescription =>
+            UiPresentationOperationKind.AssertAccessibleDescription
+            or UiPresentationOperationKind.WaitAccessibleDescription =>
                 UiPresentationValidation.DescriptionlessTarget,
             UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection =>
@@ -707,8 +729,11 @@ public sealed class RendererFixture
     public UiPresentationOperation? FormFieldRequiredAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldMaxLengthAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldPlaceholderAssertOperation { get; set; }
+    public UiPresentationOperation? FormFieldPlaceholderWaitOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
+    public UiPresentationOperation? AccessibleNameWaitOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
+    public UiPresentationOperation? AccessibleDescriptionWaitOperation { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -899,8 +924,11 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_form_field_required")] AssertFormFieldRequired,
     [JsonStringEnumMemberName("assert_form_field_max_length")] AssertFormFieldMaxLength,
     [JsonStringEnumMemberName("assert_form_field_placeholder")] AssertFormFieldPlaceholder,
+    [JsonStringEnumMemberName("wait_form_field_placeholder")] WaitFormFieldPlaceholder,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
+    [JsonStringEnumMemberName("wait_accessible_name")] WaitAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
+    [JsonStringEnumMemberName("wait_accessible_description")] WaitAccessibleDescription,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<UiFocusNavigationDirection>))]

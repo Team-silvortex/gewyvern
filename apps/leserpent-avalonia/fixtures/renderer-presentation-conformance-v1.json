@@ -915,14 +915,33 @@
     "field": "pipeline_kind",
     "expected": "http/request"
   },
+  "form_field_placeholder_wait_operation": {
+    "kind": "wait_form_field_placeholder",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "expected": "http/request",
+    "timeout_ms": 2000
+  },
   "accessible_name_assert_operation": {
     "kind": "assert_accessible_name",
     "node_id": "fleet-title",
     "expected": "Runtime fleet"
   },
+  "accessible_name_wait_operation": {
+    "kind": "wait_accessible_name",
+    "node_id": "fleet-title",
+    "expected": "Runtime fleet",
+    "timeout_ms": 2000
+  },
   "accessible_description_assert_operation": {
     "kind": "assert_accessible_description",
     "node_id": "runtime-runtime-a-inspect",
     "expected": "Open the read-only runtime workspace"
+  },
+  "accessible_description_wait_operation": {
+    "kind": "wait_accessible_description",
+    "node_id": "runtime-runtime-a-inspect",
+    "expected": "Open the read-only runtime workspace",
+    "timeout_ms": 2000
   }
 }

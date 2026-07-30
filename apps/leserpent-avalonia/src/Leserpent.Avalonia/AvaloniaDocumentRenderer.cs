@@ -537,7 +537,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertFormFieldPlaceholder)
+        if (operation.Kind is UiPresentationOperationKind.AssertFormFieldPlaceholder
+            or UiPresentationOperationKind.WaitFormFieldPlaceholder)
         {
             if (node.FormFieldPlaceholders is null)
             {
@@ -562,7 +563,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetFormFieldPlaceholderMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertAccessibleName)
+        if (operation.Kind is UiPresentationOperationKind.AssertAccessibleName
+            or UiPresentationOperationKind.WaitAccessibleName)
         {
             var matched = StringComparer.Ordinal.Equals(
                 AutomationProperties.GetName(control!),
@@ -574,7 +576,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetAccessibleNameMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertAccessibleDescription)
+        if (operation.Kind is UiPresentationOperationKind.AssertAccessibleDescription
+            or UiPresentationOperationKind.WaitAccessibleDescription)
         {
             var matched = StringComparer.Ordinal.Equals(
                 AutomationProperties.GetHelpText(control!),
@@ -647,7 +650,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitWindowOpen
             and not UiPresentationOperationKind.WaitFocused
             and not UiPresentationOperationKind.WaitSelection
-            and not UiPresentationOperationKind.WaitText)
+            and not UiPresentationOperationKind.WaitText
+            and not UiPresentationOperationKind.WaitAccessibleName
+            and not UiPresentationOperationKind.WaitAccessibleDescription
+            and not UiPresentationOperationKind.WaitFormFieldPlaceholder)
         {
             return await Dispatcher.UIThread.InvokeAsync(
                 () => ApplyPresentation(operation));
@@ -697,6 +703,18 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 || operation.Kind == UiPresentationOperationKind.WaitText
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetTextMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitAccessibleName
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetAccessibleNameMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitAccessibleDescription
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetAccessibleDescriptionMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitFormFieldPlaceholder
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormFieldPlaceholderMismatch;
             if (result.Applied || !retryable)
             {
                 return result;
@@ -724,6 +742,12 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitSelectionTimeoutMs,
                 UiPresentationOperationKind.WaitText =>
                     SemanticRenderer.WaitTextTimeoutMs,
+                UiPresentationOperationKind.WaitAccessibleName =>
+                    SemanticRenderer.WaitAccessibleNameTimeoutMs,
+                UiPresentationOperationKind.WaitAccessibleDescription =>
+                    SemanticRenderer.WaitAccessibleDescriptionTimeoutMs,
+                UiPresentationOperationKind.WaitFormFieldPlaceholder =>
+                    SemanticRenderer.WaitFormFieldPlaceholderTimeoutMs,
                 _ => throw new InvalidOperationException(
                     "unknown asynchronous presentation wait"),
             };

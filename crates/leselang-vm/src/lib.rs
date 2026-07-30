@@ -5,12 +5,14 @@ use std::path::Path;
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
     CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type,
+    UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
     UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
-    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
-    UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
-    UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
-    UiSemanticActionKind, UiSemanticNodeKind, authorize, validate_ui_expected_text,
-    validate_ui_form_field_key, validate_ui_node_id,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
+    UiFormInputKind, UiFormRequirementState, UiSelectionState, UiSemanticActionKind,
+    UiSemanticNodeKind, authorize, validate_ui_expected_text, validate_ui_form_field_key,
+    validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -233,13 +235,29 @@ pub enum PresentationOperation {
         field: String,
         expected: Option<String>,
     },
+    WaitFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
+        timeout_ms: u64,
+    },
     AssertAccessibleName {
         node_id: String,
         expected: String,
     },
+    WaitAccessibleName {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
+    },
     AssertAccessibleDescription {
         node_id: String,
         expected: String,
+    },
+    WaitAccessibleDescription {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
     },
 }
 
@@ -381,13 +399,29 @@ pub enum PresentationResult {
         field: String,
         expected: Option<String>,
     },
+    WaitFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
+        timeout_ms: u64,
+    },
     AssertAccessibleName {
         node_id: String,
         expected: String,
     },
+    WaitAccessibleName {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
+    },
     AssertAccessibleDescription {
         node_id: String,
         expected: String,
+    },
+    WaitAccessibleDescription {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
     },
 }
 
@@ -750,11 +784,24 @@ pub enum Value {
         field: String,
         expected: Option<String>,
     },
+    UiWaitFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
+    },
     UiAssertAccessibleName {
         node_id: String,
         expected: String,
     },
+    UiWaitAccessibleName {
+        node_id: String,
+        expected: String,
+    },
     UiAssertAccessibleDescription {
+        node_id: String,
+        expected: String,
+    },
+    UiWaitAccessibleDescription {
         node_id: String,
         expected: String,
     },
@@ -1439,6 +1486,24 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitFormFieldPlaceholder {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        expected: expected.clone(),
+                        timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiAssertAccessibleName { node_id, expected } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -1451,6 +1516,19 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiWaitAccessibleName { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitAccessibleName {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                        timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiAssertAccessibleDescription { node_id, expected } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -1460,6 +1538,19 @@ impl Vm {
                     operation: PresentationOperation::AssertAccessibleDescription {
                         node_id: node_id.clone(),
                         expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitAccessibleDescription { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitAccessibleDescription {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                        timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -2037,8 +2128,11 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertFormFieldRequired { .. } => Type::UiAssertFormFieldRequired,
         Effect::UiAssertFormFieldMaxLength { .. } => Type::UiAssertFormFieldMaxLength,
         Effect::UiAssertFormFieldPlaceholder { .. } => Type::UiAssertFormFieldPlaceholder,
+        Effect::UiWaitFormFieldPlaceholder { .. } => Type::UiWaitFormFieldPlaceholder,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
+        Effect::UiWaitAccessibleName { .. } => Type::UiWaitAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
+        Effect::UiWaitAccessibleDescription { .. } => Type::UiWaitAccessibleDescription,
         Effect::All { .. } => {
             return Err(Fault {
                 code: "LSV2015".to_string(),
@@ -2898,6 +2992,39 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitFormFieldPlaceholder {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    expected: operation_expected,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_expected == expected
+                    && *timeout_ms == UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+                    && operation_expected
+                        .as_deref()
+                        .is_none_or(validate_ui_expected_text)
+            )
+        }
+        (
             Effect::UiAssertAccessibleName { node_id, expected },
             EffectOperation::Presentation(presentation),
         ) => {
@@ -2920,6 +3047,30 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiWaitAccessibleName { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitAccessibleName {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_expected_text(operation_expected)
+                    && *timeout_ms == UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS
+            )
+        }
+        (
             Effect::UiAssertAccessibleDescription { node_id, expected },
             EffectOperation::Presentation(presentation),
         ) => {
@@ -2939,6 +3090,30 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     && operation_expected == expected
                     && validate_ui_node_id(operation_node_id)
                     && validate_ui_expected_text(operation_expected)
+            )
+        }
+        (
+            Effect::UiWaitAccessibleDescription { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitAccessibleDescription {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_expected_text(operation_expected)
+                    && *timeout_ms == UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS
             )
         }
         _ => false,
@@ -3307,12 +3482,32 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(1)
         }
+        Value::UiWaitFormFieldPlaceholder {
+            node_id,
+            field,
+            expected,
+        } if validate_ui_node_id(node_id)
+            && validate_ui_form_field_key(field)
+            && expected.as_deref().is_none_or(validate_ui_expected_text) =>
+        {
+            Ok(1)
+        }
         Value::UiAssertAccessibleName { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
         {
             Ok(1)
         }
+        Value::UiWaitAccessibleName { node_id, expected }
+            if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
         Value::UiAssertAccessibleDescription { node_id, expected }
+            if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
+        Value::UiWaitAccessibleDescription { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
         {
             Ok(1)
@@ -4486,6 +4681,48 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiWaitFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+            },
+            Type::UiWaitFormFieldPlaceholder,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitFormFieldPlaceholder {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_expected == *expected
+            && result_timeout_ms == UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitFormFieldPlaceholder {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            expected: operation_expected,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_expected == expected
+                        && *operation_timeout_ms == UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitFormFieldPlaceholder {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+            })
+        }
+        (
             Effect::UiAssertAccessibleName { node_id, expected },
             Type::UiAssertAccessibleName,
             operation,
@@ -4514,6 +4751,39 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiWaitAccessibleName { node_id, expected },
+            Type::UiWaitAccessibleName,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitAccessibleName {
+                node_id: result_node_id,
+                expected: result_expected,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && result_timeout_ms == UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitAccessibleName {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected == expected
+                        && *operation_timeout_ms == UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitAccessibleName {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
             Effect::UiAssertAccessibleDescription { node_id, expected },
             Type::UiAssertAccessibleDescription,
             operation,
@@ -4537,6 +4807,39 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiAssertAccessibleDescription {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiWaitAccessibleDescription { node_id, expected },
+            Type::UiWaitAccessibleDescription,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitAccessibleDescription {
+                node_id: result_node_id,
+                expected: result_expected,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && result_timeout_ms == UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitAccessibleDescription {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected == expected
+                        && *operation_timeout_ms == UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitAccessibleDescription {
                 node_id: result_node_id,
                 expected: result_expected,
             })
@@ -6754,6 +7057,126 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_form_field_placeholder_binds_node_field_expected_timeout_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form field placeholder wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI form field placeholder wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+                timeout_ms,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && expected.as_deref() == Some("http/request")
+                && *timeout_ms == UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFormFieldPlaceholder {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    expected: Some("http/request".into()),
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: Some("http/request".into()),
+            })
+        );
+
+        let mut torn = request.clone();
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field placeholder wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitFormFieldPlaceholder {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "pipeline_kind".into(),
+            expected: Some("mismatch".into()),
+            timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field placeholder wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitFormFieldPlaceholder {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "pipeline_kind".into(),
+            expected: Some("http/request".into()),
+            timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let none_program = lower(&parse(
+            "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: none)",
+        ))
+        .unwrap();
+        let Step::Effect(none_request) = vm.start(
+            &none_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected optional UI form field placeholder wait");
+        };
+        let EffectOperation::Presentation(none_presentation) = &none_request.operation else {
+            panic!("optional UI form field placeholder wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &none_presentation.operation,
+            PresentationOperation::WaitFormFieldPlaceholder {
+                node_id,
+                field,
+                expected: None,
+                timeout_ms,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && *timeout_ms == UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS
+        ));
+        assert_eq!(
+            vm.resume(
+                &none_request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFormFieldPlaceholder {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    expected: None,
+                    timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: None,
+            })
+        );
+    }
+
+    #[test]
     fn ui_assert_accessible_name_binds_expected_name_across_reentry() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
@@ -6805,6 +7228,75 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_accessible_name_binds_expected_name_timeout_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI accessible name wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI accessible name wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitAccessibleName {
+                node_id,
+                expected,
+                timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+            } if node_id == "fleet-title" && expected == "Runtime fleet"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitAccessibleName {
+                    node_id: "fleet-title".into(),
+                    expected: "Runtime fleet".into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitAccessibleName {
+                node_id: "fleet-title".into(),
+                expected: "Runtime fleet".into(),
+            })
+        );
+
+        let mut torn = request;
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI accessible name wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitAccessibleName {
+                node_id: "fleet-title".into(),
+                expected: "Forged name".into(),
+                timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+            };
+        }
+        assert!(validate_effect_request(&torn).is_err());
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI accessible name wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitAccessibleName {
+                node_id: "fleet-title".into(),
+                expected: "Runtime fleet".into(),
+                timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS + 1,
+            };
+        }
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
     fn ui_assert_accessible_description_binds_expected_description_across_reentry() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
@@ -6852,6 +7344,75 @@ mod tests {
         presentation.operation = PresentationOperation::AssertAccessibleDescription {
             node_id: "runtime-runtime-a-inspect".into(),
             expected: "Forged description".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_accessible_description_binds_expected_description_timeout_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI accessible description wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI accessible description wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitAccessibleDescription {
+                node_id,
+                expected,
+                timeout_ms,
+            } if node_id == "runtime-runtime-a-inspect"
+                && expected == "Open the read-only runtime workspace"
+                && *timeout_ms == UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitAccessibleDescription {
+                    node_id: "runtime-runtime-a-inspect".into(),
+                    expected: "Open the read-only runtime workspace".into(),
+                    timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitAccessibleDescription {
+                node_id: "runtime-runtime-a-inspect".into(),
+                expected: "Open the read-only runtime workspace".into(),
+            })
+        );
+
+        let mut torn = request.clone();
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI accessible description wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitAccessibleDescription {
+            node_id: "runtime-runtime-a-inspect".into(),
+            expected: "Forged description".into(),
+            timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI accessible description wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitAccessibleDescription {
+            node_id: "runtime-runtime-a-inspect".into(),
+            expected: "Open the read-only runtime workspace".into(),
+            timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS + 1,
         };
         assert!(validate_effect_request(&torn).is_err());
     }

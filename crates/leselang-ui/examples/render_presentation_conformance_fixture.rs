@@ -3,10 +3,12 @@ use std::fs;
 use std::path::PathBuf;
 
 use leselang_hir::{
+    UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
     UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
-    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
-    UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
-    UiFocusNavigationDirection, UiSelectionState,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
+    UiSelectionState,
 };
 use leselang_ui::{
     NodeId, UiActionKind, UiDocument, UiFormInputKind, UiPatch, UiPresentationOperation, diff,
@@ -57,8 +59,11 @@ struct Fixture<'a> {
     form_field_required_assert_operation: &'a UiPresentationOperation,
     form_field_max_length_assert_operation: &'a UiPresentationOperation,
     form_field_placeholder_assert_operation: &'a UiPresentationOperation,
+    form_field_placeholder_wait_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
+    accessible_name_wait_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
+    accessible_description_wait_operation: &'a UiPresentationOperation,
 }
 
 fn main() {
@@ -209,14 +214,31 @@ fn main() {
             field: "pipeline_kind".into(),
             expected: Some("http/request".into()),
         };
+    let form_field_placeholder_wait_operation = UiPresentationOperation::WaitFormFieldPlaceholder {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        expected: Some("http/request".into()),
+        timeout_ms: UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    };
     let accessible_name_assert_operation = UiPresentationOperation::AssertAccessibleName {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected: "Runtime fleet".into(),
+    };
+    let accessible_name_wait_operation = UiPresentationOperation::WaitAccessibleName {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected: "Runtime fleet".into(),
+        timeout_ms: UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
     };
     let accessible_description_assert_operation =
         UiPresentationOperation::AssertAccessibleDescription {
             node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
             expected: "Open the read-only runtime workspace".into(),
+        };
+    let accessible_description_wait_operation =
+        UiPresentationOperation::WaitAccessibleDescription {
+            node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+            expected: "Open the read-only runtime workspace".into(),
+            timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
         };
     validate_presentation_operation(&next, &presentation_operation).unwrap();
     validate_presentation_operation(&next, &navigation_operation).unwrap();
@@ -251,8 +273,11 @@ fn main() {
     validate_presentation_operation(&next, &form_field_required_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_max_length_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_placeholder_assert_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_placeholder_wait_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
+    validate_presentation_operation(&next, &accessible_name_wait_operation).unwrap();
     validate_presentation_operation(&next, &accessible_description_assert_operation).unwrap();
+    validate_presentation_operation(&next, &accessible_description_wait_operation).unwrap();
     let mut bytes = serde_json::to_vec_pretty(&Fixture {
         schema_version: 1,
         previous: &previous,
@@ -291,8 +316,11 @@ fn main() {
         form_field_required_assert_operation: &form_field_required_assert_operation,
         form_field_max_length_assert_operation: &form_field_max_length_assert_operation,
         form_field_placeholder_assert_operation: &form_field_placeholder_assert_operation,
+        form_field_placeholder_wait_operation: &form_field_placeholder_wait_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
+        accessible_name_wait_operation: &accessible_name_wait_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,
+        accessible_description_wait_operation: &accessible_description_wait_operation,
     })
     .unwrap();
     bytes.push(b'\n');

@@ -22,8 +22,10 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_action_unavailable_reason`,
 `ui.wait_action_unavailable_reason`, `ui.assert_form_field`,
 `ui.assert_form_field_input_kind`, `ui.assert_form_field_required`,
-`ui.assert_form_field_max_length`, `ui.assert_form_field_placeholder`, plus
-`ui.assert_accessible_name` and `ui.assert_accessible_description`
+`ui.assert_form_field_max_length`, `ui.assert_form_field_placeholder`,
+`ui.wait_form_field_placeholder`, plus
+`ui.assert_accessible_name`, `ui.wait_accessible_name`, and
+`ui.assert_accessible_description`, `ui.wait_accessible_description`
 presentation effects.
 
 ## Canonical Program
@@ -609,6 +611,28 @@ targets, unknown fields, unrealized targets, invalid keys, invalid placeholder
 text, or mismatched placeholders fail. The assertion never focuses, types,
 activates, opens, edits, or submits the form.
 
+Native deployment form placeholder metadata can also be waited on when a
+deployment template or remote schema refresh changes the form externally:
+
+```leselang
+fn main() = ui.wait_form_field_placeholder(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  expected: "http/request"
+)
+```
+
+`ui.wait_form_field_placeholder` requires `ui.presentation`, the same semantic
+`runtime_deploy` form action and bounded field key as
+`ui.assert_form_field_placeholder`. The `expected` parameter accepts bounded
+display text or `none`, and the VM fixes the wait deadline at 2000 ms while
+binding `node_id`, `field`, optional `expected`, and timeout across request and
+result. The renderer polls the stable semantic form field placeholder fallback
+or absence until it matches exactly; form-less targets, unknown fields,
+unrealized targets, invalid keys, invalid placeholder text, forged timeouts, or
+persistent mismatches fail. The wait never focuses, types, activates, opens,
+edits, or submits the form.
+
 Native accessibility metadata can be asserted independently of display text:
 
 ```leselang
@@ -624,6 +648,23 @@ must read the realized platform accessibility name and require an exact ordinal
 match. It does not infer success from semantic text, focus, activate, scroll, or
 change accessibility metadata.
 
+Accessibility names can also be waited for when the native surface updates after
+the semantic document is mounted:
+
+```leselang
+fn main() = ui.wait_accessible_name(
+  node_id: "fleet-title",
+  expected: "Runtime fleet"
+)
+```
+
+`ui.wait_accessible_name` requires `ui.presentation`, any existing semantic
+node, and the same bounded control-free expected-text contract. It carries the
+protocol-fixed 2000 ms deadline. The renderer polls the realized platform
+accessibility name and completes only on an exact ordinal match; unknown,
+unrealized, or persistently mismatched targets time out. It does not infer
+success from text, focus, activate, scroll, or mutate accessibility metadata.
+
 Explicit accessibility descriptions use the same bounded exact-match model:
 
 ```leselang
@@ -638,6 +679,23 @@ node that explicitly declares `accessibility.description`. The renderer reads
 the realized platform help text and requires an exact ordinal match; a
 descriptionless, unrealized, or mismatched target fails without focus,
 activation, scrolling, or metadata mutation.
+
+Explicit accessibility descriptions can also be waited for when native HelpText
+changes after the control has been realized:
+
+```leselang
+fn main() = ui.wait_accessible_description(
+  node_id: "runtime-runtime-a-inspect",
+  expected: "Open the read-only runtime workspace"
+)
+```
+
+`ui.wait_accessible_description` requires `ui.presentation` and a semantic node
+that explicitly declares `accessibility.description`. It carries the
+protocol-fixed 2000 ms deadline. The renderer polls realized platform help text
+and completes only on an exact ordinal match; descriptionless, unrealized, or
+persistently mismatched targets time out or fail without focus, activation,
+scrolling, or metadata mutation.
 
 Every atomic HIR effect has one Rust-owned canonical source representation.
 Parsing and lowering that source must reproduce the same effect. GUI event

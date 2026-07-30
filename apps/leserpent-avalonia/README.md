@@ -54,9 +54,12 @@ The separate candidate fixture carries Rust-generated
 `AssertFormFieldRequired`,
 `AssertFormFieldMaxLength`,
 `AssertFormFieldPlaceholder`,
-`AssertAccessibleName`, and
-`AssertAccessibleDescription` values. RendererCore strictly round-trips all
-thirty-three and validates valid, missing, noninteractive,
+`WaitFormFieldPlaceholder`,
+`AssertAccessibleName`,
+`WaitAccessibleName`,
+`AssertAccessibleDescription`, and
+`WaitAccessibleDescription` values. RendererCore strictly round-trips all
+thirty-six and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -78,7 +81,9 @@ text mismatch timeout, and
 automation-id, node-kind, action-kind, action-unavailable-reason,
 dispatcher-yielding action-unavailable-reason wait and clearing,
 form-field-label, form-field-input-kind, form-field-required-state,
-form-field-max-length, form-field-placeholder, accessibility-name, and declared accessibility-description
+form-field-max-length, form-field-placeholder,
+dispatcher-yielding form-field-placeholder waiting with external placeholder
+transition and persistent mismatch timeout, accessibility-name, and declared accessibility-description
 observation through its stable visual
 index. Scrolling a noninteractive node must preserve the currently
 focused control, hiding the renderer surface must make visibility assertion
@@ -310,7 +315,11 @@ unrealized, or unfocused starts without changing focus, never activates a
 button, and verifies
 native hidden-state assertion and visible-target mismatch rejection,
 native selected/unselected assertions plus dispatcher-yielding selection wait
-and mismatch timeout without mutating focus or selection. Verify all paths
+and mismatch timeout without mutating focus or selection, plus native
+accessible-name wait, external automation-name transition, and persistent
+accessible-name mismatch timeout, plus native accessible-description wait,
+external HelpText transition, and persistent accessible-description mismatch
+timeout. Verify all paths
 against real Avalonia controls with
 `dotnet run --project apps/leserpent-avalonia/src/Leserpent.Avalonia/Leserpent.Avalonia.csproj -- --verify-focus-retention apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json`.
 
