@@ -4,12 +4,43 @@ This document defines the implemented renderer-neutral Gate 4 UI boundary in
 `crates/leselang-ui`. Avalonia, web, mobile, persistence, transport, and adapter
 types are deliberately outside this contract.
 
+The crate is the GUI automation substrate, not a frontend framework. It does
+not make any GUI toolkit automatically compatible. A host renderer must expose
+a developer-owned adapter for the renderer-neutral document, event, patch, and
+presentation-operation schema, or use dedicated tooling to emit a generated
+framework binding from that schema. This should feel like protobuf-style
+interface generation: the schema is shared, but each target framework still has
+an explicit adapter surface. Host widget trees may be rich, but the shared
+automation contract remains typed, bounded, serializable, and free of
+host-language object references. `UiAdapterManifest` is the Rust-owned handshake
+for that boundary: it declares a developer-owned adapter or generated framework
+binding against the current UI schema and required presentation atom set.
+
 Status: **Gate 4 renderer-neutral slice complete, stable contract 1.0.0**.
 
 Patch decoding rejects unknown operation/action fields, malformed referenced
 node identifiers, and unsafe embedded node/form metadata before a renderer may
 queue the patch. Document-dependent parent binding and graph edits remain
 transactionally validated by `apply_patch` against the current revision.
+
+## Adapter Manifest
+
+`UiAdapterManifest` is not automatic framework discovery. It is an explicit
+compatibility proof emitted by a hand-written renderer adapter or by dedicated
+generator tooling. The manifest carries schema version `1`, a stable
+`adapter_id`, a bounded framework label, a `binding_kind` of either
+`developer_owned_adapter` or `generated_framework_binding`, the target
+`ui_schema_version`, and booleans proving support for document, event, and patch
+schemas. It must also list the complete `required_ui_presentation_atoms()` set:
+all fifty current presentation atoms, including focus, wait, assertion,
+selection, action metadata, form metadata, and accessibility operations.
+
+Validation fails closed for unsupported schema versions, invalid adapter IDs,
+missing document/event/patch support, duplicate presentation atoms, omitted
+required atoms, oversized framework labels, control characters, and unknown JSON
+fields. The manifest gives future Rust-native GUI hosts, FFI shims, C#
+renderers, TypeScript renderers, and mobile clients the same protobuf-style
+binding checkpoint without letting any host object model leak into the shared IR.
 
 ## Pure Flow
 
@@ -24,6 +55,7 @@ UiEvent + UiDocument + LoweringContext -> CommandPlan
 UiEvent + UiDocument -> HIR Effect -> canonical Leselang
 HIR Effect + UiDocument -> equivalent UiEvent
 previous UiDocument + next UiDocument -> UiPatch
+UiAdapterManifest -> explicit adapter or generated binding compatibility proof
 ```
 
 The first vertical slice renders the fleet projection into semantic columns,
@@ -113,6 +145,9 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum debugger remaining deadline: `24 hours`
 - maximum parameterized form fields: `16`
 - maximum parameterized form value: `256` bytes
+- adapter manifest schema version: `1`
+- maximum adapter framework label: `128` bytes
+- required adapter presentation atoms: `50`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -151,7 +186,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by forty-six presentation atoms.
+Semantic action equivalence is joined by fifty presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -282,6 +317,30 @@ bounded decimal string in Leselang source.
 requires the same semantic deployment form action and bounded field key, and
 compares the stable semantic placeholder fallback or absence. Its `expected`
 payload may be bounded text or `none` in Leselang source.
+`UiPresentationOperation::WaitFormField` maps one-to-one to
+`ui.wait_form_field(node_id: ..., field: ..., expected: ...)`, requires the
+same semantic deployment form action and bounded field key, validates the same
+bounded expected text as `ui.assert_form_field`, and carries the
+protocol-fixed 2000 ms deadline while waiting for the stable semantic field
+label fallback to match.
+`UiPresentationOperation::WaitFormFieldInputKind` maps one-to-one to
+`ui.wait_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, requires
+the same semantic deployment form action and bounded field key, validates the
+same typed input kind as `ui.assert_form_field_input_kind`, and carries the
+protocol-fixed 2000 ms deadline while waiting for the stable semantic input
+kind to match.
+`UiPresentationOperation::WaitFormFieldRequired` maps one-to-one to
+`ui.wait_form_field_required(node_id: ..., field: ..., state: ...)`, requires
+the same semantic deployment form action and bounded field key, validates the
+same explicit required/optional state as `ui.assert_form_field_required`, and
+carries the protocol-fixed 2000 ms deadline while waiting for the stable
+semantic required bit to match.
+`UiPresentationOperation::WaitFormFieldMaxLength` maps one-to-one to
+`ui.wait_form_field_max_length(node_id: ..., field: ..., max_length: ...)`,
+requires the same semantic deployment form action and bounded field key,
+validates the same bounded decimal maximum length as
+`ui.assert_form_field_max_length`, and carries the protocol-fixed 2000 ms
+deadline while waiting for the stable semantic maximum length to match.
 `UiPresentationOperation::WaitFormFieldPlaceholder` maps one-to-one to
 `ui.wait_form_field_placeholder(node_id: ..., field: ..., expected: ...)`,
 requires the same semantic deployment form action and bounded field key, accepts
@@ -301,11 +360,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all forty-six travel in
+become a `UiEvent` or `CommandPlan`; all fifty travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all forty-six operations through its stable visual index. Focus
+Avalonia resolves all fifty operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.

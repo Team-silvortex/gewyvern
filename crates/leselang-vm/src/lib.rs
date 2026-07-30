@@ -9,12 +9,14 @@ use leselang_hir::{
     UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
     UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
     UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
-    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
-    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
-    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiFormInputKind,
-    UiFormRequirementState, UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind, authorize,
-    validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
+    UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
+    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+    UiFocusNavigationDirection, UiFormInputKind, UiFormRequirementState, UiSelectionState,
+    UiSemanticActionKind, UiSemanticNodeKind, authorize, validate_ui_expected_text,
+    validate_ui_form_field_key, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -257,20 +259,44 @@ pub enum PresentationOperation {
         field: String,
         expected: String,
     },
+    WaitFormField {
+        node_id: String,
+        field: String,
+        expected: String,
+        timeout_ms: u64,
+    },
     AssertFormFieldInputKind {
         node_id: String,
         field: String,
         input_kind: UiFormInputKind,
+    },
+    WaitFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+        timeout_ms: u64,
     },
     AssertFormFieldRequired {
         node_id: String,
         field: String,
         state: UiFormRequirementState,
     },
+    WaitFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
+        timeout_ms: u64,
+    },
     AssertFormFieldMaxLength {
         node_id: String,
         field: String,
         max_length: usize,
+    },
+    WaitFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
+        timeout_ms: u64,
     },
     AssertFormFieldPlaceholder {
         node_id: String,
@@ -461,20 +487,44 @@ pub enum PresentationResult {
         field: String,
         expected: String,
     },
+    WaitFormField {
+        node_id: String,
+        field: String,
+        expected: String,
+        timeout_ms: u64,
+    },
     AssertFormFieldInputKind {
         node_id: String,
         field: String,
         input_kind: UiFormInputKind,
+    },
+    WaitFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+        timeout_ms: u64,
     },
     AssertFormFieldRequired {
         node_id: String,
         field: String,
         state: UiFormRequirementState,
     },
+    WaitFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
+        timeout_ms: u64,
+    },
     AssertFormFieldMaxLength {
         node_id: String,
         field: String,
         max_length: usize,
+    },
+    WaitFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
+        timeout_ms: u64,
     },
     AssertFormFieldPlaceholder {
         node_id: String,
@@ -880,7 +930,17 @@ pub enum Value {
         field: String,
         expected: String,
     },
+    UiWaitFormField {
+        node_id: String,
+        field: String,
+        expected: String,
+    },
     UiAssertFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+    },
+    UiWaitFormFieldInputKind {
         node_id: String,
         field: String,
         input_kind: UiFormInputKind,
@@ -890,7 +950,17 @@ pub enum Value {
         field: String,
         state: UiFormRequirementState,
     },
+    UiWaitFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
+    },
     UiAssertFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
+    },
+    UiWaitFormFieldMaxLength {
         node_id: String,
         field: String,
         max_length: usize,
@@ -1660,6 +1730,24 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiWaitFormField {
+                node_id,
+                field,
+                expected,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitFormField {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        expected: expected.clone(),
+                        timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiAssertFormFieldInputKind {
                 node_id,
                 field,
@@ -1674,6 +1762,24 @@ impl Vm {
                         node_id: node_id.clone(),
                         field: field.clone(),
                         input_kind: *input_kind,
+                    },
+                }),
+            ),
+            Effect::UiWaitFormFieldInputKind {
+                node_id,
+                field,
+                input_kind,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitFormFieldInputKind {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        input_kind: *input_kind,
+                        timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -1694,6 +1800,24 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiWaitFormFieldRequired {
+                node_id,
+                field,
+                state,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitFormFieldRequired {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        state: *state,
+                        timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiAssertFormFieldMaxLength {
                 node_id,
                 field,
@@ -1708,6 +1832,24 @@ impl Vm {
                         node_id: node_id.clone(),
                         field: field.clone(),
                         max_length: *max_length,
+                    },
+                }),
+            ),
+            Effect::UiWaitFormFieldMaxLength {
+                node_id,
+                field,
+                max_length,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitFormFieldMaxLength {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        max_length: *max_length,
+                        timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -2380,6 +2522,10 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertFormFieldRequired { .. } => Type::UiAssertFormFieldRequired,
         Effect::UiAssertFormFieldMaxLength { .. } => Type::UiAssertFormFieldMaxLength,
         Effect::UiAssertFormFieldPlaceholder { .. } => Type::UiAssertFormFieldPlaceholder,
+        Effect::UiWaitFormField { .. } => Type::UiWaitFormField,
+        Effect::UiWaitFormFieldInputKind { .. } => Type::UiWaitFormFieldInputKind,
+        Effect::UiWaitFormFieldRequired { .. } => Type::UiWaitFormFieldRequired,
+        Effect::UiWaitFormFieldMaxLength { .. } => Type::UiWaitFormFieldMaxLength,
         Effect::UiWaitFormFieldPlaceholder { .. } => Type::UiWaitFormFieldPlaceholder,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
         Effect::UiWaitAccessibleName { .. } => Type::UiWaitAccessibleName,
@@ -3332,6 +3478,37 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiWaitFormField {
+                node_id,
+                field,
+                expected,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitFormField {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    expected: operation_expected,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_expected == expected
+                    && *timeout_ms == UI_WAIT_FORM_FIELD_TIMEOUT_MS
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+                    && validate_ui_expected_text(operation_expected)
+            )
+        }
+        (
             Effect::UiAssertFormFieldInputKind {
                 node_id,
                 field,
@@ -3355,6 +3532,36 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id
                     && operation_field == field
                     && operation_input_kind == input_kind
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+            )
+        }
+        (
+            Effect::UiWaitFormFieldInputKind {
+                node_id,
+                field,
+                input_kind,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitFormFieldInputKind {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    input_kind: operation_input_kind,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_input_kind == input_kind
+                    && *timeout_ms == UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS
                     && validate_ui_node_id(operation_node_id)
                     && validate_ui_form_field_key(operation_field)
             )
@@ -3388,6 +3595,36 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiWaitFormFieldRequired {
+                node_id,
+                field,
+                state,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitFormFieldRequired {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    state: operation_state,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_state == state
+                    && *timeout_ms == UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+            )
+        }
+        (
             Effect::UiAssertFormFieldMaxLength {
                 node_id,
                 field,
@@ -3411,6 +3648,36 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id
                     && operation_field == field
                     && operation_max_length == max_length
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+            )
+        }
+        (
+            Effect::UiWaitFormFieldMaxLength {
+                node_id,
+                field,
+                max_length,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitFormFieldMaxLength {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    max_length: operation_max_length,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_max_length == max_length
+                    && *timeout_ms == UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS
                     && validate_ui_node_id(operation_node_id)
                     && validate_ui_form_field_key(operation_field)
             )
@@ -3930,7 +4197,22 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(1)
         }
+        Value::UiWaitFormField {
+            node_id,
+            field,
+            expected,
+        } if validate_ui_node_id(node_id)
+            && validate_ui_form_field_key(field)
+            && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
         Value::UiAssertFormFieldInputKind { node_id, field, .. }
+            if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
+        {
+            Ok(1)
+        }
+        Value::UiWaitFormFieldInputKind { node_id, field, .. }
             if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
         {
             Ok(1)
@@ -3940,7 +4222,17 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(1)
         }
+        Value::UiWaitFormFieldRequired { node_id, field, .. }
+            if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
+        {
+            Ok(1)
+        }
         Value::UiAssertFormFieldMaxLength { node_id, field, .. }
+            if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
+        {
+            Ok(1)
+        }
+        Value::UiWaitFormFieldMaxLength { node_id, field, .. }
             if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
         {
             Ok(1)
@@ -5292,6 +5584,48 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiWaitFormField {
+                node_id,
+                field,
+                expected,
+            },
+            Type::UiWaitFormField,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitFormField {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_expected == *expected
+            && result_timeout_ms == UI_WAIT_FORM_FIELD_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitFormField {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            expected: operation_expected,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_expected == expected
+                        && *operation_timeout_ms == UI_WAIT_FORM_FIELD_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitFormField {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+            })
+        }
+        (
             Effect::UiAssertFormFieldInputKind {
                 node_id,
                 field,
@@ -5324,6 +5658,48 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiAssertFormFieldInputKind {
+                node_id: result_node_id,
+                field: result_field,
+                input_kind: result_input_kind,
+            })
+        }
+        (
+            Effect::UiWaitFormFieldInputKind {
+                node_id,
+                field,
+                input_kind,
+            },
+            Type::UiWaitFormFieldInputKind,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitFormFieldInputKind {
+                node_id: result_node_id,
+                field: result_field,
+                input_kind: result_input_kind,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_input_kind == *input_kind
+            && result_timeout_ms == UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitFormFieldInputKind {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            input_kind: operation_input_kind,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_input_kind == input_kind
+                        && *operation_timeout_ms == UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitFormFieldInputKind {
                 node_id: result_node_id,
                 field: result_field,
                 input_kind: result_input_kind,
@@ -5368,6 +5744,48 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiWaitFormFieldRequired {
+                node_id,
+                field,
+                state,
+            },
+            Type::UiWaitFormFieldRequired,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitFormFieldRequired {
+                node_id: result_node_id,
+                field: result_field,
+                state: result_state,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_state == *state
+            && result_timeout_ms == UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitFormFieldRequired {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            state: operation_state,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_state == state
+                        && *operation_timeout_ms == UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitFormFieldRequired {
+                node_id: result_node_id,
+                field: result_field,
+                state: result_state,
+            })
+        }
+        (
             Effect::UiAssertFormFieldMaxLength {
                 node_id,
                 field,
@@ -5400,6 +5818,48 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiAssertFormFieldMaxLength {
+                node_id: result_node_id,
+                field: result_field,
+                max_length: result_max_length,
+            })
+        }
+        (
+            Effect::UiWaitFormFieldMaxLength {
+                node_id,
+                field,
+                max_length,
+            },
+            Type::UiWaitFormFieldMaxLength,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitFormFieldMaxLength {
+                node_id: result_node_id,
+                field: result_field,
+                max_length: result_max_length,
+                timeout_ms: result_timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_max_length == *max_length
+            && result_timeout_ms == UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitFormFieldMaxLength {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            max_length: operation_max_length,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_max_length == max_length
+                        && *operation_timeout_ms == UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitFormFieldMaxLength {
                 node_id: result_node_id,
                 field: result_field,
                 max_length: result_max_length,
@@ -8268,6 +8728,236 @@ mod tests {
             node_id: "workspace-runtime-a-deploy".into(),
             field: "pipeline_kind".into(),
             max_length: 129,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_form_field_metadata_binds_expected_timeout_and_reentry() {
+        let mut vm = Vm::default();
+        let principal = Principal {
+            id: "desktop-operator".to_string(),
+        };
+        let capabilities = CapabilitySet::new([CAPABILITY_UI_PRESENTATION]);
+
+        let label_program = lower(&parse(
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+        ))
+        .unwrap();
+        let Step::Effect(label_request) = vm.start(
+            &label_program,
+            principal.clone(),
+            capabilities.clone(),
+            None,
+        ) else {
+            panic!("expected UI form field wait");
+        };
+        let EffectOperation::Presentation(label_presentation) = &label_request.operation else {
+            panic!("UI form field wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &label_presentation.operation,
+            PresentationOperation::WaitFormField {
+                node_id,
+                field,
+                expected,
+                timeout_ms,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && expected == "Pipeline kind"
+                && *timeout_ms == UI_WAIT_FORM_FIELD_TIMEOUT_MS
+        ));
+        validate_effect_request(&label_request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &label_request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFormField {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    expected: "Pipeline kind".into(),
+                    timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: "Pipeline kind".into(),
+            })
+        );
+        let mut torn = label_request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitFormField {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "pipeline_kind".into(),
+            expected: "Pipeline kind".into(),
+            timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let input_kind_program = lower(&parse(
+            "fn main() = ui.wait_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
+        ))
+        .unwrap();
+        let Step::Effect(input_kind_request) = vm.start(
+            &input_kind_program,
+            principal.clone(),
+            capabilities.clone(),
+            None,
+        ) else {
+            panic!("expected UI form field input kind wait");
+        };
+        let EffectOperation::Presentation(input_kind_presentation) = &input_kind_request.operation
+        else {
+            panic!("UI form field input kind wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &input_kind_presentation.operation,
+            PresentationOperation::WaitFormFieldInputKind {
+                node_id,
+                field,
+                input_kind: UiFormInputKind::PathToken,
+                timeout_ms,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && *timeout_ms == UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS
+        ));
+        validate_effect_request(&input_kind_request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &input_kind_request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFormFieldInputKind {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                    timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFormFieldInputKind {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                input_kind: UiFormInputKind::PathToken,
+            })
+        );
+        let mut torn = input_kind_request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field input kind wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitFormFieldInputKind {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "target".into(),
+            input_kind: UiFormInputKind::PathToken,
+            timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let required_program = lower(&parse(
+            "fn main() = ui.wait_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
+        ))
+        .unwrap();
+        let Step::Effect(required_request) = vm.start(
+            &required_program,
+            principal.clone(),
+            capabilities.clone(),
+            None,
+        ) else {
+            panic!("expected UI form field required wait");
+        };
+        let EffectOperation::Presentation(required_presentation) = &required_request.operation
+        else {
+            panic!("UI form field required wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &required_presentation.operation,
+            PresentationOperation::WaitFormFieldRequired {
+                node_id,
+                field,
+                state: UiFormRequirementState::Required,
+                timeout_ms,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && *timeout_ms == UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS
+        ));
+        validate_effect_request(&required_request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &required_request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFormFieldRequired {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    state: UiFormRequirementState::Required,
+                    timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFormFieldRequired {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                state: UiFormRequirementState::Required,
+            })
+        );
+        let mut torn = required_request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field required wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitFormFieldRequired {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "pipeline_kind".into(),
+            state: UiFormRequirementState::Optional,
+            timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let max_length_program = lower(&parse(
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
+        ))
+        .unwrap();
+        let Step::Effect(max_length_request) =
+            vm.start(&max_length_program, principal, capabilities, None)
+        else {
+            panic!("expected UI form field max length wait");
+        };
+        let EffectOperation::Presentation(max_length_presentation) = &max_length_request.operation
+        else {
+            panic!("UI form field max length wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &max_length_presentation.operation,
+            PresentationOperation::WaitFormFieldMaxLength {
+                node_id,
+                field,
+                max_length: 128,
+                timeout_ms,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && *timeout_ms == UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS
+        ));
+        validate_effect_request(&max_length_request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &max_length_request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitFormFieldMaxLength {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    max_length: 128,
+                    timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitFormFieldMaxLength {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                max_length: 128,
+            })
+        );
+        let mut torn = max_length_request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field max length wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitFormFieldMaxLength {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "pipeline_kind".into(),
+            max_length: 129,
+            timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
         };
         assert!(validate_effect_request(&torn).is_err());
     }

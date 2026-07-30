@@ -116,6 +116,10 @@ pub fn lower_effect(
             | Effect::UiAssertFormFieldRequired { .. }
             | Effect::UiAssertFormFieldMaxLength { .. }
             | Effect::UiAssertFormFieldPlaceholder { .. }
+            | Effect::UiWaitFormField { .. }
+            | Effect::UiWaitFormFieldInputKind { .. }
+            | Effect::UiWaitFormFieldRequired { .. }
+            | Effect::UiWaitFormFieldMaxLength { .. }
             | Effect::UiWaitFormFieldPlaceholder { .. }
             | Effect::UiAssertAccessibleName { .. }
             | Effect::UiWaitAccessibleName { .. }
@@ -175,6 +179,10 @@ pub fn lower_effect(
         | Effect::UiAssertFormFieldRequired { .. }
         | Effect::UiAssertFormFieldMaxLength { .. }
         | Effect::UiAssertFormFieldPlaceholder { .. }
+        | Effect::UiWaitFormField { .. }
+        | Effect::UiWaitFormFieldInputKind { .. }
+        | Effect::UiWaitFormFieldRequired { .. }
+        | Effect::UiWaitFormFieldMaxLength { .. }
         | Effect::UiWaitFormFieldPlaceholder { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiWaitAccessibleName { .. }
@@ -245,6 +253,10 @@ pub fn lower_effect(
         | Effect::UiAssertFormFieldRequired { .. }
         | Effect::UiAssertFormFieldMaxLength { .. }
         | Effect::UiAssertFormFieldPlaceholder { .. }
+        | Effect::UiWaitFormField { .. }
+        | Effect::UiWaitFormFieldInputKind { .. }
+        | Effect::UiWaitFormFieldRequired { .. }
+        | Effect::UiWaitFormFieldMaxLength { .. }
         | Effect::UiWaitFormFieldPlaceholder { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiWaitAccessibleName { .. }
@@ -554,6 +566,10 @@ mod tests {
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
             "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
             "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+            "fn main() = ui.wait_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
+            "fn main() = ui.wait_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
             "fn main() = ui.wait_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.wait_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",

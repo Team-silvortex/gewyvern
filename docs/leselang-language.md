@@ -5,6 +5,19 @@ implemented Leselang slice. The broader destination is defined by the
 [Leserpent 2.0 architecture](leserpent-2-architecture.md); unimplemented roadmap
 syntax is not part of this contract.
 
+Leselang is not a general-purpose language runtime. It is the narrow,
+protocolized GUI and control automation language for Leserpent: source lowers
+to typed effects, renderer-neutral UI presentation operations, canonical
+exports, and durable continuation re-entry. The long-term host shape is a
+hostable Rust crate, not a process-global interpreter. By design, no GUI framework is automatically compatible with this crate.
+Each host needs a developer-owned adapter that implements the protocol standard.
+Alternatively, a generated framework binding may be emitted by dedicated tooling
+from the same schema. The current Rust UI contract exposes `UiAdapterManifest`
+as the explicit compatibility proof for either path. Non-Rust integrations
+should cross only the protocol or narrow FFI boundary. Host event loops, async
+runtimes, threads, widget object models, and hand-written framework shortcuts
+stay outside the language contract.
+
 Status: **Gate 2 execution and syntax contracts stable at 1.0.0**. The current
 vertical slice parses, lowers, authorizes, suspends,
 serializes, restores, and resumes the read-only
@@ -28,6 +41,8 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.wait_action_unavailable_reason`, `ui.assert_form_field`,
 `ui.assert_form_field_input_kind`, `ui.assert_form_field_required`,
 `ui.assert_form_field_max_length`, `ui.assert_form_field_placeholder`,
+`ui.wait_form_field`, `ui.wait_form_field_input_kind`,
+`ui.wait_form_field_required`, `ui.wait_form_field_max_length`,
 `ui.wait_form_field_placeholder`, plus
 `ui.assert_accessible_name`, `ui.wait_accessible_name`, and
 `ui.assert_accessible_description`, `ui.wait_accessible_description`
@@ -690,6 +705,27 @@ value; form-less targets, unknown fields, unrealized targets, invalid keys, or
 mismatched labels fail. The assertion never focuses, types, activates, opens, or
 submits the form.
 
+The same form label metadata can be waited on when a remote schema refresh
+changes the semantic form externally:
+
+```leselang
+fn main() = ui.wait_form_field(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  expected: "Pipeline kind"
+)
+```
+
+`ui.wait_form_field` accepts the same bounded `node_id`, `field`, and
+`expected` parameters as `ui.assert_form_field`. The VM fixes the wait deadline
+at 2000 ms while binding `node_id`, `field`, `expected`, and timeout across
+request and result. The renderer polls the stable semantic form field label
+fallback until it matches exactly; form-less targets, unknown fields,
+unrealized targets, invalid keys, invalid expected text, forged timeouts, or
+persistent mismatches fail. The wait observes form schema metadata only; it
+never reads current input values, focuses, types, activates, opens, edits, or
+submits the form.
+
 Native deployment form input semantics can also be asserted without submitting
 the form:
 
@@ -709,6 +745,24 @@ the stable semantic field input kind with the expected kind; form-less targets,
 unknown fields, unrealized targets, invalid keys, missing kinds, or mismatched
 input kinds fail. The assertion never focuses, types, activates, opens, or
 submits the form.
+
+Native deployment form input semantics can also be waited on:
+
+```leselang
+fn main() = ui.wait_form_field_input_kind(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  kind: "path_token"
+)
+```
+
+`ui.wait_form_field_input_kind` accepts the same bounded `node_id`, `field`,
+and typed `kind` parameters as `ui.assert_form_field_input_kind`. The VM fixes
+the deadline at 2000 ms and binds the typed input kind across request and
+result. The renderer polls the stable semantic form field input kind until it
+matches exactly; form-less targets, unknown fields, unrealized targets, invalid
+keys, missing or invalid kinds, forged timeouts, or persistent mismatches fail.
+The wait observes schema metadata only and never submits or edits the form.
 
 Native deployment form required-state metadata can also be asserted without
 touching the form:
@@ -732,6 +786,25 @@ fields, unrealized targets, invalid keys, missing states, or mismatched required
 state fail. The assertion never focuses, types, activates, opens, marks, or
 submits the form.
 
+Native deployment form required-state metadata can also be waited on:
+
+```leselang
+fn main() = ui.wait_form_field_required(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  state: "required"
+)
+```
+
+`ui.wait_form_field_required` accepts the same bounded `node_id`, `field`, and
+typed `state` parameters as `ui.assert_form_field_required`. The VM fixes the
+deadline at 2000 ms and binds the explicit required/optional state across
+request and result. The renderer polls the stable semantic required bit until
+it matches exactly; form-less targets, unknown fields, unrealized targets,
+invalid keys, missing or invalid states, forged timeouts, or persistent
+mismatches fail. The wait observes schema metadata only and never changes the
+form.
+
 Native deployment form maximum-length metadata can also be asserted without
 touching the form:
 
@@ -752,6 +825,24 @@ length with the expected value; form-less targets, unknown fields, unrealized
 targets, invalid keys, missing lengths, malformed lengths, or mismatched limits
 fail. The assertion never focuses, types, activates, opens, edits, or submits
 the form.
+
+Native deployment form maximum-length metadata can also be waited on:
+
+```leselang
+fn main() = ui.wait_form_field_max_length(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  max_length: "128"
+)
+```
+
+`ui.wait_form_field_max_length` accepts the same bounded `node_id`, `field`,
+and decimal `max_length` string as `ui.assert_form_field_max_length`. The VM
+fixes the deadline at 2000 ms and binds the typed maximum length across request
+and result. The renderer polls the stable semantic maximum length until it
+matches exactly; form-less targets, unknown fields, unrealized targets, invalid
+keys, malformed lengths, forged timeouts, or persistent mismatches fail. The
+wait observes schema metadata only and never edits or submits the form.
 
 Native deployment form placeholder metadata can also be asserted without
 touching the form:

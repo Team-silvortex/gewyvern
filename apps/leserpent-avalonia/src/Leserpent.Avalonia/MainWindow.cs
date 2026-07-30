@@ -74,6 +74,14 @@ internal sealed class MainWindow : Window
     public bool InitialAccessibleNameWaitTimedOut { get; private set; }
     public bool InitialAccessibleDescriptionWaitCompleted { get; private set; }
     public bool InitialAccessibleDescriptionWaitTimedOut { get; private set; }
+    public bool InitialFormFieldWaitCompleted { get; private set; }
+    public bool InitialFormFieldWaitTimedOut { get; private set; }
+    public bool InitialFormFieldInputKindWaitCompleted { get; private set; }
+    public bool InitialFormFieldInputKindWaitTimedOut { get; private set; }
+    public bool InitialFormFieldRequiredWaitCompleted { get; private set; }
+    public bool InitialFormFieldRequiredWaitTimedOut { get; private set; }
+    public bool InitialFormFieldMaxLengthWaitCompleted { get; private set; }
+    public bool InitialFormFieldMaxLengthWaitTimedOut { get; private set; }
     public bool InitialFormFieldPlaceholderWaitCompleted { get; private set; }
     public bool InitialFormFieldPlaceholderWaitTimedOut { get; private set; }
     public bool SelectionAssertCompleted { get; private set; }
@@ -1052,6 +1060,204 @@ internal sealed class MainWindow : Window
                 .FirstOrDefault(field => field.Placeholder is not null)
             ?? throw new InvalidDataException(
                 "form field placeholder wait probe requires placeholder metadata");
+        var formFieldWaitExpected =
+            $"{formFieldPlaceholderWaitField.Label.Fallback} ready";
+        var formFieldWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitFormField,
+            NodeId = formFieldPlaceholderWaitNodeId,
+            Field = formFieldPlaceholderWaitField.Key,
+            Expected = formFieldWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchFormFieldLabel(
+                formFieldPlaceholderWaitNodeId,
+                formFieldPlaceholderWaitField.Key,
+                formFieldWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var formFieldWaitResult = await formFieldWait;
+        InitialFormFieldWaitCompleted = formFieldWaitResult.Applied
+            && formFieldWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!InitialFormFieldWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field wait did not observe an external label metadata transition");
+        }
+        var formFieldWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFormField,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                Expected = $"{formFieldWaitExpected} mismatch",
+                TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs,
+            });
+        InitialFormFieldWaitTimedOut = !formFieldWaitTimeoutResult.Applied
+            && formFieldWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFormField,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                Expected = formFieldWaitExpected,
+            }).Applied;
+        if (!InitialFormFieldWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang form field wait did not reject a persistent label mismatch");
+        }
+        var formFieldInputKindWaitExpected =
+            MismatchedInputKind(formFieldPlaceholderWaitField.InputKind);
+        var formFieldInputKindWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitFormFieldInputKind,
+            NodeId = formFieldPlaceholderWaitNodeId,
+            Field = formFieldPlaceholderWaitField.Key,
+            InputKind = formFieldInputKindWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitFormFieldInputKindTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchFormFieldInputKind(
+                formFieldPlaceholderWaitNodeId,
+                formFieldPlaceholderWaitField.Key,
+                formFieldInputKindWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var formFieldInputKindWaitResult = await formFieldInputKindWait;
+        InitialFormFieldInputKindWaitCompleted = formFieldInputKindWaitResult.Applied
+            && formFieldInputKindWaitResult.FailureCode
+                == PresentationAutomationFailureCode.None;
+        if (!InitialFormFieldInputKindWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field input kind wait did not observe an external metadata transition");
+        }
+        var formFieldInputKindWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFormFieldInputKind,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                InputKind = formFieldPlaceholderWaitField.InputKind,
+                TimeoutMs = SemanticRenderer.WaitFormFieldInputKindTimeoutMs,
+            });
+        InitialFormFieldInputKindWaitTimedOut =
+            !formFieldInputKindWaitTimeoutResult.Applied
+            && formFieldInputKindWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFormFieldInputKind,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                InputKind = formFieldInputKindWaitExpected,
+            }).Applied;
+        if (!InitialFormFieldInputKindWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang form field input kind wait did not reject a persistent metadata mismatch");
+        }
+        var formFieldRequiredWaitExpected = !formFieldPlaceholderWaitField.Required;
+        var formFieldRequiredWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitFormFieldRequired,
+            NodeId = formFieldPlaceholderWaitNodeId,
+            Field = formFieldPlaceholderWaitField.Key,
+            Required = formFieldRequiredWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitFormFieldRequiredTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchFormFieldRequired(
+                formFieldPlaceholderWaitNodeId,
+                formFieldPlaceholderWaitField.Key,
+                formFieldRequiredWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var formFieldRequiredWaitResult = await formFieldRequiredWait;
+        InitialFormFieldRequiredWaitCompleted = formFieldRequiredWaitResult.Applied
+            && formFieldRequiredWaitResult.FailureCode
+                == PresentationAutomationFailureCode.None;
+        if (!InitialFormFieldRequiredWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field required wait did not observe an external metadata transition");
+        }
+        var formFieldRequiredWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFormFieldRequired,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                Required = formFieldPlaceholderWaitField.Required,
+                TimeoutMs = SemanticRenderer.WaitFormFieldRequiredTimeoutMs,
+            });
+        InitialFormFieldRequiredWaitTimedOut = !formFieldRequiredWaitTimeoutResult.Applied
+            && formFieldRequiredWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFormFieldRequired,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                Required = formFieldRequiredWaitExpected,
+            }).Applied;
+        if (!InitialFormFieldRequiredWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang form field required wait did not reject a persistent metadata mismatch");
+        }
+        var formFieldMaxLengthWaitExpected =
+            formFieldPlaceholderWaitField.MaxLength == 1
+                ? 2
+                : formFieldPlaceholderWaitField.MaxLength - 1;
+        var formFieldMaxLengthWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+            NodeId = formFieldPlaceholderWaitNodeId,
+            Field = formFieldPlaceholderWaitField.Key,
+            MaxLength = formFieldMaxLengthWaitExpected,
+            TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
+        });
+        DispatcherTimer.RunOnce(
+            () => PatchFormFieldMaxLength(
+                formFieldPlaceholderWaitNodeId,
+                formFieldPlaceholderWaitField.Key,
+                formFieldMaxLengthWaitExpected),
+            TimeSpan.FromMilliseconds(50));
+        var formFieldMaxLengthWaitResult = await formFieldMaxLengthWait;
+        InitialFormFieldMaxLengthWaitCompleted = formFieldMaxLengthWaitResult.Applied
+            && formFieldMaxLengthWaitResult.FailureCode
+                == PresentationAutomationFailureCode.None;
+        if (!InitialFormFieldMaxLengthWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field max length wait did not observe an external metadata transition");
+        }
+        var formFieldMaxLengthWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                MaxLength = formFieldPlaceholderWaitField.MaxLength,
+                TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
+            });
+        InitialFormFieldMaxLengthWaitTimedOut =
+            !formFieldMaxLengthWaitTimeoutResult.Applied
+            && formFieldMaxLengthWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFormFieldMaxLength,
+                NodeId = formFieldPlaceholderWaitNodeId,
+                Field = formFieldPlaceholderWaitField.Key,
+                MaxLength = formFieldMaxLengthWaitExpected,
+            }).Applied;
+        if (!InitialFormFieldMaxLengthWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang form field max length wait did not reject a persistent metadata mismatch");
+        }
         var formFieldPlaceholderWaitExpected =
             $"{formFieldPlaceholderWaitField.Placeholder!.Fallback} ready";
         var formFieldPlaceholderWait = renderer.ApplyPresentationAsync(new UiPresentationOperation
@@ -2149,24 +2355,80 @@ internal sealed class MainWindow : Window
 
     private void PatchFormFieldPlaceholder(string nodeId, string fieldKey, string? fallback)
     {
+        PatchFormFieldMetadata(
+            nodeId,
+            fieldKey,
+            field =>
+            {
+                field.Placeholder = fallback is null
+                    ? null
+                    : new LocalizedText
+                    {
+                        Key = field.Placeholder?.Key
+                            ?? $"runtime.deploy.form.{fieldKey}.placeholder",
+                        Fallback = fallback,
+                    };
+            },
+            "placeholder");
+    }
+
+    private void PatchFormFieldLabel(string nodeId, string fieldKey, string fallback)
+    {
+        PatchFormFieldMetadata(
+            nodeId,
+            fieldKey,
+            field => field.Label.Fallback = fallback,
+            "label");
+    }
+
+    private void PatchFormFieldInputKind(
+        string nodeId,
+        string fieldKey,
+        UiFormInputKind inputKind)
+    {
+        PatchFormFieldMetadata(
+            nodeId,
+            fieldKey,
+            field => field.InputKind = inputKind,
+            "input kind");
+    }
+
+    private void PatchFormFieldRequired(string nodeId, string fieldKey, bool required)
+    {
+        PatchFormFieldMetadata(
+            nodeId,
+            fieldKey,
+            field => field.Required = required,
+            "required");
+    }
+
+    private void PatchFormFieldMaxLength(string nodeId, string fieldKey, int maxLength)
+    {
+        PatchFormFieldMetadata(
+            nodeId,
+            fieldKey,
+            field => field.MaxLength = maxLength,
+            "max length");
+    }
+
+    private void PatchFormFieldMetadata(
+        string nodeId,
+        string fieldKey,
+        Action<UiFormField> patch,
+        string metadata)
+    {
         var source = FindNode(renderer.Document.Root, nodeId)
             ?? throw new InvalidDataException(
-                "form field placeholder wait probe target was not found");
+                $"form field {metadata} wait probe target was not found");
         var replacement = CloneShallow(source);
         var form = replacement.Action?.Form
             ?? throw new InvalidDataException(
-                "form field placeholder wait probe target has no form metadata");
+                $"form field {metadata} wait probe target has no form metadata");
         var field = form.Fields.FirstOrDefault(candidate =>
             StringComparer.Ordinal.Equals(candidate.Key, fieldKey))
             ?? throw new InvalidDataException(
-                "form field placeholder wait probe field was not found");
-        field.Placeholder = fallback is null
-            ? null
-            : new LocalizedText
-            {
-                Key = field.Placeholder?.Key ?? $"runtime.deploy.form.{fieldKey}.placeholder",
-                Fallback = fallback,
-            };
+                $"form field {metadata} wait probe field was not found");
+        patch(field);
         var revision = renderer.Document.Revision;
         renderer.Apply(new UiPatch
         {

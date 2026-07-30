@@ -96,6 +96,14 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("public int? MaxLength { get; set; }"));
     assert!(core.contains("UiPresentationValidation.InvalidExpectedMaxLength"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormFieldPlaceholder"));
+    assert!(core.contains("UiPresentationOperationKind.WaitFormField"));
+    assert!(core.contains("WaitFormFieldTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitFormFieldInputKind"));
+    assert!(core.contains("WaitFormFieldInputKindTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitFormFieldRequired"));
+    assert!(core.contains("WaitFormFieldRequiredTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.WaitFormFieldMaxLength"));
+    assert!(core.contains("WaitFormFieldMaxLengthTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.WaitFormFieldPlaceholder"));
     assert!(core.contains("WaitFormFieldPlaceholderTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
@@ -146,6 +154,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(
         renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch")
     );
+    assert!(renderer.contains("UiPresentationOperationKind.WaitFormField"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitFormFieldInputKind"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitFormFieldRequired"));
+    assert!(renderer.contains("UiPresentationOperationKind.WaitFormFieldMaxLength"));
     assert!(renderer.contains("IReadOnlyDictionary<string, string>? FormFieldLabels"));
     assert!(renderer.contains("IReadOnlyDictionary<string, int>? FormFieldMaxLengths"));
     assert!(renderer.contains("PresentationAutomationFailureCode.InvalidExpectedKind"));
@@ -188,6 +200,14 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(window.contains("ActionUnavailableReasonWaitCompleted"));
     assert!(window.contains("ActionUnavailableReasonWaitClearedCompleted"));
     assert!(window.contains("ActionUnavailableReasonWaitTimedOut"));
+    assert!(window.contains("InitialFormFieldWaitCompleted"));
+    assert!(window.contains("InitialFormFieldInputKindWaitCompleted"));
+    assert!(window.contains("InitialFormFieldRequiredWaitCompleted"));
+    assert!(window.contains("InitialFormFieldMaxLengthWaitCompleted"));
+    assert!(window.contains("PatchFormFieldLabel("));
+    assert!(window.contains("PatchFormFieldInputKind("));
+    assert!(window.contains("PatchFormFieldRequired("));
+    assert!(window.contains("PatchFormFieldMaxLength("));
     assert!(window.contains("var focusedWait = renderer.ApplyPresentationAsync"));
     assert!(window.contains("var focusedTimeoutResult = await renderer.ApplyPresentationAsync"));
     assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
@@ -251,6 +271,14 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_accessible_name_timeout="));
     assert!(app.contains("wait_accessible_description="));
     assert!(app.contains("wait_accessible_description_timeout="));
+    assert!(app.contains("wait_form_field="));
+    assert!(app.contains("wait_form_field_timeout="));
+    assert!(app.contains("wait_form_field_input_kind="));
+    assert!(app.contains("wait_form_field_input_kind_timeout="));
+    assert!(app.contains("wait_form_field_required="));
+    assert!(app.contains("wait_form_field_required_timeout="));
+    assert!(app.contains("wait_form_field_max_length="));
+    assert!(app.contains("wait_form_field_max_length_timeout="));
     assert!(app.contains("wait_form_field_placeholder="));
     assert!(app.contains("wait_form_field_placeholder_timeout="));
     assert!(app.contains("assert_automation_id=true"));
@@ -314,6 +342,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_wait_text=true"));
     assert!(conformance.contains("presentation_wait_accessible_name=true"));
     assert!(conformance.contains("presentation_wait_accessible_description=true"));
+    assert!(conformance.contains("presentation_wait_form_field=true"));
+    assert!(conformance.contains("presentation_wait_form_field_input_kind=true"));
+    assert!(conformance.contains("presentation_wait_form_field_required=true"));
+    assert!(conformance.contains("presentation_wait_form_field_max_length=true"));
     assert!(conformance.contains("presentation_wait_form_field_placeholder=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
     assert!(conformance.contains("presentation_wait_action_kind=true"));

@@ -7,10 +7,12 @@ use leselang_hir::{
     UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
     UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
     UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
-    UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
-    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
-    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState,
+    UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
+    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+    UiFocusNavigationDirection, UiSelectionState,
 };
 use leselang_ui::{
     NodeId, UiActionKind, UiDocument, UiFormInputKind, UiPatch, UiPresentationOperation, diff,
@@ -71,6 +73,10 @@ struct Fixture<'a> {
     form_field_required_assert_operation: &'a UiPresentationOperation,
     form_field_max_length_assert_operation: &'a UiPresentationOperation,
     form_field_placeholder_assert_operation: &'a UiPresentationOperation,
+    form_field_wait_operation: &'a UiPresentationOperation,
+    form_field_input_kind_wait_operation: &'a UiPresentationOperation,
+    form_field_required_wait_operation: &'a UiPresentationOperation,
+    form_field_max_length_wait_operation: &'a UiPresentationOperation,
     form_field_placeholder_wait_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
     accessible_name_wait_operation: &'a UiPresentationOperation,
@@ -266,6 +272,30 @@ fn main() {
             field: "pipeline_kind".into(),
             expected: Some("http/request".into()),
         };
+    let form_field_wait_operation = UiPresentationOperation::WaitFormField {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        expected: "Pipeline kind".into(),
+        timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+    };
+    let form_field_input_kind_wait_operation = UiPresentationOperation::WaitFormFieldInputKind {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        input_kind: UiFormInputKind::PathToken,
+        timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+    };
+    let form_field_required_wait_operation = UiPresentationOperation::WaitFormFieldRequired {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        required: true,
+        timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+    };
+    let form_field_max_length_wait_operation = UiPresentationOperation::WaitFormFieldMaxLength {
+        node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+        field: "pipeline_kind".into(),
+        max_length: 128,
+        timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+    };
     let form_field_placeholder_wait_operation = UiPresentationOperation::WaitFormFieldPlaceholder {
         node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
         field: "pipeline_kind".into(),
@@ -333,6 +363,10 @@ fn main() {
     validate_presentation_operation(&next, &form_field_required_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_max_length_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_placeholder_assert_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_wait_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_input_kind_wait_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_required_wait_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_max_length_wait_operation).unwrap();
     validate_presentation_operation(&next, &form_field_placeholder_wait_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_wait_operation).unwrap();
@@ -386,6 +420,10 @@ fn main() {
         form_field_required_assert_operation: &form_field_required_assert_operation,
         form_field_max_length_assert_operation: &form_field_max_length_assert_operation,
         form_field_placeholder_assert_operation: &form_field_placeholder_assert_operation,
+        form_field_wait_operation: &form_field_wait_operation,
+        form_field_input_kind_wait_operation: &form_field_input_kind_wait_operation,
+        form_field_required_wait_operation: &form_field_required_wait_operation,
+        form_field_max_length_wait_operation: &form_field_max_length_wait_operation,
         form_field_placeholder_wait_operation: &form_field_placeholder_wait_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
         accessible_name_wait_operation: &accessible_name_wait_operation,

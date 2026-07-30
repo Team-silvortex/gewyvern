@@ -965,6 +965,34 @@
     "field": "pipeline_kind",
     "expected": "http/request"
   },
+  "form_field_wait_operation": {
+    "kind": "wait_form_field",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "expected": "Pipeline kind",
+    "timeout_ms": 2000
+  },
+  "form_field_input_kind_wait_operation": {
+    "kind": "wait_form_field_input_kind",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "input_kind": "path_token",
+    "timeout_ms": 2000
+  },
+  "form_field_required_wait_operation": {
+    "kind": "wait_form_field_required",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "required": true,
+    "timeout_ms": 2000
+  },
+  "form_field_max_length_wait_operation": {
+    "kind": "wait_form_field_max_length",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "max_length": 128,
+    "timeout_ms": 2000
+  },
   "form_field_placeholder_wait_operation": {
     "kind": "wait_form_field_placeholder",
     "node_id": "runtime-runtime-a-deploy",

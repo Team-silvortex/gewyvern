@@ -23,6 +23,10 @@ pub const UI_WAIT_NODE_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_FORM_FIELD_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_UNFOCUSED_TIMEOUT_MS: u64 = 2_000;
@@ -265,7 +269,17 @@ pub enum Effect {
         field: String,
         expected: String,
     },
+    UiWaitFormField {
+        node_id: String,
+        field: String,
+        expected: String,
+    },
     UiAssertFormFieldInputKind {
+        node_id: String,
+        field: String,
+        input_kind: UiFormInputKind,
+    },
+    UiWaitFormFieldInputKind {
         node_id: String,
         field: String,
         input_kind: UiFormInputKind,
@@ -275,7 +289,17 @@ pub enum Effect {
         field: String,
         state: UiFormRequirementState,
     },
+    UiWaitFormFieldRequired {
+        node_id: String,
+        field: String,
+        state: UiFormRequirementState,
+    },
     UiAssertFormFieldMaxLength {
+        node_id: String,
+        field: String,
+        max_length: usize,
+    },
+    UiWaitFormFieldMaxLength {
         node_id: String,
         field: String,
         max_length: usize,
@@ -359,9 +383,13 @@ pub enum Type {
     UiAssertActionUnavailableReason,
     UiWaitActionUnavailableReason,
     UiAssertFormField,
+    UiWaitFormField,
     UiAssertFormFieldInputKind,
+    UiWaitFormFieldInputKind,
     UiAssertFormFieldRequired,
+    UiWaitFormFieldRequired,
     UiAssertFormFieldMaxLength,
+    UiWaitFormFieldMaxLength,
     UiAssertFormFieldPlaceholder,
     UiWaitFormFieldPlaceholder,
     UiAssertAccessibleName,
@@ -480,9 +508,13 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_action_unavailable_reason"
         | "ui.wait_action_unavailable_reason"
         | "ui.assert_form_field"
+        | "ui.wait_form_field"
         | "ui.assert_form_field_input_kind"
+        | "ui.wait_form_field_input_kind"
         | "ui.assert_form_field_required"
+        | "ui.wait_form_field_required"
         | "ui.assert_form_field_max_length"
+        | "ui.wait_form_field_max_length"
         | "ui.assert_form_field_placeholder"
         | "ui.wait_form_field_placeholder"
         | "ui.assert_accessible_name"
@@ -1117,6 +1149,34 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_form_field", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1269".to_string(),
+                    message:
+                        "ui.wait_form_field node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1270".to_string(),
+                    message: "ui.wait_form_field field must be a valid UI form field key"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1271".to_string(),
+                    message: "ui.wait_form_field expected must be bounded display text"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_form_field_input_kind", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -1146,6 +1206,39 @@ fn lower_atomic_effect(
                     code: "LSH1188".to_string(),
                     message:
                         "ui.assert_form_field_input_kind kind must be a known UI form input kind"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_input_kind", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1275".to_string(),
+                    message:
+                        "ui.wait_form_field_input_kind node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_input_kind", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1276".to_string(),
+                    message:
+                        "ui.wait_form_field_input_kind field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_input_kind", "kind") => match value
+                .as_deref()
+                .and_then(parse_form_input_kind)
+            {
+                Some(value) => form_input_kind = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1277".to_string(),
+                    message:
+                        "ui.wait_form_field_input_kind kind must be a known UI form input kind"
                             .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1182,6 +1275,38 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_form_field_required", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1281".to_string(),
+                    message:
+                        "ui.wait_form_field_required node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_required", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1282".to_string(),
+                    message:
+                        "ui.wait_form_field_required field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_required", "state") => match value
+                .as_deref()
+                .and_then(parse_form_requirement_state)
+            {
+                Some(value) => form_requirement_state = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1283".to_string(),
+                    message: "ui.wait_form_field_required state must be required or optional"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_form_field_max_length", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -1211,6 +1336,39 @@ fn lower_atomic_effect(
                     code: "LSH1200".to_string(),
                     message:
                         "ui.assert_form_field_max_length max_length must be a decimal string from 1 to 256"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_max_length", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1287".to_string(),
+                    message:
+                        "ui.wait_form_field_max_length node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_max_length", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1288".to_string(),
+                    message:
+                        "ui.wait_form_field_max_length field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_form_field_max_length", "max_length") => match value
+                .as_deref()
+                .and_then(parse_form_max_length)
+            {
+                Some(value) => form_max_length = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1289".to_string(),
+                    message:
+                        "ui.wait_form_field_max_length max_length must be a decimal string from 1 to 256"
                             .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1777,6 +1935,27 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_form_field" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1272".to_string(),
+            message: "ui.wait_form_field requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field" && form_field_key.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1273".to_string(),
+            message: "ui.wait_form_field requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1274".to_string(),
+            message: "ui.wait_form_field requires expected".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_form_field_input_kind" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1189".to_string(),
@@ -1801,6 +1980,33 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1191".to_string(),
             message: "ui.assert_form_field_input_kind requires kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_input_kind" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1278".to_string(),
+            message: "ui.wait_form_field_input_kind requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_input_kind"
+        && form_field_key.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1279".to_string(),
+            message: "ui.wait_form_field_input_kind requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_input_kind"
+        && form_input_kind.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1280".to_string(),
+            message: "ui.wait_form_field_input_kind requires kind".to_string(),
             span: Some(span),
         });
     }
@@ -1831,6 +2037,31 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_form_field_required" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1284".to_string(),
+            message: "ui.wait_form_field_required requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_required" && form_field_key.is_none() && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1285".to_string(),
+            message: "ui.wait_form_field_required requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_required"
+        && form_requirement_state.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1286".to_string(),
+            message: "ui.wait_form_field_required requires state".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_form_field_max_length" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1210".to_string(),
@@ -1855,6 +2086,33 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1212".to_string(),
             message: "ui.assert_form_field_max_length requires max_length".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_max_length" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1290".to_string(),
+            message: "ui.wait_form_field_max_length requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_max_length"
+        && form_field_key.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1291".to_string(),
+            message: "ui.wait_form_field_max_length requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_form_field_max_length"
+        && form_max_length.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1292".to_string(),
+            message: "ui.wait_form_field_max_length requires max_length".to_string(),
             span: Some(span),
         });
     }
@@ -2337,6 +2595,15 @@ fn lower_atomic_effect(
             Type::UiAssertFormField,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_form_field" => (
+            Effect::UiWaitFormField {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                expected: expected_text.expect("validated UI expected form field label"),
+            },
+            Type::UiWaitFormField,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_form_field_input_kind" => (
             Effect::UiAssertFormFieldInputKind {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -2344,6 +2611,15 @@ fn lower_atomic_effect(
                 input_kind: form_input_kind.expect("validated UI form input kind"),
             },
             Type::UiAssertFormFieldInputKind,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_form_field_input_kind" => (
+            Effect::UiWaitFormFieldInputKind {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                input_kind: form_input_kind.expect("validated UI form input kind"),
+            },
+            Type::UiWaitFormFieldInputKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field_required" => (
@@ -2355,6 +2631,15 @@ fn lower_atomic_effect(
             Type::UiAssertFormFieldRequired,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_form_field_required" => (
+            Effect::UiWaitFormFieldRequired {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                state: form_requirement_state.expect("validated UI form requirement state"),
+            },
+            Type::UiWaitFormFieldRequired,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_form_field_max_length" => (
             Effect::UiAssertFormFieldMaxLength {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -2362,6 +2647,15 @@ fn lower_atomic_effect(
                 max_length: form_max_length.expect("validated UI form max length"),
             },
             Type::UiAssertFormFieldMaxLength,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_form_field_max_length" => (
+            Effect::UiWaitFormFieldMaxLength {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                max_length: form_max_length.expect("validated UI form max length"),
+            },
+            Type::UiWaitFormFieldMaxLength,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_form_field_placeholder" => (
@@ -2689,12 +2983,40 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(expected),
             indent(depth),
         ),
+        Effect::UiWaitFormField {
+            node_id,
+            field,
+            expected,
+        } => format!(
+            "ui.wait_form_field(\n{}node_id: {},\n{}field: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
         Effect::UiAssertFormFieldInputKind {
             node_id,
             field,
             input_kind,
         } => format!(
             "ui.assert_form_field_input_kind(\n{}node_id: {},\n{}field: {},\n{}kind: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(form_input_kind_source(*input_kind)),
+            indent(depth),
+        ),
+        Effect::UiWaitFormFieldInputKind {
+            node_id,
+            field,
+            input_kind,
+        } => format!(
+            "ui.wait_form_field_input_kind(\n{}node_id: {},\n{}field: {},\n{}kind: {},\n{})",
             indent(depth + 1),
             quote(node_id),
             indent(depth + 1),
@@ -2717,12 +3039,40 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(form_requirement_state_source(*state)),
             indent(depth),
         ),
+        Effect::UiWaitFormFieldRequired {
+            node_id,
+            field,
+            state,
+        } => format!(
+            "ui.wait_form_field_required(\n{}node_id: {},\n{}field: {},\n{}state: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(form_requirement_state_source(*state)),
+            indent(depth),
+        ),
         Effect::UiAssertFormFieldMaxLength {
             node_id,
             field,
             max_length,
         } => format!(
             "ui.assert_form_field_max_length(\n{}node_id: {},\n{}field: {},\n{}max_length: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            quote(&max_length.to_string()),
+            indent(depth),
+        ),
+        Effect::UiWaitFormFieldMaxLength {
+            node_id,
+            field,
+            max_length,
+        } => format!(
+            "ui.wait_form_field_max_length(\n{}node_id: {},\n{}field: {},\n{}max_length: {},\n{})",
             indent(depth + 1),
             quote(node_id),
             indent(depth + 1),
@@ -4830,6 +5180,142 @@ mod tests {
             "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
         );
         assert!(lower(&parse(&oversized_field)).is_err());
+    }
+
+    #[test]
+    fn ui_wait_form_field_metadata_is_capability_gated_and_typed() {
+        let label = lower(&parse(
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+        ))
+        .unwrap();
+        assert_eq!(label.function.result_type, Type::UiWaitFormField);
+        assert_eq!(
+            label.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            label.function.effect,
+            Effect::UiWaitFormField {
+                ref node_id,
+                ref field,
+                ref expected,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && expected == "Pipeline kind"
+        ));
+        assert_eq!(
+            canonical_source(&label.function.effect).unwrap(),
+            "fn main() = ui.wait_form_field(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  expected: \"Pipeline kind\",\n)\n"
+        );
+
+        let input_kind = lower(&parse(
+            "fn main() = ui.wait_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            input_kind.function.result_type,
+            Type::UiWaitFormFieldInputKind
+        );
+        assert!(matches!(
+            input_kind.function.effect,
+            Effect::UiWaitFormFieldInputKind {
+                ref node_id,
+                ref field,
+                input_kind: UiFormInputKind::PathToken,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        assert_eq!(
+            canonical_source(&input_kind.function.effect).unwrap(),
+            "fn main() = ui.wait_form_field_input_kind(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  kind: \"path_token\",\n)\n"
+        );
+
+        let required = lower(&parse(
+            "fn main() = ui.wait_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
+        ))
+        .unwrap();
+        assert_eq!(required.function.result_type, Type::UiWaitFormFieldRequired);
+        assert!(matches!(
+            required.function.effect,
+            Effect::UiWaitFormFieldRequired {
+                ref node_id,
+                ref field,
+                state: UiFormRequirementState::Required,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        assert_eq!(
+            canonical_source(&required.function.effect).unwrap(),
+            "fn main() = ui.wait_form_field_required(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  state: \"required\",\n)\n"
+        );
+        let optional = lower(&parse(
+            "fn main() = ui.wait_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"target\", state: \"optional\")",
+        ))
+        .unwrap();
+        assert!(matches!(
+            optional.function.effect,
+            Effect::UiWaitFormFieldRequired {
+                state: UiFormRequirementState::Optional,
+                ..
+            }
+        ));
+
+        let max_length = lower(&parse(
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            max_length.function.result_type,
+            Type::UiWaitFormFieldMaxLength
+        );
+        assert!(matches!(
+            max_length.function.effect,
+            Effect::UiWaitFormFieldMaxLength {
+                ref node_id,
+                ref field,
+                max_length: 128,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        assert_eq!(
+            canonical_source(&max_length.function.effect).unwrap(),
+            "fn main() = ui.wait_form_field_max_length(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  max_length: \"128\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_form_field()",
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\")",
+            "fn main() = ui.wait_form_field(field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+            "fn main() = ui.wait_form_field(node_id: \"bad/node\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: none, expected: \"Pipeline kind\")",
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"bad/field\", expected: \"Pipeline kind\")",
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: none)",
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"bad\\nfield\")",
+            "fn main() = ui.wait_form_field_input_kind()",
+            "fn main() = ui.wait_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"free_text\")",
+            "fn main() = ui.wait_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: none)",
+            "fn main() = ui.wait_form_field_required()",
+            "fn main() = ui.wait_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"maybe\")",
+            "fn main() = ui.wait_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: none)",
+            "fn main() = ui.wait_form_field_max_length()",
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: none)",
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"0\")",
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"001\")",
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"257\")",
+            "fn main() = ui.wait_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"12x\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_field = format!(
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"{}\", expected: \"Pipeline kind\")",
+            "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_field)).is_err());
+        let oversized_expected = format!(
+            "fn main() = ui.wait_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_expected)).is_err());
     }
 
     #[test]

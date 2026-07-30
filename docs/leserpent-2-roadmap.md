@@ -14,6 +14,12 @@ per-feature maturity, evidence, dependencies, and next gates.
 Implementation stack rule:
 
 - control-plane authority is Rust-first.
+- Leselang's core is crate-first: parser, HIR, VM, UI protocol, and future FFI
+  host surfaces belong in Rust crates rather than a separate app VM.
+- GUI framework support is adapter/codegen based. No GUI framework becomes
+  compatible automatically; developers either implement a developer-owned
+  adapter against the protocol standard or use a dedicated generator to produce
+  a generated binding for that framework.
 - all native shells and renderers are C# where applicable.
 - the browser/operator web client remains TypeScript-only.
 - no additional UI/runtime language is allowed to own canonical control-plane
@@ -189,9 +195,13 @@ typed events through the shared `CommandPlan` path, and computes deterministic
 remove/insert/move/update patches over stable node IDs. Validation rejects
 duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
-transport, HTML, script, or adapter type enters the IR. Broader renderer and
-debugger interactions are covered by the stable v1 contract and conformance
-fixtures. A framework-independent
+transport, HTML, script, or adapter type enters the IR. A separate
+`UiAdapterManifest` now records explicit developer-owned or generated framework
+bindings against the document, event, patch, and complete fifty-atom
+presentation protocol, so future GUI hosts have a protobuf-style compatibility
+checkpoint without automatic framework admission. Broader renderer and debugger
+interactions are covered by the stable v1 contract and conformance fixtures. A
+framework-independent
 patch application reference now fences revisions and rejects malformed graph
 edits; round-trip fixtures establish the semantic renderer conformance baseline.
 The runtime child workspace now combines same-revision inspect and bounded
@@ -269,13 +279,17 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
 `ui.assert_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.assert_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
+`ui.wait_form_field(node_id: ..., field: ..., expected: ...)`, plus
+`ui.wait_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, plus
+`ui.wait_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
+`ui.wait_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.wait_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all forty-six, and `leselang-ui` round-trips them against the current semantic
+rejects all fifty, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
 manager from a currently focused stable action, resolves first/last through the

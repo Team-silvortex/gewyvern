@@ -6,7 +6,9 @@ use leselang_hir::{
     UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
     UI_WAIT_ACTION_KIND_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
     UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
-    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_TIMEOUT_MS,
     UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
     UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
     UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
@@ -33,6 +35,8 @@ pub const MAX_DEBUGGER_DISPLAY_BYTES: usize = 512;
 pub const MAX_DEBUGGER_DEADLINE_REMAINING_MS: u64 = 24 * 60 * 60 * 1_000;
 pub const MAX_UI_FORM_FIELDS: usize = 16;
 pub const MAX_UI_FORM_VALUE_BYTES: usize = 256;
+pub const UI_ADAPTER_MANIFEST_SCHEMA_VERSION: u32 = 1;
+pub const MAX_UI_ADAPTER_FRAMEWORK_BYTES: usize = 128;
 pub const LESELANG_EXPORT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_LESELANG_EXPORT_BYTES: usize = 8 * 1024;
 pub const MAX_LESELANG_SOURCE_BYTES: usize = 4 * 1024;
@@ -349,6 +353,10 @@ pub enum DebuggerEffectKind {
     UiAssertFormFieldRequired,
     UiAssertFormFieldMaxLength,
     UiAssertFormFieldPlaceholder,
+    UiWaitFormField,
+    UiWaitFormFieldInputKind,
+    UiWaitFormFieldRequired,
+    UiWaitFormFieldMaxLength,
     UiWaitFormFieldPlaceholder,
     UiAssertAccessibleName,
     UiWaitAccessibleName,
@@ -621,20 +629,44 @@ pub enum UiPresentationOperation {
         field: String,
         expected: String,
     },
+    WaitFormField {
+        node_id: NodeId,
+        field: String,
+        expected: String,
+        timeout_ms: u64,
+    },
     AssertFormFieldInputKind {
         node_id: NodeId,
         field: String,
         input_kind: UiFormInputKind,
+    },
+    WaitFormFieldInputKind {
+        node_id: NodeId,
+        field: String,
+        input_kind: UiFormInputKind,
+        timeout_ms: u64,
     },
     AssertFormFieldRequired {
         node_id: NodeId,
         field: String,
         required: bool,
     },
+    WaitFormFieldRequired {
+        node_id: NodeId,
+        field: String,
+        required: bool,
+        timeout_ms: u64,
+    },
     AssertFormFieldMaxLength {
         node_id: NodeId,
         field: String,
         max_length: usize,
+    },
+    WaitFormFieldMaxLength {
+        node_id: NodeId,
+        field: String,
+        max_length: usize,
+        timeout_ms: u64,
     },
     AssertFormFieldPlaceholder {
         node_id: NodeId,
@@ -665,6 +697,230 @@ pub enum UiPresentationOperation {
         expected: String,
         timeout_ms: u64,
     },
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiPresentationAtom {
+    Focus,
+    NavigateFocus,
+    ScrollIntoView,
+    AssertVisible,
+    AssertHidden,
+    WaitHidden,
+    AssertRealized,
+    WaitRealized,
+    WaitVisible,
+    WaitEnabled,
+    WaitFocused,
+    AssertFocused,
+    WaitUnfocused,
+    AssertUnfocused,
+    AssertEnabled,
+    AssertDisabled,
+    WaitDisabled,
+    AssertWindowOpen,
+    WaitWindowOpen,
+    AssertWindowClosed,
+    WaitWindowClosed,
+    AssertSelection,
+    WaitSelection,
+    AssertText,
+    WaitText,
+    AssertAutomationId,
+    AssertNodeKind,
+    WaitNodeKind,
+    AssertActionKind,
+    WaitActionKind,
+    AssertActionLabel,
+    WaitActionLabel,
+    AssertActionAvailable,
+    WaitActionAvailable,
+    AssertActionUnavailableReason,
+    WaitActionUnavailableReason,
+    AssertFormField,
+    WaitFormField,
+    AssertFormFieldInputKind,
+    WaitFormFieldInputKind,
+    AssertFormFieldRequired,
+    WaitFormFieldRequired,
+    AssertFormFieldMaxLength,
+    WaitFormFieldMaxLength,
+    AssertFormFieldPlaceholder,
+    WaitFormFieldPlaceholder,
+    AssertAccessibleName,
+    WaitAccessibleName,
+    AssertAccessibleDescription,
+    WaitAccessibleDescription,
+}
+
+pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 50] = [
+    UiPresentationAtom::Focus,
+    UiPresentationAtom::NavigateFocus,
+    UiPresentationAtom::ScrollIntoView,
+    UiPresentationAtom::AssertVisible,
+    UiPresentationAtom::AssertHidden,
+    UiPresentationAtom::WaitHidden,
+    UiPresentationAtom::AssertRealized,
+    UiPresentationAtom::WaitRealized,
+    UiPresentationAtom::WaitVisible,
+    UiPresentationAtom::WaitEnabled,
+    UiPresentationAtom::WaitFocused,
+    UiPresentationAtom::AssertFocused,
+    UiPresentationAtom::WaitUnfocused,
+    UiPresentationAtom::AssertUnfocused,
+    UiPresentationAtom::AssertEnabled,
+    UiPresentationAtom::AssertDisabled,
+    UiPresentationAtom::WaitDisabled,
+    UiPresentationAtom::AssertWindowOpen,
+    UiPresentationAtom::WaitWindowOpen,
+    UiPresentationAtom::AssertWindowClosed,
+    UiPresentationAtom::WaitWindowClosed,
+    UiPresentationAtom::AssertSelection,
+    UiPresentationAtom::WaitSelection,
+    UiPresentationAtom::AssertText,
+    UiPresentationAtom::WaitText,
+    UiPresentationAtom::AssertAutomationId,
+    UiPresentationAtom::AssertNodeKind,
+    UiPresentationAtom::WaitNodeKind,
+    UiPresentationAtom::AssertActionKind,
+    UiPresentationAtom::WaitActionKind,
+    UiPresentationAtom::AssertActionLabel,
+    UiPresentationAtom::WaitActionLabel,
+    UiPresentationAtom::AssertActionAvailable,
+    UiPresentationAtom::WaitActionAvailable,
+    UiPresentationAtom::AssertActionUnavailableReason,
+    UiPresentationAtom::WaitActionUnavailableReason,
+    UiPresentationAtom::AssertFormField,
+    UiPresentationAtom::WaitFormField,
+    UiPresentationAtom::AssertFormFieldInputKind,
+    UiPresentationAtom::WaitFormFieldInputKind,
+    UiPresentationAtom::AssertFormFieldRequired,
+    UiPresentationAtom::WaitFormFieldRequired,
+    UiPresentationAtom::AssertFormFieldMaxLength,
+    UiPresentationAtom::WaitFormFieldMaxLength,
+    UiPresentationAtom::AssertFormFieldPlaceholder,
+    UiPresentationAtom::WaitFormFieldPlaceholder,
+    UiPresentationAtom::AssertAccessibleName,
+    UiPresentationAtom::WaitAccessibleName,
+    UiPresentationAtom::AssertAccessibleDescription,
+    UiPresentationAtom::WaitAccessibleDescription,
+];
+
+pub fn required_ui_presentation_atoms() -> &'static [UiPresentationAtom] {
+    &REQUIRED_UI_PRESENTATION_ATOMS
+}
+
+pub fn presentation_atom_for_operation(operation: &UiPresentationOperation) -> UiPresentationAtom {
+    match operation {
+        UiPresentationOperation::Focus { .. } => UiPresentationAtom::Focus,
+        UiPresentationOperation::NavigateFocus { .. } => UiPresentationAtom::NavigateFocus,
+        UiPresentationOperation::ScrollIntoView { .. } => UiPresentationAtom::ScrollIntoView,
+        UiPresentationOperation::AssertVisible { .. } => UiPresentationAtom::AssertVisible,
+        UiPresentationOperation::AssertHidden { .. } => UiPresentationAtom::AssertHidden,
+        UiPresentationOperation::WaitHidden { .. } => UiPresentationAtom::WaitHidden,
+        UiPresentationOperation::AssertRealized { .. } => UiPresentationAtom::AssertRealized,
+        UiPresentationOperation::WaitRealized { .. } => UiPresentationAtom::WaitRealized,
+        UiPresentationOperation::WaitVisible { .. } => UiPresentationAtom::WaitVisible,
+        UiPresentationOperation::WaitEnabled { .. } => UiPresentationAtom::WaitEnabled,
+        UiPresentationOperation::WaitFocused { .. } => UiPresentationAtom::WaitFocused,
+        UiPresentationOperation::AssertFocused { .. } => UiPresentationAtom::AssertFocused,
+        UiPresentationOperation::WaitUnfocused { .. } => UiPresentationAtom::WaitUnfocused,
+        UiPresentationOperation::AssertUnfocused { .. } => UiPresentationAtom::AssertUnfocused,
+        UiPresentationOperation::AssertEnabled { .. } => UiPresentationAtom::AssertEnabled,
+        UiPresentationOperation::AssertDisabled { .. } => UiPresentationAtom::AssertDisabled,
+        UiPresentationOperation::WaitDisabled { .. } => UiPresentationAtom::WaitDisabled,
+        UiPresentationOperation::AssertWindowOpen { .. } => UiPresentationAtom::AssertWindowOpen,
+        UiPresentationOperation::WaitWindowOpen { .. } => UiPresentationAtom::WaitWindowOpen,
+        UiPresentationOperation::AssertWindowClosed { .. } => {
+            UiPresentationAtom::AssertWindowClosed
+        }
+        UiPresentationOperation::WaitWindowClosed { .. } => UiPresentationAtom::WaitWindowClosed,
+        UiPresentationOperation::AssertSelection { .. } => UiPresentationAtom::AssertSelection,
+        UiPresentationOperation::WaitSelection { .. } => UiPresentationAtom::WaitSelection,
+        UiPresentationOperation::AssertText { .. } => UiPresentationAtom::AssertText,
+        UiPresentationOperation::WaitText { .. } => UiPresentationAtom::WaitText,
+        UiPresentationOperation::AssertAutomationId { .. } => {
+            UiPresentationAtom::AssertAutomationId
+        }
+        UiPresentationOperation::AssertNodeKind { .. } => UiPresentationAtom::AssertNodeKind,
+        UiPresentationOperation::WaitNodeKind { .. } => UiPresentationAtom::WaitNodeKind,
+        UiPresentationOperation::AssertActionKind { .. } => UiPresentationAtom::AssertActionKind,
+        UiPresentationOperation::WaitActionKind { .. } => UiPresentationAtom::WaitActionKind,
+        UiPresentationOperation::AssertActionLabel { .. } => UiPresentationAtom::AssertActionLabel,
+        UiPresentationOperation::WaitActionLabel { .. } => UiPresentationAtom::WaitActionLabel,
+        UiPresentationOperation::AssertActionAvailable { .. } => {
+            UiPresentationAtom::AssertActionAvailable
+        }
+        UiPresentationOperation::WaitActionAvailable { .. } => {
+            UiPresentationAtom::WaitActionAvailable
+        }
+        UiPresentationOperation::AssertActionUnavailableReason { .. } => {
+            UiPresentationAtom::AssertActionUnavailableReason
+        }
+        UiPresentationOperation::WaitActionUnavailableReason { .. } => {
+            UiPresentationAtom::WaitActionUnavailableReason
+        }
+        UiPresentationOperation::AssertFormField { .. } => UiPresentationAtom::AssertFormField,
+        UiPresentationOperation::WaitFormField { .. } => UiPresentationAtom::WaitFormField,
+        UiPresentationOperation::AssertFormFieldInputKind { .. } => {
+            UiPresentationAtom::AssertFormFieldInputKind
+        }
+        UiPresentationOperation::WaitFormFieldInputKind { .. } => {
+            UiPresentationAtom::WaitFormFieldInputKind
+        }
+        UiPresentationOperation::AssertFormFieldRequired { .. } => {
+            UiPresentationAtom::AssertFormFieldRequired
+        }
+        UiPresentationOperation::WaitFormFieldRequired { .. } => {
+            UiPresentationAtom::WaitFormFieldRequired
+        }
+        UiPresentationOperation::AssertFormFieldMaxLength { .. } => {
+            UiPresentationAtom::AssertFormFieldMaxLength
+        }
+        UiPresentationOperation::WaitFormFieldMaxLength { .. } => {
+            UiPresentationAtom::WaitFormFieldMaxLength
+        }
+        UiPresentationOperation::AssertFormFieldPlaceholder { .. } => {
+            UiPresentationAtom::AssertFormFieldPlaceholder
+        }
+        UiPresentationOperation::WaitFormFieldPlaceholder { .. } => {
+            UiPresentationAtom::WaitFormFieldPlaceholder
+        }
+        UiPresentationOperation::AssertAccessibleName { .. } => {
+            UiPresentationAtom::AssertAccessibleName
+        }
+        UiPresentationOperation::WaitAccessibleName { .. } => {
+            UiPresentationAtom::WaitAccessibleName
+        }
+        UiPresentationOperation::AssertAccessibleDescription { .. } => {
+            UiPresentationAtom::AssertAccessibleDescription
+        }
+        UiPresentationOperation::WaitAccessibleDescription { .. } => {
+            UiPresentationAtom::WaitAccessibleDescription
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiAdapterBindingKind {
+    DeveloperOwnedAdapter,
+    GeneratedFrameworkBinding,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiAdapterManifest {
+    pub schema_version: u32,
+    pub adapter_id: String,
+    pub framework: String,
+    pub binding_kind: UiAdapterBindingKind,
+    pub ui_schema_version: u32,
+    pub document_schema: bool,
+    pub event_schema: bool,
+    pub patch_schema: bool,
+    pub presentation_atoms: Vec<UiPresentationAtom>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -756,6 +1012,9 @@ pub enum UiError {
         field: String,
     },
     InvalidAutomationEffect,
+    InvalidAdapterManifest {
+        reason: &'static str,
+    },
     UnknownPresentationTarget {
         node_id: String,
     },
@@ -1431,6 +1690,10 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertFormFieldRequired
             | DebuggerEffectKind::UiAssertFormFieldMaxLength
             | DebuggerEffectKind::UiAssertFormFieldPlaceholder
+            | DebuggerEffectKind::UiWaitFormField
+            | DebuggerEffectKind::UiWaitFormFieldInputKind
+            | DebuggerEffectKind::UiWaitFormFieldRequired
+            | DebuggerEffectKind::UiWaitFormFieldMaxLength
             | DebuggerEffectKind::UiWaitFormFieldPlaceholder
             | DebuggerEffectKind::UiAssertAccessibleName
             | DebuggerEffectKind::UiWaitAccessibleName
@@ -1580,6 +1843,10 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertFormFieldRequired => "UI assert form field required",
             DebuggerEffectKind::UiAssertFormFieldMaxLength => "UI assert form field max length",
             DebuggerEffectKind::UiAssertFormFieldPlaceholder => "UI assert form field placeholder",
+            DebuggerEffectKind::UiWaitFormField => "UI wait form field",
+            DebuggerEffectKind::UiWaitFormFieldInputKind => "UI wait form field input kind",
+            DebuggerEffectKind::UiWaitFormFieldRequired => "UI wait form field required",
+            DebuggerEffectKind::UiWaitFormFieldMaxLength => "UI wait form field max length",
             DebuggerEffectKind::UiWaitFormFieldPlaceholder => "UI wait form field placeholder",
             DebuggerEffectKind::UiAssertAccessibleName => "UI assert accessible name",
             DebuggerEffectKind::UiWaitAccessibleName => "UI wait accessible name",
@@ -2010,6 +2277,16 @@ pub fn presentation_operation_for_effect(
             field: field.clone(),
             expected: expected.clone(),
         },
+        Effect::UiWaitFormField {
+            node_id,
+            field,
+            expected,
+        } => UiPresentationOperation::WaitFormField {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            expected: expected.clone(),
+            timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+        },
         Effect::UiAssertFormFieldInputKind {
             node_id,
             field,
@@ -2018,6 +2295,16 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             field: field.clone(),
             input_kind: hir_form_input_kind_to_ui(*input_kind),
+        },
+        Effect::UiWaitFormFieldInputKind {
+            node_id,
+            field,
+            input_kind,
+        } => UiPresentationOperation::WaitFormFieldInputKind {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            input_kind: hir_form_input_kind_to_ui(*input_kind),
+            timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
         },
         Effect::UiAssertFormFieldRequired {
             node_id,
@@ -2028,6 +2315,16 @@ pub fn presentation_operation_for_effect(
             field: field.clone(),
             required: hir_form_requirement_state_to_required(*state),
         },
+        Effect::UiWaitFormFieldRequired {
+            node_id,
+            field,
+            state,
+        } => UiPresentationOperation::WaitFormFieldRequired {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            required: hir_form_requirement_state_to_required(*state),
+            timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+        },
         Effect::UiAssertFormFieldMaxLength {
             node_id,
             field,
@@ -2036,6 +2333,16 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             field: field.clone(),
             max_length: *max_length,
+        },
+        Effect::UiWaitFormFieldMaxLength {
+            node_id,
+            field,
+            max_length,
+        } => UiPresentationOperation::WaitFormFieldMaxLength {
+            node_id: NodeId::new(node_id.clone())?,
+            field: field.clone(),
+            max_length: *max_length,
+            timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
         },
         Effect::UiAssertFormFieldPlaceholder {
             node_id,
@@ -2255,11 +2562,31 @@ pub fn effect_for_presentation_operation(
             field: field.clone(),
             expected: expected.clone(),
         },
+        UiPresentationOperation::WaitFormField {
+            node_id,
+            field,
+            expected,
+            ..
+        } => Effect::UiWaitFormField {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            expected: expected.clone(),
+        },
         UiPresentationOperation::AssertFormFieldInputKind {
             node_id,
             field,
             input_kind,
         } => Effect::UiAssertFormFieldInputKind {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            input_kind: ui_form_input_kind_to_hir(*input_kind),
+        },
+        UiPresentationOperation::WaitFormFieldInputKind {
+            node_id,
+            field,
+            input_kind,
+            ..
+        } => Effect::UiWaitFormFieldInputKind {
             node_id: node_id.as_str().to_string(),
             field: field.clone(),
             input_kind: ui_form_input_kind_to_hir(*input_kind),
@@ -2273,11 +2600,31 @@ pub fn effect_for_presentation_operation(
             field: field.clone(),
             state: required_to_hir_form_requirement_state(*required),
         },
+        UiPresentationOperation::WaitFormFieldRequired {
+            node_id,
+            field,
+            required,
+            ..
+        } => Effect::UiWaitFormFieldRequired {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            state: required_to_hir_form_requirement_state(*required),
+        },
         UiPresentationOperation::AssertFormFieldMaxLength {
             node_id,
             field,
             max_length,
         } => Effect::UiAssertFormFieldMaxLength {
+            node_id: node_id.as_str().to_string(),
+            field: field.clone(),
+            max_length: *max_length,
+        },
+        UiPresentationOperation::WaitFormFieldMaxLength {
+            node_id,
+            field,
+            max_length,
+            ..
+        } => Effect::UiWaitFormFieldMaxLength {
             node_id: node_id.as_str().to_string(),
             field: field.clone(),
             max_length: *max_length,
@@ -2371,9 +2718,13 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertActionUnavailableReason { node_id, .. }
         | UiPresentationOperation::WaitActionUnavailableReason { node_id, .. }
         | UiPresentationOperation::AssertFormField { node_id, .. }
+        | UiPresentationOperation::WaitFormField { node_id, .. }
         | UiPresentationOperation::AssertFormFieldInputKind { node_id, .. }
+        | UiPresentationOperation::WaitFormFieldInputKind { node_id, .. }
         | UiPresentationOperation::AssertFormFieldRequired { node_id, .. }
+        | UiPresentationOperation::WaitFormFieldRequired { node_id, .. }
         | UiPresentationOperation::AssertFormFieldMaxLength { node_id, .. }
+        | UiPresentationOperation::WaitFormFieldMaxLength { node_id, .. }
         | UiPresentationOperation::AssertFormFieldPlaceholder { node_id, .. }
         | UiPresentationOperation::WaitFormFieldPlaceholder { node_id, .. }
         | UiPresentationOperation::AssertAccessibleName { node_id, .. }
@@ -2386,6 +2737,7 @@ pub fn validate_presentation_operation(
     | UiPresentationOperation::AssertActionLabel { expected, .. }
     | UiPresentationOperation::WaitActionLabel { expected, .. }
     | UiPresentationOperation::AssertFormField { expected, .. }
+    | UiPresentationOperation::WaitFormField { expected, .. }
     | UiPresentationOperation::AssertAccessibleName { expected, .. }
     | UiPresentationOperation::WaitAccessibleName { expected, .. }
     | UiPresentationOperation::AssertAccessibleDescription { expected, .. }
@@ -2415,16 +2767,21 @@ pub fn validate_presentation_operation(
         return Err(UiError::InvalidPresentationText);
     }
     if let UiPresentationOperation::AssertFormField { field, .. }
+    | UiPresentationOperation::WaitFormField { field, .. }
     | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
+    | UiPresentationOperation::WaitFormFieldInputKind { field, .. }
     | UiPresentationOperation::AssertFormFieldRequired { field, .. }
+    | UiPresentationOperation::WaitFormFieldRequired { field, .. }
     | UiPresentationOperation::AssertFormFieldMaxLength { field, .. }
+    | UiPresentationOperation::WaitFormFieldMaxLength { field, .. }
     | UiPresentationOperation::AssertFormFieldPlaceholder { field, .. }
     | UiPresentationOperation::WaitFormFieldPlaceholder { field, .. } = operation
         && !validate_ui_form_field_key(field)
     {
         return Err(UiError::InvalidPresentationText);
     }
-    if let UiPresentationOperation::AssertFormFieldMaxLength { max_length, .. } = operation
+    if let UiPresentationOperation::AssertFormFieldMaxLength { max_length, .. }
+    | UiPresentationOperation::WaitFormFieldMaxLength { max_length, .. } = operation
         && !(1..=MAX_UI_FORM_VALUE_BYTES).contains(max_length)
     {
         return Err(UiError::InvalidPresentationText);
@@ -2524,6 +2881,26 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
+    if let UiPresentationOperation::WaitFormField { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_FORM_FIELD_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitFormFieldInputKind { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitFormFieldRequired { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitFormFieldMaxLength { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
     if let UiPresentationOperation::WaitFormFieldPlaceholder { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS
     {
@@ -2588,9 +2965,13 @@ pub fn validate_presentation_operation(
         });
     }
     if let UiPresentationOperation::AssertFormField { field, .. }
+    | UiPresentationOperation::WaitFormField { field, .. }
     | UiPresentationOperation::AssertFormFieldInputKind { field, .. }
+    | UiPresentationOperation::WaitFormFieldInputKind { field, .. }
     | UiPresentationOperation::AssertFormFieldRequired { field, .. }
+    | UiPresentationOperation::WaitFormFieldRequired { field, .. }
     | UiPresentationOperation::AssertFormFieldMaxLength { field, .. }
+    | UiPresentationOperation::WaitFormFieldMaxLength { field, .. }
     | UiPresentationOperation::AssertFormFieldPlaceholder { field, .. }
     | UiPresentationOperation::WaitFormFieldPlaceholder { field, .. } = operation
     {
@@ -3063,6 +3444,99 @@ pub fn decode_patch(bytes: &[u8]) -> Result<UiPatch, UiError> {
         serde_json::from_slice(bytes).map_err(|error| UiError::InvalidJson(error.to_string()))?;
     validate_patch(&patch)?;
     Ok(patch)
+}
+
+pub fn complete_ui_adapter_manifest(
+    adapter_id: impl Into<String>,
+    framework: impl Into<String>,
+    binding_kind: UiAdapterBindingKind,
+) -> Result<UiAdapterManifest, UiError> {
+    let manifest = UiAdapterManifest {
+        schema_version: UI_ADAPTER_MANIFEST_SCHEMA_VERSION,
+        adapter_id: adapter_id.into(),
+        framework: framework.into(),
+        binding_kind,
+        ui_schema_version: UI_SCHEMA_VERSION,
+        document_schema: true,
+        event_schema: true,
+        patch_schema: true,
+        presentation_atoms: required_ui_presentation_atoms().to_vec(),
+    };
+    validate_ui_adapter_manifest(&manifest)?;
+    Ok(manifest)
+}
+
+pub fn encode_ui_adapter_manifest(manifest: &UiAdapterManifest) -> Result<Vec<u8>, UiError> {
+    validate_ui_adapter_manifest(manifest)?;
+    encode_json(manifest)
+}
+
+pub fn decode_ui_adapter_manifest(bytes: &[u8]) -> Result<UiAdapterManifest, UiError> {
+    check_payload_size(bytes.len())?;
+    let manifest: UiAdapterManifest =
+        serde_json::from_slice(bytes).map_err(|error| UiError::InvalidJson(error.to_string()))?;
+    validate_ui_adapter_manifest(&manifest)?;
+    Ok(manifest)
+}
+
+pub fn validate_ui_adapter_manifest(manifest: &UiAdapterManifest) -> Result<(), UiError> {
+    if manifest.schema_version != UI_ADAPTER_MANIFEST_SCHEMA_VERSION {
+        return Err(UiError::UnsupportedSchema {
+            actual: manifest.schema_version,
+            expected: UI_ADAPTER_MANIFEST_SCHEMA_VERSION,
+        });
+    }
+    if manifest.ui_schema_version != UI_SCHEMA_VERSION {
+        return Err(UiError::UnsupportedSchema {
+            actual: manifest.ui_schema_version,
+            expected: UI_SCHEMA_VERSION,
+        });
+    }
+    if !validate_ui_node_id(&manifest.adapter_id) {
+        return Err(UiError::InvalidNodeId);
+    }
+    validate_adapter_framework(&manifest.framework)?;
+    if !manifest.document_schema {
+        return Err(UiError::InvalidAdapterManifest {
+            reason: "missing_document_schema",
+        });
+    }
+    if !manifest.event_schema {
+        return Err(UiError::InvalidAdapterManifest {
+            reason: "missing_event_schema",
+        });
+    }
+    if !manifest.patch_schema {
+        return Err(UiError::InvalidAdapterManifest {
+            reason: "missing_patch_schema",
+        });
+    }
+    let mut atoms = BTreeSet::new();
+    for atom in &manifest.presentation_atoms {
+        if !atoms.insert(*atom) {
+            return Err(UiError::InvalidAdapterManifest {
+                reason: "duplicate_presentation_atom",
+            });
+        }
+    }
+    for required in required_ui_presentation_atoms() {
+        if !atoms.contains(required) {
+            return Err(UiError::InvalidAdapterManifest {
+                reason: "missing_presentation_atom",
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_adapter_framework(framework: &str) -> Result<(), UiError> {
+    if framework.is_empty()
+        || framework.len() > MAX_UI_ADAPTER_FRAMEWORK_BYTES
+        || framework.chars().any(char::is_control)
+    {
+        return Err(UiError::InvalidText);
+    }
+    Ok(())
 }
 
 fn validate_patch(patch: &UiPatch) -> Result<(), UiError> {
@@ -5813,6 +6287,338 @@ mod tests {
     }
 
     #[test]
+    fn form_field_metadata_waits_round_trip_for_deployment_forms() {
+        let (mut inspect, history) = workspace(false);
+        let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
+            unreachable!()
+        };
+        runtime.capabilities.authenticated_deployment = true;
+        let document = runtime_workspace_document(&inspect, &history).unwrap();
+        let deploy_node = NodeId::new("workspace-runtime-a-deploy").unwrap();
+
+        let label = UiPresentationOperation::WaitFormField {
+            node_id: deploy_node.clone(),
+            field: "pipeline_kind".into(),
+            expected: "Pipeline kind".into(),
+            timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &label).unwrap();
+        let label_effect = effect_for_presentation_operation(&document, &label).unwrap();
+        assert_eq!(
+            label_effect,
+            Effect::UiWaitFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: "Pipeline kind".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &label_effect).unwrap(),
+            label
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &label).unwrap(),
+            canonical_source(&label_effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &label_effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormField {
+                    node_id: deploy_node.clone(),
+                    field: "pipeline_kind".into(),
+                    expected: "Pipeline kind".into(),
+                    timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormField {
+                    node_id: deploy_node.clone(),
+                    field: "missing".into(),
+                    expected: "Pipeline kind".into(),
+                    timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormField {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    expected: "Pipeline kind".into(),
+                    timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormField {
+                    node_id: deploy_node.clone(),
+                    field: "pipeline_kind".into(),
+                    expected: "bad\nlabel".into(),
+                    timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+
+        let input_kind = UiPresentationOperation::WaitFormFieldInputKind {
+            node_id: deploy_node.clone(),
+            field: "pipeline_kind".into(),
+            input_kind: UiFormInputKind::PathToken,
+            timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &input_kind).unwrap();
+        let input_kind_effect = effect_for_presentation_operation(&document, &input_kind).unwrap();
+        assert_eq!(
+            input_kind_effect,
+            Effect::UiWaitFormFieldInputKind {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                input_kind: HirUiFormInputKind::PathToken,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &input_kind_effect).unwrap(),
+            input_kind
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &input_kind).unwrap(),
+            canonical_source(&input_kind_effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &input_kind_effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldInputKind {
+                    node_id: deploy_node.clone(),
+                    field: "pipeline_kind".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                    timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldInputKind {
+                    node_id: deploy_node.clone(),
+                    field: "missing".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                    timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldInputKind {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    input_kind: UiFormInputKind::PathToken,
+                    timeout_ms: UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+
+        let required = UiPresentationOperation::WaitFormFieldRequired {
+            node_id: deploy_node.clone(),
+            field: "pipeline_kind".into(),
+            required: true,
+            timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &required).unwrap();
+        let required_effect = effect_for_presentation_operation(&document, &required).unwrap();
+        assert_eq!(
+            required_effect,
+            Effect::UiWaitFormFieldRequired {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                state: HirUiFormRequirementState::Required,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &required_effect).unwrap(),
+            required
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &required).unwrap(),
+            canonical_source(&required_effect).unwrap()
+        );
+        assert_eq!(
+            effect_for_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldRequired {
+                    node_id: deploy_node.clone(),
+                    field: "target".into(),
+                    required: false,
+                    timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+                },
+            )
+            .unwrap(),
+            Effect::UiWaitFormFieldRequired {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "target".into(),
+                state: HirUiFormRequirementState::Optional,
+            }
+        );
+        assert_eq!(
+            event_for_effect(&document, &required_effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldRequired {
+                    node_id: deploy_node.clone(),
+                    field: "pipeline_kind".into(),
+                    required: true,
+                    timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldRequired {
+                    node_id: deploy_node.clone(),
+                    field: "missing".into(),
+                    required: true,
+                    timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldRequired {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    required: true,
+                    timeout_ms: UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+
+        let max_length = UiPresentationOperation::WaitFormFieldMaxLength {
+            node_id: deploy_node.clone(),
+            field: "pipeline_kind".into(),
+            max_length: 128,
+            timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &max_length).unwrap();
+        let max_length_effect = effect_for_presentation_operation(&document, &max_length).unwrap();
+        assert_eq!(
+            max_length_effect,
+            Effect::UiWaitFormFieldMaxLength {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                max_length: 128,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &max_length_effect).unwrap(),
+            max_length
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &max_length).unwrap(),
+            canonical_source(&max_length_effect).unwrap()
+        );
+        assert_eq!(
+            event_for_effect(&document, &max_length_effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldMaxLength {
+                    node_id: deploy_node.clone(),
+                    field: "pipeline_kind".into(),
+                    max_length: 128,
+                    timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldMaxLength {
+                    node_id: deploy_node.clone(),
+                    field: "missing".into(),
+                    max_length: 128,
+                    timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnknownFormField {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "missing".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldMaxLength {
+                    node_id: document.root.id.clone(),
+                    field: "pipeline_kind".into(),
+                    max_length: 128,
+                    timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::FormlessPresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitFormFieldMaxLength {
+                    node_id: deploy_node,
+                    field: "pipeline_kind".into(),
+                    max_length: 0,
+                    timeout_ms: UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
     fn form_field_placeholder_assertion_round_trips_for_deployment_forms() {
         let (mut inspect, history) = workspace(false);
         let QueryResult::RuntimeInspect { runtime, .. } = &mut inspect else {
@@ -6841,6 +7647,121 @@ mod tests {
             decode_patch(&serde_json::to_vec(&invalid_node).unwrap()),
             Err(UiError::InvalidNodeId)
         );
+    }
+
+    #[test]
+    fn ui_adapter_manifest_requires_explicit_complete_protocol_binding() {
+        let manifest = complete_ui_adapter_manifest(
+            "avalonia-adapter",
+            "Avalonia",
+            UiAdapterBindingKind::DeveloperOwnedAdapter,
+        )
+        .unwrap();
+        assert_eq!(manifest.schema_version, UI_ADAPTER_MANIFEST_SCHEMA_VERSION);
+        assert_eq!(manifest.ui_schema_version, UI_SCHEMA_VERSION);
+        assert_eq!(manifest.presentation_atoms.len(), 50);
+        assert!(
+            manifest
+                .presentation_atoms
+                .contains(&UiPresentationAtom::WaitFormField)
+        );
+
+        let encoded = encode_ui_adapter_manifest(&manifest).unwrap();
+        assert_eq!(decode_ui_adapter_manifest(&encoded).unwrap(), manifest);
+
+        let generated = complete_ui_adapter_manifest(
+            "tauri-generated-binding",
+            "Tauri",
+            UiAdapterBindingKind::GeneratedFrameworkBinding,
+        )
+        .unwrap();
+        assert_eq!(
+            generated.binding_kind,
+            UiAdapterBindingKind::GeneratedFrameworkBinding
+        );
+
+        let operation = UiPresentationOperation::WaitFormField {
+            node_id: NodeId::new("workspace-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            expected: "Pipeline kind".into(),
+            timeout_ms: UI_WAIT_FORM_FIELD_TIMEOUT_MS,
+        };
+        assert_eq!(
+            presentation_atom_for_operation(&operation),
+            UiPresentationAtom::WaitFormField
+        );
+
+        let mut missing_document = manifest.clone();
+        missing_document.document_schema = false;
+        assert_eq!(
+            validate_ui_adapter_manifest(&missing_document),
+            Err(UiError::InvalidAdapterManifest {
+                reason: "missing_document_schema",
+            })
+        );
+
+        let mut missing_atom = manifest.clone();
+        missing_atom
+            .presentation_atoms
+            .retain(|atom| *atom != UiPresentationAtom::WaitFormField);
+        assert_eq!(
+            validate_ui_adapter_manifest(&missing_atom),
+            Err(UiError::InvalidAdapterManifest {
+                reason: "missing_presentation_atom",
+            })
+        );
+
+        let mut duplicate_atom = manifest.clone();
+        duplicate_atom
+            .presentation_atoms
+            .push(UiPresentationAtom::Focus);
+        assert_eq!(
+            validate_ui_adapter_manifest(&duplicate_atom),
+            Err(UiError::InvalidAdapterManifest {
+                reason: "duplicate_presentation_atom",
+            })
+        );
+
+        let mut bad_framework = manifest.clone();
+        bad_framework.framework = "Bad\nToolkit".into();
+        assert_eq!(
+            validate_ui_adapter_manifest(&bad_framework),
+            Err(UiError::InvalidText)
+        );
+
+        let mut bad_id = manifest.clone();
+        bad_id.adapter_id = "bad/adapter".into();
+        assert_eq!(
+            validate_ui_adapter_manifest(&bad_id),
+            Err(UiError::InvalidNodeId)
+        );
+
+        let mut unsupported_manifest_schema = manifest.clone();
+        unsupported_manifest_schema.schema_version = UI_ADAPTER_MANIFEST_SCHEMA_VERSION + 1;
+        assert_eq!(
+            validate_ui_adapter_manifest(&unsupported_manifest_schema),
+            Err(UiError::UnsupportedSchema {
+                actual: UI_ADAPTER_MANIFEST_SCHEMA_VERSION + 1,
+                expected: UI_ADAPTER_MANIFEST_SCHEMA_VERSION,
+            })
+        );
+
+        let mut unsupported_ui_schema = manifest.clone();
+        unsupported_ui_schema.ui_schema_version = UI_SCHEMA_VERSION + 1;
+        assert_eq!(
+            validate_ui_adapter_manifest(&unsupported_ui_schema),
+            Err(UiError::UnsupportedSchema {
+                actual: UI_SCHEMA_VERSION + 1,
+                expected: UI_SCHEMA_VERSION,
+            })
+        );
+
+        let mut unknown_field = serde_json::to_value(&manifest).unwrap();
+        unknown_field["automatic_framework_compatibility"] = serde_json::json!(true);
+        assert!(matches!(
+            decode_ui_adapter_manifest(&serde_json::to_vec(&unknown_field).unwrap()),
+            Err(UiError::InvalidJson(_))
+        ));
     }
 
     #[test]

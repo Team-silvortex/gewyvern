@@ -30,6 +30,24 @@ The platform stack constraint is explicit:
 The current ASP.NET and TypeScript application remains the 1.x implementation
 and migration bridge. It is not the semantic center of the 2.0 system.
 
+Leselang is not a general-purpose VM, application runtime, or DartVM-style
+language platform. Its target is a protocolized GUI/control automation runtime:
+the "JavaScript" of Leserpent automation only in the narrow sense that GUI
+interaction and code control share one inspectable, serializable program
+contract. The product form is a Rust crate that owns parsing, HIR, effect
+typing, stackless VM execution, and the renderer-neutral UI presentation
+protocol. No GUI framework becomes compatible automatically. A framework is
+compatible only after a developer-owned adapter implements the Leselang UI
+protocol standard, or after a dedicated generator emits that framework's
+generated binding from the same schema in the style of protobuf-like interface
+generation. That compatibility is expressed by an explicit
+`UiAdapterManifest`: the host must declare document, event, patch, and complete
+presentation-atom support before it is treated as a Leselang UI adapter.
+Rust-native GUI frameworks may use the crate as their source of truth; C#,
+TypeScript, mobile, and future non-Rust hosts should cross only the generated
+protocol or narrow FFI boundary. The crate must not grow a GC, JIT, host object
+heap, ambient thread pool, or general app runtime just to look like a larger VM.
+
 ## Non-Negotiable Invariants
 
 1. GUI, CLI, and Leselang submit the same versioned `CommandEnvelope` and read
@@ -1703,6 +1721,10 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
 `ui.assert_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.assert_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
+`ui.wait_form_field(node_id: ..., field: ..., expected: ...)`, plus
+`ui.wait_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, plus
+`ui.wait_form_field_required(node_id: ..., field: ..., state: "required"|"optional")`, plus
+`ui.wait_form_field_max_length(node_id: ..., field: ..., max_length: "...")`, plus
 `ui.wait_form_field_placeholder(node_id: ..., field: ..., expected: ...)`, plus
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_name(node_id: ..., expected: ...)`, plus

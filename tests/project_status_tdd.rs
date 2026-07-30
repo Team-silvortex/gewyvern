@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.76.0");
+    assert_eq!(avalonia.contract.version, "1.77.0");
     assert!(
         avalonia
             .contract
@@ -1763,6 +1763,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "form-field-max-length-mismatch-presentation-rejection",
         "semantic-form-field-placeholder-assertion",
         "form-field-placeholder-mismatch-presentation-rejection",
+        "dispatcher-yielding-form-field-wait",
+        "persistent-form-field-mismatch-timeout",
+        "dispatcher-yielding-form-field-input-kind-wait",
+        "persistent-form-field-input-kind-mismatch-timeout",
+        "dispatcher-yielding-form-field-required-wait",
+        "persistent-form-field-required-mismatch-timeout",
+        "dispatcher-yielding-form-field-max-length-wait",
+        "persistent-form-field-max-length-mismatch-timeout",
         "dispatcher-yielding-form-field-placeholder-wait",
         "external-form-field-placeholder-transition-wait",
         "persistent-form-field-placeholder-mismatch-timeout",
@@ -2830,12 +2838,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.43.0");
+    assert_eq!(ui.contract.version, "1.45.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
         "canonical-event-leselang-export",
         "current-action-semantic-roundtrip",
+        "ui-adapter-manifest",
+        "complete-presentation-atom-manifest",
+        "developer-owned-adapter-kind",
+        "generated-framework-binding-kind",
         "same-topology-linear-diff",
         "relative-patch-performance-fence",
         "ui-assert-enabled-presentation-roundtrip",
@@ -2876,6 +2888,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "form-field-max-length-target-validation",
         "ui-assert-form-field-placeholder-presentation-roundtrip",
         "form-field-placeholder-target-validation",
+        "ui-wait-form-field-presentation-roundtrip",
+        "fixed-form-field-wait-timeout",
+        "ui-wait-form-field-input-kind-presentation-roundtrip",
+        "fixed-form-field-input-kind-wait-timeout",
+        "ui-wait-form-field-required-presentation-roundtrip",
+        "fixed-form-field-required-wait-timeout",
+        "ui-wait-form-field-max-length-presentation-roundtrip",
+        "fixed-form-field-max-length-wait-timeout",
         "ui-wait-form-field-placeholder-presentation-roundtrip",
         "fixed-form-field-placeholder-wait-timeout",
         "ui-assert-accessible-name-presentation-roundtrip",
@@ -2953,7 +2973,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.57.0");
+    assert_eq!(hir.contract.version, "0.58.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -2992,6 +3012,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-form-field-required-effect",
         "ui-assert-form-field-max-length-effect",
         "ui-assert-form-field-placeholder-effect",
+        "ui-wait-form-field-effect",
+        "fixed-form-field-wait-policy",
+        "ui-wait-form-field-input-kind-effect",
+        "fixed-form-field-input-kind-wait-policy",
+        "ui-wait-form-field-required-effect",
+        "fixed-form-field-required-wait-policy",
+        "ui-wait-form-field-max-length-effect",
+        "fixed-form-field-max-length-wait-policy",
         "ui-wait-form-field-placeholder-effect",
         "fixed-form-field-placeholder-wait-policy",
         "ui-assert-accessible-name-effect",
@@ -3049,7 +3077,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.42.0");
+    assert_eq!(vm.contract.version, "1.43.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -3104,6 +3132,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "form-field-max-length-request-result-binding",
         "typed-ui-assert-form-field-placeholder-result",
         "form-field-placeholder-request-result-binding",
+        "typed-ui-wait-form-field-result",
+        "fixed-ui-form-field-wait-deadline",
+        "typed-ui-wait-form-field-input-kind-result",
+        "fixed-ui-form-field-input-kind-wait-deadline",
+        "typed-ui-wait-form-field-required-result",
+        "fixed-ui-form-field-required-wait-deadline",
+        "typed-ui-wait-form-field-max-length-result",
+        "fixed-ui-form-field-max-length-wait-deadline",
         "typed-ui-wait-form-field-placeholder-result",
         "form-field-placeholder-wait-request-result-binding",
         "fixed-ui-form-field-placeholder-wait-deadline",
@@ -3159,7 +3195,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.53.0");
+    assert_eq!(command.contract.version, "0.54.0");
     assert!(
         command
             .contract
@@ -3250,6 +3286,34 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "form-field-placeholder-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "form-field-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "form-field-input-kind-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "form-field-required-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "form-field-max-length-wait-command-rejection")
     );
     assert!(
         command

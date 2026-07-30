@@ -61,12 +61,16 @@ The separate candidate fixture carries Rust-generated
 `AssertFormFieldRequired`,
 `AssertFormFieldMaxLength`,
 `AssertFormFieldPlaceholder`,
+`WaitFormField`,
+`WaitFormFieldInputKind`,
+`WaitFormFieldRequired`,
+`WaitFormFieldMaxLength`,
 `WaitFormFieldPlaceholder`,
 `AssertAccessibleName`,
 `WaitAccessibleName`,
 `AssertAccessibleDescription`, and
 `WaitAccessibleDescription` values. RendererCore strictly round-trips all
-forty-six and validates valid, missing, noninteractive,
+fifty and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for

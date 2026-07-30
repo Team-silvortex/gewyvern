@@ -499,7 +499,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetActionUnavailableReasonMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertFormField)
+        if (operation.Kind is UiPresentationOperationKind.AssertFormField
+            or UiPresentationOperationKind.WaitFormField)
         {
             if (node.FormFieldLabels is null)
             {
@@ -524,7 +525,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetFormFieldMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertFormFieldInputKind)
+        if (operation.Kind is UiPresentationOperationKind.AssertFormFieldInputKind
+            or UiPresentationOperationKind.WaitFormFieldInputKind)
         {
             if (node.FormFieldInputKinds is null)
             {
@@ -550,7 +552,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetFormFieldInputKindMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertFormFieldRequired)
+        if (operation.Kind is UiPresentationOperationKind.AssertFormFieldRequired
+            or UiPresentationOperationKind.WaitFormFieldRequired)
         {
             if (node.FormFieldRequired is null)
             {
@@ -576,7 +579,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetFormFieldRequiredMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertFormFieldMaxLength)
+        if (operation.Kind is UiPresentationOperationKind.AssertFormFieldMaxLength
+            or UiPresentationOperationKind.WaitFormFieldMaxLength)
         {
             if (node.FormFieldMaxLengths is null)
             {
@@ -724,6 +728,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitText
             and not UiPresentationOperationKind.WaitAccessibleName
             and not UiPresentationOperationKind.WaitAccessibleDescription
+            and not UiPresentationOperationKind.WaitFormField
+            and not UiPresentationOperationKind.WaitFormFieldInputKind
+            and not UiPresentationOperationKind.WaitFormFieldRequired
+            and not UiPresentationOperationKind.WaitFormFieldMaxLength
             and not UiPresentationOperationKind.WaitFormFieldPlaceholder)
         {
             return await Dispatcher.UIThread.InvokeAsync(
@@ -807,6 +815,22 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetAccessibleDescriptionMismatch;
             retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitFormField
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormFieldMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitFormFieldInputKind
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormFieldInputKindMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitFormFieldRequired
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormFieldRequiredMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitFormFieldMaxLength
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch;
+            retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitFormFieldPlaceholder
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetFormFieldPlaceholderMismatch;
@@ -853,6 +877,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitAccessibleNameTimeoutMs,
                 UiPresentationOperationKind.WaitAccessibleDescription =>
                     SemanticRenderer.WaitAccessibleDescriptionTimeoutMs,
+                UiPresentationOperationKind.WaitFormField =>
+                    SemanticRenderer.WaitFormFieldTimeoutMs,
+                UiPresentationOperationKind.WaitFormFieldInputKind =>
+                    SemanticRenderer.WaitFormFieldInputKindTimeoutMs,
+                UiPresentationOperationKind.WaitFormFieldRequired =>
+                    SemanticRenderer.WaitFormFieldRequiredTimeoutMs,
+                UiPresentationOperationKind.WaitFormFieldMaxLength =>
+                    SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
                 UiPresentationOperationKind.WaitFormFieldPlaceholder =>
                     SemanticRenderer.WaitFormFieldPlaceholderTimeoutMs,
                 _ => throw new InvalidOperationException(

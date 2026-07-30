@@ -479,6 +479,52 @@ var decodedFormFieldPlaceholder = decodedFormFieldPlaceholderAssertOperation.Fie
 var decodedFormFieldPlaceholderExpected = decodedFormFieldPlaceholderAssertOperation.Expected
     ?? throw new InvalidDataException(
         "form field placeholder assert operation contains no expected placeholder");
+var formFieldWaitOperation = fixture.FormFieldWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form field wait operation");
+var decodedFormFieldWaitOperation = RoundTripOperation(
+    formFieldWaitOperation,
+    "form field wait operation");
+var decodedFormFieldWait = decodedFormFieldWaitOperation.Field
+    ?? throw new InvalidDataException("form field wait operation contains no field");
+var decodedFormFieldWaitExpected = decodedFormFieldWaitOperation.Expected
+    ?? throw new InvalidDataException("form field wait operation contains no expected text");
+var formFieldInputKindWaitOperation = fixture.FormFieldInputKindWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form field input kind wait operation");
+var decodedFormFieldInputKindWaitOperation = RoundTripOperation(
+    formFieldInputKindWaitOperation,
+    "form field input kind wait operation");
+var decodedFormFieldInputKindWait = decodedFormFieldInputKindWaitOperation.Field
+    ?? throw new InvalidDataException(
+        "form field input kind wait operation contains no field");
+var decodedFormFieldInputKindWaitExpected = decodedFormFieldInputKindWaitOperation.InputKind
+    ?? throw new InvalidDataException(
+        "form field input kind wait operation contains no expected input kind");
+var formFieldRequiredWaitOperation = fixture.FormFieldRequiredWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form field required wait operation");
+var decodedFormFieldRequiredWaitOperation = RoundTripOperation(
+    formFieldRequiredWaitOperation,
+    "form field required wait operation");
+var decodedFormFieldRequiredWait = decodedFormFieldRequiredWaitOperation.Field
+    ?? throw new InvalidDataException(
+        "form field required wait operation contains no field");
+var decodedFormFieldRequiredWaitExpected = decodedFormFieldRequiredWaitOperation.Required
+    ?? throw new InvalidDataException(
+        "form field required wait operation contains no expected required state");
+var formFieldMaxLengthWaitOperation = fixture.FormFieldMaxLengthWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no form field max length wait operation");
+var decodedFormFieldMaxLengthWaitOperation = RoundTripOperation(
+    formFieldMaxLengthWaitOperation,
+    "form field max length wait operation");
+var decodedFormFieldMaxLengthWait = decodedFormFieldMaxLengthWaitOperation.Field
+    ?? throw new InvalidDataException(
+        "form field max length wait operation contains no field");
+var decodedFormFieldMaxLengthWaitExpected = decodedFormFieldMaxLengthWaitOperation.MaxLength
+    ?? throw new InvalidDataException(
+        "form field max length wait operation contains no expected max length");
 var formFieldPlaceholderWaitOperation = fixture.FormFieldPlaceholderWaitOperation
     ?? throw new InvalidDataException(
         "presentation fixture contains no form field placeholder wait operation");
@@ -620,6 +666,14 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     || renderer.ValidatePresentationOperation(decodedFormFieldMaxLengthAssertOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedFormFieldPlaceholderAssertOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormFieldWaitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormFieldInputKindWaitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormFieldRequiredWaitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedFormFieldMaxLengthWaitOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
@@ -1366,6 +1420,178 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     }) != UiPresentationValidation.InvalidExpectedMaxLength
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
+        Kind = UiPresentationOperationKind.WaitFormField,
+        NodeId = "missing-presentation-target",
+        Field = decodedFormFieldWait,
+        Expected = decodedFormFieldWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormField,
+        NodeId = renderer.Document.Root.Id,
+        Field = decodedFormFieldWait,
+        Expected = decodedFormFieldWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs,
+    }) != UiPresentationValidation.FormlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormField,
+        NodeId = decodedFormFieldWaitOperation.NodeId,
+        Field = "missing",
+        Expected = decodedFormFieldWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs,
+    }) != UiPresentationValidation.UnknownFormField
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormField,
+        NodeId = decodedFormFieldWaitOperation.NodeId,
+        Field = decodedFormFieldWait,
+        TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormField,
+        NodeId = decodedFormFieldWaitOperation.NodeId,
+        Field = decodedFormFieldWait,
+        Expected = "bad\nlabel",
+        TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormField,
+        NodeId = decodedFormFieldWaitOperation.NodeId,
+        Field = decodedFormFieldWait,
+        Expected = decodedFormFieldWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldInputKind,
+        NodeId = "missing-presentation-target",
+        Field = decodedFormFieldInputKindWait,
+        InputKind = decodedFormFieldInputKindWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldInputKindTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldInputKind,
+        NodeId = renderer.Document.Root.Id,
+        Field = decodedFormFieldInputKindWait,
+        InputKind = decodedFormFieldInputKindWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldInputKindTimeoutMs,
+    }) != UiPresentationValidation.FormlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldInputKind,
+        NodeId = decodedFormFieldInputKindWaitOperation.NodeId,
+        Field = "missing",
+        InputKind = decodedFormFieldInputKindWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldInputKindTimeoutMs,
+    }) != UiPresentationValidation.UnknownFormField
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldInputKind,
+        NodeId = decodedFormFieldInputKindWaitOperation.NodeId,
+        Field = decodedFormFieldInputKindWait,
+        TimeoutMs = SemanticRenderer.WaitFormFieldInputKindTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedInputKind
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldInputKind,
+        NodeId = decodedFormFieldInputKindWaitOperation.NodeId,
+        Field = decodedFormFieldInputKindWait,
+        InputKind = decodedFormFieldInputKindWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldInputKindTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldRequired,
+        NodeId = "missing-presentation-target",
+        Field = decodedFormFieldRequiredWait,
+        Required = decodedFormFieldRequiredWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldRequiredTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldRequired,
+        NodeId = renderer.Document.Root.Id,
+        Field = decodedFormFieldRequiredWait,
+        Required = decodedFormFieldRequiredWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldRequiredTimeoutMs,
+    }) != UiPresentationValidation.FormlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldRequired,
+        NodeId = decodedFormFieldRequiredWaitOperation.NodeId,
+        Field = "missing",
+        Required = decodedFormFieldRequiredWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldRequiredTimeoutMs,
+    }) != UiPresentationValidation.UnknownFormField
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldRequired,
+        NodeId = decodedFormFieldRequiredWaitOperation.NodeId,
+        Field = decodedFormFieldRequiredWait,
+        TimeoutMs = SemanticRenderer.WaitFormFieldRequiredTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedRequired
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldRequired,
+        NodeId = decodedFormFieldRequiredWaitOperation.NodeId,
+        Field = decodedFormFieldRequiredWait,
+        Required = decodedFormFieldRequiredWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldRequiredTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+        NodeId = "missing-presentation-target",
+        Field = decodedFormFieldMaxLengthWait,
+        MaxLength = decodedFormFieldMaxLengthWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+        NodeId = renderer.Document.Root.Id,
+        Field = decodedFormFieldMaxLengthWait,
+        MaxLength = decodedFormFieldMaxLengthWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
+    }) != UiPresentationValidation.FormlessTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+        NodeId = decodedFormFieldMaxLengthWaitOperation.NodeId,
+        Field = "missing",
+        MaxLength = decodedFormFieldMaxLengthWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
+    }) != UiPresentationValidation.UnknownFormField
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+        NodeId = decodedFormFieldMaxLengthWaitOperation.NodeId,
+        Field = decodedFormFieldMaxLengthWait,
+        TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedMaxLength
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+        NodeId = decodedFormFieldMaxLengthWaitOperation.NodeId,
+        Field = decodedFormFieldMaxLengthWait,
+        MaxLength = 257,
+        TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedMaxLength
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitFormFieldMaxLength,
+        NodeId = decodedFormFieldMaxLengthWaitOperation.NodeId,
+        Field = decodedFormFieldMaxLengthWait,
+        MaxLength = decodedFormFieldMaxLengthWaitExpected,
+        TimeoutMs = SemanticRenderer.WaitFormFieldMaxLengthTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
         Kind = UiPresentationOperationKind.AssertFormFieldPlaceholder,
         NodeId = "missing-presentation-target",
         Field = decodedFormFieldPlaceholder,
@@ -1505,8 +1731,21 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field=true, presentation_wait_form_field_input_kind=true, presentation_wait_form_field_required=true, presentation_wait_form_field_max_length=true, presentation_wait_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
 return 0;
+
+static UiPresentationOperation RoundTripOperation(
+    UiPresentationOperation operation,
+    string description)
+{
+    var payload = JsonSerializer.SerializeToUtf8Bytes(
+        operation,
+        RendererJsonContext.Default.UiPresentationOperation);
+    return JsonSerializer.Deserialize(
+        payload,
+        RendererJsonContext.Default.UiPresentationOperation)
+        ?? throw new InvalidDataException($"{description} round trip failed");
+}
 
 static byte[] ReadBoundedFixture(string path)
 {

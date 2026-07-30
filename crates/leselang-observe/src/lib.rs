@@ -472,6 +472,26 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert form field placeholder",
         ),
+        Effect::UiWaitFormField { .. } => (
+            DebuggerEffectKind::UiWaitFormField,
+            None,
+            "UI wait form field",
+        ),
+        Effect::UiWaitFormFieldInputKind { .. } => (
+            DebuggerEffectKind::UiWaitFormFieldInputKind,
+            None,
+            "UI wait form field input kind",
+        ),
+        Effect::UiWaitFormFieldRequired { .. } => (
+            DebuggerEffectKind::UiWaitFormFieldRequired,
+            None,
+            "UI wait form field required",
+        ),
+        Effect::UiWaitFormFieldMaxLength { .. } => (
+            DebuggerEffectKind::UiWaitFormFieldMaxLength,
+            None,
+            "UI wait form field max length",
+        ),
         Effect::UiWaitFormFieldPlaceholder { .. } => (
             DebuggerEffectKind::UiWaitFormFieldPlaceholder,
             None,
