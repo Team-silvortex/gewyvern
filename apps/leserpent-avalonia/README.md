@@ -39,8 +39,9 @@ remains the version-1 compatibility baseline.
 The separate candidate fixture carries Rust-generated
 `UiPresentationOperation::Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
 `AssertHidden`, `WaitHidden`, `AssertRealized`, `WaitRealized`, `WaitVisible`,
-`AssertFocused`, and `WaitFocused`, plus `AssertEnabled`, `AssertDisabled`,
+`AssertFocused`, `WaitFocused`, `AssertUnfocused`, and `WaitUnfocused`, plus `AssertEnabled`, `AssertDisabled`,
 `WaitEnabled`, `WaitDisabled`, `AssertWindowOpen`, `WaitWindowOpen`,
+`AssertWindowClosed`, `WaitWindowClosed`,
 `AssertSelection`,
 `WaitSelection`, `AssertText`,
 `WaitText`,
@@ -59,7 +60,7 @@ The separate candidate fixture carries Rust-generated
 `WaitAccessibleName`,
 `AssertAccessibleDescription`, and
 `WaitAccessibleDescription` values. RendererCore strictly round-trips all
-thirty-six and validates valid, missing, noninteractive,
+forty and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -70,10 +71,14 @@ hidden transition and persistent visible timeout,
 native realization,
 fixed-deadline dispatcher-yielding realization wait, fixed-deadline
 viewport-aware visibility wait without implicit scrolling, plus side-effect-free
-focus, external focus waiting without implicit focus mutation, enabled-state,
+focus, external focus waiting without implicit focus mutation, unfocused-state,
+external unfocused waiting without implicit focus mutation, enabled-state,
 disabled-state, external enablement waiting, external disablement waiting with a
 persistent enabled timeout, native window-open visual-tree membership,
 dispatcher-yielding window-open waiting,
+native window-closed visual-tree detachment, dispatcher-yielding window-closed
+waiting on a detached surface, persistent open-window timeout without invoking
+native close,
 native selected/unselected observation,
 dispatcher-yielding selection wait, actual displayed-text,
 dispatcher-yielding text wait with external text transition and persistent
@@ -314,6 +319,8 @@ each result to the actual stable destination, rejects missing, noninteractive,
 unrealized, or unfocused starts without changing focus, never activates a
 button, and verifies
 native hidden-state assertion and visible-target mismatch rejection,
+native unfocused-state assertion and dispatcher-yielding unfocused wait with
+external focus-loss transition and persistent focused timeout,
 native selected/unselected assertions plus dispatcher-yielding selection wait
 and mismatch timeout without mutating focus or selection, plus native
 accessible-name wait, external automation-name transition, and persistent

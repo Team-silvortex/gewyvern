@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.71.0");
+    assert_eq!(avalonia.contract.version, "1.73.0");
     assert!(
         avalonia
             .contract
@@ -1773,10 +1773,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "native-window-open-assertion",
         "dispatcher-yielding-window-open-wait",
         "window-open-wait-timeout-validation",
+        "native-window-closed-state-assertion",
+        "dispatcher-yielding-window-closed-wait",
+        "detached-surface-window-closed-wait",
+        "persistent-open-window-closed-wait-timeout",
+        "window-closed-wait-no-window-mutation",
         "dispatcher-yielding-focused-wait",
         "external-focused-transition-wait",
         "persistent-realized-unfocused-timeout",
         "focused-wait-no-focus-mutation",
+        "native-unfocused-state-assertion",
+        "dispatcher-yielding-unfocused-wait",
+        "external-unfocused-transition-wait",
+        "persistent-focused-unfocused-wait-timeout",
+        "unfocused-wait-no-focus-mutation",
         "native-focus-navigation",
         "stable-focus-navigation-destination",
         "stable-index-focus-boundary-navigation",
@@ -2806,7 +2816,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.38.0");
+    assert_eq!(ui.contract.version, "1.40.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2859,8 +2869,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-window-open-presentation-roundtrip",
         "ui-wait-window-open-presentation-roundtrip",
         "fixed-window-open-wait-timeout",
+        "ui-assert-window-closed-presentation-roundtrip",
+        "ui-wait-window-closed-presentation-roundtrip",
+        "fixed-window-closed-wait-timeout",
         "ui-wait-focused-presentation-roundtrip",
         "fixed-focused-wait-timeout",
+        "ui-assert-unfocused-presentation-roundtrip",
+        "ui-wait-unfocused-presentation-roundtrip",
+        "fixed-unfocused-wait-timeout",
         "ui-focus-navigation-presentation-roundtrip",
         "explicit-focus-navigation-direction",
         "focus-navigation-first-last-roundtrip",
@@ -2910,7 +2926,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.52.0");
+    assert_eq!(hir.contract.version, "0.54.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -2959,12 +2975,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-window-open-effect",
         "ui-wait-window-open-effect",
         "fixed-window-open-wait-policy",
+        "ui-assert-window-closed-effect",
+        "ui-wait-window-closed-effect",
+        "fixed-window-closed-wait-policy",
         "ui-assert-selection-effect",
         "ui-wait-selection-effect",
         "typed-ui-selection-state",
         "fixed-selection-wait-policy",
         "ui-wait-focused-effect",
         "fixed-focused-wait-policy",
+        "ui-assert-unfocused-effect",
+        "ui-wait-unfocused-effect",
+        "fixed-unfocused-wait-policy",
         "ui-presentation-capability",
         "typed-form-input-kind",
         "typed-form-requirement-state",
@@ -2990,7 +3012,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.37.0");
+    assert_eq!(vm.contract.version, "1.39.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -3058,8 +3080,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-assert-window-open-result",
         "typed-ui-wait-window-open-result",
         "fixed-ui-window-open-wait-deadline",
+        "typed-ui-assert-window-closed-result",
+        "typed-ui-wait-window-closed-result",
+        "fixed-ui-window-closed-wait-deadline",
         "typed-ui-wait-focused-result",
         "fixed-ui-focused-wait-deadline",
+        "typed-ui-assert-unfocused-result",
+        "typed-ui-wait-unfocused-result",
+        "fixed-ui-unfocused-wait-deadline",
         "presentation-operation-identity-binding",
         "allocation-free-continuation-size-validation",
         "bounded-language-pipeline-benchmark",
@@ -3084,7 +3112,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.48.0");
+    assert_eq!(command.contract.version, "0.50.0");
     assert!(
         command
             .contract
@@ -3119,6 +3147,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "focused-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "unfocused-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "unfocused-assert-command-rejection")
     );
     assert!(
         command
@@ -3273,6 +3315,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "window-open-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "window-closed-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "window-closed-wait-command-rejection")
     );
 
     let required_boundaries = [

@@ -16,6 +16,8 @@ internal sealed class MainWindow : Window
     private readonly Task<PresentationAutomationResult> initialSelectionWait;
     private readonly Task<PresentationAutomationResult> initialSelectionWaitTimeout;
     private readonly Task<PresentationAutomationResult> initialWindowOpenWait;
+    private readonly PresentationAutomationResult initialWindowClosedAssert;
+    private readonly Task<PresentationAutomationResult> initialWindowClosedWait;
     private readonly string initialEnabledWaitNodeId;
     private readonly string initialFocusedWaitNodeId;
     private readonly string initialFocusedWaitTimeoutNodeId;
@@ -23,6 +25,8 @@ internal sealed class MainWindow : Window
     private readonly string initialSelectionWaitNodeId;
     private readonly string initialWindowOpenAssertNodeId;
     private readonly string initialWindowOpenWaitNodeId;
+    private readonly string initialWindowClosedAssertNodeId;
+    private readonly string initialWindowClosedWaitNodeId;
     private int invokedActionCount;
     private readonly TextBlock statusText = new()
     {
@@ -54,8 +58,14 @@ internal sealed class MainWindow : Window
     public bool InitialDisabledWaitTimedOut { get; private set; }
     public bool WindowOpenAssertCompleted { get; private set; }
     public bool WindowOpenWaitCompleted { get; private set; }
+    public bool WindowClosedAssertCompleted { get; private set; }
+    public bool WindowClosedWaitCompleted { get; private set; }
+    public bool WindowClosedWaitTimedOut { get; private set; }
     public bool InitialFocusedWaitCompleted { get; private set; }
     public bool InitialFocusedWaitTimedOut { get; private set; }
+    public bool UnfocusedAssertCompleted { get; private set; }
+    public bool InitialUnfocusedWaitCompleted { get; private set; }
+    public bool InitialUnfocusedWaitTimedOut { get; private set; }
     public bool InitialSelectionWaitCompleted { get; private set; }
     public bool InitialSelectionWaitTimedOut { get; private set; }
     public bool InitialTextWaitCompleted { get; private set; }
@@ -250,6 +260,33 @@ internal sealed class MainWindow : Window
                 NodeId = initialWindowOpenWaitNodeId,
                 TimeoutMs = SemanticRenderer.WaitWindowOpenTimeoutMs,
             });
+        initialWindowClosedAssertNodeId = fixture.WindowClosedAssertOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "window-closed assertion probe requires a semantic target");
+        initialWindowClosedWaitNodeId = fixture.WindowClosedWaitOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "window-closed wait probe requires a semantic target");
+        var windowClosedDetachedRenderer = new AvaloniaDocumentRenderer(_ => { });
+        windowClosedDetachedRenderer.Mount(fixture.Next);
+        if (!windowClosedDetachedRenderer.RealizeNodeForVerification(initialWindowClosedAssertNodeId)
+            || !windowClosedDetachedRenderer.RealizeNodeForVerification(initialWindowClosedWaitNodeId))
+        {
+            throw new InvalidDataException(
+                "window-closed probe requires a detached realized semantic target");
+        }
+        initialWindowClosedAssert = windowClosedDetachedRenderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertWindowClosed,
+                NodeId = initialWindowClosedAssertNodeId,
+            });
+        initialWindowClosedWait = windowClosedDetachedRenderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitWindowClosed,
+                NodeId = initialWindowClosedWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitWindowClosedTimeoutMs,
+            });
         initialSelectionWaitTimeout = detachedRenderer.ApplyPresentationAsync(
             new UiPresentationOperation
             {
@@ -296,6 +333,47 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang window-open wait did not observe the native window");
+        }
+        WindowClosedAssertCompleted = initialWindowClosedAssert.Applied
+            && initialWindowClosedAssert.FailureCode
+                == PresentationAutomationFailureCode.None;
+        if (!WindowClosedAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang window-closed assertion did not observe the detached native surface");
+        }
+        var windowClosedWait = await initialWindowClosedWait;
+        WindowClosedWaitCompleted = windowClosedWait.Applied
+            && windowClosedWait.FailureCode == PresentationAutomationFailureCode.None;
+        if (!WindowClosedWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang window-closed wait did not observe the detached native surface");
+        }
+        var windowClosedTimeout = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitWindowClosed,
+                NodeId = initialWindowClosedWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitWindowClosedTimeoutMs,
+            });
+        var stillOpen = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertWindowOpen,
+            NodeId = initialWindowClosedWaitNodeId,
+        });
+        WindowClosedWaitTimedOut = !windowClosedTimeout.Applied
+            && windowClosedTimeout.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && stillOpen.Applied
+            && stillOpen.FailureCode == PresentationAutomationFailureCode.None;
+        if (!WindowClosedWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang window-closed wait closed an open window or failed to time out: "
+                + $"result_applied={windowClosedTimeout.Applied}, "
+                + $"result_failure={windowClosedTimeout.FailureCode}, "
+                + $"still_open={stillOpen.Applied}");
         }
         var initiallyDisabled = renderer.ApplyPresentation(new UiPresentationOperation
         {
@@ -515,6 +593,84 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang focused wait did not observe an external focus transition");
+        }
+        var unfocusedAssertResult = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertUnfocused,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+            });
+        UnfocusedAssertCompleted = unfocusedAssertResult.Applied
+            && unfocusedAssertResult.FailureCode
+                == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == initialFocusedWaitNodeId;
+        if (!UnfocusedAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang unfocused assertion rejected an unfocused action or changed focus");
+        }
+        var unfocusedWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitUnfocused,
+                NodeId = initialFocusedWaitNodeId,
+                TimeoutMs = SemanticRenderer.WaitUnfocusedTimeoutMs,
+            });
+        DispatcherTimer.RunOnce(
+            () =>
+            {
+                var focused = renderer.ApplyPresentation(new UiPresentationOperation
+                {
+                    Kind = UiPresentationOperationKind.Focus,
+                    NodeId = initialFocusedWaitTimeoutNodeId,
+                });
+                if (!focused.Applied
+                    || focused.FailureCode
+                        != PresentationAutomationFailureCode.None)
+                {
+                    throw new InvalidDataException(
+                        "unfocused wait probe could not apply its external focus transition");
+                }
+            },
+            TimeSpan.FromMilliseconds(50));
+        var unfocusedWaitResult = await unfocusedWait;
+        InitialUnfocusedWaitCompleted = unfocusedWaitResult.Applied
+            && unfocusedWaitResult.FailureCode
+                == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == initialFocusedWaitTimeoutNodeId;
+        if (!InitialUnfocusedWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang unfocused wait did not observe an external focus transition");
+        }
+        var unfocusedTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitUnfocused,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+                TimeoutMs = SemanticRenderer.WaitUnfocusedTimeoutMs,
+            });
+        var persistentFocus = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertFocused,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+            });
+        InitialUnfocusedWaitTimedOut = !unfocusedTimeoutResult.Applied
+            && unfocusedTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && persistentFocus.Applied
+            && persistentFocus.FailureCode
+                == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == initialFocusedWaitTimeoutNodeId;
+        if (!InitialUnfocusedWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang unfocused wait changed focus or did not reject a persistently focused realized target: "
+                + $"result_applied={unfocusedTimeoutResult.Applied}, "
+                + $"result_failure={unfocusedTimeoutResult.FailureCode}, "
+                + $"focused_node={renderer.FocusedNodeId ?? "<none>"}, "
+                + $"expected_focus={initialFocusedWaitTimeoutNodeId}");
         }
         var restoredFocusedBaseline = renderer.ApplyPresentation(
             new UiPresentationOperation

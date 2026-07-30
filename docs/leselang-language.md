@@ -14,8 +14,10 @@ explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
 plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_visible`, `ui.assert_hidden`, `ui.wait_hidden`, `ui.assert_realized`,
 `ui.wait_realized`, `ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
-`ui.assert_enabled`, `ui.assert_disabled`, `ui.wait_enabled`,
-`ui.wait_disabled`, `ui.assert_window_open`, `ui.wait_window_open`,
+`ui.assert_unfocused`, `ui.wait_unfocused`, `ui.assert_enabled`,
+`ui.assert_disabled`, `ui.wait_enabled`, `ui.wait_disabled`,
+    `ui.assert_window_open`, `ui.wait_window_open`,
+    `ui.assert_window_closed`, `ui.wait_window_closed`,
 `ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`, `ui.wait_text`,
 `ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.assert_action_kind`,
@@ -272,6 +274,33 @@ frontend adapter only observes native focus while yielding its dispatcher and
 never calls the platform focus primitive, activates, scrolls, or otherwise
 mutates the target.
 
+Native keyboard unfocus can be asserted without moving focus:
+
+```leselang
+fn main() = ui.assert_unfocused(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.assert_unfocused` requires `ui.presentation` and a focusable semantic
+action node in the current `UiDocument`. The renderer must resolve the realized
+native control and return success only when the platform reports that exact
+control as not focused. Missing, noninteractive, unrealized, or still-focused
+targets fail. The assertion never calls the platform focus primitive and does
+not activate, scroll, or otherwise mutate the target.
+
+Native keyboard unfocus can also be awaited without moving focus:
+
+```leselang
+fn main() = ui.wait_unfocused(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.wait_unfocused` requires `ui.presentation` and a focusable semantic action
+node. Its presentation envelope carries a protocol-fixed 2000 ms deadline and
+the source has no duration argument. Missing or noninteractive nodes fail
+immediately; persistently unrealized or focused actions time out. The frontend
+adapter only observes native focus loss while yielding its dispatcher and never
+calls the platform focus primitive, activates, scrolls, or otherwise mutates
+the target.
+
 Native action availability can be asserted without activating the action:
 
 ```leselang
@@ -349,6 +378,34 @@ fn main() = ui.wait_window_open(node_id: "runtime-runtime-a")
 `ui.assert_window_open`, but waits up to the fixed 2000 ms window-open deadline
 for the target control and renderer surface to share a native window visual
 tree. It never opens, closes, activates, focuses, scrolls, selects, or submits
+anything.
+
+Native window detachment can be asserted without closing a window:
+
+```leselang
+fn main() = ui.assert_window_closed(node_id: "runtime-runtime-a")
+```
+
+`ui.assert_window_closed` requires `ui.presentation` and any existing semantic
+node. The renderer first resolves the stable node to a realized native control,
+then succeeds only when that control is not in the same native window visual
+tree as the renderer surface. A missing semantic node fails as unknown, an
+unrealized semantic node fails as unrealized, and a target still attached to the
+renderer window fails as still open. The assertion never opens, closes,
+activates, focuses, scrolls, selects, or submits anything.
+
+Native window detachment can also be awaited without causing it:
+
+```leselang
+fn main() = ui.wait_window_closed(node_id: "runtime-runtime-a")
+```
+
+`ui.wait_window_closed` uses the same target semantics as
+`ui.assert_window_closed`, but waits up to the fixed 2000 ms window-closed
+deadline for the target control and renderer surface to stop sharing a native
+window visual tree. Detached renderer surfaces satisfy the predicate; a
+persistently open target times out and remains open. Waiting never calls a
+native close API and never activates, focuses, scrolls, selects, or submits
 anything.
 
 Native selection state can be asserted without activating or focusing a control:

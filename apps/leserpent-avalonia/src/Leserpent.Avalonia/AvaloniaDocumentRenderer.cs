@@ -90,9 +90,11 @@ internal enum PresentationAutomationFailureCode
     TargetNotVisible,
     TargetStillVisible,
     TargetNotFocused,
+    TargetStillFocused,
     TargetNotEnabled,
     TargetStillEnabled,
     TargetWindowUnavailable,
+    TargetWindowStillOpen,
     TargetTextMismatch,
     TargetAutomationIdMismatch,
     TargetNodeKindMismatch,
@@ -170,6 +172,16 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         nodes.TryGetValue(nodeId, out var node)
         && node.TryGetRealizedControl(out var control)
         && control!.Focus();
+
+    public bool RealizeNodeForVerification(string nodeId)
+    {
+        if (!nodes.TryGetValue(nodeId, out var node))
+        {
+            return false;
+        }
+        _ = node.Control;
+        return true;
+    }
 
     public PresentationAutomationResult ApplyPresentation(
         UiPresentationOperation operation)
@@ -319,6 +331,17 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetNotFocused);
         }
+        if (operation.Kind is UiPresentationOperationKind.AssertUnfocused
+            or UiPresentationOperationKind.WaitUnfocused)
+        {
+            var unfocused = !control!.IsFocused;
+            return new PresentationAutomationResult(
+                unfocused,
+                operation.NodeId,
+                unfocused
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetStillFocused);
+        }
         if (operation.Kind is UiPresentationOperationKind.AssertEnabled
             or UiPresentationOperationKind.WaitEnabled)
         {
@@ -354,6 +377,21 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 open
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetWindowUnavailable);
+        }
+        if (operation.Kind is UiPresentationOperationKind.AssertWindowClosed
+            or UiPresentationOperationKind.WaitWindowClosed)
+        {
+            var targetWindow = control!.GetVisualAncestors().OfType<Window>().FirstOrDefault();
+            var surfaceWindow = Surface.GetVisualAncestors().OfType<Window>().FirstOrDefault();
+            var open = targetWindow is not null
+                && surfaceWindow is not null
+                && ReferenceEquals(targetWindow, surfaceWindow);
+            return new PresentationAutomationResult(
+                !open,
+                operation.NodeId,
+                open
+                    ? PresentationAutomationFailureCode.TargetWindowStillOpen
+                    : PresentationAutomationFailureCode.None);
         }
         if (operation.Kind is UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection)
@@ -648,7 +686,9 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitDisabled
             and not UiPresentationOperationKind.WaitActionUnavailableReason
             and not UiPresentationOperationKind.WaitWindowOpen
+            and not UiPresentationOperationKind.WaitWindowClosed
             and not UiPresentationOperationKind.WaitFocused
+            and not UiPresentationOperationKind.WaitUnfocused
             and not UiPresentationOperationKind.WaitSelection
             and not UiPresentationOperationKind.WaitText
             and not UiPresentationOperationKind.WaitAccessibleName
@@ -691,9 +731,17 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetWindowUnavailable;
             retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitWindowClosed
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetWindowStillOpen;
+            retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitFocused
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetNotFocused;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitUnfocused
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetStillFocused;
             retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitSelection
                     && result.FailureCode
@@ -736,8 +784,12 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen =>
                     SemanticRenderer.WaitWindowOpenTimeoutMs,
+                UiPresentationOperationKind.WaitWindowClosed =>
+                    SemanticRenderer.WaitWindowClosedTimeoutMs,
                 UiPresentationOperationKind.WaitFocused =>
                     SemanticRenderer.WaitFocusedTimeoutMs,
+                UiPresentationOperationKind.WaitUnfocused =>
+                    SemanticRenderer.WaitUnfocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection =>
                     SemanticRenderer.WaitSelectionTimeoutMs,
                 UiPresentationOperationKind.WaitText =>

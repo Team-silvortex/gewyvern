@@ -9,10 +9,10 @@ use leselang_hir::{
     UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
     UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
-    UiFormInputKind, UiFormRequirementState, UiSelectionState, UiSemanticActionKind,
-    UiSemanticNodeKind, authorize, validate_ui_expected_text, validate_ui_form_field_key,
-    validate_ui_node_id,
+    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
+    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiFormInputKind,
+    UiFormRequirementState, UiSelectionState, UiSemanticActionKind, UiSemanticNodeKind, authorize,
+    validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
 };
 use leserpent_domain::{
     CAPABILITY_DEBUGGER_CONTROL, CAPABILITY_RUNTIME_DEPLOY, CAPABILITY_RUNTIME_READ,
@@ -158,11 +158,25 @@ pub enum PresentationOperation {
         node_id: String,
         timeout_ms: u64,
     },
+    AssertWindowClosed {
+        node_id: String,
+    },
+    WaitWindowClosed {
+        node_id: String,
+        timeout_ms: u64,
+    },
     WaitFocused {
         node_id: String,
         timeout_ms: u64,
     },
     AssertFocused {
+        node_id: String,
+    },
+    WaitUnfocused {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    AssertUnfocused {
         node_id: String,
     },
     AssertEnabled {
@@ -322,11 +336,25 @@ pub enum PresentationResult {
         node_id: String,
         timeout_ms: u64,
     },
+    AssertWindowClosed {
+        node_id: String,
+    },
+    WaitWindowClosed {
+        node_id: String,
+        timeout_ms: u64,
+    },
     WaitFocused {
         node_id: String,
         timeout_ms: u64,
     },
     AssertFocused {
+        node_id: String,
+    },
+    WaitUnfocused {
+        node_id: String,
+        timeout_ms: u64,
+    },
+    AssertUnfocused {
         node_id: String,
     },
     AssertEnabled {
@@ -711,10 +739,22 @@ pub enum Value {
     UiWaitWindowOpen {
         node_id: String,
     },
+    UiAssertWindowClosed {
+        node_id: String,
+    },
+    UiWaitWindowClosed {
+        node_id: String,
+    },
     UiWaitFocused {
         node_id: String,
     },
     UiAssertFocused {
+        node_id: String,
+    },
+    UiWaitUnfocused {
+        node_id: String,
+    },
+    UiAssertUnfocused {
         node_id: String,
     },
     UiAssertEnabled {
@@ -1239,6 +1279,29 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiAssertWindowClosed { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertWindowClosed {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitWindowClosed { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitWindowClosed {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiWaitFocused { node_id } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -1258,6 +1321,29 @@ impl Vm {
                     principal,
                     capabilities,
                     operation: PresentationOperation::AssertFocused {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitUnfocused { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitUnfocused {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+                    },
+                }),
+            ),
+            Effect::UiAssertUnfocused { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertUnfocused {
                         node_id: node_id.clone(),
                     },
                 }),
@@ -2109,8 +2195,12 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitEnabled { .. } => Type::UiWaitEnabled,
         Effect::UiAssertWindowOpen { .. } => Type::UiAssertWindowOpen,
         Effect::UiWaitWindowOpen { .. } => Type::UiWaitWindowOpen,
+        Effect::UiAssertWindowClosed { .. } => Type::UiAssertWindowClosed,
+        Effect::UiWaitWindowClosed { .. } => Type::UiWaitWindowClosed,
         Effect::UiWaitFocused { .. } => Type::UiWaitFocused,
         Effect::UiAssertFocused { .. } => Type::UiAssertFocused,
+        Effect::UiWaitUnfocused { .. } => Type::UiWaitUnfocused,
+        Effect::UiAssertUnfocused { .. } => Type::UiAssertUnfocused,
         Effect::UiAssertEnabled { .. } => Type::UiAssertEnabled,
         Effect::UiAssertDisabled { .. } => Type::UiAssertDisabled,
         Effect::UiWaitDisabled { .. } => Type::UiWaitDisabled,
@@ -2577,6 +2667,39 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     && *timeout_ms == UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
             )
         }
+        (Effect::UiAssertWindowClosed { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertWindowClosed {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiWaitWindowClosed { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitWindowClosed {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS
+            )
+        }
         (Effect::UiWaitFocused { node_id }, EffectOperation::Presentation(presentation)) => {
             validate_effect_identity(
                 presentation.schema_version,
@@ -2606,6 +2729,39 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             matches!(
                 &presentation.operation,
                 PresentationOperation::AssertFocused {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiWaitUnfocused { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitUnfocused {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_UNFOCUSED_TIMEOUT_MS
+            )
+        }
+        (Effect::UiAssertUnfocused { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertUnfocused {
                     node_id: operation_node_id,
                 } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
             )
@@ -3412,8 +3568,12 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiWaitDisabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertWindowOpen { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitWindowOpen { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertWindowClosed { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitWindowClosed { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertFocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitUnfocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertUnfocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertDisabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
@@ -4115,6 +4275,58 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiAssertWindowClosed { node_id },
+            Type::UiAssertWindowClosed,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertWindowClosed {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertWindowClosed {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertWindowClosed {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiWaitWindowClosed { node_id },
+            Type::UiWaitWindowClosed,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitWindowClosed {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitWindowClosed {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitWindowClosed {
+                node_id: result_node_id,
+            })
+        }
+        (
             Effect::UiWaitFocused { node_id },
             Type::UiWaitFocused,
             operation,
@@ -4163,6 +4375,58 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiAssertFocused {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiWaitUnfocused { node_id },
+            Type::UiWaitUnfocused,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitUnfocused {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_UNFOCUSED_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitUnfocused {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_UNFOCUSED_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitUnfocused {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiAssertUnfocused { node_id },
+            Type::UiAssertUnfocused,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertUnfocused {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertUnfocused {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertUnfocused {
                 node_id: result_node_id,
             })
         }
@@ -5938,6 +6202,107 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_window_closed_reenters_only_from_its_matching_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_window_closed(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI window-closed assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI window-closed assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertWindowClosed { node_id }
+                if node_id == "runtime-a:card"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertWindowClosed {
+                    node_id: "runtime-a:card".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertWindowClosed {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI window-closed assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertWindowClosed {
+            node_id: "runtime-b:card".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_window_closed_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_window_closed(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI window-closed wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI window-closed wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitWindowClosed {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:card"
+                && *timeout_ms == UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitWindowClosed {
+                    node_id: "runtime-a:card".into(),
+                    timeout_ms: UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitWindowClosed {
+                node_id: "runtime-a:card".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI window-closed wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitWindowClosed {
+            node_id: "runtime-a:card".into(),
+            timeout_ms: UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
     fn ui_wait_focused_reenters_only_from_its_fixed_bounded_presentation_result() {
         let program = lower(&parse(
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
@@ -6031,6 +6396,107 @@ mod tests {
         let mut torn = request;
         let EffectOperation::Presentation(presentation) = &mut torn.operation else {
             panic!("UI focus assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertVisible {
+            node_id: "runtime-a:refresh".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_unfocused_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_unfocused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI unfocused wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI unfocused wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitUnfocused {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:refresh"
+                && *timeout_ms == UI_WAIT_UNFOCUSED_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitUnfocused {
+                    node_id: "runtime-a:refresh".into(),
+                    timeout_ms: UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitUnfocused {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI unfocused wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitUnfocused {
+            node_id: "runtime-a:refresh".into(),
+            timeout_ms: UI_WAIT_UNFOCUSED_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_unfocused_reenters_only_from_its_matching_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_unfocused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI unfocused assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI unfocused assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertUnfocused { node_id }
+                if node_id == "runtime-a:refresh"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertUnfocused {
+                    node_id: "runtime-a:refresh".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertUnfocused {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI unfocused assertion must use a presentation envelope");
         };
         presentation.operation = PresentationOperation::AssertVisible {
             node_id: "runtime-a:refresh".into(),

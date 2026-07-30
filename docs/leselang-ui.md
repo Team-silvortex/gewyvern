@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by thirty-six presentation atoms.
+Semantic action equivalence is joined by forty presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -181,6 +181,11 @@ carries its own protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::WaitFocused` maps one-to-one to
 `ui.wait_focused(node_id: ...)`, requires an interactive action, and carries
 the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::AssertUnfocused` maps one-to-one to
+`ui.assert_unfocused(node_id: ...)` and requires an interactive action.
+`UiPresentationOperation::WaitUnfocused` maps one-to-one to
+`ui.wait_unfocused(node_id: ...)`, requires an interactive action, and carries
+the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertEnabled` maps one-to-one to
 `ui.assert_enabled(node_id: ...)` and also requires an interactive action.
 `UiPresentationOperation::AssertDisabled` maps one-to-one to
@@ -195,6 +200,11 @@ the protocol-fixed 2000 ms deadline.
 `ui.assert_window_open(node_id: ...)` and accepts any existing semantic node.
 `UiPresentationOperation::WaitWindowOpen` maps one-to-one to
 `ui.wait_window_open(node_id: ...)`, accepts any existing semantic node, and
+carries the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::AssertWindowClosed` maps one-to-one to
+`ui.assert_window_closed(node_id: ...)` and accepts any existing semantic node.
+`UiPresentationOperation::WaitWindowClosed` maps one-to-one to
+`ui.wait_window_closed(node_id: ...)`, accepts any existing semantic node, and
 carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertSelection` maps one-to-one to
 `ui.assert_selection(node_id: ..., state: ...)`, requires a semantic node with
@@ -267,11 +277,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all thirty-six travel in
+become a `UiEvent` or `CommandPlan`; all forty travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all thirty-six operations through its stable visual index. Focus
+Avalonia resolves all forty operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -294,7 +304,9 @@ does not call `BringIntoView()` or create controls. Visibility wait polls the
 complete assertion predicate, including viewport intersection, through the same
 cancellable adapter and never scrolls the target. Focus assertion reads native
 `Control.IsFocused`; focused wait polls that same predicate without invoking
-`Control.Focus()`. Enabled assertion reads native effective enabled state,
+`Control.Focus()`. Unfocused assertion reads the inverse native focus predicate;
+unfocused wait polls the same inverse predicate through the dispatcher-yielding
+adapter without invoking `Control.Focus()` or transferring focus. Enabled assertion reads native effective enabled state,
 including ancestors. Disabled assertion reads the same native effective enabled
 state and succeeds only for disabled actions, providing a positive safety
 predicate rather than relying on an enabled-assertion failure. Enabled wait
@@ -308,6 +320,12 @@ when the realized target and renderer surface are attached to the same native
 Window-open wait polls that same native-window membership predicate through the
 cancellable dispatcher-yielding adapter until its fixed deadline and also never
 calls native activation, open, close, or focus.
+Window-closed assertion reads the inverse native-window membership predicate
+after realizing the same stable semantic node; detached renderer surfaces satisfy
+it, but missing or unrealized nodes still fail separately. Window-closed wait
+polls that same inverse predicate through the dispatcher-yielding adapter until
+its fixed deadline, and a persistently open window times out without invoking a
+native close API or mutating focus.
 Selection assertion reads the native selected state of the realized selectable
 control, while selection wait polls that same predicate through the cancellable
 adapter until the protocol-fixed deadline. Mismatched, selectionless, or native

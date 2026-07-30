@@ -7,8 +7,8 @@ use leselang_hir::{
     UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
     UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
-    UiSelectionState,
+    UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
+    UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState,
 };
 use leselang_ui::{
     NodeId, UiActionKind, UiDocument, UiFormInputKind, UiPatch, UiPresentationOperation, diff,
@@ -41,8 +41,12 @@ struct Fixture<'a> {
     disabled_wait_operation: &'a UiPresentationOperation,
     window_open_assert_operation: &'a UiPresentationOperation,
     window_open_wait_operation: &'a UiPresentationOperation,
+    window_closed_assert_operation: &'a UiPresentationOperation,
+    window_closed_wait_operation: &'a UiPresentationOperation,
     focused_wait_operation: &'a UiPresentationOperation,
     focused_assert_operation: &'a UiPresentationOperation,
+    unfocused_wait_operation: &'a UiPresentationOperation,
+    unfocused_assert_operation: &'a UiPresentationOperation,
     enabled_assert_operation: &'a UiPresentationOperation,
     disabled_assert_operation: &'a UiPresentationOperation,
     selection_assert_operation: &'a UiPresentationOperation,
@@ -132,11 +136,25 @@ fn main() {
         node_id: NodeId::new("fleet-title").unwrap(),
         timeout_ms: UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
     };
+    let window_closed_assert_operation = UiPresentationOperation::AssertWindowClosed {
+        node_id: NodeId::new("fleet-title").unwrap(),
+    };
+    let window_closed_wait_operation = UiPresentationOperation::WaitWindowClosed {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        timeout_ms: UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
+    };
     let focused_wait_operation = UiPresentationOperation::WaitFocused {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
         timeout_ms: UI_WAIT_FOCUSED_TIMEOUT_MS,
     };
     let focused_assert_operation = UiPresentationOperation::AssertFocused {
+        node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+    };
+    let unfocused_wait_operation = UiPresentationOperation::WaitUnfocused {
+        node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
+        timeout_ms: UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+    };
+    let unfocused_assert_operation = UiPresentationOperation::AssertUnfocused {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
     let enabled_assert_operation = UiPresentationOperation::AssertEnabled {
@@ -255,8 +273,12 @@ fn main() {
     validate_presentation_operation(&next, &disabled_wait_operation).unwrap();
     validate_presentation_operation(&next, &window_open_assert_operation).unwrap();
     validate_presentation_operation(&next, &window_open_wait_operation).unwrap();
+    validate_presentation_operation(&next, &window_closed_assert_operation).unwrap();
+    validate_presentation_operation(&next, &window_closed_wait_operation).unwrap();
     validate_presentation_operation(&next, &focused_wait_operation).unwrap();
     validate_presentation_operation(&next, &focused_assert_operation).unwrap();
+    validate_presentation_operation(&next, &unfocused_wait_operation).unwrap();
+    validate_presentation_operation(&next, &unfocused_assert_operation).unwrap();
     validate_presentation_operation(&next, &enabled_assert_operation).unwrap();
     validate_presentation_operation(&next, &disabled_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_assert_operation).unwrap();
@@ -298,8 +320,12 @@ fn main() {
         disabled_wait_operation: &disabled_wait_operation,
         window_open_assert_operation: &window_open_assert_operation,
         window_open_wait_operation: &window_open_wait_operation,
+        window_closed_assert_operation: &window_closed_assert_operation,
+        window_closed_wait_operation: &window_closed_wait_operation,
         focused_wait_operation: &focused_wait_operation,
         focused_assert_operation: &focused_assert_operation,
+        unfocused_wait_operation: &unfocused_wait_operation,
+        unfocused_assert_operation: &unfocused_assert_operation,
         enabled_assert_operation: &enabled_assert_operation,
         disabled_assert_operation: &disabled_assert_operation,
         selection_assert_operation: &selection_assert_operation,

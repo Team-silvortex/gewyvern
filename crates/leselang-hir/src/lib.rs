@@ -21,10 +21,12 @@ pub const UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_FOCUSED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_UNFOCUSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_REALIZED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_SELECTION_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_TEXT_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_VISIBLE_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_WINDOW_OPEN_TIMEOUT_MS: u64 = 2_000;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -172,10 +174,22 @@ pub enum Effect {
     UiWaitWindowOpen {
         node_id: String,
     },
+    UiAssertWindowClosed {
+        node_id: String,
+    },
+    UiWaitWindowClosed {
+        node_id: String,
+    },
     UiWaitFocused {
         node_id: String,
     },
     UiAssertFocused {
+        node_id: String,
+    },
+    UiWaitUnfocused {
+        node_id: String,
+    },
+    UiAssertUnfocused {
         node_id: String,
     },
     UiAssertEnabled {
@@ -295,8 +309,12 @@ pub enum Type {
     UiWaitDisabled,
     UiAssertWindowOpen,
     UiWaitWindowOpen,
+    UiAssertWindowClosed,
+    UiWaitWindowClosed,
     UiWaitFocused,
     UiAssertFocused,
+    UiWaitUnfocused,
+    UiAssertUnfocused,
     UiAssertEnabled,
     UiAssertDisabled,
     UiAssertSelection,
@@ -406,8 +424,12 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.wait_disabled"
         | "ui.assert_window_open"
         | "ui.wait_window_open"
+        | "ui.assert_window_closed"
+        | "ui.wait_window_closed"
         | "ui.wait_focused"
         | "ui.assert_focused"
+        | "ui.wait_unfocused"
+        | "ui.assert_unfocused"
         | "ui.assert_enabled"
         | "ui.assert_disabled"
         | "ui.assert_selection"
@@ -671,6 +693,26 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_window_closed", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1245".to_string(),
+                    message:
+                        "ui.assert_window_closed node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_window_closed", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1247".to_string(),
+                    message:
+                        "ui.wait_window_closed node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.wait_focused", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -686,6 +728,26 @@ fn lower_atomic_effect(
                     code: "LSH1118".to_string(),
                     message: "ui.assert_focused node_id must be a valid UI node identifier string"
                         .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_unfocused", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1241".to_string(),
+                    message:
+                        "ui.wait_unfocused node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_unfocused", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1243".to_string(),
+                    message:
+                        "ui.assert_unfocused node_id must be a valid UI node identifier string"
+                            .to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -1295,6 +1357,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_window_closed" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1246".to_string(),
+            message: "ui.assert_window_closed requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_window_closed" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1248".to_string(),
+            message: "ui.wait_window_closed requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.wait_focused" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1143".to_string(),
@@ -1306,6 +1382,20 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1119".to_string(),
             message: "ui.assert_focused requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_unfocused" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1242".to_string(),
+            message: "ui.wait_unfocused requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_unfocused" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1244".to_string(),
+            message: "ui.assert_unfocused requires node_id".to_string(),
             span: Some(span),
         });
     }
@@ -1856,6 +1946,20 @@ fn lower_atomic_effect(
             Type::UiWaitWindowOpen,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_window_closed" => (
+            Effect::UiAssertWindowClosed {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertWindowClosed,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_window_closed" => (
+            Effect::UiWaitWindowClosed {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitWindowClosed,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.wait_focused" => (
             Effect::UiWaitFocused {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1868,6 +1972,20 @@ fn lower_atomic_effect(
                 node_id: node_id.expect("validated UI node identifier"),
             },
             Type::UiAssertFocused,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_unfocused" => (
+            Effect::UiWaitUnfocused {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitUnfocused,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_unfocused" => (
+            Effect::UiAssertUnfocused {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertUnfocused,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_enabled" => (
@@ -2159,11 +2277,23 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiWaitWindowOpen { node_id } => {
             atomic_identifier_source("ui.wait_window_open", "node_id", node_id, depth)
         }
+        Effect::UiAssertWindowClosed { node_id } => {
+            atomic_identifier_source("ui.assert_window_closed", "node_id", node_id, depth)
+        }
+        Effect::UiWaitWindowClosed { node_id } => {
+            atomic_identifier_source("ui.wait_window_closed", "node_id", node_id, depth)
+        }
         Effect::UiWaitFocused { node_id } => {
             atomic_identifier_source("ui.wait_focused", "node_id", node_id, depth)
         }
         Effect::UiAssertFocused { node_id } => {
             atomic_identifier_source("ui.assert_focused", "node_id", node_id, depth)
+        }
+        Effect::UiWaitUnfocused { node_id } => {
+            atomic_identifier_source("ui.wait_unfocused", "node_id", node_id, depth)
+        }
+        Effect::UiAssertUnfocused { node_id } => {
+            atomic_identifier_source("ui.assert_unfocused", "node_id", node_id, depth)
         }
         Effect::UiAssertEnabled { node_id } => {
             atomic_identifier_source("ui.assert_enabled", "node_id", node_id, depth)
@@ -3312,6 +3442,70 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_window_closed_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_window_closed(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertWindowClosed);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertWindowClosed { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_window_closed(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_window_closed()",
+            "fn main() = ui.assert_window_closed(node_id: none)",
+            "fn main() = ui.assert_window_closed(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_window_closed_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_window_closed(node_id: \"runtime-a:card\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitWindowClosed);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitWindowClosed { ref node_id } if node_id == "runtime-a:card"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_window_closed(node_id: \"runtime-a:card\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_window_closed()",
+            "fn main() = ui.wait_window_closed(node_id: none)",
+            "fn main() = ui.wait_window_closed(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "{source} should fail lowering"
+            );
+        }
+    }
+
+    #[test]
     fn ui_wait_focused_is_a_capability_gated_canonical_presentation_effect() {
         let program = lower(&parse(
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
@@ -3367,6 +3561,70 @@ mod tests {
             "fn main() = ui.assert_focused()",
             "fn main() = ui.assert_focused(node_id: none)",
             "fn main() = ui.assert_focused(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_unfocused_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_unfocused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitUnfocused);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitUnfocused { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_unfocused(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_unfocused()",
+            "fn main() = ui.wait_unfocused(node_id: none)",
+            "fn main() = ui.wait_unfocused(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "{source} should fail lowering"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_unfocused_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_unfocused(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertUnfocused);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiAssertUnfocused { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_unfocused(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_unfocused()",
+            "fn main() = ui.assert_unfocused(node_id: none)",
+            "fn main() = ui.assert_unfocused(node_id: \"bad/node\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
@@ -4410,8 +4668,12 @@ mod tests {
             "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_window_closed(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_window_closed(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_unfocused(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_unfocused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",

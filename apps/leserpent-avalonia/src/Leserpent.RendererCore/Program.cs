@@ -9,6 +9,7 @@ public sealed class SemanticRenderer
     public const int WaitEnabledTimeoutMs = 2000;
     public const int WaitActionUnavailableReasonTimeoutMs = 2000;
     public const int WaitFocusedTimeoutMs = 2000;
+    public const int WaitUnfocusedTimeoutMs = 2000;
     public const int WaitRealizedTimeoutMs = 2000;
     public const int WaitSelectionTimeoutMs = 2000;
     public const int WaitTextTimeoutMs = 2000;
@@ -16,6 +17,7 @@ public sealed class SemanticRenderer
     public const int WaitAccessibleDescriptionTimeoutMs = 2000;
     public const int WaitFormFieldPlaceholderTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
+    public const int WaitWindowClosedTimeoutMs = 2000;
     public const int WaitWindowOpenTimeoutMs = 2000;
 
     public UiDocument Document { get; private set; } = null!;
@@ -265,7 +267,9 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitDisabled
             or UiPresentationOperationKind.WaitActionUnavailableReason
             or UiPresentationOperationKind.WaitWindowOpen
+            or UiPresentationOperationKind.WaitWindowClosed
             or UiPresentationOperationKind.WaitFocused
+            or UiPresentationOperationKind.WaitUnfocused
             or UiPresentationOperationKind.WaitSelection
             or UiPresentationOperationKind.WaitText
             or UiPresentationOperationKind.WaitAccessibleName
@@ -282,7 +286,9 @@ public sealed class SemanticRenderer
                 UiPresentationOperationKind.WaitActionUnavailableReason =>
                     WaitActionUnavailableReasonTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen => WaitWindowOpenTimeoutMs,
+                UiPresentationOperationKind.WaitWindowClosed => WaitWindowClosedTimeoutMs,
                 UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
+                UiPresentationOperationKind.WaitUnfocused => WaitUnfocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection => WaitSelectionTimeoutMs,
                 UiPresentationOperationKind.WaitText => WaitTextTimeoutMs,
                 UiPresentationOperationKind.WaitAccessibleName => WaitAccessibleNameTimeoutMs,
@@ -311,11 +317,13 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.Focus
             or UiPresentationOperationKind.NavigateFocus
             or UiPresentationOperationKind.AssertFocused
+            or UiPresentationOperationKind.AssertUnfocused
             or UiPresentationOperationKind.AssertEnabled
             or UiPresentationOperationKind.AssertDisabled
             or UiPresentationOperationKind.WaitEnabled
             or UiPresentationOperationKind.WaitDisabled
             or UiPresentationOperationKind.WaitFocused
+            or UiPresentationOperationKind.WaitUnfocused
             or UiPresentationOperationKind.AssertActionKind
             or UiPresentationOperationKind.AssertActionUnavailableReason
             or UiPresentationOperationKind.WaitActionUnavailableReason
@@ -338,6 +346,10 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertWindowOpen =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitWindowOpen =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertWindowClosed =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.WaitWindowClosed =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection
@@ -711,8 +723,12 @@ public sealed class RendererFixture
     public UiPresentationOperation? DisabledWaitOperation { get; set; }
     public UiPresentationOperation? WindowOpenAssertOperation { get; set; }
     public UiPresentationOperation? WindowOpenWaitOperation { get; set; }
+    public UiPresentationOperation? WindowClosedAssertOperation { get; set; }
+    public UiPresentationOperation? WindowClosedWaitOperation { get; set; }
     public UiPresentationOperation? FocusedWaitOperation { get; set; }
     public UiPresentationOperation? FocusedAssertOperation { get; set; }
+    public UiPresentationOperation? UnfocusedWaitOperation { get; set; }
+    public UiPresentationOperation? UnfocusedAssertOperation { get; set; }
     public UiPresentationOperation? EnabledAssertOperation { get; set; }
     public UiPresentationOperation? DisabledAssertOperation { get; set; }
     public UiPresentationOperation? SelectionAssertOperation { get; set; }
@@ -906,8 +922,12 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("wait_disabled")] WaitDisabled,
     [JsonStringEnumMemberName("assert_window_open")] AssertWindowOpen,
     [JsonStringEnumMemberName("wait_window_open")] WaitWindowOpen,
+    [JsonStringEnumMemberName("assert_window_closed")] AssertWindowClosed,
+    [JsonStringEnumMemberName("wait_window_closed")] WaitWindowClosed,
     [JsonStringEnumMemberName("wait_focused")] WaitFocused,
     [JsonStringEnumMemberName("assert_focused")] AssertFocused,
+    [JsonStringEnumMemberName("wait_unfocused")] WaitUnfocused,
+    [JsonStringEnumMemberName("assert_unfocused")] AssertUnfocused,
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
     [JsonStringEnumMemberName("assert_disabled")] AssertDisabled,
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,

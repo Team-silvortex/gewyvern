@@ -239,12 +239,16 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_visible(node_id: ...)`,
 `ui.assert_focused(node_id: ...)` and
 `ui.wait_focused(node_id: ...)`, plus
+`ui.assert_unfocused(node_id: ...)` and
+`ui.wait_unfocused(node_id: ...)`, plus
 `ui.assert_enabled(node_id: ...)`, plus
 `ui.assert_disabled(node_id: ...)`, plus
 `ui.wait_enabled(node_id: ...)`, plus
 `ui.wait_disabled(node_id: ...)`, plus
 `ui.assert_window_open(node_id: ...)`, plus
 `ui.wait_window_open(node_id: ...)`, plus
+`ui.assert_window_closed(node_id: ...)`, plus
+`ui.wait_window_closed(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
@@ -265,7 +269,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all thirty-six, and `leselang-ui` round-trips them against the current semantic
+rejects all forty, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
 manager from a currently focused stable action, resolves first/last through the
@@ -286,7 +290,9 @@ disabled action state without changing availability, waits for external native
 disablement with the same fixed deadline while preserving availability and
 action state, proves the target is attached to the same native window visual
 tree without activating it, waits for that same native window membership with a
-fixed dispatcher-yielding deadline, and compares
+fixed dispatcher-yielding deadline, proves detached window-closed state without
+closing anything, times out a persistently open window-closed wait without
+mutating it, and compares
 native selected state, waits for native selection mismatch timeout without
 changing selection, compares actual native text, waits for external native text
 transitions with a fixed dispatcher-yielding deadline, and compares automation ID, semantic node kind,
@@ -304,7 +310,7 @@ form-field-max-length-mismatched,
 form-field-placeholder-mismatched, persistent form-field-placeholder wait-mismatched,
 accessible-name-mismatched, persistent accessible-name wait-mismatched,
 accessible-description-mismatched, and persistent accessible-description wait-mismatched targets fail with typed native
-presentation results. Full window close/reopen lifecycle and additional state
+presentation results. Full native window close/reopen command lifecycle and additional state
 assertions remain the next slices rather than being
 approximated with coordinate-level scripting or OCR.
 

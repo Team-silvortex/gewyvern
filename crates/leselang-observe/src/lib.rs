@@ -342,6 +342,16 @@ pub fn waiting_debugger_projection(
             None,
             "UI wait window open",
         ),
+        Effect::UiAssertWindowClosed { .. } => (
+            DebuggerEffectKind::UiAssertWindowClosed,
+            None,
+            "UI assert window closed",
+        ),
+        Effect::UiWaitWindowClosed { .. } => (
+            DebuggerEffectKind::UiWaitWindowClosed,
+            None,
+            "UI wait window closed",
+        ),
         Effect::UiWaitFocused { .. } => {
             (DebuggerEffectKind::UiWaitFocused, None, "UI wait focused")
         }
@@ -349,6 +359,16 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertFocused,
             None,
             "UI assert focused",
+        ),
+        Effect::UiWaitUnfocused { .. } => (
+            DebuggerEffectKind::UiWaitUnfocused,
+            None,
+            "UI wait unfocused",
+        ),
+        Effect::UiAssertUnfocused { .. } => (
+            DebuggerEffectKind::UiAssertUnfocused,
+            None,
+            "UI assert unfocused",
         ),
         Effect::UiAssertEnabled { .. } => (
             DebuggerEffectKind::UiAssertEnabled,

@@ -88,8 +88,12 @@ pub fn lower_effect(
             | Effect::UiWaitDisabled { .. }
             | Effect::UiAssertWindowOpen { .. }
             | Effect::UiWaitWindowOpen { .. }
+            | Effect::UiAssertWindowClosed { .. }
+            | Effect::UiWaitWindowClosed { .. }
             | Effect::UiWaitFocused { .. }
             | Effect::UiAssertFocused { .. }
+            | Effect::UiWaitUnfocused { .. }
+            | Effect::UiAssertUnfocused { .. }
             | Effect::UiAssertEnabled { .. }
             | Effect::UiAssertDisabled { .. }
             | Effect::UiAssertSelection { .. }
@@ -137,8 +141,12 @@ pub fn lower_effect(
         | Effect::UiWaitDisabled { .. }
         | Effect::UiAssertWindowOpen { .. }
         | Effect::UiWaitWindowOpen { .. }
+        | Effect::UiAssertWindowClosed { .. }
+        | Effect::UiWaitWindowClosed { .. }
         | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
+        | Effect::UiWaitUnfocused { .. }
+        | Effect::UiAssertUnfocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertDisabled { .. }
         | Effect::UiAssertSelection { .. }
@@ -197,8 +205,12 @@ pub fn lower_effect(
         | Effect::UiWaitDisabled { .. }
         | Effect::UiAssertWindowOpen { .. }
         | Effect::UiWaitWindowOpen { .. }
+        | Effect::UiAssertWindowClosed { .. }
+        | Effect::UiWaitWindowClosed { .. }
         | Effect::UiWaitFocused { .. }
         | Effect::UiAssertFocused { .. }
+        | Effect::UiWaitUnfocused { .. }
+        | Effect::UiAssertUnfocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertDisabled { .. }
         | Effect::UiAssertSelection { .. }
@@ -496,8 +508,12 @@ mod tests {
             "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
+            "fn main() = ui.assert_window_closed(node_id: \"runtime-a:card\")",
+            "fn main() = ui.wait_window_closed(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_focused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_focused(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_unfocused(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_unfocused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",

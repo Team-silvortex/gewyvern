@@ -1673,12 +1673,16 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_visible(node_id: ...)`,
 `ui.assert_focused(node_id: ...)`, and
 `ui.wait_focused(node_id: ...)`, plus
+`ui.assert_unfocused(node_id: ...)` and
+`ui.wait_unfocused(node_id: ...)`, plus
 `ui.assert_enabled(node_id: ...)`, plus
 `ui.assert_disabled(node_id: ...)`, plus
 `ui.wait_enabled(node_id: ...)`, plus
 `ui.wait_disabled(node_id: ...)`, plus
 `ui.assert_window_open(node_id: ...)`, plus
 `ui.wait_window_open(node_id: ...)`, plus
+`ui.assert_window_closed(node_id: ...)`, plus
+`ui.wait_window_closed(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
@@ -1727,7 +1731,12 @@ availability or activating the action. Window-open assertion verifies the
 realized target and renderer surface share one native `Window` visual tree
 without opening, closing, activating, or focusing it. Window-open wait polls that
 same native-window membership predicate until the fixed deadline, also without
-opening, closing, activating, or focusing it. Selection
+opening, closing, activating, or focusing it. Window-closed assertion reads the
+inverse native-window membership predicate after resolving the stable node to a
+realized native control. Window-closed wait polls that same inverse predicate
+until the fixed deadline; detached renderer surfaces satisfy it, while a
+persistently open target times out without invoking native close or mutating
+focus. Selection
 assertion reads native selected state, and selection wait polls that same
 predicate until the fixed deadline without selecting, focusing, or activating
 the target. Text
