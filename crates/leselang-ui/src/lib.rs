@@ -4,15 +4,16 @@ use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
     Effect, HirBranch, Type, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
     UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
-    UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
-    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
-    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
-    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
-    UiFocusNavigationDirection, UiFormInputKind as HirUiFormInputKind,
-    UiFormRequirementState as HirUiFormRequirementState, UiSelectionState,
-    UiSemanticActionKind as HirUiSemanticActionKind, UiSemanticNodeKind as HirUiSemanticNodeKind,
-    canonical_source, validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
+    UI_WAIT_ACTION_KIND_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
+    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
+    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
+    UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
+    UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
+    UiFormInputKind as HirUiFormInputKind, UiFormRequirementState as HirUiFormRequirementState,
+    UiSelectionState, UiSemanticActionKind as HirUiSemanticActionKind,
+    UiSemanticNodeKind as HirUiSemanticNodeKind, canonical_source, validate_ui_expected_text,
+    validate_ui_form_field_key, validate_ui_node_id,
 };
 use leserpent_domain::{
     CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
@@ -334,7 +335,9 @@ pub enum DebuggerEffectKind {
     UiWaitText,
     UiAssertAutomationId,
     UiAssertNodeKind,
+    UiWaitNodeKind,
     UiAssertActionKind,
+    UiWaitActionKind,
     UiAssertActionLabel,
     UiWaitActionLabel,
     UiAssertActionAvailable,
@@ -574,9 +577,19 @@ pub enum UiPresentationOperation {
         node_id: NodeId,
         expected_kind: UiNodeKind,
     },
+    WaitNodeKind {
+        node_id: NodeId,
+        expected_kind: UiNodeKind,
+        timeout_ms: u64,
+    },
     AssertActionKind {
         node_id: NodeId,
         expected_action_kind: UiActionKind,
+    },
+    WaitActionKind {
+        node_id: NodeId,
+        expected_action_kind: UiActionKind,
+        timeout_ms: u64,
     },
     AssertActionLabel {
         node_id: NodeId,
@@ -1404,7 +1417,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiWaitText
             | DebuggerEffectKind::UiAssertAutomationId
             | DebuggerEffectKind::UiAssertNodeKind
+            | DebuggerEffectKind::UiWaitNodeKind
             | DebuggerEffectKind::UiAssertActionKind
+            | DebuggerEffectKind::UiWaitActionKind
             | DebuggerEffectKind::UiAssertActionLabel
             | DebuggerEffectKind::UiWaitActionLabel
             | DebuggerEffectKind::UiAssertActionAvailable
@@ -1547,7 +1562,9 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiWaitText => "UI wait text",
             DebuggerEffectKind::UiAssertAutomationId => "UI assert automation id",
             DebuggerEffectKind::UiAssertNodeKind => "UI assert node kind",
+            DebuggerEffectKind::UiWaitNodeKind => "UI wait node kind",
             DebuggerEffectKind::UiAssertActionKind => "UI assert action kind",
+            DebuggerEffectKind::UiWaitActionKind => "UI wait action kind",
             DebuggerEffectKind::UiAssertActionLabel => "UI assert action label",
             DebuggerEffectKind::UiWaitActionLabel => "UI wait action label",
             DebuggerEffectKind::UiAssertActionAvailable => "UI assert action available",
@@ -1926,12 +1943,28 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             expected_kind: hir_node_kind_to_ui(*expected_kind),
         },
+        Effect::UiWaitNodeKind {
+            node_id,
+            expected_kind,
+        } => UiPresentationOperation::WaitNodeKind {
+            node_id: NodeId::new(node_id.clone())?,
+            expected_kind: hir_node_kind_to_ui(*expected_kind),
+            timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+        },
         Effect::UiAssertActionKind {
             node_id,
             expected_kind,
         } => UiPresentationOperation::AssertActionKind {
             node_id: NodeId::new(node_id.clone())?,
             expected_action_kind: hir_action_kind_to_ui(*expected_kind),
+        },
+        Effect::UiWaitActionKind {
+            node_id,
+            expected_kind,
+        } => UiPresentationOperation::WaitActionKind {
+            node_id: NodeId::new(node_id.clone())?,
+            expected_action_kind: hir_action_kind_to_ui(*expected_kind),
+            timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
         },
         Effect::UiAssertActionLabel { node_id, expected } => {
             UiPresentationOperation::AssertActionLabel {
@@ -2156,10 +2189,26 @@ pub fn effect_for_presentation_operation(
             node_id: node_id.as_str().to_string(),
             expected_kind: ui_node_kind_to_hir(*expected_kind),
         },
+        UiPresentationOperation::WaitNodeKind {
+            node_id,
+            expected_kind,
+            ..
+        } => Effect::UiWaitNodeKind {
+            node_id: node_id.as_str().to_string(),
+            expected_kind: ui_node_kind_to_hir(*expected_kind),
+        },
         UiPresentationOperation::AssertActionKind {
             node_id,
             expected_action_kind,
         } => Effect::UiAssertActionKind {
+            node_id: node_id.as_str().to_string(),
+            expected_kind: ui_action_kind_to_hir(*expected_action_kind),
+        },
+        UiPresentationOperation::WaitActionKind {
+            node_id,
+            expected_action_kind,
+            ..
+        } => Effect::UiWaitActionKind {
             node_id: node_id.as_str().to_string(),
             expected_kind: ui_action_kind_to_hir(*expected_action_kind),
         },
@@ -2312,7 +2361,9 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::WaitText { node_id, .. }
         | UiPresentationOperation::AssertAutomationId { node_id, .. }
         | UiPresentationOperation::AssertNodeKind { node_id, .. }
+        | UiPresentationOperation::WaitNodeKind { node_id, .. }
         | UiPresentationOperation::AssertActionKind { node_id, .. }
+        | UiPresentationOperation::WaitActionKind { node_id, .. }
         | UiPresentationOperation::AssertActionLabel { node_id, .. }
         | UiPresentationOperation::WaitActionLabel { node_id, .. }
         | UiPresentationOperation::AssertActionAvailable { node_id }
@@ -2423,6 +2474,16 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
+    if let UiPresentationOperation::WaitNodeKind { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_NODE_KIND_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitActionKind { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_ACTION_KIND_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
     if let UiPresentationOperation::WaitWindowOpen { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
     {
@@ -2485,6 +2546,7 @@ pub fn validate_presentation_operation(
             | UiPresentationOperation::WaitFocused { .. }
             | UiPresentationOperation::WaitUnfocused { .. }
             | UiPresentationOperation::AssertActionKind { .. }
+            | UiPresentationOperation::WaitActionKind { .. }
             | UiPresentationOperation::AssertActionLabel { .. }
             | UiPresentationOperation::WaitActionLabel { .. }
             | UiPresentationOperation::AssertActionAvailable { .. }
@@ -4908,6 +4970,58 @@ mod tests {
     }
 
     #[test]
+    fn node_kind_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitNodeKind {
+            node_id: NodeId::new("fleet-title").unwrap(),
+            expected_kind: UiNodeKind::Heading,
+            timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitNodeKind {
+                node_id: "fleet-title".into(),
+                expected_kind: HirUiSemanticNodeKind::Heading,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_node_kind(\n  node_id: \"fleet-title\",\n  kind: \"heading\",\n)\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitNodeKind {
+                    node_id: document.root.id.clone(),
+                    expected_kind: UiNodeKind::Column,
+                    timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+                },
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitNodeKind {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                    expected_kind: UiNodeKind::Heading,
+                    timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+    }
+
+    #[test]
     fn action_kind_assertion_round_trips_for_semantic_action_nodes() {
         let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
         let operation = UiPresentationOperation::AssertActionKind {
@@ -4955,6 +5069,60 @@ mod tests {
             Err(UiError::UnfocusablePresentationTarget {
                 node_id: document.root.id.as_str().into(),
             })
+        );
+    }
+
+    #[test]
+    fn action_kind_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitActionKind {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            expected_action_kind: UiActionKind::RuntimeRefresh,
+            timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitActionKind {
+                node_id: "runtime-runtime-a-refresh".into(),
+                expected_kind: HirUiSemanticActionKind::RuntimeRefresh,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_action_kind(\n  node_id: \"runtime-runtime-a-refresh\",\n  kind: \"runtime_refresh\",\n)\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitActionKind {
+                    node_id: document.root.id.clone(),
+                    expected_action_kind: UiActionKind::RuntimeRefresh,
+                    timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitActionKind {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    expected_action_kind: UiActionKind::RuntimeRefresh,
+                    timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
         );
     }
 

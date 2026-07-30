@@ -1689,7 +1689,9 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_text(node_id: ..., expected: ...)`, plus
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
 `ui.assert_node_kind(node_id: ..., kind: ...)`, plus
+`ui.wait_node_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_kind(node_id: ..., kind: ...)`, plus
+`ui.wait_action_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_label(node_id: ..., expected: ...)`, plus
 `ui.wait_action_label(node_id: ..., expected: ...)`, plus
 `ui.assert_action_available(node_id: ...)`, plus
@@ -1749,8 +1751,12 @@ control-free expected text against the actual native `TextBlock.Text` or string
 `Button.Content` with exact ordinal semantics. Automation ID assertion compares
 the realized platform automation identity against the expected stable UI node
 identifier. Node-kind assertion compares the expected semantic node kind against
-the stable renderer semantic kind. Action-kind assertion compares the expected
-semantic action kind against the realized node's stable action payload.
+the stable renderer semantic kind, while node-kind wait polls the same semantic
+predicate with a fixed dispatcher-yielding deadline without realization,
+scrolling, focus, or mutation. Action-kind assertion compares the expected
+semantic action kind against the realized node's stable action payload, while
+action-kind wait polls the same payload predicate without clicking, activating,
+enabling, focusing, or mutating the action.
 Action-label assertion compares the explicit semantic action label through the
 realized native automation name, while action-label wait polls that same exact
 predicate with the fixed dispatcher-yielding deadline without focusing,

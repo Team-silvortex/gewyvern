@@ -4,9 +4,10 @@ use std::path::PathBuf;
 
 use leselang_hir::{
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
-    UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
-    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
-    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
+    UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
+    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
     UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
     UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiSelectionState,
@@ -56,7 +57,9 @@ struct Fixture<'a> {
     text_wait_operation: &'a UiPresentationOperation,
     automation_id_assert_operation: &'a UiPresentationOperation,
     node_kind_assert_operation: &'a UiPresentationOperation,
+    node_kind_wait_operation: &'a UiPresentationOperation,
     action_kind_assert_operation: &'a UiPresentationOperation,
+    action_kind_wait_operation: &'a UiPresentationOperation,
     action_label_assert_operation: &'a UiPresentationOperation,
     action_label_wait_operation: &'a UiPresentationOperation,
     action_available_assert_operation: &'a UiPresentationOperation,
@@ -194,9 +197,19 @@ fn main() {
         node_id: NodeId::new("fleet-title").unwrap(),
         expected_kind: leselang_ui::UiNodeKind::Heading,
     };
+    let node_kind_wait_operation = UiPresentationOperation::WaitNodeKind {
+        node_id: NodeId::new("fleet-title").unwrap(),
+        expected_kind: leselang_ui::UiNodeKind::Heading,
+        timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+    };
     let action_kind_assert_operation = UiPresentationOperation::AssertActionKind {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
         expected_action_kind: UiActionKind::RuntimeRefresh,
+    };
+    let action_kind_wait_operation = UiPresentationOperation::WaitActionKind {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        expected_action_kind: UiActionKind::RuntimeRefresh,
+        timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
     };
     let action_label_assert_operation = UiPresentationOperation::AssertActionLabel {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
@@ -359,7 +372,9 @@ fn main() {
         text_wait_operation: &text_wait_operation,
         automation_id_assert_operation: &automation_id_assert_operation,
         node_kind_assert_operation: &node_kind_assert_operation,
+        node_kind_wait_operation: &node_kind_wait_operation,
         action_kind_assert_operation: &action_kind_assert_operation,
+        action_kind_wait_operation: &action_kind_wait_operation,
         action_label_assert_operation: &action_label_assert_operation,
         action_label_wait_operation: &action_label_wait_operation,
         action_available_assert_operation: &action_available_assert_operation,

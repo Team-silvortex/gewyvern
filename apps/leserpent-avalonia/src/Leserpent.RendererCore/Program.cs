@@ -8,6 +8,7 @@ public sealed class SemanticRenderer
     private const int MaxFormValueBytes = 256;
     public const int WaitEnabledTimeoutMs = 2000;
     public const int WaitActionAvailableTimeoutMs = 2000;
+    public const int WaitActionKindTimeoutMs = 2000;
     public const int WaitActionLabelTimeoutMs = 2000;
     public const int WaitActionUnavailableReasonTimeoutMs = 2000;
     public const int WaitFocusedTimeoutMs = 2000;
@@ -18,6 +19,7 @@ public sealed class SemanticRenderer
     public const int WaitAccessibleNameTimeoutMs = 2000;
     public const int WaitAccessibleDescriptionTimeoutMs = 2000;
     public const int WaitFormFieldPlaceholderTimeoutMs = 2000;
+    public const int WaitNodeKindTimeoutMs = 2000;
     public const int WaitVisibleTimeoutMs = 2000;
     public const int WaitWindowClosedTimeoutMs = 2000;
     public const int WaitWindowOpenTimeoutMs = 2000;
@@ -134,7 +136,33 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedKind;
             }
         }
+        else if (operation.Kind == UiPresentationOperationKind.WaitNodeKind)
+        {
+            if (operation.Expected is not null)
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+            if (operation.ExpectedKind is null)
+            {
+                return UiPresentationValidation.InvalidExpectedKind;
+            }
+        }
         else if (operation.Kind == UiPresentationOperationKind.AssertActionKind)
+        {
+            if (operation.Expected is not null)
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+            if (operation.ExpectedKind is not null)
+            {
+                return UiPresentationValidation.InvalidExpectedKind;
+            }
+            if (operation.ExpectedActionKind is null)
+            {
+                return UiPresentationValidation.InvalidExpectedActionKind;
+            }
+        }
+        else if (operation.Kind == UiPresentationOperationKind.WaitActionKind)
         {
             if (operation.Expected is not null)
             {
@@ -232,11 +260,13 @@ public sealed class SemanticRenderer
             return UiPresentationValidation.InvalidExpectedMaxLength;
         }
         if (operation.Kind != UiPresentationOperationKind.AssertNodeKind
+            && operation.Kind != UiPresentationOperationKind.WaitNodeKind
             && operation.ExpectedKind is not null)
         {
             return UiPresentationValidation.InvalidExpectedKind;
         }
         if (operation.Kind != UiPresentationOperationKind.AssertActionKind
+            && operation.Kind != UiPresentationOperationKind.WaitActionKind
             && operation.ExpectedActionKind is not null)
         {
             return UiPresentationValidation.InvalidExpectedActionKind;
@@ -270,8 +300,10 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitEnabled
             or UiPresentationOperationKind.WaitDisabled
             or UiPresentationOperationKind.WaitActionAvailable
+            or UiPresentationOperationKind.WaitActionKind
             or UiPresentationOperationKind.WaitActionLabel
             or UiPresentationOperationKind.WaitActionUnavailableReason
+            or UiPresentationOperationKind.WaitNodeKind
             or UiPresentationOperationKind.WaitWindowOpen
             or UiPresentationOperationKind.WaitWindowClosed
             or UiPresentationOperationKind.WaitFocused
@@ -291,10 +323,13 @@ public sealed class SemanticRenderer
                 UiPresentationOperationKind.WaitDisabled => WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitActionAvailable =>
                     WaitActionAvailableTimeoutMs,
+                UiPresentationOperationKind.WaitActionKind =>
+                    WaitActionKindTimeoutMs,
                 UiPresentationOperationKind.WaitActionLabel =>
                     WaitActionLabelTimeoutMs,
                 UiPresentationOperationKind.WaitActionUnavailableReason =>
                     WaitActionUnavailableReasonTimeoutMs,
+                UiPresentationOperationKind.WaitNodeKind => WaitNodeKindTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen => WaitWindowOpenTimeoutMs,
                 UiPresentationOperationKind.WaitWindowClosed => WaitWindowClosedTimeoutMs,
                 UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
@@ -335,6 +370,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.WaitUnfocused
             or UiPresentationOperationKind.AssertActionKind
+            or UiPresentationOperationKind.WaitActionKind
             or UiPresentationOperationKind.AssertActionLabel
             or UiPresentationOperationKind.WaitActionLabel
             or UiPresentationOperationKind.AssertActionAvailable
@@ -384,7 +420,8 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertAutomationId =>
                 UiPresentationValidation.Valid,
-            UiPresentationOperationKind.AssertNodeKind =>
+            UiPresentationOperationKind.AssertNodeKind
+            or UiPresentationOperationKind.WaitNodeKind =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertFormField
             or UiPresentationOperationKind.AssertFormFieldInputKind
@@ -751,7 +788,9 @@ public sealed class RendererFixture
     public UiPresentationOperation? TextWaitOperation { get; set; }
     public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
     public UiPresentationOperation? NodeKindAssertOperation { get; set; }
+    public UiPresentationOperation? NodeKindWaitOperation { get; set; }
     public UiPresentationOperation? ActionKindAssertOperation { get; set; }
+    public UiPresentationOperation? ActionKindWaitOperation { get; set; }
     public UiPresentationOperation? ActionLabelAssertOperation { get; set; }
     public UiPresentationOperation? ActionLabelWaitOperation { get; set; }
     public UiPresentationOperation? ActionAvailableAssertOperation { get; set; }
@@ -954,7 +993,9 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("wait_text")] WaitText,
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
+    [JsonStringEnumMemberName("wait_node_kind")] WaitNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
+    [JsonStringEnumMemberName("wait_action_kind")] WaitActionKind,
     [JsonStringEnumMemberName("assert_action_label")] AssertActionLabel,
     [JsonStringEnumMemberName("wait_action_label")] WaitActionLabel,
     [JsonStringEnumMemberName("assert_action_available")] AssertActionAvailable,

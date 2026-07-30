@@ -6,9 +6,10 @@ use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
     CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type,
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
-    UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
-    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
-    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
+    UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
+    UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
+    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
     UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS,
     UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection, UiFormInputKind,
@@ -212,9 +213,19 @@ pub enum PresentationOperation {
         node_id: String,
         expected_kind: UiSemanticNodeKind,
     },
+    WaitNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+        timeout_ms: u64,
+    },
     AssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    WaitActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
+        timeout_ms: u64,
     },
     AssertActionLabel {
         node_id: String,
@@ -406,9 +417,19 @@ pub enum PresentationResult {
         node_id: String,
         expected_kind: UiSemanticNodeKind,
     },
+    WaitNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+        timeout_ms: u64,
+    },
     AssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    WaitActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
+        timeout_ms: u64,
     },
     AssertActionLabel {
         node_id: String,
@@ -820,7 +841,15 @@ pub enum Value {
         node_id: String,
         expected_kind: UiSemanticNodeKind,
     },
+    UiWaitNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+    },
     UiAssertActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
+    },
+    UiWaitActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
@@ -1494,6 +1523,22 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiWaitNodeKind {
+                node_id,
+                expected_kind,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitNodeKind {
+                        node_id: node_id.clone(),
+                        expected_kind: *expected_kind,
+                        timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+                    },
+                }),
+            ),
             Effect::UiAssertActionKind {
                 node_id,
                 expected_kind,
@@ -1506,6 +1551,22 @@ impl Vm {
                     operation: PresentationOperation::AssertActionKind {
                         node_id: node_id.clone(),
                         expected_kind: *expected_kind,
+                    },
+                }),
+            ),
+            Effect::UiWaitActionKind {
+                node_id,
+                expected_kind,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitActionKind {
+                        node_id: node_id.clone(),
+                        expected_kind: *expected_kind,
+                        timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -2305,7 +2366,9 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitText { .. } => Type::UiWaitText,
         Effect::UiAssertAutomationId { .. } => Type::UiAssertAutomationId,
         Effect::UiAssertNodeKind { .. } => Type::UiAssertNodeKind,
+        Effect::UiWaitNodeKind { .. } => Type::UiWaitNodeKind,
         Effect::UiAssertActionKind { .. } => Type::UiAssertActionKind,
+        Effect::UiWaitActionKind { .. } => Type::UiWaitActionKind,
         Effect::UiAssertActionLabel { .. } => Type::UiAssertActionLabel,
         Effect::UiWaitActionLabel { .. } => Type::UiWaitActionLabel,
         Effect::UiAssertActionAvailable { .. } => Type::UiAssertActionAvailable,
@@ -3029,6 +3092,32 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiWaitNodeKind {
+                node_id,
+                expected_kind,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitNodeKind {
+                    node_id: operation_node_id,
+                    expected_kind: operation_expected_kind,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_expected_kind == expected_kind
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_NODE_KIND_TIMEOUT_MS
+            )
+        }
+        (
             Effect::UiAssertActionKind {
                 node_id,
                 expected_kind,
@@ -3050,6 +3139,32 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id
                     && operation_expected_kind == expected_kind
                     && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiWaitActionKind {
+                node_id,
+                expected_kind,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitActionKind {
+                    node_id: operation_node_id,
+                    expected_kind: operation_expected_kind,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_expected_kind == expected_kind
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_ACTION_KIND_TIMEOUT_MS
             )
         }
         (
@@ -3778,7 +3893,9 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
             Ok(1)
         }
         Value::UiAssertNodeKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitNodeKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertActionKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitActionKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertActionLabel { node_id, expected }
             if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
         {
@@ -4857,6 +4974,42 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiWaitNodeKind {
+                node_id,
+                expected_kind,
+            },
+            Type::UiWaitNodeKind,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitNodeKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected_kind == *expected_kind
+            && timeout_ms == UI_WAIT_NODE_KIND_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitNodeKind {
+                            node_id: operation_node_id,
+                            expected_kind: operation_expected_kind,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected_kind == expected_kind
+                        && *operation_timeout_ms == UI_WAIT_NODE_KIND_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitNodeKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+            })
+        }
+        (
             Effect::UiAssertActionKind {
                 node_id,
                 expected_kind,
@@ -4884,6 +5037,42 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiAssertActionKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+            })
+        }
+        (
+            Effect::UiWaitActionKind {
+                node_id,
+                expected_kind,
+            },
+            Type::UiWaitActionKind,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitActionKind {
+                node_id: result_node_id,
+                expected_kind: result_expected_kind,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected_kind == *expected_kind
+            && timeout_ms == UI_WAIT_ACTION_KIND_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitActionKind {
+                            node_id: operation_node_id,
+                            expected_kind: operation_expected_kind,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected_kind == expected_kind
+                        && *operation_timeout_ms == UI_WAIT_ACTION_KIND_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitActionKind {
                 node_id: result_node_id,
                 expected_kind: result_expected_kind,
             })
@@ -7248,6 +7437,75 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_node_kind_binds_expected_kind_timeout_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI node kind wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI node kind wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitNodeKind {
+                node_id,
+                expected_kind: UiSemanticNodeKind::Heading,
+                timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+            } if node_id == "fleet-title"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitNodeKind {
+                    node_id: "fleet-title".into(),
+                    expected_kind: UiSemanticNodeKind::Heading,
+                    timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitNodeKind {
+                node_id: "fleet-title".into(),
+                expected_kind: UiSemanticNodeKind::Heading,
+            })
+        );
+
+        let mut torn = request;
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI node kind wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitNodeKind {
+                node_id: "fleet-title".into(),
+                expected_kind: UiSemanticNodeKind::Text,
+                timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS,
+            };
+        }
+        assert!(validate_effect_request(&torn).is_err());
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI node kind wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitNodeKind {
+                node_id: "fleet-title".into(),
+                expected_kind: UiSemanticNodeKind::Heading,
+                timeout_ms: UI_WAIT_NODE_KIND_TIMEOUT_MS + 1,
+            };
+        }
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
     fn ui_assert_action_kind_binds_expected_kind_across_request_and_reentry() {
         let program = lower(&parse(
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
@@ -7297,6 +7555,75 @@ mod tests {
             node_id: "runtime-a:refresh".into(),
             expected_kind: UiSemanticActionKind::RuntimeDeploy,
         };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_action_kind_binds_expected_kind_timeout_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI action kind wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI action kind wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitActionKind {
+                node_id,
+                expected_kind: UiSemanticActionKind::RuntimeRefresh,
+                timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
+            } if node_id == "runtime-a:refresh"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitActionKind {
+                    node_id: "runtime-a:refresh".into(),
+                    expected_kind: UiSemanticActionKind::RuntimeRefresh,
+                    timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitActionKind {
+                node_id: "runtime-a:refresh".into(),
+                expected_kind: UiSemanticActionKind::RuntimeRefresh,
+            })
+        );
+
+        let mut torn = request;
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI action kind wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitActionKind {
+                node_id: "runtime-a:refresh".into(),
+                expected_kind: UiSemanticActionKind::RuntimeDeploy,
+                timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS,
+            };
+        }
+        assert!(validate_effect_request(&torn).is_err());
+        {
+            let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+                panic!("UI action kind wait must use a presentation envelope");
+            };
+            presentation.operation = PresentationOperation::WaitActionKind {
+                node_id: "runtime-a:refresh".into(),
+                expected_kind: UiSemanticActionKind::RuntimeRefresh,
+                timeout_ms: UI_WAIT_ACTION_KIND_TIMEOUT_MS + 1,
+            };
+        }
         assert!(validate_effect_request(&torn).is_err());
     }
 

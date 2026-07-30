@@ -16,8 +16,10 @@ pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
 pub const UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_ACTION_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_LABEL_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ENABLED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_NODE_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS: u64 = 2_000;
@@ -224,7 +226,15 @@ pub enum Effect {
         node_id: String,
         expected_kind: UiSemanticNodeKind,
     },
+    UiWaitNodeKind {
+        node_id: String,
+        expected_kind: UiSemanticNodeKind,
+    },
     UiAssertActionKind {
+        node_id: String,
+        expected_kind: UiSemanticActionKind,
+    },
+    UiWaitActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
@@ -339,7 +349,9 @@ pub enum Type {
     UiWaitText,
     UiAssertAutomationId,
     UiAssertNodeKind,
+    UiWaitNodeKind,
     UiAssertActionKind,
+    UiWaitActionKind,
     UiAssertActionLabel,
     UiWaitActionLabel,
     UiAssertActionAvailable,
@@ -458,7 +470,9 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.wait_text"
         | "ui.assert_automation_id"
         | "ui.assert_node_kind"
+        | "ui.wait_node_kind"
         | "ui.assert_action_kind"
+        | "ui.wait_action_kind"
         | "ui.assert_action_label"
         | "ui.wait_action_label"
         | "ui.assert_action_available"
@@ -929,6 +943,25 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.wait_node_kind", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1261".to_string(),
+                    message:
+                        "ui.wait_node_kind node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_node_kind", "kind") => match value.as_deref().and_then(parse_semantic_node_kind) {
+                Some(value) => semantic_node_kind = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1262".to_string(),
+                    message: "ui.wait_node_kind kind must be a known semantic UI node kind"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_action_kind", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -947,6 +980,28 @@ fn lower_atomic_effect(
                 None => diagnostics.push(Diagnostic {
                     code: "LSH1165".to_string(),
                     message: "ui.assert_action_kind kind must be a known semantic UI action kind"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_action_kind", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1265".to_string(),
+                    message:
+                        "ui.wait_action_kind node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_action_kind", "kind") => match value
+                .as_deref()
+                .and_then(parse_semantic_action_kind)
+            {
+                Some(value) => semantic_action_kind = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1266".to_string(),
+                    message: "ui.wait_action_kind kind must be a known semantic UI action kind"
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1592,6 +1647,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.wait_node_kind" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1263".to_string(),
+            message: "ui.wait_node_kind requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_node_kind" && semantic_node_kind.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1264".to_string(),
+            message: "ui.wait_node_kind requires kind".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_action_kind" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1166".to_string(),
@@ -1604,6 +1673,20 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1167".to_string(),
             message: "ui.assert_action_kind requires kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_action_kind" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1267".to_string(),
+            message: "ui.wait_action_kind requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_action_kind" && semantic_action_kind.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1268".to_string(),
+            message: "ui.wait_action_kind requires kind".to_string(),
             span: Some(span),
         });
     }
@@ -2173,12 +2256,28 @@ fn lower_atomic_effect(
             Type::UiAssertNodeKind,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.wait_node_kind" => (
+            Effect::UiWaitNodeKind {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected_kind: semantic_node_kind.expect("validated UI semantic node kind"),
+            },
+            Type::UiWaitNodeKind,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_action_kind" => (
             Effect::UiAssertActionKind {
                 node_id: node_id.expect("validated UI node identifier"),
                 expected_kind: semantic_action_kind.expect("validated UI semantic action kind"),
             },
             Type::UiAssertActionKind,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_action_kind" => (
+            Effect::UiWaitActionKind {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected_kind: semantic_action_kind.expect("validated UI semantic action kind"),
+            },
+            Type::UiWaitActionKind,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_action_label" => (
@@ -2505,11 +2604,33 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(semantic_node_kind_source(*expected_kind)),
             indent(depth),
         ),
+        Effect::UiWaitNodeKind {
+            node_id,
+            expected_kind,
+        } => format!(
+            "ui.wait_node_kind(\n{}node_id: {},\n{}kind: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(semantic_node_kind_source(*expected_kind)),
+            indent(depth),
+        ),
         Effect::UiAssertActionKind {
             node_id,
             expected_kind,
         } => format!(
             "ui.assert_action_kind(\n{}node_id: {},\n{}kind: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(semantic_action_kind_source(*expected_kind)),
+            indent(depth),
+        ),
+        Effect::UiWaitActionKind {
+            node_id,
+            expected_kind,
+        } => format!(
+            "ui.wait_action_kind(\n{}node_id: {},\n{}kind: {},\n{})",
             indent(depth + 1),
             quote(node_id),
             indent(depth + 1),
@@ -4114,6 +4235,44 @@ mod tests {
     }
 
     #[test]
+    fn ui_wait_node_kind_is_capability_gated_and_enum_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitNodeKind);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitNodeKind {
+                ref node_id,
+                expected_kind: UiSemanticNodeKind::Heading,
+            } if node_id == "fleet-title"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_node_kind(\n  node_id: \"fleet-title\",\n  kind: \"heading\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_node_kind()",
+            "fn main() = ui.wait_node_kind(node_id: \"fleet-title\")",
+            "fn main() = ui.wait_node_kind(kind: \"heading\")",
+            "fn main() = ui.wait_node_kind(node_id: \"bad/node\", kind: \"heading\")",
+            "fn main() = ui.wait_node_kind(node_id: \"fleet-title\", kind: none)",
+            "fn main() = ui.wait_node_kind(node_id: \"fleet-title\", kind: \"button\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_action_kind_is_capability_gated_and_enum_typed() {
         let program = lower(&parse(
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
@@ -4143,6 +4302,44 @@ mod tests {
             "fn main() = ui.assert_action_kind(node_id: \"bad/node\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: none)",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime.delete\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_action_kind_is_capability_gated_and_enum_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitActionKind);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiWaitActionKind {
+                ref node_id,
+                expected_kind: UiSemanticActionKind::RuntimeRefresh,
+            } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_action_kind(\n  node_id: \"runtime-a:refresh\",\n  kind: \"runtime_refresh\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_action_kind()",
+            "fn main() = ui.wait_action_kind(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_action_kind(kind: \"runtime_refresh\")",
+            "fn main() = ui.wait_action_kind(node_id: \"bad/node\", kind: \"runtime_refresh\")",
+            "fn main() = ui.wait_action_kind(node_id: \"runtime-a:refresh\", kind: none)",
+            "fn main() = ui.wait_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime.delete\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
@@ -5001,7 +5198,9 @@ mod tests {
             "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+            "fn main() = ui.wait_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.wait_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
             "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
             "fn main() = ui.assert_action_available(node_id: \"runtime-a:refresh\")",

@@ -47,7 +47,9 @@ The separate candidate fixture carries Rust-generated
 `WaitText`,
 `AssertAutomationId`,
 `AssertNodeKind`,
+`WaitNodeKind`,
 `AssertActionKind`,
+`WaitActionKind`,
 `AssertActionLabel`,
 `WaitActionLabel`,
 `AssertActionAvailable`,
@@ -64,7 +66,7 @@ The separate candidate fixture carries Rust-generated
 `WaitAccessibleName`,
 `AssertAccessibleDescription`, and
 `WaitAccessibleDescription` values. RendererCore strictly round-trips all
-forty-four and validates valid, missing, noninteractive,
+forty-six and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -87,7 +89,9 @@ native selected/unselected observation,
 dispatcher-yielding selection wait, actual displayed-text,
 dispatcher-yielding text wait with external text transition and persistent
 text mismatch timeout, and
-automation-id, node-kind, action-kind, explicit action-label,
+automation-id, node-kind, dispatcher-yielding node-kind wait with persistent
+mismatch timeout, action-kind, dispatcher-yielding action-kind wait with
+persistent mismatch timeout, explicit action-label,
 dispatcher-yielding action-label wait and persistent label mismatch timeout,
 action-unavailable-reason,
 action-availability, dispatcher-yielding action-availability wait and timeout,

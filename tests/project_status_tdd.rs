@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.75.0");
+    assert_eq!(avalonia.contract.version, "1.76.0");
     assert!(
         avalonia
             .contract
@@ -1732,8 +1732,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "automation-id-mismatch-presentation-rejection",
         "semantic-node-kind-assertion",
         "node-kind-mismatch-presentation-rejection",
+        "dispatcher-yielding-node-kind-wait",
+        "persistent-node-kind-mismatch-timeout",
         "semantic-action-kind-assertion",
         "action-kind-mismatch-presentation-rejection",
+        "dispatcher-yielding-action-kind-wait",
+        "persistent-action-kind-mismatch-timeout",
         "semantic-action-label-assertion",
         "dispatcher-yielding-action-label-wait",
         "persistent-action-label-mismatch-timeout",
@@ -2826,7 +2830,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.42.0");
+    assert_eq!(ui.contract.version, "1.43.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2844,7 +2848,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fixed-text-wait-timeout",
         "ui-assert-automation-id-presentation-roundtrip",
         "ui-assert-node-kind-presentation-roundtrip",
+        "ui-wait-node-kind-presentation-roundtrip",
+        "fixed-node-kind-wait-timeout",
         "ui-assert-action-kind-presentation-roundtrip",
+        "ui-wait-action-kind-presentation-roundtrip",
+        "fixed-action-kind-wait-timeout",
+        "action-kind-wait-target-validation",
         "ui-assert-action-label-presentation-roundtrip",
         "ui-wait-action-label-presentation-roundtrip",
         "fixed-action-label-wait-timeout",
@@ -2944,7 +2953,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.56.0");
+    assert_eq!(hir.contract.version, "0.57.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -2964,7 +2973,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fixed-text-wait-policy",
         "ui-assert-automation-id-effect",
         "ui-assert-node-kind-effect",
+        "ui-wait-node-kind-effect",
+        "fixed-node-kind-wait-policy",
         "ui-assert-action-kind-effect",
+        "ui-wait-action-kind-effect",
+        "fixed-action-kind-wait-policy",
         "ui-assert-action-label-effect",
         "ui-wait-action-label-effect",
         "fixed-action-label-wait-policy",
@@ -3036,7 +3049,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.41.0");
+    assert_eq!(vm.contract.version, "1.42.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -3064,8 +3077,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "automation-id-request-result-binding",
         "typed-ui-assert-node-kind-result",
         "node-kind-request-result-binding",
+        "typed-ui-wait-node-kind-result",
+        "fixed-ui-node-kind-wait-deadline",
         "typed-ui-assert-action-kind-result",
         "action-kind-request-result-binding",
+        "typed-ui-wait-action-kind-result",
+        "fixed-ui-action-kind-wait-deadline",
         "typed-ui-assert-action-label-result",
         "typed-ui-wait-action-label-result",
         "fixed-ui-action-label-wait-deadline",
@@ -3142,7 +3159,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.52.0");
+    assert_eq!(command.contract.version, "0.53.0");
     assert!(
         command
             .contract
@@ -3267,7 +3284,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .contract
             .surfaces
             .iter()
+            .any(|surface| surface == "node-kind-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
             .any(|surface| surface == "action-kind-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "action-kind-wait-command-rejection")
     );
     assert!(
         command

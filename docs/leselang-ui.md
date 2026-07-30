@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by forty-four presentation atoms.
+Semantic action equivalence is joined by forty-six presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -224,10 +224,19 @@ semantic node, and carries an expected value that must itself be a valid UI
 node identifier. `UiPresentationOperation::AssertNodeKind` maps one-to-one to
 `ui.assert_node_kind(node_id: ..., kind: ...)`, accepts every existing semantic
 node, and carries a stable semantic renderer kind.
+`UiPresentationOperation::WaitNodeKind` maps one-to-one to
+`ui.wait_node_kind(node_id: ..., kind: ...)`, accepts every existing semantic
+node, validates the same stable semantic renderer kind, and carries the
+protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertActionKind` maps one-to-one to
 `ui.assert_action_kind(node_id: ..., kind: ...)`, requires a semantic action
 node, and carries the stable semantic action payload kind as
-`expected_action_kind`. `UiPresentationOperation::AssertActionLabel` maps
+`expected_action_kind`.
+`UiPresentationOperation::WaitActionKind` maps one-to-one to
+`ui.wait_action_kind(node_id: ..., kind: ...)`, requires the same semantic
+action node, validates the same stable semantic action payload kind as
+`expected_action_kind`, and carries the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::AssertActionLabel` maps
 one-to-one to `ui.assert_action_label(node_id: ..., expected: ...)`, requires
 the same semantic action node, and compares its explicit semantic action label
 through the renderer's native automation name. `UiPresentationOperation::WaitActionLabel`
@@ -292,11 +301,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all forty-four travel in
+become a `UiEvent` or `CommandPlan`; all forty-six travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all forty-four operations through its stable visual index. Focus
+Avalonia resolves all forty-six operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -354,9 +363,13 @@ observing semantic patch driven text transitions without focusing, scrolling, or
 rewriting text. Automation ID assertion reads native platform automation identity
 and requires it to match the expected stable node identifier exactly.
 Node-kind assertion compares the stable semantic renderer kind and uses no
-guessing, coordinates, or OCR. Action-kind assertion compares the expected
-semantic action kind with the realized node's stable action payload and never
-activates or focuses the target. Action-label assertion compares the explicit
+guessing, coordinates, or OCR. Node-kind wait polls that same semantic predicate
+through the dispatcher-yielding adapter until its fixed deadline without
+realizing, scrolling, focusing, or mutating the node. Action-kind assertion
+compares the expected semantic action kind with the realized node's stable
+action payload and never activates or focuses the target. Action-kind wait polls
+that same action payload predicate until its fixed deadline without clicking,
+activating, enabling, focusing, or mutating the action. Action-label assertion compares the explicit
 semantic action label through native automation name, while action-label wait
 polls that same exact predicate through the dispatcher-yielding adapter until
 its fixed deadline. Both preserve focus and never click, activate, enable, or

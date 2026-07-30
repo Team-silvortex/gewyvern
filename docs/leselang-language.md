@@ -20,7 +20,8 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
     `ui.assert_window_closed`, `ui.wait_window_closed`,
 `ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`, `ui.wait_text`,
 `ui.assert_automation_id`, and
-`ui.assert_node_kind`, `ui.assert_action_kind`,
+`ui.assert_node_kind`, `ui.wait_node_kind`, `ui.assert_action_kind`,
+`ui.wait_action_kind`,
 `ui.assert_action_label`, `ui.wait_action_label`,
 `ui.assert_action_available`, `ui.wait_action_available`,
 `ui.assert_action_unavailable_reason`,
@@ -510,6 +511,24 @@ with the stable semantic renderer kind for the realized node. Missing,
 unrealized, invalid-kind, or mismatched targets fail. The assertion never
 focuses, activates, scrolls, or changes semantic metadata.
 
+The same semantic node kind can be awaited while a renderer-neutral projection
+or localization package changes the mounted tree:
+
+```leselang
+fn main() = ui.wait_node_kind(
+  node_id: "fleet-title",
+  kind: "heading"
+)
+```
+
+`ui.wait_node_kind` requires `ui.presentation`, any existing semantic node, and
+the same bounded semantic kind set as `ui.assert_node_kind`. Its presentation
+envelope carries a protocol-fixed 2000 ms deadline; source has no duration
+argument. The frontend adapter yields its dispatcher until the stable semantic
+renderer kind matches. Missing nodes fail immediately, persistent mismatches or
+unrealized targets time out, and waiting never focuses, activates, scrolls,
+realizes, or changes semantic metadata.
+
 Native semantic action kind can be asserted before activation:
 
 ```leselang
@@ -527,6 +546,23 @@ compares it with the stable semantic action payload for the realized node.
 Missing, actionless, unrealized, invalid-kind, or mismatched targets fail. The
 assertion never focuses, activates, scrolls, submits a form, or changes action
 metadata.
+
+The same semantic action kind can be awaited before model-driven activation:
+
+```leselang
+fn main() = ui.wait_action_kind(
+  node_id: "runtime-runtime-a-refresh",
+  kind: "runtime_refresh"
+)
+```
+
+`ui.wait_action_kind` requires `ui.presentation` and a semantic action node.
+It accepts the same bounded action kind set as `ui.assert_action_kind`, carries
+a protocol-fixed 2000 ms deadline, and has no source duration argument. The
+frontend adapter yields its dispatcher until the stable semantic action payload
+matches the expected kind. Missing, actionless, invalid-kind, or persistently
+mismatched targets fail or time out. Waiting never focuses, activates, clicks,
+scrolls, submits a form, enables the action, or changes action metadata.
 
 Native semantic action labels can be asserted before activation:
 

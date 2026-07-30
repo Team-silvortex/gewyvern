@@ -402,10 +402,20 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert node kind",
         ),
+        Effect::UiWaitNodeKind { .. } => (
+            DebuggerEffectKind::UiWaitNodeKind,
+            None,
+            "UI wait node kind",
+        ),
         Effect::UiAssertActionKind { .. } => (
             DebuggerEffectKind::UiAssertActionKind,
             None,
             "UI assert action kind",
+        ),
+        Effect::UiWaitActionKind { .. } => (
+            DebuggerEffectKind::UiWaitActionKind,
+            None,
+            "UI wait action kind",
         ),
         Effect::UiAssertActionLabel { .. } => (
             DebuggerEffectKind::UiAssertActionLabel,

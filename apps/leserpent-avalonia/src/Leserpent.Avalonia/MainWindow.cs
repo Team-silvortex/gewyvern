@@ -87,7 +87,11 @@ internal sealed class MainWindow : Window
     public bool FocusNavigationFailuresPreservedFocus { get; private set; }
     public bool FocusNavigationDidNotActivate { get; private set; }
     public bool ActionKindAssertCompleted { get; private set; }
+    public bool ActionKindWaitCompleted { get; private set; }
+    public bool ActionKindWaitTimedOut { get; private set; }
     public bool ActionKindMismatchRejected { get; private set; }
+    public bool NodeKindWaitCompleted { get; private set; }
+    public bool NodeKindWaitTimedOut { get; private set; }
     public bool ActionLabelAssertCompleted { get; private set; }
     public bool ActionLabelWaitCompleted { get; private set; }
     public bool ActionLabelWaitTimedOut { get; private set; }
@@ -561,6 +565,71 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang action label wait did not reject a persistent semantic label mismatch");
+        }
+        var nodeKindWaitMatched = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitNodeKind,
+                NodeId = enabledResult.NodeId,
+                ExpectedKind = actionLabelProbeNode.Kind,
+                TimeoutMs = SemanticRenderer.WaitNodeKindTimeoutMs,
+            });
+        NodeKindWaitCompleted = nodeKindWaitMatched.Applied
+            && nodeKindWaitMatched.FailureCode == PresentationAutomationFailureCode.None;
+        if (!NodeKindWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang node kind wait rejected the stable semantic node kind");
+        }
+        var mismatchedNodeKind = actionLabelProbeNode.Kind == UiNodeKind.Text
+            ? UiNodeKind.Heading
+            : UiNodeKind.Text;
+        var nodeKindWaitTimeout = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitNodeKind,
+                NodeId = enabledResult.NodeId,
+                ExpectedKind = mismatchedNodeKind,
+                TimeoutMs = SemanticRenderer.WaitNodeKindTimeoutMs,
+            });
+        NodeKindWaitTimedOut = !nodeKindWaitTimeout.Applied
+            && nodeKindWaitTimeout.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        if (!NodeKindWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang node kind wait did not reject a persistent semantic kind mismatch");
+        }
+        var expectedActionKind = actionLabelProbeNode.Action?.Kind
+            ?? throw new InvalidDataException("action kind wait probe requires an action target");
+        var actionKindWaitMatched = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionKind,
+                NodeId = enabledResult.NodeId,
+                ExpectedActionKind = expectedActionKind,
+                TimeoutMs = SemanticRenderer.WaitActionKindTimeoutMs,
+            });
+        ActionKindWaitCompleted = actionKindWaitMatched.Applied
+            && actionKindWaitMatched.FailureCode == PresentationAutomationFailureCode.None;
+        if (!ActionKindWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action kind wait rejected the stable semantic action kind");
+        }
+        var actionKindWaitTimeout = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionKind,
+                NodeId = enabledResult.NodeId,
+                ExpectedActionKind = MismatchedActionKind(expectedActionKind),
+                TimeoutMs = SemanticRenderer.WaitActionKindTimeoutMs,
+            });
+        ActionKindWaitTimedOut = !actionKindWaitTimeout.Applied
+            && actionKindWaitTimeout.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        if (!ActionKindWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang action kind wait did not reject a persistent semantic action mismatch");
         }
         var actionAvailableAssert = renderer.ApplyPresentation(new UiPresentationOperation
         {

@@ -887,10 +887,22 @@
     "node_id": "fleet-title",
     "expected_kind": "heading"
   },
+  "node_kind_wait_operation": {
+    "kind": "wait_node_kind",
+    "node_id": "fleet-title",
+    "expected_kind": "heading",
+    "timeout_ms": 2000
+  },
   "action_kind_assert_operation": {
     "kind": "assert_action_kind",
     "node_id": "runtime-runtime-a-refresh",
     "expected_action_kind": "runtime_refresh"
+  },
+  "action_kind_wait_operation": {
+    "kind": "wait_action_kind",
+    "node_id": "runtime-runtime-a-refresh",
+    "expected_action_kind": "runtime_refresh",
+    "timeout_ms": 2000
   },
   "action_label_assert_operation": {
     "kind": "assert_action_label",

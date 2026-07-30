@@ -102,7 +102,9 @@ pub fn lower_effect(
             | Effect::UiWaitText { .. }
             | Effect::UiAssertAutomationId { .. }
             | Effect::UiAssertNodeKind { .. }
+            | Effect::UiWaitNodeKind { .. }
             | Effect::UiAssertActionKind { .. }
+            | Effect::UiWaitActionKind { .. }
             | Effect::UiAssertActionLabel { .. }
             | Effect::UiWaitActionLabel { .. }
             | Effect::UiAssertActionAvailable { .. }
@@ -159,7 +161,9 @@ pub fn lower_effect(
         | Effect::UiWaitText { .. }
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
+        | Effect::UiWaitNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiWaitActionKind { .. }
         | Effect::UiAssertActionLabel { .. }
         | Effect::UiWaitActionLabel { .. }
         | Effect::UiAssertActionAvailable { .. }
@@ -227,7 +231,9 @@ pub fn lower_effect(
         | Effect::UiWaitText { .. }
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
+        | Effect::UiWaitNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiWaitActionKind { .. }
         | Effect::UiAssertActionLabel { .. }
         | Effect::UiWaitActionLabel { .. }
         | Effect::UiAssertActionAvailable { .. }
@@ -534,7 +540,9 @@ mod tests {
             "fn main() = ui.wait_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
+            "fn main() = ui.wait_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.wait_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
             "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
             "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
             "fn main() = ui.assert_action_available(node_id: \"runtime-a:refresh\")",

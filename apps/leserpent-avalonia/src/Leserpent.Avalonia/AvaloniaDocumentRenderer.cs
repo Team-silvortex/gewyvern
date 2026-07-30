@@ -439,7 +439,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetAutomationIdMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertNodeKind)
+        if (operation.Kind is UiPresentationOperationKind.AssertNodeKind
+            or UiPresentationOperationKind.WaitNodeKind)
         {
             var matched = node.Kind == operation.ExpectedKind;
             return new PresentationAutomationResult(
@@ -449,7 +450,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetNodeKindMismatch);
         }
-        if (operation.Kind == UiPresentationOperationKind.AssertActionKind)
+        if (operation.Kind is UiPresentationOperationKind.AssertActionKind
+            or UiPresentationOperationKind.WaitActionKind)
         {
             var matched = node.ActionKind == operation.ExpectedActionKind;
             return new PresentationAutomationResult(
@@ -710,8 +712,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitEnabled
             and not UiPresentationOperationKind.WaitDisabled
             and not UiPresentationOperationKind.WaitActionAvailable
+            and not UiPresentationOperationKind.WaitActionKind
             and not UiPresentationOperationKind.WaitActionLabel
             and not UiPresentationOperationKind.WaitActionUnavailableReason
+            and not UiPresentationOperationKind.WaitNodeKind
             and not UiPresentationOperationKind.WaitWindowOpen
             and not UiPresentationOperationKind.WaitWindowClosed
             and not UiPresentationOperationKind.WaitFocused
@@ -757,6 +761,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 || operation.Kind == UiPresentationOperationKind.WaitActionLabel
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetActionLabelMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitActionKind
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetActionKindMismatch;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitNodeKind
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetNodeKindMismatch;
             retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitActionUnavailableReason
                     && result.FailureCode
@@ -817,10 +829,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitActionAvailable =>
                     SemanticRenderer.WaitActionAvailableTimeoutMs,
+                UiPresentationOperationKind.WaitActionKind =>
+                    SemanticRenderer.WaitActionKindTimeoutMs,
                 UiPresentationOperationKind.WaitActionLabel =>
                     SemanticRenderer.WaitActionLabelTimeoutMs,
                 UiPresentationOperationKind.WaitActionUnavailableReason =>
                     SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
+                UiPresentationOperationKind.WaitNodeKind =>
+                    SemanticRenderer.WaitNodeKindTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen =>
                     SemanticRenderer.WaitWindowOpenTimeoutMs,
                 UiPresentationOperationKind.WaitWindowClosed =>
