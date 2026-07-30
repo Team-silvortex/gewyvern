@@ -868,6 +868,11 @@
     "node_id": "runtime-runtime-a-refresh",
     "expected_action_kind": "runtime_refresh"
   },
+  "action_unavailable_reason_assert_operation": {
+    "kind": "assert_action_unavailable_reason",
+    "node_id": "runtime-runtime-a-refresh",
+    "expected": "Verification action is temporarily unavailable"
+  },
   "form_field_assert_operation": {
     "kind": "assert_form_field",
     "node_id": "runtime-runtime-a-deploy",
@@ -891,6 +896,12 @@
     "node_id": "runtime-runtime-a-deploy",
     "field": "pipeline_kind",
     "max_length": 128
+  },
+  "form_field_placeholder_assert_operation": {
+    "kind": "assert_form_field_placeholder",
+    "node_id": "runtime-runtime-a-deploy",
+    "field": "pipeline_kind",
+    "expected": "http/request"
   },
   "accessible_name_assert_operation": {
     "kind": "assert_accessible_name",

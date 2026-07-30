@@ -203,6 +203,10 @@ pub enum Effect {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
+    UiAssertActionUnavailableReason {
+        node_id: String,
+        expected: Option<String>,
+    },
     UiAssertFormField {
         node_id: String,
         field: String,
@@ -222,6 +226,11 @@ pub enum Effect {
         node_id: String,
         field: String,
         max_length: usize,
+    },
+    UiAssertFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
     },
     UiAssertAccessibleName {
         node_id: String,
@@ -270,10 +279,12 @@ pub enum Type {
     UiAssertAutomationId,
     UiAssertNodeKind,
     UiAssertActionKind,
+    UiAssertActionUnavailableReason,
     UiAssertFormField,
     UiAssertFormFieldInputKind,
     UiAssertFormFieldRequired,
     UiAssertFormFieldMaxLength,
+    UiAssertFormFieldPlaceholder,
     UiAssertAccessibleName,
     UiAssertAccessibleDescription,
     Structured,
@@ -374,10 +385,12 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_automation_id"
         | "ui.assert_node_kind"
         | "ui.assert_action_kind"
+        | "ui.assert_action_unavailable_reason"
         | "ui.assert_form_field"
         | "ui.assert_form_field_input_kind"
         | "ui.assert_form_field_required"
         | "ui.assert_form_field_max_length"
+        | "ui.assert_form_field_placeholder"
         | "ui.assert_accessible_name"
         | "ui.assert_accessible_description" => lower_atomic_effect(callee, arguments, *span),
         "all" => lower_all(arguments, *span),
@@ -405,10 +418,12 @@ fn lower_atomic_effect(
     let mut selection_state = None;
     let mut semantic_node_kind = None;
     let mut semantic_action_kind = None;
+    let mut action_unavailable_reason_expected = None;
     let mut form_field_key = None;
     let mut form_input_kind = None;
     let mut form_requirement_state = None;
     let mut form_max_length = None;
+    let mut form_placeholder_expected = None;
     let mut expected_text = None;
     let mut diagnostics = Vec::new();
     for argument in arguments {
@@ -777,6 +792,29 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_action_unavailable_reason", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1168".to_string(),
+                    message:
+                        "ui.assert_action_unavailable_reason node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_action_unavailable_reason", "expected") => match &argument.value {
+                Expression::String { value, .. } if validate_ui_expected_text(value) => {
+                    action_unavailable_reason_expected = Some(Some(value.clone()));
+                }
+                Expression::None { .. } => action_unavailable_reason_expected = Some(None),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1169".to_string(),
+                    message:
+                        "ui.assert_action_unavailable_reason expected must be bounded display text or none"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.assert_form_field", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -899,6 +937,39 @@ fn lower_atomic_effect(
                     code: "LSH1200".to_string(),
                     message:
                         "ui.assert_form_field_max_length max_length must be a decimal string from 1 to 256"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_placeholder", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1213".to_string(),
+                    message:
+                        "ui.assert_form_field_placeholder node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_placeholder", "field") => match value {
+                Some(value) if validate_ui_form_field_key(&value) => form_field_key = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1214".to_string(),
+                    message:
+                        "ui.assert_form_field_placeholder field must be a valid UI form field key"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_form_field_placeholder", "expected") => match &argument.value {
+                Expression::String { value, .. } if validate_ui_expected_text(value) => {
+                    form_placeholder_expected = Some(Some(value.clone()));
+                }
+                Expression::None { .. } => form_placeholder_expected = Some(None),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1215".to_string(),
+                    message:
+                        "ui.assert_form_field_placeholder expected must be bounded display text or none"
                             .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1191,6 +1262,26 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_action_unavailable_reason"
+        && node_id.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1170".to_string(),
+            message: "ui.assert_action_unavailable_reason requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_action_unavailable_reason"
+        && action_unavailable_reason_expected.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1171".to_string(),
+            message: "ui.assert_action_unavailable_reason requires expected".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_form_field" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1183".to_string(),
@@ -1290,6 +1381,33 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1212".to_string(),
             message: "ui.assert_form_field_max_length requires max_length".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_placeholder" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1216".to_string(),
+            message: "ui.assert_form_field_placeholder requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_placeholder"
+        && form_field_key.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1217".to_string(),
+            message: "ui.assert_form_field_placeholder requires field".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_form_field_placeholder"
+        && form_placeholder_expected.is_none()
+        && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1218".to_string(),
+            message: "ui.assert_form_field_placeholder requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -1578,6 +1696,15 @@ fn lower_atomic_effect(
             Type::UiAssertActionKind,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_action_unavailable_reason" => (
+            Effect::UiAssertActionUnavailableReason {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: action_unavailable_reason_expected
+                    .expect("validated UI action unavailable reason"),
+            },
+            Type::UiAssertActionUnavailableReason,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_form_field" => (
             Effect::UiAssertFormField {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -1612,6 +1739,15 @@ fn lower_atomic_effect(
                 max_length: form_max_length.expect("validated UI form max length"),
             },
             Type::UiAssertFormFieldMaxLength,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_form_field_placeholder" => (
+            Effect::UiAssertFormFieldPlaceholder {
+                node_id: node_id.expect("validated UI node identifier"),
+                field: form_field_key.expect("validated UI form field key"),
+                expected: form_placeholder_expected.expect("validated UI form placeholder"),
+            },
+            Type::UiAssertFormFieldPlaceholder,
             CAPABILITY_UI_PRESENTATION,
         ),
         "ui.assert_accessible_name" => (
@@ -1811,6 +1947,14 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(semantic_action_kind_source(*expected_kind)),
             indent(depth),
         ),
+        Effect::UiAssertActionUnavailableReason { node_id, expected } => format!(
+            "ui.assert_action_unavailable_reason(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            optional_string(expected.as_deref()),
+            indent(depth),
+        ),
         Effect::UiAssertFormField {
             node_id,
             field,
@@ -1865,6 +2009,20 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(field),
             indent(depth + 1),
             quote(&max_length.to_string()),
+            indent(depth),
+        ),
+        Effect::UiAssertFormFieldPlaceholder {
+            node_id,
+            field,
+            expected,
+        } => format!(
+            "ui.assert_form_field_placeholder(\n{}node_id: {},\n{}field: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(field),
+            indent(depth + 1),
+            optional_string(expected.as_deref()),
             indent(depth),
         ),
         Effect::UiAssertAccessibleName { node_id, expected } => format!(
@@ -3189,6 +3347,69 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_action_unavailable_reason_is_capability_gated_and_optional() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiAssertActionUnavailableReason
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiAssertActionUnavailableReason {
+                node_id: "runtime-a:refresh".into(),
+                expected: Some("Verification action is temporarily unavailable".into()),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_action_unavailable_reason(\n  node_id: \"runtime-a:refresh\",\n  expected: \"Verification action is temporarily unavailable\",\n)\n"
+        );
+        let absent = lower(&parse(
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: none)",
+        ))
+        .unwrap()
+        .function
+        .effect;
+        assert_eq!(
+            absent,
+            Effect::UiAssertActionUnavailableReason {
+                node_id: "runtime-a:refresh".into(),
+                expected: None,
+            }
+        );
+        assert_eq!(
+            canonical_source(&absent).unwrap(),
+            "fn main() = ui.assert_action_unavailable_reason(\n  node_id: \"runtime-a:refresh\",\n  expected: none,\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_action_unavailable_reason()",
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_action_unavailable_reason(expected: \"Verification action is temporarily unavailable\")",
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"bad/node\", expected: \"Verification action is temporarily unavailable\")",
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"bad\nreason\")",
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: runtime.list())",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_expected = format!(
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_expected)).is_err());
+    }
+
+    #[test]
     fn ui_assert_form_field_is_capability_gated_and_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
@@ -3403,6 +3624,79 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_form_field_placeholder_is_capability_gated_and_optional() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            program.function.result_type,
+            Type::UiAssertFormFieldPlaceholder
+        );
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiAssertFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: Some("http/request".into()),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_form_field_placeholder(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  expected: \"http/request\",\n)\n"
+        );
+        let absent = lower(&parse(
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: none)",
+        ))
+        .unwrap()
+        .function
+        .effect;
+        assert_eq!(
+            absent,
+            Effect::UiAssertFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: None,
+            }
+        );
+        assert_eq!(
+            canonical_source(&absent).unwrap(),
+            "fn main() = ui.assert_form_field_placeholder(\n  node_id: \"workspace-runtime-a-deploy\",\n  field: \"pipeline_kind\",\n  expected: none,\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_form_field_placeholder()",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\")",
+            "fn main() = ui.assert_form_field_placeholder(field: \"pipeline_kind\", expected: \"http/request\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"bad/node\", field: \"pipeline_kind\", expected: \"http/request\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: none, expected: \"http/request\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"bad/field\", expected: \"http/request\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"bad\nplaceholder\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: runtime.list())",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+        let oversized_field = format!(
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"{}\", expected: \"http/request\")",
+            "x".repeat(MAX_UI_FORM_FIELD_KEY_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_field)).is_err());
+        let oversized_expected = format!(
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"{}\")",
+            "x".repeat(MAX_UI_EXPECTED_TEXT_BYTES + 1)
+        );
+        assert!(lower(&parse(&oversized_expected)).is_err());
+    }
+
+    #[test]
     fn ui_assert_accessible_name_is_capability_gated_and_bounded() {
         let program = lower(&parse(
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
@@ -3523,10 +3817,12 @@ mod tests {
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
             "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

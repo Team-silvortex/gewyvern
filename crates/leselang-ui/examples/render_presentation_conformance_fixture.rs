@@ -48,10 +48,12 @@ struct Fixture<'a> {
     automation_id_assert_operation: &'a UiPresentationOperation,
     node_kind_assert_operation: &'a UiPresentationOperation,
     action_kind_assert_operation: &'a UiPresentationOperation,
+    action_unavailable_reason_assert_operation: &'a UiPresentationOperation,
     form_field_assert_operation: &'a UiPresentationOperation,
     form_field_input_kind_assert_operation: &'a UiPresentationOperation,
     form_field_required_assert_operation: &'a UiPresentationOperation,
     form_field_max_length_assert_operation: &'a UiPresentationOperation,
+    form_field_placeholder_assert_operation: &'a UiPresentationOperation,
     accessible_name_assert_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
 }
@@ -160,6 +162,11 @@ fn main() {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
         expected_action_kind: UiActionKind::RuntimeRefresh,
     };
+    let action_unavailable_reason_assert_operation =
+        UiPresentationOperation::AssertActionUnavailableReason {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            expected: Some("Verification action is temporarily unavailable".into()),
+        };
     let form_field_assert_operation = UiPresentationOperation::AssertFormField {
         node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
         field: "pipeline_kind".into(),
@@ -181,6 +188,12 @@ fn main() {
             node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
             field: "pipeline_kind".into(),
             max_length: 128,
+        };
+    let form_field_placeholder_assert_operation =
+        UiPresentationOperation::AssertFormFieldPlaceholder {
+            node_id: NodeId::new("runtime-runtime-a-deploy").unwrap(),
+            field: "pipeline_kind".into(),
+            expected: Some("http/request".into()),
         };
     let accessible_name_assert_operation = UiPresentationOperation::AssertAccessibleName {
         node_id: NodeId::new("fleet-title").unwrap(),
@@ -216,10 +229,12 @@ fn main() {
     validate_presentation_operation(&next, &automation_id_assert_operation).unwrap();
     validate_presentation_operation(&next, &node_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_kind_assert_operation).unwrap();
+    validate_presentation_operation(&next, &action_unavailable_reason_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_input_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_required_assert_operation).unwrap();
     validate_presentation_operation(&next, &form_field_max_length_assert_operation).unwrap();
+    validate_presentation_operation(&next, &form_field_placeholder_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_name_assert_operation).unwrap();
     validate_presentation_operation(&next, &accessible_description_assert_operation).unwrap();
     let mut bytes = serde_json::to_vec_pretty(&Fixture {
@@ -252,10 +267,12 @@ fn main() {
         automation_id_assert_operation: &automation_id_assert_operation,
         node_kind_assert_operation: &node_kind_assert_operation,
         action_kind_assert_operation: &action_kind_assert_operation,
+        action_unavailable_reason_assert_operation: &action_unavailable_reason_assert_operation,
         form_field_assert_operation: &form_field_assert_operation,
         form_field_input_kind_assert_operation: &form_field_input_kind_assert_operation,
         form_field_required_assert_operation: &form_field_required_assert_operation,
         form_field_max_length_assert_operation: &form_field_max_length_assert_operation,
+        form_field_placeholder_assert_operation: &form_field_placeholder_assert_operation,
         accessible_name_assert_operation: &accessible_name_assert_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,
     })

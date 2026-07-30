@@ -65,11 +65,13 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.AssertAutomationId"));
     assert!(core.contains("UiPresentationOperationKind.AssertNodeKind"));
     assert!(core.contains("UiPresentationOperationKind.AssertActionKind"));
+    assert!(core.contains("UiPresentationOperationKind.AssertActionUnavailableReason"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormField"));
     assert!(core.contains("public string? Field { get; set; }"));
     assert!(core.contains("UiPresentationOperationKind.AssertFormFieldMaxLength"));
     assert!(core.contains("public int? MaxLength { get; set; }"));
     assert!(core.contains("UiPresentationValidation.InvalidExpectedMaxLength"));
+    assert!(core.contains("UiPresentationOperationKind.AssertFormFieldPlaceholder"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleName"));
     assert!(core.contains("UiPresentationOperationKind.AssertAccessibleDescription"));
     assert!(core.contains("UiPresentationValidation.UnknownTarget"));
@@ -100,6 +102,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAutomationIdMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNodeKindMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetActionKindMismatch"));
+    assert!(
+        renderer
+            .contains("PresentationAutomationFailureCode.TargetActionUnavailableReasonMismatch")
+    );
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMismatch"));
     assert!(
         renderer.contains("PresentationAutomationFailureCode.TargetFormFieldMaxLengthMismatch")
@@ -188,6 +194,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("node_kind_mismatch_rejected=true"));
     assert!(app.contains("assert_action_kind="));
     assert!(app.contains("action_kind_mismatch_rejected="));
+    assert!(app.contains("assert_action_unavailable_reason="));
+    assert!(app.contains("action_unavailable_reason_mismatch_rejected="));
     assert!(app.contains("assert_form_field="));
     assert!(app.contains("form_field_mismatch_rejected="));
     assert!(app.contains("assert_form_field_input_kind="));
@@ -196,6 +204,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("form_field_required_mismatch_rejected="));
     assert!(app.contains("assert_form_field_max_length="));
     assert!(app.contains("form_field_max_length_mismatch_rejected="));
+    assert!(app.contains("assert_form_field_placeholder="));
+    assert!(app.contains("form_field_placeholder_mismatch_rejected="));
     assert!(app.contains("assert_accessible_name=true"));
     assert!(app.contains("accessible_name_mismatch_rejected=true"));
     assert!(app.contains("assert_accessible_description=true"));
@@ -218,10 +228,12 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_assert_automation_id=true"));
     assert!(conformance.contains("presentation_assert_node_kind=true"));
     assert!(conformance.contains("presentation_assert_action_kind=true"));
+    assert!(conformance.contains("presentation_assert_action_unavailable_reason=true"));
     assert!(conformance.contains("presentation_assert_form_field=true"));
     assert!(conformance.contains("presentation_assert_form_field_input_kind=true"));
     assert!(conformance.contains("presentation_assert_form_field_required=true"));
     assert!(conformance.contains("presentation_assert_form_field_max_length=true"));
+    assert!(conformance.contains("presentation_assert_form_field_placeholder=true"));
 }
 
 #[test]

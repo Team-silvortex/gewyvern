@@ -193,6 +193,10 @@ pub enum PresentationOperation {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
+    AssertActionUnavailableReason {
+        node_id: String,
+        expected: Option<String>,
+    },
     AssertFormField {
         node_id: String,
         field: String,
@@ -212,6 +216,11 @@ pub enum PresentationOperation {
         node_id: String,
         field: String,
         max_length: usize,
+    },
+    AssertFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
     },
     AssertAccessibleName {
         node_id: String,
@@ -322,6 +331,10 @@ pub enum PresentationResult {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
+    AssertActionUnavailableReason {
+        node_id: String,
+        expected: Option<String>,
+    },
     AssertFormField {
         node_id: String,
         field: String,
@@ -341,6 +354,11 @@ pub enum PresentationResult {
         node_id: String,
         field: String,
         max_length: usize,
+    },
+    AssertFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
     },
     AssertAccessibleName {
         node_id: String,
@@ -674,6 +692,10 @@ pub enum Value {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
+    UiAssertActionUnavailableReason {
+        node_id: String,
+        expected: Option<String>,
+    },
     UiAssertFormField {
         node_id: String,
         field: String,
@@ -693,6 +715,11 @@ pub enum Value {
         node_id: String,
         field: String,
         max_length: usize,
+    },
+    UiAssertFormFieldPlaceholder {
+        node_id: String,
+        field: String,
+        expected: Option<String>,
     },
     UiAssertAccessibleName {
         node_id: String,
@@ -1260,6 +1287,18 @@ impl Vm {
                     },
                 }),
             ),
+            Effect::UiAssertActionUnavailableReason { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertActionUnavailableReason {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                    },
+                }),
+            ),
             Effect::UiAssertFormField {
                 node_id,
                 field,
@@ -1325,6 +1364,23 @@ impl Vm {
                         node_id: node_id.clone(),
                         field: field.clone(),
                         max_length: *max_length,
+                    },
+                }),
+            ),
+            Effect::UiAssertFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+            } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertFormFieldPlaceholder {
+                        node_id: node_id.clone(),
+                        field: field.clone(),
+                        expected: expected.clone(),
                     },
                 }),
             ),
@@ -1918,10 +1974,12 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertAutomationId { .. } => Type::UiAssertAutomationId,
         Effect::UiAssertNodeKind { .. } => Type::UiAssertNodeKind,
         Effect::UiAssertActionKind { .. } => Type::UiAssertActionKind,
+        Effect::UiAssertActionUnavailableReason { .. } => Type::UiAssertActionUnavailableReason,
         Effect::UiAssertFormField { .. } => Type::UiAssertFormField,
         Effect::UiAssertFormFieldInputKind { .. } => Type::UiAssertFormFieldInputKind,
         Effect::UiAssertFormFieldRequired { .. } => Type::UiAssertFormFieldRequired,
         Effect::UiAssertFormFieldMaxLength { .. } => Type::UiAssertFormFieldMaxLength,
+        Effect::UiAssertFormFieldPlaceholder { .. } => Type::UiAssertFormFieldPlaceholder,
         Effect::UiAssertAccessibleName { .. } => Type::UiAssertAccessibleName,
         Effect::UiAssertAccessibleDescription { .. } => Type::UiAssertAccessibleDescription,
         Effect::All { .. } => {
@@ -2568,6 +2626,30 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiAssertActionUnavailableReason { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertActionUnavailableReason {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && operation_expected
+                        .as_deref()
+                        .is_none_or(validate_ui_expected_text)
+            )
+        }
+        (
             Effect::UiAssertFormField {
                 node_id,
                 field,
@@ -2678,6 +2760,37 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                     && operation_max_length == max_length
                     && validate_ui_node_id(operation_node_id)
                     && validate_ui_form_field_key(operation_field)
+            )
+        }
+        (
+            Effect::UiAssertFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+            },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertFormFieldPlaceholder {
+                    node_id: operation_node_id,
+                    field: operation_field,
+                    expected: operation_expected,
+                } if operation_node_id == node_id
+                    && operation_field == field
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_form_field_key(operation_field)
+                    && operation_expected
+                        .as_deref()
+                        .is_none_or(validate_ui_expected_text)
             )
         }
         (
@@ -3038,6 +3151,12 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         }
         Value::UiAssertNodeKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertActionKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertActionUnavailableReason { node_id, expected }
+            if validate_ui_node_id(node_id)
+                && expected.as_deref().is_none_or(validate_ui_expected_text) =>
+        {
+            Ok(1)
+        }
         Value::UiAssertFormField {
             node_id,
             field,
@@ -3060,6 +3179,16 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         }
         Value::UiAssertFormFieldMaxLength { node_id, field, .. }
             if validate_ui_node_id(node_id) && validate_ui_form_field_key(field) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertFormFieldPlaceholder {
+            node_id,
+            field,
+            expected,
+        } if validate_ui_node_id(node_id)
+            && validate_ui_form_field_key(field)
+            && expected.as_deref().is_none_or(validate_ui_expected_text) =>
         {
             Ok(1)
         }
@@ -3957,6 +4086,35 @@ fn step_from_effect_result(
             })
         }
         (
+            Effect::UiAssertActionUnavailableReason { node_id, expected },
+            Type::UiAssertActionUnavailableReason,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertActionUnavailableReason {
+                node_id: result_node_id,
+                expected: result_expected,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertActionUnavailableReason {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected == expected
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertActionUnavailableReason {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
             Effect::UiAssertFormField {
                 node_id,
                 field,
@@ -4106,6 +4264,44 @@ fn step_from_effect_result(
                 node_id: result_node_id,
                 field: result_field,
                 max_length: result_max_length,
+            })
+        }
+        (
+            Effect::UiAssertFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+            },
+            Type::UiAssertFormFieldPlaceholder,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertFormFieldPlaceholder {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
+            }),
+        ) if result_node_id == *node_id
+            && result_field == *field
+            && result_expected == *expected
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertFormFieldPlaceholder {
+                            node_id: operation_node_id,
+                            field: operation_field,
+                            expected: operation_expected,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_field == field
+                        && operation_expected == expected
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertFormFieldPlaceholder {
+                node_id: result_node_id,
+                field: result_field,
+                expected: result_expected,
             })
         }
         (
@@ -5776,6 +5972,98 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_action_unavailable_reason_binds_expected_reason_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI action unavailable reason assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI action unavailable reason assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertActionUnavailableReason {
+                node_id,
+                expected,
+            } if node_id == "runtime-a:refresh"
+                && expected.as_deref() == Some("Verification action is temporarily unavailable")
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertActionUnavailableReason {
+                    node_id: "runtime-a:refresh".into(),
+                    expected: Some("Verification action is temporarily unavailable".into()),
+                }),
+            ),
+            Step::Done(Value::UiAssertActionUnavailableReason {
+                node_id: "runtime-a:refresh".into(),
+                expected: Some("Verification action is temporarily unavailable".into()),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI action unavailable reason assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertActionUnavailableReason {
+            node_id: "runtime-a:refresh".into(),
+            expected: Some("mismatch".into()),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let none_program = lower(&parse(
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: none)",
+        ))
+        .unwrap();
+        let Step::Effect(none_request) = vm.start(
+            &none_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected optional UI action unavailable reason assertion");
+        };
+        let EffectOperation::Presentation(none_presentation) = &none_request.operation else {
+            panic!("optional UI action unavailable reason assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &none_presentation.operation,
+            PresentationOperation::AssertActionUnavailableReason {
+                node_id,
+                expected: None,
+            } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            vm.resume(
+                &none_request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertActionUnavailableReason {
+                    node_id: "runtime-a:refresh".into(),
+                    expected: None,
+                }),
+            ),
+            Step::Done(Value::UiAssertActionUnavailableReason {
+                node_id: "runtime-a:refresh".into(),
+                expected: None,
+            })
+        );
+    }
+
+    #[test]
     fn ui_assert_form_field_binds_node_field_expected_across_request_and_reentry() {
         let program = lower(&parse(
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
@@ -6003,6 +6291,106 @@ mod tests {
             max_length: 129,
         };
         assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_form_field_placeholder_binds_node_field_expected_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI form field placeholder assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI form field placeholder assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertFormFieldPlaceholder {
+                node_id,
+                field,
+                expected,
+            } if node_id == "workspace-runtime-a-deploy"
+                && field == "pipeline_kind"
+                && expected.as_deref() == Some("http/request")
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFormFieldPlaceholder {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    expected: Some("http/request".into()),
+                }),
+            ),
+            Step::Done(Value::UiAssertFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: Some("http/request".into()),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI form field placeholder assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertFormFieldPlaceholder {
+            node_id: "workspace-runtime-a-deploy".into(),
+            field: "pipeline_kind".into(),
+            expected: Some("mismatch".into()),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        let none_program = lower(&parse(
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: none)",
+        ))
+        .unwrap();
+        let Step::Effect(none_request) = vm.start(
+            &none_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected optional UI form field placeholder assertion");
+        };
+        let EffectOperation::Presentation(none_presentation) = &none_request.operation else {
+            panic!("optional UI form field placeholder assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &none_presentation.operation,
+            PresentationOperation::AssertFormFieldPlaceholder {
+                node_id,
+                field,
+                expected: None,
+            } if node_id == "workspace-runtime-a-deploy" && field == "pipeline_kind"
+        ));
+        assert_eq!(
+            vm.resume(
+                &none_request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertFormFieldPlaceholder {
+                    node_id: "workspace-runtime-a-deploy".into(),
+                    field: "pipeline_kind".into(),
+                    expected: None,
+                }),
+            ),
+            Step::Done(Value::UiAssertFormFieldPlaceholder {
+                node_id: "workspace-runtime-a-deploy".into(),
+                field: "pipeline_kind".into(),
+                expected: None,
+            })
+        );
     }
 
     #[test]

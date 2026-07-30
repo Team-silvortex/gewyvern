@@ -98,10 +98,12 @@ pub fn lower_effect(
             | Effect::UiAssertAutomationId { .. }
             | Effect::UiAssertNodeKind { .. }
             | Effect::UiAssertActionKind { .. }
+            | Effect::UiAssertActionUnavailableReason { .. }
             | Effect::UiAssertFormField { .. }
             | Effect::UiAssertFormFieldInputKind { .. }
             | Effect::UiAssertFormFieldRequired { .. }
             | Effect::UiAssertFormFieldMaxLength { .. }
+            | Effect::UiAssertFormFieldPlaceholder { .. }
             | Effect::UiAssertAccessibleName { .. }
             | Effect::UiAssertAccessibleDescription { .. }
     ) {
@@ -140,10 +142,12 @@ pub fn lower_effect(
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }
         | Effect::UiAssertFormFieldMaxLength { .. }
+        | Effect::UiAssertFormFieldPlaceholder { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -193,10 +197,12 @@ pub fn lower_effect(
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiAssertFormField { .. }
         | Effect::UiAssertFormFieldInputKind { .. }
         | Effect::UiAssertFormFieldRequired { .. }
         | Effect::UiAssertFormFieldMaxLength { .. }
+        | Effect::UiAssertFormFieldPlaceholder { .. }
         | Effect::UiAssertAccessibleName { .. }
         | Effect::UiAssertAccessibleDescription { .. } => {
             unreachable!("frontend-local effects returned before lowering")
@@ -485,10 +491,12 @@ mod tests {
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",
             "fn main() = ui.assert_form_field_input_kind(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", kind: \"path_token\")",
             "fn main() = ui.assert_form_field_required(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", state: \"required\")",
             "fn main() = ui.assert_form_field_max_length(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", max_length: \"128\")",
+            "fn main() = ui.assert_form_field_placeholder(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"http/request\")",
             "fn main() = ui.assert_accessible_name(node_id: \"fleet-title\", expected: \"Runtime fleet\")",
             "fn main() = ui.assert_accessible_description(node_id: \"runtime-runtime-a-inspect\", expected: \"Open the read-only runtime workspace\")",
         ] {

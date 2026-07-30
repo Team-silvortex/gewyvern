@@ -135,6 +135,14 @@ public sealed class SemanticRenderer
                 return UiPresentationValidation.InvalidExpectedActionKind;
             }
         }
+        else if (operation.Kind is UiPresentationOperationKind.AssertActionUnavailableReason
+            or UiPresentationOperationKind.AssertFormFieldPlaceholder)
+        {
+            if (operation.Expected is not null && !IsExpectedText(operation.Expected))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
+            }
+        }
         else if (operation.Expected is not null)
         {
             return UiPresentationValidation.InvalidExpectedText;
@@ -178,6 +186,13 @@ public sealed class SemanticRenderer
                 || maxLength is < 1 or > MaxFormValueBytes)
             {
                 return UiPresentationValidation.InvalidExpectedMaxLength;
+            }
+        }
+        else if (operation.Kind == UiPresentationOperationKind.AssertFormFieldPlaceholder)
+        {
+            if (!IsFormFieldKey(operation.Field))
+            {
+                return UiPresentationValidation.InvalidExpectedText;
             }
         }
         else if (operation.Field is not null)
@@ -278,6 +293,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitDisabled
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.AssertActionKind
+            or UiPresentationOperationKind.AssertActionUnavailableReason
                 when node.Kind == UiNodeKind.Action && node.Action is not null =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.ScrollIntoView =>
@@ -321,6 +337,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.AssertFormFieldInputKind
             or UiPresentationOperationKind.AssertFormFieldRequired
             or UiPresentationOperationKind.AssertFormFieldMaxLength
+            or UiPresentationOperationKind.AssertFormFieldPlaceholder
                 when node.Action?.Form is { } form
                     && form.Fields.Any(field => StringComparer.Ordinal.Equals(field.Key, operation.Field)) =>
                 UiPresentationValidation.Valid,
@@ -328,6 +345,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.AssertFormFieldInputKind
             or UiPresentationOperationKind.AssertFormFieldRequired
             or UiPresentationOperationKind.AssertFormFieldMaxLength
+            or UiPresentationOperationKind.AssertFormFieldPlaceholder
                 when node.Action?.Form is not null =>
                 UiPresentationValidation.UnknownFormField,
             UiPresentationOperationKind.AssertFormField =>
@@ -337,6 +355,8 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertFormFieldRequired =>
                 UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertFormFieldMaxLength =>
+                UiPresentationValidation.FormlessTarget,
+            UiPresentationOperationKind.AssertFormFieldPlaceholder =>
                 UiPresentationValidation.FormlessTarget,
             UiPresentationOperationKind.AssertAccessibleDescription
                 when node.Accessibility.Description is not null =>
@@ -667,10 +687,12 @@ public sealed class RendererFixture
     public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
     public UiPresentationOperation? NodeKindAssertOperation { get; set; }
     public UiPresentationOperation? ActionKindAssertOperation { get; set; }
+    public UiPresentationOperation? ActionUnavailableReasonAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldInputKindAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldRequiredAssertOperation { get; set; }
     public UiPresentationOperation? FormFieldMaxLengthAssertOperation { get; set; }
+    public UiPresentationOperation? FormFieldPlaceholderAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleNameAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
 }
@@ -855,10 +877,12 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
+    [JsonStringEnumMemberName("assert_action_unavailable_reason")] AssertActionUnavailableReason,
     [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
     [JsonStringEnumMemberName("assert_form_field_input_kind")] AssertFormFieldInputKind,
     [JsonStringEnumMemberName("assert_form_field_required")] AssertFormFieldRequired,
     [JsonStringEnumMemberName("assert_form_field_max_length")] AssertFormFieldMaxLength,
+    [JsonStringEnumMemberName("assert_form_field_placeholder")] AssertFormFieldPlaceholder,
     [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
     [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
 }

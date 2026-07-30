@@ -46,13 +46,15 @@ The separate candidate fixture carries Rust-generated
 `AssertAutomationId`,
 `AssertNodeKind`,
 `AssertActionKind`,
+`AssertActionUnavailableReason`,
 `AssertFormField`,
 `AssertFormFieldInputKind`,
 `AssertFormFieldRequired`,
 `AssertFormFieldMaxLength`,
+`AssertFormFieldPlaceholder`,
 `AssertAccessibleName`, and
 `AssertAccessibleDescription` values. RendererCore strictly round-trips all
-twenty-nine and validates valid, missing, noninteractive,
+thirty-one and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -69,8 +71,9 @@ persistent enabled timeout, native window-open visual-tree membership,
 dispatcher-yielding window-open waiting,
 native selected/unselected observation,
 dispatcher-yielding selection wait, actual displayed-text, and
-automation-id, node-kind, action-kind, form-field-label, form-field-input-kind,
-form-field-required-state, form-field-max-length, accessibility-name, and declared accessibility-description
+automation-id, node-kind, action-kind, action-unavailable-reason,
+form-field-label, form-field-input-kind, form-field-required-state,
+form-field-max-length, form-field-placeholder, accessibility-name, and declared accessibility-description
 observation through its stable visual
 index. Scrolling a noninteractive node must preserve the currently
 focused control, hiding the renderer surface must make visibility assertion

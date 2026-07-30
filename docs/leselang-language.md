@@ -18,11 +18,12 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.wait_disabled`, `ui.assert_window_open`, `ui.wait_window_open`,
 `ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`,
 `ui.assert_automation_id`, and
-`ui.assert_node_kind`, `ui.assert_action_kind`, `ui.assert_form_field`,
+`ui.assert_node_kind`, `ui.assert_action_kind`,
+`ui.assert_action_unavailable_reason`, `ui.assert_form_field`,
 `ui.assert_form_field_input_kind`, `ui.assert_form_field_required`,
-`ui.assert_form_field_max_length`, plus
-`ui.assert_accessible_name` and `ui.assert_accessible_description`
-presentation effects.
+`ui.assert_form_field_max_length`, `ui.assert_form_field_placeholder`, plus
+`ui.assert_accessible_name` and `ui.assert_accessible_description` presentation
+effects.
 
 ## Canonical Program
 
@@ -448,6 +449,25 @@ Missing, actionless, unrealized, invalid-kind, or mismatched targets fail. The
 assertion never focuses, activates, scrolls, submits a form, or changes action
 metadata.
 
+Native action unavailable reasons can be asserted before retrying deployment or
+refresh controls:
+
+```leselang
+fn main() = ui.assert_action_unavailable_reason(
+  node_id: "runtime-runtime-a-refresh",
+  expected: "Verification action is temporarily unavailable"
+)
+```
+
+`ui.assert_action_unavailable_reason` requires `ui.presentation` and a semantic
+action node. The `expected` parameter accepts bounded display text or `none`;
+`none` means the action must currently have no unavailable reason. The VM binds
+`node_id` and optional `expected` to the request and result. The renderer
+compares the stable action availability reason configured for that semantic
+action or its absence exactly; actionless targets, unrealized targets, invalid
+reason text, or mismatched reasons fail. The assertion never focuses, activates,
+scrolls, submits a form, or changes action availability.
+
 Native deployment form metadata can be asserted without submitting the form:
 
 ```leselang
@@ -530,6 +550,27 @@ length with the expected value; form-less targets, unknown fields, unrealized
 targets, invalid keys, missing lengths, malformed lengths, or mismatched limits
 fail. The assertion never focuses, types, activates, opens, edits, or submits
 the form.
+
+Native deployment form placeholder metadata can also be asserted without
+touching the form:
+
+```leselang
+fn main() = ui.assert_form_field_placeholder(
+  node_id: "runtime-runtime-a-deploy",
+  field: "pipeline_kind",
+  expected: "http/request"
+)
+```
+
+`ui.assert_form_field_placeholder` requires `ui.presentation`, the same semantic
+`runtime_deploy` form action and bounded field key as `ui.assert_form_field`.
+The `expected` parameter accepts bounded display text or `none`; `none` means the
+field must have no semantic placeholder fallback. The VM binds `node_id`,
+`field`, and optional `expected` to the request and result. The renderer compares
+the stable semantic form field placeholder fallback or absence exactly; form-less
+targets, unknown fields, unrealized targets, invalid keys, invalid placeholder
+text, or mismatched placeholders fail. The assertion never focuses, types,
+activates, opens, edits, or submits the form.
 
 Native accessibility metadata can be asserted independently of display text:
 

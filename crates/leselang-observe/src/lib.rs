@@ -386,6 +386,11 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert action kind",
         ),
+        Effect::UiAssertActionUnavailableReason { .. } => (
+            DebuggerEffectKind::UiAssertActionUnavailableReason,
+            None,
+            "UI assert action unavailable reason",
+        ),
         Effect::UiAssertFormField { .. } => (
             DebuggerEffectKind::UiAssertFormField,
             None,
@@ -405,6 +410,11 @@ pub fn waiting_debugger_projection(
             DebuggerEffectKind::UiAssertFormFieldMaxLength,
             None,
             "UI assert form field max length",
+        ),
+        Effect::UiAssertFormFieldPlaceholder { .. } => (
+            DebuggerEffectKind::UiAssertFormFieldPlaceholder,
+            None,
+            "UI assert form field placeholder",
         ),
         Effect::UiAssertAccessibleName { .. } => (
             DebuggerEffectKind::UiAssertAccessibleName,

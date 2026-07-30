@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by twenty-nine presentation atoms.
+Semantic action equivalence is joined by thirty-one presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -214,10 +214,15 @@ node, and carries a stable semantic renderer kind.
 `UiPresentationOperation::AssertActionKind` maps one-to-one to
 `ui.assert_action_kind(node_id: ..., kind: ...)`, requires a semantic action
 node, and carries the stable semantic action payload kind as
-`expected_action_kind`. `UiPresentationOperation::AssertFormField` maps
-one-to-one to `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`,
-requires a semantic deployment form action, validates the bounded form field key,
-and compares the stable semantic field label fallback.
+`expected_action_kind`. `UiPresentationOperation::AssertActionUnavailableReason`
+maps one-to-one to
+`ui.assert_action_unavailable_reason(node_id: ..., expected: ...)`, requires a
+semantic action node, and compares the configured action unavailable reason or
+absence without conflating it with accessibility help text.
+`UiPresentationOperation::AssertFormField` maps one-to-one to
+`ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, requires a
+semantic deployment form action, validates the bounded form field key, and
+compares the stable semantic field label fallback.
 `UiPresentationOperation::AssertFormFieldInputKind` maps one-to-one to
 `ui.assert_form_field_input_kind(node_id: ..., field: ..., kind: ...)`, requires
 the same semantic deployment form action and bounded field key, and compares the
@@ -231,17 +236,22 @@ stable semantic required state (`required` or `optional`).
 requires the same semantic deployment form action and bounded field key, and
 compares the stable semantic maximum length as an integer value parsed from a
 bounded decimal string in Leselang source.
+`UiPresentationOperation::AssertFormFieldPlaceholder` maps one-to-one to
+`ui.assert_form_field_placeholder(node_id: ..., field: ..., expected: ...)`,
+requires the same semantic deployment form action and bounded field key, and
+compares the stable semantic placeholder fallback or absence. Its `expected`
+payload may be bounded text or `none` in Leselang source.
 `UiPresentationOperation::AssertAccessibleName` maps one-to-one to
 `ui.assert_accessible_name(node_id: ..., expected: ...)`, accepts every existing
 semantic node, and uses the same expected-value bound.
 `UiPresentationOperation::AssertAccessibleDescription` maps one-to-one to
 `ui.assert_accessible_description(node_id: ..., expected: ...)` and requires a
 semantic node with an explicitly declared accessibility description. None can
-become a `UiEvent` or `CommandPlan`; all twenty-nine travel in
+become a `UiEvent` or `CommandPlan`; all thirty-one travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all twenty-nine operations through its stable visual index. Focus
+Avalonia resolves all thirty-one operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -301,6 +311,12 @@ submits, marks, or otherwise edits the form.
 Form-field max-length assertion reads the same stable semantic deployment form
 metadata, compares the declared maximum length exactly, and never types into,
 submits, edits, truncates, or otherwise mutates the form.
+Form-field placeholder assertion reads the same stable semantic deployment form
+metadata, compares the declared placeholder fallback or its absence exactly, and
+never types into, submits, edits, or otherwise mutates the form.
+Action-unavailable-reason assertion reads renderer-maintained action
+availability state, compares the declared unavailable reason or its absence
+exactly, and never focuses, activates, clicks, or rewrites the action.
 Accessible-name assertion independently reads
 native `AutomationProperties.Name` with exact ordinal comparison. None of the
 assertions mutates the control. Accessible-description assertion independently
@@ -320,9 +336,11 @@ window-open wait,
 native selected/unselected assertion, dispatcher-yielding
 selection wait, persistent selection mismatch timeout,
 text-mismatched, automation-id-mismatched, node-kind-mismatched,
-action-kind-mismatched, form-field-label-mismatched,
+action-kind-mismatched, action-unavailable-reason-mismatched,
+form-field-label-mismatched,
 form-field-input-kind-mismatched, form-field-required-mismatched,
 form-field-max-length-mismatched,
+form-field-placeholder-mismatched,
 accessible-name-mismatched,
 accessible-description-mismatched, still-enabled disabled-assertion mismatch,
 still-visible hidden-assertion mismatch, missing, textless, and unfocusable

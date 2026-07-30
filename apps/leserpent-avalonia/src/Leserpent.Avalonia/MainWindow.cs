@@ -70,6 +70,8 @@ internal sealed class MainWindow : Window
     public bool FocusNavigationDidNotActivate { get; private set; }
     public bool ActionKindAssertCompleted { get; private set; }
     public bool ActionKindMismatchRejected { get; private set; }
+    public bool ActionUnavailableReasonAssertCompleted { get; private set; }
+    public bool ActionUnavailableReasonMismatchRejected { get; private set; }
     public bool FormFieldAssertCompleted { get; private set; }
     public bool FormFieldMismatchRejected { get; private set; }
     public bool FormFieldInputKindAssertCompleted { get; private set; }
@@ -78,6 +80,8 @@ internal sealed class MainWindow : Window
     public bool FormFieldRequiredMismatchRejected { get; private set; }
     public bool FormFieldMaxLengthAssertCompleted { get; private set; }
     public bool FormFieldMaxLengthMismatchRejected { get; private set; }
+    public bool FormFieldPlaceholderAssertCompleted { get; private set; }
+    public bool FormFieldPlaceholderMismatchRejected { get; private set; }
     public bool DisabledAssertCompleted { get; private set; }
     public bool DisabledMismatchRejected { get; private set; }
     public bool HiddenAssertCompleted { get; private set; }
@@ -730,10 +734,30 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang enabled assertion rejected an enabled action or changed focus");
         }
+        const string unavailableReason = "Verification action is temporarily unavailable";
         renderer.SetActionAvailability(
             ActionKind.RuntimeRefresh,
             false,
-            "Verification action is temporarily unavailable");
+            unavailableReason);
+        var actionUnavailableReasonMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
+            NodeId = enabledNodeId,
+            Expected = unavailableReason,
+        });
+        ActionUnavailableReasonAssertCompleted = actionUnavailableReasonMatched.Applied
+            && actionUnavailableReasonMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        var actionUnavailableReasonMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
+            NodeId = enabledNodeId,
+            Expected = $"{unavailableReason} mismatch",
+        });
+        ActionUnavailableReasonMismatchRejected = !actionUnavailableReasonMismatch.Applied
+            && actionUnavailableReasonMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetActionUnavailableReasonMismatch
+            && renderer.FocusedNodeId == nodeId;
         var disabled = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertEnabled,
@@ -748,6 +772,15 @@ internal sealed class MainWindow : Window
             && disabledAssert.FailureCode == PresentationAutomationFailureCode.None
             && renderer.FocusedNodeId == nodeId;
         renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null);
+        var actionUnavailableReasonCleared = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
+            NodeId = enabledNodeId,
+        });
+        ActionUnavailableReasonAssertCompleted = ActionUnavailableReasonAssertCompleted
+            && actionUnavailableReasonCleared.Applied
+            && actionUnavailableReasonCleared.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
         var disabledMismatch = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertDisabled,
@@ -761,10 +794,12 @@ internal sealed class MainWindow : Window
             || disabled.FailureCode != PresentationAutomationFailureCode.TargetNotEnabled
             || !DisabledAssertCompleted
             || !DisabledMismatchRejected
+            || !ActionUnavailableReasonAssertCompleted
+            || !ActionUnavailableReasonMismatchRejected
             || renderer.FocusedNodeId != nodeId)
         {
             throw new InvalidDataException(
-                "Leselang enabled/disabled assertion accepted the wrong action state or changed focus");
+                "Leselang enabled/disabled assertion accepted the wrong action state, reason, or changed focus");
         }
         var textNode = FindFirstTextNode(renderer.Document.Root)
             ?? throw new InvalidDataException("text assertion probe requires a text leaf");
@@ -1021,6 +1056,40 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang form field max length assertion accepted mismatched form metadata or changed focus");
+        }
+        var expectedFormFieldPlaceholder = formField.Placeholder?.Fallback;
+        var formFieldPlaceholderMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldPlaceholder,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            Expected = expectedFormFieldPlaceholder,
+        });
+        FormFieldPlaceholderAssertCompleted = formFieldPlaceholderMatched.Applied
+            && formFieldPlaceholderMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldPlaceholderAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang form field placeholder assertion rejected stable form metadata or changed focus");
+        }
+        var formFieldPlaceholderMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertFormFieldPlaceholder,
+            NodeId = formActionNodeId,
+            Field = formField.Key,
+            Expected = expectedFormFieldPlaceholder is null
+                ? "unexpected placeholder"
+                : $"{expectedFormFieldPlaceholder} mismatch",
+        });
+        FormFieldPlaceholderMismatchRejected = !formFieldPlaceholderMismatch.Applied
+            && formFieldPlaceholderMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetFormFieldPlaceholderMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!FormFieldPlaceholderMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang form field placeholder assertion accepted mismatched form metadata or changed focus");
         }
         var expectedAccessibleName = textNode.Accessibility.Label?.Fallback
             ?? textNode.Text?.Fallback
