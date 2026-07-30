@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.73.0");
+    assert_eq!(avalonia.contract.version, "1.75.0");
     assert!(
         avalonia
             .contract
@@ -1734,6 +1734,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "node-kind-mismatch-presentation-rejection",
         "semantic-action-kind-assertion",
         "action-kind-mismatch-presentation-rejection",
+        "semantic-action-label-assertion",
+        "dispatcher-yielding-action-label-wait",
+        "persistent-action-label-mismatch-timeout",
+        "action-label-mismatch-presentation-rejection",
+        "action-label-wait-no-action-activation",
+        "semantic-action-available-assertion",
+        "dispatcher-yielding-action-available-wait",
+        "external-action-available-transition-wait",
+        "persistent-action-unavailable-timeout",
+        "action-available-wait-no-action-activation",
         "semantic-action-unavailable-reason-assertion",
         "action-unavailable-reason-mismatch-presentation-rejection",
         "dispatcher-yielding-action-unavailable-reason-wait",
@@ -2816,7 +2826,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.40.0");
+    assert_eq!(ui.contract.version, "1.42.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2835,6 +2845,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-automation-id-presentation-roundtrip",
         "ui-assert-node-kind-presentation-roundtrip",
         "ui-assert-action-kind-presentation-roundtrip",
+        "ui-assert-action-label-presentation-roundtrip",
+        "ui-wait-action-label-presentation-roundtrip",
+        "fixed-action-label-wait-timeout",
+        "action-label-target-validation",
+        "ui-assert-action-available-presentation-roundtrip",
+        "ui-wait-action-available-presentation-roundtrip",
+        "fixed-action-available-wait-timeout",
+        "action-available-target-validation",
         "ui-assert-action-unavailable-reason-presentation-roundtrip",
         "ui-wait-action-unavailable-reason-presentation-roundtrip",
         "fixed-action-unavailable-reason-wait-timeout",
@@ -2926,7 +2944,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.54.0");
+    assert_eq!(hir.contract.version, "0.56.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -2947,6 +2965,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-automation-id-effect",
         "ui-assert-node-kind-effect",
         "ui-assert-action-kind-effect",
+        "ui-assert-action-label-effect",
+        "ui-wait-action-label-effect",
+        "fixed-action-label-wait-policy",
+        "ui-assert-action-available-effect",
+        "ui-wait-action-available-effect",
+        "fixed-action-available-wait-policy",
         "ui-assert-action-unavailable-reason-effect",
         "ui-wait-action-unavailable-reason-effect",
         "fixed-action-unavailable-reason-wait-policy",
@@ -3012,7 +3036,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.39.0");
+    assert_eq!(vm.contract.version, "1.41.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -3042,6 +3066,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "node-kind-request-result-binding",
         "typed-ui-assert-action-kind-result",
         "action-kind-request-result-binding",
+        "typed-ui-assert-action-label-result",
+        "typed-ui-wait-action-label-result",
+        "fixed-ui-action-label-wait-deadline",
+        "typed-ui-assert-action-available-result",
+        "typed-ui-wait-action-available-result",
+        "fixed-ui-action-available-wait-deadline",
         "typed-ui-assert-action-unavailable-reason-result",
         "action-unavailable-reason-request-result-binding",
         "typed-ui-wait-action-unavailable-reason-result",
@@ -3112,7 +3142,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.50.0");
+    assert_eq!(command.contract.version, "0.52.0");
     assert!(
         command
             .contract
@@ -3238,6 +3268,34 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "action-kind-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "action-label-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "action-label-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "action-available-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "action-available-wait-command-rejection")
     );
     assert!(
         command

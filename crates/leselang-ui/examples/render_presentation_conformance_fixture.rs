@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use leselang_hir::{
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+    UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
     UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
     UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
@@ -56,6 +57,10 @@ struct Fixture<'a> {
     automation_id_assert_operation: &'a UiPresentationOperation,
     node_kind_assert_operation: &'a UiPresentationOperation,
     action_kind_assert_operation: &'a UiPresentationOperation,
+    action_label_assert_operation: &'a UiPresentationOperation,
+    action_label_wait_operation: &'a UiPresentationOperation,
+    action_available_assert_operation: &'a UiPresentationOperation,
+    action_available_wait_operation: &'a UiPresentationOperation,
     action_unavailable_reason_assert_operation: &'a UiPresentationOperation,
     action_unavailable_reason_wait_operation: &'a UiPresentationOperation,
     form_field_assert_operation: &'a UiPresentationOperation,
@@ -193,6 +198,22 @@ fn main() {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
         expected_action_kind: UiActionKind::RuntimeRefresh,
     };
+    let action_label_assert_operation = UiPresentationOperation::AssertActionLabel {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        expected: "Refresh runtime".into(),
+    };
+    let action_label_wait_operation = UiPresentationOperation::WaitActionLabel {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        expected: "Refresh runtime".into(),
+        timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
+    };
+    let action_available_assert_operation = UiPresentationOperation::AssertActionAvailable {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+    };
+    let action_available_wait_operation = UiPresentationOperation::WaitActionAvailable {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
+    };
     let action_unavailable_reason_assert_operation =
         UiPresentationOperation::AssertActionUnavailableReason {
             node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
@@ -288,6 +309,10 @@ fn main() {
     validate_presentation_operation(&next, &automation_id_assert_operation).unwrap();
     validate_presentation_operation(&next, &node_kind_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_kind_assert_operation).unwrap();
+    validate_presentation_operation(&next, &action_label_assert_operation).unwrap();
+    validate_presentation_operation(&next, &action_label_wait_operation).unwrap();
+    validate_presentation_operation(&next, &action_available_assert_operation).unwrap();
+    validate_presentation_operation(&next, &action_available_wait_operation).unwrap();
     validate_presentation_operation(&next, &action_unavailable_reason_assert_operation).unwrap();
     validate_presentation_operation(&next, &action_unavailable_reason_wait_operation).unwrap();
     validate_presentation_operation(&next, &form_field_assert_operation).unwrap();
@@ -335,6 +360,10 @@ fn main() {
         automation_id_assert_operation: &automation_id_assert_operation,
         node_kind_assert_operation: &node_kind_assert_operation,
         action_kind_assert_operation: &action_kind_assert_operation,
+        action_label_assert_operation: &action_label_assert_operation,
+        action_label_wait_operation: &action_label_wait_operation,
+        action_available_assert_operation: &action_available_assert_operation,
+        action_available_wait_operation: &action_available_wait_operation,
         action_unavailable_reason_assert_operation: &action_unavailable_reason_assert_operation,
         action_unavailable_reason_wait_operation: &action_unavailable_reason_wait_operation,
         form_field_assert_operation: &form_field_assert_operation,

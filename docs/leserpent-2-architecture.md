@@ -1690,6 +1690,10 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
 `ui.assert_node_kind(node_id: ..., kind: ...)`, plus
 `ui.assert_action_kind(node_id: ..., kind: ...)`, plus
+`ui.assert_action_label(node_id: ..., expected: ...)`, plus
+`ui.wait_action_label(node_id: ..., expected: ...)`, plus
+`ui.assert_action_available(node_id: ...)`, plus
+`ui.wait_action_available(node_id: ...)`, plus
 `ui.assert_action_unavailable_reason(node_id: ..., expected: ...)`, plus
 `ui.wait_action_unavailable_reason(node_id: ..., expected: ...)`, plus
 `ui.assert_form_field(node_id: ..., field: ..., expected: ...)`, plus
@@ -1747,6 +1751,14 @@ the realized platform automation identity against the expected stable UI node
 identifier. Node-kind assertion compares the expected semantic node kind against
 the stable renderer semantic kind. Action-kind assertion compares the expected
 semantic action kind against the realized node's stable action payload.
+Action-label assertion compares the explicit semantic action label through the
+realized native automation name, while action-label wait polls that same exact
+predicate with the fixed dispatcher-yielding deadline without focusing,
+clicking, activating, enabling, or rewriting the action.
+Action-available assertion reads renderer-maintained semantic action
+availability and succeeds only when no unavailable reason is present, while
+action-available wait polls that same predicate with the fixed dispatcher-yielding
+deadline without focusing, clicking, enabling, or rewriting the action.
 Form-field assertions compare the realized semantic deployment form's field
 label, placeholder, input kind, required-state, and maximum-length metadata without
 focusing, typing, submitting, truncating, or editing the form.

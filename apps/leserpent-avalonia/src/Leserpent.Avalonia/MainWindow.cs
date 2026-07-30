@@ -88,6 +88,13 @@ internal sealed class MainWindow : Window
     public bool FocusNavigationDidNotActivate { get; private set; }
     public bool ActionKindAssertCompleted { get; private set; }
     public bool ActionKindMismatchRejected { get; private set; }
+    public bool ActionLabelAssertCompleted { get; private set; }
+    public bool ActionLabelWaitCompleted { get; private set; }
+    public bool ActionLabelWaitTimedOut { get; private set; }
+    public bool ActionLabelMismatchRejected { get; private set; }
+    public bool ActionAvailableAssertCompleted { get; private set; }
+    public bool ActionAvailableWaitCompleted { get; private set; }
+    public bool ActionAvailableWaitTimedOut { get; private set; }
     public bool ActionUnavailableReasonAssertCompleted { get; private set; }
     public bool ActionUnavailableReasonWaitCompleted { get; private set; }
     public bool ActionUnavailableReasonWaitClearedCompleted { get; private set; }
@@ -520,6 +527,95 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang disabled wait did not reject a persistently enabled target");
+        }
+        var actionLabelProbeNode = FindNode(renderer.Document.Root, enabledResult.NodeId)
+            ?? throw new InvalidDataException("action label wait probe target was not found");
+        var expectedActionLabel = actionLabelProbeNode.Accessibility.Label?.Fallback
+            ?? throw new InvalidDataException("action label wait probe requires an explicit label");
+        var actionLabelWaitMatched = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionLabel,
+                NodeId = enabledResult.NodeId,
+                Expected = expectedActionLabel,
+                TimeoutMs = SemanticRenderer.WaitActionLabelTimeoutMs,
+            });
+        ActionLabelWaitCompleted = actionLabelWaitMatched.Applied
+            && actionLabelWaitMatched.FailureCode == PresentationAutomationFailureCode.None;
+        if (!ActionLabelWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action label wait rejected the stable semantic action label");
+        }
+        var actionLabelWaitTimeout = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionLabel,
+                NodeId = enabledResult.NodeId,
+                Expected = $"{expectedActionLabel} mismatch",
+                TimeoutMs = SemanticRenderer.WaitActionLabelTimeoutMs,
+            });
+        ActionLabelWaitTimedOut = !actionLabelWaitTimeout.Applied
+            && actionLabelWaitTimeout.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        if (!ActionLabelWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang action label wait did not reject a persistent semantic label mismatch");
+        }
+        var actionAvailableAssert = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionAvailable,
+            NodeId = enabledResult.NodeId,
+        });
+        ActionAvailableAssertCompleted = actionAvailableAssert.Applied
+            && actionAvailableAssert.FailureCode == PresentationAutomationFailureCode.None;
+        if (!ActionAvailableAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action-available assertion did not observe an available action");
+        }
+        renderer.SetActionAvailability(ActionKind.RuntimeRefresh, false, unavailableReason);
+        var actionAvailableWait = renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionAvailable,
+                NodeId = enabledResult.NodeId,
+                TimeoutMs = SemanticRenderer.WaitActionAvailableTimeoutMs,
+            });
+        DispatcherTimer.RunOnce(
+            () => renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null),
+            TimeSpan.FromMilliseconds(50));
+        var actionAvailableWaitResult = await actionAvailableWait;
+        ActionAvailableWaitCompleted = actionAvailableWaitResult.Applied
+            && actionAvailableWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        if (!ActionAvailableWaitCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action-available wait did not observe availability restoration");
+        }
+        renderer.SetActionAvailability(ActionKind.RuntimeRefresh, false, unavailableReason);
+        var actionAvailableWaitTimeoutResult = await renderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitActionAvailable,
+                NodeId = enabledResult.NodeId,
+                TimeoutMs = SemanticRenderer.WaitActionAvailableTimeoutMs,
+            });
+        ActionAvailableWaitTimedOut =
+            !actionAvailableWaitTimeoutResult.Applied
+            && actionAvailableWaitTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.WaitTimedOut
+            && renderer.ApplyPresentation(new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
+                NodeId = enabledResult.NodeId,
+                Expected = unavailableReason,
+            }).Applied;
+        renderer.SetActionAvailability(ActionKind.RuntimeRefresh, true, null);
+        if (!ActionAvailableWaitTimedOut)
+        {
+            throw new InvalidDataException(
+                "Leselang action-available wait did not reject a persistently unavailable action");
         }
         var actionUnavailableReasonWait = renderer.ApplyPresentationAsync(
             new UiPresentationOperation
@@ -1361,6 +1457,38 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang action kind assertion accepted a mismatched semantic action kind or changed focus");
+        }
+        var expectedActionLabel = focusedActionNode.Accessibility.Label?.Fallback
+            ?? throw new InvalidDataException("action label probe requires an explicit action label");
+        var actionLabelMatched = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionLabel,
+            NodeId = nodeId,
+            Expected = expectedActionLabel,
+        });
+        ActionLabelAssertCompleted = actionLabelMatched.Applied
+            && actionLabelMatched.FailureCode == PresentationAutomationFailureCode.None
+            && renderer.FocusedNodeId == nodeId;
+        if (!ActionLabelAssertCompleted)
+        {
+            throw new InvalidDataException(
+                "Leselang action label assertion rejected the stable semantic action label or changed focus");
+        }
+        var mismatchedActionLabel = $"{expectedActionLabel} mismatch";
+        var actionLabelMismatch = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertActionLabel,
+            NodeId = nodeId,
+            Expected = mismatchedActionLabel,
+        });
+        ActionLabelMismatchRejected = !actionLabelMismatch.Applied
+            && actionLabelMismatch.FailureCode
+                == PresentationAutomationFailureCode.TargetActionLabelMismatch
+            && renderer.FocusedNodeId == nodeId;
+        if (!ActionLabelMismatchRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang action label assertion accepted a mismatched semantic action label or changed focus");
         }
         var formActionNodeId = renderer.FirstRealizedActionNodeIdFor(ActionKind.RuntimeDeploy)
             ?? throw new InvalidDataException(

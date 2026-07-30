@@ -407,6 +407,26 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert action kind",
         ),
+        Effect::UiAssertActionLabel { .. } => (
+            DebuggerEffectKind::UiAssertActionLabel,
+            None,
+            "UI assert action label",
+        ),
+        Effect::UiWaitActionLabel { .. } => (
+            DebuggerEffectKind::UiWaitActionLabel,
+            None,
+            "UI wait action label",
+        ),
+        Effect::UiAssertActionAvailable { .. } => (
+            DebuggerEffectKind::UiAssertActionAvailable,
+            None,
+            "UI assert action available",
+        ),
+        Effect::UiWaitActionAvailable { .. } => (
+            DebuggerEffectKind::UiWaitActionAvailable,
+            None,
+            "UI wait action available",
+        ),
         Effect::UiAssertActionUnavailableReason { .. } => (
             DebuggerEffectKind::UiAssertActionUnavailableReason,
             None,

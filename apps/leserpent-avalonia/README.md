@@ -48,6 +48,10 @@ The separate candidate fixture carries Rust-generated
 `AssertAutomationId`,
 `AssertNodeKind`,
 `AssertActionKind`,
+`AssertActionLabel`,
+`WaitActionLabel`,
+`AssertActionAvailable`,
+`WaitActionAvailable`,
 `AssertActionUnavailableReason`,
 `WaitActionUnavailableReason`,
 `AssertFormField`,
@@ -60,7 +64,7 @@ The separate candidate fixture carries Rust-generated
 `WaitAccessibleName`,
 `AssertAccessibleDescription`, and
 `WaitAccessibleDescription` values. RendererCore strictly round-trips all
-forty and validates valid, missing, noninteractive,
+forty-four and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -83,8 +87,11 @@ native selected/unselected observation,
 dispatcher-yielding selection wait, actual displayed-text,
 dispatcher-yielding text wait with external text transition and persistent
 text mismatch timeout, and
-automation-id, node-kind, action-kind, action-unavailable-reason,
-dispatcher-yielding action-unavailable-reason wait and clearing,
+automation-id, node-kind, action-kind, explicit action-label,
+dispatcher-yielding action-label wait and persistent label mismatch timeout,
+action-unavailable-reason,
+action-availability, dispatcher-yielding action-availability wait and timeout,
+action-unavailable-reason, dispatcher-yielding action-unavailable-reason wait and clearing,
 form-field-label, form-field-input-kind, form-field-required-state,
 form-field-max-length, form-field-placeholder,
 dispatcher-yielding form-field-placeholder waiting with external placeholder

@@ -99,6 +99,8 @@ internal enum PresentationAutomationFailureCode
     TargetAutomationIdMismatch,
     TargetNodeKindMismatch,
     TargetActionKindMismatch,
+    TargetActionLabelMismatch,
+    TargetActionUnavailable,
     TargetActionUnavailableReasonMismatch,
     TargetFormless,
     TargetFormFieldMissing,
@@ -457,6 +459,29 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetActionKindMismatch);
         }
+        if (operation.Kind is UiPresentationOperationKind.AssertActionLabel
+            or UiPresentationOperationKind.WaitActionLabel)
+        {
+            var matched = node.HasExplicitLabel
+                && StringComparer.Ordinal.Equals(node.AutomationName, operation.Expected);
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetActionLabelMismatch);
+        }
+        if (operation.Kind is UiPresentationOperationKind.AssertActionAvailable
+            or UiPresentationOperationKind.WaitActionAvailable)
+        {
+            var availability = AvailabilityFor(node);
+            return new PresentationAutomationResult(
+                availability.IsEnabled,
+                operation.NodeId,
+                availability.IsEnabled
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetActionUnavailable);
+        }
         if (operation.Kind is UiPresentationOperationKind.AssertActionUnavailableReason
             or UiPresentationOperationKind.WaitActionUnavailableReason)
         {
@@ -684,6 +709,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitHidden
             and not UiPresentationOperationKind.WaitEnabled
             and not UiPresentationOperationKind.WaitDisabled
+            and not UiPresentationOperationKind.WaitActionAvailable
+            and not UiPresentationOperationKind.WaitActionLabel
             and not UiPresentationOperationKind.WaitActionUnavailableReason
             and not UiPresentationOperationKind.WaitWindowOpen
             and not UiPresentationOperationKind.WaitWindowClosed
@@ -722,6 +749,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 || operation.Kind == UiPresentationOperationKind.WaitDisabled
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetStillEnabled;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitActionAvailable
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetActionUnavailable;
+            retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitActionLabel
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetActionLabelMismatch;
             retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitActionUnavailableReason
                     && result.FailureCode
@@ -780,6 +815,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitDisabled =>
                     SemanticRenderer.WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitActionAvailable =>
+                    SemanticRenderer.WaitActionAvailableTimeoutMs,
+                UiPresentationOperationKind.WaitActionLabel =>
+                    SemanticRenderer.WaitActionLabelTimeoutMs,
                 UiPresentationOperationKind.WaitActionUnavailableReason =>
                     SemanticRenderer.WaitActionUnavailableReasonTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen =>

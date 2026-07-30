@@ -15,6 +15,8 @@ pub const MAX_UI_FORM_FIELD_MAX_LENGTH: usize = 256;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
+pub const UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_ACTION_LABEL_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ENABLED_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS: u64 = 2_000;
@@ -226,6 +228,20 @@ pub enum Effect {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
+    UiAssertActionLabel {
+        node_id: String,
+        expected: String,
+    },
+    UiWaitActionLabel {
+        node_id: String,
+        expected: String,
+    },
+    UiAssertActionAvailable {
+        node_id: String,
+    },
+    UiWaitActionAvailable {
+        node_id: String,
+    },
     UiAssertActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
@@ -324,6 +340,10 @@ pub enum Type {
     UiAssertAutomationId,
     UiAssertNodeKind,
     UiAssertActionKind,
+    UiAssertActionLabel,
+    UiWaitActionLabel,
+    UiAssertActionAvailable,
+    UiWaitActionAvailable,
     UiAssertActionUnavailableReason,
     UiWaitActionUnavailableReason,
     UiAssertFormField,
@@ -439,6 +459,10 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_automation_id"
         | "ui.assert_node_kind"
         | "ui.assert_action_kind"
+        | "ui.assert_action_label"
+        | "ui.wait_action_label"
+        | "ui.assert_action_available"
+        | "ui.wait_action_available"
         | "ui.assert_action_unavailable_reason"
         | "ui.wait_action_unavailable_reason"
         | "ui.assert_form_field"
@@ -713,6 +737,26 @@ fn lower_atomic_effect(
                     span: Some(argument.span),
                 }),
             },
+            ("ui.assert_action_available", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1249".to_string(),
+                    message:
+                        "ui.assert_action_available node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_action_available", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1251".to_string(),
+                    message:
+                        "ui.wait_action_available node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
             ("ui.wait_focused", "node_id") => match value {
                 Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
                 _ => diagnostics.push(Diagnostic {
@@ -904,6 +948,43 @@ fn lower_atomic_effect(
                     code: "LSH1165".to_string(),
                     message: "ui.assert_action_kind kind must be a known semantic UI action kind"
                         .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_action_label", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1253".to_string(),
+                    message:
+                        "ui.assert_action_label node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_action_label", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1254".to_string(),
+                    message: "ui.assert_action_label expected must be bounded display text"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_action_label", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1257".to_string(),
+                    message:
+                        "ui.wait_action_label node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_action_label", "expected") => match value {
+                Some(value) if validate_ui_expected_text(&value) => expected_text = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1258".to_string(),
+                    message: "ui.wait_action_label expected must be bounded display text".to_string(),
                     span: Some(argument.span),
                 }),
             },
@@ -1371,6 +1452,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_action_available" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1250".to_string(),
+            message: "ui.assert_action_available requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_action_available" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1252".to_string(),
+            message: "ui.wait_action_available requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.wait_focused" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1143".to_string(),
@@ -1509,6 +1604,34 @@ fn lower_atomic_effect(
         diagnostics.push(Diagnostic {
             code: "LSH1167".to_string(),
             message: "ui.assert_action_kind requires kind".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_action_label" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1255".to_string(),
+            message: "ui.assert_action_label requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_action_label" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1256".to_string(),
+            message: "ui.assert_action_label requires expected".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_action_label" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1259".to_string(),
+            message: "ui.wait_action_label requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_action_label" && expected_text.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1260".to_string(),
+            message: "ui.wait_action_label requires expected".to_string(),
             span: Some(span),
         });
     }
@@ -2058,6 +2181,36 @@ fn lower_atomic_effect(
             Type::UiAssertActionKind,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_action_label" => (
+            Effect::UiAssertActionLabel {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected action label"),
+            },
+            Type::UiAssertActionLabel,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_action_label" => (
+            Effect::UiWaitActionLabel {
+                node_id: node_id.expect("validated UI node identifier"),
+                expected: expected_text.expect("validated UI expected action label"),
+            },
+            Type::UiWaitActionLabel,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.assert_action_available" => (
+            Effect::UiAssertActionAvailable {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiAssertActionAvailable,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_action_available" => (
+            Effect::UiWaitActionAvailable {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiWaitActionAvailable,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_action_unavailable_reason" => (
             Effect::UiAssertActionUnavailableReason {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -2363,6 +2516,28 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
             quote(semantic_action_kind_source(*expected_kind)),
             indent(depth),
         ),
+        Effect::UiAssertActionLabel { node_id, expected } => format!(
+            "ui.assert_action_label(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiWaitActionLabel { node_id, expected } => format!(
+            "ui.wait_action_label(\n{}node_id: {},\n{}expected: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(expected),
+            indent(depth),
+        ),
+        Effect::UiAssertActionAvailable { node_id } => {
+            atomic_identifier_source("ui.assert_action_available", "node_id", node_id, depth)
+        }
+        Effect::UiWaitActionAvailable { node_id } => {
+            atomic_identifier_source("ui.wait_action_available", "node_id", node_id, depth)
+        }
         Effect::UiAssertActionUnavailableReason { node_id, expected } => format!(
             "ui.assert_action_unavailable_reason(\n{}node_id: {},\n{}expected: {},\n{})",
             indent(depth + 1),
@@ -3977,6 +4152,150 @@ mod tests {
     }
 
     #[test]
+    fn ui_assert_action_available_is_capability_gated_and_canonical() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_available(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertActionAvailable);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiAssertActionAvailable {
+                node_id: "runtime-a:refresh".into(),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_action_available(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_action_available()",
+            "fn main() = ui.assert_action_available(node_id: none)",
+            "fn main() = ui.assert_action_available(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_assert_action_label_is_capability_gated_and_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiAssertActionLabel);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiAssertActionLabel {
+                node_id: "runtime-a:refresh".into(),
+                expected: "Refresh runtime".into(),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.assert_action_label(\n  node_id: \"runtime-a:refresh\",\n  expected: \"Refresh runtime\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_action_label()",
+            "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_action_label(expected: \"Refresh runtime\")",
+            "fn main() = ui.assert_action_label(node_id: \"bad/node\", expected: \"Refresh runtime\")",
+            "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: none)",
+            "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: \"bad\\nlabel\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_action_label_is_capability_gated_and_bounded() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitActionLabel);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiWaitActionLabel {
+                node_id: "runtime-a:refresh".into(),
+                expected: "Refresh runtime".into(),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_action_label(\n  node_id: \"runtime-a:refresh\",\n  expected: \"Refresh runtime\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_action_label()",
+            "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_action_label(expected: \"Refresh runtime\")",
+            "fn main() = ui.wait_action_label(node_id: \"bad/node\", expected: \"Refresh runtime\")",
+            "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: none)",
+            "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: \"bad\\nlabel\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_wait_action_available_is_capability_gated_and_canonical() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_action_available(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiWaitActionAvailable);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert_eq!(
+            program.function.effect,
+            Effect::UiWaitActionAvailable {
+                node_id: "runtime-a:refresh".into(),
+            }
+        );
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.wait_action_available(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.wait_action_available()",
+            "fn main() = ui.wait_action_available(node_id: none)",
+            "fn main() = ui.wait_action_available(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn ui_assert_action_unavailable_reason_is_capability_gated_and_optional() {
         let program = lower(&parse(
             "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
@@ -4683,6 +5002,10 @@ mod tests {
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+            "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+            "fn main() = ui.assert_action_available(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_action_available(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",

@@ -103,6 +103,10 @@ pub fn lower_effect(
             | Effect::UiAssertAutomationId { .. }
             | Effect::UiAssertNodeKind { .. }
             | Effect::UiAssertActionKind { .. }
+            | Effect::UiAssertActionLabel { .. }
+            | Effect::UiWaitActionLabel { .. }
+            | Effect::UiAssertActionAvailable { .. }
+            | Effect::UiWaitActionAvailable { .. }
             | Effect::UiAssertActionUnavailableReason { .. }
             | Effect::UiWaitActionUnavailableReason { .. }
             | Effect::UiAssertFormField { .. }
@@ -156,6 +160,10 @@ pub fn lower_effect(
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiAssertActionLabel { .. }
+        | Effect::UiWaitActionLabel { .. }
+        | Effect::UiAssertActionAvailable { .. }
+        | Effect::UiWaitActionAvailable { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiWaitActionUnavailableReason { .. }
         | Effect::UiAssertFormField { .. }
@@ -220,6 +228,10 @@ pub fn lower_effect(
         | Effect::UiAssertAutomationId { .. }
         | Effect::UiAssertNodeKind { .. }
         | Effect::UiAssertActionKind { .. }
+        | Effect::UiAssertActionLabel { .. }
+        | Effect::UiWaitActionLabel { .. }
+        | Effect::UiAssertActionAvailable { .. }
+        | Effect::UiWaitActionAvailable { .. }
         | Effect::UiAssertActionUnavailableReason { .. }
         | Effect::UiWaitActionUnavailableReason { .. }
         | Effect::UiAssertFormField { .. }
@@ -523,6 +535,10 @@ mod tests {
             "fn main() = ui.assert_automation_id(node_id: \"fleet-title\", expected: \"fleet-title\")",
             "fn main() = ui.assert_node_kind(node_id: \"fleet-title\", kind: \"heading\")",
             "fn main() = ui.assert_action_kind(node_id: \"runtime-a:refresh\", kind: \"runtime_refresh\")",
+            "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+            "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+            "fn main() = ui.assert_action_available(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.wait_action_available(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.wait_action_unavailable_reason(node_id: \"runtime-a:refresh\", expected: \"Verification action is temporarily unavailable\")",
             "fn main() = ui.assert_form_field(node_id: \"workspace-runtime-a-deploy\", field: \"pipeline_kind\", expected: \"Pipeline kind\")",

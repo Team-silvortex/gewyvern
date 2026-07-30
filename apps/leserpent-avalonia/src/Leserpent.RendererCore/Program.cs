@@ -7,6 +7,8 @@ public sealed class SemanticRenderer
     private const int MaxPatchOperations = 8192;
     private const int MaxFormValueBytes = 256;
     public const int WaitEnabledTimeoutMs = 2000;
+    public const int WaitActionAvailableTimeoutMs = 2000;
+    public const int WaitActionLabelTimeoutMs = 2000;
     public const int WaitActionUnavailableReasonTimeoutMs = 2000;
     public const int WaitFocusedTimeoutMs = 2000;
     public const int WaitUnfocusedTimeoutMs = 2000;
@@ -100,6 +102,8 @@ public sealed class SemanticRenderer
         }
         if (operation.Kind is UiPresentationOperationKind.AssertText
             or UiPresentationOperationKind.WaitText
+            or UiPresentationOperationKind.AssertActionLabel
+            or UiPresentationOperationKind.WaitActionLabel
             or UiPresentationOperationKind.AssertFormField
             or UiPresentationOperationKind.AssertAccessibleName
             or UiPresentationOperationKind.WaitAccessibleName
@@ -265,6 +269,8 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitHidden
             or UiPresentationOperationKind.WaitEnabled
             or UiPresentationOperationKind.WaitDisabled
+            or UiPresentationOperationKind.WaitActionAvailable
+            or UiPresentationOperationKind.WaitActionLabel
             or UiPresentationOperationKind.WaitActionUnavailableReason
             or UiPresentationOperationKind.WaitWindowOpen
             or UiPresentationOperationKind.WaitWindowClosed
@@ -283,6 +289,10 @@ public sealed class SemanticRenderer
                 UiPresentationOperationKind.WaitHidden => WaitVisibleTimeoutMs,
                 UiPresentationOperationKind.WaitEnabled => WaitEnabledTimeoutMs,
                 UiPresentationOperationKind.WaitDisabled => WaitEnabledTimeoutMs,
+                UiPresentationOperationKind.WaitActionAvailable =>
+                    WaitActionAvailableTimeoutMs,
+                UiPresentationOperationKind.WaitActionLabel =>
+                    WaitActionLabelTimeoutMs,
                 UiPresentationOperationKind.WaitActionUnavailableReason =>
                     WaitActionUnavailableReasonTimeoutMs,
                 UiPresentationOperationKind.WaitWindowOpen => WaitWindowOpenTimeoutMs,
@@ -325,6 +335,10 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.WaitUnfocused
             or UiPresentationOperationKind.AssertActionKind
+            or UiPresentationOperationKind.AssertActionLabel
+            or UiPresentationOperationKind.WaitActionLabel
+            or UiPresentationOperationKind.AssertActionAvailable
+            or UiPresentationOperationKind.WaitActionAvailable
             or UiPresentationOperationKind.AssertActionUnavailableReason
             or UiPresentationOperationKind.WaitActionUnavailableReason
                 when node.Kind == UiNodeKind.Action && node.Action is not null =>
@@ -738,6 +752,10 @@ public sealed class RendererFixture
     public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
     public UiPresentationOperation? NodeKindAssertOperation { get; set; }
     public UiPresentationOperation? ActionKindAssertOperation { get; set; }
+    public UiPresentationOperation? ActionLabelAssertOperation { get; set; }
+    public UiPresentationOperation? ActionLabelWaitOperation { get; set; }
+    public UiPresentationOperation? ActionAvailableAssertOperation { get; set; }
+    public UiPresentationOperation? ActionAvailableWaitOperation { get; set; }
     public UiPresentationOperation? ActionUnavailableReasonAssertOperation { get; set; }
     public UiPresentationOperation? ActionUnavailableReasonWaitOperation { get; set; }
     public UiPresentationOperation? FormFieldAssertOperation { get; set; }
@@ -937,6 +955,10 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
     [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
     [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
+    [JsonStringEnumMemberName("assert_action_label")] AssertActionLabel,
+    [JsonStringEnumMemberName("wait_action_label")] WaitActionLabel,
+    [JsonStringEnumMemberName("assert_action_available")] AssertActionAvailable,
+    [JsonStringEnumMemberName("wait_action_available")] WaitActionAvailable,
     [JsonStringEnumMemberName("assert_action_unavailable_reason")] AssertActionUnavailableReason,
     [JsonStringEnumMemberName("wait_action_unavailable_reason")] WaitActionUnavailableReason,
     [JsonStringEnumMemberName("assert_form_field")] AssertFormField,

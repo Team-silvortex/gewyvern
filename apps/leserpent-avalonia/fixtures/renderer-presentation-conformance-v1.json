@@ -892,6 +892,26 @@
     "node_id": "runtime-runtime-a-refresh",
     "expected_action_kind": "runtime_refresh"
   },
+  "action_label_assert_operation": {
+    "kind": "assert_action_label",
+    "node_id": "runtime-runtime-a-refresh",
+    "expected": "Refresh runtime"
+  },
+  "action_label_wait_operation": {
+    "kind": "wait_action_label",
+    "node_id": "runtime-runtime-a-refresh",
+    "expected": "Refresh runtime",
+    "timeout_ms": 2000
+  },
+  "action_available_assert_operation": {
+    "kind": "assert_action_available",
+    "node_id": "runtime-runtime-a-refresh"
+  },
+  "action_available_wait_operation": {
+    "kind": "wait_action_available",
+    "node_id": "runtime-runtime-a-refresh",
+    "timeout_ms": 2000
+  },
   "action_unavailable_reason_assert_operation": {
     "kind": "assert_action_unavailable_reason",
     "node_id": "runtime-runtime-a-refresh",

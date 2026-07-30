@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
     Effect, HirBranch, Type, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
-    UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
+    UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
+    UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
     UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
     UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
@@ -334,6 +335,10 @@ pub enum DebuggerEffectKind {
     UiAssertAutomationId,
     UiAssertNodeKind,
     UiAssertActionKind,
+    UiAssertActionLabel,
+    UiWaitActionLabel,
+    UiAssertActionAvailable,
+    UiWaitActionAvailable,
     UiAssertActionUnavailableReason,
     UiWaitActionUnavailableReason,
     UiAssertFormField,
@@ -572,6 +577,22 @@ pub enum UiPresentationOperation {
     AssertActionKind {
         node_id: NodeId,
         expected_action_kind: UiActionKind,
+    },
+    AssertActionLabel {
+        node_id: NodeId,
+        expected: String,
+    },
+    WaitActionLabel {
+        node_id: NodeId,
+        expected: String,
+        timeout_ms: u64,
+    },
+    AssertActionAvailable {
+        node_id: NodeId,
+    },
+    WaitActionAvailable {
+        node_id: NodeId,
+        timeout_ms: u64,
     },
     AssertActionUnavailableReason {
         node_id: NodeId,
@@ -1384,6 +1405,10 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertAutomationId
             | DebuggerEffectKind::UiAssertNodeKind
             | DebuggerEffectKind::UiAssertActionKind
+            | DebuggerEffectKind::UiAssertActionLabel
+            | DebuggerEffectKind::UiWaitActionLabel
+            | DebuggerEffectKind::UiAssertActionAvailable
+            | DebuggerEffectKind::UiWaitActionAvailable
             | DebuggerEffectKind::UiAssertActionUnavailableReason
             | DebuggerEffectKind::UiWaitActionUnavailableReason
             | DebuggerEffectKind::UiAssertFormField
@@ -1523,6 +1548,10 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertAutomationId => "UI assert automation id",
             DebuggerEffectKind::UiAssertNodeKind => "UI assert node kind",
             DebuggerEffectKind::UiAssertActionKind => "UI assert action kind",
+            DebuggerEffectKind::UiAssertActionLabel => "UI assert action label",
+            DebuggerEffectKind::UiWaitActionLabel => "UI wait action label",
+            DebuggerEffectKind::UiAssertActionAvailable => "UI assert action available",
+            DebuggerEffectKind::UiWaitActionAvailable => "UI wait action available",
             DebuggerEffectKind::UiAssertActionUnavailableReason => {
                 "UI assert action unavailable reason"
             }
@@ -1904,6 +1933,28 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             expected_action_kind: hir_action_kind_to_ui(*expected_kind),
         },
+        Effect::UiAssertActionLabel { node_id, expected } => {
+            UiPresentationOperation::AssertActionLabel {
+                node_id: NodeId::new(node_id.clone())?,
+                expected: expected.clone(),
+            }
+        }
+        Effect::UiWaitActionLabel { node_id, expected } => {
+            UiPresentationOperation::WaitActionLabel {
+                node_id: NodeId::new(node_id.clone())?,
+                expected: expected.clone(),
+                timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
+            }
+        }
+        Effect::UiAssertActionAvailable { node_id } => {
+            UiPresentationOperation::AssertActionAvailable {
+                node_id: NodeId::new(node_id.clone())?,
+            }
+        }
+        Effect::UiWaitActionAvailable { node_id } => UiPresentationOperation::WaitActionAvailable {
+            node_id: NodeId::new(node_id.clone())?,
+            timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
+        },
         Effect::UiAssertActionUnavailableReason { node_id, expected } => {
             UiPresentationOperation::AssertActionUnavailableReason {
                 node_id: NodeId::new(node_id.clone())?,
@@ -2112,6 +2163,28 @@ pub fn effect_for_presentation_operation(
             node_id: node_id.as_str().to_string(),
             expected_kind: ui_action_kind_to_hir(*expected_action_kind),
         },
+        UiPresentationOperation::AssertActionLabel { node_id, expected } => {
+            Effect::UiAssertActionLabel {
+                node_id: node_id.as_str().to_string(),
+                expected: expected.clone(),
+            }
+        }
+        UiPresentationOperation::WaitActionLabel {
+            node_id, expected, ..
+        } => Effect::UiWaitActionLabel {
+            node_id: node_id.as_str().to_string(),
+            expected: expected.clone(),
+        },
+        UiPresentationOperation::AssertActionAvailable { node_id } => {
+            Effect::UiAssertActionAvailable {
+                node_id: node_id.as_str().to_string(),
+            }
+        }
+        UiPresentationOperation::WaitActionAvailable { node_id, .. } => {
+            Effect::UiWaitActionAvailable {
+                node_id: node_id.as_str().to_string(),
+            }
+        }
         UiPresentationOperation::AssertActionUnavailableReason { node_id, expected } => {
             Effect::UiAssertActionUnavailableReason {
                 node_id: node_id.as_str().to_string(),
@@ -2240,6 +2313,10 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertAutomationId { node_id, .. }
         | UiPresentationOperation::AssertNodeKind { node_id, .. }
         | UiPresentationOperation::AssertActionKind { node_id, .. }
+        | UiPresentationOperation::AssertActionLabel { node_id, .. }
+        | UiPresentationOperation::WaitActionLabel { node_id, .. }
+        | UiPresentationOperation::AssertActionAvailable { node_id }
+        | UiPresentationOperation::WaitActionAvailable { node_id, .. }
         | UiPresentationOperation::AssertActionUnavailableReason { node_id, .. }
         | UiPresentationOperation::WaitActionUnavailableReason { node_id, .. }
         | UiPresentationOperation::AssertFormField { node_id, .. }
@@ -2255,6 +2332,8 @@ pub fn validate_presentation_operation(
     };
     if let UiPresentationOperation::AssertText { expected, .. }
     | UiPresentationOperation::WaitText { expected, .. }
+    | UiPresentationOperation::AssertActionLabel { expected, .. }
+    | UiPresentationOperation::WaitActionLabel { expected, .. }
     | UiPresentationOperation::AssertFormField { expected, .. }
     | UiPresentationOperation::AssertAccessibleName { expected, .. }
     | UiPresentationOperation::WaitAccessibleName { expected, .. }
@@ -2334,6 +2413,16 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
+    if let UiPresentationOperation::WaitActionAvailable { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitActionLabel { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_ACTION_LABEL_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
     if let UiPresentationOperation::WaitWindowOpen { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_WINDOW_OPEN_TIMEOUT_MS
     {
@@ -2396,6 +2485,10 @@ pub fn validate_presentation_operation(
             | UiPresentationOperation::WaitFocused { .. }
             | UiPresentationOperation::WaitUnfocused { .. }
             | UiPresentationOperation::AssertActionKind { .. }
+            | UiPresentationOperation::AssertActionLabel { .. }
+            | UiPresentationOperation::WaitActionLabel { .. }
+            | UiPresentationOperation::AssertActionAvailable { .. }
+            | UiPresentationOperation::WaitActionAvailable { .. }
             | UiPresentationOperation::AssertActionUnavailableReason { .. }
             | UiPresentationOperation::WaitActionUnavailableReason { .. }
     ) && (node.kind != UiNodeKind::Action || node.action.is_none())
@@ -4857,6 +4950,179 @@ mod tests {
                 &UiPresentationOperation::AssertActionKind {
                     node_id: document.root.id.clone(),
                     expected_action_kind: UiActionKind::RuntimeRefresh,
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+    }
+
+    #[test]
+    fn action_available_assertion_round_trips_for_semantic_action_nodes() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertActionAvailable {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertActionAvailable {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_action_available(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertActionAvailable {
+                    node_id: document.root.id.clone(),
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+    }
+
+    #[test]
+    fn action_label_assertion_round_trips_for_semantic_action_nodes() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::AssertActionLabel {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            expected: "Refresh runtime".into(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertActionLabel {
+                node_id: "runtime-runtime-a-refresh".into(),
+                expected: "Refresh runtime".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.assert_action_label(\n  node_id: \"runtime-runtime-a-refresh\",\n  expected: \"Refresh runtime\",\n)\n"
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertActionLabel {
+                    node_id: document.root.id.clone(),
+                    expected: "Refresh runtime".into(),
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: document.root.id.as_str().into(),
+            })
+        );
+    }
+
+    #[test]
+    fn action_label_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitActionLabel {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            expected: "Refresh runtime".into(),
+            timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitActionLabel {
+                node_id: "runtime-runtime-a-refresh".into(),
+                expected: "Refresh runtime".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_action_label(\n  node_id: \"runtime-runtime-a-refresh\",\n  expected: \"Refresh runtime\",\n)\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitActionLabel {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    expected: "Refresh runtime".into(),
+                    timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitActionLabel {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    expected: "bad\nlabel".into(),
+                    timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
+    }
+
+    #[test]
+    fn action_available_wait_round_trips_with_the_fixed_bounded_policy() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::WaitActionAvailable {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+            timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiWaitActionAvailable {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.wait_action_available(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitActionAvailable {
+                    node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+                    timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitActionAvailable {
+                    node_id: document.root.id.clone(),
+                    timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
                 },
             ),
             Err(UiError::UnfocusablePresentationTarget {

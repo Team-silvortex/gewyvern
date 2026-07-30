@@ -314,6 +314,47 @@ var decodedActionKindAssertOperation = JsonSerializer.Deserialize(
     actionKindAssertPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("action kind assert operation round trip failed");
+var actionLabelAssertOperation = fixture.ActionLabelAssertOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no action label assert operation");
+var actionLabelAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    actionLabelAssertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedActionLabelAssertOperation = JsonSerializer.Deserialize(
+    actionLabelAssertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("action label assert operation round trip failed");
+var actionLabelWaitOperation = fixture.ActionLabelWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no action label wait operation");
+var actionLabelWaitPayload = JsonSerializer.SerializeToUtf8Bytes(
+    actionLabelWaitOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedActionLabelWaitOperation = JsonSerializer.Deserialize(
+    actionLabelWaitPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("action label wait operation round trip failed");
+var actionAvailableAssertOperation = fixture.ActionAvailableAssertOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no action available assert operation");
+var actionAvailableAssertPayload = JsonSerializer.SerializeToUtf8Bytes(
+    actionAvailableAssertOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedActionAvailableAssertOperation = JsonSerializer.Deserialize(
+    actionAvailableAssertPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException(
+        "action available assert operation round trip failed");
+var actionAvailableWaitOperation = fixture.ActionAvailableWaitOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no action available wait operation");
+var actionAvailableWaitPayload = JsonSerializer.SerializeToUtf8Bytes(
+    actionAvailableWaitOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedActionAvailableWaitOperation = JsonSerializer.Deserialize(
+    actionAvailableWaitPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("action available wait operation round trip failed");
 var actionUnavailableReasonAssertOperation = fixture.ActionUnavailableReasonAssertOperation
     ?? throw new InvalidDataException(
         "presentation fixture contains no action unavailable reason assert operation");
@@ -522,6 +563,14 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     || renderer.ValidatePresentationOperation(decodedNodeKindAssertOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedActionKindAssertOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedActionLabelAssertOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedActionLabelWaitOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedActionAvailableAssertOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedActionAvailableWaitOperation)
         != UiPresentationValidation.Valid
     || renderer.ValidatePresentationOperation(decodedActionUnavailableReasonAssertOperation)
         != UiPresentationValidation.Valid
@@ -927,6 +976,108 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
     }) != UiPresentationValidation.UnfocusableTarget
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
+        Kind = UiPresentationOperationKind.AssertActionLabel,
+        NodeId = "missing-presentation-target",
+        Expected = decodedActionLabelAssertOperation.Expected,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertActionLabel,
+        NodeId = renderer.Document.Root.Id,
+        Expected = decodedActionLabelAssertOperation.Expected,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertActionLabel,
+        NodeId = decodedActionLabelAssertOperation.NodeId,
+        Expected = "bad\nlabel",
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertActionLabel,
+        NodeId = decodedActionLabelAssertOperation.NodeId,
+        Expected = decodedActionLabelAssertOperation.Expected,
+        ExpectedActionKind = ActionKind.RuntimeRefresh,
+    }) != UiPresentationValidation.InvalidExpectedActionKind
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionLabel,
+        NodeId = "missing-presentation-target",
+        Expected = decodedActionLabelWaitOperation.Expected,
+        TimeoutMs = SemanticRenderer.WaitActionLabelTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionLabel,
+        NodeId = renderer.Document.Root.Id,
+        Expected = decodedActionLabelWaitOperation.Expected,
+        TimeoutMs = SemanticRenderer.WaitActionLabelTimeoutMs,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionLabel,
+        NodeId = decodedActionLabelWaitOperation.NodeId,
+        Expected = "bad\nlabel",
+        TimeoutMs = SemanticRenderer.WaitActionLabelTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionLabel,
+        NodeId = decodedActionLabelWaitOperation.NodeId,
+        Expected = decodedActionLabelWaitOperation.Expected,
+        TimeoutMs = SemanticRenderer.WaitActionLabelTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionLabel,
+        NodeId = decodedActionLabelWaitOperation.NodeId,
+        Expected = decodedActionLabelWaitOperation.Expected,
+        ExpectedActionKind = ActionKind.RuntimeRefresh,
+        TimeoutMs = SemanticRenderer.WaitActionLabelTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedActionKind
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertActionAvailable,
+        NodeId = "missing-presentation-target",
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertActionAvailable,
+        NodeId = renderer.Document.Root.Id,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.AssertActionAvailable,
+        NodeId = decodedActionAvailableAssertOperation.NodeId,
+        Expected = "available",
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionAvailable,
+        NodeId = "missing-presentation-target",
+        TimeoutMs = SemanticRenderer.WaitActionAvailableTimeoutMs,
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionAvailable,
+        NodeId = renderer.Document.Root.Id,
+        TimeoutMs = SemanticRenderer.WaitActionAvailableTimeoutMs,
+    }) != UiPresentationValidation.UnfocusableTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionAvailable,
+        NodeId = decodedActionAvailableWaitOperation.NodeId,
+        TimeoutMs = SemanticRenderer.WaitActionAvailableTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.WaitActionAvailable,
+        NodeId = decodedActionAvailableWaitOperation.NodeId,
+        Expected = "available",
+        TimeoutMs = SemanticRenderer.WaitActionAvailableTimeoutMs,
+    }) != UiPresentationValidation.InvalidExpectedText
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
         Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
         NodeId = "missing-presentation-target",
         Expected = decodedActionUnavailableReasonAssertOperation.Expected,
@@ -1297,7 +1448,7 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_assert_action_kind=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_assert_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
 return 0;
 
 static byte[] ReadBoundedFixture(string path)

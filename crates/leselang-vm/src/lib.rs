@@ -6,6 +6,7 @@ use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
     CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type,
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
+    UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
     UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
     UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
     UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS,
@@ -215,6 +216,22 @@ pub enum PresentationOperation {
         node_id: String,
         expected_kind: UiSemanticActionKind,
     },
+    AssertActionLabel {
+        node_id: String,
+        expected: String,
+    },
+    WaitActionLabel {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
+    },
+    AssertActionAvailable {
+        node_id: String,
+    },
+    WaitActionAvailable {
+        node_id: String,
+        timeout_ms: u64,
+    },
     AssertActionUnavailableReason {
         node_id: String,
         expected: Option<String>,
@@ -392,6 +409,22 @@ pub enum PresentationResult {
     AssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    AssertActionLabel {
+        node_id: String,
+        expected: String,
+    },
+    WaitActionLabel {
+        node_id: String,
+        expected: String,
+        timeout_ms: u64,
+    },
+    AssertActionAvailable {
+        node_id: String,
+    },
+    WaitActionAvailable {
+        node_id: String,
+        timeout_ms: u64,
     },
     AssertActionUnavailableReason {
         node_id: String,
@@ -790,6 +823,20 @@ pub enum Value {
     UiAssertActionKind {
         node_id: String,
         expected_kind: UiSemanticActionKind,
+    },
+    UiAssertActionLabel {
+        node_id: String,
+        expected: String,
+    },
+    UiWaitActionLabel {
+        node_id: String,
+        expected: String,
+    },
+    UiAssertActionAvailable {
+        node_id: String,
+    },
+    UiWaitActionAvailable {
+        node_id: String,
     },
     UiAssertActionUnavailableReason {
         node_id: String,
@@ -1459,6 +1506,54 @@ impl Vm {
                     operation: PresentationOperation::AssertActionKind {
                         node_id: node_id.clone(),
                         expected_kind: *expected_kind,
+                    },
+                }),
+            ),
+            Effect::UiAssertActionLabel { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertActionLabel {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitActionLabel { node_id, expected } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitActionLabel {
+                        node_id: node_id.clone(),
+                        expected: expected.clone(),
+                        timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
+                    },
+                }),
+            ),
+            Effect::UiAssertActionAvailable { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertActionAvailable {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiWaitActionAvailable { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitActionAvailable {
+                        node_id: node_id.clone(),
+                        timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -2211,6 +2306,10 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertAutomationId { .. } => Type::UiAssertAutomationId,
         Effect::UiAssertNodeKind { .. } => Type::UiAssertNodeKind,
         Effect::UiAssertActionKind { .. } => Type::UiAssertActionKind,
+        Effect::UiAssertActionLabel { .. } => Type::UiAssertActionLabel,
+        Effect::UiWaitActionLabel { .. } => Type::UiWaitActionLabel,
+        Effect::UiAssertActionAvailable { .. } => Type::UiAssertActionAvailable,
+        Effect::UiWaitActionAvailable { .. } => Type::UiWaitActionAvailable,
         Effect::UiAssertActionUnavailableReason { .. } => Type::UiAssertActionUnavailableReason,
         Effect::UiWaitActionUnavailableReason { .. } => Type::UiWaitActionUnavailableReason,
         Effect::UiAssertFormField { .. } => Type::UiAssertFormField,
@@ -2954,6 +3053,91 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
             )
         }
         (
+            Effect::UiAssertActionLabel { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertActionLabel {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_expected_text(operation_expected)
+            )
+        }
+        (
+            Effect::UiWaitActionLabel { node_id, expected },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitActionLabel {
+                    node_id: operation_node_id,
+                    expected: operation_expected,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_expected == expected
+                    && validate_ui_node_id(operation_node_id)
+                    && validate_ui_expected_text(operation_expected)
+                    && *timeout_ms == UI_WAIT_ACTION_LABEL_TIMEOUT_MS
+            )
+        }
+        (
+            Effect::UiAssertActionAvailable { node_id },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertActionAvailable {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiWaitActionAvailable { node_id },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitActionAvailable {
+                    node_id: operation_node_id,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS
+            )
+        }
+        (
             Effect::UiAssertActionUnavailableReason { node_id, expected },
             EffectOperation::Presentation(presentation),
         ) => {
@@ -3595,6 +3779,18 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         }
         Value::UiAssertNodeKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertActionKind { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertActionLabel { node_id, expected }
+            if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
+        Value::UiWaitActionLabel { node_id, expected }
+            if validate_ui_node_id(node_id) && validate_ui_expected_text(expected) =>
+        {
+            Ok(1)
+        }
+        Value::UiAssertActionAvailable { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiWaitActionAvailable { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertActionUnavailableReason { node_id, expected }
             if validate_ui_node_id(node_id)
                 && expected.as_deref().is_none_or(validate_ui_expected_text) =>
@@ -4690,6 +4886,120 @@ fn step_from_effect_result(
             Step::Done(Value::UiAssertActionKind {
                 node_id: result_node_id,
                 expected_kind: result_expected_kind,
+            })
+        }
+        (
+            Effect::UiAssertActionLabel { node_id, expected },
+            Type::UiAssertActionLabel,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertActionLabel {
+                node_id: result_node_id,
+                expected: result_expected,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertActionLabel {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected == expected
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertActionLabel {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiWaitActionLabel { node_id, expected },
+            Type::UiWaitActionLabel,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitActionLabel {
+                node_id: result_node_id,
+                expected: result_expected,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_expected == *expected
+            && timeout_ms == UI_WAIT_ACTION_LABEL_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitActionLabel {
+                            node_id: operation_node_id,
+                            expected: operation_expected,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_expected == expected
+                        && *operation_timeout_ms == UI_WAIT_ACTION_LABEL_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitActionLabel {
+                node_id: result_node_id,
+                expected: result_expected,
+            })
+        }
+        (
+            Effect::UiAssertActionAvailable { node_id },
+            Type::UiAssertActionAvailable,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertActionAvailable {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertActionAvailable {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertActionAvailable {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiWaitActionAvailable { node_id },
+            Type::UiWaitActionAvailable,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitActionAvailable {
+                node_id: result_node_id,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && timeout_ms == UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitActionAvailable {
+                            node_id: operation_node_id,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && *operation_timeout_ms == UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitActionAvailable {
+                node_id: result_node_id,
             })
         }
         (
@@ -6986,6 +7296,219 @@ mod tests {
         presentation.operation = PresentationOperation::AssertActionKind {
             node_id: "runtime-a:refresh".into(),
             expected_kind: UiSemanticActionKind::RuntimeDeploy,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_action_available_reenters_only_from_its_matching_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_available(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI action available assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI action available assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertActionAvailable { node_id }
+                if node_id == "runtime-a:refresh"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertActionAvailable {
+                    node_id: "runtime-a:refresh".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertActionAvailable {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI action available assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertActionAvailable {
+            node_id: "runtime-b:refresh".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_assert_action_label_binds_expected_label_across_request_and_reentry() {
+        let program = lower(&parse(
+            "fn main() = ui.assert_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI action label assertion");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI action label assertion must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::AssertActionLabel {
+                node_id,
+                expected,
+            } if node_id == "runtime-a:refresh"
+                && expected == "Refresh runtime"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertActionLabel {
+                    node_id: "runtime-a:refresh".into(),
+                    expected: "Refresh runtime".into(),
+                }),
+            ),
+            Step::Done(Value::UiAssertActionLabel {
+                node_id: "runtime-a:refresh".into(),
+                expected: "Refresh runtime".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI action label assertion must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::AssertActionLabel {
+            node_id: "runtime-a:refresh".into(),
+            expected: "Inspect runtime".into(),
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_action_label_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_action_label(node_id: \"runtime-a:refresh\", expected: \"Refresh runtime\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI action label wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI action label wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitActionLabel {
+                node_id,
+                expected,
+                timeout_ms,
+            } if node_id == "runtime-a:refresh"
+                && expected == "Refresh runtime"
+                && *timeout_ms == UI_WAIT_ACTION_LABEL_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitActionLabel {
+                    node_id: "runtime-a:refresh".into(),
+                    expected: "Refresh runtime".into(),
+                    timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitActionLabel {
+                node_id: "runtime-a:refresh".into(),
+                expected: "Refresh runtime".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI action label wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitActionLabel {
+            node_id: "runtime-a:refresh".into(),
+            expected: "Refresh runtime".into(),
+            timeout_ms: UI_WAIT_ACTION_LABEL_TIMEOUT_MS + 1,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_wait_action_available_reenters_only_from_its_fixed_bounded_presentation_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_action_available(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI action available wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI action available wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitActionAvailable {
+                node_id,
+                timeout_ms,
+            } if node_id == "runtime-a:refresh"
+                && *timeout_ms == UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitActionAvailable {
+                    node_id: "runtime-a:refresh".into(),
+                    timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitActionAvailable {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+
+        let mut torn = request;
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI action available wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitActionAvailable {
+            node_id: "runtime-a:refresh".into(),
+            timeout_ms: UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS + 1,
         };
         assert!(validate_effect_request(&torn).is_err());
     }

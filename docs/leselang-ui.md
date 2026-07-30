@@ -151,7 +151,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by forty presentation atoms.
+Semantic action equivalence is joined by forty-four presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -227,7 +227,22 @@ node, and carries a stable semantic renderer kind.
 `UiPresentationOperation::AssertActionKind` maps one-to-one to
 `ui.assert_action_kind(node_id: ..., kind: ...)`, requires a semantic action
 node, and carries the stable semantic action payload kind as
-`expected_action_kind`. `UiPresentationOperation::AssertActionUnavailableReason`
+`expected_action_kind`. `UiPresentationOperation::AssertActionLabel` maps
+one-to-one to `ui.assert_action_label(node_id: ..., expected: ...)`, requires
+the same semantic action node, and compares its explicit semantic action label
+through the renderer's native automation name. `UiPresentationOperation::WaitActionLabel`
+maps one-to-one to `ui.wait_action_label(node_id: ..., expected: ...)`,
+requires the same semantic action node, validates the same bounded expected
+text, and carries the protocol-fixed 2000 ms deadline while waiting for that
+explicit label to match. `UiPresentationOperation::AssertActionAvailable`
+maps one-to-one to `ui.assert_action_available(node_id: ...)`, requires the
+same semantic action node, and succeeds only when renderer-maintained semantic
+availability has no unavailable reason.
+`UiPresentationOperation::WaitActionAvailable` maps one-to-one to
+`ui.wait_action_available(node_id: ...)`, requires the same semantic action node,
+and carries the protocol-fixed 2000 ms deadline while waiting for
+renderer-maintained semantic action availability to become true.
+`UiPresentationOperation::AssertActionUnavailableReason`
 maps one-to-one to
 `ui.assert_action_unavailable_reason(node_id: ..., expected: ...)`, requires a
 semantic action node, and compares the configured action unavailable reason or
@@ -277,11 +292,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all forty travel in
+become a `UiEvent` or `CommandPlan`; all forty-four travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all forty operations through its stable visual index. Focus
+Avalonia resolves all forty-four operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -341,7 +356,16 @@ and requires it to match the expected stable node identifier exactly.
 Node-kind assertion compares the stable semantic renderer kind and uses no
 guessing, coordinates, or OCR. Action-kind assertion compares the expected
 semantic action kind with the realized node's stable action payload and never
-activates or focuses the target. Form-field assertion reads the realized node's
+activates or focuses the target. Action-label assertion compares the explicit
+semantic action label through native automation name, while action-label wait
+polls that same exact predicate through the dispatcher-yielding adapter until
+its fixed deadline. Both preserve focus and never click, activate, enable, or
+rewrite the action. Action-available assertion reads
+renderer-maintained semantic action availability and succeeds only when no
+unavailable reason is present, while action-available wait polls that same
+predicate through the cancellable dispatcher-yielding adapter until its fixed
+deadline. Both observe external availability transitions and never focus,
+activate, click, enable, or rewrite the action. Form-field assertion reads the realized node's
 stable semantic deployment form metadata, compares the declared field label
 fallback exactly, and never types into or submits the form. Form-field input-kind
 assertion reads the same stable semantic deployment form metadata, compares the

@@ -21,6 +21,8 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`, `ui.wait_text`,
 `ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.assert_action_kind`,
+`ui.assert_action_label`, `ui.wait_action_label`,
+`ui.assert_action_available`, `ui.wait_action_available`,
 `ui.assert_action_unavailable_reason`,
 `ui.wait_action_unavailable_reason`, `ui.assert_form_field`,
 `ui.assert_form_field_input_kind`, `ui.assert_form_field_required`,
@@ -525,6 +527,74 @@ compares it with the stable semantic action payload for the realized node.
 Missing, actionless, unrealized, invalid-kind, or mismatched targets fail. The
 assertion never focuses, activates, scrolls, submits a form, or changes action
 metadata.
+
+Native semantic action labels can be asserted before activation:
+
+```leselang
+fn main() = ui.assert_action_label(
+  node_id: "runtime-runtime-a-refresh",
+  expected: "Refresh runtime"
+)
+```
+
+`ui.assert_action_label` requires `ui.presentation`, a semantic action node,
+and a bounded expected string. It reads the renderer's explicit semantic action
+label as exposed through native automation name, not fallback OCR or button
+layout text. The VM binds node and expected label to the request and result,
+while the renderer compares exact ordinal text for the realized action. Missing,
+actionless, unrealized, unlabelled, invalid expected text, or mismatched targets
+fail. The assertion never focuses, activates, clicks, scrolls, submits a form,
+enables the action, or changes label metadata.
+
+The same semantic action label can be awaited while an external projection or
+localization package changes the action metadata:
+
+```leselang
+fn main() = ui.wait_action_label(
+  node_id: "runtime-runtime-a-refresh",
+  expected: "Refresh runtime"
+)
+```
+
+`ui.wait_action_label` requires `ui.presentation` and the same semantic action
+node. Its presentation envelope carries a protocol-fixed 2000 ms deadline;
+source has no duration argument. The frontend adapter yields its dispatcher
+until the explicit semantic action label matches the expected native automation
+name. Missing or actionless nodes fail immediately, persistent label mismatch
+times out, and waiting never focuses, activates, clicks, scrolls, submits a
+form, enables the action, or rewrites the label.
+
+Semantic action availability can be asserted before activation:
+
+```leselang
+fn main() = ui.assert_action_available(
+  node_id: "runtime-runtime-a-refresh"
+)
+```
+
+`ui.assert_action_available` requires `ui.presentation` and a semantic action
+node. It reads renderer-maintained semantic action availability, not native
+effective-enabled state, and succeeds only when the action has no unavailable
+reason. Missing, actionless, unrealized, or currently unavailable targets fail.
+The assertion never focuses, activates, clicks, scrolls, submits a form, enables
+the action, or rewrites the unavailable reason.
+
+The same semantic action availability can be awaited while a daemon, topology
+poll, or local deployment policy restores an action:
+
+```leselang
+fn main() = ui.wait_action_available(
+  node_id: "runtime-runtime-a-refresh"
+)
+```
+
+`ui.wait_action_available` requires `ui.presentation` and a semantic action
+node. Its presentation envelope carries a protocol-fixed 2000 ms deadline;
+source has no duration argument. The frontend adapter yields its dispatcher
+until renderer-maintained action availability becomes true. Missing or
+actionless nodes fail immediately, persistent unavailability times out, and
+waiting never focuses, activates, clicks, scrolls, submits a form, enables the
+action, or rewrites the unavailable reason.
 
 Native action unavailable reasons can be asserted before retrying deployment or
 refresh controls:
