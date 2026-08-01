@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_claim_crash",
+  "recorded_at": "2026-08-01T11:40:35Z",
+  "target": {
+    "host": "192.168.1.46",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "sigkill_at_writer_claim_commit_preserves_an_atomic_generation",
+    "observed_duration_ms": 30160,
+    "owner_lease_duration_ms": 30000
+  },
+  "boundaries": {
+    "pre_commit": {
+      "coordination": "sqlite-delete-journal-reader-lock",
+      "termination": "SIGKILL",
+      "recovered_generation": 1,
+      "recovered_writer": "writer_a",
+      "attempted_writer": "writer_b"
+    },
+    "natural_takeover": {
+      "generation": 2,
+      "writer": "writer_b",
+      "replayed": false
+    },
+    "post_commit": {
+      "termination": "SIGKILL-before-owner-cleanup",
+      "recovered_generation": 3,
+      "recovered_writer": "writer_c"
+    }
+  },
+  "checks": {
+    "production_control_runtime_claim_path": true,
+    "deterministic_pre_commit_block": true,
+    "rollback_journal_recovery": true,
+    "sqlite_integrity_check_ok": true,
+    "pre_expiry_replacement_rejected": true,
+    "natural_owner_lease_expiry_observed": true,
+    "stale_generation_rejected_after_takeover": true,
+    "post_commit_generation_durable_after_sigkill": true,
+    "secret_free_evidence": true
+  }
+}

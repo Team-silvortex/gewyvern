@@ -412,6 +412,31 @@ mutation inventory. A real multi-process daemon test retains the stable wire-v1
 payload while proving durable cold generation takeover and stale refresh
 rejection.
 
+The unchanged claim payload also has deterministic unclean-commit proof. A
+test-only process executes the production runtime claim while an external
+SQLite reader holds its FULL-synchronous DELETE-journal commit, then receives
+`SIGKILL`. Recovery exposes only the complete previous generation; after the
+natural owner lease expires, the attempted writer receives the next generation
+as a non-replay. Killing a second claimant after commit but before cleanup
+retains the complete committed generation. This adds no protocol field,
+production crash switch, or alternate writer-claim endpoint.
+
+The unchanged payload is also sufficient when a successful response is never
+decoded. A production daemon IPC test commits writer A, leaves that response
+unread, and starts same-A retry plus competing-B claim from independent clients
+through one barrier. It accepts only the two transaction-serial orders: A
+replays before B advances, or B advances before A becomes a new non-replayed
+takeover. The maximal generation is the only ticket admitted for a real
+mutation, and its subsequent same-ID replay is stable. No request identifier or
+wire field is added.
+
+The same unchanged payload survives a cold process boundary. Writer B
+generation `2` is committed with its response left unread, the daemon exits,
+and a fresh daemon opens the same database. B/`2` replays before a queued writer
+C claim advances once to `3`; only C/`3` can perform the following mutation. A
+third daemon then replays C/`3`. This proves durable response-loss recovery
+without adding request identity, startup gating, or a new claim route.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.5.0",
+  "version": "1.8.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -47,6 +47,9 @@
     "background-worker-owner-gate",
     "source-scanned-route-inventory-ci",
     "exhaustive-rust-request-classification",
+    "deterministic-writer-claim-commit-crash-proof",
+    "lost-response-concurrent-claim-linearization-proof",
+    "cold-restart-lost-response-replay-proof",
     "rust-authority-pre-mutation-generation-fence",
     "rust-specialized-local-route-pre-decode-generation-fence",
     "rust-authenticated-https-header-generation-fence"
@@ -104,6 +107,29 @@
       "debugger_cancel: rejected by the control runtime and delegated to the Leselang VM authority"
     ],
     "cold_takeover_proof": "real-daemon-process-owner-exclusion-restart-generation-advance-stale-writer-rejection-and-durable-replay",
+    "claim_crash_proof": {
+      "pre_commit": "reader-lock-blocked-full-synchronous-commit-then-sigkill-rolls-back",
+      "owner_recovery": "pre-expiry-rejected-then-natural-30-second-lease-takeover",
+      "post_commit": "committed-generation-survives-sigkill-before-owner-cleanup",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_claim_crash_linux_x86_64_20260801.json"
+    },
+    "claim_response_loss_proof": {
+      "fault": "committed-initial-claim-response-never-decoded-by-caller",
+      "concurrency": "same-id-retry-and-competing-id-claim-start-through-one-barrier",
+      "allowed_orders": [
+        "same-id-replays-current-generation-then-competitor-advances-once",
+        "competitor-advances-once-then-same-id-becomes-a-new-non-replayed-takeover"
+      ],
+      "postconditions": "one-final-ticket-stale-ticket-rejected-final-mutation-applied-and-final-id-replay-stable",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_lost_response_race_linux_x86_64_20260801.json"
+    },
+    "claim_cold_restart_replay_proof": {
+      "fault": "final-writer-claim-committed-with-response-never-decoded",
+      "restart": "graceful-old-daemon-exit-and-fresh-process-open-of-the-same-database",
+      "queued_order": "same-id-replay-before-competing-id-claim-behind-an-ipc-accept-gate",
+      "postconditions": "durable-replay-same-generation-competitor-advances-once-stale-ticket-rejected-final-ticket-mutates-and-replays-after-second-restart",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
+    },
     "remaining_routes": []
   },
   "standby_contract": {

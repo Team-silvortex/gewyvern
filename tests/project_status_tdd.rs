@@ -143,7 +143,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.5.0");
+    assert_eq!(inventory["version"], "1.8.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -204,6 +204,144 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         writer_fence["remote_headers"]["generation"],
         "X-Leserpent-Authority-Writer-Generation"
     );
+    assert_eq!(
+        writer_fence["claim_crash_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_claim_crash_linux_x86_64_20260801.json"
+    );
+    assert_eq!(
+        writer_fence["claim_response_loss_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_lost_response_race_linux_x86_64_20260801.json"
+    );
+    assert_eq!(
+        writer_fence["claim_cold_restart_replay_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
+    );
+}
+
+#[test]
+fn retained_linux_authority_writer_cold_response_replay_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json",
+        ))
+        .expect("authority writer cold response replay evidence must exist"),
+    )
+    .expect("authority writer cold response replay evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.1.46");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "lost_final_claim_response_replays_after_cold_restart_before_queued_competitor"
+    );
+    assert_eq!(
+        evidence["sequence"]["first_daemon"]["lost_response_generation"],
+        2
+    );
+    assert_eq!(
+        evidence["sequence"]["first_daemon"]["response_bytes_decoded"],
+        false
+    );
+    assert_eq!(
+        evidence["sequence"]["second_daemon"]["replay_result"]["replayed"],
+        true
+    );
+    assert_eq!(
+        evidence["sequence"]["second_daemon"]["competitor_result"]["generation"],
+        3
+    );
+    assert_eq!(evidence["sequence"]["third_daemon"]["generation"], 3);
+    assert_eq!(evidence["sequence"]["third_daemon"]["replayed"], true);
+    for check in [
+        "production_daemon_ipc_path",
+        "lost_claim_commit_survives_cold_restart",
+        "old_socket_removed_before_restart",
+        "actual_listener_connect_readiness",
+        "replay_precedes_queued_competitor",
+        "competitor_advances_exactly_once",
+        "stale_replayed_ticket_rejected_after_competitor",
+        "final_ticket_mutation_applied",
+        "second_cold_restart_replay_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_authority_writer_lost_response_race_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_lost_response_race_linux_x86_64_20260801.json",
+        ))
+        .expect("authority writer lost-response evidence must exist"),
+    )
+    .expect("authority writer lost-response evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.1.46");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "lost_claim_response_race_is_linearizable_for_same_and_competing_writers"
+    );
+    assert_eq!(evidence["fault"]["initial_generation"], 1);
+    assert_eq!(evidence["fault"]["response_bytes_decoded"], false);
+    assert_eq!(evidence["race"]["observed_order"], "competing-then-same");
+    assert_eq!(evidence["race"]["competing_result"]["generation"], 2);
+    assert_eq!(evidence["race"]["same_writer_result"]["generation"], 3);
+    assert_eq!(evidence["race"]["same_writer_result"]["replayed"], false);
+    assert_eq!(evidence["race"]["final_generation"], 3);
+    for check in [
+        "production_daemon_ipc_path",
+        "initial_claim_durable_without_caller_response",
+        "simultaneous_independent_clients",
+        "same_writer_not_false_replay_after_competitor",
+        "unique_generation_writer_order",
+        "stale_competing_ticket_rejected",
+        "final_ticket_mutation_applied",
+        "final_same_id_replay_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_authority_writer_claim_crash_evidence_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_claim_crash_linux_x86_64_20260801.json",
+        ))
+        .expect("authority writer claim crash evidence must exist"),
+    )
+    .expect("authority writer claim crash evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.1.46");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "sigkill_at_writer_claim_commit_preserves_an_atomic_generation"
+    );
+    assert_eq!(evidence["test"]["owner_lease_duration_ms"], 30_000);
+    assert_eq!(
+        evidence["boundaries"]["pre_commit"]["recovered_generation"],
+        1
+    );
+    assert_eq!(evidence["boundaries"]["natural_takeover"]["generation"], 2);
+    assert_eq!(
+        evidence["boundaries"]["post_commit"]["recovered_generation"],
+        3
+    );
+    for check in [
+        "production_control_runtime_claim_path",
+        "deterministic_pre_commit_block",
+        "rollback_journal_recovery",
+        "sqlite_integrity_check_ok",
+        "pre_expiry_replacement_rejected",
+        "natural_owner_lease_expiry_observed",
+        "stale_generation_rejected_after_takeover",
+        "post_commit_generation_durable_after_sigkill",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
 }
 
 #[test]
@@ -2149,6 +2287,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "atomic-unregistration-orchestra-cleanup",
         "durable-unregistration-idempotency",
         "restart-safe-unregistration-replay",
+        "atomic-authority-writer-claim-transaction",
+        "deterministic-claim-precommit-crash-rollback",
+        "postcommit-claim-durability",
+        "natural-owner-lease-recovery-after-sigkill",
+        "physical-linux-claim-crash-proof",
+        "lost-claim-response-idempotency",
+        "concurrent-writer-claim-linearization",
+        "unique-generation-writer-order",
+        "final-ticket-authority-proof",
+        "physical-linux-lost-response-race-proof",
+        "durable-lost-claim-response-replay",
+        "queued-claim-order-linearization",
+        "fresh-process-writer-generation-continuity",
+        "final-ticket-second-restart-replay",
+        "physical-linux-cold-response-replay-proof",
     ] {
         assert!(
             runtime
@@ -2160,13 +2313,32 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(runtime.blockers.is_empty());
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_claim_crash_linux_x86_64_20260801.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_lost_response_race_linux_x86_64_20260801.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
+            && item.state == EvidenceState::Present
+    }));
 
     let compatibility_control = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.30.0");
+    assert_eq!(compatibility_control.contract.version, "1.33.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -2491,6 +2663,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "runtime-refresh-generation-fence",
         "bootstrap-session-bind-generation-fence",
         "real-daemon-cold-takeover-proof",
+        "deterministic-precommit-writer-claim-sigkill",
+        "rollback-journal-writer-claim-recovery",
+        "natural-owner-lease-expiry-after-claim-crash",
+        "postcommit-writer-claim-sigkill-durability",
+        "physical-linux-writer-claim-crash-proof",
+        "lost-writer-claim-response",
+        "concurrent-same-and-competing-writer-linearization",
+        "explicit-dual-claim-order-contract",
+        "final-writer-ticket-mutation-proof",
+        "physical-linux-lost-response-race-proof",
+        "cold-restart-lost-claim-response-replay",
+        "queued-replay-before-competing-claim",
+        "connectable-listener-readiness-proof",
+        "second-cold-restart-final-replay",
+        "physical-linux-cold-response-replay-proof",
     ] {
         assert!(
             compatibility_control
@@ -2501,10 +2688,25 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.30.0");
+    assert_eq!(compatibility_control.contract.version, "1.33.0");
     assert!(compatibility_control.next_gate.contains("exhaustive"));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_claim_crash_linux_x86_64_20260801.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_lost_response_race_linux_x86_64_20260801.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
             && item.state == EvidenceState::Present
     }));
 

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_lost_response_race",
+  "recorded_at": "2026-08-01T11:50:26Z",
+  "target": {
+    "host": "192.168.1.46",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "lost_claim_response_race_is_linearizable_for_same_and_competing_writers",
+    "observed_duration_ms": 680
+  },
+  "fault": {
+    "initial_writer": "writer_a",
+    "initial_generation": 1,
+    "request_fully_sent": true,
+    "commit_observed_before_socket_discard": true,
+    "response_bytes_decoded": false
+  },
+  "race": {
+    "participants": ["same_writer_a", "competing_writer_b"],
+    "coordination": "three-party-start-barrier-over-independent-ipc-connections",
+    "allowed_orders": ["same-then-competing", "competing-then-same"],
+    "observed_order": "competing-then-same",
+    "competing_result": {
+      "writer": "writer_b",
+      "generation": 2,
+      "replayed": false
+    },
+    "same_writer_result": {
+      "writer": "writer_a",
+      "generation": 3,
+      "replayed": false
+    },
+    "final_writer": "writer_a",
+    "final_generation": 3
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "initial_claim_durable_without_caller_response": true,
+    "simultaneous_independent_clients": true,
+    "same_writer_not_false_replay_after_competitor": true,
+    "unique_generation_writer_order": true,
+    "stale_competing_ticket_rejected": true,
+    "final_ticket_mutation_applied": true,
+    "final_same_id_replay_stable": true,
+    "secret_free_evidence": true
+  }
+}

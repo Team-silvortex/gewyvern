@@ -1038,11 +1038,38 @@ active-active writes.
 
 The fence policy is compile-time exhaustive over every Rust protocol request
 and nested command variant. The C# non-read endpoint set and Rust HTTPS route
-table are also source-scanned against contract version 1.5.0, so a new route
+table are also source-scanned against contract version 1.8.0, so a new route
 cannot silently bypass inventory review. A real three-daemon-process test
 proves live-owner exclusion, clean fresh-process reopening, durable generation
 advance, stale refresh rejection, current refresh application, and idempotent
 writer replay after a second restart.
+
+The writer-claim SQLite transaction now has deterministic pre-commit and
+post-commit crash proof. The test-only parent process uses a real reader lock to
+hold the production `BEGIN IMMEDIATE` claim at its FULL-synchronous commit, then
+`SIGKILL`s the claimant. Hot-journal recovery preserves generation `1`, owner
+admission remains closed until the natural 30-second lease expiry, and the
+replacement commits generation `2`. A second claimant commits generation `3`
+and is killed before owner cleanup; SQLite integrity and the authority row both
+retain generation `3`. No runtime fault-injection flag or alternate claim path
+is introduced.
+
+Claim response loss is linearized by the same production transaction and does
+not need a request ID or claim-response journal. After an initial committed
+writer A response is left unread, simultaneous same-A and competing-B IPC
+clients can produce only two serial histories: replay A/`1` then claim B/`2`,
+or claim B/`2` then claim A/`3`. In the latter history A is deliberately not
+reported as a replay because B became authoritative first. The maximal
+generation is the sole valid ticket; the preceding ticket is rejected before a
+real registration mutation, and replaying the final identity remains stable.
+
+Durability extends through a fresh-process boundary. A claim response left
+unread after writer B generation `2` commits is replayed as B/`2` by a new
+daemon opening the same database. A queued writer C claim then advances exactly
+once to generation `3`; B/`2` loses mutation authority, C/`3` can mutate, and a
+third cold daemon replays C/`3`. The test uses the real serial IPC accept queue
+and verifies old-socket removal plus connectable-listener readiness, rather
+than adding a daemon startup gate or persistence fault switch.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

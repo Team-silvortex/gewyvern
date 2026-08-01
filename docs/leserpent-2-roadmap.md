@@ -1433,11 +1433,28 @@ while leaving wire reads and Leselang export unfenced. The inventoried external
 side-effect routes now share one authority boundary. The fifth slice closes the
 previous refresh and bootstrap-session-bind gaps, makes Rust request
 classification compile-time exhaustive, and source-scans both the C# mutation
-routes and Rust HTTPS table against contract 1.5.0. A real three-process daemon
+routes and Rust HTTPS table against contract 1.8.0. A real three-process daemon
 test proves live-owner exclusion, generation advance, stale-writer rejection,
 and durable writer replay across two restarts. Hot failover remains explicitly
 out of scope; future route growth must preserve these executable inventory and
 cold-takeover contracts.
+
+The sixth slice adds deterministic unclean writer-claim proof on macOS and
+physical Linux x86_64. A SQLite reader lock holds the real claim transaction at
+pre-commit before `SIGKILL`, proving rollback to the complete old generation and
+natural 30-second owner-lease takeover. A second post-commit `SIGKILL` proves
+the complete new generation survives even though process cleanup never runs.
+The seventh slice proves a lost successful claim response remains linearizable
+when same-ID retry and competing-ID takeover start concurrently. Both legal
+serial orders are explicit, generation allocation stays monotonic, the losing
+ticket cannot mutate, and the final identity replays without another advance.
+Physical Linux x86_64 evidence retains the stricter competitor-first history.
+The eighth slice carries that lost final response through two cold daemon
+restarts. The first replacement replays B/`2` before a queued C competitor
+advances exactly once to `3`; the second replacement still replays C/`3`.
+Stale-ticket rejection and a real mutation bind persistence evidence to writer
+authority. The next boundary combines response loss with unclean daemon
+termination and natural owner-lease expiry, still without hot failover.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

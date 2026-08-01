@@ -117,3 +117,32 @@ that a live owner excludes a contender, graceful shutdown releases the lease,
 the replacement advances generation `1` to `2`, the old writer is rejected,
 and replaying the replacement identity after another restart retains
 generation `2`.
+
+Writer-claim commit is also covered by a deterministic unclean boundary test
+without a production failpoint. A separate process calls the production claim
+path while a SQLite reader holds the DELETE-journal writer inside its
+`synchronous=FULL` commit. `SIGKILL` at that point recovers the complete prior
+generation, rejects replacement before the fixed 30-second owner lease expires,
+then admits generation `2` after natural expiry. A second process is killed
+after generation `3` commits but before owner cleanup; integrity check and
+direct recovery retain the complete generation `3` row. Physical Linux x86_64
+evidence is retained under `docs/fixtures`.
+
+A caller may also lose a successful claim response without making the claim
+ambiguous inside the authority. The production daemon IPC test sends writer A's
+claim completely, observes its durable generation `1` without decoding the
+response, and discards that socket. Independent same-A and competing-B clients
+then start through one barrier. If A linearizes first it replays generation `1`
+and B advances to `2`; if B linearizes first it advances to `2` and A becomes a
+new non-replayed generation `3` takeover. The test admits only these two serial
+orders, rejects the losing ticket, applies a real registration with the final
+ticket, and proves replay of the final identity does not advance generation.
+
+That replay contract also survives a cold daemon boundary. A first daemon
+commits writer B generation `2`, while the client deliberately never decodes
+the response, then exits cleanly and removes its socket. The replacement daemon
+opens the same database; an incomplete frame temporarily occupies its serial
+IPC accept path while complete B-replay and C-competitor connections queue in
+that order. Releasing the gate yields B/`2` as a replay and C/`3` as one new
+claim. B/`2` is then rejected for mutation, C/`3` applies the mutation, and a
+third cold daemon still replays C/`3` without advancing generation.

@@ -1,11 +1,13 @@
 #![cfg(unix)]
 
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command as ProcessCommand, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Command as ProcessCommand, Stdio};
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -19,10 +21,15 @@ use leserpent_protocol::{
     PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
     decode_response,
 };
+use leserpent_runtime::ControlRuntime;
+use rusqlite::Connection;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 const WRITER_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const WRITER_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const WRITER_C: &str = "cccccccccccccccccccccccccccccccc";
+const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
+const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
 
 struct TempRoot(PathBuf);
 
@@ -64,7 +71,7 @@ impl DaemonProcess {
             .unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
-            if socket.exists() {
+            if socket.exists() && UnixStream::connect(socket).is_ok() {
                 break;
             }
             if let Some(status) = child.try_wait().unwrap() {
@@ -145,6 +152,52 @@ fn send(
     decode_response(&response).unwrap()
 }
 
+fn send_without_reading_response(socket: &Path, request: &RequestEnvelope) -> UnixStream {
+    let mut stream = UnixStream::connect(socket).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    let mut frame = serde_json::to_vec(&serde_json::json!({
+        "token": TOKEN,
+        "request": request,
+    }))
+    .unwrap();
+    frame.push(b'\n');
+    stream.write_all(&frame).unwrap();
+    stream.flush().unwrap();
+    stream.shutdown(Shutdown::Write).unwrap();
+    stream
+}
+
+fn read_queued_response(mut stream: UnixStream) -> ResponseEnvelope {
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response).unwrap();
+    decode_response(&response).unwrap()
+}
+
+fn hold_ipc_accept(socket: &Path) -> UnixStream {
+    let mut stream = UnixStream::connect(socket).unwrap();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    stream.write_all(b"{").unwrap();
+    stream.flush().unwrap();
+    thread::sleep(Duration::from_millis(100));
+    stream
+}
+
+fn claimed(response: ResponseEnvelope) -> (u64, String, bool) {
+    match response.response {
+        ProtocolResponse::AuthorityWriterClaimed(claim) => {
+            (claim.generation, claim.writer_id, claim.replayed)
+        }
+        other => panic!("expected authority writer claim response, got {other:?}"),
+    }
+}
+
 fn claim(writer_id: &str) -> RequestEnvelope {
     RequestEnvelope {
         schema_version: PROTOCOL_SCHEMA_VERSION,
@@ -220,6 +273,356 @@ fn fence(writer_id: &str, generation: u64) -> AuthorityWriterFence {
         generation,
         writer_id: writer_id.into(),
     }
+}
+
+fn spawn_claim_crash_worker(
+    database: &Path,
+    writer_id: &str,
+) -> (Child, ChildStdin, BufReader<ChildStdout>) {
+    let mut child = ProcessCommand::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "authority_writer_claim_crash_worker",
+            "--nocapture",
+        ])
+        .env(CRASH_WORKER_DATABASE, database)
+        .env(CRASH_WORKER_ID, writer_id)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    let stdin = child.stdin.take().unwrap();
+    let stdout = BufReader::new(child.stdout.take().unwrap());
+    (child, stdin, stdout)
+}
+
+fn wait_for_worker_marker(reader: &mut BufReader<ChildStdout>, marker: &str) {
+    let mut transcript = String::new();
+    loop {
+        let mut line = String::new();
+        let read = reader.read_line(&mut line).unwrap();
+        assert!(
+            read > 0,
+            "claim worker exited before {marker}: {transcript}"
+        );
+        transcript.push_str(&line);
+        if line.contains(marker) {
+            return;
+        }
+    }
+}
+
+fn kill_worker(child: &mut Child) {
+    assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGKILL) }, 0);
+    let status = child.wait().unwrap();
+    assert_eq!(status.signal(), Some(libc::SIGKILL));
+}
+
+fn inspect_writer_fence(database: &Path) -> (i64, String, i64) {
+    let connection = Connection::open(database).unwrap();
+    let integrity: String = connection
+        .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(integrity, "ok");
+    let (generation, writer_id) = connection
+        .query_row(
+            "SELECT generation, writer_id FROM authority_writer_fence WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    let lease_expires_at = connection
+        .query_row(
+            "SELECT lease_expires_at_unix_ms FROM runtime_owner WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    (generation, writer_id, lease_expires_at)
+}
+
+fn wait_for_writer_fence(database: &Path, expected_generation: i64, expected_writer: &str) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let current = Connection::open(database).and_then(|connection| {
+            connection.query_row(
+                "SELECT generation, writer_id FROM authority_writer_fence WHERE id = 1",
+                [],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+            )
+        });
+        if matches!(
+            current,
+            Ok((generation, ref writer_id))
+                if generation == expected_generation && writer_id == expected_writer
+        ) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "authority writer fence did not reach generation {expected_generation} for {expected_writer}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn unix_time_ms() -> i64 {
+    i64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn authority_writer_claim_crash_worker() {
+    let Some(database) = std::env::var_os(CRASH_WORKER_DATABASE) else {
+        return;
+    };
+    let writer_id = std::env::var(CRASH_WORKER_ID).unwrap();
+    let mut runtime = ControlRuntime::open(database).unwrap();
+    println!("authority-writer-worker-ready");
+    std::io::stdout().flush().unwrap();
+    let mut command = [0_u8; 1];
+    std::io::stdin().read_exact(&mut command).unwrap();
+    assert_eq!(command, [b'C']);
+    let claim = runtime.claim_authority_writer(&writer_id).unwrap();
+    println!(
+        "authority-writer-worker-committed generation={} writer={}",
+        claim.generation, claim.writer_id
+    );
+    std::io::stdout().flush().unwrap();
+    std::io::stdin().read_exact(&mut command).unwrap();
+}
+
+#[test]
+fn sigkill_at_writer_claim_commit_preserves_an_atomic_generation() {
+    let root = TempRoot::new();
+    let database = root.0.join("claim-crash.sqlite");
+    {
+        let mut baseline = ControlRuntime::open(&database).unwrap();
+        let claim = baseline.claim_authority_writer(WRITER_A).unwrap();
+        assert_eq!(claim.generation, 1);
+    }
+
+    let (mut interrupted, mut interrupted_stdin, mut interrupted_stdout) =
+        spawn_claim_crash_worker(&database, WRITER_B);
+    wait_for_worker_marker(&mut interrupted_stdout, "authority-writer-worker-ready");
+    let blocker = Connection::open(&database).unwrap();
+    blocker.execute_batch("BEGIN DEFERRED").unwrap();
+    let baseline_generation: i64 = blocker
+        .query_row(
+            "SELECT generation FROM authority_writer_fence WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(baseline_generation, 1);
+    interrupted_stdin.write_all(b"C").unwrap();
+    interrupted_stdin.flush().unwrap();
+    let rollback_journal = PathBuf::from(format!("{}-journal", database.display()));
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        if fs::metadata(&rollback_journal)
+            .map(|metadata| metadata.len() > 0)
+            .unwrap_or(false)
+        {
+            break;
+        }
+        assert!(
+            interrupted.try_wait().unwrap().is_none(),
+            "claim worker exited before creating its rollback journal"
+        );
+        assert!(
+            Instant::now() < deadline,
+            "claim worker did not reach the rollback-journal write boundary"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    thread::sleep(Duration::from_millis(100));
+    assert!(
+        interrupted.try_wait().unwrap().is_none(),
+        "reader lock must hold the writer inside COMMIT"
+    );
+    kill_worker(&mut interrupted);
+    blocker.execute_batch("ROLLBACK").unwrap();
+    drop(blocker);
+
+    let (generation, writer_id, lease_expires_at) = inspect_writer_fence(&database);
+    assert_eq!((generation, writer_id.as_str()), (1, WRITER_A));
+    assert!(matches!(
+        ControlRuntime::open(&database),
+        Err(leserpent_runtime::RuntimeError::Storage(ref error))
+            if error.contains("owned by another live process")
+    ));
+
+    let remaining_lease_ms = lease_expires_at.saturating_sub(unix_time_ms());
+    assert!(remaining_lease_ms <= 30_000);
+    if remaining_lease_ms > 0 {
+        thread::sleep(Duration::from_millis((remaining_lease_ms + 100) as u64));
+    }
+    {
+        let mut replacement = ControlRuntime::open(&database).unwrap();
+        let takeover = replacement.claim_authority_writer(WRITER_B).unwrap();
+        assert_eq!(takeover.generation, 2);
+        assert!(!takeover.replayed);
+        replacement
+            .require_authority_writer(Some(2), Some(WRITER_B))
+            .unwrap();
+        assert!(
+            replacement
+                .require_authority_writer(Some(1), Some(WRITER_A))
+                .is_err()
+        );
+    }
+
+    let (mut committed, mut committed_stdin, mut committed_stdout) =
+        spawn_claim_crash_worker(&database, WRITER_C);
+    wait_for_worker_marker(&mut committed_stdout, "authority-writer-worker-ready");
+    committed_stdin.write_all(b"C").unwrap();
+    committed_stdin.flush().unwrap();
+    wait_for_worker_marker(
+        &mut committed_stdout,
+        "authority-writer-worker-committed generation=3",
+    );
+    kill_worker(&mut committed);
+    let (generation, writer_id, _) = inspect_writer_fence(&database);
+    assert_eq!((generation, writer_id.as_str()), (3, WRITER_C));
+}
+
+#[test]
+fn lost_claim_response_race_is_linearizable_for_same_and_competing_writers() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("lost-claim-response.sqlite");
+    let socket = root.0.join("lost-claim-response.sock");
+    let daemon = DaemonProcess::spawn(&binary, &database, &socket);
+
+    let unread_response = send_without_reading_response(&socket, &claim(WRITER_A));
+    wait_for_writer_fence(&database, 1, WRITER_A);
+    drop(unread_response);
+
+    let barrier = Arc::new(Barrier::new(3));
+    let (same_response, competing_response) = thread::scope(|scope| {
+        let same_barrier = Arc::clone(&barrier);
+        let competing_barrier = Arc::clone(&barrier);
+        let socket = &socket;
+        let same = scope.spawn(move || {
+            same_barrier.wait();
+            send(socket, &claim(WRITER_A), None)
+        });
+        let competing = scope.spawn(move || {
+            competing_barrier.wait();
+            send(socket, &claim(WRITER_B), None)
+        });
+        barrier.wait();
+        (same.join().unwrap(), competing.join().unwrap())
+    });
+
+    let same = claimed(same_response);
+    let competing = claimed(competing_response);
+    assert_eq!(competing, (2, WRITER_B.to_string(), false));
+    let (final_generation, final_writer, stale_generation, stale_writer, order) = match same {
+        (1, ref writer_id, true) if writer_id == WRITER_A => {
+            (2, WRITER_B, 1, WRITER_A, "same-then-competing")
+        }
+        (3, ref writer_id, false) if writer_id == WRITER_A => {
+            (3, WRITER_A, 2, WRITER_B, "competing-then-same")
+        }
+        other => panic!("same-writer claim was not linearizable: {other:?}"),
+    };
+    println!(
+        "authority-writer-lost-response-linearization order={order} final_generation={final_generation} final_writer={final_writer}"
+    );
+    wait_for_writer_fence(&database, final_generation, final_writer);
+
+    let stale = send(
+        &socket,
+        &registration(),
+        Some(&fence(stale_writer, stale_generation as u64)),
+    );
+    assert!(matches!(
+        stale.response,
+        ProtocolResponse::Error(ref error)
+            if error.code == "authority_writer_fence_rejected"
+    ));
+    let applied = send(
+        &socket,
+        &registration(),
+        Some(&fence(final_writer, final_generation as u64)),
+    );
+    assert!(matches!(
+        applied.response,
+        ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+    ));
+    assert_eq!(
+        claimed(send(&socket, &claim(final_writer), None)),
+        (final_generation as u64, final_writer.to_string(), true)
+    );
+    daemon.stop();
+}
+
+#[test]
+fn lost_final_claim_response_replays_after_cold_restart_before_queued_competitor() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("lost-final-claim-response.sqlite");
+    let socket = root.0.join("lost-final-claim-response.sock");
+
+    let first = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+    let unread_response = send_without_reading_response(&socket, &claim(WRITER_B));
+    wait_for_writer_fence(&database, 2, WRITER_B);
+    drop(unread_response);
+    first.stop();
+    assert!(!socket.exists());
+
+    let second = DaemonProcess::spawn(&binary, &database, &socket);
+    let accept_gate = hold_ipc_accept(&socket);
+    let replay_stream = send_without_reading_response(&socket, &claim(WRITER_B));
+    thread::sleep(Duration::from_millis(50));
+    let competitor_stream = send_without_reading_response(&socket, &claim(WRITER_C));
+    drop(accept_gate);
+
+    assert_eq!(
+        claimed(read_queued_response(replay_stream)),
+        (2, WRITER_B.to_string(), true)
+    );
+    assert_eq!(
+        claimed(read_queued_response(competitor_stream)),
+        (3, WRITER_C.to_string(), false)
+    );
+    wait_for_writer_fence(&database, 3, WRITER_C);
+
+    let stale = send(&socket, &registration(), Some(&fence(WRITER_B, 2)));
+    assert!(matches!(
+        stale.response,
+        ProtocolResponse::Error(ref error)
+            if error.code == "authority_writer_fence_rejected"
+    ));
+    let applied = send(&socket, &registration(), Some(&fence(WRITER_C, 3)));
+    assert!(matches!(
+        applied.response,
+        ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+    ));
+    second.stop();
+    assert!(!socket.exists());
+
+    let third = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_C), None)),
+        (3, WRITER_C.to_string(), true)
+    );
+    println!(
+        "authority-writer-cold-replay queued_order=writer_b-replay-then-writer_c-competitor final_generation=3 final_writer={WRITER_C}"
+    );
+    third.stop();
 }
 
 #[test]

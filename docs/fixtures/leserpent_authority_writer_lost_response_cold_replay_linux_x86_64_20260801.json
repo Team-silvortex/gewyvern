@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_lost_response_cold_replay",
+  "recorded_at": "2026-08-01T12:02:49Z",
+  "target": {
+    "host": "192.168.1.46",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "lost_final_claim_response_replays_after_cold_restart_before_queued_competitor",
+    "observed_duration_ms": 1070
+  },
+  "sequence": {
+    "first_daemon": {
+      "initial_writer": "writer_a",
+      "initial_generation": 1,
+      "lost_response_writer": "writer_b",
+      "lost_response_generation": 2,
+      "commit_observed": true,
+      "response_bytes_decoded": false,
+      "shutdown": "SIGTERM-graceful-socket-removed"
+    },
+    "second_daemon": {
+      "startup": "same-database-cold-open",
+      "queue_gate": "incomplete-ipc-frame-held-before-two-complete-connections",
+      "queued_order": ["writer_b_replay", "writer_c_competitor"],
+      "replay_result": {
+        "writer": "writer_b",
+        "generation": 2,
+        "replayed": true
+      },
+      "competitor_result": {
+        "writer": "writer_c",
+        "generation": 3,
+        "replayed": false
+      },
+      "final_writer": "writer_c",
+      "final_generation": 3
+    },
+    "third_daemon": {
+      "writer": "writer_c",
+      "generation": 3,
+      "replayed": true
+    }
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "lost_claim_commit_survives_cold_restart": true,
+    "old_socket_removed_before_restart": true,
+    "actual_listener_connect_readiness": true,
+    "replay_precedes_queued_competitor": true,
+    "competitor_advances_exactly_once": true,
+    "stale_replayed_ticket_rejected_after_competitor": true,
+    "final_ticket_mutation_applied": true,
+    "second_cold_restart_replay_stable": true,
+    "secret_free_evidence": true
+  }
+}
