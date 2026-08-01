@@ -5702,37 +5702,8 @@ public sealed class DaemonRuntimeRegistrationAuthorityTests
             "failed to start runtime deletion crash harness");
     }
 
-    private static string FindCrashHarnessAssembly()
-    {
-        var repositoryRoot = FindRepositoryRoot();
-        var configuration = new DirectoryInfo(
-            Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory))
-            .Parent?.Name ?? "Debug";
-        return Path.Combine(
-            repositoryRoot,
-            "apps",
-            "leserpent",
-            "tests",
-            "Leserpent.RuntimeDeletionCrashHarness",
-            "bin",
-            configuration,
-            "net10.0",
-            "Leserpent.RuntimeDeletionCrashHarness.dll");
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Cargo.toml")))
-            {
-                return directory.FullName;
-            }
-        }
-        throw new DirectoryNotFoundException("could not locate the gewyvern repository root");
-    }
+    private static string FindCrashHarnessAssembly() =>
+        CrashHarnessAssemblyLocator.Find();
 
     private static async Task WaitForMarkerAsync(Process harness, string markerPath)
     {

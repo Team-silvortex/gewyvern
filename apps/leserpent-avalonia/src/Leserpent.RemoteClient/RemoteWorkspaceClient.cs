@@ -384,7 +384,37 @@ public static class RemoteWorkspaceCodec
         }
         RemoteQueryValidation.RequireDisplay(runtime.Name, "runtime name");
         RemoteQueryValidation.RequireDisplay(runtime.Endpoint, "runtime endpoint");
+        if (runtime.SidecarEndpoint is not null)
+        {
+            RemoteQueryValidation.RequireDisplay(
+                runtime.SidecarEndpoint,
+                "runtime sidecar endpoint");
+        }
+        if (runtime.RegisteredAtUnixMs == 0
+            || runtime.UpdatedAtUnixMs == 0
+            || runtime.RegisteredAtUnixMs is { } registeredAt
+                && runtime.UpdatedAtUnixMs is { } updatedAt
+                && registeredAt > updatedAt)
+        {
+            throw new InvalidDataException(
+                "remote workspace runtime authority timestamps are invalid");
+        }
         RemoteQueryValidation.RequireDisplay(runtime.Status.StatusSource, "status source");
+        if (runtime.SidecarStatus is { } sidecarStatus)
+        {
+            if (sidecarStatus.StatusSource is null
+                || sidecarStatus.DaemonStatus is null)
+            {
+                throw new InvalidDataException(
+                    "remote workspace sidecar status is missing required data");
+            }
+            RemoteQueryValidation.RequireDisplay(
+                sidecarStatus.StatusSource,
+                "sidecar status source");
+            RemoteQueryValidation.RequireDisplay(
+                sidecarStatus.DaemonStatus,
+                "sidecar daemon status");
+        }
         RemoteEventCodec.ValidateCapabilities(
             runtime.Capabilities,
             runtime.CapabilitiesObservedForRevision,
@@ -551,13 +581,59 @@ public sealed class WireRuntimeProjection
     public required string Id { get; set; }
     public required string Name { get; set; }
     public required string Endpoint { get; set; }
+    public string? SidecarEndpoint { get; set; }
+    public ulong? RegisteredAtUnixMs { get; set; }
+    public ulong? UpdatedAtUnixMs { get; set; }
     public ulong Revision { get; set; }
     public ulong RefreshCount { get; set; }
     public RefreshStatus RefreshStatus { get; set; }
     public required RuntimeTags Tags { get; set; }
     public required RuntimeStatusSnapshot Status { get; set; }
+    public WireRuntimeSidecarStatusSnapshot? SidecarStatus { get; set; }
     public RuntimeCapabilitySnapshot? Capabilities { get; set; }
     public ulong? CapabilitiesObservedForRevision { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireRuntimeSidecarStatusSnapshot
+{
+    public required string StatusSource { get; set; }
+    public string? StatusFetchedAt { get; set; }
+    public string? StatusFetchError { get; set; }
+    public bool Healthy { get; set; }
+    public required string DaemonStatus { get; set; }
+    public ulong? TargetCount { get; set; }
+    public bool LearningActive { get; set; }
+    public ulong LearnedRoutes { get; set; }
+    public bool HasEvidenceChainEnrichment { get; set; }
+    public bool HasDiagnosticOpinion { get; set; }
+    public string? LastError { get; set; }
+    public WireRuntimeSidecarMemorySnapshot? Memory { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireRuntimeSidecarMemorySnapshot
+{
+    public bool VersionsSupported { get; set; }
+    public ulong SlotCount { get; set; }
+    public ulong HistoryCount { get; set; }
+    public string? LatestSlot { get; set; }
+    public string? LatestLabel { get; set; }
+    public string? LatestSource { get; set; }
+    public required List<WireRuntimeSidecarMemorySlotSnapshot> Slots { get; set; }
+    public string? FetchError { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireRuntimeSidecarMemorySlotSnapshot
+{
+    public required string Slot { get; set; }
+    public string? Label { get; set; }
+    public string? Note { get; set; }
+    public required string Source { get; set; }
+    public string? SavedAt { get; set; }
+    public ulong PatternCount { get; set; }
+    public ulong LabelCount { get; set; }
 }
 
 [JsonSourceGenerationOptions(

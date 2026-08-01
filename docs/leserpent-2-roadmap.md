@@ -11,6 +11,25 @@ Current implementation checkpoint: shared release `v1.10.0`. The
 [project status tensor](project-status-system.md) remains authoritative for
 per-feature maturity, evidence, dependencies, and next gates.
 
+## 2.0 Scope Freeze
+
+The core 2.0 capability set is closed. No new core capability family may enter
+the `1.x -> 2.0.0` line before release. Remaining minor versions are allowed to
+finish only the already-declared Leserpent/Gewyvern/Leselang/Avalonia control
+loop: multi-daemon and multi-Gewyvern orchestration, reverse deployment,
+renderer-neutral GUI automation equivalence, desktop Hub/sub-window operation,
+authenticated remote control, persistence and recovery, security, performance,
+packaging, documentation, and release evidence.
+
+Accepted work after the freeze is closure work: bug fixes, reliability hardening,
+security checks, benchmark improvements, packaging/signing/notarization proof,
+cross-language conformance, status-tensor alignment, documentation, and removing
+or simplifying accidental complexity. Rejected work is scope expansion: moving
+Etragon into the release gate, claiming Windows native parity, adding another
+runtime language, inventing a second GUI/control DSL, making GUI frameworks
+automatically compatible, or requiring complete mobile parity beyond the already
+declared minimum remote/mobile entry contract.
+
 Implementation stack rule:
 
 - control-plane authority is Rust-first.
@@ -523,7 +542,8 @@ that stdout contains no token. The SSH adapter rejects the `installed` state.
 
 Native launchd/systemd publication and activation, timeout recovery, real SSH
 cross-process ready proofs, CLI commands, and the Avalonia Hub flow are now
-complete. WinRM remains deferred until Windows becomes an active target.
+complete. This closes the 2.0 reverse-bootstrap scope on macOS and Linux. WinRM
+is optional post-2.0 work when Windows becomes an active native target.
 
 The next service prerequisite is also complete: each immutable generation now
 creates and validates a self-signed endpoint TLS identity. The public CA PEM and
@@ -781,7 +801,7 @@ protocol/failure/timeout exit codes. Avalonia now provides a separate confirmed
 client-supplied derived authority, stable identity locking, credential-free
 status, and at most 30 exact-request observations. Hub daemon and Gewyvern
 lifecycle actions remain visibly separate. The privileged system-profile gate
-is complete; WinRM is the remaining deferred evidence gate.
+is complete; WinRM is explicitly outside the 2.0 evidence gate.
 
 Exit: one positive and one negative proof case exists for each branch:
 bootstrap failure, bootstrap success + session connect success, and deploy path
@@ -1754,6 +1774,13 @@ completion. Desktop startup now resolves endpoint-scoped tokens from macOS
 Keychain or Linux Secret Service through AOT-compatible native bindings, with a
 bounded environment fallback only when no stored item exists. Deterministic
 conformance proves source precedence and malformed-item fail-closed behavior.
+The same vertical now proves strict Rust-to-.NET health and workspace schema
+parity. Orchestra delete replay pressure is recomputed from bounded capacity,
+generation, threshold, and checkpoint metadata before it reaches the UI, where
+warning, critical, and blocked states require visible operator attention.
+Runtime inspect accepts the complete versioned authority projection, validates
+its monotonic timestamps, and still omits endpoint material from caches,
+diagnostics, and renderer-neutral workspace state.
 The first mobile-independent lifecycle slice now lives in
 `apps/leserpent-mobile`: it disconnects before background suspension, marks
 retained state stale, hands hydrated cache state to the host before reconnect,
@@ -1817,8 +1844,9 @@ Leselang source templates, dynamic form requests are debounced and cancellable,
 and export failure never falls back to frontend-generated source. The preview is
 single-instance per workspace and copying never executes the program.
 
-Exit: desktop and one mobile target pass the same semantic conformance suite;
-platform-only presentation differences are documented.
+Exit: native desktop and authenticated remote/browser clients pass the same
+semantic conformance suite. Mobile preserves the shared entry, secure-storage,
+and lifecycle contracts; physical device release parity is deferred.
 
 ## Gate 7: 2.0 Seal
 
@@ -1835,15 +1863,26 @@ Exit: every criterion in the architecture's
 The first machine-enforced Gate 7 precursor is now
 `gewyvern_validate leserpent-schema-freeze`. Its bounded candidate inventory
 maps command, query, effect-plan, UI IR, and wire v1 sources to a fixed native
-proof registry. The shelf currently proves 65 tests across domain, UI, wire,
-runtime migration, legacy-wire migration, and managed control-plane migration
-proof suites while explicitly emitting `freeze_ready=false`; promotion to `frozen`
-remains forbidden until the rest of Gate 7 and Apple-backed release evidence
-are reproducible.
+proof registry. The independently frozen
+`project/release/leserpent-2-scope-freeze.json` manifest fixes the 10 declared
+core capability families, accepted closure work, explicit deferrals, authority
+document anchors, and live status-cell references. The shelf rejects scope
+expansion, missing deferrals, stale status references, or authority drift before
+running semantic proof suites. It enforces a 65-test non-vacuity floor across
+domain, UI, wire, runtime migration, legacy-wire migration, and managed
+control-plane migration proof suites while emitting the actual observed count;
+promotion to `frozen`
+remains forbidden until the rest of Gate 7 and Apple-backed release evidence are
+reproducible. Scope closure is reported independently as `scope_freeze_ready=true`.
 Its companion candidate baseline pins SHA-256 fingerprints for five wire and
 legacy-wire fixtures plus four renderer fixtures. This makes accidental exact
 format drift fail before the semantic proof suites without pretending that the
 candidate contracts have reached their final freeze.
+`gewyvern_validate release-gate --leserpent-proof` now runs this shelf and the
+13-suite parity/recovery shelf as one opt-in release decision. Both current-run
+stage flags must be true, and both evidence directories must be present in
+`release-gate-artifacts.json`; stale or partially generated proof cannot satisfy
+the combined stage.
 The migration replay now covers runtime journal v1 to current, v3 snapshot
 generation history, complete v6 semantics, malformed migration history, and
 legacy wire normalization. The managed proof covers SQLite v1 in-place upgrade,
@@ -2046,6 +2085,8 @@ The roadmap does not require:
 - arbitrary user-native plugins
 - model access to shell, raw HTTP, or host-language reflection
 - a distributed scheduler before the local journal/runtime is proven
+- Windows native desktop or WinRM parity before Windows becomes an active target
+- full mobile device release parity beyond the declared entry/lifecycle contract
 
 ## First Implementation Slice
 

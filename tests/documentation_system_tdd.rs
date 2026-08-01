@@ -146,6 +146,15 @@ fn leserpent_next_major_has_one_architecture_and_one_delivery_roadmap() {
         "developer-owned adapter",
         "generated binding",
         "UiAdapterManifest",
+        "2.0 Scope Boundary",
+        "The 2.0 target scope is frozen",
+        "may not add new core\ncapability families",
+        "Etragon advisory",
+        "Windows native parity",
+        "automatic GUI framework compatibility",
+        "This closes the 2.0 reverse-bootstrap scope",
+        "optional post-2.0 work",
+        "mobile retains its minimum entry/lifecycle conformance contract",
         "synchronous source semantics",
         "CommandEnvelope",
         "EffectRequest",
@@ -162,6 +171,36 @@ fn leserpent_next_major_has_one_architecture_and_one_delivery_roadmap() {
         assert!(
             roadmap.contains(&format!("## Gate {gate}:")),
             "2.0 roadmap must preserve delivery gate {gate}"
+        );
+    }
+    for freeze_rule in [
+        "## 2.0 Scope Freeze",
+        "The core 2.0 capability set is closed",
+        "No new core capability family may enter",
+        "Remaining minor versions are allowed to\nfinish only the already-declared",
+        "Accepted work after the freeze is closure work",
+        "Rejected work is scope expansion",
+        "moving\nEtragon into the release gate",
+        "claiming Windows native parity",
+        "making GUI frameworks\nautomatically compatible",
+        "WinRM is explicitly outside the 2.0 evidence gate",
+        "physical device release parity is deferred",
+        "full mobile device release parity beyond the declared entry/lifecycle contract",
+    ] {
+        assert!(
+            roadmap.contains(freeze_rule),
+            "2.0 roadmap must preserve scope-freeze rule: {freeze_rule}"
+        );
+    }
+
+    for retired_gate in [
+        "desktop and one mobile target pass release tests",
+        "desktop and one mobile target pass the same semantic conformance suite",
+        "WinRM is the remaining deferred evidence gate",
+    ] {
+        assert!(
+            !architecture.contains(retired_gate) && !roadmap.contains(retired_gate),
+            "2.0 documentation must not restore retired release gate: {retired_gate}"
         );
     }
 

@@ -661,15 +661,26 @@ fixtures. An unreviewed fixture change therefore fails before semantic proof
 execution; an intentional compatibility change must update the fixture and its
 reviewed candidate baseline together.
 
-Five fixed Rust suites plus one locked, filtered xUnit suite currently execute
-65 non-vacuous tests and retain their logs, `schema-freeze-summary.json`, and
+The frozen `project/release/leserpent-2-scope-freeze.json` separately fixes the
+10 core capability families, nine permitted closure-work categories, six
+explicit deferrals, both authority-document anchors, and their live status-cell
+references. Scope expansion, a missing deferral, an Etragon/1.x authority leak,
+or a stale status reference fails closed. This manifest contains no executable
+arguments and reports `scope_freeze_ready=true` independently of the still
+candidate version-1 schema inventory.
+
+Five fixed Rust suites plus one locked, filtered xUnit suite require at least 65
+non-vacuous tests and retain the actual observed count in their logs,
+`schema-freeze-summary.json`, and
 `evidence-index.json` under
 `target/validation/leserpent-schema-freeze/`. The inventory deliberately stays
 `candidate` and the summary stays `freeze_ready=false` until every Gate 7
 security, performance, migration, packaging, rollback, and platform-release
 criterion has reproducible evidence.
 The same summary records all 11 compatibility fingerprints, keeping exact
-machine-format drift separate from the semantic proof suites.
+machine-format drift separate from the semantic proof suites. It also embeds
+the validated scope manifest and its three bounded counts so retained evidence
+shows exactly what 2.0 did and did not promise.
 The migration subset replays runtime journal v1, v3 snapshot, and complete v6
 state into the current v10 journal, rejects inconsistent migration history, and
 proves legacy runtime-list, status-refresh, and error adaptation. Each migration
@@ -785,14 +796,16 @@ The `extra` object for `release-gate` currently exposes:
 - `stages.three_module_stack_smoke`
 - `stages.pathological_container_validation`
 - `stages.leserpent_parity_recovery`
+- `stages.leserpent_schema_freeze`
 - `stages.remote_linux_host_validation`
 - top-level `ship_signal = "timing_watch"` when the remote host passed but one
   of the soft timing budgets regressed
 - `remote`
 
-`stages.leserpent_parity_recovery` is true only when the caller explicitly
-selects `--leserpent-proof`. This keeps the Gewyvern-only gate independent while
-giving combined releases one machine-readable result and one artifact index.
+`stages.leserpent_parity_recovery` and `stages.leserpent_schema_freeze` are both
+true only when the caller explicitly selects `--leserpent-proof` and both
+shelves succeed. This keeps the Gewyvern-only gate independent while giving
+combined releases one machine-readable result and one artifact index.
 
 The practical Linux target-lab command
 `juice-shop-container-validation`

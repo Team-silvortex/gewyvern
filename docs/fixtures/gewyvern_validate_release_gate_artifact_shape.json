@@ -57,6 +57,13 @@
       "producer": "gewyvern_validate release-gate --leserpent-proof"
     },
     {
+      "expectation": "optional_high_signal",
+      "key": "leserpent_schema_freeze",
+      "kind": "directory",
+      "note": "opt-in versioned schema compatibility and closed 2.0 capability-scope shelf",
+      "producer": "gewyvern_validate release-gate --leserpent-proof"
+    },
+    {
       "expectation": "optional_blocking",
       "key": "leserpent_macos_release_preflight",
       "kind": "file",

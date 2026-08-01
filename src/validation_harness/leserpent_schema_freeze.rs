@@ -5,6 +5,8 @@ use std::path::{Component, Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use crate::project_status::StatusCatalog;
+
 use super::command::{
     ValidationError, ValidationReport, default_out_dir, repo_root, run_cargo_status,
 };
@@ -14,9 +16,41 @@ use super::read_bounded_json_file;
 const INVENTORY_PATH: &str = "project/release/leserpent-v1-schema-inventory.json";
 const COMPATIBILITY_BASELINE_PATH: &str =
     "project/release/leserpent-v1-compatibility-baseline.json";
+const SCOPE_FREEZE_PATH: &str = "project/release/leserpent-2-scope-freeze.json";
 const EXPECTED_FAMILIES: &[&str] = &["command", "effect", "query", "ui", "wire"];
 const EXPECTED_FIXTURE_FAMILIES: &[&str] = &["legacy-wire", "ui", "wire"];
 const EXPECTED_COMPATIBILITY_FIXTURES: usize = 11;
+const EXPECTED_SCOPE_CAPABILITIES: &[&str] = &[
+    "authenticated-remote-control",
+    "desktop-hub-workspaces",
+    "gewyvern-runtime-integration",
+    "multi-daemon-gewyvern-orchestration",
+    "packaging-release-evidence",
+    "performance-budgets",
+    "persistence-recovery",
+    "renderer-neutral-gui-automation",
+    "reverse-deployment",
+    "security-hardening",
+];
+const EXPECTED_CLOSURE_WORK: &[&str] = &[
+    "accidental-complexity-reduction",
+    "bug-fixes",
+    "cross-language-conformance",
+    "documentation",
+    "packaging-signing-notarization",
+    "performance-benchmarks",
+    "reliability-hardening",
+    "security-audits",
+    "status-tensor-alignment",
+];
+const EXPECTED_DEFERRED_CAPABILITIES: &[&str] = &[
+    "additional-runtime-languages",
+    "automatic-gui-framework-compatibility",
+    "etragon-release-authority",
+    "full-mobile-device-parity",
+    "second-gui-control-dsl",
+    "windows-native-parity",
+];
 const MANAGED_MIGRATION_PROJECT: &str =
     "apps/leserpent/tests/Leserpent.SecurityTests/Leserpent.SecurityTests.csproj";
 const MANAGED_MIGRATION_FILTER: &str =
@@ -159,6 +193,32 @@ struct CompatibilityFixture {
     sha256: String,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ScopeFreeze {
+    schema_version: u32,
+    release_line: String,
+    freeze_state: String,
+    authoritative_sources: Vec<ScopeSource>,
+    core_capabilities: Vec<ScopeCapability>,
+    accepted_closure_work: Vec<String>,
+    deferred_capabilities: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ScopeSource {
+    path: String,
+    anchor: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ScopeCapability {
+    id: String,
+    status_cells: Vec<String>,
+}
+
 pub fn run_leserpent_schema_freeze_validation(
     out_dir: Option<PathBuf>,
 ) -> Result<ValidationReport, ValidationError> {
@@ -166,6 +226,7 @@ pub fn run_leserpent_schema_freeze_validation(
     let inventory = load_and_validate_inventory(&root.join(INVENTORY_PATH), &root)?;
     let compatibility =
         load_and_validate_compatibility_baseline(&root.join(COMPATIBILITY_BASELINE_PATH), &root)?;
+    let scope_freeze = load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root)?;
     let out_dir = out_dir.unwrap_or_else(|| default_out_dir("leserpent-schema-freeze"));
     fs::create_dir_all(&out_dir)?;
     clear_previous_evidence(&out_dir)?;
@@ -259,6 +320,18 @@ pub fn run_leserpent_schema_freeze_validation(
             .iter()
             .map(|fixture| format!("{}-compatibility-fingerprint", fixture.id)),
     );
+    checks.extend(
+        scope_freeze
+            .core_capabilities
+            .iter()
+            .map(|capability| format!("{}-scope-frozen", capability.id)),
+    );
+    checks.extend(
+        scope_freeze
+            .deferred_capabilities
+            .iter()
+            .map(|capability| format!("{capability}-scope-deferred")),
+    );
     let summary_name = "schema-freeze-summary.json";
     fs::write(
         out_dir.join(summary_name),
@@ -267,14 +340,21 @@ pub fn run_leserpent_schema_freeze_validation(
             "release_line": inventory.release_line,
             "inventory": INVENTORY_PATH,
             "compatibility_baseline": COMPATIBILITY_BASELINE_PATH,
+            "scope_freeze_manifest": SCOPE_FREEZE_PATH,
             "freeze_state": inventory.freeze_state,
             "freeze_ready": freeze_ready,
+            "scope_freeze_state": scope_freeze.freeze_state,
+            "scope_freeze_ready": true,
             "contract_count": inventory.contracts.len(),
             "compatibility_fixture_count": compatibility.fixtures.len(),
+            "scope_capability_count": scope_freeze.core_capabilities.len(),
+            "accepted_closure_work_count": scope_freeze.accepted_closure_work.len(),
+            "deferred_capability_count": scope_freeze.deferred_capabilities.len(),
             "proof_count": proof_summaries.len(),
             "test_count": total_test_count,
             "contracts": inventory.contracts,
             "compatibility_fixtures": compatibility.fixtures,
+            "scope_freeze": scope_freeze,
             "proofs": proof_summaries,
             "remaining_gate": if freeze_ready {
                 serde_json::Value::Null
@@ -298,6 +378,152 @@ pub fn run_leserpent_schema_freeze_validation(
         out_dir,
         checks,
     })
+}
+
+fn load_and_validate_scope_freeze(
+    path: &Path,
+    root: &Path,
+) -> Result<ScopeFreeze, ValidationError> {
+    let value = read_bounded_json_file(path, "Leserpent 2.0 scope freeze", 64 * 1024)?;
+    let scope: ScopeFreeze = serde_json::from_value(value).map_err(|error| {
+        ValidationError::new(format!("invalid Leserpent 2.0 scope freeze: {error}"))
+    })?;
+    if scope.schema_version != 1 || scope.release_line != "2.0" || scope.freeze_state != "frozen" {
+        return Err(ValidationError::new(
+            "Leserpent scope freeze must be frozen schema v1 for release line 2.0",
+        ));
+    }
+
+    validate_scope_sources(&scope.authoritative_sources, root)?;
+    require_exact_set(
+        "core capability",
+        scope
+            .core_capabilities
+            .iter()
+            .map(|capability| capability.id.as_str()),
+        EXPECTED_SCOPE_CAPABILITIES,
+    )?;
+    require_exact_set(
+        "accepted closure work",
+        scope.accepted_closure_work.iter().map(String::as_str),
+        EXPECTED_CLOSURE_WORK,
+    )?;
+    require_exact_set(
+        "deferred capability",
+        scope.deferred_capabilities.iter().map(String::as_str),
+        EXPECTED_DEFERRED_CAPABILITIES,
+    )?;
+
+    let catalog =
+        StatusCatalog::load(root.join("project/status/catalog.json")).map_err(|error| {
+            ValidationError::new(format!(
+                "failed to load status catalog for scope freeze: {error}"
+            ))
+        })?;
+    let known_cells = catalog
+        .cells
+        .iter()
+        .map(|cell| cell.id.as_str())
+        .collect::<BTreeSet<_>>();
+    for capability in &scope.core_capabilities {
+        if capability.status_cells.is_empty() || capability.status_cells.len() > 8 {
+            return Err(ValidationError::new(format!(
+                "scope capability {} must reference one to eight status cells",
+                capability.id
+            )));
+        }
+        let mut cells = BTreeSet::new();
+        for cell in &capability.status_cells {
+            if !cells.insert(cell.as_str()) {
+                return Err(ValidationError::new(format!(
+                    "scope capability {} contains duplicate status cell {cell}",
+                    capability.id
+                )));
+            }
+            if !(cell.starts_with("leserpent-2/") || cell.starts_with("gewyvern-core/"))
+                || !known_cells.contains(cell.as_str())
+            {
+                return Err(ValidationError::new(format!(
+                    "scope capability {} references unavailable core status cell {cell}",
+                    capability.id
+                )));
+            }
+        }
+    }
+
+    Ok(scope)
+}
+
+fn validate_scope_sources(sources: &[ScopeSource], root: &Path) -> Result<(), ValidationError> {
+    let expected = BTreeMap::from([
+        ("docs/leserpent-2-architecture.md", "## 2.0 Scope Boundary"),
+        ("docs/leserpent-2-roadmap.md", "## 2.0 Scope Freeze"),
+    ]);
+    if sources.len() != expected.len() {
+        return Err(ValidationError::new(
+            "Leserpent scope freeze must reference both authoritative scope documents",
+        ));
+    }
+    let mut paths = BTreeSet::new();
+    for source in sources {
+        let Some(expected_anchor) = expected.get(source.path.as_str()) else {
+            return Err(ValidationError::new(format!(
+                "Leserpent scope freeze references non-authoritative source {}",
+                source.path
+            )));
+        };
+        if source.anchor != *expected_anchor || !paths.insert(source.path.as_str()) {
+            return Err(ValidationError::new(format!(
+                "Leserpent scope freeze source {} has a duplicate or invalid anchor",
+                source.path
+            )));
+        }
+        let relative = Path::new(&source.path);
+        if relative.as_os_str().is_empty()
+            || relative
+                .components()
+                .any(|part| !matches!(part, Component::Normal(_)))
+        {
+            return Err(ValidationError::new(
+                "Leserpent scope freeze source must be repository-relative and normalized",
+            ));
+        }
+        let path = root.join(relative);
+        let metadata = fs::symlink_metadata(&path)?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || metadata.len() > 2 * 1024 * 1024
+        {
+            return Err(ValidationError::new(format!(
+                "Leserpent scope freeze source must be a bounded regular file: {}",
+                path.display()
+            )));
+        }
+        let body = fs::read_to_string(&path)?;
+        if !body.contains(&source.anchor) {
+            return Err(ValidationError::new(format!(
+                "Leserpent scope freeze source {} is missing its authority anchor",
+                source.path
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn require_exact_set<'a>(
+    label: &str,
+    actual: impl Iterator<Item = &'a str>,
+    expected: &[&str],
+) -> Result<(), ValidationError> {
+    let values = actual.collect::<Vec<_>>();
+    let unique = values.iter().copied().collect::<BTreeSet<_>>();
+    let expected = expected.iter().copied().collect::<BTreeSet<_>>();
+    if unique.len() != values.len() || unique != expected {
+        return Err(ValidationError::new(format!(
+            "Leserpent scope freeze {label} set does not match the closed 2.0 boundary"
+        )));
+    }
+    Ok(())
 }
 
 fn load_and_validate_inventory(
@@ -619,6 +845,44 @@ mod tests {
         assert_eq!(baseline.fixtures.len(), EXPECTED_COMPATIBILITY_FIXTURES);
         assert_eq!(baseline.algorithm, "sha256");
         assert_eq!(baseline.baseline_state, "candidate");
+    }
+
+    #[test]
+    fn production_scope_freeze_is_closed_and_status_backed() {
+        let root = repo_root();
+        let scope = load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root).unwrap();
+        assert_eq!(scope.freeze_state, "frozen");
+        assert_eq!(
+            scope.core_capabilities.len(),
+            EXPECTED_SCOPE_CAPABILITIES.len()
+        );
+        assert_eq!(
+            scope.accepted_closure_work.len(),
+            EXPECTED_CLOSURE_WORK.len()
+        );
+        assert_eq!(
+            scope.deferred_capabilities.len(),
+            EXPECTED_DEFERRED_CAPABILITIES.len()
+        );
+    }
+
+    #[test]
+    fn scope_freeze_rejects_non_core_status_authority() {
+        let root = repo_root();
+        let mut scope =
+            load_and_validate_scope_freeze(&root.join(SCOPE_FREEZE_PATH), &root).unwrap();
+        scope.core_capabilities[0]
+            .status_cells
+            .push("etragon/learning-sidecar/advisory-learning".to_string());
+        let path =
+            std::env::temp_dir().join(format!("gewyvern-scope-freeze-{}.json", std::process::id()));
+        fs::write(&path, serde_json::to_vec(&scope).unwrap()).unwrap();
+
+        let error = load_and_validate_scope_freeze(&path, &root)
+            .expect_err("non-core status authority must fail closed")
+            .to_string();
+        assert!(error.contains("unavailable core status cell"));
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

@@ -2452,6 +2452,7 @@ fn release_gate_summary_value(
             "debugger_cross_validation": checks.iter().any(|check| check == "debugger_cross_validation"),
             "pathological_container_validation": checks.iter().any(|check| check == "pathological_container_validation"),
             "leserpent_parity_recovery": checks.iter().any(|check| check == "leserpent_parity_recovery"),
+            "leserpent_schema_freeze": checks.iter().any(|check| check == "leserpent_schema_freeze"),
             "macos_release_preflight": checks.iter().any(|check| check == "macos_release_preflight_ready" || check == "macos_release_preflight_blocked"),
             "macos_release_preflight_ready": checks.iter().any(|check| check == "macos_release_preflight_ready"),
             "macos_release_preflight_blocked": checks.iter().any(|check| check == "macos_release_preflight_blocked"),
@@ -2769,7 +2770,7 @@ fn print_release_gate_help() {
     println!("3. run the three-module stack smoke");
     println!("4. run debugger cross validation");
     println!("5. run pathological container/runtime-ingest validation");
-    println!("6. optionally run the Leserpent parity/recovery proof");
+    println!("6. optionally run the Leserpent parity/recovery and schema/scope freeze proofs");
     println!("7. optionally consume strict macOS Apple release preflight evidence");
     println!("8. optionally run remote Linux host validation over SSH");
     println!();
@@ -2779,7 +2780,9 @@ fn print_release_gate_help() {
     println!("  --skip-stack          Skip three-module stack smoke");
     println!("  --skip-debugger-cross Skip debugger cross validation");
     println!("  --skip-pathology      Skip pathological runtime-ingest validation");
-    println!("  --leserpent-proof     Run the opt-in 13-suite Leserpent proof shelf");
+    println!(
+        "  --leserpent-proof     Run the opt-in Leserpent parity/recovery and schema/scope freeze shelves"
+    );
     println!(
         "  --macos-release-preflight  Validate and index a machine-readable Apple release preflight report"
     );

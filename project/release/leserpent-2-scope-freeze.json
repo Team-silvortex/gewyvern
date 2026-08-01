@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "release_line": "2.0",
+  "freeze_state": "frozen",
+  "authoritative_sources": [
+    {
+      "path": "docs/leserpent-2-architecture.md",
+      "anchor": "## 2.0 Scope Boundary"
+    },
+    {
+      "path": "docs/leserpent-2-roadmap.md",
+      "anchor": "## 2.0 Scope Freeze"
+    }
+  ],
+  "core_capabilities": [
+    {
+      "id": "authenticated-remote-control",
+      "status_cells": [
+        "leserpent-2/remote-console/remote-mobile-console",
+        "leserpent-2/transport-protocol/wire-compatibility",
+        "leserpent-2/native-cli/cli-parity"
+      ]
+    },
+    {
+      "id": "desktop-hub-workspaces",
+      "status_cells": [
+        "leserpent-2/ui-renderers/avalonia-renderer"
+      ]
+    },
+    {
+      "id": "gewyvern-runtime-integration",
+      "status_cells": [
+        "gewyvern-core/runtime-evidence/evidence-reconstruction",
+        "leserpent-2/deployment-bootstrap/gewyvern-provisioning"
+      ]
+    },
+    {
+      "id": "multi-daemon-gewyvern-orchestration",
+      "status_cells": [
+        "leserpent-2/daemon-host/daemon-lifecycle",
+        "leserpent-2/deployment-bootstrap/gewyvern-provisioning"
+      ]
+    },
+    {
+      "id": "packaging-release-evidence",
+      "status_cells": [
+        "leserpent-2/release-assurance/two-zero-seal",
+        "leserpent-2/release-assurance/continuous-proof"
+      ]
+    },
+    {
+      "id": "performance-budgets",
+      "status_cells": [
+        "leserpent-2/release-assurance/continuous-proof"
+      ]
+    },
+    {
+      "id": "persistence-recovery",
+      "status_cells": [
+        "leserpent-2/control-runtime/durable-authority",
+        "leserpent-2/daemon-host/daemon-lifecycle"
+      ]
+    },
+    {
+      "id": "renderer-neutral-gui-automation",
+      "status_cells": [
+        "leserpent-2/language-syntax/lossless-frontend",
+        "leserpent-2/language-hir/typed-effects",
+        "leserpent-2/language-vm/effect-reentry",
+        "leserpent-2/ui-language/ui-ir-lowering",
+        "leserpent-2/ui-renderers/avalonia-renderer"
+      ]
+    },
+    {
+      "id": "reverse-deployment",
+      "status_cells": [
+        "leserpent-2/deployment-bootstrap/reverse-bootstrap"
+      ]
+    },
+    {
+      "id": "security-hardening",
+      "status_cells": [
+        "leserpent-2/transport-protocol/wire-compatibility",
+        "leserpent-2/release-assurance/continuous-proof"
+      ]
+    }
+  ],
+  "accepted_closure_work": [
+    "accidental-complexity-reduction",
+    "bug-fixes",
+    "cross-language-conformance",
+    "documentation",
+    "packaging-signing-notarization",
+    "performance-benchmarks",
+    "reliability-hardening",
+    "security-audits",
+    "status-tensor-alignment"
+  ],
+  "deferred_capabilities": [
+    "additional-runtime-languages",
+    "automatic-gui-framework-compatibility",
+    "etragon-release-authority",
+    "full-mobile-device-parity",
+    "second-gui-control-dsl",
+    "windows-native-parity"
+  ]
+}

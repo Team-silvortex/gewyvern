@@ -30,6 +30,19 @@ The platform stack constraint is explicit:
 The current ASP.NET and TypeScript application remains the 1.x implementation
 and migration bridge. It is not the semantic center of the 2.0 system.
 
+## 2.0 Scope Boundary
+
+The 2.0 target scope is frozen. The release may complete the declared
+Leserpent/Gewyvern/Leselang/Avalonia control loop, but it may not add new core
+capability families before `2.0.0`. Finishing work is limited to closure,
+reliability, performance, security, conformance, packaging, release evidence,
+and documentation for the already-declared architecture.
+
+This boundary keeps Etragon advisory, Windows native parity, additional runtime
+languages, automatic GUI framework compatibility, and full mobile parity outside
+the 2.0 release gate. Those can evolve later only as independent post-2.0
+tracks, not as prerequisites for the 2.0 seal.
+
 Leselang is not a general-purpose VM, application runtime, or DartVM-style
 language platform. Its target is a protocolized GUI/control automation runtime:
 the "JavaScript" of Leserpent automation only in the narrow sense that GUI
@@ -440,7 +453,8 @@ Installer responses distinguish `installed` from `ready`. The SSH adapter
 rejects `installed`, so copied files can never be mistaken for a live daemon.
 Native launchd/systemd publication, activation, authenticated endpoint health,
 and pinned-SSH proofs now cover both systemd-user and privileged systemd-system
-profiles. WinRM remains the deferred cross-platform boundary.
+profiles. This closes the 2.0 reverse-bootstrap scope on macOS and Linux; WinRM
+is optional post-2.0 work when Windows becomes an active native target.
 
 The generation now also owns a target-generated self-signed TLS identity for
 the requested endpoint SAN. Both certificate and private key remain in the
@@ -1908,7 +1922,15 @@ Workspace creation and subsequent state refresh pass through one availability
 application point, preventing a live/idle shortcut from overriding an
 unresolved mutation fence. Authority health projection is shared too: ready,
 queue pressure, saturation, and automation text are derived before renderer
-selection.
+selection. The strict health codec also validates the Orchestra delete replay
+horizon's capacity arithmetic, threshold ordering, contiguous generations,
+checkpoint lag, admission state, pressure, and operator action. Warning,
+critical, and blocked pressure become one renderer-neutral attention signal;
+Avalonia consumes that signal for visible color and assertive automation rather
+than independently interpreting wire fields. Workspace inspect follows the
+same boundary: its strict wire model covers authority timestamps and optional
+sidecar metadata, validates nonzero monotonic timestamps, then deliberately
+drops runtime endpoints from the safe frontend projection.
 The host-independent `Leserpent.MobileCore` now owns the first mobile lifecycle
 contract: foreground creates one session after loading an endpoint-scoped vault
 token, background invalidates its generation before disconnecting, reentry
@@ -2153,5 +2175,6 @@ Leserpent 2.0 is ready only when:
 - model-generated programs execute only through the normal capability boundary
 - suspended programs survive restart and resume exactly once
 - GUI actions round-trip through canonical Leselang
-- desktop and one mobile target pass release tests
+- macOS desktop, Linux daemon/CLI, and authenticated remote web paths pass
+  release tests; mobile retains its minimum entry/lifecycle conformance contract
 - compatibility and rollback from the final 1.x bridge are documented

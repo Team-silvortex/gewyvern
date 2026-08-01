@@ -631,7 +631,7 @@ internal sealed class HubWindow : Window
         card.AuthoritySummary.Text = stale
             ? $"{presentation.Label} / STALE"
             : presentation.Label;
-        card.AuthoritySummary.Foreground = presentation.IsSaturated
+        card.AuthoritySummary.Foreground = presentation.RequiresAttention
             ? LeserpentTheme.Destructive
             : stale
                 ? LeserpentTheme.Muted
@@ -641,6 +641,11 @@ internal sealed class HubWindow : Window
             stale
                 ? $"{presentation.AutomationName}; stale topology evidence"
                 : presentation.AutomationName);
+        AutomationProperties.SetLiveSetting(
+            card.AuthoritySummary,
+            presentation.RequiresAttention
+                ? AutomationLiveSetting.Assertive
+                : AutomationLiveSetting.Polite);
     }
 
     private static void RenderTopologyFailure(

@@ -11,6 +11,7 @@
       "build_packages": false,
       "debugger_cross_validation": false,
       "leserpent_parity_recovery": false,
+      "leserpent_schema_freeze": false,
       "macos_release_preflight": false,
       "macos_release_preflight_blocked": false,
       "macos_release_preflight_ready": false,

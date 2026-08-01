@@ -180,6 +180,16 @@ Require(fixtureHealth is
         NextGeneration: 16,
         EvictedThroughGeneration: 3,
     },
+    OrchestraDeleteReplayHorizon:
+    {
+        Capacity: 4096,
+        Retained: 2,
+        AvailableCapacity: 4094,
+        AdmissionState: RemoteOrchestraDeleteReplayAdmissionState.Ready,
+        AdmissionPressure: RemoteOrchestraDeleteReplayAdmissionPressure.Healthy,
+        OperatorAction: null,
+        CheckpointLagGenerations: 0,
+    },
 }, "health codec did not preserve authority and queue state");
 var fixtureReplayHorizon = fixtureHealth.RuntimeUnregistrationReplayHorizon
     ?? throw new InvalidOperationException("fixture health omitted its replay horizon");
@@ -243,6 +253,24 @@ RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8
         "\"newest_generation\": 14",
         StringComparison.Ordinal))),
     "health codec accepted a non-contiguous replay horizon");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.HealthJson.Replace(
+        "\"available_capacity\": 4094",
+        "\"available_capacity\": 4093",
+        StringComparison.Ordinal))),
+    "health codec accepted inconsistent Orchestra replay capacity");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.HealthJson.Replace(
+        "\"admission_pressure\": \"healthy\"",
+        "\"admission_pressure\": \"warning\"",
+        StringComparison.Ordinal))),
+    "health codec accepted inconsistent Orchestra replay pressure");
+RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
+    Fixtures.HealthJson.Replace(
+        "\"checkpoint_lag_generations\": 0",
+        "\"checkpoint_lag_generations\": 1",
+        StringComparison.Ordinal))),
+    "health codec accepted inconsistent Orchestra checkpoint lag");
 RequireThrows<InvalidDataException>(() => RemoteHealthCodec.Decode(Encoding.UTF8.GetBytes(
     Fixtures.HealthJson.Replace(
         "\"authority_owned\": true",
@@ -433,6 +461,26 @@ Require(decodedWorkspace.Revision == 7
 Require(decodedWorkspace.Runtime.GetType().GetProperty("Endpoint") is null,
     "workspace safe projection retained the remote endpoint");
 RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(
+        Fixtures.InspectResponse(7, "runtime-a")).Replace(
+            "\"registered_at_unix_ms\": 1784620800000",
+            "\"registered_at_unix_ms\": 1784620800002",
+            StringComparison.Ordinal)),
+    Fixtures.HistoryResponse(7, "runtime-a"),
+    Fixtures.LogsResponse(7, "runtime-a"),
+    "runtime-a"),
+    "workspace accepted reversed authority timestamps");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
+    Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(
+        Fixtures.InspectResponse(7, "runtime-a")).Replace(
+            "\"registered_at_unix_ms\": 1784620800000",
+            "\"sidecar_status\": {\"status_source\": null, \"daemon_status\": \"ready\"}, \"registered_at_unix_ms\": 1784620800000",
+            StringComparison.Ordinal)),
+    Fixtures.HistoryResponse(7, "runtime-a"),
+    Fixtures.LogsResponse(7, "runtime-a"),
+    "runtime-a"),
+    "workspace accepted an incomplete sidecar status");
+RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
     Fixtures.InspectResponse(7, "runtime-a"),
     Fixtures.HistoryResponse(8, "runtime-a"),
     Fixtures.LogsResponse(7, "runtime-a"),
@@ -474,7 +522,7 @@ RequireThrows<InvalidDataException>(() => RemoteWorkspaceCodec.Compose(
 RemoteWorkspaceCodec.VerifyIncrementalContract();
 
 Console.WriteLine(
-    "remote health conformance valid: codec=true, fail_closed=true, queue_consistent=true");
+    "remote health conformance valid: codec=true, fail_closed=true, queue_consistent=true, orchestra_replay_horizon=true");
 Console.WriteLine(
     "remote GUI Leselang export conformance valid: refresh=true, capabilities=true, deployment=true, workspace_queries=true, canonical=true, execution=false");
 Console.WriteLine("remote state conformance valid: codec=true, stale=true, snapshot_revision=true, heartbeat_snapshot_fence=true, topology_state=true, authority_bound_topology=true, unproved_live_rejection=true, retained_topology=true, topology_regression_fence=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true");
@@ -682,6 +730,25 @@ public const string HealthJson = """
         "newest_generation": 15,
         "next_generation": 16,
         "evicted_through_generation": 3
+      },
+      "orchestra_delete_replay_horizon": {
+        "capacity": 4096,
+        "retained": 2,
+        "available_capacity": 4094,
+        "warning_available_capacity": 512,
+        "critical_available_capacity": 128,
+        "warning_recovery_available_capacity": 768,
+        "critical_recovery_available_capacity": 256,
+        "checkpoint_lag_generations": 0,
+        "saturated": false,
+        "admission_state": "ready",
+        "admission_pressure": "healthy",
+        "oldest_generation": 5,
+        "newest_generation": 6,
+        "next_generation": 7,
+        "evicted_through_generation": 4,
+        "protected_from_generation": 5,
+        "checkpointed_through_generation": 6
       }
     }
   }
@@ -699,7 +766,11 @@ public static byte[] InspectResponse(
     "payload": {
       "kind": "runtime_inspect",
       "revision": {{revision}},
-      "runtime": {{RuntimeJson(revision, runtimeId, extraRuntimeField)}}
+      "runtime": {{RuntimeJson(
+          revision,
+          runtimeId,
+          extraRuntimeField,
+          includeAuthorityTimestamps: true)}}
     }
   }
 }
@@ -781,12 +852,13 @@ public static byte[] LogsResponse(
 private static string RuntimeJson(
     ulong revision,
     string runtimeId,
-    bool extraRuntimeField = false) => $$"""
+    bool extraRuntimeField = false,
+    bool includeAuthorityTimestamps = false) => $$"""
 {
   "id": "{{runtimeId}}",
   "name": "Runtime A",
   "endpoint": "unix:///private/runtime-a.sock",
-  "revision": {{revision}},
+{{(includeAuthorityTimestamps ? "  \"registered_at_unix_ms\": 1784620800000,\n  \"updated_at_unix_ms\": 1784620800001,\n" : string.Empty)}}  "revision": {{revision}},
   "refresh_count": 2,
   "refresh_status": "ready",
   "tags": {"environment": "test", "cluster": null, "role": null},

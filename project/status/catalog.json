@@ -261,7 +261,7 @@
       {
         "id": "remote-mobile-console",
         "label": "Remote Mobile Console",
-        "summary": "Desktop and mobile clients share authenticated transport and stale-state semantics."
+        "summary": "Desktop and remote clients share authenticated transport and stale-state semantics, while mobile retains the minimum reusable entry and lifecycle contract."
       },
       {
         "id": "two-zero-seal",
@@ -501,7 +501,7 @@
       "id": "gate-six-remote-mobile",
       "architecture": "leserpent-2",
       "kind": "roadmap-gate",
-      "summary": "Gate 6 extends the same protocol and UI contracts to authenticated remote and mobile clients.",
+      "summary": "Gate 6 proves desktop and remote protocol/UI parity plus the declared minimum mobile entry and lifecycle contract.",
       "source": "docs/leserpent-2-roadmap.md",
       "cells": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/transport-protocol/wire-compatibility"]
     },
@@ -1710,14 +1710,14 @@
       "module": "deployment-bootstrap",
       "feature": "reverse-bootstrap",
       "lifecycle": "target",
-      "maturity": "developing",
-      "completion": 99,
+      "maturity": "mature",
+      "completion": 100,
       "confidence": "high",
       "independence": "reusable-library",
       "contract": {
         "id": "leserpent-bootstrap-contract",
-        "version": "0.27.0",
-        "stability": "draft",
+        "version": "1.0.0",
+        "stability": "stable",
         "surfaces": [
           "bootstrap-only-capability",
           "explicit-bootstrap-confirmation",
@@ -1907,12 +1907,7 @@
         ]
       },
       "depends_on": ["leserpent-2/domain-model/command-query-kernel", "leserpent-2/transport-protocol/wire-compatibility"],
-      "blockers": [
-        {
-          "id": "cross-platform-bootstrap-installation-incomplete",
-          "summary": "The bootstrap install/activate and identity-bound bootstrap-retire-v1 paths now have native macOS process proof plus pinned-SSH Linux systemd-user and privileged systemd-system deployment, forged-generation rejection, retirement, replay, privilege-revocation, and residue evidence. Product-level daemon-retirement persistence, scheduling, worker settlement, native adapter registration, authenticated IPC/HTTPS, native CLI orchestration, and Avalonia Hub orchestration are complete; only WinRM evidence remains."
-        }
-      ],
+      "blockers": [],
       "consumers": ["leserpent-cli", "avalonia-client", "deployment-adapters", "model-automation"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
@@ -1961,7 +1956,7 @@
         { "kind": "test", "path": "crates/leserpent-adapters/tests/real_ssh_retirement.rs", "state": "present" },
         { "kind": "documentation", "path": "docs/fixtures/leserpent_real_ssh_retirement_20260723.json", "state": "present" }
       ],
-      "next_gate": "Complete WinRM daemon-retirement evidence when Windows becomes an active target, while preserving the proven macOS and Linux orchestration contracts."
+      "next_gate": "Preserve the stable macOS and Linux orchestration contract; treat WinRM as optional post-2.0 work only when Windows becomes an active native target."
     },
     {
       "id": "leserpent-2/deployment-bootstrap/gewyvern-provisioning",
@@ -2280,9 +2275,9 @@
       "independence": "replaceable-frontend",
       "contract": {
         "id": "leserpent-remote-console",
-        "version": "0.54.0",
+        "version": "0.55.0",
         "stability": "draft",
-        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "authenticated-authority-health-preflight", "connected-authority-health-inspection", "gui-cli-leselang-export-parity", "remote-auth-exit-contract", "tls12-and-tls13", "platform-first-bearer-token", "bounded-environment-token-fallback", "macos-keychain-token", "linux-secret-service-token", "platform-token-vault-write", "macos-keychain-upsert", "linux-secret-service-upsert", "platform-token-delete", "in-app-credential-onboarding", "endpoint-scoped-credential", "malformed-stored-token-fail-closed", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "shared-dotnet-wire-transport", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "strict-aot-capability-codec", "strict-aot-workspace-query-codec", "runtime-snapshot-generation", "heartbeat-preserved-snapshot-generation", "concurrent-inspect-history-logs-query", "same-revision-workspace-composition", "torn-workspace-rejection", "runtime-history-identity-fence", "runtime-log-identity-fence", "bounded-sanitized-runtime-logs", "utf8-safe-log-display", "endpoint-transient-decode-only", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "bounded-reconnect", "explicit-readonly-manual-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "saved-desktop-connection-profile", "finder-dock-launch-path", "token-free-profile-persistence", "token-redacted-startup-recovery", "shared-product-startup-plan", "packaged-platform-keychain-startup", "keychain-fixture-cleanup", "safe-desktop-connection-switch", "endpoint-scoped-credential-forget", "stale-profile-credential-delete-fence", "environment-credential-preservation", "immutable-desktop-trust-anchor", "managed-ca-profile-migration", "ephemeral-ca-nonpersistence", "visible-credential-provenance", "visible-trust-identity", "responsive-remote-desktop-layout", "stable-node-focus-retention", "bounded-local-runtime-filter", "local-only-runtime-log-search", "strict-runtime-log-level-filter", "visible-workspace-diagnostic-export", "bounded-live-workspace-query", "visible-workspace-change-summary", "runtime-bound-inspect-action", "runtime-bound-refresh-action", "runtime-bound-capability-refresh-action", "runtime-bound-deployment-action", "typed-dotnet-deployment-mutation", "deployment-json-contract-probe", "renderer-neutral-deployment-form-event", "explicit-mutation-confirmation", "stale-mutation-rejection", "optimistic-runtime-revision", "no-automatic-mutation-retry", "mutation-observation-ui-fence", "capability-observation-ui-fence", "persistent-operation-status-live-region", "endpoint-free-mutation-result", "rust-dotnet-mutation-vertical", "rust-dotnet-capability-mutation-vertical", "rust-dotnet-capability-discovery-vertical", "android-application-entry", "android-secure-onboarding", "mobile-application-coordinator", "duplicate-platform-callback-coalescing", "android-entry-contract-proof", "mobile-lifecycle-core", "foreground-session-ownership", "background-disconnect", "mobile-credential-reload", "mobile-generation-fence", "mobile-failure-cleanup", "android-keystore-aes-gcm-token", "ios-this-device-only-keychain-token", "adaptive-navigation", "visible-workspace-severity-signal", "frontend-independent-workspace-snapshot-fence", "visible-acknowledgeable-workspace-alert", "cursor-bound-workspace-log-query", "bounded-incremental-log-merge", "revision-change-full-log-resync", "benchmarked-incremental-workspace-logs", "bounded-live-refresh-backoff", "consecutive-failure-live-refresh-stop", "successful-manual-query-backoff-reset", "skipped-live-query-backoff-neutrality", "manual-query-live-timer-ownership", "visible-diagnostic-file-export", "endpoint-free-diagnostic-file", "canonical-workspace-query-leselang", "structured-read-query-equivalence", "shared-workspace-policy-core", "mobile-reusable-workspace-policies", "renderer-independent-workspace-policy", "renderer-neutral-fleet-projection", "renderer-neutral-workspace-projection", "mobile-reusable-ui-document-projection", "capability-gated-shared-form-projection", "frontend-independent-mutation-revision-fence", "authoritative-snapshot-unknown-outcome-fence", "heartbeat-resistant-mutation-fence", "capability-observation-mutation-fence", "frontend-independent-action-availability", "deterministic-unavailability-reason-precedence", "stale-inspect-mutation-disablement", "single-source-workspace-action-availability", "shared-authority-health-presentation", "shared-queue-saturation-severity"]
+        "surfaces": ["default-off-https-wire-server", "native-remote-cli", "explicit-ca-trust", "tls-hostname-verification", "remote-health-query-command-watch", "authenticated-authority-health-preflight", "connected-authority-health-inspection", "gui-cli-leselang-export-parity", "remote-auth-exit-contract", "tls12-and-tls13", "platform-first-bearer-token", "bounded-environment-token-fallback", "macos-keychain-token", "linux-secret-service-token", "platform-token-vault-write", "macos-keychain-upsert", "linux-secret-service-upsert", "platform-token-delete", "in-app-credential-onboarding", "endpoint-scoped-credential", "malformed-stored-token-fail-closed", "constant-time-authentication", "strict-bounded-http", "shared-wire-v1-dispatch", "shared-dotnet-wire-transport", "private-key-file-safety", "peer-failure-isolation", "authenticated-websocket", "strict-aot-event-codec", "strict-aot-capability-codec", "strict-aot-workspace-query-codec", "runtime-snapshot-generation", "heartbeat-preserved-snapshot-generation", "concurrent-inspect-history-logs-query", "same-revision-workspace-composition", "torn-workspace-rejection", "runtime-history-identity-fence", "runtime-log-identity-fence", "bounded-sanitized-runtime-logs", "utf8-safe-log-display", "endpoint-transient-decode-only", "rust-dotnet-workspace-query-vertical", "rust-dotnet-workspace-log-vertical", "bounded-reconnect", "explicit-readonly-manual-reconnect", "cursor-reset-resync", "endpoint-bound-offline-read-cache", "atomic-private-cache", "stale-state", "avalonia-remote-mode", "saved-desktop-connection-profile", "finder-dock-launch-path", "token-free-profile-persistence", "token-redacted-startup-recovery", "shared-product-startup-plan", "packaged-platform-keychain-startup", "keychain-fixture-cleanup", "safe-desktop-connection-switch", "endpoint-scoped-credential-forget", "stale-profile-credential-delete-fence", "environment-credential-preservation", "immutable-desktop-trust-anchor", "managed-ca-profile-migration", "ephemeral-ca-nonpersistence", "visible-credential-provenance", "visible-trust-identity", "responsive-remote-desktop-layout", "stable-node-focus-retention", "bounded-local-runtime-filter", "local-only-runtime-log-search", "strict-runtime-log-level-filter", "visible-workspace-diagnostic-export", "bounded-live-workspace-query", "visible-workspace-change-summary", "runtime-bound-inspect-action", "runtime-bound-refresh-action", "runtime-bound-capability-refresh-action", "runtime-bound-deployment-action", "typed-dotnet-deployment-mutation", "deployment-json-contract-probe", "renderer-neutral-deployment-form-event", "explicit-mutation-confirmation", "stale-mutation-rejection", "optimistic-runtime-revision", "no-automatic-mutation-retry", "mutation-observation-ui-fence", "capability-observation-ui-fence", "persistent-operation-status-live-region", "endpoint-free-mutation-result", "rust-dotnet-mutation-vertical", "rust-dotnet-capability-mutation-vertical", "rust-dotnet-capability-discovery-vertical", "android-application-entry", "android-secure-onboarding", "mobile-application-coordinator", "duplicate-platform-callback-coalescing", "android-entry-contract-proof", "mobile-lifecycle-core", "foreground-session-ownership", "background-disconnect", "mobile-credential-reload", "mobile-generation-fence", "mobile-failure-cleanup", "android-keystore-aes-gcm-token", "ios-this-device-only-keychain-token", "adaptive-navigation", "visible-workspace-severity-signal", "frontend-independent-workspace-snapshot-fence", "visible-acknowledgeable-workspace-alert", "cursor-bound-workspace-log-query", "bounded-incremental-log-merge", "revision-change-full-log-resync", "benchmarked-incremental-workspace-logs", "bounded-live-refresh-backoff", "consecutive-failure-live-refresh-stop", "successful-manual-query-backoff-reset", "skipped-live-query-backoff-neutrality", "manual-query-live-timer-ownership", "visible-diagnostic-file-export", "endpoint-free-diagnostic-file", "canonical-workspace-query-leselang", "structured-read-query-equivalence", "shared-workspace-policy-core", "mobile-reusable-workspace-policies", "renderer-independent-workspace-policy", "renderer-neutral-fleet-projection", "renderer-neutral-workspace-projection", "mobile-reusable-ui-document-projection", "capability-gated-shared-form-projection", "frontend-independent-mutation-revision-fence", "authoritative-snapshot-unknown-outcome-fence", "heartbeat-resistant-mutation-fence", "capability-observation-mutation-fence", "frontend-independent-action-availability", "deterministic-unavailability-reason-precedence", "stale-inspect-mutation-disablement", "single-source-workspace-action-availability", "shared-authority-health-presentation", "shared-queue-saturation-severity", "strict-orchestra-delete-replay-health-codec", "visible-orchestra-delete-replay-pressure", "complete-runtime-projection-wire-coverage", "strict-runtime-authority-timestamp-codec"]
       },
       "depends_on": ["leserpent-2/transport-protocol/wire-compatibility", "leserpent-2/ui-renderers/avalonia-renderer", "leserpent-2/daemon-host/daemon-lifecycle"],
       "blockers": [
@@ -2332,28 +2327,30 @@
       "feature": "two-zero-seal",
       "lifecycle": "target",
       "maturity": "incubating",
-      "completion": 58,
+      "completion": 64,
       "confidence": "high",
       "independence": "internal",
       "contract": {
         "id": "leserpent-two-zero-release",
-        "version": "0.11.0-draft",
+        "version": "0.15.0-draft",
         "stability": "draft",
-        "surfaces": ["schema-freeze", "security-audit", "performance-comparison", "migration", "packaging", "rollback", "machine-readable-v1-candidate-inventory", "fixed-non-executable-proof-registry", "non-vacuous-schema-readiness-proof", "reviewed-v1-compatibility-baseline", "sha256-fixture-drift-gate", "wire-and-renderer-golden-coverage", "runtime-journal-v1-v3-v6-migration-replay", "invalid-migration-history-rejection", "legacy-wire-migration-replay", "minimum-migration-test-count", "shared-locked-dotnet-proof-runner", "filtered-managed-migration-proof", "sqlite-v1-in-place-migration", "legacy-json-to-sqlite-migration", "failed-save-snapshot-preservation", "zero-dotnet-artifact-residue", "transactional-migration-write-rollback", "retained-json-byte-preservation", "managed-migration-retry", "operator-json-rollback", "isolated-web-development-aot-lock-graphs", "pinned-web-native-aot-toolchain", "locked-linux-native-aot-rid-graph", "staged-linux-install-upgrade-rollback", "safe-current-previous-release-links", "unsafe-existing-current-link-rejection", "configuration-state-preservation", "rolled-back-live-native-aot-health", "physical-linux-x64-package-rollback-proof", "native-macos-versioned-installer", "bounded-universal-macho-arm64-validation", "stable-user-app-launcher", "macos-current-previous-upgrade", "macos-explicit-rollback-swap", "macos-external-profile-preservation", "installed-adhoc-signature-integrity", "rolled-back-live-macos-control-fixture", "physical-macos-arm64-package-rollback-proof", "machine-readable-apple-release-preflight", "apple-release-tool-inventory", "developer-id-identity-count", "notary-profile-readiness", "explicit-blocked-release-evidence", "bundled-daemon-release-validation", "native-payload-bound-release-identity", "daemon-bound-release-preflight"]
+        "surfaces": ["schema-freeze", "closed-core-capability-scope", "machine-validated-scope-freeze-manifest", "security-audit", "performance-comparison", "migration", "packaging", "rollback", "machine-readable-v1-candidate-inventory", "fixed-non-executable-proof-registry", "non-vacuous-schema-readiness-proof", "reviewed-v1-compatibility-baseline", "sha256-fixture-drift-gate", "wire-and-renderer-golden-coverage", "runtime-journal-v1-v3-v6-migration-replay", "invalid-migration-history-rejection", "legacy-wire-migration-replay", "minimum-migration-test-count", "shared-locked-dotnet-proof-runner", "filtered-managed-migration-proof", "sqlite-v1-in-place-migration", "legacy-json-to-sqlite-migration", "failed-save-snapshot-preservation", "zero-dotnet-artifact-residue", "transactional-migration-write-rollback", "retained-json-byte-preservation", "managed-migration-retry", "operator-json-rollback", "isolated-web-development-aot-lock-graphs", "pinned-web-native-aot-toolchain", "locked-linux-native-aot-rid-graph", "staged-linux-install-upgrade-rollback", "safe-current-previous-release-links", "unsafe-existing-current-link-rejection", "configuration-state-preservation", "rolled-back-live-native-aot-health", "physical-linux-x64-package-rollback-proof", "native-macos-versioned-installer", "bounded-universal-macho-arm64-validation", "stable-user-app-launcher", "macos-current-previous-upgrade", "macos-explicit-rollback-swap", "macos-external-profile-preservation", "installed-adhoc-signature-integrity", "rolled-back-live-macos-control-fixture", "physical-macos-arm64-package-rollback-proof", "machine-readable-apple-release-preflight", "apple-release-tool-inventory", "developer-id-identity-count", "notary-profile-readiness", "explicit-blocked-release-evidence", "bundled-daemon-release-validation", "native-payload-bound-release-identity", "daemon-bound-release-preflight", "unified-leserpent-release-proof-stage", "current-run-schema-scope-artifact-index"]
       },
       "depends_on": ["leserpent-2/remote-console/remote-mobile-console", "leserpent-2/release-assurance/continuous-proof"],
       "blockers": [
         {
           "id": "prior-gates-open",
-          "summary": "The candidate schema inventory is now reproducible, but the 2.0 seal cannot complete until frontend parity, remote/mobile conformance, continuous proof, and Apple-backed release evidence are complete."
+          "summary": "The candidate schema inventory, core capability scope, and unified current-run parity/schema release stage are reproducible, but the 2.0 seal cannot complete until frontend parity, continuous proof, and Apple-backed release evidence are complete."
         }
       ],
       "consumers": ["release-engineering", "operators", "downstream-integrators"],
       "evidence": [
         { "kind": "documentation", "path": "docs/leserpent-2-roadmap.md", "state": "present" },
+        { "kind": "source", "path": "project/release/leserpent-2-scope-freeze.json", "state": "present" },
         { "kind": "source", "path": "project/release/leserpent-v1-schema-inventory.json", "state": "present" },
         { "kind": "source", "path": "project/release/leserpent-v1-compatibility-baseline.json", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/leserpent_schema_freeze.rs", "state": "present" },
+        { "kind": "source", "path": "src/validation_harness/release_gate.rs", "state": "present" },
         { "kind": "source", "path": "src/validation_harness/dotnet_proof.rs", "state": "present" },
         { "kind": "source", "path": "apps/leserpent/deploy/linux/install.sh", "state": "present" },
         { "kind": "test", "path": "scripts/validation/leserpent_linux_bundle_smoke.sh", "state": "present" },

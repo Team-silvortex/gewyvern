@@ -6,7 +6,8 @@ public sealed record RemoteHealth(
     bool AuthorityOwned,
     uint ProtocolSchemaVersion,
     RemoteEffectQueueHealth? EffectQueue,
-    RemoteUnregistrationReplayHorizon? RuntimeUnregistrationReplayHorizon = null);
+    RemoteUnregistrationReplayHorizon? RuntimeUnregistrationReplayHorizon = null,
+    RemoteOrchestraDeleteReplayHorizon? OrchestraDeleteReplayHorizon = null);
 
 public sealed record RemoteEffectQueueHealth(
     ulong Ready,
@@ -55,6 +56,45 @@ public sealed record RemoteUnregistrationReplayHorizon(
         return RemoteUnregistrationGenerationState.Future;
     }
 }
+
+public enum RemoteOrchestraDeleteReplayAdmissionState
+{
+    Ready,
+    BlockedByReconciliationAudit,
+}
+
+public enum RemoteOrchestraDeleteReplayAdmissionPressure
+{
+    Healthy,
+    Warning,
+    Critical,
+    Blocked,
+}
+
+public enum RemoteOrchestraDeleteReplayOperatorAction
+{
+    PersistAuditAndAdvanceCheckpoint,
+}
+
+public sealed record RemoteOrchestraDeleteReplayHorizon(
+    ulong Capacity,
+    ulong Retained,
+    ulong AvailableCapacity,
+    ulong WarningAvailableCapacity,
+    ulong CriticalAvailableCapacity,
+    ulong WarningRecoveryAvailableCapacity,
+    ulong CriticalRecoveryAvailableCapacity,
+    ulong CheckpointLagGenerations,
+    bool Saturated,
+    RemoteOrchestraDeleteReplayAdmissionState AdmissionState,
+    RemoteOrchestraDeleteReplayAdmissionPressure AdmissionPressure,
+    RemoteOrchestraDeleteReplayOperatorAction? OperatorAction,
+    ulong? OldestGeneration,
+    ulong? NewestGeneration,
+    ulong NextGeneration,
+    ulong EvictedThroughGeneration,
+    ulong? ProtectedFromGeneration,
+    ulong? CheckpointedThroughGeneration);
 
 public sealed class RemoteHealthClient : IDisposable
 {
@@ -124,12 +164,17 @@ public static class RemoteHealthCodec
             var replayHorizon = health.RuntimeUnregistrationReplayHorizon is null
                 ? null
                 : ValidateReplayHorizon(health.RuntimeUnregistrationReplayHorizon);
+            var orchestraReplayHorizon = health.OrchestraDeleteReplayHorizon is null
+                ? null
+                : ValidateOrchestraDeleteReplayHorizon(
+                    health.OrchestraDeleteReplayHorizon);
             return new RemoteHealth(
                 health.Status,
                 health.AuthorityOwned,
                 health.ProtocolSchemaVersion,
                 queue,
-                replayHorizon);
+                replayHorizon,
+                orchestraReplayHorizon);
         }
         catch (JsonException error)
         {
@@ -215,6 +260,137 @@ public static class RemoteHealthCodec
             horizon.EvictedThroughGeneration);
     }
 
+    internal static RemoteOrchestraDeleteReplayHorizon
+        ValidateOrchestraDeleteReplayHorizon(
+            WireOrchestraDeleteReplayHorizon horizon)
+    {
+        var contiguous = horizon.OldestGeneration is { } oldest
+            && horizon.NewestGeneration is { } newest
+            ? horizon.Retained > 0
+                && horizon.EvictedThroughGeneration < ulong.MaxValue
+                && oldest == horizon.EvictedThroughGeneration + 1
+                && newest < ulong.MaxValue
+                && horizon.NextGeneration == newest + 1
+                && newest >= oldest
+                && horizon.Retained == newest - oldest + 1
+            : !horizon.OldestGeneration.HasValue
+                && !horizon.NewestGeneration.HasValue
+                && horizon.Retained == 0
+                && horizon.EvictedThroughGeneration < ulong.MaxValue
+                && horizon.NextGeneration == horizon.EvictedThroughGeneration + 1;
+        var thresholdsValid = horizon.CriticalAvailableCapacity > 0
+            && horizon.CriticalAvailableCapacity
+                < horizon.CriticalRecoveryAvailableCapacity
+            && horizon.CriticalRecoveryAvailableCapacity
+                <= horizon.WarningAvailableCapacity
+            && horizon.WarningAvailableCapacity
+                < horizon.WarningRecoveryAvailableCapacity
+            && horizon.WarningRecoveryAvailableCapacity <= horizon.Capacity;
+        var protectedGenerationValid = horizon.ProtectedFromGeneration is not { } protectedFrom
+            || horizon.OldestGeneration is { } protectedOldest
+                && horizon.NewestGeneration is { } protectedNewest
+                && protectedFrom >= protectedOldest
+                && protectedFrom <= protectedNewest;
+        var checkpointGenerationValid =
+            horizon.CheckpointedThroughGeneration is not { } checkpointed
+            || checkpointed > 0
+                && horizon.NewestGeneration is { } checkpointNewest
+                && checkpointed <= checkpointNewest;
+        if (horizon.Capacity == 0
+            || horizon.Retained > horizon.Capacity
+            || horizon.AvailableCapacity != horizon.Capacity - horizon.Retained
+            || horizon.NextGeneration == 0
+            || horizon.EvictedThroughGeneration >= horizon.NextGeneration
+            || horizon.Saturated != (horizon.AvailableCapacity == 0)
+            || !contiguous
+            || !thresholdsValid
+            || !protectedGenerationValid
+            || !checkpointGenerationValid)
+        {
+            throw new InvalidDataException(
+                "remote health Orchestra delete replay horizon is inconsistent");
+        }
+
+        var admissionState = horizon.AdmissionState switch
+        {
+            "ready" => RemoteOrchestraDeleteReplayAdmissionState.Ready,
+            "blocked_by_reconciliation_audit" =>
+                RemoteOrchestraDeleteReplayAdmissionState.BlockedByReconciliationAudit,
+            _ => throw new InvalidDataException(
+                "remote health Orchestra delete admission state is invalid"),
+        };
+        var admissionPressure = horizon.AdmissionPressure switch
+        {
+            "healthy" => RemoteOrchestraDeleteReplayAdmissionPressure.Healthy,
+            "warning" => RemoteOrchestraDeleteReplayAdmissionPressure.Warning,
+            "critical" => RemoteOrchestraDeleteReplayAdmissionPressure.Critical,
+            "blocked" => RemoteOrchestraDeleteReplayAdmissionPressure.Blocked,
+            _ => throw new InvalidDataException(
+                "remote health Orchestra delete admission pressure is invalid"),
+        };
+        var expectedPressure = horizon.ProtectedFromGeneration is null
+            ? RemoteOrchestraDeleteReplayAdmissionPressure.Healthy
+            : horizon.AvailableCapacity == 0
+                ? RemoteOrchestraDeleteReplayAdmissionPressure.Blocked
+                : horizon.AvailableCapacity <= horizon.CriticalAvailableCapacity
+                    ? RemoteOrchestraDeleteReplayAdmissionPressure.Critical
+                    : horizon.AvailableCapacity <= horizon.WarningAvailableCapacity
+                        ? RemoteOrchestraDeleteReplayAdmissionPressure.Warning
+                        : RemoteOrchestraDeleteReplayAdmissionPressure.Healthy;
+        var expectedState = horizon.Saturated
+            && horizon.ProtectedFromGeneration.HasValue
+                ? RemoteOrchestraDeleteReplayAdmissionState
+                    .BlockedByReconciliationAudit
+                : RemoteOrchestraDeleteReplayAdmissionState.Ready;
+        RemoteOrchestraDeleteReplayOperatorAction? operatorAction =
+            horizon.OperatorAction switch
+        {
+            null => null,
+            "persist_audit_and_advance_checkpoint" =>
+                RemoteOrchestraDeleteReplayOperatorAction
+                    .PersistAuditAndAdvanceCheckpoint,
+            _ => throw new InvalidDataException(
+                "remote health Orchestra delete operator action is invalid"),
+        };
+        var expectedCheckpointLag = horizon.NewestGeneration switch
+        {
+            null => 0UL,
+            { } replayNewest when horizon.CheckpointedThroughGeneration is { } checkpoint =>
+                replayNewest - checkpoint,
+            _ => horizon.Retained,
+        };
+        if (admissionPressure != expectedPressure
+            || admissionState != expectedState
+            || operatorAction.HasValue
+                != (admissionPressure
+                    != RemoteOrchestraDeleteReplayAdmissionPressure.Healthy)
+            || horizon.CheckpointLagGenerations != expectedCheckpointLag)
+        {
+            throw new InvalidDataException(
+                "remote health Orchestra delete replay authority is inconsistent");
+        }
+
+        return new RemoteOrchestraDeleteReplayHorizon(
+            horizon.Capacity,
+            horizon.Retained,
+            horizon.AvailableCapacity,
+            horizon.WarningAvailableCapacity,
+            horizon.CriticalAvailableCapacity,
+            horizon.WarningRecoveryAvailableCapacity,
+            horizon.CriticalRecoveryAvailableCapacity,
+            horizon.CheckpointLagGenerations,
+            horizon.Saturated,
+            admissionState,
+            admissionPressure,
+            operatorAction,
+            horizon.OldestGeneration,
+            horizon.NewestGeneration,
+            horizon.NextGeneration,
+            horizon.EvictedThroughGeneration,
+            horizon.ProtectedFromGeneration,
+            horizon.CheckpointedThroughGeneration);
+    }
+
     private static string RequiredString(JsonElement value, string name)
     {
         var result = value.GetProperty(name).GetString();
@@ -257,6 +433,7 @@ public sealed class WireHealthPayload
     public uint ProtocolSchemaVersion { get; set; }
     public WireEffectQueueHealth? EffectQueue { get; set; }
     public WireUnregistrationReplayHorizon? RuntimeUnregistrationReplayHorizon { get; set; }
+    public WireOrchestraDeleteReplayHorizon? OrchestraDeleteReplayHorizon { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -281,6 +458,29 @@ public sealed class WireUnregistrationReplayHorizon
     public ulong? NewestGeneration { get; set; }
     public ulong NextGeneration { get; set; }
     public ulong EvictedThroughGeneration { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class WireOrchestraDeleteReplayHorizon
+{
+    public ulong Capacity { get; set; }
+    public ulong Retained { get; set; }
+    public ulong AvailableCapacity { get; set; }
+    public ulong WarningAvailableCapacity { get; set; }
+    public ulong CriticalAvailableCapacity { get; set; }
+    public ulong WarningRecoveryAvailableCapacity { get; set; }
+    public ulong CriticalRecoveryAvailableCapacity { get; set; }
+    public ulong CheckpointLagGenerations { get; set; }
+    public bool Saturated { get; set; }
+    public required string AdmissionState { get; set; }
+    public required string AdmissionPressure { get; set; }
+    public string? OperatorAction { get; set; }
+    public ulong? OldestGeneration { get; set; }
+    public ulong? NewestGeneration { get; set; }
+    public ulong NextGeneration { get; set; }
+    public ulong EvictedThroughGeneration { get; set; }
+    public ulong? ProtectedFromGeneration { get; set; }
+    public ulong? CheckpointedThroughGeneration { get; set; }
 }
 
 [JsonSourceGenerationOptions(

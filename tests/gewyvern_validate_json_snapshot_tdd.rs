@@ -1,8 +1,56 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
 
 use serde_json::Value;
+
+static RELEASE_GATE_EVIDENCE_LOCK: Mutex<()> = Mutex::new(());
+
+struct ReleaseGateEvidenceGuard {
+    _lock: MutexGuard<'static, ()>,
+    files: Vec<(PathBuf, Option<Vec<u8>>)>,
+}
+
+impl ReleaseGateEvidenceGuard {
+    fn acquire() -> Self {
+        let lock = RELEASE_GATE_EVIDENCE_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("validation");
+        let paths = [
+            root.join("release-gate-artifacts.json"),
+            root.join("release-gate-artifacts.txt"),
+            root.join("leserpent-macos-release-preflight")
+                .join("release-gate-preflight.json"),
+        ];
+        let files = paths
+            .into_iter()
+            .map(|path| {
+                let contents = path.is_file().then(|| fs::read(&path).unwrap());
+                (path, contents)
+            })
+            .collect();
+        Self { _lock: lock, files }
+    }
+}
+
+impl Drop for ReleaseGateEvidenceGuard {
+    fn drop(&mut self) {
+        for (path, contents) in &self.files {
+            if let Some(contents) = contents {
+                if let Some(parent) = path.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::write(path, contents);
+            } else if path.is_file() || path.is_symlink() {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+}
 
 fn read_fixture(relative: &str) -> Value {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
@@ -84,6 +132,7 @@ fn help_json_matches_fixture() {
 
 #[test]
 fn minimal_release_gate_json_matches_fixture() {
+    let _evidence = ReleaseGateEvidenceGuard::acquire();
     let expected = read_fixture("docs/fixtures/gewyvern_validate_release_gate_minimal.json");
     let (ok, stdout, stderr) = run_validate_json(&[
         "--json",
@@ -102,6 +151,7 @@ fn minimal_release_gate_json_matches_fixture() {
 
 #[test]
 fn release_gate_retains_valid_blocked_macos_preflight() {
+    let _evidence = ReleaseGateEvidenceGuard::acquire();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("docs/fixtures/leserpent_macos_release_preflight.json");
     let fixture = fixture.to_str().unwrap();
@@ -142,6 +192,7 @@ fn release_gate_retains_valid_blocked_macos_preflight() {
 
 #[test]
 fn minimal_release_gate_writes_release_artifact_index_files() {
+    let _evidence = ReleaseGateEvidenceGuard::acquire();
     let expected_shape =
         read_fixture("docs/fixtures/gewyvern_validate_release_gate_artifact_shape.json");
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))

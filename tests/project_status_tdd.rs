@@ -2467,10 +2467,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/deployment-bootstrap/reverse-bootstrap")
         .expect("reverse deployment bootstrap must be tracked independently");
-    assert_eq!(bootstrap.maturity, Maturity::Developing);
-    assert_eq!(bootstrap.completion, 99);
-    assert_eq!(bootstrap.contract.stability, ContractStability::Draft);
-    assert_eq!(bootstrap.contract.version, "0.27.0");
+    assert_eq!(bootstrap.maturity, Maturity::Mature);
+    assert_eq!(bootstrap.completion, 100);
+    assert_eq!(bootstrap.contract.stability, ContractStability::Stable);
+    assert_eq!(bootstrap.contract.version, "1.0.0");
     assert!(
         bootstrap
             .contract
@@ -2578,11 +2578,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing bootstrap retirement surface {surface}"
         );
     }
-    assert!(bootstrap.blockers.iter().any(|blocker| {
-        blocker.id == "cross-platform-bootstrap-installation-incomplete"
-            && blocker.summary.contains("privileged systemd-system")
-            && blocker.summary.contains("only WinRM evidence remains")
-    }));
+    assert!(bootstrap.blockers.is_empty());
+    assert!(bootstrap.next_gate.contains("optional post-2.0"));
     assert!(bootstrap.evidence.iter().any(|evidence| {
         evidence.path == "docs/fixtures/leserpent_real_ssh_bootstrap_retirement_20260727.json"
     }));
@@ -2612,6 +2609,81 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         !blocker
             .summary
             .contains("still needs service activation, registration proof")
+    }));
+
+    let remote_console = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/remote-console/remote-mobile-console")
+        .expect("remote/mobile console contract must remain tracked");
+    assert_eq!(remote_console.completion, 98);
+    assert_eq!(remote_console.contract.version, "0.55.0");
+    for surface in [
+        "strict-orchestra-delete-replay-health-codec",
+        "visible-orchestra-delete-replay-pressure",
+        "complete-runtime-projection-wire-coverage",
+        "strict-runtime-authority-timestamp-codec",
+    ] {
+        assert!(
+            remote_console
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing remote console surface {surface}"
+        );
+    }
+
+    let two_zero_seal = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/release-assurance/two-zero-seal")
+        .expect("2.0 release seal must be tracked independently");
+    assert_eq!(two_zero_seal.completion, 64);
+    assert_eq!(two_zero_seal.contract.version, "0.15.0-draft");
+    assert!(
+        two_zero_seal
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "closed-core-capability-scope")
+    );
+    assert!(
+        two_zero_seal
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "machine-validated-scope-freeze-manifest")
+    );
+    assert!(
+        two_zero_seal
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "unified-leserpent-release-proof-stage")
+    );
+    assert!(
+        two_zero_seal
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "current-run-schema-scope-artifact-index")
+    );
+    assert!(two_zero_seal.evidence.iter().any(|evidence| {
+        evidence.path == "project/release/leserpent-2-scope-freeze.json"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(two_zero_seal.evidence.iter().any(|evidence| {
+        evidence.path == "src/validation_harness/release_gate.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(two_zero_seal.blockers.iter().any(|blocker| {
+        blocker.id == "prior-gates-open"
+            && blocker
+                .summary
+                .contains("unified current-run parity/schema release stage")
+            && blocker.summary.contains("Apple-backed release evidence")
+            && !blocker.summary.contains("desktop/remote conformance")
     }));
 
     let provisioning = catalog

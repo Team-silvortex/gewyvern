@@ -163,14 +163,15 @@ cargo run --quiet --bin gewyvern_validate -- --json release-gate --remote-host-v
 ```
 
 `--leserpent-proof` is an explicit combined-release stage. It runs the current
-13-suite parity/recovery shelf and adds
-`extra.stages.leserpent_parity_recovery = true`. It remains default-off so the
-sealed Gewyvern 1.x gate does not silently acquire .NET, GUI, mobile, or
-cross-language build dependencies.
+13-suite parity/recovery shelf plus the versioned schema/scope freeze shelf. A
+successful run adds both `extra.stages.leserpent_parity_recovery = true` and
+`extra.stages.leserpent_schema_freeze = true`; either shelf failing aborts the
+combined gate. It remains default-off so the sealed Gewyvern 1.x gate does not
+silently acquire .NET, GUI, mobile, or cross-language build dependencies.
 
-The reverse-bootstrap handoff proof remains roadmap-owned in the Leserpent 2.0
-line and will be attached to the next `release-gate` stage as soon as the
-bootstrap fixture runner is in tree.
+The reverse-bootstrap contract is now pinned by the frozen scope manifest and
+its status evidence. Physical SSH/bootstrap fixtures remain retained evidence;
+the generic local release gate does not silently rerun remote privileged flows.
 
 Linux Leserpent Native AOT bundles must contain executable
 `leserpent-compat-bridge` and `leserpentd` binaries. Deployment authority stays

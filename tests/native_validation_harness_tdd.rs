@@ -66,6 +66,7 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("release_gate_summary_value"));
     assert!(binary.contains("--leserpent-proof"));
     assert!(binary.contains("\"leserpent_parity_recovery\""));
+    assert!(binary.contains("\"leserpent_schema_freeze\""));
     assert!(binary.contains("remote_linux_host_summary_value"));
     assert!(binary.contains("parse_bounded_json_file"));
     assert!(binary.contains("read_bounded_recent_lines"));
@@ -401,6 +402,10 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
     assert!(harness.contains("--verify-workspace-diagnostics"));
     assert!(harness.contains("authenticated-dotnet-health-preflight"));
     assert!(harness.contains("same-revision-workspace-composition"));
+    assert!(harness.contains("snapshot-revision-fence"));
+    assert!(harness.contains("heartbeat-snapshot-fence"));
+    assert!(harness.contains("authority-bound-topology"));
+    assert!(harness.contains("topology-regression-fence"));
     assert!(harness.contains("endpoint-redacted-workspace-output"));
     assert!(harness.contains("dotnet-workspace-leselang-rust-parse"));
     assert!(harness.contains("workspace-structured-read-query-lowering"));
@@ -414,8 +419,10 @@ fn leserpent_parity_recovery_proof_is_non_vacuous_and_retained() {
 #[test]
 fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only() {
     let harness = read_repo_file("src/validation_harness/leserpent_schema_freeze.rs");
+    let dotnet_proof = read_repo_file("src/validation_harness/dotnet_proof.rs");
     let inventory = read_repo_file("project/release/leserpent-v1-schema-inventory.json");
     let compatibility = read_repo_file("project/release/leserpent-v1-compatibility-baseline.json");
+    let scope_freeze = read_repo_file("project/release/leserpent-2-scope-freeze.json");
     let docs = read_repo_file("docs/script-entrypoints.md");
 
     assert!(harness.contains("EXPECTED_FAMILIES"));
@@ -432,11 +439,17 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
     assert!(harness.contains("SqliteOrchestraRunStoreTests"));
     assert!(harness.contains("MANAGED_MIGRATION_MIN_TESTS"));
     assert!(harness.contains("run_locked_dotnet_test"));
+    assert!(dotnet_proof.contains("LESERPENT_TEST_CRASH_HARNESS_ASSEMBLY"));
+    assert!(dotnet_proof.contains("Leserpent.RuntimeDeletionCrashHarness.dll"));
     assert!(harness.contains("transactional-migration-write-rollback"));
     assert!(harness.contains("retained-json-byte-preservation"));
     assert!(harness.contains("operator-json-rollback"));
     assert!(harness.contains("clear_previous_evidence"));
     assert!(harness.contains("load_and_validate_compatibility_baseline"));
+    assert!(harness.contains("load_and_validate_scope_freeze"));
+    assert!(harness.contains("EXPECTED_SCOPE_CAPABILITIES"));
+    assert!(harness.contains("scope_freeze_ready"));
+    assert!(harness.contains("unavailable core status cell"));
     assert!(harness.contains("ring::digest::SHA256"));
     assert!(harness.contains("differs from its reviewed v1 baseline"));
     assert!(harness.contains("schema-freeze-summary.json"));
@@ -451,7 +464,14 @@ fn leserpent_schema_freeze_inventory_is_bounded_non_vacuous_and_candidate_only()
     assert!(compatibility.contains("\"algorithm\": \"sha256\""));
     assert!(compatibility.contains("renderer-workspace-conformance-v1"));
     assert!(compatibility.contains("legacy-runtime-list-response-v1"));
+    assert!(scope_freeze.contains("\"freeze_state\": \"frozen\""));
+    assert!(scope_freeze.contains("multi-daemon-gewyvern-orchestration"));
+    assert!(scope_freeze.contains("renderer-neutral-gui-automation"));
+    assert!(scope_freeze.contains("windows-native-parity"));
+    assert!(scope_freeze.contains("full-mobile-device-parity"));
+    assert!(!scope_freeze.contains("target_args"));
     assert!(docs.contains("leserpent-schema-freeze"));
+    assert!(docs.contains("leserpent-2-scope-freeze.json"));
 }
 
 #[test]
@@ -902,6 +922,9 @@ fn packaging_container_validations_are_native_with_legacy_wrappers() {
     assert!(release_gate.contains("default_out_dir(\"release-container-check\")"));
     assert!(release_gate.contains("run_remote_linux_host_validation"));
     assert!(release_gate.contains("run_debugger_cross_validation(None)?"));
+    assert!(release_gate.contains("run_leserpent_schema_freeze_validation(None)?"));
+    assert!(release_gate.contains("checks.push(\"leserpent_schema_freeze\".to_string())"));
+    assert!(release_gate.contains("&out_dir.join(\"leserpent-schema-freeze\")"));
     assert!(release_gate.contains("print_remote_release_gate_summary"));
     assert!(release_gate.contains("validate_leserpent_control_plane_aot_evidence"));
     assert!(release_gate.contains("control-plane NativeAOT evidence: validated"));
@@ -1284,6 +1307,7 @@ fn docs_prefer_native_validation_entrypoints() {
     assert!(entrypoints.contains("package_smoke_timings"));
     assert!(entrypoints.contains("runtime_smoke_timings"));
     assert!(entrypoints.contains("extra.stages"));
+    assert!(entrypoints.contains("stages.leserpent_schema_freeze"));
     assert!(entrypoints.contains("target/validation/release-gate-artifacts.json"));
     assert!(entrypoints.contains("target/validation/release-gate-artifacts.txt"));
     assert!(entrypoints.contains("--json-out <path>"));
@@ -1302,6 +1326,7 @@ fn docs_prefer_native_validation_entrypoints() {
     assert!(release_checklist.contains("extra.remote.recent_ebpf_trend"));
     assert!(release_checklist.contains("target/validation/release-gate-artifacts.json"));
     assert!(release_checklist.contains("target/validation/release-gate-artifacts.txt"));
+    assert!(release_checklist.contains("extra.stages.leserpent_schema_freeze = true"));
     assert!(cli_recipes.contains("## Validation JSON Recipes"));
     assert!(
         cli_recipes.contains("cargo run --quiet --bin gewyvern_validate -- --json release-gate")

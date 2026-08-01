@@ -648,7 +648,7 @@ internal sealed class RemoteMainWindow : Window
             }
             var presentation = RemoteAuthorityHealthPresentation.Create(health);
             authorityHealthText.Text = presentation.Label;
-            authorityHealthText.Foreground = presentation.IsSaturated
+            authorityHealthText.Foreground = presentation.RequiresAttention
                 ? LeserpentTheme.Destructive
                 : LeserpentTheme.Accent;
             AutomationProperties.SetName(
@@ -656,7 +656,7 @@ internal sealed class RemoteMainWindow : Window
                 presentation.AutomationName);
             AutomationProperties.SetLiveSetting(
                 authorityHealthText,
-                presentation.IsSaturated
+                presentation.RequiresAttention
                     ? AutomationLiveSetting.Assertive
                     : AutomationLiveSetting.Polite);
         }

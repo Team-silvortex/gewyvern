@@ -4,6 +4,8 @@ use std::process::{Command, Output};
 
 use super::command::{ValidationError, repo_root};
 
+const CRASH_HARNESS_ASSEMBLY_ENV: &str = "LESERPENT_TEST_CRASH_HARNESS_ASSEMBLY";
+
 pub(crate) fn run_locked_dotnet_test(
     project: &str,
     filter: Option<&str>,
@@ -18,6 +20,14 @@ pub(crate) fn run_locked_dotnet_test(
         .current_dir(repo_root())
         .env("DOTNET_CLI_UI_LANGUAGE", "en-US")
         .env("VSLANG", "1033")
+        .env(
+            CRASH_HARNESS_ASSEMBLY_ENV,
+            artifacts_path
+                .join("bin")
+                .join("Leserpent.RuntimeDeletionCrashHarness")
+                .join("release")
+                .join("Leserpent.RuntimeDeletionCrashHarness.dll"),
+        )
         .args([
             "test",
             project,

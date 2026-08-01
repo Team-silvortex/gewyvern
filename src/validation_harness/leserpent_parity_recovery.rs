@@ -184,7 +184,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
         command: ProofCommand::Dotnet {
             project: "apps/leserpent-avalonia/src/Leserpent.RemoteConformance/Leserpent.RemoteConformance.csproj",
             app_args: &[],
-            success_marker: "remote state conformance valid: codec=true, stale=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true",
+            success_marker: "remote state conformance valid: codec=true, stale=true, snapshot_revision=true, heartbeat_snapshot_fence=true, topology_state=true, authority_bound_topology=true, unproved_live_rejection=true, retained_topology=true, topology_regression_fence=true, reconnect_attempts=8, manual_resume=true, endpoint_cache=true, credential_resolution=true, trust_identity=true, workspace_atomic=true, logs_bounded=true, endpoint_retained=false, incremental_logs=true",
         },
         expected_min_tests: 1,
         invariants: &[
@@ -199,6 +199,12 @@ const PROOF_SUITES: &[ProofSuite] = &[
             "cursor-reset-resync",
             "endpoint-bound-snapshot-cache",
             "explicit-stale-state",
+            "snapshot-revision-fence",
+            "heartbeat-snapshot-fence",
+            "authority-bound-topology",
+            "unproved-live-rejection",
+            "retained-topology-recovery",
+            "topology-regression-fence",
             "platform-credential-precedence",
             "environment-credential-fallback",
             "invalid-stored-credential-fail-closed",
@@ -262,7 +268,7 @@ const PROOF_SUITES: &[ProofSuite] = &[
             target_args: &["--test", "dotnet_remote_vertical"],
             test_args: &["--ignored"],
         },
-        expected_min_tests: 2,
+        expected_min_tests: 1,
         invariants: &[
             "authenticated-dotnet-health-preflight",
             "cross-language-revision-parity",
@@ -643,7 +649,22 @@ mod tests {
                 .iter()
                 .map(|suite| suite.expected_min_tests)
                 .sum::<usize>(),
-            206
+            205
+        );
+        let dotnet_vertical = PROOF_SUITES
+            .iter()
+            .find(|suite| suite.id == "rust-dotnet-remote-vertical")
+            .expect("Rust/.NET vertical proof suite must remain registered");
+        assert_eq!(dotnet_vertical.expected_min_tests, 1);
+        assert!(
+            dotnet_vertical
+                .invariants
+                .contains(&"cross-language-revision-parity")
+        );
+        assert!(
+            dotnet_vertical
+                .invariants
+                .contains(&"same-revision-workspace-composition")
         );
         assert!(
             PROOF_SUITES

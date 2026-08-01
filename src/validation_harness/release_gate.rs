@@ -13,9 +13,10 @@ use super::{
     read_bounded_phase_timings, read_bounded_unique_key_value_file,
     run_container_runtime_validation, run_container_validation_summary,
     run_debugger_cross_validation, run_leserpent_parity_recovery_validation,
-    run_package_install_smoke, run_pathological_container_validation,
-    run_remote_linux_host_validation, run_three_module_stack_smoke,
-    validate_leserpent_control_plane_aot_evidence, validation_command_stdout, validation_log,
+    run_leserpent_schema_freeze_validation, run_package_install_smoke,
+    run_pathological_container_validation, run_remote_linux_host_validation,
+    run_three_module_stack_smoke, validate_leserpent_control_plane_aot_evidence,
+    validation_command_stdout, validation_log,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -249,8 +250,11 @@ pub fn run_release_gate(options: ReleaseGateOptions) -> Result<ValidationReport,
         validation_log("[release-gate] running Leserpent parity/recovery proof");
         run_leserpent_parity_recovery_validation(None)?;
         checks.push("leserpent_parity_recovery".to_string());
+        validation_log("[release-gate] running Leserpent schema/scope freeze proof");
+        run_leserpent_schema_freeze_validation(None)?;
+        checks.push("leserpent_schema_freeze".to_string());
     } else {
-        validation_log("[release-gate] skipping optional Leserpent parity/recovery proof");
+        validation_log("[release-gate] skipping optional Leserpent combined proof shelves");
     }
 
     if let Some(path) = options.macos_release_preflight.as_deref() {
@@ -813,6 +817,19 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
             "opt-in 13-suite Rust, xUnit, GUI, mobile, and cross-language parity/recovery shelf",
         ),
         release_artifact_entry(
+            "leserpent_schema_freeze",
+            "directory",
+            &out_dir.join("leserpent-schema-freeze"),
+            "optional_high_signal",
+            Some(
+                checks
+                    .iter()
+                    .any(|check| check == "leserpent_schema_freeze"),
+            ),
+            "gewyvern_validate release-gate --leserpent-proof",
+            "opt-in versioned schema compatibility and closed 2.0 capability-scope shelf",
+        ),
+        release_artifact_entry(
             "leserpent_macos_release_preflight",
             "file",
             &out_dir
@@ -1058,6 +1075,7 @@ mod tests {
     use super::{
         MacosReleasePreflightStatus, print_remote_release_gate_summary, release_artifact_entry,
         summarize_remote_release_gate_posture, validate_macos_release_preflight,
+        write_release_artifact_index,
     };
     use std::collections::BTreeMap;
 
@@ -1189,6 +1207,31 @@ mod tests {
         assert_eq!(skipped["status"], "not_run");
         assert_eq!(current["status"], "present");
         std::fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn artifact_index_records_current_schema_scope_freeze_stage() {
+        let out_dir = std::env::temp_dir().join(format!(
+            "gewyvern-schema-scope-release-artifact-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&out_dir);
+        std::fs::create_dir_all(out_dir.join("leserpent-schema-freeze")).unwrap();
+        write_release_artifact_index(&out_dir, &["leserpent_schema_freeze".to_string()]).unwrap();
+
+        let payload: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(out_dir.join("release-gate-artifacts.json")).unwrap(),
+        )
+        .unwrap();
+        let entry = payload["artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["key"] == "leserpent_schema_freeze")
+            .expect("schema/scope freeze artifact must be indexed");
+        assert_eq!(entry["status"], "present");
+        assert_eq!(entry["expectation"], "optional_high_signal");
+        std::fs::remove_dir_all(out_dir).unwrap();
     }
 
     #[test]
