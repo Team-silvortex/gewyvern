@@ -7,7 +7,7 @@ off a workstation and onto the trusted Linux validation host.
 
 Container shell entrypoints use `GEWY_DOCKER_EXECUTION=auto`:
 
-- macOS dispatches to `GEWY_REMOTE_HOST`, defaulting to `kyuubiki-lab`
+- macOS dispatches to `GEWY_REMOTE_HOST`, defaulting to the dedicated `gewyvern-lab` SSH alias
 - Linux and CI execute against their local Docker daemon
 - `GEWY_DOCKER_EXECUTION=remote` forces SSH execution
 - `GEWY_DOCKER_EXECUTION=local` explicitly opts back into local Docker
@@ -55,15 +55,27 @@ Set `GEWY_REMOTE_HOST` to an SSH config alias or a validated host name. SSH
 keys, agent state, host verification, and optional administrator elevation stay
 outside the repository. Passwords are never accepted by the dispatcher.
 
+Keep Gewyvern isolated from aliases owned by other projects. The default alias
+uses this local SSH configuration shape:
+
+```sshconfig
+Host gewyvern-lab
+    HostName <remote-host-or-ip>
+    User gewyvern-lab
+    IdentityFile ~/.ssh/gewyvern_lab_ed25519
+    IdentitiesOnly yes
+```
+
 `GEWY_REMOTE_DOCKER_WORKSPACE` may override the remote path, but it must remain
 under the remote user's `~/.cache/gewyvern/` directory. This prevents a typo or
 untrusted environment value from turning rsync `--delete` into a destructive
 operation elsewhere on the host.
 
-The sync excludes `.git`, local build output, dependency caches, Leserpent
-runtime state, and persisted control-plane state. A small allowlist forwards
-container image, mirror, timeout, and offline-build settings; arbitrary local
-environment variables and secrets are not copied.
+The sync deletes stale excluded output and excludes `.git`, Rust and .NET build
+output, dependency caches, Leserpent runtime state, and persisted control-plane
+state. A small allowlist forwards container image, mirror, timeout, and
+offline-build settings; arbitrary local environment variables and secrets are
+not copied.
 
 ## Privilege Boundary
 

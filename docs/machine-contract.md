@@ -373,6 +373,12 @@ Use them as the compact shelf index for which release-facing evidence
 directories and summary files are currently present, including optional
 high-signal artifacts such as `juice-shop-container`.
 
+Artifact-index schema v2 binds the JSON index and text summary with one bounded
+`publication_id`. Both files are staged through synced same-directory temporary
+files; the summary lands first and JSON is the machine commit point. Consumers
+must reject a missing, duplicated, malformed, or mismatched publication ID
+instead of combining files from concurrent or interrupted release-gate runs.
+
 ### Summary Contract Semantics
 
 - `primary_failure_*`

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -44,7 +44,8 @@
     "http-pre-effect-middleware",
     "registry-pre-mutation-guard",
     "persistence-write-backstop",
-    "background-worker-owner-gate"
+    "background-worker-owner-gate",
+    "rust-authority-pre-mutation-generation-fence"
   ],
   "rust_authority_writer_fence": {
     "journal_schema": 19,
@@ -54,14 +55,17 @@
       "runtime_register",
       "runtime_registration_update",
       "runtime_discovery_intake",
-      "runtime_unregister"
+      "runtime_unregister",
+      "runtime_deploy",
+      "orchestra_persist",
+      "orchestra_delete",
+      "orchestra_delete_command",
+      "orchestra_delete_replay_checkpoint"
     ],
     "missing_error": "authority_writer_fence_required",
     "stale_error": "authority_writer_fence_rejected",
     "legacy_before_first_claim": true,
     "remaining_routes": [
-      "runtime_deploy",
-      "orchestra_mutations",
       "bootstrap",
       "provisioning",
       "retirement",

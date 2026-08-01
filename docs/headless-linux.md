@@ -55,7 +55,7 @@ For those, use:
 ## Prerequisite
 
 The SSH alias in `GEWY_REMOTE_HOST` must reach a Linux account with Docker group
-access. It defaults to `kyuubiki-lab`. See
+access. It defaults to the Gewyvern-specific SSH alias `gewyvern-lab`. See
 [remote Docker execution](remote-docker.md) for the sync and security contract.
 
 ## Build The Image

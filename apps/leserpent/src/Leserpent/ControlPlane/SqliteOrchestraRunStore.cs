@@ -8,36 +8,36 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
     private const int CurrentSchemaVersion = 5;
     private const int MaxRunsPerRuntime = 32;
     private const ulong MaxDeleteReceipts = 4096;
-    private readonly string connectionString;
+    private readonly Func<bool> canWrite;
+    private readonly object initializationSync = new();
     private readonly ILogger<SqliteOrchestraRunStore> logger;
-    private readonly bool writable;
+    private bool initialized;
 
     public SqliteOrchestraRunStore(
         IConfiguration configuration,
         IHostEnvironment environment,
         ILogger<SqliteOrchestraRunStore> logger,
         bool writable = true)
+        : this(
+            configuration,
+            environment,
+            logger,
+            () => writable)
+    {
+    }
+
+    public SqliteOrchestraRunStore(
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        ILogger<SqliteOrchestraRunStore> logger,
+        Func<bool> canWrite)
     {
         Location = configuration["LESERPENT_DATABASE_PATH"] ?? DefaultDatabasePath(environment);
         this.logger = logger;
-        this.writable = writable;
-        var directory = Path.GetDirectoryName(Location);
-        if (writable && !string.IsNullOrWhiteSpace(directory))
+        this.canWrite = canWrite ?? throw new ArgumentNullException(nameof(canWrite));
+        if (canWrite())
         {
-            Directory.CreateDirectory(directory);
-        }
-        connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = Location,
-            Mode = writable
-                ? SqliteOpenMode.ReadWriteCreate
-                : SqliteOpenMode.ReadOnly,
-            Cache = SqliteCacheMode.Shared,
-            Pooling = true,
-        }.ToString();
-        if (writable)
-        {
-            Initialize();
+            EnsureInitialized();
         }
     }
 
@@ -656,9 +656,8 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         }
     }
 
-    private void Initialize()
+    private void Initialize(SqliteConnection connection)
     {
-        using var connection = OpenConnection();
         int version;
         using (var versionCommand = connection.CreateCommand())
         {
@@ -778,6 +777,25 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
 
     private SqliteConnection OpenConnection()
     {
+        var writable = canWrite();
+        if (writable)
+        {
+            EnsureInitialized();
+        }
+        return OpenConnection(writable);
+    }
+
+    private SqliteConnection OpenConnection(bool writable)
+    {
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = Location,
+            Mode = writable
+                ? SqliteOpenMode.ReadWriteCreate
+                : SqliteOpenMode.ReadOnly,
+            Cache = SqliteCacheMode.Shared,
+            Pooling = true,
+        }.ToString();
         var connection = new SqliteConnection(connectionString);
         connection.Open();
         using var pragma = connection.CreateCommand();
@@ -788,9 +806,28 @@ public sealed class SqliteOrchestraRunStore : IOrchestraRunStore
         return connection;
     }
 
+    private void EnsureInitialized()
+    {
+        lock (initializationSync)
+        {
+            if (initialized || !canWrite())
+            {
+                return;
+            }
+            var directory = Path.GetDirectoryName(Location);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            using var connection = OpenConnection(writable: true);
+            Initialize(connection);
+            initialized = true;
+        }
+    }
+
     private bool AllowWrite()
     {
-        if (writable)
+        if (canWrite())
         {
             return true;
         }

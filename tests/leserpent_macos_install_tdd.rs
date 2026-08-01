@@ -22,7 +22,10 @@ fn macos_installer_is_native_bounded_and_rollback_capable() {
     assert!(installer.contains("application bundle contains a symbolic link"));
     assert!(installer.contains("DAEMON_EXECUTABLE: &str = \"leserpentd\""));
     assert!(installer.contains("validate_native_payloads(app)?"));
-    assert!(installer.contains("(DAEMON_EXECUTABLE, \"local orchestra daemon\")"));
+    assert!(installer.contains("local orchestra daemon is unavailable"));
+    assert!(installer.contains("current_identity_matches = daemon_available"));
+    assert!(installer.contains("legacy_release_version(&identity.version)"));
+    assert!(installer.contains("accepts_a_daemonless_legacy_release_but_rejects_future_versions"));
     assert!(installer.contains("native_payload_hash"));
     assert!(installer.contains("replace_link(&options.root, \"current\""));
     assert!(installer.contains("replace_link(&options.root, \"previous\""));

@@ -138,7 +138,7 @@ public sealed class ControlPlaneWriterFenceTests
     }
 
     [Fact]
-    public async Task ActiveWriterClaimsDaemonGenerationAndFencesRegistration()
+    public async Task ActiveWriterClaimsDaemonGenerationAndFencesAuthorityMutations()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -183,9 +183,9 @@ public sealed class ControlPlaneWriterFenceTests
         File.SetUnixFileMode(
             socketPath,
             UnixFileMode.UserRead | UnixFileMode.UserWrite);
-        listener.Listen(2);
+        listener.Listen(5);
         var requests = new List<JsonElement>();
-        var server = ServeWriterClaimAndRegistrationAsync(
+        var server = ServeWriterClaimAndAuthorityMutationsAsync(
             listener,
             requests);
 
@@ -208,9 +208,55 @@ public sealed class ControlPlaneWriterFenceTests
                     "pairing-token"),
                 "runtime-fenced",
                 CancellationToken.None);
+
+            var deployment = new DaemonDeploymentAuthority(
+                configuration,
+                fence);
+            var deploymentResult = await deployment.DeployAsync(
+                new RuntimeControlAccess(
+                    "runtime-fenced",
+                    "Runtime Fenced",
+                    "https://runtime.example",
+                    "pairing-token",
+                    new RuntimeTags(null, null, null)),
+                new RuntimeDeploymentRequest(
+                    "capture/http",
+                    "operator",
+                    true,
+                    "writer-fenced-deploy",
+                    "service-a"),
+                CancellationToken.None);
+            Assert.Equal(
+                "writer-fenced-deployment",
+                deploymentResult.DeploymentId);
+
+            var orchestraStore = new DaemonOrchestraRunStore(
+                configuration,
+                NullLogger<DaemonOrchestraRunStore>.Instance,
+                fence);
+            var executedAt = DateTimeOffset.Parse(
+                "2026-08-01T00:00:00Z");
+            var run = new OrchestraRunSummary(
+                "writer-fenced-run",
+                "runtime-fenced",
+                "plan-a",
+                "queued",
+                executedAt,
+                Array.Empty<OrchestraExecutionStepResult>(),
+                RequestId: "writer-fenced-orchestra");
+            var eventRecord = new OrchestraRunEvent(
+                0,
+                run.RunId,
+                run.RuntimeId,
+                "run_queued",
+                null,
+                run.Outcome,
+                "Orchestra run queued",
+                executedAt);
+            Assert.True(orchestraStore.Upsert(run, eventRecord));
             await server;
 
-            Assert.Equal(2, requests.Count);
+            Assert.Equal(5, requests.Count);
             var claim = requests[0]
                 .GetProperty("request")
                 .GetProperty("request");
@@ -221,11 +267,16 @@ public sealed class ControlPlaneWriterFenceTests
                 .GetProperty("payload")
                 .GetProperty("writer_id")
                 .GetString();
-            var ticket = requests[1].GetProperty("writer_fence");
-            Assert.Equal(7UL, ticket.GetProperty("generation").GetUInt64());
-            Assert.Equal(
-                writerId,
-                ticket.GetProperty("writer_id").GetString());
+            foreach (var frame in requests.Skip(1))
+            {
+                var ticket = frame.GetProperty("writer_fence");
+                Assert.Equal(
+                    7UL,
+                    ticket.GetProperty("generation").GetUInt64());
+                Assert.Equal(
+                    writerId,
+                    ticket.GetProperty("writer_id").GetString());
+            }
         }
         finally
         {
@@ -246,11 +297,11 @@ public sealed class ControlPlaneWriterFenceTests
         }
     }
 
-    private static async Task ServeWriterClaimAndRegistrationAsync(
+    private static async Task ServeWriterClaimAndAuthorityMutationsAsync(
         Socket listener,
         List<JsonElement> requests)
     {
-        for (var index = 0; index < 2; index++)
+        for (var index = 0; index < 5; index++)
         {
             using var client = await listener.AcceptAsync();
             var request = await ReadFrameAsync(client);
@@ -281,7 +332,7 @@ public sealed class ControlPlaneWriterFenceTests
                     },
                 });
             }
-            else
+            else if (index == 1)
             {
                 var command = frame
                     .GetProperty("request")
@@ -304,6 +355,73 @@ public sealed class ControlPlaneWriterFenceTests
                                 id = "runtime-fenced",
                                 revision = 1,
                             },
+                        },
+                    },
+                });
+            }
+            else if (index == 2)
+            {
+                response = JsonSerializer.Serialize(new
+                {
+                    schema_version = 1,
+                    response = new
+                    {
+                        kind = "command",
+                        payload = new
+                        {
+                            command_id = "writer-fenced-deploy",
+                            status = "applied",
+                        },
+                    },
+                });
+            }
+            else if (index == 3)
+            {
+                response = JsonSerializer.Serialize(new
+                {
+                    schema_version = 1,
+                    response = new
+                    {
+                        kind = "deployment_receipt",
+                        payload = new
+                        {
+                            command_id = "writer-fenced-deploy",
+                            request_id = "writer-fenced-deploy",
+                            status = "completed",
+                            attempt = 1,
+                            outcome = new
+                            {
+                                deployment_id =
+                                    "writer-fenced-deployment",
+                                request_id = "writer-fenced-deploy",
+                                pipeline_kind = "capture/http",
+                                requested_by = "operator",
+                                status = "accepted",
+                                accepted_unix_ms = 1700000000000,
+                                target = "service-a",
+                                replayed = false,
+                            },
+                        },
+                    },
+                });
+            }
+            else
+            {
+                var envelope = frame
+                    .GetProperty("request")
+                    .GetProperty("request")
+                    .GetProperty("payload")
+                    .GetProperty("envelope");
+                response = JsonSerializer.Serialize(new
+                {
+                    schema_version = 1,
+                    response = new
+                    {
+                        kind = "orchestra_persisted",
+                        payload = new
+                        {
+                            envelope,
+                            event_count = 1,
                         },
                     },
                 });

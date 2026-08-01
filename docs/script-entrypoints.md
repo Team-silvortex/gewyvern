@@ -268,8 +268,20 @@ two physical host fingerprints and two kernel releases.
 
 Defaults:
 
-- host from `GEWY_REMOTE_HOST` or `kyuubiki-lab`
-- remote workspace under `~/.kyuubiki-remote-runs/`
+- host from `GEWY_REMOTE_HOST` or the dedicated `gewyvern-lab` SSH alias
+- remote workspace under `~/.gewyvern-remote-runs/`
+
+The native validator multiplexes SSH through a nonce-bearing short control
+socket under `/tmp` on Unix. It reserves space for OpenSSH's temporary suffix,
+rejects overlong or unbounded control-path tokens, and shell-quotes the path
+when handing it to rsync. `GEWY_SSH_CONTROL_PATH_TEMPLATE` may override the
+template only with an absolute path using bounded `%C` or `%%` tokens.
+
+The Linux control-plane NativeAOT proof keeps locked restore RID-neutral so the
+shared `osx-arm64` and `linux-x64` graph remains valid under .NET 10, then
+selects `linux-x64` only during publish. Its SQLite proof binds writability to
+the live control-plane writer fence: schema initialization occurs after lease
+acquisition, and later lease loss returns new operations to read-only mode.
 
 Useful flags:
 
@@ -822,6 +834,11 @@ Every successful `release-gate` run also refreshes:
 
 - `target/validation/release-gate-artifacts.json`
 - `target/validation/release-gate-artifacts.txt`
+
+The artifact index uses schema v2. JSON and text carry the same bounded
+`publication_id`; synced staged writes publish the text first and JSON last as
+the machine commit point. Missing or mismatched IDs are a torn publication and
+must fail closed.
 
 When the remote Linux stage covers the Leserpent control-plane NativeAOT
 proof, the index includes a dedicated

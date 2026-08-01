@@ -229,12 +229,20 @@ struct BundleIdentity {
 }
 
 fn validate_bundle(app: &Path) -> Result<BundleIdentity, String> {
+    let (identity, daemon_available) = inspect_bundle_identity(app)?;
+    if !daemon_available {
+        return Err("local orchestra daemon is unavailable".to_string());
+    }
+    Ok(identity)
+}
+
+fn inspect_bundle_identity(app: &Path) -> Result<(BundleIdentity, bool), String> {
     require_directory(app, "application bundle")?;
     let (files, bytes) = inspect_tree(app)?;
     if files == 0 || files > MAX_BUNDLE_FILES || bytes > MAX_BUNDLE_BYTES {
         return Err("application bundle exceeds its file or byte limit".to_string());
     }
-    let native_payloads = validate_native_payloads(app)?;
+    let (native_payloads, daemon_available) = validate_native_payloads(app)?;
     require_file(
         &app.join("Contents/Resources/leserpent.icns"),
         "application icon",
@@ -270,13 +278,16 @@ fn validate_bundle(app: &Path) -> Result<BundleIdentity, String> {
         .take(6)
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    Ok(BundleIdentity {
-        version,
-        native_payload_hash,
-    })
+    Ok((
+        BundleIdentity {
+            version,
+            native_payload_hash,
+        },
+        daemon_available,
+    ))
 }
 
-fn validate_native_payloads(app: &Path) -> Result<Vec<PathBuf>, String> {
+fn validate_native_payloads(app: &Path) -> Result<(Vec<PathBuf>, bool), String> {
     let directory = app.join("Contents/MacOS");
     require_directory(&directory, "native payload directory")?;
     let mut payloads = Vec::new();
@@ -311,19 +322,18 @@ fn validate_native_payloads(app: &Path) -> Result<Vec<PathBuf>, String> {
         }
         payloads.push(path);
     }
-    for (name, label) in [
-        (EXECUTABLE, "application executable"),
-        (DAEMON_EXECUTABLE, "local orchestra daemon"),
-    ] {
-        if !payloads
-            .iter()
-            .any(|path| path.file_name().is_some_and(|value| value == name))
-        {
-            return Err(format!("{label} is unavailable"));
-        }
+    if !payloads
+        .iter()
+        .any(|path| path.file_name().is_some_and(|value| value == EXECUTABLE))
+    {
+        return Err("application executable is unavailable".to_string());
     }
+    let daemon_available = payloads.iter().any(|path| {
+        path.file_name()
+            .is_some_and(|value| value == DAEMON_EXECUTABLE)
+    });
     payloads.sort();
-    Ok(payloads)
+    Ok((payloads, daemon_available))
 }
 
 fn inspect_tree(root: &Path) -> Result<(usize, u64), String> {
@@ -409,14 +419,48 @@ fn release_link(root: &Path, name: &str) -> Result<Option<PathBuf>, String> {
     {
         return Err(format!("{name} release link is missing or unsafe"));
     }
-    let identity = validate_bundle(&root.join(&target).join(APP_NAME))?;
+    let app = root.join(&target).join(APP_NAME);
+    let (identity, daemon_available) = inspect_bundle_identity(&app)?;
     let expected_id = format!("{}-{}", identity.version, identity.native_payload_hash);
-    if target.file_name().and_then(|value| value.to_str()) != Some(expected_id.as_str()) {
+    let legacy_id = legacy_release_id(&app, &identity)?;
+    let actual_id = target.file_name().and_then(|value| value.to_str());
+    let current_identity_matches = daemon_available && actual_id == Some(expected_id.as_str());
+    let legacy_identity_matches =
+        legacy_release_version(&identity.version) && actual_id == Some(legacy_id.as_str());
+    if !current_identity_matches && !legacy_identity_matches {
         return Err(format!(
             "{name} release identity does not match its directory"
         ));
     }
     Ok(Some(target))
+}
+
+fn legacy_release_id(app: &Path, identity: &BundleIdentity) -> Result<String, String> {
+    let executable =
+        fs::read(app.join("Contents/MacOS").join(EXECUTABLE)).map_err(|error| error.to_string())?;
+    let mut digest = Context::new(&SHA256);
+    digest.update(&executable);
+    let hash = digest.finish();
+    let legacy_hash: String = hash
+        .as_ref()
+        .iter()
+        .take(6)
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    Ok(format!("{}-{legacy_hash}", identity.version))
+}
+
+fn legacy_release_version(version: &str) -> bool {
+    let mut segments = version
+        .split('.')
+        .map(str::parse::<u64>)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_default();
+    if segments.is_empty() || segments.len() > 3 {
+        return false;
+    }
+    segments.resize(3, 0);
+    (segments[0], segments[1], segments[2]) <= (1, 5, 1)
 }
 
 #[cfg(unix)]
@@ -738,6 +782,68 @@ mod tests {
                 .contains("identity")
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn accepts_the_bounded_legacy_executable_hash_release_identity() {
+        let root = fixture_root("legacy-release-identity");
+        let install_root = root.join("data/Installer");
+        let staging_app = root.join("staging.app");
+        fixture_app(&staging_app, "1.5.1", 7);
+        let identity = validate_bundle(&staging_app).unwrap();
+        let legacy_id = legacy_release_id(&staging_app, &identity).unwrap();
+        let release_target = PathBuf::from("releases").join(&legacy_id);
+        let installed_app = install_root.join(&release_target).join(APP_NAME);
+        fs::create_dir_all(installed_app.parent().unwrap()).unwrap();
+        fs::rename(&staging_app, &installed_app).unwrap();
+        symlink(&release_target, install_root.join("current")).unwrap();
+
+        assert_eq!(
+            release_link(&install_root, "current").unwrap(),
+            Some(release_target)
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn accepts_a_daemonless_legacy_release_but_rejects_future_versions() {
+        let root = fixture_root("daemonless-legacy-release");
+        let install_root = root.join("data/Installer");
+        let staging_app = root.join("staging.app");
+        fixture_app(&staging_app, "1.5.0", 8);
+        fs::remove_file(staging_app.join("Contents/MacOS").join(DAEMON_EXECUTABLE)).unwrap();
+        let (identity, daemon_available) = inspect_bundle_identity(&staging_app).unwrap();
+        assert!(!daemon_available);
+        let legacy_id = legacy_release_id(&staging_app, &identity).unwrap();
+        let release_target = PathBuf::from("releases").join(&legacy_id);
+        let installed_app = install_root.join(&release_target).join(APP_NAME);
+        fs::create_dir_all(installed_app.parent().unwrap()).unwrap();
+        fs::rename(&staging_app, &installed_app).unwrap();
+        symlink(&release_target, install_root.join("current")).unwrap();
+        assert_eq!(
+            release_link(&install_root, "current").unwrap(),
+            Some(release_target)
+        );
+        fs::remove_dir_all(root).unwrap();
+
+        let future_root = fixture_root("daemonless-future-release");
+        let future_install_root = future_root.join("data/Installer");
+        let future_app = future_root.join("staging.app");
+        fixture_app(&future_app, "1.5.2", 9);
+        fs::remove_file(future_app.join("Contents/MacOS").join(DAEMON_EXECUTABLE)).unwrap();
+        let (identity, _) = inspect_bundle_identity(&future_app).unwrap();
+        let legacy_id = legacy_release_id(&future_app, &identity).unwrap();
+        let release_target = PathBuf::from("releases").join(&legacy_id);
+        let installed_app = future_install_root.join(&release_target).join(APP_NAME);
+        fs::create_dir_all(installed_app.parent().unwrap()).unwrap();
+        fs::rename(&future_app, &installed_app).unwrap();
+        symlink(&release_target, future_install_root.join("current")).unwrap();
+        assert!(
+            release_link(&future_install_root, "current")
+                .unwrap_err()
+                .contains("identity")
+        );
+        fs::remove_dir_all(future_root).unwrap();
     }
 
     #[test]

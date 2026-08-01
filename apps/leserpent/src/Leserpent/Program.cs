@@ -38,13 +38,16 @@ public partial class Program
         builder.Services.AddSingleton<ControlPlaneSecurityPolicy>();
         builder.Services.AddSingleton<ControlPlaneStateStore>();
         builder.Services.AddSingleton<SqliteOrchestraRunStore>(services =>
-            new SqliteOrchestraRunStore(
+        {
+            var writerFence = services.GetRequiredService<
+                ControlPlaneWriterFence>();
+            return new SqliteOrchestraRunStore(
                 services.GetRequiredService<IConfiguration>(),
                 services.GetRequiredService<IHostEnvironment>(),
                 services.GetRequiredService<
                     ILogger<SqliteOrchestraRunStore>>(),
-                services.GetRequiredService<
-                    ControlPlaneWriterFence>().IsWriter));
+                () => writerFence.IsWriter);
+        });
         builder.Services.AddSingleton<DaemonOrchestraRunStore>();
         builder.Services.AddSingleton<IOrchestraRunStore>(services =>
         {

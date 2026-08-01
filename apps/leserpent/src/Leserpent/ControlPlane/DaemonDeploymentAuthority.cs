@@ -20,9 +20,18 @@ public sealed class DaemonDeploymentAuthority : IDeploymentAuthority
     private readonly string? socketPath;
     private readonly string? token;
     private readonly TimeSpan timeout;
+    private readonly ControlPlaneWriterFence? writerFence;
 
     public DaemonDeploymentAuthority(IConfiguration configuration)
+        : this(configuration, null)
     {
+    }
+
+    public DaemonDeploymentAuthority(
+        IConfiguration configuration,
+        ControlPlaneWriterFence? writerFence)
+    {
+        this.writerFence = writerFence;
         var configuredSocket = configuration["LESERPENT_DAEMON_SOCKET"];
         var configuredToken = configuration["LESERPENT_DAEMON_TOKEN"];
         if (string.IsNullOrWhiteSpace(configuredSocket) != string.IsNullOrWhiteSpace(configuredToken))
@@ -268,6 +277,9 @@ public sealed class DaemonDeploymentAuthority : IDeploymentAuthority
         {
             writer.WriteStartObject();
             writer.WriteString("token", token);
+            AuthorityWriterFrame.Write(
+                writer,
+                writerFence?.AuthorityTicket);
             writer.WritePropertyName("request");
             writeRequest(writer);
             writer.WriteEndObject();

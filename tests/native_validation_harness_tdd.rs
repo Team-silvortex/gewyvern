@@ -98,6 +98,13 @@ fn native_validation_harness_exposes_registry_and_debugger_commands() {
     assert!(binary.contains("summarize_release_gate_posture"));
     assert!(release_gate.contains("release-gate-artifacts.json"));
     assert!(release_gate.contains("release-gate-artifacts.txt"));
+    assert!(release_gate.contains("publication_id"));
+    assert!(release_gate.contains("atomic_write_release_artifact"));
+    assert!(release_gate.contains("validate_release_artifact_publication"));
+    assert!(release_gate.contains("file.sync_all()"));
+    assert!(
+        release_gate.contains("release artifact index and summary publication IDs do not match")
+    );
     assert!(binary.contains("\"workspace_sync\" => Some(WORKSPACE_SYNC_BUDGET_SECONDS)"));
     assert!(
         binary.contains("\"remote_package_smoke\" => Some(REMOTE_PACKAGE_SMOKE_BUDGET_SECONDS)")
@@ -564,6 +571,11 @@ fn remote_host_validation_records_phase_timings() {
     assert!(remote_host.contains("Ok(Some(format!(\"git:{head}\")))"));
     assert!(remote_host.contains("git-dirty:"));
     assert!(remote_host.contains("ssh_control_path_template"));
+    assert!(remote_host.contains("default_ssh_control_path_template"));
+    assert!(remote_host.contains("validate_ssh_control_path_template"));
+    assert!(remote_host.contains("SSH_CONTROL_TEMP_SUFFIX_RESERVE"));
+    assert!(remote_host.contains("MAX_SSH_CONTROL_PATH_BYTES"));
+    assert!(remote_host.contains("shell_single_quote(&control_path)"));
     assert!(remote_host.contains("ensure_ssh_control_master"));
     assert!(remote_host.contains("close_ssh_control_master"));
     assert!(remote_host.contains("ControlMaster=yes"));
@@ -1018,6 +1030,8 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("remote_leserpent_control_plane_aot"));
     assert!(remote.contains("leserpent-control-plane-aot-linux-x64"));
     assert!(remote.contains("target/packages/leserpent-control-plane-aot-linux-x64"));
+    assert!(remote.contains("EVIDENCE=\"$(pwd)/target/packages/"));
+    assert!(remote.contains("'\"outcome\":\"degraded\"'"));
     assert!(remote.contains("-p:PublishProfile=native-aot"));
     assert!(remote.contains("--locked-mode"));
     assert!(remote.contains("Leserpent leserpent-compat-bridge leserpentd libe_sqlite3.so"));
@@ -1141,7 +1155,9 @@ fn remote_linux_host_validation_is_native_and_ssh_backed() {
     assert!(remote.contains("[ \"$CURRENT_DEB_SHA\" != \"$EXPECTED_DEB_SHA\" ]"));
     assert!(remote.contains("rpm2cpio"));
     assert!(remote.contains("x86_64/amd64"));
-    assert!(remote.contains("kyuubiki-lab"));
+    assert!(remote.contains("gewyvern-lab"));
+    assert!(remote.contains(".gewyvern-remote-runs"));
+    assert!(!remote.contains("kyuubiki"));
     assert!(binary.contains("remote-linux-host-validation"));
     assert!(binary.contains("validate_leserpent_control_plane_aot_evidence"));
     assert!(binary.contains("leserpent_control_plane_aot_evidence_validated"));

@@ -4,7 +4,7 @@ Use this page when you care less about protocol taxonomy and more about what
 to run next as an operator or release reviewer.
 
 This page turns the protocol reference shelf into a small operational playbook
-for the active `1.10.x` line.
+for the active `1.12.x` line.
 
 Read this alongside:
 

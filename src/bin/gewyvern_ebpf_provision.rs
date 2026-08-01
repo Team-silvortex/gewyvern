@@ -315,9 +315,9 @@ mod tests {
     #[test]
     fn arguments_are_bounded_and_unambiguous() {
         assert_eq!(
-            parse_args(&["--user".into(), "kyuubiki-dev".into(), "--dry-run".into()]).unwrap(),
+            parse_args(&["--user".into(), "gewyvern-lab".into(), "--dry-run".into()]).unwrap(),
             Options {
-                user: "kyuubiki-dev".into(),
+                user: "gewyvern-lab".into(),
                 dry_run: true,
             }
         );

@@ -56,7 +56,7 @@ pub use release_gate::{
     ReleaseCheckMode, ReleaseGateOptions, run_release_container_check, run_release_gate,
 };
 pub use remote_host::{
-    RemoteLinuxHostOptions, run_remote_linux_host_validation,
+    DEFAULT_REMOTE_LINUX_HOST, RemoteLinuxHostOptions, run_remote_linux_host_validation,
     validate_leserpent_control_plane_aot_evidence,
 };
 pub use resilience::{

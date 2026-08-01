@@ -2,7 +2,7 @@
 
 Use this page when you need the project-level design sheet for `gewyvern`.
 
-This is the durable blueprint page for the active `1.10.x` line. It is meant
+This is the durable blueprint page for the active `1.12.x` line. It is meant
 to answer four questions quickly:
 
 - what are the major subsystems?

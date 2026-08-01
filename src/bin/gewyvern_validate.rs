@@ -10,12 +10,12 @@ use serde_json::json;
 mod gewyvern_validate_stack;
 
 use gewyvern::validation_harness::{
-    ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions, ValidationError,
-    read_bounded_json_file, read_bounded_nonempty_lines, read_bounded_phase_timings,
-    read_bounded_unique_key_value_file, run_container_operator_path_validation,
-    run_container_protocol_validation, run_container_runtime_validation,
-    run_container_validation_summary, run_debugger_cross_validation,
-    run_external_engine_roundtrip_demo, run_field_smoke_validation,
+    DEFAULT_REMOTE_LINUX_HOST, ReleaseCheckMode, ReleaseGateOptions, RemoteLinuxHostOptions,
+    ValidationError, read_bounded_json_file, read_bounded_nonempty_lines,
+    read_bounded_phase_timings, read_bounded_unique_key_value_file,
+    run_container_operator_path_validation, run_container_protocol_validation,
+    run_container_runtime_validation, run_container_validation_summary,
+    run_debugger_cross_validation, run_external_engine_roundtrip_demo, run_field_smoke_validation,
     run_ftp_denied_container_validation, run_high_frequency_validation,
     run_juice_shop_container_validation, run_ldap_bind_denied_container_validation,
     run_leselang_fuzz_validation, run_leserpent_accessibility_validation,
@@ -1055,7 +1055,8 @@ fn parse_remote_linux_host_options(
     args: Vec<String>,
 ) -> Result<RemoteLinuxHostOptions, ValidationError> {
     let mut options = RemoteLinuxHostCliOptions {
-        host: env::var("GEWY_REMOTE_HOST").unwrap_or_else(|_| "kyuubiki-lab".to_string()),
+        host: env::var("GEWY_REMOTE_HOST")
+            .unwrap_or_else(|_| DEFAULT_REMOTE_LINUX_HOST.to_string()),
         remote_dir: None,
         build_packages: true,
         keep_remote_dir: false,
@@ -1892,7 +1893,7 @@ fn print_remote_linux_host_validation_help() {
         "Collect remote Linux/x86_64 preflight evidence, sync the current workspace over SSH, build x86_64 packages there, then run host-mode package and runtime smoke checks."
     );
     println!(
-        "Defaults: host from GEWY_REMOTE_HOST or `kyuubiki-lab`, remote dir under `~/.kyuubiki-remote-runs/`."
+        "Defaults: host from GEWY_REMOTE_HOST or `gewyvern-lab`, remote dir under `~/.gewyvern-remote-runs/`."
     );
     println!(
         "The command prints a compact post-run summary including resolved remote dir, cache-backed phases, eBPF status, and the slowest observed timings."

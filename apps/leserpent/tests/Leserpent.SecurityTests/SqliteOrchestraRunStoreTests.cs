@@ -13,6 +13,46 @@ namespace Leserpent.SecurityTests;
 public sealed class SqliteOrchestraRunStoreTests
 {
     [Fact]
+    public void SqliteStoreActivatesAndRevokesWritesWithTheWriterFence()
+    {
+        var databasePath = TemporaryPath("db");
+        var writable = false;
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LESERPENT_DATABASE_PATH"] = databasePath,
+            })
+            .Build();
+        var store = new SqliteOrchestraRunStore(
+            configuration,
+            new TestHostEnvironment
+            {
+                ContentRootPath = Path.GetDirectoryName(databasePath)!,
+            },
+            NullLogger<SqliteOrchestraRunStore>.Instance,
+            () => writable);
+        var first = CreateRun("run-fenced-1", "request-fenced-1", "queued");
+
+        Assert.False(store.Upsert(first));
+        Assert.Equal("orchestra_store_read_only", store.LastError);
+        Assert.False(File.Exists(databasePath));
+
+        writable = true;
+        Assert.True(store.Upsert(first));
+        Assert.True(File.Exists(databasePath));
+        Assert.Single(store.LoadAll());
+
+        writable = false;
+        var second = CreateRun("run-fenced-2", "request-fenced-2", "queued");
+        Assert.False(store.Upsert(second));
+        Assert.Equal("orchestra_store_read_only", store.LastError);
+
+        writable = true;
+        Assert.Single(store.LoadAll());
+        DeleteDatabase(databasePath);
+    }
+
+    [Fact]
     public void SqliteStoreUpsertsRunsAndEnforcesRequestIdUniqueness()
     {
         var databasePath = TemporaryPath("db");

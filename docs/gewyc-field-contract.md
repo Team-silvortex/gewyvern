@@ -52,7 +52,7 @@ Retirement rule:
 2. a later minor line may mark it `strictly_legacy`
 3. only after that should removal be considered
 
-For the current `1.10.x` line, the practical reading promise remains:
+For the current `1.12.x` line, the practical reading promise remains:
 
 - `blessed` fields are safe to adopt now
 - `compat` fields are safe to keep reading now

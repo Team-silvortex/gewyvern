@@ -5,7 +5,7 @@ This document is the authoritative target architecture for the
 current 1.x implementation. Delivery order and exit gates live in the
 [Leserpent 2.0 roadmap](leserpent-2-roadmap.md).
 
-The current implementation checkpoint is the shared `v1.10.0` release. This
+The current implementation checkpoint is the shared `v1.12.2` release. This
 document remains the `2.0.0` target contract rather than a claim that every
 target capability is already complete.
 
@@ -1009,21 +1009,22 @@ three-process tests prove owner writes, standby rejection, non-reentry after
 owner termination, and fresh-process takeover. This is cold single-writer
 failover, not active-active consensus.
 
-The first durable-authority generation fence is now complete for runtime
-registration, discovery intake, and unregistration. A fresh C# owner claims an
-idempotent random writer identity before entering `owner` state. leserpentd
-allocates the monotonic generation in SQLite runtime journal schema v19 and
-requires the exact generation/identity ticket on covered IPC mutations after
-fencing has first been activated. Daemon dispatch is serialized under the
-single `ControlRuntime` owner, so a takeover claim and each covered mutation
-have one linearization order. Missing and stale tickets return fixed protocol
-errors without touching runtime projection or unregistration receipts.
+The durable-authority generation fence now covers runtime registration,
+discovery intake, unregistration, deployment effects, and Orchestra writes. A
+fresh C# owner claims an idempotent random writer identity before entering
+`owner` state. leserpentd allocates the monotonic generation in SQLite runtime
+journal schema v19 and requires the exact generation/identity ticket on covered
+IPC mutations after fencing has first been activated. Daemon dispatch is
+serialized under the single `ControlRuntime` owner, so a takeover claim and
+each covered mutation have one linearization order. Missing and stale tickets
+return fixed protocol errors before runtime projection, effect enqueue,
+unregistration receipts, or Orchestra SQLite state can change. Registration,
+deployment, and Orchestra bridges share one managed ticket-frame codec.
 
-This does not yet cover deployment effects, Orchestra writes, bootstrap,
-provisioning, retirement, or remote HTTP transport. Those routes must adopt
-the same Rust-issued ticket before the architecture can claim a general
-external-authority fence, and none of this changes the cold-takeover-only
-contract.
+This does not yet cover bootstrap, provisioning, retirement, or remote HTTP
+transport. Those routes must adopt the same Rust-issued ticket before the
+architecture can claim a general external-authority fence, and none of this
+changes the cold-takeover-only contract.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

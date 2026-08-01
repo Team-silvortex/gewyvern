@@ -1613,18 +1613,18 @@ impl ControlRuntime {
             .provisioning_checkpoint(&ready.state.provisioning_id)?
             .ok_or_else(|| RuntimeError::Storage("provisioning checkpoint was not found".into()))?;
         match leased_effect {
-            Some(_) => {
+            Some(_)
                 if current.revision != 1
                     || current.state.phase != ProvisioningPhase::Planned
                     || current.state.provisioning_id != ready.state.provisioning_id
                     || current.state.runtime_id != ready.state.runtime_id
-                    || current.state.target != ready.state.target
-                {
-                    return Err(RuntimeError::InvalidEffectOutcome(
-                        "planned provisioning checkpoint does not bind the ready service",
-                    ));
-                }
+                    || current.state.target != ready.state.target =>
+            {
+                return Err(RuntimeError::InvalidEffectOutcome(
+                    "planned provisioning checkpoint does not bind the ready service",
+                ));
             }
+            Some(_) => {}
             None if current != *ready => {
                 return Err(RuntimeError::InvalidEffectOutcome(
                     "ready provisioning checkpoint changed before registration",

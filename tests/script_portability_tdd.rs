@@ -125,12 +125,17 @@ fn container_entrypoints_default_to_a_bounded_remote_linux_workspace() {
     assert!(dispatcher.contains("host_os") && dispatcher.contains("Darwin"));
     assert!(runner.contains("BatchMode=yes"));
     assert!(runner.contains("/.cache/gewyvern/docker-workspace"));
-    assert!(runner.contains("REMOTE_WORKSPACE") && runner.contains("--delete"));
+    assert!(runner.contains("REMOTE_WORKSPACE") && runner.contains("--delete-excluded"));
     assert!(runner.contains("flock -o -w 120"));
+    assert!(runner.contains("--exclude='**/bin/'"));
+    assert!(runner.contains("--exclude='**/obj/'"));
+    assert!(runner.contains("--exclude='**/TestResults/'"));
     assert!(runner.contains("control-plane-state.json"));
     assert!(!runner.contains("DOCKER_HOST="));
     assert!(!runner.contains("SSHPASS"));
     assert!(remote_docs.contains("GEWY_DOCKER_EXECUTION=local"));
+    assert!(remote_docs.contains("Host gewyvern-lab"));
+    assert!(remote_docs.contains("IdentityFile ~/.ssh/gewyvern_lab_ed25519"));
 
     for entrypoint in [
         "scripts/packaging/build_packages_in_container.sh",

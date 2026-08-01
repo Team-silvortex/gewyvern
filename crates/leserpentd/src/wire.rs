@@ -563,17 +563,24 @@ pub(crate) fn execute_request(
 }
 
 fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
-    matches!(request, ProtocolRequest::RuntimeUnregister(_))
-        || matches!(
-            request,
-            ProtocolRequest::Command(command)
-                if matches!(
-                    command.command,
-                    Command::RuntimeRegister { .. }
-                        | Command::RuntimeRegistrationUpdate { .. }
-                        | Command::RuntimeDiscoveryIntake { .. }
-                )
-        )
+    matches!(
+        request,
+        ProtocolRequest::OrchestraPersist(_)
+            | ProtocolRequest::OrchestraDelete(_)
+            | ProtocolRequest::OrchestraDeleteCommand(_)
+            | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
+            | ProtocolRequest::RuntimeUnregister(_)
+    ) || matches!(
+        request,
+        ProtocolRequest::Command(command)
+            if matches!(
+                command.command,
+                Command::RuntimeRegister { .. }
+                    | Command::RuntimeRegistrationUpdate { .. }
+                    | Command::RuntimeDiscoveryIntake { .. }
+                    | Command::RuntimeDeploy { .. }
+            )
+    )
 }
 
 fn authority_writer_fence_error(error: RuntimeError) -> ResponseEnvelope {

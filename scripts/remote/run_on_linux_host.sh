@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HOST="${GEWY_REMOTE_HOST:-kyuubiki-lab}"
+HOST="${GEWY_REMOTE_HOST:-gewyvern-lab}"
 SYNC_BACK=1
 TTY=0
 
@@ -78,11 +78,13 @@ REMOTE_CACHE_ROOT="${REMOTE_HOME}/.cache/gewyvern"
 printf '[remote-docker] host=%s workspace=%s\n' "${HOST}" "${REMOTE_WORKSPACE}"
 ssh "${SSH_ARGS[@]}" "${HOST}" "mkdir -p '${REMOTE_WORKSPACE}' '${REMOTE_CACHE_ROOT}/docker-target'"
 
-rsync -az --delete \
+rsync -az --delete --delete-excluded \
   --exclude='.git/' \
   --exclude='target/' \
   --exclude='node_modules/' \
+  --exclude='**/bin/' \
   --exclude='**/obj/' \
+  --exclude='**/TestResults/' \
   --exclude='**/__pycache__/' \
   --exclude='apps/leserpent/src/Leserpent/.leserpent-state/' \
   --exclude='apps/leserpent/src/Leserpent/data/control-plane-state.json*' \

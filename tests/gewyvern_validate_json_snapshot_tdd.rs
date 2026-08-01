@@ -228,7 +228,11 @@ fn minimal_release_gate_writes_release_artifact_index_files() {
     });
     let parsed = parse_single_json(&index);
     assert_eq!(parsed["kind"], "release_artifact_index");
-    assert_eq!(parsed["schema_version"], 1);
+    assert_eq!(parsed["schema_version"], 2);
+    let publication_id = parsed["publication_id"]
+        .as_str()
+        .expect("release artifact index must carry a publication ID");
+    assert!(publication_id.len() <= 128);
     assert_eq!(normalize_release_artifact_shape(&parsed), expected_shape);
     assert!(
         index.contains("\"juice_shop_container_validation\""),
@@ -247,6 +251,7 @@ fn minimal_release_gate_writes_release_artifact_index_files() {
         panic!("failed to read {}: {}", summary_path.display(), err);
     });
     assert!(summary.contains("release gate artifacts: ok"));
+    assert!(summary.contains(&format!("publication_id={publication_id}\n")));
     assert!(summary.contains("juice_shop_container_validation"));
     assert!(summary.contains("ftp_denied_container_validation"));
     assert!(summary.contains("ldap_bind_denied_container_validation"));

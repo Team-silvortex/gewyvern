@@ -8,6 +8,24 @@ public sealed record AuthorityWriterTicket(
     ulong Generation,
     string WriterId);
 
+internal static class AuthorityWriterFrame
+{
+    public static void Write(
+        Utf8JsonWriter writer,
+        AuthorityWriterTicket? ticket)
+    {
+        if (ticket is null)
+        {
+            return;
+        }
+        writer.WritePropertyName("writer_fence");
+        writer.WriteStartObject();
+        writer.WriteNumber("generation", ticket.Generation);
+        writer.WriteString("writer_id", ticket.WriterId);
+        writer.WriteEndObject();
+    }
+}
+
 public sealed class DaemonAuthorityWriterSession
 {
     private const int MaxFrameBytes = 1024 * 1024 + 1024;

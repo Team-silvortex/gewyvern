@@ -377,6 +377,13 @@ The matching `orchestra_delete` mutation accepts 1 through 128 unique runtime
 IDs and atomically deletes their runs and cascading events. Its response reports
 actual affected runtime, run, and event counts without exposing stored payloads.
 
+After the private local authority has claimed a writer generation, deployment
+commands and Orchestra persist/delete/checkpoint mutations require the exact
+authenticated IPC `writer_fence`. The fence is validated before effect enqueue
+or SQLite mutation; stale and missing writers receive fixed protocol errors.
+Deployment receipts, Orchestra history, and replay-horizon reads remain
+read-only and do not require a current writer ticket.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

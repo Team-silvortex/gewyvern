@@ -3,7 +3,10 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    OnceLock,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -22,6 +25,11 @@ use super::evidence_codec::{
 
 static EVIDENCE_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static REMOTE_RUN_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static DEFAULT_SSH_CONTROL_PATH_TEMPLATE: OnceLock<String> = OnceLock::new();
+pub const DEFAULT_REMOTE_LINUX_HOST: &str = "gewyvern-lab";
+const REMOTE_WORKSPACE_ROOT: &str = ".gewyvern-remote-runs";
+const MAX_SSH_CONTROL_PATH_BYTES: usize = 100;
+const SSH_CONTROL_TEMP_SUFFIX_RESERVE: usize = 20;
 const REMOTE_EBPF_HELPER: &str = "/usr/libexec/gewyvern-ebpf-helper";
 const REMOTE_EBPF_EVIDENCE_ROOT: &str = "/var/lib/gewyvern-ebpf-validation";
 
@@ -36,7 +44,8 @@ pub struct RemoteLinuxHostOptions {
 impl Default for RemoteLinuxHostOptions {
     fn default() -> Self {
         Self {
-            host: env::var("GEWY_REMOTE_HOST").unwrap_or_else(|_| "kyuubiki-lab".to_string()),
+            host: env::var("GEWY_REMOTE_HOST")
+                .unwrap_or_else(|_| DEFAULT_REMOTE_LINUX_HOST.to_string()),
             remote_dir: None,
             build_packages: true,
             keep_remote_dir: false,
@@ -63,7 +72,7 @@ pub fn run_remote_linux_host_validation(
         .clone()
         .unwrap_or_else(default_remote_dir);
     let remote_path = remote_workspace_path(&remote_dir);
-    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.10.0".to_string());
+    let release_line = env::var("GEWY_RELEASE_LINE").unwrap_or_else(|_| "v1.12.2".to_string());
 
     validation_log(format!("[remote-host] host: {}", options.host));
     validation_log(format!(
@@ -979,7 +988,7 @@ fn default_remote_dir() -> String {
         .as_secs();
     let sequence = REMOTE_RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     format!(
-        ".kyuubiki-remote-runs/gewyvern-remote-{now}-{}-{sequence}",
+        "{REMOTE_WORKSPACE_ROOT}/gewyvern-remote-{now}-{}-{sequence}",
         std::process::id()
     )
 }
@@ -1005,11 +1014,67 @@ fn ssh_control_path_template() -> String {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| {
-            std::env::temp_dir()
-                .join(format!("gwy-ssh-{}-%C", std::process::id()))
-                .to_string_lossy()
-                .into_owned()
+            DEFAULT_SSH_CONTROL_PATH_TEMPLATE
+                .get_or_init(default_ssh_control_path_template)
+                .clone()
         })
+}
+
+fn default_ssh_control_path_template() -> String {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    #[cfg(unix)]
+    let root = Path::new("/tmp").to_path_buf();
+    #[cfg(not(unix))]
+    let root = std::env::temp_dir();
+    root.join(format!("gwy-{}-{nonce}-%C", std::process::id()))
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn validate_ssh_control_path_template(path: &str) -> Result<(), ValidationError> {
+    if path.is_empty() || path.contains(['\0', '\r', '\n']) || !Path::new(path).is_absolute() {
+        return Err(ValidationError::new(
+            "SSH control path template must be a non-empty absolute path without control characters",
+        ));
+    }
+
+    let bytes = path.as_bytes();
+    let mut index = 0;
+    let mut expanded_len = 0usize;
+    while index < bytes.len() {
+        if bytes[index] != b'%' {
+            expanded_len += 1;
+            index += 1;
+            continue;
+        }
+        let Some(token) = bytes.get(index + 1) else {
+            return Err(ValidationError::new(
+                "SSH control path template ends with an incomplete token",
+            ));
+        };
+        match token {
+            b'C' => expanded_len += 40,
+            b'%' => expanded_len += 1,
+            _ => {
+                return Err(ValidationError::new(
+                    "SSH control path template only permits the bounded %C and %% tokens",
+                ));
+            }
+        }
+        index += 2;
+    }
+
+    #[cfg(unix)]
+    if expanded_len + SSH_CONTROL_TEMP_SUFFIX_RESERVE > MAX_SSH_CONTROL_PATH_BYTES {
+        return Err(ValidationError::new(format!(
+            "SSH control path template expands beyond the portable Unix socket budget of {} bytes",
+            MAX_SSH_CONTROL_PATH_BYTES - SSH_CONTROL_TEMP_SUFFIX_RESERVE
+        )));
+    }
+    Ok(())
 }
 
 fn ssh_batch_mode_args() -> Vec<OsString> {
@@ -1044,6 +1109,7 @@ fn ssh_password_mode_args() -> Vec<OsString> {
 
 fn rsync_ssh_command(auth: Option<&RemoteAdminAuth>) -> String {
     let control_path = ssh_control_path_template();
+    let control_path = shell_single_quote(&control_path);
     match auth {
         Some(_) => format!(
             "sshpass -e ssh -o StrictHostKeyChecking=accept-new -o PreferredAuthentications=password -o PubkeyAuthentication=no -o ControlMaster=auto -o ControlPersist=60 -o ControlPath={control_path}"
@@ -1059,6 +1125,7 @@ fn ensure_ssh_control_master(
     auth: Option<&RemoteAdminAuth>,
 ) -> Result<(), ValidationError> {
     let control_path = ssh_control_path_template();
+    validate_ssh_control_path_template(&control_path)?;
     let check_status = start_ssh_command(auth, host, None)
         .arg("-O")
         .arg("check")
@@ -1938,7 +2005,7 @@ pub fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), 
         values
             .iter()
             .filter(|value| {
-                value.get("outcome").and_then(serde_json::Value::as_str) == Some("network_failed")
+                value.get("outcome").and_then(serde_json::Value::as_str) == Some("degraded")
             })
             .filter_map(|value| value.get("kind").and_then(serde_json::Value::as_str))
             .collect::<BTreeSet<_>>()
@@ -1948,7 +2015,7 @@ pub fn validate_leserpent_control_plane_aot_evidence(root: &Path) -> Result<(), 
         .and_then(serde_json::Value::as_str)
         != runtime_id
         || recovery.get("kind").and_then(serde_json::Value::as_str) != Some("all")
-        || recovery.get("outcome").and_then(serde_json::Value::as_str) != Some("network_failed")
+        || recovery.get("outcome").and_then(serde_json::Value::as_str) != Some("degraded")
         || steps.map(Vec::len) != Some(2)
         || step_kinds != Some(BTreeSet::from(["capabilities", "status"]))
     {
@@ -2893,7 +2960,7 @@ fn expand_remote_path(remote_path: &str, home_dir: &str) -> String {
 fn validate_remote_workspace_path(path: &str, home_dir: &str) -> Result<String, ValidationError> {
     let normalized_home = normalize_remote_workspace_path(home_dir)?;
     let allowed_root =
-        normalize_remote_workspace_path(&format!("{normalized_home}/.kyuubiki-remote-runs"))?;
+        normalize_remote_workspace_path(&format!("{normalized_home}/{REMOTE_WORKSPACE_ROOT}"))?;
     let normalized_path = normalize_remote_workspace_path(path)?;
     let candidate = Path::new(&normalized_path);
     let root = Path::new(&allowed_root);
@@ -3148,7 +3215,7 @@ const REMOTE_PACKAGE_MANIFEST_HELPER: &str = r#"package_from_manifest() {
 }"#;
 
 const REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT: &str = r#"set -euo pipefail
-EVIDENCE=target/packages/leserpent-control-plane-aot-linux-x64
+EVIDENCE="$(pwd)/target/packages/leserpent-control-plane-aot-linux-x64"
 PUBLISH="$EVIDENCE/publish"
 DOTNET_ARTIFACTS="$EVIDENCE/dotnet-artifacts"
 STATE="$EVIDENCE/runtime-state.json"
@@ -3170,7 +3237,6 @@ mkdir -p "$PUBLISH"
 dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
   -p:PublishAot=true \
-  -r linux-x64 \
   --locked-mode \
   --artifacts-path "$DOTNET_ARTIFACTS" >"$EVIDENCE/restore.log" 2>&1
 dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
@@ -3231,7 +3297,7 @@ curl -fsS -X POST \
   --data '{"kind":"all"}' \
   "http://127.0.0.1:$PORT/v1/runtimes/$RUNTIME_ID/recovery" >"$EVIDENCE/recovery.json"
 grep -q '"kind":"all"' "$EVIDENCE/recovery.json"
-grep -q '"outcome":"network_failed"' "$EVIDENCE/recovery.json"
+grep -q '"outcome":"degraded"' "$EVIDENCE/recovery.json"
 test "$(grep -o '"kind":"\(capabilities\|status\)"' "$EVIDENCE/recovery.json" | wc -l)" -eq 2
 curl -fsS "http://127.0.0.1:$PORT/v1/runtimes/$RUNTIME_ID/attention" >"$EVIDENCE/attention.json"
 grep -q '"action":"refresh_all"' "$EVIDENCE/attention.json"
@@ -3564,15 +3630,17 @@ fn rsync_remote_target(auth: Option<&RemoteAdminAuth>, host: &str, remote_path: 
 #[cfg(test)]
 mod tests {
     use super::{
-        REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT, REMOTE_PACKAGE_MANIFEST_HELPER, RemoteAdminAuth,
+        MAX_SSH_CONTROL_PATH_BYTES, REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT,
+        REMOTE_PACKAGE_MANIFEST_HELPER, RemoteAdminAuth, SSH_CONTROL_TEMP_SUFFIX_RESERVE,
         acquire_remote_ebpf_history_lock, acquire_remote_validation_run_lock,
-        atomic_write_evidence, default_remote_dir, is_relevant_workspace_path,
-        parse_remote_artifact_manifest, parse_remote_ebpf_evidence, parse_remote_phase_timings,
-        parse_remote_preflight, read_remote_ebpf_history, remote_package_smoke_script,
-        remote_runtime_smoke_script, resolve_remote_execution_path, resolve_remote_workspace_path,
-        rsync_remote_target, ssh_auth_target, ssh_password_mode_args,
-        summarize_remote_ebpf_history, validate_leserpent_control_plane_aot_evidence,
-        validate_remote_host,
+        atomic_write_evidence, default_remote_dir, default_ssh_control_path_template,
+        is_relevant_workspace_path, parse_remote_artifact_manifest, parse_remote_ebpf_evidence,
+        parse_remote_phase_timings, parse_remote_preflight, read_remote_ebpf_history,
+        remote_package_smoke_script, remote_runtime_smoke_script, resolve_remote_execution_path,
+        resolve_remote_workspace_path, rsync_remote_target, ssh_auth_target,
+        ssh_password_mode_args, summarize_remote_ebpf_history,
+        validate_leserpent_control_plane_aot_evidence, validate_remote_host,
+        validate_ssh_control_path_template,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -3583,34 +3651,60 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn default_ssh_control_path_reserves_unix_socket_suffix_budget() {
+        let path = default_ssh_control_path_template();
+        validate_ssh_control_path_template(&path).unwrap();
+        assert!(Path::new(&path).is_absolute());
+        assert!(path.contains("%C"));
+        #[cfg(unix)]
+        assert!(
+            path.len() - 2 + 40 + SSH_CONTROL_TEMP_SUFFIX_RESERVE <= MAX_SSH_CONTROL_PATH_BYTES
+        );
+    }
+
+    #[test]
+    fn ssh_control_path_rejects_unbounded_or_unsafe_templates() {
+        assert!(validate_ssh_control_path_template("relative/%C").is_err());
+        assert!(validate_ssh_control_path_template("/tmp/gewy-%h").is_err());
+        assert!(validate_ssh_control_path_template("/tmp/gewy-%C\n-oProxyCommand=bad").is_err());
+        assert!(
+            validate_ssh_control_path_template(&format!(
+                "/tmp/{}-%C",
+                "x".repeat(MAX_SSH_CONTROL_PATH_BYTES)
+            ))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn ssh_auth_target_replaces_existing_user_prefix() {
         assert_eq!(
-            ssh_auth_target("builder@192.168.1.12", "chiharukiryu"),
-            "chiharukiryu@192.168.1.12"
+            ssh_auth_target("builder@192.0.2.10", "administrator"),
+            "administrator@192.0.2.10"
         );
     }
 
     #[test]
     fn ssh_auth_target_adds_user_when_host_has_no_prefix() {
         assert_eq!(
-            ssh_auth_target("kyuubiki-lab", "chiharukiryu"),
-            "chiharukiryu@kyuubiki-lab"
+            ssh_auth_target("gewyvern-lab", "administrator"),
+            "administrator@gewyvern-lab"
         );
     }
 
     #[test]
     fn rsync_target_uses_the_same_admin_identity_as_ssh() {
         let auth = RemoteAdminAuth {
-            user: "chiharukiryu".to_string(),
+            user: "administrator".to_string(),
             password: "not-exposed".to_string(),
         };
         assert_eq!(
-            rsync_remote_target(Some(&auth), "kyuubiki-dev@192.168.1.12", "/tmp/evidence/"),
-            "chiharukiryu@192.168.1.12:/tmp/evidence/"
+            rsync_remote_target(Some(&auth), "builder@192.0.2.10", "/tmp/evidence/"),
+            "administrator@192.0.2.10:/tmp/evidence/"
         );
         assert_eq!(
-            rsync_remote_target(None, "kyuubiki-lab", "/tmp/evidence/"),
-            "kyuubiki-lab:/tmp/evidence/"
+            rsync_remote_target(None, "gewyvern-lab", "/tmp/evidence/"),
+            "gewyvern-lab:/tmp/evidence/"
         );
     }
 
@@ -3756,7 +3850,7 @@ mod tests {
 
     #[test]
     fn remote_host_rejects_ssh_option_and_shell_injection_shapes() {
-        assert!(validate_remote_host("builder@192.168.1.12").is_ok());
+        assert!(validate_remote_host("builder@192.0.2.10").is_ok());
         assert!(validate_remote_host("[fd00::12]").is_ok());
         assert!(validate_remote_host("-oProxyCommand=sh").is_err());
         assert!(validate_remote_host("host; touch /tmp/pwned").is_err());
@@ -3765,7 +3859,7 @@ mod tests {
     #[test]
     fn parse_remote_preflight_accepts_linux_x86_64_manifest() {
         let preflight = parse_remote_preflight(
-            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/kyuubiki-dev\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=Debian dpkg-deb 1.22.6\nrpm_version=RPM version 4.19.1\nrpmbuild_version=RPM version 4.19.1\n",
+            "os=Linux\narch=x86_64\nkernel=6.8.0\nhost_fingerprint=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhome_dir=/home/gewyvern-lab\nsudo_available=true\nebpf_helper_available=true\nebpf_helper_state=ready\nebpf_helper_version=1.4.6\ndefault_route_device=eth0\ncommands=bash curl cargo rustc python3 rpmbuild\nrustc_version=rustc 1.95.0\ncargo_version=cargo 1.95.0\ndpkg_deb_version=Debian dpkg-deb 1.22.6\nrpm_version=RPM version 4.19.1\nrpmbuild_version=RPM version 4.19.1\n",
         )
         .unwrap();
 
@@ -3776,7 +3870,7 @@ mod tests {
             preflight.host_fingerprint.as_deref(),
             Some("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         );
-        assert_eq!(preflight.home_dir, "/home/kyuubiki-dev");
+        assert_eq!(preflight.home_dir, "/home/gewyvern-lab");
         assert!(preflight.sudo_available);
         assert!(preflight.ebpf_helper_available);
         assert_eq!(preflight.ebpf_helper_state, "ready");
@@ -3933,6 +4027,20 @@ mod tests {
     }
 
     #[test]
+    fn control_plane_aot_restore_keeps_the_shared_lock_graph_rid_neutral() {
+        let (restore, publish) = REMOTE_LESERPENT_CONTROL_PLANE_AOT_SCRIPT
+            .split_once("dotnet publish")
+            .unwrap();
+        assert!(restore.contains("EVIDENCE=\"$(pwd)/target/packages/"));
+        assert!(restore.contains("dotnet restore"));
+        assert!(restore.contains("--locked-mode"));
+        assert!(!restore.contains("-r linux-x64"));
+        assert!(publish.contains("-r linux-x64"));
+        assert!(publish.contains("--no-restore"));
+        assert!(publish.contains("'\"outcome\":\"degraded\"'"));
+    }
+
+    #[test]
     fn leserpent_control_plane_aot_evidence_is_strict_and_non_vacuous() {
         let root = remote_test_root("leserpent-control-plane-aot-evidence");
         write_valid_leserpent_control_plane_aot_evidence(&root);
@@ -4040,7 +4148,7 @@ mod tests {
         fs::write(
             root.join("recovery.json"),
             format!(
-                r#"{{"runtimeId":"{runtime_id}","kind":"all","outcome":"network_failed","steps":[{{"kind":"capabilities","outcome":"network_failed"}},{{"kind":"status","outcome":"network_failed"}}]}}"#
+                r#"{{"runtimeId":"{runtime_id}","kind":"all","outcome":"degraded","steps":[{{"kind":"capabilities","outcome":"degraded"}},{{"kind":"status","outcome":"degraded"}}]}}"#
             ),
         )
         .unwrap();
@@ -4132,20 +4240,20 @@ mod tests {
     #[test]
     fn resolve_remote_workspace_path_keeps_default_rooted_workspace() {
         let resolved = resolve_remote_workspace_path(
-            "~/.kyuubiki-remote-runs/gewyvern-remote-123",
-            "/home/kyuubiki-dev",
+            "~/.gewyvern-remote-runs/gewyvern-remote-123",
+            "/home/gewyvern-lab",
         )
         .unwrap();
         assert_eq!(
             resolved,
-            "/home/kyuubiki-dev/.kyuubiki-remote-runs/gewyvern-remote-123"
+            "/home/gewyvern-lab/.gewyvern-remote-runs/gewyvern-remote-123"
         );
     }
 
     #[test]
     fn resolve_remote_workspace_path_rejects_escape_outside_allowed_root() {
         let err =
-            resolve_remote_workspace_path("/home/kyuubiki-dev/../../etc", "/home/kyuubiki-dev")
+            resolve_remote_workspace_path("/home/gewyvern-lab/../../etc", "/home/gewyvern-lab")
                 .unwrap_err();
         assert!(err.to_string().contains("must stay under"));
     }
@@ -4153,10 +4261,10 @@ mod tests {
     #[test]
     fn resolve_remote_execution_path_allows_internal_cache_root() {
         let resolved = resolve_remote_execution_path(
-            "/home/kyuubiki-dev/.cache/gewyvern/remote-source",
-            "/home/kyuubiki-dev",
+            "/home/gewyvern-lab/.cache/gewyvern/remote-source",
+            "/home/gewyvern-lab",
         )
         .unwrap();
-        assert_eq!(resolved, "/home/kyuubiki-dev/.cache/gewyvern/remote-source");
+        assert_eq!(resolved, "/home/gewyvern-lab/.cache/gewyvern/remote-source");
     }
 }

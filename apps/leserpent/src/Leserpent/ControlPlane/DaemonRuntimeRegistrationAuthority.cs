@@ -1036,19 +1036,9 @@ public sealed partial class DaemonRuntimeRegistrationAuthority :
         {
             writer.WriteStartObject();
             writer.WriteString("token", token);
-            var authorityTicket = writerFence?.AuthorityTicket;
-            if (authorityTicket is not null)
-            {
-                writer.WritePropertyName("writer_fence");
-                writer.WriteStartObject();
-                writer.WriteNumber(
-                    "generation",
-                    authorityTicket.Generation);
-                writer.WriteString(
-                    "writer_id",
-                    authorityTicket.WriterId);
-                writer.WriteEndObject();
-            }
+            AuthorityWriterFrame.Write(
+                writer,
+                writerFence?.AuthorityTicket);
             writer.WritePropertyName("request");
             writeRequest(writer);
             writer.WriteEndObject();

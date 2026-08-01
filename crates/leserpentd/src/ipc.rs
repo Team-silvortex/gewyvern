@@ -1263,6 +1263,238 @@ mod tests {
     }
 
     #[test]
+    fn authority_writer_generation_fences_deployment_and_orchestra_mutations() {
+        let database = temp_path("writer-fence-effects", "sqlite");
+        let socket = temp_path("writer-fence-effects", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let runtime_id = RuntimeId::new("runtime-fenced-effects").unwrap();
+        let registration = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("fenced-effects-register").unwrap(),
+                idempotency_key: IdempotencyKey::new("fenced-effects-register-request").unwrap(),
+                expected_revision: None,
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_REGISTER]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeRegister {
+                    runtime_id: runtime_id.clone(),
+                    name: "Runtime Fenced Effects".into(),
+                    endpoint: "https://127.0.0.1:9443".into(),
+                    sidecar_endpoint: None,
+                    tags: RuntimeTags::default(),
+                },
+            }),
+        };
+        assert!(matches!(
+            send(&server, &mut runtime, &socket, TOKEN, registration).response,
+            ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+        ));
+
+        let writer_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let writer_c = "cccccccccccccccccccccccccccccccc";
+        let claim = |writer_id: &str| RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::AuthorityWriterClaim(AuthorityWriterClaimRequest {
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_AUTHORITY_WRITER]),
+                writer_id: writer_id.into(),
+            }),
+        };
+        let _ = send(&server, &mut runtime, &socket, TOKEN, claim(writer_a));
+        let _ = send(&server, &mut runtime, &socket, TOKEN, claim(writer_b));
+        let current_b = AuthorityWriterFence {
+            generation: 2,
+            writer_id: writer_b.into(),
+        };
+        let stale_a = AuthorityWriterFence {
+            generation: 1,
+            writer_id: writer_a.into(),
+        };
+
+        let deployment = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("fenced-effects-deploy").unwrap(),
+                idempotency_key: IdempotencyKey::new("fenced-effects-deploy-request").unwrap(),
+                expected_revision: None,
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeDeploy {
+                    runtime_id: runtime_id.clone(),
+                    pipeline_kind: "capture/http".into(),
+                    target: Some("service-a".into()),
+                },
+            }),
+        };
+        for fence in [None, Some(stale_a.clone())] {
+            let rejected =
+                send_with_writer_fence(&server, &mut runtime, &socket, deployment.clone(), fence);
+            assert!(matches!(
+                rejected.response,
+                ProtocolResponse::Error(ref error)
+                    if error.code == "authority_writer_fence_required"
+                        || error.code == "authority_writer_fence_rejected"
+            ));
+        }
+        assert_eq!(runtime.effect_queue_stats().unwrap().ready, 0);
+        let applied = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            deployment,
+            Some(current_b.clone()),
+        );
+        assert!(matches!(
+            applied.response,
+            ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+        ));
+        assert_eq!(runtime.effect_queue_stats().unwrap().ready, 1);
+
+        let mut orchestra_envelope =
+            leserpent_protocol::compatibility_v1::decode_orchestra_persistence(include_bytes!(
+                "../../leserpent-protocol/tests/fixtures/legacy-orchestra-persistence-v1.json"
+            ))
+            .unwrap();
+        orchestra_envelope.run.outcome = "queued".into();
+        orchestra_envelope.run.completed_at = None;
+        orchestra_envelope.event.event_type = "run_queued".into();
+        orchestra_envelope.event.to_outcome = "queued".into();
+        let orchestra_persist = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraPersist(OrchestraPersistenceRequest {
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                envelope: orchestra_envelope.clone(),
+            }),
+        };
+        for fence in [None, Some(stale_a)] {
+            let rejected = send_with_writer_fence(
+                &server,
+                &mut runtime,
+                &socket,
+                orchestra_persist.clone(),
+                fence,
+            );
+            assert!(matches!(
+                rejected.response,
+                ProtocolResponse::Error(ref error)
+                    if error.code == "authority_writer_fence_required"
+                        || error.code == "authority_writer_fence_rejected"
+            ));
+        }
+        assert!(
+            runtime
+                .load_orchestra_history(
+                    Some(&orchestra_envelope.run.runtime_id),
+                    Some(&orchestra_envelope.run.run_id),
+                    0,
+                    64,
+                )
+                .unwrap()
+                .events
+                .is_empty()
+        );
+        let persisted = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            orchestra_persist,
+            Some(current_b.clone()),
+        );
+        assert!(matches!(
+            persisted.response,
+            ProtocolResponse::OrchestraPersisted(ref response)
+                if response.event_count == 1
+        ));
+
+        let _ = send(&server, &mut runtime, &socket, TOKEN, claim(writer_c));
+        let orchestra_delete = RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::OrchestraDelete(OrchestraDeleteRequest {
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_ORCHESTRA_WRITE]),
+                runtime_ids: vec![orchestra_envelope.run.runtime_id.clone()],
+            }),
+        };
+        let rejected = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            orchestra_delete.clone(),
+            Some(current_b),
+        );
+        assert!(matches!(
+            rejected.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_rejected"
+        ));
+        assert_eq!(
+            runtime
+                .load_orchestra_history(
+                    Some(&orchestra_envelope.run.runtime_id),
+                    Some(&orchestra_envelope.run.run_id),
+                    0,
+                    64,
+                )
+                .unwrap()
+                .events
+                .len(),
+            1
+        );
+        let deleted = send_with_writer_fence(
+            &server,
+            &mut runtime,
+            &socket,
+            orchestra_delete,
+            Some(AuthorityWriterFence {
+                generation: 3,
+                writer_id: writer_c.into(),
+            }),
+        );
+        assert!(matches!(
+            deleted.response,
+            ProtocolResponse::OrchestraDeleted(ref response)
+                if response.deleted_runtime_count == 1
+        ));
+        assert!(
+            runtime
+                .load_orchestra_history(
+                    Some(&orchestra_envelope.run.runtime_id),
+                    Some(&orchestra_envelope.run.run_id),
+                    0,
+                    64,
+                )
+                .unwrap()
+                .events
+                .is_empty()
+        );
+
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
     fn authenticated_runtime_logs_round_trip_without_endpoint_disclosure() {
         let database = temp_path("logs", "sqlite");
         let socket = temp_path("logs", "sock");

@@ -62,6 +62,6 @@ If you are validating current POP3 support, the shortest useful order is:
 
 ## Stability Note
 
-This page is the lookup hub for the POP3 family in the current `1.10.x` line.
+This page is the lookup hub for the POP3 family in the current `1.12.x` line.
 New POP3 session branches should prefer landing behind this shelf instead of
 being linked from multiple higher-level pages independently.

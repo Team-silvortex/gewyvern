@@ -45,6 +45,43 @@ fn project_status_catalog_is_protocolized_and_valid() {
 }
 
 #[test]
+fn control_plane_writer_inventory_tracks_the_second_rust_fence_slice() {
+    let inventory: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root().join("docs/contracts/leserpent-control-plane-mutations-v1.json"),
+        )
+        .expect("control-plane mutation inventory must exist"),
+    )
+    .expect("control-plane mutation inventory must decode");
+    assert_eq!(inventory["version"], "1.2.0");
+    let writer_fence = &inventory["rust_authority_writer_fence"];
+    let covered = writer_fence["covered_ipc_mutations"]
+        .as_array()
+        .expect("covered IPC mutations must be an array");
+    let remaining = writer_fence["remaining_routes"]
+        .as_array()
+        .expect("remaining routes must be an array");
+    for mutation in [
+        "runtime_deploy",
+        "orchestra_persist",
+        "orchestra_delete",
+        "orchestra_delete_command",
+        "orchestra_delete_replay_checkpoint",
+    ] {
+        assert!(covered.iter().any(|value| value == mutation));
+        assert!(!remaining.iter().any(|value| value == mutation));
+    }
+    for route in [
+        "bootstrap",
+        "provisioning",
+        "retirement",
+        "remote_transport",
+    ] {
+        assert!(remaining.iter().any(|value| value == route));
+    }
+}
+
+#[test]
 fn retained_system_profile_bootstrap_retirement_evidence_is_non_vacuous() {
     let root = repository_root();
     let evidence: serde_json::Value = serde_json::from_str(
@@ -1666,7 +1703,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .find(|cell| cell.id == "gewyvern-core/linux-ebpf/linux-attach")
         .expect("Gewyvern Linux attach cell must exist");
     assert_eq!(linux_attach.completion, 98);
+    assert_eq!(linux_attach.contract.version, "1.5.0");
     assert_eq!(linux_attach.blockers.len(), 1);
+    for surface in [
+        "dedicated-project-ssh-alias",
+        "project-owned-remote-workspace-root",
+        "generated-output-sync-exclusion",
+        "stale-excluded-output-deletion",
+        "bounded-nonce-ssh-control-socket",
+        "shell-quoted-control-path-override",
+        "dotnet10-rid-neutral-locked-aot-restore",
+        "dynamic-writer-fence-sqlite-activation",
+        "physical-linux-helper-version-upgrade-proof",
+    ] {
+        assert!(
+            linux_attach
+                .contract
+                .surfaces
+                .iter()
+                .any(|item| item == surface)
+        );
+    }
     assert!(linux_attach.evidence.iter().any(|item| {
         item.path == "docs/fixtures/linux_attach_pinned_source_root.json"
             && item.state == EvidenceState::Present
@@ -1927,7 +1984,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(runtime.maturity, Maturity::Mature);
     assert_eq!(runtime.completion, 100);
     assert_eq!(runtime.contract.stability, ContractStability::Stable);
-    assert_eq!(runtime.contract.version, "1.10.0");
+    assert_eq!(runtime.contract.version, "1.12.2");
     for surface in [
         "durable-sidecar-endpoint",
         "atomic-sidecar-registration-update",
@@ -1974,7 +2031,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.26.0");
+    assert_eq!(compatibility_control.contract.version, "1.27.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -2299,7 +2356,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.26.0");
+    assert_eq!(compatibility_control.contract.version, "1.27.0");
     assert!(
         compatibility_control
             .next_gate
@@ -2684,6 +2741,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 .contains("unified current-run parity/schema release stage")
             && blocker.summary.contains("Apple-backed release evidence")
             && !blocker.summary.contains("desktop/remote conformance")
+    }));
+
+    let continuous_proof = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/release-assurance/continuous-proof")
+        .expect("continuous proof contract must remain tracked");
+    assert_eq!(continuous_proof.completion, 97);
+    assert_eq!(continuous_proof.contract.version, "0.64.0");
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "src/validation_harness/release_gate.rs"
+            && evidence.state == EvidenceState::Present
+    }));
+    assert!(continuous_proof.evidence.iter().any(|evidence| {
+        evidence.path == "docs/machine-contract.md" && evidence.state == EvidenceState::Present
     }));
 
     let provisioning = catalog

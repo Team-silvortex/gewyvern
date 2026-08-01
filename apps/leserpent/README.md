@@ -8,7 +8,7 @@
 
 MIT License
 Status: Active; follows the root `gewyvern` version line
-Current shared release: `1.10.0`
+Current shared release: `1.12.2`
 
 Monorepo home:
 
@@ -672,7 +672,6 @@ Leserpent 提供独立的 Native AOT 发布 profile。发布时必须指定目�
 dotnet restore apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
   -p:PublishAot=true \
-  -r linux-x64 \
   --locked-mode
 dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   -p:PublishProfile=native-aot \
@@ -680,6 +679,9 @@ dotnet publish apps/leserpent/src/Leserpent/Leserpent.csproj \
   --no-restore \
   -o artifacts/leserpent/linux-x64
 ```
+
+locked restore 会同时校验共享 lock file 中的 `osx-arm64` 与 `linux-x64`
+运行时图，因此必须保持 RID-neutral；只在后续 `--no-restore` publish 阶段选择目标 RID。
 
 ARM64 Linux 使用 `-r linux-arm64`。Native AOT 不支持从 macOS 直接交叉编译 Linux 产物，因此 Linux 发布应在对应 Linux 构建机或 CI runner 上执行。
 

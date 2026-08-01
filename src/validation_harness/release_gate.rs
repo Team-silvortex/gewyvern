@@ -2,15 +2,21 @@ use std::process::{Command, Stdio};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    io::Write,
     path::{Path, PathBuf},
+    sync::{
+        Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use serde_json::json;
 
 use super::command::{ValidationError, ValidationReport, default_out_dir, repo_root};
 use super::{
-    RemoteLinuxHostOptions, read_bounded_json_file, read_bounded_nonempty_lines,
-    read_bounded_phase_timings, read_bounded_unique_key_value_file,
+    DEFAULT_REMOTE_LINUX_HOST, RemoteLinuxHostOptions, read_bounded_json_file,
+    read_bounded_nonempty_lines, read_bounded_phase_timings, read_bounded_unique_key_value_file,
     run_container_runtime_validation, run_container_validation_summary,
     run_debugger_cross_validation, run_leserpent_parity_recovery_validation,
     run_leserpent_schema_freeze_validation, run_package_install_smoke,
@@ -18,6 +24,10 @@ use super::{
     run_three_module_stack_smoke, validate_leserpent_control_plane_aot_evidence,
     validation_command_stdout, validation_log,
 };
+
+const MAX_RELEASE_ARTIFACT_PUBLICATION_BYTES: u64 = 1024 * 1024;
+static RELEASE_ARTIFACT_PUBLICATION_LOCK: Mutex<()> = Mutex::new(());
+static RELEASE_ARTIFACT_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ReleaseCheckMode {
@@ -66,7 +76,7 @@ impl Default for ReleaseGateOptions {
             macos_release_preflight: None,
             run_remote_host: false,
             remote_host: std::env::var("GEWY_REMOTE_HOST")
-                .unwrap_or_else(|_| "kyuubiki-lab".to_string()),
+                .unwrap_or_else(|_| DEFAULT_REMOTE_LINUX_HOST.to_string()),
             remote_dir: None,
             keep_remote_dir: false,
             remote_build_packages: true,
@@ -706,10 +716,14 @@ fn validate_macos_release_preflight(
 }
 
 fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(), ValidationError> {
+    let _publication_guard = RELEASE_ARTIFACT_PUBLICATION_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     fs::create_dir_all(out_dir)?;
 
     let artifact_index_path = out_dir.join("release-gate-artifacts.json");
     let artifact_summary_path = out_dir.join("release-gate-artifacts.txt");
+    let publication_id = release_artifact_publication_id();
 
     let entries = vec![
         release_artifact_entry(
@@ -891,16 +905,14 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
     ];
 
     let payload = json!({
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "release_artifact_index",
         "name": "release gate artifacts",
+        "publication_id": publication_id.clone(),
         "root": out_dir.display().to_string(),
         "artifacts": entries,
     });
-    fs::write(
-        &artifact_index_path,
-        serde_json::to_string_pretty(&payload)?,
-    )?;
+    let index_contents = format!("{}\n", serde_json::to_string_pretty(&payload)?);
 
     let summary = payload["artifacts"]
         .as_array()
@@ -920,18 +932,122 @@ fn write_release_artifact_index(out_dir: &Path, checks: &[String]) -> Result<(),
         })
         .collect::<Vec<_>>()
         .join("\n");
-    fs::write(
-        &artifact_summary_path,
-        format!(
-            "release gate artifacts: ok\nroot={}\nindex={}\nsummary={}\n\n{}\n",
-            out_dir.display(),
-            artifact_index_path.display(),
-            artifact_summary_path.display(),
-            summary
-        ),
-    )?;
+    let summary_contents = format!(
+        "release gate artifacts: ok\npublication_id={publication_id}\nroot={}\nindex={}\nsummary={}\n\n{}\n",
+        out_dir.display(),
+        artifact_index_path.display(),
+        artifact_summary_path.display(),
+        summary
+    );
+
+    // The human summary lands first; the JSON index is the machine commit point.
+    // A crash or competing publisher can therefore only leave a detectable ID mismatch.
+    atomic_write_release_artifact(&artifact_summary_path, summary_contents.as_bytes())?;
+    atomic_write_release_artifact(&artifact_index_path, index_contents.as_bytes())?;
+    validate_release_artifact_publication(&artifact_index_path, &artifact_summary_path)?;
 
     Ok(())
+}
+
+fn release_artifact_publication_id() -> String {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let sequence = RELEASE_ARTIFACT_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("{}-{nonce}-{sequence}", std::process::id())
+}
+
+fn atomic_write_release_artifact(path: &Path, contents: &[u8]) -> Result<(), ValidationError> {
+    if contents.is_empty()
+        || u64::try_from(contents.len()).unwrap_or(u64::MAX)
+            > MAX_RELEASE_ARTIFACT_PUBLICATION_BYTES
+    {
+        return Err(ValidationError::new(
+            "release artifact publication content is empty or oversized",
+        ));
+    }
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| ValidationError::new("release artifact path has no safe file name"))?;
+    let sequence = RELEASE_ARTIFACT_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temp_path = path.with_file_name(format!(
+        ".{file_name}.{}.{}.tmp",
+        std::process::id(),
+        sequence
+    ));
+    let result = (|| -> Result<(), ValidationError> {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)?;
+        file.write_all(contents)?;
+        file.sync_all()?;
+        drop(file);
+
+        #[cfg(windows)]
+        if path.exists() || path.is_symlink() {
+            fs::remove_file(path)?;
+        }
+        fs::rename(&temp_path, path)?;
+        #[cfg(unix)]
+        if let Some(parent) = path.parent() {
+            fs::File::open(parent)?.sync_all()?;
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    result
+}
+
+fn validate_release_artifact_publication(
+    index_path: &Path,
+    summary_path: &Path,
+) -> Result<(), ValidationError> {
+    for path in [index_path, summary_path] {
+        let metadata = fs::symlink_metadata(path)?;
+        if !metadata.file_type().is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.len() == 0
+            || metadata.len() > MAX_RELEASE_ARTIFACT_PUBLICATION_BYTES
+        {
+            return Err(ValidationError::new(format!(
+                "release artifact publication '{}' is unsafe or unbounded",
+                path.display()
+            )));
+        }
+    }
+
+    let index: serde_json::Value = serde_json::from_slice(&fs::read(index_path)?)?;
+    let index_publication = index
+        .get("publication_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| valid_release_artifact_publication_id(value))
+        .ok_or_else(|| {
+            ValidationError::new("release artifact index has an invalid publication ID")
+        })?;
+    let summary = fs::read_to_string(summary_path)?;
+    let summary_publications = summary
+        .lines()
+        .filter_map(|line| line.strip_prefix("publication_id="))
+        .collect::<Vec<_>>();
+    if summary_publications.as_slice() != [index_publication] {
+        return Err(ValidationError::new(
+            "release artifact index and summary publication IDs do not match",
+        ));
+    }
+    Ok(())
+}
+
+fn valid_release_artifact_publication_id(value: &str) -> bool {
+    matches!(value.len(), 3..=128)
+        && value.split('-').count() == 3
+        && value
+            .split('-')
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 fn release_artifact_entry(
@@ -1074,7 +1190,8 @@ fn summarize_recent_ebpf_trend(history_summary: Option<&serde_json::Value>) -> O
 mod tests {
     use super::{
         MacosReleasePreflightStatus, print_remote_release_gate_summary, release_artifact_entry,
-        summarize_remote_release_gate_posture, validate_macos_release_preflight,
+        summarize_remote_release_gate_posture, valid_release_artifact_publication_id,
+        validate_macos_release_preflight, validate_release_artifact_publication,
         write_release_artifact_index,
     };
     use std::collections::BTreeMap;
@@ -1231,6 +1348,86 @@ mod tests {
             .expect("schema/scope freeze artifact must be indexed");
         assert_eq!(entry["status"], "present");
         assert_eq!(entry["expectation"], "optional_high_signal");
+        assert!(payload["publication_id"].as_str().is_some());
+        validate_release_artifact_publication(
+            &out_dir.join("release-gate-artifacts.json"),
+            &out_dir.join("release-gate-artifacts.txt"),
+        )
+        .unwrap();
+        std::fs::remove_dir_all(out_dir).unwrap();
+    }
+
+    #[test]
+    fn artifact_publication_rejects_a_torn_index_summary_pair() {
+        let out_dir = std::env::temp_dir().join(format!(
+            "gewyvern-torn-release-artifact-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&out_dir);
+        write_release_artifact_index(&out_dir, &[]).unwrap();
+        std::fs::write(
+            out_dir.join("release-gate-artifacts.txt"),
+            "release gate artifacts: ok\npublication_id=1-2-3\n",
+        )
+        .unwrap();
+
+        assert!(
+            validate_release_artifact_publication(
+                &out_dir.join("release-gate-artifacts.json"),
+                &out_dir.join("release-gate-artifacts.txt"),
+            )
+            .is_err()
+        );
+        std::fs::remove_dir_all(out_dir).unwrap();
+    }
+
+    #[test]
+    fn artifact_publication_id_requires_three_decimal_segments() {
+        assert!(valid_release_artifact_publication_id("123-456-7"));
+        for invalid in ["", "---", "1-2", "1-2-3-4", "1-two-3", "1--3"] {
+            assert!(!valid_release_artifact_publication_id(invalid));
+        }
+    }
+
+    #[test]
+    fn concurrent_artifact_publications_leave_one_coherent_clean_pair() {
+        let out_dir = std::env::temp_dir().join(format!(
+            "gewyvern-concurrent-release-artifact-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&out_dir);
+        std::fs::create_dir_all(out_dir.join("leserpent-parity-recovery")).unwrap();
+        std::fs::create_dir_all(out_dir.join("leserpent-schema-freeze")).unwrap();
+
+        let writers = (0..8)
+            .map(|index| {
+                let out_dir = out_dir.clone();
+                std::thread::spawn(move || {
+                    let checks = if index % 2 == 0 {
+                        vec!["leserpent_parity_recovery".to_string()]
+                    } else {
+                        vec!["leserpent_schema_freeze".to_string()]
+                    };
+                    write_release_artifact_index(&out_dir, &checks)
+                })
+            })
+            .collect::<Vec<_>>();
+        for writer in writers {
+            writer.join().unwrap().unwrap();
+        }
+
+        validate_release_artifact_publication(
+            &out_dir.join("release-gate-artifacts.json"),
+            &out_dir.join("release-gate-artifacts.txt"),
+        )
+        .unwrap();
+        assert!(std::fs::read_dir(&out_dir).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+        }));
         std::fs::remove_dir_all(out_dir).unwrap();
     }
 

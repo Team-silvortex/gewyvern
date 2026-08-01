@@ -12,12 +12,22 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
     private readonly string? token;
     private readonly TimeSpan timeout;
     private readonly ILogger<DaemonOrchestraRunStore> logger;
+    private readonly ControlPlaneWriterFence? writerFence;
 
     public DaemonOrchestraRunStore(
         IConfiguration configuration,
         ILogger<DaemonOrchestraRunStore> logger)
+        : this(configuration, logger, null)
+    {
+    }
+
+    public DaemonOrchestraRunStore(
+        IConfiguration configuration,
+        ILogger<DaemonOrchestraRunStore> logger,
+        ControlPlaneWriterFence? writerFence)
     {
         this.logger = logger;
+        this.writerFence = writerFence;
         var configuredSocket = configuration["LESERPENT_DAEMON_SOCKET"];
         var configuredToken = configuration["LESERPENT_DAEMON_TOKEN"];
         if (string.IsNullOrWhiteSpace(configuredSocket) != string.IsNullOrWhiteSpace(configuredToken))
@@ -564,6 +574,9 @@ public sealed class DaemonOrchestraRunStore : IOrchestraRunStore
         {
             writer.WriteStartObject();
             writer.WriteString("token", token);
+            AuthorityWriterFrame.Write(
+                writer,
+                writerFence?.AuthorityTicket);
             writer.WritePropertyName("request");
             writer.WriteStartObject();
             writer.WriteNumber("schema_version", 1);
