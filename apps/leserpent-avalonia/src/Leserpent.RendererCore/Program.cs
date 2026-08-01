@@ -6,6 +6,62 @@ public sealed class SemanticRenderer
 {
     private const int MaxPatchOperations = 8192;
     private const int MaxFormValueBytes = 256;
+    private const int MaxAdapterFrameworkBytes = 128;
+    private const int AdapterManifestSchemaVersion = 2;
+    private const int UiSchemaVersion = 1;
+    private static readonly UiPresentationAtom[] RequiredPresentationAtoms =
+    [
+        UiPresentationAtom.Focus,
+        UiPresentationAtom.NavigateFocus,
+        UiPresentationAtom.ScrollIntoView,
+        UiPresentationAtom.AssertVisible,
+        UiPresentationAtom.AssertHidden,
+        UiPresentationAtom.WaitHidden,
+        UiPresentationAtom.AssertRealized,
+        UiPresentationAtom.WaitRealized,
+        UiPresentationAtom.WaitVisible,
+        UiPresentationAtom.WaitEnabled,
+        UiPresentationAtom.WaitFocused,
+        UiPresentationAtom.AssertFocused,
+        UiPresentationAtom.WaitUnfocused,
+        UiPresentationAtom.AssertUnfocused,
+        UiPresentationAtom.AssertEnabled,
+        UiPresentationAtom.AssertDisabled,
+        UiPresentationAtom.WaitDisabled,
+        UiPresentationAtom.AssertWindowOpen,
+        UiPresentationAtom.WaitWindowOpen,
+        UiPresentationAtom.AssertWindowClosed,
+        UiPresentationAtom.WaitWindowClosed,
+        UiPresentationAtom.AssertSelection,
+        UiPresentationAtom.WaitSelection,
+        UiPresentationAtom.AssertText,
+        UiPresentationAtom.WaitText,
+        UiPresentationAtom.AssertAutomationId,
+        UiPresentationAtom.AssertNodeKind,
+        UiPresentationAtom.WaitNodeKind,
+        UiPresentationAtom.AssertActionKind,
+        UiPresentationAtom.WaitActionKind,
+        UiPresentationAtom.AssertActionLabel,
+        UiPresentationAtom.WaitActionLabel,
+        UiPresentationAtom.AssertActionAvailable,
+        UiPresentationAtom.WaitActionAvailable,
+        UiPresentationAtom.AssertActionUnavailableReason,
+        UiPresentationAtom.WaitActionUnavailableReason,
+        UiPresentationAtom.AssertFormField,
+        UiPresentationAtom.WaitFormField,
+        UiPresentationAtom.AssertFormFieldInputKind,
+        UiPresentationAtom.WaitFormFieldInputKind,
+        UiPresentationAtom.AssertFormFieldRequired,
+        UiPresentationAtom.WaitFormFieldRequired,
+        UiPresentationAtom.AssertFormFieldMaxLength,
+        UiPresentationAtom.WaitFormFieldMaxLength,
+        UiPresentationAtom.AssertFormFieldPlaceholder,
+        UiPresentationAtom.WaitFormFieldPlaceholder,
+        UiPresentationAtom.AssertAccessibleName,
+        UiPresentationAtom.WaitAccessibleName,
+        UiPresentationAtom.AssertAccessibleDescription,
+        UiPresentationAtom.WaitAccessibleDescription,
+    ];
     public const int WaitEnabledTimeoutMs = 2000;
     public const int WaitActionAvailableTimeoutMs = 2000;
     public const int WaitActionKindTimeoutMs = 2000;
@@ -35,6 +91,221 @@ public sealed class SemanticRenderer
         ValidateDocument(document);
         Document = Clone(document);
     }
+
+    public static UiAdapterManifestValidation ValidateAdapterManifest(UiAdapterManifest manifest)
+    {
+        if (manifest.SchemaVersion != AdapterManifestSchemaVersion)
+        {
+            return UiAdapterManifestValidation.UnsupportedManifestSchema;
+        }
+        if (manifest.UiSchemaVersion != UiSchemaVersion)
+        {
+            return UiAdapterManifestValidation.UnsupportedUiSchema;
+        }
+        if (manifest.AdapterId is not { } adapterId || !IsIdentifier(adapterId))
+        {
+            return UiAdapterManifestValidation.InvalidAdapterId;
+        }
+        if (manifest.Framework is not { } framework
+            || framework.Length == 0
+            || Encoding.UTF8.GetByteCount(framework) > MaxAdapterFrameworkBytes
+            || framework.Any(char.IsControl))
+        {
+            return UiAdapterManifestValidation.InvalidFramework;
+        }
+        if (!Enum.IsDefined(manifest.BindingKind))
+        {
+            return UiAdapterManifestValidation.InvalidBindingKind;
+        }
+        if (!manifest.DocumentSchema)
+        {
+            return UiAdapterManifestValidation.MissingDocumentSchema;
+        }
+        if (!manifest.EventSchema)
+        {
+            return UiAdapterManifestValidation.MissingEventSchema;
+        }
+        if (!manifest.PatchSchema)
+        {
+            return UiAdapterManifestValidation.MissingPatchSchema;
+        }
+
+        var atoms = new HashSet<UiPresentationAtom>();
+        if (manifest.PresentationAtoms is null)
+        {
+            return UiAdapterManifestValidation.MissingPresentationAtom;
+        }
+        foreach (var atom in manifest.PresentationAtoms)
+        {
+            if (!Enum.IsDefined(atom))
+            {
+                return UiAdapterManifestValidation.InvalidPresentationAtom;
+            }
+            if (!atoms.Add(atom))
+            {
+                return UiAdapterManifestValidation.DuplicatePresentationAtom;
+            }
+        }
+        if (!RequiredPresentationAtoms.All(atoms.Contains))
+        {
+            return UiAdapterManifestValidation.MissingPresentationAtom;
+        }
+        if (manifest.PresentationAtomProfiles is null)
+        {
+            return UiAdapterManifestValidation.MissingPresentationAtomProfile;
+        }
+        var profiledAtoms = new HashSet<UiPresentationAtom>();
+        foreach (var profile in manifest.PresentationAtomProfiles)
+        {
+            if (profile is null)
+            {
+                return UiAdapterManifestValidation.InvalidPresentationAtomProfile;
+            }
+            if (!Enum.IsDefined(profile.Atom))
+            {
+                return UiAdapterManifestValidation.InvalidPresentationAtom;
+            }
+            if (!atoms.Contains(profile.Atom))
+            {
+                return UiAdapterManifestValidation.ProfileWithoutPresentationAtom;
+            }
+            if (!profiledAtoms.Add(profile.Atom))
+            {
+                return UiAdapterManifestValidation.DuplicatePresentationAtomProfile;
+            }
+            if (!Enum.IsDefined(profile.Family)
+                || !Enum.IsDefined(profile.Effect)
+                || profile.Family != PresentationAtomFamily(profile.Atom)
+                || profile.Effect != PresentationAtomEffect(profile.Atom))
+            {
+                return UiAdapterManifestValidation.InvalidPresentationAtomProfile;
+            }
+        }
+        return RequiredPresentationAtoms.All(profiledAtoms.Contains)
+            ? UiAdapterManifestValidation.Valid
+            : UiAdapterManifestValidation.MissingPresentationAtomProfile;
+    }
+
+    public static UiPresentationAtomProfile PresentationAtomProfile(UiPresentationAtom atom) => new()
+    {
+        Atom = atom,
+        Family = PresentationAtomFamily(atom),
+        Effect = PresentationAtomEffect(atom),
+    };
+
+    private static UiPresentationAtomFamily PresentationAtomFamily(UiPresentationAtom atom) =>
+        atom switch
+        {
+            UiPresentationAtom.Focus
+                or UiPresentationAtom.NavigateFocus
+                or UiPresentationAtom.WaitFocused
+                or UiPresentationAtom.AssertFocused
+                or UiPresentationAtom.WaitUnfocused
+                or UiPresentationAtom.AssertUnfocused => UiPresentationAtomFamily.Focus,
+            UiPresentationAtom.ScrollIntoView => UiPresentationAtomFamily.Viewport,
+            UiPresentationAtom.AssertVisible
+                or UiPresentationAtom.AssertHidden
+                or UiPresentationAtom.WaitHidden
+                or UiPresentationAtom.WaitVisible => UiPresentationAtomFamily.Visibility,
+            UiPresentationAtom.AssertRealized
+                or UiPresentationAtom.WaitRealized => UiPresentationAtomFamily.Realization,
+            UiPresentationAtom.WaitEnabled
+                or UiPresentationAtom.AssertEnabled
+                or UiPresentationAtom.AssertDisabled
+                or UiPresentationAtom.WaitDisabled => UiPresentationAtomFamily.EnabledState,
+            UiPresentationAtom.AssertWindowOpen
+                or UiPresentationAtom.WaitWindowOpen
+                or UiPresentationAtom.AssertWindowClosed
+                or UiPresentationAtom.WaitWindowClosed => UiPresentationAtomFamily.Window,
+            UiPresentationAtom.AssertSelection
+                or UiPresentationAtom.WaitSelection => UiPresentationAtomFamily.Selection,
+            UiPresentationAtom.AssertText
+                or UiPresentationAtom.WaitText => UiPresentationAtomFamily.Text,
+            UiPresentationAtom.AssertAutomationId
+                or UiPresentationAtom.AssertNodeKind
+                or UiPresentationAtom.WaitNodeKind => UiPresentationAtomFamily.NodeMetadata,
+            UiPresentationAtom.AssertActionKind
+                or UiPresentationAtom.WaitActionKind
+                or UiPresentationAtom.AssertActionLabel
+                or UiPresentationAtom.WaitActionLabel
+                or UiPresentationAtom.AssertActionAvailable
+                or UiPresentationAtom.WaitActionAvailable
+                or UiPresentationAtom.AssertActionUnavailableReason
+                or UiPresentationAtom.WaitActionUnavailableReason =>
+                    UiPresentationAtomFamily.ActionMetadata,
+            UiPresentationAtom.AssertFormField
+                or UiPresentationAtom.WaitFormField
+                or UiPresentationAtom.AssertFormFieldInputKind
+                or UiPresentationAtom.WaitFormFieldInputKind
+                or UiPresentationAtom.AssertFormFieldRequired
+                or UiPresentationAtom.WaitFormFieldRequired
+                or UiPresentationAtom.AssertFormFieldMaxLength
+                or UiPresentationAtom.WaitFormFieldMaxLength
+                or UiPresentationAtom.AssertFormFieldPlaceholder
+                or UiPresentationAtom.WaitFormFieldPlaceholder =>
+                    UiPresentationAtomFamily.FormMetadata,
+            UiPresentationAtom.AssertAccessibleName
+                or UiPresentationAtom.WaitAccessibleName
+                or UiPresentationAtom.AssertAccessibleDescription
+                or UiPresentationAtom.WaitAccessibleDescription => UiPresentationAtomFamily.Accessibility,
+            _ => throw new InvalidDataException("unknown presentation atom"),
+        };
+
+    private static UiPresentationAtomEffect PresentationAtomEffect(UiPresentationAtom atom) =>
+        atom switch
+        {
+            UiPresentationAtom.Focus
+                or UiPresentationAtom.NavigateFocus
+                or UiPresentationAtom.ScrollIntoView => UiPresentationAtomEffect.Mutation,
+            UiPresentationAtom.AssertVisible
+                or UiPresentationAtom.AssertHidden
+                or UiPresentationAtom.AssertRealized
+                or UiPresentationAtom.AssertFocused
+                or UiPresentationAtom.AssertUnfocused
+                or UiPresentationAtom.AssertEnabled
+                or UiPresentationAtom.AssertDisabled
+                or UiPresentationAtom.AssertWindowOpen
+                or UiPresentationAtom.AssertWindowClosed
+                or UiPresentationAtom.AssertSelection
+                or UiPresentationAtom.AssertText
+                or UiPresentationAtom.AssertAutomationId
+                or UiPresentationAtom.AssertNodeKind
+                or UiPresentationAtom.AssertActionKind
+                or UiPresentationAtom.AssertActionLabel
+                or UiPresentationAtom.AssertActionAvailable
+                or UiPresentationAtom.AssertActionUnavailableReason
+                or UiPresentationAtom.AssertFormField
+                or UiPresentationAtom.AssertFormFieldInputKind
+                or UiPresentationAtom.AssertFormFieldRequired
+                or UiPresentationAtom.AssertFormFieldMaxLength
+                or UiPresentationAtom.AssertFormFieldPlaceholder
+                or UiPresentationAtom.AssertAccessibleName
+                or UiPresentationAtom.AssertAccessibleDescription => UiPresentationAtomEffect.Assertion,
+            UiPresentationAtom.WaitHidden
+                or UiPresentationAtom.WaitRealized
+                or UiPresentationAtom.WaitVisible
+                or UiPresentationAtom.WaitEnabled
+                or UiPresentationAtom.WaitFocused
+                or UiPresentationAtom.WaitUnfocused
+                or UiPresentationAtom.WaitDisabled
+                or UiPresentationAtom.WaitWindowOpen
+                or UiPresentationAtom.WaitWindowClosed
+                or UiPresentationAtom.WaitSelection
+                or UiPresentationAtom.WaitText
+                or UiPresentationAtom.WaitNodeKind
+                or UiPresentationAtom.WaitActionKind
+                or UiPresentationAtom.WaitActionLabel
+                or UiPresentationAtom.WaitActionAvailable
+                or UiPresentationAtom.WaitActionUnavailableReason
+                or UiPresentationAtom.WaitFormField
+                or UiPresentationAtom.WaitFormFieldInputKind
+                or UiPresentationAtom.WaitFormFieldRequired
+                or UiPresentationAtom.WaitFormFieldMaxLength
+                or UiPresentationAtom.WaitFormFieldPlaceholder
+                or UiPresentationAtom.WaitAccessibleName
+                or UiPresentationAtom.WaitAccessibleDescription => UiPresentationAtomEffect.Wait,
+            _ => throw new InvalidDataException("unknown presentation atom"),
+        };
 
     public void Apply(UiPatch patch)
     {
@@ -850,6 +1121,31 @@ public sealed class RendererFixture
     public UiPresentationOperation? AccessibleNameWaitOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionAssertOperation { get; set; }
     public UiPresentationOperation? AccessibleDescriptionWaitOperation { get; set; }
+    public UiAdapterManifest? AdapterManifest { get; set; }
+    public UiAdapterManifest? GeneratedAdapterManifest { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class UiAdapterManifest
+{
+    public int SchemaVersion { get; set; }
+    public required string AdapterId { get; set; }
+    public required string Framework { get; set; }
+    public UiAdapterBindingKind BindingKind { get; set; }
+    public int UiSchemaVersion { get; set; }
+    public bool DocumentSchema { get; set; }
+    public bool EventSchema { get; set; }
+    public bool PatchSchema { get; set; }
+    public required List<UiPresentationAtom> PresentationAtoms { get; set; }
+    public required List<UiPresentationAtomProfile> PresentationAtomProfiles { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class UiPresentationAtomProfile
+{
+    public UiPresentationAtom Atom { get; set; }
+    public UiPresentationAtomFamily Family { get; set; }
+    public UiPresentationAtomEffect Effect { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -1098,6 +1394,363 @@ public enum UiPresentationValidation
     InvalidTimeout,
 }
 
+[JsonConverter(typeof(UiAdapterBindingKindJsonConverter))]
+public enum UiAdapterBindingKind
+{
+    [JsonStringEnumMemberName("developer_owned_adapter")] DeveloperOwnedAdapter,
+    [JsonStringEnumMemberName("generated_framework_binding")] GeneratedFrameworkBinding,
+}
+
+[JsonConverter(typeof(UiPresentationAtomJsonConverter))]
+public enum UiPresentationAtom
+{
+    [JsonStringEnumMemberName("focus")] Focus,
+    [JsonStringEnumMemberName("navigate_focus")] NavigateFocus,
+    [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
+    [JsonStringEnumMemberName("assert_visible")] AssertVisible,
+    [JsonStringEnumMemberName("assert_hidden")] AssertHidden,
+    [JsonStringEnumMemberName("wait_hidden")] WaitHidden,
+    [JsonStringEnumMemberName("assert_realized")] AssertRealized,
+    [JsonStringEnumMemberName("wait_realized")] WaitRealized,
+    [JsonStringEnumMemberName("wait_visible")] WaitVisible,
+    [JsonStringEnumMemberName("wait_enabled")] WaitEnabled,
+    [JsonStringEnumMemberName("wait_focused")] WaitFocused,
+    [JsonStringEnumMemberName("assert_focused")] AssertFocused,
+    [JsonStringEnumMemberName("wait_unfocused")] WaitUnfocused,
+    [JsonStringEnumMemberName("assert_unfocused")] AssertUnfocused,
+    [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
+    [JsonStringEnumMemberName("assert_disabled")] AssertDisabled,
+    [JsonStringEnumMemberName("wait_disabled")] WaitDisabled,
+    [JsonStringEnumMemberName("assert_window_open")] AssertWindowOpen,
+    [JsonStringEnumMemberName("wait_window_open")] WaitWindowOpen,
+    [JsonStringEnumMemberName("assert_window_closed")] AssertWindowClosed,
+    [JsonStringEnumMemberName("wait_window_closed")] WaitWindowClosed,
+    [JsonStringEnumMemberName("assert_selection")] AssertSelection,
+    [JsonStringEnumMemberName("wait_selection")] WaitSelection,
+    [JsonStringEnumMemberName("assert_text")] AssertText,
+    [JsonStringEnumMemberName("wait_text")] WaitText,
+    [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
+    [JsonStringEnumMemberName("assert_node_kind")] AssertNodeKind,
+    [JsonStringEnumMemberName("wait_node_kind")] WaitNodeKind,
+    [JsonStringEnumMemberName("assert_action_kind")] AssertActionKind,
+    [JsonStringEnumMemberName("wait_action_kind")] WaitActionKind,
+    [JsonStringEnumMemberName("assert_action_label")] AssertActionLabel,
+    [JsonStringEnumMemberName("wait_action_label")] WaitActionLabel,
+    [JsonStringEnumMemberName("assert_action_available")] AssertActionAvailable,
+    [JsonStringEnumMemberName("wait_action_available")] WaitActionAvailable,
+    [JsonStringEnumMemberName("assert_action_unavailable_reason")] AssertActionUnavailableReason,
+    [JsonStringEnumMemberName("wait_action_unavailable_reason")] WaitActionUnavailableReason,
+    [JsonStringEnumMemberName("assert_form_field")] AssertFormField,
+    [JsonStringEnumMemberName("wait_form_field")] WaitFormField,
+    [JsonStringEnumMemberName("assert_form_field_input_kind")] AssertFormFieldInputKind,
+    [JsonStringEnumMemberName("wait_form_field_input_kind")] WaitFormFieldInputKind,
+    [JsonStringEnumMemberName("assert_form_field_required")] AssertFormFieldRequired,
+    [JsonStringEnumMemberName("wait_form_field_required")] WaitFormFieldRequired,
+    [JsonStringEnumMemberName("assert_form_field_max_length")] AssertFormFieldMaxLength,
+    [JsonStringEnumMemberName("wait_form_field_max_length")] WaitFormFieldMaxLength,
+    [JsonStringEnumMemberName("assert_form_field_placeholder")] AssertFormFieldPlaceholder,
+    [JsonStringEnumMemberName("wait_form_field_placeholder")] WaitFormFieldPlaceholder,
+    [JsonStringEnumMemberName("assert_accessible_name")] AssertAccessibleName,
+    [JsonStringEnumMemberName("wait_accessible_name")] WaitAccessibleName,
+    [JsonStringEnumMemberName("assert_accessible_description")] AssertAccessibleDescription,
+    [JsonStringEnumMemberName("wait_accessible_description")] WaitAccessibleDescription,
+}
+
+[JsonConverter(typeof(UiPresentationAtomFamilyJsonConverter))]
+public enum UiPresentationAtomFamily
+{
+    [JsonStringEnumMemberName("focus")] Focus,
+    [JsonStringEnumMemberName("viewport")] Viewport,
+    [JsonStringEnumMemberName("visibility")] Visibility,
+    [JsonStringEnumMemberName("realization")] Realization,
+    [JsonStringEnumMemberName("enabled_state")] EnabledState,
+    [JsonStringEnumMemberName("window")] Window,
+    [JsonStringEnumMemberName("selection")] Selection,
+    [JsonStringEnumMemberName("text")] Text,
+    [JsonStringEnumMemberName("node_metadata")] NodeMetadata,
+    [JsonStringEnumMemberName("action_metadata")] ActionMetadata,
+    [JsonStringEnumMemberName("form_metadata")] FormMetadata,
+    [JsonStringEnumMemberName("accessibility")] Accessibility,
+}
+
+[JsonConverter(typeof(UiPresentationAtomEffectJsonConverter))]
+public enum UiPresentationAtomEffect
+{
+    [JsonStringEnumMemberName("mutation")] Mutation,
+    [JsonStringEnumMemberName("assertion")] Assertion,
+    [JsonStringEnumMemberName("wait")] Wait,
+}
+
+public enum UiAdapterManifestValidation
+{
+    Valid,
+    UnsupportedManifestSchema,
+    UnsupportedUiSchema,
+    InvalidAdapterId,
+    InvalidFramework,
+    InvalidBindingKind,
+    MissingDocumentSchema,
+    MissingEventSchema,
+    MissingPatchSchema,
+    MissingPresentationAtom,
+    InvalidPresentationAtom,
+    MissingPresentationAtomProfile,
+    DuplicatePresentationAtomProfile,
+    InvalidPresentationAtomProfile,
+    ProfileWithoutPresentationAtom,
+    DuplicatePresentationAtom,
+}
+
+public sealed class UiAdapterBindingKindJsonConverter : JsonConverter<UiAdapterBindingKind>
+{
+    public override UiAdapterBindingKind Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            throw new JsonException("adapter binding kind must be a string");
+        }
+        return reader.GetString() switch
+        {
+            "developer_owned_adapter" => UiAdapterBindingKind.DeveloperOwnedAdapter,
+            "generated_framework_binding" => UiAdapterBindingKind.GeneratedFrameworkBinding,
+            _ => throw new JsonException("unknown adapter binding kind"),
+        };
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        UiAdapterBindingKind value,
+        JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value switch
+        {
+            UiAdapterBindingKind.DeveloperOwnedAdapter => "developer_owned_adapter",
+            UiAdapterBindingKind.GeneratedFrameworkBinding => "generated_framework_binding",
+            _ => throw new JsonException("unknown adapter binding kind"),
+        });
+    }
+}
+
+public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentationAtom>
+{
+    public override UiPresentationAtom Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            throw new JsonException("presentation atom must be a string");
+        }
+        return reader.GetString() switch
+        {
+            "focus" => UiPresentationAtom.Focus,
+            "navigate_focus" => UiPresentationAtom.NavigateFocus,
+            "scroll_into_view" => UiPresentationAtom.ScrollIntoView,
+            "assert_visible" => UiPresentationAtom.AssertVisible,
+            "assert_hidden" => UiPresentationAtom.AssertHidden,
+            "wait_hidden" => UiPresentationAtom.WaitHidden,
+            "assert_realized" => UiPresentationAtom.AssertRealized,
+            "wait_realized" => UiPresentationAtom.WaitRealized,
+            "wait_visible" => UiPresentationAtom.WaitVisible,
+            "wait_enabled" => UiPresentationAtom.WaitEnabled,
+            "wait_focused" => UiPresentationAtom.WaitFocused,
+            "assert_focused" => UiPresentationAtom.AssertFocused,
+            "wait_unfocused" => UiPresentationAtom.WaitUnfocused,
+            "assert_unfocused" => UiPresentationAtom.AssertUnfocused,
+            "assert_enabled" => UiPresentationAtom.AssertEnabled,
+            "assert_disabled" => UiPresentationAtom.AssertDisabled,
+            "wait_disabled" => UiPresentationAtom.WaitDisabled,
+            "assert_window_open" => UiPresentationAtom.AssertWindowOpen,
+            "wait_window_open" => UiPresentationAtom.WaitWindowOpen,
+            "assert_window_closed" => UiPresentationAtom.AssertWindowClosed,
+            "wait_window_closed" => UiPresentationAtom.WaitWindowClosed,
+            "assert_selection" => UiPresentationAtom.AssertSelection,
+            "wait_selection" => UiPresentationAtom.WaitSelection,
+            "assert_text" => UiPresentationAtom.AssertText,
+            "wait_text" => UiPresentationAtom.WaitText,
+            "assert_automation_id" => UiPresentationAtom.AssertAutomationId,
+            "assert_node_kind" => UiPresentationAtom.AssertNodeKind,
+            "wait_node_kind" => UiPresentationAtom.WaitNodeKind,
+            "assert_action_kind" => UiPresentationAtom.AssertActionKind,
+            "wait_action_kind" => UiPresentationAtom.WaitActionKind,
+            "assert_action_label" => UiPresentationAtom.AssertActionLabel,
+            "wait_action_label" => UiPresentationAtom.WaitActionLabel,
+            "assert_action_available" => UiPresentationAtom.AssertActionAvailable,
+            "wait_action_available" => UiPresentationAtom.WaitActionAvailable,
+            "assert_action_unavailable_reason" => UiPresentationAtom.AssertActionUnavailableReason,
+            "wait_action_unavailable_reason" => UiPresentationAtom.WaitActionUnavailableReason,
+            "assert_form_field" => UiPresentationAtom.AssertFormField,
+            "wait_form_field" => UiPresentationAtom.WaitFormField,
+            "assert_form_field_input_kind" => UiPresentationAtom.AssertFormFieldInputKind,
+            "wait_form_field_input_kind" => UiPresentationAtom.WaitFormFieldInputKind,
+            "assert_form_field_required" => UiPresentationAtom.AssertFormFieldRequired,
+            "wait_form_field_required" => UiPresentationAtom.WaitFormFieldRequired,
+            "assert_form_field_max_length" => UiPresentationAtom.AssertFormFieldMaxLength,
+            "wait_form_field_max_length" => UiPresentationAtom.WaitFormFieldMaxLength,
+            "assert_form_field_placeholder" => UiPresentationAtom.AssertFormFieldPlaceholder,
+            "wait_form_field_placeholder" => UiPresentationAtom.WaitFormFieldPlaceholder,
+            "assert_accessible_name" => UiPresentationAtom.AssertAccessibleName,
+            "wait_accessible_name" => UiPresentationAtom.WaitAccessibleName,
+            "assert_accessible_description" => UiPresentationAtom.AssertAccessibleDescription,
+            "wait_accessible_description" => UiPresentationAtom.WaitAccessibleDescription,
+            _ => throw new JsonException("unknown presentation atom"),
+        };
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        UiPresentationAtom value,
+        JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value switch
+        {
+            UiPresentationAtom.Focus => "focus",
+            UiPresentationAtom.NavigateFocus => "navigate_focus",
+            UiPresentationAtom.ScrollIntoView => "scroll_into_view",
+            UiPresentationAtom.AssertVisible => "assert_visible",
+            UiPresentationAtom.AssertHidden => "assert_hidden",
+            UiPresentationAtom.WaitHidden => "wait_hidden",
+            UiPresentationAtom.AssertRealized => "assert_realized",
+            UiPresentationAtom.WaitRealized => "wait_realized",
+            UiPresentationAtom.WaitVisible => "wait_visible",
+            UiPresentationAtom.WaitEnabled => "wait_enabled",
+            UiPresentationAtom.WaitFocused => "wait_focused",
+            UiPresentationAtom.AssertFocused => "assert_focused",
+            UiPresentationAtom.WaitUnfocused => "wait_unfocused",
+            UiPresentationAtom.AssertUnfocused => "assert_unfocused",
+            UiPresentationAtom.AssertEnabled => "assert_enabled",
+            UiPresentationAtom.AssertDisabled => "assert_disabled",
+            UiPresentationAtom.WaitDisabled => "wait_disabled",
+            UiPresentationAtom.AssertWindowOpen => "assert_window_open",
+            UiPresentationAtom.WaitWindowOpen => "wait_window_open",
+            UiPresentationAtom.AssertWindowClosed => "assert_window_closed",
+            UiPresentationAtom.WaitWindowClosed => "wait_window_closed",
+            UiPresentationAtom.AssertSelection => "assert_selection",
+            UiPresentationAtom.WaitSelection => "wait_selection",
+            UiPresentationAtom.AssertText => "assert_text",
+            UiPresentationAtom.WaitText => "wait_text",
+            UiPresentationAtom.AssertAutomationId => "assert_automation_id",
+            UiPresentationAtom.AssertNodeKind => "assert_node_kind",
+            UiPresentationAtom.WaitNodeKind => "wait_node_kind",
+            UiPresentationAtom.AssertActionKind => "assert_action_kind",
+            UiPresentationAtom.WaitActionKind => "wait_action_kind",
+            UiPresentationAtom.AssertActionLabel => "assert_action_label",
+            UiPresentationAtom.WaitActionLabel => "wait_action_label",
+            UiPresentationAtom.AssertActionAvailable => "assert_action_available",
+            UiPresentationAtom.WaitActionAvailable => "wait_action_available",
+            UiPresentationAtom.AssertActionUnavailableReason => "assert_action_unavailable_reason",
+            UiPresentationAtom.WaitActionUnavailableReason => "wait_action_unavailable_reason",
+            UiPresentationAtom.AssertFormField => "assert_form_field",
+            UiPresentationAtom.WaitFormField => "wait_form_field",
+            UiPresentationAtom.AssertFormFieldInputKind => "assert_form_field_input_kind",
+            UiPresentationAtom.WaitFormFieldInputKind => "wait_form_field_input_kind",
+            UiPresentationAtom.AssertFormFieldRequired => "assert_form_field_required",
+            UiPresentationAtom.WaitFormFieldRequired => "wait_form_field_required",
+            UiPresentationAtom.AssertFormFieldMaxLength => "assert_form_field_max_length",
+            UiPresentationAtom.WaitFormFieldMaxLength => "wait_form_field_max_length",
+            UiPresentationAtom.AssertFormFieldPlaceholder => "assert_form_field_placeholder",
+            UiPresentationAtom.WaitFormFieldPlaceholder => "wait_form_field_placeholder",
+            UiPresentationAtom.AssertAccessibleName => "assert_accessible_name",
+            UiPresentationAtom.WaitAccessibleName => "wait_accessible_name",
+            UiPresentationAtom.AssertAccessibleDescription => "assert_accessible_description",
+            UiPresentationAtom.WaitAccessibleDescription => "wait_accessible_description",
+            _ => throw new JsonException("unknown presentation atom"),
+        });
+    }
+}
+
+public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPresentationAtomFamily>
+{
+    public override UiPresentationAtomFamily Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            throw new JsonException("presentation atom family must be a string");
+        }
+        return reader.GetString() switch
+        {
+            "focus" => UiPresentationAtomFamily.Focus,
+            "viewport" => UiPresentationAtomFamily.Viewport,
+            "visibility" => UiPresentationAtomFamily.Visibility,
+            "realization" => UiPresentationAtomFamily.Realization,
+            "enabled_state" => UiPresentationAtomFamily.EnabledState,
+            "window" => UiPresentationAtomFamily.Window,
+            "selection" => UiPresentationAtomFamily.Selection,
+            "text" => UiPresentationAtomFamily.Text,
+            "node_metadata" => UiPresentationAtomFamily.NodeMetadata,
+            "action_metadata" => UiPresentationAtomFamily.ActionMetadata,
+            "form_metadata" => UiPresentationAtomFamily.FormMetadata,
+            "accessibility" => UiPresentationAtomFamily.Accessibility,
+            _ => throw new JsonException("unknown presentation atom family"),
+        };
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        UiPresentationAtomFamily value,
+        JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value switch
+        {
+            UiPresentationAtomFamily.Focus => "focus",
+            UiPresentationAtomFamily.Viewport => "viewport",
+            UiPresentationAtomFamily.Visibility => "visibility",
+            UiPresentationAtomFamily.Realization => "realization",
+            UiPresentationAtomFamily.EnabledState => "enabled_state",
+            UiPresentationAtomFamily.Window => "window",
+            UiPresentationAtomFamily.Selection => "selection",
+            UiPresentationAtomFamily.Text => "text",
+            UiPresentationAtomFamily.NodeMetadata => "node_metadata",
+            UiPresentationAtomFamily.ActionMetadata => "action_metadata",
+            UiPresentationAtomFamily.FormMetadata => "form_metadata",
+            UiPresentationAtomFamily.Accessibility => "accessibility",
+            _ => throw new JsonException("unknown presentation atom family"),
+        });
+    }
+}
+
+public sealed class UiPresentationAtomEffectJsonConverter : JsonConverter<UiPresentationAtomEffect>
+{
+    public override UiPresentationAtomEffect Read(
+        ref Utf8JsonReader reader,
+        Type typeToConvert,
+        JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            throw new JsonException("presentation atom effect must be a string");
+        }
+        return reader.GetString() switch
+        {
+            "mutation" => UiPresentationAtomEffect.Mutation,
+            "assertion" => UiPresentationAtomEffect.Assertion,
+            "wait" => UiPresentationAtomEffect.Wait,
+            _ => throw new JsonException("unknown presentation atom effect"),
+        };
+    }
+
+    public override void Write(
+        Utf8JsonWriter writer,
+        UiPresentationAtomEffect value,
+        JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value switch
+        {
+            UiPresentationAtomEffect.Mutation => "mutation",
+            UiPresentationAtomEffect.Assertion => "assertion",
+            UiPresentationAtomEffect.Wait => "wait",
+            _ => throw new JsonException("unknown presentation atom effect"),
+        });
+    }
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<PatchKind>))]
 public enum PatchKind
 {
@@ -1113,4 +1766,6 @@ public enum PatchKind
 [JsonSerializable(typeof(UiDocument))]
 [JsonSerializable(typeof(UiEvent))]
 [JsonSerializable(typeof(UiPresentationOperation))]
+[JsonSerializable(typeof(UiAdapterManifest))]
+[JsonSerializable(typeof(UiPresentationAtomProfile))]
 public partial class RendererJsonContext : JsonSerializerContext;

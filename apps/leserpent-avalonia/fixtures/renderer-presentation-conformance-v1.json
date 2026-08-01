@@ -1021,5 +1021,633 @@
     "node_id": "runtime-runtime-a-inspect",
     "expected": "Open the read-only runtime workspace",
     "timeout_ms": 2000
+  },
+  "adapter_manifest": {
+    "schema_version": 2,
+    "adapter_id": "avalonia-renderer",
+    "framework": "Avalonia",
+    "binding_kind": "developer_owned_adapter",
+    "ui_schema_version": 1,
+    "document_schema": true,
+    "event_schema": true,
+    "patch_schema": true,
+    "presentation_atoms": [
+      "focus",
+      "navigate_focus",
+      "scroll_into_view",
+      "assert_visible",
+      "assert_hidden",
+      "wait_hidden",
+      "assert_realized",
+      "wait_realized",
+      "wait_visible",
+      "wait_enabled",
+      "wait_focused",
+      "assert_focused",
+      "wait_unfocused",
+      "assert_unfocused",
+      "assert_enabled",
+      "assert_disabled",
+      "wait_disabled",
+      "assert_window_open",
+      "wait_window_open",
+      "assert_window_closed",
+      "wait_window_closed",
+      "assert_selection",
+      "wait_selection",
+      "assert_text",
+      "wait_text",
+      "assert_automation_id",
+      "assert_node_kind",
+      "wait_node_kind",
+      "assert_action_kind",
+      "wait_action_kind",
+      "assert_action_label",
+      "wait_action_label",
+      "assert_action_available",
+      "wait_action_available",
+      "assert_action_unavailable_reason",
+      "wait_action_unavailable_reason",
+      "assert_form_field",
+      "wait_form_field",
+      "assert_form_field_input_kind",
+      "wait_form_field_input_kind",
+      "assert_form_field_required",
+      "wait_form_field_required",
+      "assert_form_field_max_length",
+      "wait_form_field_max_length",
+      "assert_form_field_placeholder",
+      "wait_form_field_placeholder",
+      "assert_accessible_name",
+      "wait_accessible_name",
+      "assert_accessible_description",
+      "wait_accessible_description"
+    ],
+    "presentation_atom_profiles": [
+      {
+        "atom": "focus",
+        "family": "focus",
+        "effect": "mutation"
+      },
+      {
+        "atom": "navigate_focus",
+        "family": "focus",
+        "effect": "mutation"
+      },
+      {
+        "atom": "scroll_into_view",
+        "family": "viewport",
+        "effect": "mutation"
+      },
+      {
+        "atom": "assert_visible",
+        "family": "visibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_hidden",
+        "family": "visibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_hidden",
+        "family": "visibility",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_realized",
+        "family": "realization",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_realized",
+        "family": "realization",
+        "effect": "wait"
+      },
+      {
+        "atom": "wait_visible",
+        "family": "visibility",
+        "effect": "wait"
+      },
+      {
+        "atom": "wait_enabled",
+        "family": "enabled_state",
+        "effect": "wait"
+      },
+      {
+        "atom": "wait_focused",
+        "family": "focus",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_focused",
+        "family": "focus",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_unfocused",
+        "family": "focus",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_unfocused",
+        "family": "focus",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_enabled",
+        "family": "enabled_state",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_disabled",
+        "family": "enabled_state",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_disabled",
+        "family": "enabled_state",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_window_open",
+        "family": "window",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_window_open",
+        "family": "window",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_window_closed",
+        "family": "window",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_window_closed",
+        "family": "window",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_selection",
+        "family": "selection",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_selection",
+        "family": "selection",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_text",
+        "family": "text",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_text",
+        "family": "text",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_automation_id",
+        "family": "node_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_node_kind",
+        "family": "node_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_node_kind",
+        "family": "node_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_kind",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_kind",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_label",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_label",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_available",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_available",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_unavailable_reason",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_unavailable_reason",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_input_kind",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_input_kind",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_required",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_required",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_max_length",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_max_length",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_placeholder",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_placeholder",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_accessible_name",
+        "family": "accessibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_accessible_name",
+        "family": "accessibility",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_accessible_description",
+        "family": "accessibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_accessible_description",
+        "family": "accessibility",
+        "effect": "wait"
+      }
+    ]
+  },
+  "generated_adapter_manifest": {
+    "schema_version": 2,
+    "adapter_id": "web-generated-binding",
+    "framework": "TypeScript web",
+    "binding_kind": "generated_framework_binding",
+    "ui_schema_version": 1,
+    "document_schema": true,
+    "event_schema": true,
+    "patch_schema": true,
+    "presentation_atoms": [
+      "focus",
+      "navigate_focus",
+      "scroll_into_view",
+      "assert_visible",
+      "assert_hidden",
+      "wait_hidden",
+      "assert_realized",
+      "wait_realized",
+      "wait_visible",
+      "wait_enabled",
+      "wait_focused",
+      "assert_focused",
+      "wait_unfocused",
+      "assert_unfocused",
+      "assert_enabled",
+      "assert_disabled",
+      "wait_disabled",
+      "assert_window_open",
+      "wait_window_open",
+      "assert_window_closed",
+      "wait_window_closed",
+      "assert_selection",
+      "wait_selection",
+      "assert_text",
+      "wait_text",
+      "assert_automation_id",
+      "assert_node_kind",
+      "wait_node_kind",
+      "assert_action_kind",
+      "wait_action_kind",
+      "assert_action_label",
+      "wait_action_label",
+      "assert_action_available",
+      "wait_action_available",
+      "assert_action_unavailable_reason",
+      "wait_action_unavailable_reason",
+      "assert_form_field",
+      "wait_form_field",
+      "assert_form_field_input_kind",
+      "wait_form_field_input_kind",
+      "assert_form_field_required",
+      "wait_form_field_required",
+      "assert_form_field_max_length",
+      "wait_form_field_max_length",
+      "assert_form_field_placeholder",
+      "wait_form_field_placeholder",
+      "assert_accessible_name",
+      "wait_accessible_name",
+      "assert_accessible_description",
+      "wait_accessible_description"
+    ],
+    "presentation_atom_profiles": [
+      {
+        "atom": "focus",
+        "family": "focus",
+        "effect": "mutation"
+      },
+      {
+        "atom": "navigate_focus",
+        "family": "focus",
+        "effect": "mutation"
+      },
+      {
+        "atom": "scroll_into_view",
+        "family": "viewport",
+        "effect": "mutation"
+      },
+      {
+        "atom": "assert_visible",
+        "family": "visibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_hidden",
+        "family": "visibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_hidden",
+        "family": "visibility",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_realized",
+        "family": "realization",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_realized",
+        "family": "realization",
+        "effect": "wait"
+      },
+      {
+        "atom": "wait_visible",
+        "family": "visibility",
+        "effect": "wait"
+      },
+      {
+        "atom": "wait_enabled",
+        "family": "enabled_state",
+        "effect": "wait"
+      },
+      {
+        "atom": "wait_focused",
+        "family": "focus",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_focused",
+        "family": "focus",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_unfocused",
+        "family": "focus",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_unfocused",
+        "family": "focus",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_enabled",
+        "family": "enabled_state",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_disabled",
+        "family": "enabled_state",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_disabled",
+        "family": "enabled_state",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_window_open",
+        "family": "window",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_window_open",
+        "family": "window",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_window_closed",
+        "family": "window",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_window_closed",
+        "family": "window",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_selection",
+        "family": "selection",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_selection",
+        "family": "selection",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_text",
+        "family": "text",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_text",
+        "family": "text",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_automation_id",
+        "family": "node_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "assert_node_kind",
+        "family": "node_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_node_kind",
+        "family": "node_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_kind",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_kind",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_label",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_label",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_available",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_available",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_action_unavailable_reason",
+        "family": "action_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_action_unavailable_reason",
+        "family": "action_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_input_kind",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_input_kind",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_required",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_required",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_max_length",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_max_length",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_form_field_placeholder",
+        "family": "form_metadata",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_form_field_placeholder",
+        "family": "form_metadata",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_accessible_name",
+        "family": "accessibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_accessible_name",
+        "family": "accessibility",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_accessible_description",
+        "family": "accessibility",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_accessible_description",
+        "family": "accessibility",
+        "effect": "wait"
+      }
+    ]
   }
 }

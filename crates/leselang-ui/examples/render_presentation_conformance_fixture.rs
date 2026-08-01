@@ -15,8 +15,9 @@ use leselang_hir::{
     UiFocusNavigationDirection, UiSelectionState,
 };
 use leselang_ui::{
-    NodeId, UiActionKind, UiDocument, UiFormInputKind, UiPatch, UiPresentationOperation, diff,
-    fleet_document, validate_presentation_operation,
+    NodeId, UiActionKind, UiAdapterBindingKind, UiAdapterManifest, UiDocument, UiFormInputKind,
+    UiPatch, UiPresentationOperation, complete_ui_adapter_manifest, diff, fleet_document,
+    validate_presentation_operation,
 };
 use leserpent_domain::{
     CAPABILITY_RUNTIME_READ, CapabilitySet, InMemoryControlPlane, Principal, Query, QueryEnvelope,
@@ -82,6 +83,8 @@ struct Fixture<'a> {
     accessible_name_wait_operation: &'a UiPresentationOperation,
     accessible_description_assert_operation: &'a UiPresentationOperation,
     accessible_description_wait_operation: &'a UiPresentationOperation,
+    adapter_manifest: &'a UiAdapterManifest,
+    generated_adapter_manifest: &'a UiAdapterManifest,
 }
 
 fn main() {
@@ -322,6 +325,18 @@ fn main() {
             expected: "Open the read-only runtime workspace".into(),
             timeout_ms: UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
         };
+    let adapter_manifest = complete_ui_adapter_manifest(
+        "avalonia-renderer",
+        "Avalonia",
+        UiAdapterBindingKind::DeveloperOwnedAdapter,
+    )
+    .unwrap();
+    let generated_adapter_manifest = complete_ui_adapter_manifest(
+        "web-generated-binding",
+        "TypeScript web",
+        UiAdapterBindingKind::GeneratedFrameworkBinding,
+    )
+    .unwrap();
     validate_presentation_operation(&next, &presentation_operation).unwrap();
     validate_presentation_operation(&next, &navigation_operation).unwrap();
     validate_presentation_operation(&next, &navigation_first_operation).unwrap();
@@ -429,6 +444,8 @@ fn main() {
         accessible_name_wait_operation: &accessible_name_wait_operation,
         accessible_description_assert_operation: &accessible_description_assert_operation,
         accessible_description_wait_operation: &accessible_description_wait_operation,
+        adapter_manifest: &adapter_manifest,
+        generated_adapter_manifest: &generated_adapter_manifest,
     })
     .unwrap();
     bytes.push(b'\n');

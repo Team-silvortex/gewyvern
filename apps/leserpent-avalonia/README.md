@@ -69,7 +69,14 @@ The separate candidate fixture carries Rust-generated
 `AssertAccessibleName`,
 `WaitAccessibleName`,
 `AssertAccessibleDescription`, and
-`WaitAccessibleDescription` values. RendererCore strictly round-trips all
+`WaitAccessibleDescription` values. The same fixture carries
+`UiAdapterManifest` payloads for a developer-owned Avalonia adapter and a
+generated TypeScript/web binding; RendererCore decodes them with strict
+source-generated JSON metadata, validates document/event/patch support, checks
+the complete presentation atom/profile set, validates canonical family/effect
+metadata, and rejects unknown manifest fields, numeric enum tokens, invalid
+binding kinds, invalid presentation atoms, and invalid profiles.
+RendererCore strictly round-trips all
 fifty and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination

@@ -35,7 +35,7 @@ pub const MAX_DEBUGGER_DISPLAY_BYTES: usize = 512;
 pub const MAX_DEBUGGER_DEADLINE_REMAINING_MS: u64 = 24 * 60 * 60 * 1_000;
 pub const MAX_UI_FORM_FIELDS: usize = 16;
 pub const MAX_UI_FORM_VALUE_BYTES: usize = 256;
-pub const UI_ADAPTER_MANIFEST_SCHEMA_VERSION: u32 = 1;
+pub const UI_ADAPTER_MANIFEST_SCHEMA_VERSION: u32 = 2;
 pub const MAX_UI_ADAPTER_FRAMEWORK_BYTES: usize = 128;
 pub const LESELANG_EXPORT_SCHEMA_VERSION: u32 = 1;
 pub const MAX_LESELANG_EXPORT_BYTES: usize = 8 * 1024;
@@ -754,6 +754,39 @@ pub enum UiPresentationAtom {
     WaitAccessibleDescription,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiPresentationAtomFamily {
+    Focus,
+    Viewport,
+    Visibility,
+    Realization,
+    EnabledState,
+    Window,
+    Selection,
+    Text,
+    NodeMetadata,
+    ActionMetadata,
+    FormMetadata,
+    Accessibility,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiPresentationAtomEffect {
+    Mutation,
+    Assertion,
+    Wait,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UiPresentationAtomProfile {
+    pub atom: UiPresentationAtom,
+    pub family: UiPresentationAtomFamily,
+    pub effect: UiPresentationAtomEffect,
+}
+
 pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 50] = [
     UiPresentationAtom::Focus,
     UiPresentationAtom::NavigateFocus,
@@ -902,6 +935,137 @@ pub fn presentation_atom_for_operation(operation: &UiPresentationOperation) -> U
     }
 }
 
+pub fn required_ui_presentation_atom_profiles() -> Vec<UiPresentationAtomProfile> {
+    required_ui_presentation_atoms()
+        .iter()
+        .copied()
+        .map(presentation_atom_profile)
+        .collect()
+}
+
+pub fn presentation_atom_profile(atom: UiPresentationAtom) -> UiPresentationAtomProfile {
+    UiPresentationAtomProfile {
+        atom,
+        family: presentation_atom_family(atom),
+        effect: presentation_atom_effect(atom),
+    }
+}
+
+pub fn presentation_atom_family(atom: UiPresentationAtom) -> UiPresentationAtomFamily {
+    match atom {
+        UiPresentationAtom::Focus
+        | UiPresentationAtom::NavigateFocus
+        | UiPresentationAtom::WaitFocused
+        | UiPresentationAtom::AssertFocused
+        | UiPresentationAtom::WaitUnfocused
+        | UiPresentationAtom::AssertUnfocused => UiPresentationAtomFamily::Focus,
+        UiPresentationAtom::ScrollIntoView => UiPresentationAtomFamily::Viewport,
+        UiPresentationAtom::AssertVisible
+        | UiPresentationAtom::AssertHidden
+        | UiPresentationAtom::WaitHidden
+        | UiPresentationAtom::WaitVisible => UiPresentationAtomFamily::Visibility,
+        UiPresentationAtom::AssertRealized | UiPresentationAtom::WaitRealized => {
+            UiPresentationAtomFamily::Realization
+        }
+        UiPresentationAtom::WaitEnabled
+        | UiPresentationAtom::AssertEnabled
+        | UiPresentationAtom::AssertDisabled
+        | UiPresentationAtom::WaitDisabled => UiPresentationAtomFamily::EnabledState,
+        UiPresentationAtom::AssertWindowOpen
+        | UiPresentationAtom::WaitWindowOpen
+        | UiPresentationAtom::AssertWindowClosed
+        | UiPresentationAtom::WaitWindowClosed => UiPresentationAtomFamily::Window,
+        UiPresentationAtom::AssertSelection | UiPresentationAtom::WaitSelection => {
+            UiPresentationAtomFamily::Selection
+        }
+        UiPresentationAtom::AssertText | UiPresentationAtom::WaitText => {
+            UiPresentationAtomFamily::Text
+        }
+        UiPresentationAtom::AssertAutomationId
+        | UiPresentationAtom::AssertNodeKind
+        | UiPresentationAtom::WaitNodeKind => UiPresentationAtomFamily::NodeMetadata,
+        UiPresentationAtom::AssertActionKind
+        | UiPresentationAtom::WaitActionKind
+        | UiPresentationAtom::AssertActionLabel
+        | UiPresentationAtom::WaitActionLabel
+        | UiPresentationAtom::AssertActionAvailable
+        | UiPresentationAtom::WaitActionAvailable
+        | UiPresentationAtom::AssertActionUnavailableReason
+        | UiPresentationAtom::WaitActionUnavailableReason => {
+            UiPresentationAtomFamily::ActionMetadata
+        }
+        UiPresentationAtom::AssertFormField
+        | UiPresentationAtom::WaitFormField
+        | UiPresentationAtom::AssertFormFieldInputKind
+        | UiPresentationAtom::WaitFormFieldInputKind
+        | UiPresentationAtom::AssertFormFieldRequired
+        | UiPresentationAtom::WaitFormFieldRequired
+        | UiPresentationAtom::AssertFormFieldMaxLength
+        | UiPresentationAtom::WaitFormFieldMaxLength
+        | UiPresentationAtom::AssertFormFieldPlaceholder
+        | UiPresentationAtom::WaitFormFieldPlaceholder => UiPresentationAtomFamily::FormMetadata,
+        UiPresentationAtom::AssertAccessibleName
+        | UiPresentationAtom::WaitAccessibleName
+        | UiPresentationAtom::AssertAccessibleDescription
+        | UiPresentationAtom::WaitAccessibleDescription => UiPresentationAtomFamily::Accessibility,
+    }
+}
+
+pub fn presentation_atom_effect(atom: UiPresentationAtom) -> UiPresentationAtomEffect {
+    match atom {
+        UiPresentationAtom::Focus
+        | UiPresentationAtom::NavigateFocus
+        | UiPresentationAtom::ScrollIntoView => UiPresentationAtomEffect::Mutation,
+        UiPresentationAtom::AssertVisible
+        | UiPresentationAtom::AssertHidden
+        | UiPresentationAtom::AssertRealized
+        | UiPresentationAtom::AssertFocused
+        | UiPresentationAtom::AssertUnfocused
+        | UiPresentationAtom::AssertEnabled
+        | UiPresentationAtom::AssertDisabled
+        | UiPresentationAtom::AssertWindowOpen
+        | UiPresentationAtom::AssertWindowClosed
+        | UiPresentationAtom::AssertSelection
+        | UiPresentationAtom::AssertText
+        | UiPresentationAtom::AssertAutomationId
+        | UiPresentationAtom::AssertNodeKind
+        | UiPresentationAtom::AssertActionKind
+        | UiPresentationAtom::AssertActionLabel
+        | UiPresentationAtom::AssertActionAvailable
+        | UiPresentationAtom::AssertActionUnavailableReason
+        | UiPresentationAtom::AssertFormField
+        | UiPresentationAtom::AssertFormFieldInputKind
+        | UiPresentationAtom::AssertFormFieldRequired
+        | UiPresentationAtom::AssertFormFieldMaxLength
+        | UiPresentationAtom::AssertFormFieldPlaceholder
+        | UiPresentationAtom::AssertAccessibleName
+        | UiPresentationAtom::AssertAccessibleDescription => UiPresentationAtomEffect::Assertion,
+        UiPresentationAtom::WaitHidden
+        | UiPresentationAtom::WaitRealized
+        | UiPresentationAtom::WaitVisible
+        | UiPresentationAtom::WaitEnabled
+        | UiPresentationAtom::WaitFocused
+        | UiPresentationAtom::WaitUnfocused
+        | UiPresentationAtom::WaitDisabled
+        | UiPresentationAtom::WaitWindowOpen
+        | UiPresentationAtom::WaitWindowClosed
+        | UiPresentationAtom::WaitSelection
+        | UiPresentationAtom::WaitText
+        | UiPresentationAtom::WaitNodeKind
+        | UiPresentationAtom::WaitActionKind
+        | UiPresentationAtom::WaitActionLabel
+        | UiPresentationAtom::WaitActionAvailable
+        | UiPresentationAtom::WaitActionUnavailableReason
+        | UiPresentationAtom::WaitFormField
+        | UiPresentationAtom::WaitFormFieldInputKind
+        | UiPresentationAtom::WaitFormFieldRequired
+        | UiPresentationAtom::WaitFormFieldMaxLength
+        | UiPresentationAtom::WaitFormFieldPlaceholder
+        | UiPresentationAtom::WaitAccessibleName
+        | UiPresentationAtom::WaitAccessibleDescription => UiPresentationAtomEffect::Wait,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UiAdapterBindingKind {
@@ -921,6 +1085,8 @@ pub struct UiAdapterManifest {
     pub event_schema: bool,
     pub patch_schema: bool,
     pub presentation_atoms: Vec<UiPresentationAtom>,
+    #[serde(default)]
+    pub presentation_atom_profiles: Vec<UiPresentationAtomProfile>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -3461,6 +3627,7 @@ pub fn complete_ui_adapter_manifest(
         event_schema: true,
         patch_schema: true,
         presentation_atoms: required_ui_presentation_atoms().to_vec(),
+        presentation_atom_profiles: required_ui_presentation_atom_profiles(),
     };
     validate_ui_adapter_manifest(&manifest)?;
     Ok(manifest)
@@ -3523,6 +3690,31 @@ pub fn validate_ui_adapter_manifest(manifest: &UiAdapterManifest) -> Result<(), 
         if !atoms.contains(required) {
             return Err(UiError::InvalidAdapterManifest {
                 reason: "missing_presentation_atom",
+            });
+        }
+    }
+    let mut profiled_atoms = BTreeSet::new();
+    for profile in &manifest.presentation_atom_profiles {
+        if !atoms.contains(&profile.atom) {
+            return Err(UiError::InvalidAdapterManifest {
+                reason: "profile_without_presentation_atom",
+            });
+        }
+        if !profiled_atoms.insert(profile.atom) {
+            return Err(UiError::InvalidAdapterManifest {
+                reason: "duplicate_presentation_atom_profile",
+            });
+        }
+        if *profile != presentation_atom_profile(profile.atom) {
+            return Err(UiError::InvalidAdapterManifest {
+                reason: "invalid_presentation_atom_profile",
+            });
+        }
+    }
+    for required in required_ui_presentation_atoms() {
+        if !profiled_atoms.contains(required) {
+            return Err(UiError::InvalidAdapterManifest {
+                reason: "missing_presentation_atom_profile",
             });
         }
     }
@@ -7660,10 +7852,26 @@ mod tests {
         assert_eq!(manifest.schema_version, UI_ADAPTER_MANIFEST_SCHEMA_VERSION);
         assert_eq!(manifest.ui_schema_version, UI_SCHEMA_VERSION);
         assert_eq!(manifest.presentation_atoms.len(), 50);
+        assert_eq!(manifest.presentation_atom_profiles.len(), 50);
         assert!(
             manifest
                 .presentation_atoms
                 .contains(&UiPresentationAtom::WaitFormField)
+        );
+        assert_eq!(
+            presentation_atom_profile(UiPresentationAtom::WaitFormField),
+            UiPresentationAtomProfile {
+                atom: UiPresentationAtom::WaitFormField,
+                family: UiPresentationAtomFamily::FormMetadata,
+                effect: UiPresentationAtomEffect::Wait,
+            }
+        );
+        assert!(
+            manifest
+                .presentation_atom_profiles
+                .contains(&presentation_atom_profile(
+                    UiPresentationAtom::WaitFormField
+                ))
         );
 
         let encoded = encode_ui_adapter_manifest(&manifest).unwrap();
@@ -7719,6 +7927,42 @@ mod tests {
             validate_ui_adapter_manifest(&duplicate_atom),
             Err(UiError::InvalidAdapterManifest {
                 reason: "duplicate_presentation_atom",
+            })
+        );
+
+        let mut missing_profile = manifest.clone();
+        missing_profile
+            .presentation_atom_profiles
+            .retain(|profile| profile.atom != UiPresentationAtom::WaitFormField);
+        assert_eq!(
+            validate_ui_adapter_manifest(&missing_profile),
+            Err(UiError::InvalidAdapterManifest {
+                reason: "missing_presentation_atom_profile",
+            })
+        );
+
+        let mut duplicate_profile = manifest.clone();
+        duplicate_profile
+            .presentation_atom_profiles
+            .push(presentation_atom_profile(UiPresentationAtom::Focus));
+        assert_eq!(
+            validate_ui_adapter_manifest(&duplicate_profile),
+            Err(UiError::InvalidAdapterManifest {
+                reason: "duplicate_presentation_atom_profile",
+            })
+        );
+
+        let mut invalid_profile = manifest.clone();
+        let first_profile = invalid_profile
+            .presentation_atom_profiles
+            .iter_mut()
+            .find(|profile| profile.atom == UiPresentationAtom::WaitFormField)
+            .unwrap();
+        first_profile.effect = UiPresentationAtomEffect::Assertion;
+        assert_eq!(
+            validate_ui_adapter_manifest(&invalid_profile),
+            Err(UiError::InvalidAdapterManifest {
+                reason: "invalid_presentation_atom_profile",
             })
         );
 

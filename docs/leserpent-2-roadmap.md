@@ -198,8 +198,15 @@ and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. A separate
 `UiAdapterManifest` now records explicit developer-owned or generated framework
 bindings against the document, event, patch, and complete fifty-atom
-presentation protocol, so future GUI hosts have a protobuf-style compatibility
-checkpoint without automatic framework admission. Broader renderer and debugger
+presentation protocol plus canonical atom family/effect profiles, so future GUI
+hosts have a protobuf-style compatibility checkpoint without automatic framework
+admission. The Rust-generated
+presentation conformance fixture now carries both adapter modes into the
+Avalonia/C# strict codec, proving cross-language manifest compatibility before a
+renderer is trusted. The C# manifest codec accepts only named string enum
+tokens, rejecting numeric binding kinds, presentation atoms, profile families,
+or profile effects before validation can treat them as known protocol values.
+Broader renderer and debugger
 interactions are covered by the stable v1 contract and conformance fixtures. A
 framework-independent
 patch application reference now fences revisions and rejects malformed graph

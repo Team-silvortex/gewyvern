@@ -1697,7 +1697,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.77.0");
+    assert_eq!(avalonia.contract.version, "1.80.0");
     assert!(
         avalonia
             .contract
@@ -1706,6 +1706,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|surface| surface == "avalonia-generation-horizon-classification")
     );
     for surface in [
+        "strict-ui-adapter-manifest-codec",
+        "developer-owned-adapter-manifest-validation",
+        "generated-binding-manifest-validation",
+        "complete-presentation-atom-manifest-validation",
+        "adapter-manifest-unknown-field-rejection",
+        "adapter-manifest-numeric-enum-rejection",
+        "invalid-adapter-binding-kind-rejection",
+        "invalid-presentation-atom-rejection",
+        "adapter-manifest-profile-validation",
+        "adapter-manifest-profile-enum-codec",
+        "canonical-presentation-atom-profile-validation",
         "strict-unregistration-receipt-client",
         "retained-receipt-horizon-binding",
         "native-enabled-state-assertion",
@@ -2838,7 +2849,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.45.0");
+    assert_eq!(ui.contract.version, "1.47.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -2846,8 +2857,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "current-action-semantic-roundtrip",
         "ui-adapter-manifest",
         "complete-presentation-atom-manifest",
+        "presentation-atom-profile-manifest",
+        "presentation-atom-family-metadata",
+        "presentation-atom-effect-metadata",
         "developer-owned-adapter-kind",
         "generated-framework-binding-kind",
+        "cross-language-adapter-manifest-fixture",
         "same-topology-linear-diff",
         "relative-patch-performance-fence",
         "ui-assert-enabled-presentation-roundtrip",

@@ -27,20 +27,29 @@ transactionally validated by `apply_patch` against the current revision.
 
 `UiAdapterManifest` is not automatic framework discovery. It is an explicit
 compatibility proof emitted by a hand-written renderer adapter or by dedicated
-generator tooling. The manifest carries schema version `1`, a stable
+generator tooling. The manifest carries schema version `2`, a stable
 `adapter_id`, a bounded framework label, a `binding_kind` of either
 `developer_owned_adapter` or `generated_framework_binding`, the target
 `ui_schema_version`, and booleans proving support for document, event, and patch
 schemas. It must also list the complete `required_ui_presentation_atoms()` set:
 all fifty current presentation atoms, including focus, wait, assertion,
-selection, action metadata, form metadata, and accessibility operations.
+selection, action metadata, form metadata, and accessibility operations. Schema
+version `2` also carries `presentation_atom_profiles`: one canonical profile per
+atom, classifying the GUI family and effect model as mutation, assertion, or
+wait so generated adapters can build a 1:1 mapping table without guessing.
 
 Validation fails closed for unsupported schema versions, invalid adapter IDs,
 missing document/event/patch support, duplicate presentation atoms, omitted
-required atoms, oversized framework labels, control characters, and unknown JSON
-fields. The manifest gives future Rust-native GUI hosts, FFI shims, C#
-renderers, TypeScript renderers, and mobile clients the same protobuf-style
-binding checkpoint without letting any host object model leak into the shared IR.
+required atoms, missing or duplicate atom profiles, profile/atom mismatches,
+oversized framework labels, control characters, and unknown JSON fields. The
+manifest gives future Rust-native GUI hosts, FFI shims, C# renderers, TypeScript
+renderers, and mobile clients the same protobuf-style binding checkpoint without
+letting any host object model leak into the shared IR.
+The renderer presentation conformance fixture emits both a developer-owned
+Avalonia adapter manifest and a generated TypeScript/web binding manifest; the
+C# conformance runner decodes them with source-generated strict JSON metadata,
+round-trips them, validates the complete atom/profile set, and rejects unknown
+fields or numeric enum tokens.
 
 ## Pure Flow
 
@@ -145,7 +154,7 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum debugger remaining deadline: `24 hours`
 - maximum parameterized form fields: `16`
 - maximum parameterized form value: `256` bytes
-- adapter manifest schema version: `1`
+- adapter manifest schema version: `2`
 - maximum adapter framework label: `128` bytes
 - required adapter presentation atoms: `50`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
