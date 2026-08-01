@@ -18,7 +18,7 @@ use leserpent_protocol::{
     AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES, ResponseEnvelope, decode_request,
     encode_response,
 };
-use leserpent_runtime::ControlRuntime;
+use leserpent_runtime::{ControlRuntime, RuntimeError};
 use serde::Deserialize;
 
 use crate::bootstrap_submission::{decode_and_submit, error as bootstrap_error};
@@ -32,8 +32,8 @@ use crate::retirement_submission::{
     decode_and_submit as decode_and_submit_retirement, error as retirement_error,
 };
 use crate::wire::{
-    BootstrapSessionVerifier, MAX_AUTH_TOKEN_BYTES, constant_time_equals, error_response,
-    execute_request, validate_auth_token,
+    BootstrapSessionVerifier, MAX_AUTH_TOKEN_BYTES, authority_writer_fence_error_details,
+    constant_time_equals, error_response, execute_request, validate_auth_token,
 };
 
 const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
@@ -260,6 +260,20 @@ impl IpcServer {
                 )));
             }
         };
+        if !matches!(authenticated.route, IpcRoute::Wire)
+            && let Err(error) = runtime.require_authority_writer(
+                authenticated
+                    .writer_fence
+                    .as_ref()
+                    .map(|fence| fence.generation),
+                authenticated
+                    .writer_fence
+                    .as_ref()
+                    .map(|fence| fence.writer_id.as_str()),
+            )
+        {
+            return routed_authority_writer_fence_error(authenticated.route, error);
+        }
         match authenticated.route {
             IpcRoute::Wire => {
                 let request = match decode_request(&request_bytes) {
@@ -301,6 +315,21 @@ impl IpcServer {
                     self.daemon_retirement_submission_enabled,
                 ))
             }
+        }
+    }
+}
+
+fn routed_authority_writer_fence_error(route: IpcRoute, error: RuntimeError) -> IpcResponse {
+    let (code, message) = authority_writer_fence_error_details(&error);
+    match route {
+        IpcRoute::Wire => IpcResponse::Wire(Box::new(error_response(code, message))),
+        IpcRoute::BootstrapV1 => IpcResponse::Bootstrap(bootstrap_error(None, code, message)),
+        IpcRoute::ProvisioningV1 => {
+            IpcResponse::Provisioning(provisioning_error(None, code, message))
+        }
+        IpcRoute::RetirementV1 => IpcResponse::Retirement(retirement_error(None, code, message)),
+        IpcRoute::DaemonRetirementV1 => {
+            IpcResponse::DaemonRetirement(daemon_retirement_error(None, code, message))
         }
     }
 }
@@ -415,6 +444,56 @@ mod tests {
         decode_response(&response).unwrap()
     }
 
+    fn routed_frame(
+        route: &str,
+        request: &serde_json::Value,
+        writer_fence: Option<&AuthorityWriterFence>,
+    ) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "token": TOKEN,
+            "writer_fence": writer_fence,
+            "route": route,
+            "request": request,
+        }))
+        .unwrap()
+        .into_iter()
+        .chain([b'\n'])
+        .collect()
+    }
+
+    fn routed_error_code(response: &IpcResponse) -> Option<&str> {
+        match response {
+            IpcResponse::Wire(response) => match &response.response {
+                ProtocolResponse::Error(error) => Some(error.code.as_str()),
+                _ => None,
+            },
+            IpcResponse::Bootstrap(response) => match &response.response {
+                leserpent_protocol::bootstrap::BootstrapResponse::Error(error) => {
+                    Some(error.code.as_str())
+                }
+                _ => None,
+            },
+            IpcResponse::Provisioning(response) => match &response.response {
+                leserpent_protocol::provisioning::ProvisioningResponse::Error(error) => {
+                    Some(error.code.as_str())
+                }
+                _ => None,
+            },
+            IpcResponse::Retirement(response) => match &response.response {
+                leserpent_protocol::retirement::RetirementResponse::Error(error) => {
+                    Some(error.code.as_str())
+                }
+                _ => None,
+            },
+            IpcResponse::DaemonRetirement(response) => match &response.response {
+                leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::Error(
+                    error,
+                ) => Some(error.code.as_str()),
+                _ => None,
+            },
+        }
+    }
+
     #[test]
     fn authenticated_query_round_trips_over_private_socket() {
         let database = temp_path("roundtrip", "sqlite");
@@ -492,6 +571,108 @@ mod tests {
         assert!(server.poll_once(&mut runtime).unwrap());
         let response = send(&server, &mut runtime, &socket, TOKEN, query_request());
         assert!(matches!(response.response, ProtocolResponse::Query(_)));
+
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn authority_writer_generation_fences_specialized_local_mutation_routes() {
+        let database = temp_path("specialized-writer-fence", "sqlite");
+        let socket = temp_path("specialized-writer-fence", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN)
+            .unwrap()
+            .with_bootstrap_submission()
+            .with_provisioning_submission()
+            .with_retirement_submission()
+            .with_daemon_retirement_submission();
+        let writer_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        assert_eq!(
+            runtime.claim_authority_writer(writer_a).unwrap().generation,
+            1
+        );
+        assert_eq!(
+            runtime.claim_authority_writer(writer_b).unwrap().generation,
+            2
+        );
+        let stale = AuthorityWriterFence {
+            generation: 1,
+            writer_id: writer_a.into(),
+        };
+        let current = AuthorityWriterFence {
+            generation: 2,
+            writer_id: writer_b.into(),
+        };
+        let bootstrap_request: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../leserpent-protocol/tests/fixtures/bootstrap-request-v1.json"
+        ))
+        .unwrap();
+        let bootstrap_id = leserpent_domain::bootstrap::BootstrapId::new("bootstrap-1").unwrap();
+
+        let missing = server.dispatch(
+            &routed_frame("bootstrap_v1", &bootstrap_request, None),
+            &mut runtime,
+        );
+        assert_eq!(
+            routed_error_code(&missing),
+            Some("authority_writer_fence_required")
+        );
+        assert!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .is_none()
+        );
+        let rejected = server.dispatch(
+            &routed_frame("bootstrap_v1", &bootstrap_request, Some(&stale)),
+            &mut runtime,
+        );
+        assert_eq!(
+            routed_error_code(&rejected),
+            Some("authority_writer_fence_rejected")
+        );
+        assert!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(matches!(
+            server.dispatch(
+                &routed_frame("bootstrap_v1", &bootstrap_request, Some(&current)),
+                &mut runtime,
+            ),
+            IpcResponse::Bootstrap(BootstrapResponseEnvelope {
+                response: leserpent_protocol::bootstrap::BootstrapResponse::State(ref state),
+                ..
+            }) if state.phase == leserpent_domain::bootstrap::BootstrapPhase::Planned
+        ));
+
+        let malformed = serde_json::json!({});
+        for route in ["provisioning_v1", "retirement_v1", "daemon_retirement_v1"] {
+            let missing = server.dispatch(&routed_frame(route, &malformed, None), &mut runtime);
+            assert_eq!(
+                routed_error_code(&missing),
+                Some("authority_writer_fence_required")
+            );
+            let rejected =
+                server.dispatch(&routed_frame(route, &malformed, Some(&stale)), &mut runtime);
+            assert_eq!(
+                routed_error_code(&rejected),
+                Some("authority_writer_fence_rejected")
+            );
+            let admitted = server.dispatch(
+                &routed_frame(route, &malformed, Some(&current)),
+                &mut runtime,
+            );
+            assert!(!matches!(
+                routed_error_code(&admitted),
+                Some("authority_writer_fence_required" | "authority_writer_fence_rejected")
+            ));
+        }
 
         drop(server);
         drop(runtime);

@@ -29,3 +29,6 @@ leselang-hir = { path = "../leselang-hir" }
 leselang-syntax = { path = "../leselang-syntax" }
 rcgen = "0.14"
 rusqlite.workspace = true
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"

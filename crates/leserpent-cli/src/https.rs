@@ -24,11 +24,12 @@ use leserpent_protocol::retirement::{
     decode_retirement_response, encode_retirement_request,
 };
 use leserpent_protocol::transport_safety::{
-    BoundedFile, MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name,
-    open_bounded_regular_file,
+    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, BoundedFile,
+    MAX_HTTP_HEADER_BYTES, connect_with_deadline, is_http_header_name, open_bounded_regular_file,
 };
 use leserpent_protocol::{
-    MAX_PROTOCOL_MESSAGE_BYTES, RequestEnvelope, ResponseEnvelope, decode_response, encode_request,
+    AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES, RequestEnvelope, ResponseEnvelope,
+    decode_response, encode_request,
 };
 use rustls::pki_types::{CertificateDer, ServerName, pem::PemObject};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
@@ -43,6 +44,7 @@ pub struct HttpsClient {
     endpoint: HttpsEndpoint,
     tls: Arc<ClientConfig>,
     token: Zeroizing<String>,
+    writer_fence: Option<AuthorityWriterFence>,
 }
 
 impl HttpsClient {
@@ -111,7 +113,25 @@ impl HttpsClient {
             endpoint,
             tls: Arc::new(tls),
             token: Zeroizing::new(token),
+            writer_fence: None,
         })
+    }
+
+    pub fn with_authority_writer_fence(
+        mut self,
+        writer_fence: Option<AuthorityWriterFence>,
+    ) -> Result<Self, CliError> {
+        if writer_fence.as_ref().is_some_and(|fence| {
+            fence.generation == 0
+                || fence.writer_id.len() != 32
+                || !fence.writer_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+        }) {
+            return Err(CliError::Configuration(
+                "remote authority writer ticket is invalid".into(),
+            ));
+        }
+        self.writer_fence = writer_fence;
+        Ok(self)
     }
 
     pub fn send(&self, request: &RequestEnvelope) -> Result<ResponseEnvelope, CliError> {
@@ -196,8 +216,14 @@ impl HttpsClient {
             ClientConnection::new(Arc::clone(&self.tls), self.endpoint.server_name.clone())
                 .map_err(|error| CliError::Transport(format!("TLS setup failed: {error}")))?;
         let mut stream = StreamOwned::new(connection, socket);
+        let writer_headers = self.writer_fence.as_ref().map_or_else(String::new, |fence| {
+            format!(
+                "{AUTHORITY_WRITER_ID_HEADER}: {}\r\n{AUTHORITY_WRITER_GENERATION_HEADER}: {}\r\n",
+                fence.writer_id, fence.generation
+            )
+        });
         let header = Zeroizing::new(format!(
-            "POST {path} HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
+            "POST {path} HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\n{writer_headers}Content-Type: application/json\r\nContent-Length: {}\r\nAccept: application/json\r\nConnection: close\r\n\r\n",
             self.endpoint.authority,
             self.token.as_str(),
             body.len(),

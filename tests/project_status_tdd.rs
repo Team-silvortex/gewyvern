@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -8,6 +9,95 @@ use gewyvern::project_status::{
 
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn json_string_set(value: &serde_json::Value, field: &str) -> BTreeSet<String> {
+    value[field]
+        .as_array()
+        .unwrap_or_else(|| panic!("{field} must be an array"))
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .unwrap_or_else(|| panic!("{field} entries must be strings"))
+                .to_string()
+        })
+        .collect()
+}
+
+fn collect_csharp_mutation_routes(root: &std::path::Path) -> BTreeSet<String> {
+    fn visit(path: &std::path::Path, routes: &mut BTreeSet<String>) {
+        for entry in std::fs::read_dir(path).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_dir() {
+                visit(&path, routes);
+                continue;
+            }
+            if path.extension().and_then(|value| value.to_str()) != Some("cs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).unwrap();
+            let mut remaining = source.as_str();
+            while let Some(index) = remaining.find("app.Map") {
+                remaining = &remaining[index + "app.Map".len()..];
+                let method_end = remaining.find('(').unwrap_or_else(|| {
+                    panic!("incomplete app.Map invocation in {}", path.display())
+                });
+                let method = &remaining[..method_end];
+                remaining = &remaining[method_end + 1..];
+                if matches!(method, "OpenApi" | "FallbackToFile") {
+                    continue;
+                }
+                let route_start = remaining.find("\"/v1/").unwrap_or_else(|| {
+                    panic!(
+                        "app.Map{method} in {} has no literal /v1 route",
+                        path.display()
+                    )
+                });
+                let route = &remaining[route_start + 1..];
+                let route_end = route.find('"').unwrap();
+                match method {
+                    "Get" | "Head" | "Options" => {}
+                    "Post" | "Put" | "Delete" | "Patch" => {
+                        assert!(
+                            routes.insert(route[..route_end].to_string()),
+                            "duplicate C# mutation route {}",
+                            &route[..route_end]
+                        );
+                    }
+                    _ => panic!(
+                        "unsupported /v1 route helper app.Map{method} in {}; classify it before merging",
+                        path.display()
+                    ),
+                }
+                remaining = &route[route_end + 1..];
+            }
+        }
+    }
+
+    let mut routes = BTreeSet::new();
+    visit(root, &mut routes);
+    routes
+}
+
+fn collect_rust_remote_routes(source: &str) -> BTreeSet<String> {
+    let table_start = source
+        .find("let route = match parts[1] {")
+        .expect("remote route match must exist");
+    let table = &source[table_start..];
+    let table_end = table
+        .find("\n    };")
+        .expect("remote route match must be bounded");
+    let mut table = &table[..table_end];
+    let mut routes = BTreeSet::new();
+    while let Some(start) = table.find("\"/v1/") {
+        table = &table[start + 1..];
+        let end = table.find('"').unwrap();
+        assert!(routes.insert(table[..end].to_string()));
+        table = &table[end + 1..];
+    }
+    routes
 }
 
 #[test]
@@ -45,7 +135,7 @@ fn project_status_catalog_is_protocolized_and_valid() {
 }
 
 #[test]
-fn control_plane_writer_inventory_tracks_the_second_rust_fence_slice() {
+fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() {
     let inventory: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(
             repository_root().join("docs/contracts/leserpent-control-plane-mutations-v1.json"),
@@ -53,7 +143,14 @@ fn control_plane_writer_inventory_tracks_the_second_rust_fence_slice() {
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.2.0");
+    assert_eq!(inventory["version"], "1.5.0");
+    let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
+    expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
+    assert_eq!(
+        collect_csharp_mutation_routes(&repository_root().join("apps/leserpent/src/Leserpent")),
+        expected_csharp_routes,
+        "every C# non-read /v1 endpoint must be inventoried"
+    );
     let writer_fence = &inventory["rust_authority_writer_fence"];
     let covered = writer_fence["covered_ipc_mutations"]
         .as_array()
@@ -63,22 +160,50 @@ fn control_plane_writer_inventory_tracks_the_second_rust_fence_slice() {
         .expect("remaining routes must be an array");
     for mutation in [
         "runtime_deploy",
+        "runtime_refresh",
+        "runtime_capabilities_refresh",
         "orchestra_persist",
         "orchestra_delete",
         "orchestra_delete_command",
         "orchestra_delete_replay_checkpoint",
+        "bootstrap_session_bind",
+        "bootstrap_v1",
+        "provisioning_v1",
+        "retirement_v1",
+        "daemon_retirement_v1",
     ] {
         assert!(covered.iter().any(|value| value == mutation));
         assert!(!remaining.iter().any(|value| value == mutation));
     }
+    assert!(remaining.is_empty());
+    assert_eq!(
+        collect_rust_remote_routes(
+            &std::fs::read_to_string(repository_root().join("crates/leserpentd/src/remote.rs"))
+                .unwrap()
+        ),
+        json_string_set(writer_fence, "remote_routes"),
+        "every Rust HTTPS route must be inventoried"
+    );
+    let remote = writer_fence["covered_remote_mutations"]
+        .as_array()
+        .expect("covered remote mutations must be an array");
     for route in [
-        "bootstrap",
-        "provisioning",
-        "retirement",
-        "remote_transport",
+        "/v1/wire",
+        "/v1/bootstrap",
+        "/v1/provisioning",
+        "/v1/retirement",
+        "/v1/daemon-retirement",
     ] {
-        assert!(remaining.iter().any(|value| value == route));
+        assert!(remote.iter().any(|value| value == route));
     }
+    assert_eq!(
+        writer_fence["remote_headers"]["writer_id"],
+        "X-Leserpent-Authority-Writer-Id"
+    );
+    assert_eq!(
+        writer_fence["remote_headers"]["generation"],
+        "X-Leserpent-Authority-Writer-Generation"
+    );
 }
 
 #[test]
@@ -1918,6 +2043,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-runtime-unregistration-receipt-lookup",
         "atomic-receipt-horizon-response",
         "typed-null-receipt-miss",
+        "canonical-authority-writer-http-headers",
+        "paired-unique-writer-header-validation",
+        "post-bearer-writer-ticket-validation",
+        "authenticated-https-generation-fence",
+        "exhaustive-request-fence-classification",
+        "runtime-refresh-generation-fence",
+        "bootstrap-session-bind-generation-fence",
     ] {
         assert!(
             transport
@@ -1938,7 +2070,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(cli.maturity, Maturity::Mature);
     assert_eq!(cli.completion, 100);
     assert_eq!(cli.contract.stability, ContractStability::Stable);
-    assert_eq!(cli.contract.version, "1.7.0");
+    assert_eq!(cli.contract.version, "1.9.0");
     assert!(
         cli.contract
             .surfaces
@@ -1965,6 +2097,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "daemon-retirement-terminal-exit-codes",
         "credential-free-daemon-retirement-output",
         "explicit-cli-daemon-retirement-confirmation",
+        "authenticated-https-writer-ticket-headers",
+        "remote-writer-ticket-forwarding",
+        "transport-neutral-writer-ticket-environment",
     ] {
         assert!(
             cli.contract
@@ -2031,7 +2166,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.27.0");
+    assert_eq!(compatibility_control.contract.version, "1.30.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -2346,6 +2481,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "unrelated-orchestra-history-preservation",
         "single-audit-cross-authority-convergence",
         "cross-platform-cross-authority-proof",
+        "authenticated-https-authority-writer-headers",
+        "remote-wire-generation-fence",
+        "remote-specialized-route-predecode-fence",
+        "read-only-remote-fence-exemptions",
+        "source-scanned-csharp-mutation-inventory",
+        "source-scanned-rust-https-inventory",
+        "exhaustive-rust-request-fence-policy",
+        "runtime-refresh-generation-fence",
+        "bootstrap-session-bind-generation-fence",
+        "real-daemon-cold-takeover-proof",
     ] {
         assert!(
             compatibility_control
@@ -2356,12 +2501,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.27.0");
-    assert!(
-        compatibility_control
-            .next_gate
-            .contains("Rust-issued writer generation fence")
-    );
+    assert_eq!(compatibility_control.contract.version, "1.30.0");
+    assert!(compatibility_control.next_gate.contains("exhaustive"));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
+            && item.state == EvidenceState::Present
+    }));
 
     let reconciliation = catalog
         .cells
@@ -2513,11 +2658,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         );
     }
     assert!(reconciliation.blockers.is_empty());
-    assert!(
-        reconciliation
-            .next_gate
-            .contains("generation-fenced unregistration")
-    );
+    assert!(reconciliation.next_gate.contains("local and remote"));
 
     let bootstrap = catalog
         .cells

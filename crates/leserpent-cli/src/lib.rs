@@ -47,8 +47,8 @@ use leserpent_protocol::retirement::{
     RetirementResponse, RetirementResponseEnvelope,
 };
 use leserpent_protocol::{
-    BootstrapHandoffRequest, BootstrapSessionBindRequest, HealthRequest, PROTOCOL_SCHEMA_VERSION,
-    ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
+    AuthorityWriterFence, BootstrapHandoffRequest, BootstrapSessionBindRequest, HealthRequest,
+    PROTOCOL_SCHEMA_VERSION, ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope,
     RuntimeUnregistrationReceiptRequest,
 };
 
@@ -210,7 +210,7 @@ impl fmt::Display for CliError {
 
 impl std::error::Error for CliError {}
 
-pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap retire BOOTSTRAP_ID --retirement-id ID --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime retire RUNTIME_ID --retirement-id ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime unregister-receipt COMMAND_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
+pub const USAGE: &str = "Usage:\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] health\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap deploy BOOTSTRAP_ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap inspect BOOTSTRAP_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap bind BOOTSTRAP_ID --yes\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] bootstrap retire BOOTSTRAP_ID --retirement-id ID --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime provision RUNTIME_ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime retire RUNTIME_ID --retirement-id ID --provisioning-id ID --host HOST [--port PORT] --credential-handle vault:ssh:KEY --yes [--wait [--count N] [--interval-ms N]]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime list [--environment VALUE] [--cluster VALUE] [--role VALUE]\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime inspect RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime history RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime logs RUNTIME_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime unregister-receipt COMMAND_ID\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime watch RUNTIME_ID [--count N] [--interval-ms N]\n  leserpent runtime list [FILTERS] (--export-leselang | --export-plan)\n  leserpent runtime inspect RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime history RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent runtime logs RUNTIME_ID (--export-leselang | --export-plan)\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh RUNTIME_ID --export-leselang\n  leserpent runtime refresh RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime refresh-capabilities RUNTIME_ID --export-leselang\n  leserpent runtime refresh-capabilities RUNTIME_ID (--dry-run | --yes) --idempotency-key KEY --export-plan\n  leserpent [--socket PATH | --remote HTTPS_URL --remote-ca PATH] [--json] runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) [--expected-revision N] [--idempotency-key KEY]\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] --export-leselang\n  leserpent runtime deploy RUNTIME_ID --pipeline-kind KIND [--target VALUE] (--dry-run | --yes) --idempotency-key KEY --export-plan\n\nEnvironment:\n  LESERPENT_SOCKET may provide PATH\n  LESERPENT_IPC_TOKEN must contain the daemon IPC token\n  LESERPENT_AUTHORITY_WRITER_ID and LESERPENT_AUTHORITY_WRITER_GENERATION may provide the active writer ticket\n  LESERPENT_REMOTE and LESERPENT_REMOTE_CA may provide the HTTPS endpoint and CA path\n  LESERPENT_REMOTE_TOKEN must contain the remote bearer token\n  LESERPENT_PRINCIPAL optionally sets the audit principal";
 pub const REMOTE_TRUST_USAGE: &str = "Bootstrap trust alternative:\n  replace --remote-ca PATH with --remote-trust-root PATH --remote-trust-handle vault:leserpent-ca:KEY";
 
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -1687,6 +1687,16 @@ pub fn send_request(
     token: &str,
     request: &RequestEnvelope,
 ) -> Result<ResponseEnvelope, CliError> {
+    send_request_with_writer_fence(socket, token, request, None)
+}
+
+#[cfg(unix)]
+pub fn send_request_with_writer_fence(
+    socket: &std::path::Path,
+    token: &str,
+    request: &RequestEnvelope,
+    writer_fence: Option<&AuthorityWriterFence>,
+) -> Result<ResponseEnvelope, CliError> {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::fs::{FileTypeExt, PermissionsExt};
     use std::os::unix::net::UnixStream;
@@ -1699,6 +1709,8 @@ pub fn send_request(
     #[derive(Serialize)]
     struct AuthenticatedRequest<'a> {
         token: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        writer_fence: Option<&'a AuthorityWriterFence>,
         request: &'a RequestEnvelope,
     }
 
@@ -1730,8 +1742,12 @@ pub fn send_request(
         .set_write_timeout(Some(Duration::from_secs(3)))
         .map_err(|error| CliError::Transport(error.to_string()))?;
     let mut encoded = Zeroizing::new(
-        serde_json::to_vec(&AuthenticatedRequest { token, request })
-            .map_err(|error| CliError::Protocol(error.to_string()))?,
+        serde_json::to_vec(&AuthenticatedRequest {
+            token,
+            writer_fence,
+            request,
+        })
+        .map_err(|error| CliError::Protocol(error.to_string()))?,
     );
     if encoded.len() > MAX_PROTOCOL_MESSAGE_BYTES + 1024 {
         return Err(CliError::Protocol(
@@ -1767,11 +1783,33 @@ pub fn send_request(
     ))
 }
 
+#[cfg(not(unix))]
+pub fn send_request_with_writer_fence(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &RequestEnvelope,
+    _writer_fence: Option<&AuthorityWriterFence>,
+) -> Result<ResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon transport is not implemented on this platform".into(),
+    ))
+}
+
 #[cfg(unix)]
 pub fn send_bootstrap_request(
     socket: &std::path::Path,
     token: &str,
     request: &BootstrapRequestEnvelope,
+) -> Result<BootstrapResponseEnvelope, CliError> {
+    send_bootstrap_request_with_writer_fence(socket, token, request, None)
+}
+
+#[cfg(unix)]
+pub fn send_bootstrap_request_with_writer_fence(
+    socket: &std::path::Path,
+    token: &str,
+    request: &BootstrapRequestEnvelope,
+    writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<BootstrapResponseEnvelope, CliError> {
     use leserpent_protocol::bootstrap::{MAX_BOOTSTRAP_PROTOCOL_BYTES, decode_bootstrap_response};
 
@@ -1782,6 +1820,7 @@ pub fn send_bootstrap_request(
         "bootstrap",
         request,
         MAX_BOOTSTRAP_PROTOCOL_BYTES,
+        writer_fence,
     )?;
     decode_bootstrap_response(&response).map_err(|error| CliError::Protocol(format!("{error:?}")))
 }
@@ -1791,6 +1830,16 @@ pub fn send_provisioning_request(
     socket: &std::path::Path,
     token: &str,
     request: &ProvisioningRequestEnvelope,
+) -> Result<ProvisioningResponseEnvelope, CliError> {
+    send_provisioning_request_with_writer_fence(socket, token, request, None)
+}
+
+#[cfg(unix)]
+pub fn send_provisioning_request_with_writer_fence(
+    socket: &std::path::Path,
+    token: &str,
+    request: &ProvisioningRequestEnvelope,
+    writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<ProvisioningResponseEnvelope, CliError> {
     use leserpent_protocol::provisioning::{
         MAX_PROVISIONING_PROTOCOL_BYTES, decode_provisioning_response,
@@ -1803,6 +1852,7 @@ pub fn send_provisioning_request(
         "provisioning",
         request,
         MAX_PROVISIONING_PROTOCOL_BYTES,
+        writer_fence,
     )?;
     decode_provisioning_response(&response)
         .map_err(|error| CliError::Protocol(format!("{error:?}")))
@@ -1813,6 +1863,16 @@ pub fn send_retirement_request(
     socket: &std::path::Path,
     token: &str,
     request: &RetirementRequestEnvelope,
+) -> Result<RetirementResponseEnvelope, CliError> {
+    send_retirement_request_with_writer_fence(socket, token, request, None)
+}
+
+#[cfg(unix)]
+pub fn send_retirement_request_with_writer_fence(
+    socket: &std::path::Path,
+    token: &str,
+    request: &RetirementRequestEnvelope,
+    writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<RetirementResponseEnvelope, CliError> {
     use leserpent_protocol::retirement::{
         MAX_RETIREMENT_PROTOCOL_BYTES, decode_retirement_response,
@@ -1825,6 +1885,7 @@ pub fn send_retirement_request(
         "retirement",
         request,
         MAX_RETIREMENT_PROTOCOL_BYTES,
+        writer_fence,
     )?;
     decode_retirement_response(&response).map_err(|error| CliError::Protocol(format!("{error:?}")))
 }
@@ -1834,6 +1895,16 @@ pub fn send_daemon_retirement_request(
     socket: &std::path::Path,
     token: &str,
     request: &DaemonRetirementRequestEnvelope,
+) -> Result<DaemonRetirementResponseEnvelope, CliError> {
+    send_daemon_retirement_request_with_writer_fence(socket, token, request, None)
+}
+
+#[cfg(unix)]
+pub fn send_daemon_retirement_request_with_writer_fence(
+    socket: &std::path::Path,
+    token: &str,
+    request: &DaemonRetirementRequestEnvelope,
+    writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<DaemonRetirementResponseEnvelope, CliError> {
     use leserpent_protocol::bootstrap_retirement_control::{
         MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES, decode_daemon_retirement_response,
@@ -1846,6 +1917,7 @@ pub fn send_daemon_retirement_request(
         "daemon retirement",
         request,
         MAX_DAEMON_RETIREMENT_PROTOCOL_BYTES,
+        writer_fence,
     )?;
     decode_daemon_retirement_response(&response)
         .map_err(|error| CliError::Protocol(format!("{error:?}")))
@@ -1859,6 +1931,7 @@ fn send_routed_ipc_request(
     scope: &'static str,
     request: &impl serde::Serialize,
     protocol_limit: usize,
+    writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<Vec<u8>, CliError> {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::fs::{FileTypeExt, PermissionsExt};
@@ -1871,6 +1944,8 @@ fn send_routed_ipc_request(
     #[derive(Serialize)]
     struct AuthenticatedRoutedRequest<'a, T> {
         token: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        writer_fence: Option<&'a AuthorityWriterFence>,
         route: &'static str,
         request: &'a T,
     }
@@ -1905,6 +1980,7 @@ fn send_routed_ipc_request(
     let mut encoded = Zeroizing::new(
         serde_json::to_vec(&AuthenticatedRoutedRequest {
             token,
+            writer_fence,
             route,
             request,
         })
@@ -1945,10 +2021,34 @@ pub fn send_provisioning_request(
 }
 
 #[cfg(not(unix))]
+pub fn send_provisioning_request_with_writer_fence(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &ProvisioningRequestEnvelope,
+    _writer_fence: Option<&AuthorityWriterFence>,
+) -> Result<ProvisioningResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon provisioning transport is not implemented on this platform".into(),
+    ))
+}
+
+#[cfg(not(unix))]
 pub fn send_retirement_request(
     _socket: &std::path::Path,
     _token: &str,
     _request: &RetirementRequestEnvelope,
+) -> Result<RetirementResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon retirement transport is not implemented on this platform".into(),
+    ))
+}
+
+#[cfg(not(unix))]
+pub fn send_retirement_request_with_writer_fence(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &RetirementRequestEnvelope,
+    _writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<RetirementResponseEnvelope, CliError> {
     Err(CliError::Transport(
         "local daemon retirement transport is not implemented on this platform".into(),
@@ -1967,10 +2067,34 @@ pub fn send_daemon_retirement_request(
 }
 
 #[cfg(not(unix))]
+pub fn send_daemon_retirement_request_with_writer_fence(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &DaemonRetirementRequestEnvelope,
+    _writer_fence: Option<&AuthorityWriterFence>,
+) -> Result<DaemonRetirementResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon retirement transport is not implemented on this platform".into(),
+    ))
+}
+
+#[cfg(not(unix))]
 pub fn send_bootstrap_request(
     _socket: &std::path::Path,
     _token: &str,
     _request: &BootstrapRequestEnvelope,
+) -> Result<BootstrapResponseEnvelope, CliError> {
+    Err(CliError::Transport(
+        "local daemon bootstrap transport is not implemented on this platform".into(),
+    ))
+}
+
+#[cfg(not(unix))]
+pub fn send_bootstrap_request_with_writer_fence(
+    _socket: &std::path::Path,
+    _token: &str,
+    _request: &BootstrapRequestEnvelope,
+    _writer_fence: Option<&AuthorityWriterFence>,
 ) -> Result<BootstrapResponseEnvelope, CliError> {
     Err(CliError::Transport(
         "local daemon bootstrap transport is not implemented on this platform".into(),
@@ -2584,6 +2708,41 @@ fn validate_token(token: &str) -> Result<(), CliError> {
     Ok(())
 }
 
+pub fn parse_authority_writer_fence(
+    writer_id: Option<&str>,
+    generation: Option<&str>,
+) -> Result<Option<AuthorityWriterFence>, CliError> {
+    let (writer_id, generation) = match (writer_id, generation) {
+        (None, None) => return Ok(None),
+        (Some(writer_id), Some(generation)) => (writer_id, generation),
+        _ => {
+            return Err(CliError::Configuration(
+                "LESERPENT_AUTHORITY_WRITER_ID and LESERPENT_AUTHORITY_WRITER_GENERATION must be provided together"
+                    .into(),
+            ));
+        }
+    };
+    if writer_id.len() != 32 || !writer_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(CliError::Configuration(
+            "LESERPENT_AUTHORITY_WRITER_ID must contain 32 ASCII hexadecimal characters".into(),
+        ));
+    }
+    let generation = generation.parse::<u64>().map_err(|_| {
+        CliError::Configuration(
+            "LESERPENT_AUTHORITY_WRITER_GENERATION must be a positive integer".into(),
+        )
+    })?;
+    if generation == 0 {
+        return Err(CliError::Configuration(
+            "LESERPENT_AUTHORITY_WRITER_GENERATION must be a positive integer".into(),
+        ));
+    }
+    Ok(Some(AuthorityWriterFence {
+        generation,
+        writer_id: writer_id.to_string(),
+    }))
+}
+
 fn valid_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
@@ -2621,6 +2780,28 @@ mod tests {
     use leserpent_domain::{Command, Query};
 
     use super::*;
+
+    #[test]
+    fn authority_writer_fence_parser_requires_a_complete_valid_ticket() {
+        assert_eq!(parse_authority_writer_fence(None, None).unwrap(), None);
+        assert!(
+            parse_authority_writer_fence(Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), None).is_err()
+        );
+        assert!(parse_authority_writer_fence(None, Some("1")).is_err());
+        assert!(parse_authority_writer_fence(Some("short"), Some("1")).is_err());
+        assert!(
+            parse_authority_writer_fence(Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), Some("0"))
+                .is_err()
+        );
+        assert_eq!(
+            parse_authority_writer_fence(Some("ABCDEFABCDEFABCDEFABCDEFABCDEFAB"), Some("42"))
+                .unwrap(),
+            Some(AuthorityWriterFence {
+                generation: 42,
+                writer_id: "ABCDEFABCDEFABCDEFABCDEFABCDEFAB".into(),
+            })
+        );
+    }
 
     #[test]
     fn parser_builds_normalized_runtime_list_request() {

@@ -1180,6 +1180,7 @@ dependencies = [
  "leserpent-domain",
  "leserpent-protocol",
  "leserpent-runtime",
+ "libc",
  "rcgen",
  "ring",
  "rusqlite",

@@ -384,6 +384,34 @@ or SQLite mutation; stale and missing writers receive fixed protocol errors.
 Deployment receipts, Orchestra history, and replay-horizon reads remain
 read-only and do not require a current writer ticket.
 
+The explicit Unix IPC `bootstrap_v1`, `provisioning_v1`, `retirement_v1`, and
+`daemon_retirement_v1` mutation routes use the same outer authenticated
+`writer_fence`. They validate it before decoding or submitting their independent
+protocol envelopes, while each route still returns its own typed error
+envelope. The native CLI accepts the owner-issued ticket only through paired
+writer ID and generation environment fields and never performs an implicit
+authority claim.
+
+Authenticated HTTPS uses the canonical
+`X-Leserpent-Authority-Writer-Id` and
+`X-Leserpent-Authority-Writer-Generation` headers instead of changing any
+stable wire-v1 payload. The headers must be unique, paired, and contain a
+positive decimal generation plus the exact 32-character hexadecimal writer
+identity. Validation happens only after Bearer authentication. Wire mutations
+and the dedicated bootstrap, provisioning, runtime-retirement, and
+daemon-retirement routes enforce the ticket; wire reads and
+`/v1/leselang-export` remain unfenced.
+
+Wire mutation classification is exhaustive over every protocol request and
+domain command variant. Runtime status refresh, capability refresh, and
+bootstrap session binding now require the same generation ticket; debugger
+cancel remains delegated to the Leselang VM and is rejected by this control
+runtime. Contract tests source-scan the C# non-read endpoint set and Rust HTTPS
+route table, preventing an added route from silently escaping the canonical
+mutation inventory. A real multi-process daemon test retains the stable wire-v1
+payload while proving durable cold generation takeover and stale refresh
+rejection.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

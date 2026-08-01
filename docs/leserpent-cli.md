@@ -10,11 +10,20 @@ runtime SQLite database directly.
 export LESERPENT_SOCKET=/run/user/$UID/leserpent/leserpentd.sock
 export LESERPENT_IPC_TOKEN='at-least-32-non-whitespace-bytes'
 export LESERPENT_PRINCIPAL='operator-a' # optional audit identity
+# Only an active control-plane owner should export this paired ticket:
+export LESERPENT_AUTHORITY_WRITER_ID='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+export LESERPENT_AUTHORITY_WRITER_GENERATION='1'
 ```
 
 The socket may instead be supplied with `--socket PATH`. The CLI refuses links,
 non-socket paths, and sockets that grant group or other permissions. Tokens are
 accepted only from `LESERPENT_IPC_TOKEN`, never from command-line arguments.
+After a daemon authority generation has been claimed, authenticated mutation
+over either local IPC or remote HTTPS requires both writer-ticket variables.
+The CLI validates and forwards that owner-issued ticket but never claims or
+takes over writer authority automatically. Omit both variables before the
+first claim or for read-only commands; providing only one fails before
+connecting.
 
 For authenticated HTTPS, select the remote endpoint instead of the socket:
 

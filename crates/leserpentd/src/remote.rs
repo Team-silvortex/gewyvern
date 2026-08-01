@@ -19,9 +19,12 @@ use leserpent_protocol::provisioning::{
 };
 use leserpent_protocol::retirement::{MAX_RETIREMENT_PROTOCOL_BYTES, encode_retirement_response};
 use leserpent_protocol::transport_safety::{
-    BoundedFile, MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
+    AUTHORITY_WRITER_GENERATION_HEADER, AUTHORITY_WRITER_ID_HEADER, BoundedFile,
+    MAX_HTTP_HEADER_BYTES, is_http_header_name, open_bounded_regular_file,
 };
-use leserpent_protocol::{MAX_PROTOCOL_MESSAGE_BYTES, decode_request, encode_response};
+use leserpent_protocol::{
+    AuthorityWriterFence, MAX_PROTOCOL_MESSAGE_BYTES, decode_request, encode_response,
+};
 use leserpent_runtime::ControlRuntime;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
@@ -39,8 +42,8 @@ use crate::retirement_submission::{
     decode_and_submit as decode_and_submit_retirement, error as retirement_error,
 };
 use crate::wire::{
-    BootstrapSessionVerifier, constant_time_equals, error_response, execute_request,
-    validate_auth_token,
+    BootstrapSessionVerifier, authority_writer_fence_error_details, constant_time_equals,
+    error_response, execute_request, validate_auth_token,
 };
 
 const MAX_CERTIFICATE_FILE_BYTES: u64 = 1024 * 1024;
@@ -269,13 +272,14 @@ impl RemoteServer {
             Ok(HttpRequest {
                 route: HttpRoute::Wire,
                 body,
+                writer_fence,
             }) => {
                 let response = match decode_request(&body) {
                     Ok(request) => execute_request(
                         runtime,
                         request,
                         self.bootstrap_verifier.as_deref(),
-                        None,
+                        writer_fence.as_ref(),
                         false,
                     ),
                     Err(_) => error_response("invalid_request", "wire protocol request is invalid"),
@@ -288,8 +292,15 @@ impl RemoteServer {
             Ok(HttpRequest {
                 route: HttpRoute::Bootstrap,
                 body,
+                writer_fence,
             }) => {
-                let response = decode_and_submit(runtime, &body, self.bootstrap_submission_enabled);
+                let response = match specialized_authority_writer_fence_error(
+                    runtime,
+                    writer_fence.as_ref(),
+                ) {
+                    Some((code, message)) => bootstrap_error(None, code, message),
+                    None => decode_and_submit(runtime, &body, self.bootstrap_submission_enabled),
+                };
                 (
                     HttpStatus::Ok,
                     encode_bootstrap_response(&response).map_err(|error| error.to_string())?,
@@ -298,12 +309,19 @@ impl RemoteServer {
             Ok(HttpRequest {
                 route: HttpRoute::Provisioning,
                 body,
+                writer_fence,
             }) => {
-                let response = decode_and_submit_provisioning(
+                let response = match specialized_authority_writer_fence_error(
                     runtime,
-                    &body,
-                    self.provisioning_submission_enabled,
-                );
+                    writer_fence.as_ref(),
+                ) {
+                    Some((code, message)) => provisioning_error(None, code, message),
+                    None => decode_and_submit_provisioning(
+                        runtime,
+                        &body,
+                        self.provisioning_submission_enabled,
+                    ),
+                };
                 (
                     HttpStatus::Ok,
                     encode_provisioning_response(&response).map_err(|error| error.to_string())?,
@@ -312,12 +330,19 @@ impl RemoteServer {
             Ok(HttpRequest {
                 route: HttpRoute::Retirement,
                 body,
+                writer_fence,
             }) => {
-                let response = decode_and_submit_retirement(
+                let response = match specialized_authority_writer_fence_error(
                     runtime,
-                    &body,
-                    self.retirement_submission_enabled,
-                );
+                    writer_fence.as_ref(),
+                ) {
+                    Some((code, message)) => retirement_error(None, code, message),
+                    None => decode_and_submit_retirement(
+                        runtime,
+                        &body,
+                        self.retirement_submission_enabled,
+                    ),
+                };
                 (
                     HttpStatus::Ok,
                     encode_retirement_response(&response).map_err(|error| error.to_string())?,
@@ -326,12 +351,19 @@ impl RemoteServer {
             Ok(HttpRequest {
                 route: HttpRoute::DaemonRetirement,
                 body,
+                writer_fence,
             }) => {
-                let response = decode_and_submit_daemon_retirement(
+                let response = match specialized_authority_writer_fence_error(
                     runtime,
-                    &body,
-                    self.daemon_retirement_submission_enabled,
-                );
+                    writer_fence.as_ref(),
+                ) {
+                    Some((code, message)) => daemon_retirement_error(None, code, message),
+                    None => decode_and_submit_daemon_retirement(
+                        runtime,
+                        &body,
+                        self.daemon_retirement_submission_enabled,
+                    ),
+                };
                 (
                     HttpStatus::Ok,
                     encode_daemon_retirement_response(&response)
@@ -341,6 +373,7 @@ impl RemoteServer {
             Ok(HttpRequest {
                 route: HttpRoute::LeselangExport,
                 body,
+                ..
             }) => {
                 let response = match decode_leselang_export_request(&body)
                     .and_then(|request| export_intent_leselang(&request.intent))
@@ -398,6 +431,19 @@ impl RemoteServer {
         self.event_sessions
             .retain_mut(|session| session.poll(revision, &runtimes));
     }
+}
+
+fn specialized_authority_writer_fence_error(
+    runtime: &mut ControlRuntime,
+    writer_fence: Option<&AuthorityWriterFence>,
+) -> Option<(&'static str, &'static str)> {
+    runtime
+        .require_authority_writer(
+            writer_fence.map(|fence| fence.generation),
+            writer_fence.map(|fence| fence.writer_id.as_str()),
+        )
+        .err()
+        .map(|error| authority_writer_fence_error_details(&error))
 }
 
 pub fn load_remote_token_file(path: impl AsRef<Path>) -> Result<Zeroizing<String>, String> {
@@ -471,6 +517,7 @@ enum HttpRoute {
 struct HttpRequest {
     route: HttpRoute,
     body: Vec<u8>,
+    writer_fence: Option<AuthorityWriterFence>,
 }
 
 impl HttpError {
@@ -479,6 +526,14 @@ impl HttpError {
             status: HttpStatus::BadRequest,
             code: "invalid_http_request",
             message: "HTTPS request is malformed",
+        }
+    }
+
+    fn invalid_authority_writer_fence() -> Self {
+        Self {
+            status: HttpStatus::BadRequest,
+            code: "invalid_authority_writer_fence",
+            message: "authority writer headers must contain one valid paired ticket",
         }
     }
 }
@@ -531,6 +586,9 @@ fn read_http_request(
     let mut authorization = None;
     let mut content_length = None;
     let mut content_type = None;
+    let mut writer_id = None;
+    let mut writer_generation = None;
+    let mut duplicate_writer_header = false;
     for line in lines {
         let (name, value) = line.split_once(':').ok_or_else(HttpError::bad_request)?;
         if !is_http_header_name(name) {
@@ -549,6 +607,14 @@ fn read_http_request(
             if content_type.replace(value).is_some() {
                 return Err(HttpError::bad_request());
             }
+        } else if name.eq_ignore_ascii_case(AUTHORITY_WRITER_ID_HEADER) {
+            if writer_id.replace(value).is_some() {
+                duplicate_writer_header = true;
+            }
+        } else if name.eq_ignore_ascii_case(AUTHORITY_WRITER_GENERATION_HEADER) {
+            if writer_generation.replace(value).is_some() {
+                duplicate_writer_header = true;
+            }
         } else if name.eq_ignore_ascii_case("transfer-encoding") {
             return Err(HttpError::bad_request());
         }
@@ -564,6 +630,10 @@ fn read_http_request(
             message: "remote authentication failed",
         });
     }
+    if duplicate_writer_header {
+        return Err(HttpError::invalid_authority_writer_fence());
+    }
+    let writer_fence = parse_authority_writer_fence(writer_id, writer_generation)?;
     if parts[0] != "POST" {
         return Err(HttpError {
             status: HttpStatus::MethodNotAllowed,
@@ -630,7 +700,39 @@ fn read_http_request(
             .map_err(|_| HttpError::bad_request())?;
         body.extend_from_slice(&remainder);
     }
-    Ok(HttpRequest { route, body })
+    Ok(HttpRequest {
+        route,
+        body,
+        writer_fence,
+    })
+}
+
+fn parse_authority_writer_fence(
+    writer_id: Option<&str>,
+    generation: Option<&str>,
+) -> Result<Option<AuthorityWriterFence>, HttpError> {
+    let (writer_id, generation) = match (writer_id, generation) {
+        (None, None) => return Ok(None),
+        (Some(writer_id), Some(generation)) => (writer_id, generation),
+        _ => return Err(HttpError::invalid_authority_writer_fence()),
+    };
+    if writer_id.len() != 32
+        || !writer_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || generation.is_empty()
+        || !generation.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(HttpError::invalid_authority_writer_fence());
+    }
+    let generation = generation
+        .parse::<u64>()
+        .map_err(|_| HttpError::invalid_authority_writer_fence())?;
+    if generation == 0 {
+        return Err(HttpError::invalid_authority_writer_fence());
+    }
+    Ok(Some(AuthorityWriterFence {
+        generation,
+        writer_id: writer_id.to_string(),
+    }))
 }
 
 fn read_http_head(stream: &mut impl Read) -> Result<Vec<u8>, HttpError> {
@@ -721,10 +823,14 @@ mod tests {
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use leserpent_domain::{Revision, RuntimeId};
+    use leserpent_domain::{
+        CAPABILITY_RUNTIME_DEPLOY, CapabilitySet, Command, CommandEnvelope, CommandId,
+        CommandOrigin, CommandStatus, Confirmation, DOMAIN_SCHEMA_VERSION, IdempotencyKey,
+        Principal, Revision, RuntimeId,
+    };
     use leserpent_protocol::{
-        HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolEvent, ProtocolRequest, RequestEnvelope,
-        decode_event, decode_response, encode_request,
+        AuthorityWriterFence, HealthRequest, PROTOCOL_SCHEMA_VERSION, ProtocolEvent,
+        ProtocolRequest, RequestEnvelope, decode_event, decode_response, encode_request,
     };
     use rcgen::{CertifiedKey, generate_simple_self_signed};
     use rustls::pki_types::ServerName;
@@ -752,6 +858,31 @@ mod tests {
         encode_request(&RequestEnvelope {
             schema_version: PROTOCOL_SCHEMA_VERSION,
             request: ProtocolRequest::Health(HealthRequest {}),
+        })
+        .unwrap()
+    }
+
+    fn deployment_body(runtime_id: &str) -> Vec<u8> {
+        encode_request(&RequestEnvelope {
+            schema_version: PROTOCOL_SCHEMA_VERSION,
+            request: ProtocolRequest::Command(CommandEnvelope {
+                schema_version: DOMAIN_SCHEMA_VERSION,
+                command_id: CommandId::new("remote-writer-fence-deploy").unwrap(),
+                idempotency_key: IdempotencyKey::new("remote-writer-fence-deploy-request").unwrap(),
+                expected_revision: None,
+                principal: Principal {
+                    id: "operator".into(),
+                },
+                capabilities: CapabilitySet::new([CAPABILITY_RUNTIME_DEPLOY]),
+                origin: CommandOrigin::CompatibilityAdapter,
+                confirmation: Confirmation::Confirmed,
+                dry_run: false,
+                command: Command::RuntimeDeploy {
+                    runtime_id: RuntimeId::new(runtime_id).unwrap(),
+                    pipeline_kind: "capture/http".into(),
+                    target: Some("service-a".into()),
+                },
+            }),
         })
         .unwrap()
     }
@@ -805,8 +936,23 @@ mod tests {
     }
 
     fn request_at(token: &str, path: &str, body: &[u8]) -> Vec<u8> {
+        request_at_with_writer_fence(token, path, body, None)
+    }
+
+    fn request_at_with_writer_fence(
+        token: &str,
+        path: &str,
+        body: &[u8],
+        writer_fence: Option<&AuthorityWriterFence>,
+    ) -> Vec<u8> {
+        let writer_headers = writer_fence.map_or_else(String::new, |fence| {
+            format!(
+                "{AUTHORITY_WRITER_ID_HEADER}: {}\r\n{AUTHORITY_WRITER_GENERATION_HEADER}: {}\r\n",
+                fence.writer_id, fence.generation
+            )
+        });
         format!(
-            "POST {path} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+            "POST {path} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\n{writer_headers}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n",
             body.len()
         )
         .bytes()
@@ -852,6 +998,34 @@ mod tests {
         body: Vec<u8>,
         token: &'static str,
     ) -> thread::JoinHandle<Vec<u8>> {
+        tls_post_client_with_token_and_writer_fence(address, certificate, path, body, token, None)
+    }
+
+    fn tls_post_client_with_writer_fence(
+        address: SocketAddr,
+        certificate: rustls::pki_types::CertificateDer<'static>,
+        path: &'static str,
+        body: Vec<u8>,
+        writer_fence: Option<AuthorityWriterFence>,
+    ) -> thread::JoinHandle<Vec<u8>> {
+        tls_post_client_with_token_and_writer_fence(
+            address,
+            certificate,
+            path,
+            body,
+            TOKEN,
+            writer_fence,
+        )
+    }
+
+    fn tls_post_client_with_token_and_writer_fence(
+        address: SocketAddr,
+        certificate: rustls::pki_types::CertificateDer<'static>,
+        path: &'static str,
+        body: Vec<u8>,
+        token: &'static str,
+        writer_fence: Option<AuthorityWriterFence>,
+    ) -> thread::JoinHandle<Vec<u8>> {
         thread::spawn(move || {
             let mut roots = RootCertStore::empty();
             roots.add(certificate).unwrap();
@@ -868,9 +1042,89 @@ mod tests {
             let socket = TcpStream::connect(address).unwrap();
             socket.set_read_timeout(Some(CONNECTION_TIMEOUT)).unwrap();
             let mut stream = StreamOwned::new(connection, socket);
-            stream.write_all(&request_at(token, path, &body)).unwrap();
+            stream
+                .write_all(&request_at_with_writer_fence(
+                    token,
+                    path,
+                    &body,
+                    writer_fence.as_ref(),
+                ))
+                .unwrap();
             read_response(&mut stream)
         })
+    }
+
+    fn complete_tls_request(
+        server: &mut RemoteServer,
+        runtime: &mut ControlRuntime,
+        client: thread::JoinHandle<Vec<u8>>,
+    ) -> Vec<u8> {
+        for _ in 0..100 {
+            if server.poll_once_strict(runtime).unwrap() {
+                return client.join().unwrap();
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        panic!("remote TLS request was not accepted");
+    }
+
+    fn specialized_response_error_code(path: &str, response: &[u8]) -> Option<String> {
+        let body_start = find_header_end(response).unwrap();
+        match path {
+            "/v1/bootstrap" => {
+                match leserpent_protocol::bootstrap::decode_bootstrap_response(
+                    &response[body_start..],
+                )
+                .unwrap()
+                .response
+                {
+                    leserpent_protocol::bootstrap::BootstrapResponse::Error(error) => {
+                        Some(error.code)
+                    }
+                    _ => None,
+                }
+            }
+            "/v1/provisioning" => {
+                match leserpent_protocol::provisioning::decode_provisioning_response(
+                    &response[body_start..],
+                )
+                .unwrap()
+                .response
+                {
+                    leserpent_protocol::provisioning::ProvisioningResponse::Error(error) => {
+                        Some(error.code)
+                    }
+                    _ => None,
+                }
+            }
+            "/v1/retirement" => {
+                match leserpent_protocol::retirement::decode_retirement_response(
+                    &response[body_start..],
+                )
+                .unwrap()
+                .response
+                {
+                    leserpent_protocol::retirement::RetirementResponse::Error(error) => {
+                        Some(error.code)
+                    }
+                    _ => None,
+                }
+            }
+            "/v1/daemon-retirement" => {
+                match leserpent_protocol::bootstrap_retirement_control::decode_daemon_retirement_response(
+                    &response[body_start..],
+                )
+                .unwrap()
+                .response
+                {
+                    leserpent_protocol::bootstrap_retirement_control::DaemonRetirementResponse::Error(error) => {
+                        Some(error.code)
+                    }
+                    _ => None,
+                }
+            }
+            _ => panic!("unsupported specialized route"),
+        }
     }
 
     #[test]
@@ -947,6 +1201,22 @@ mod tests {
             read_http_request(&mut Cursor::new(request(TOKEN, &body)), TOKEN.as_bytes()).unwrap();
         assert_eq!(parsed.route, HttpRoute::Wire);
         assert_eq!(parsed.body, body);
+        assert_eq!(parsed.writer_fence, None);
+        let writer_fence = AuthorityWriterFence {
+            generation: 42,
+            writer_id: "ABCDEFABCDEFABCDEFABCDEFABCDEFAB".into(),
+        };
+        let parsed = read_http_request(
+            &mut Cursor::new(request_at_with_writer_fence(
+                TOKEN,
+                "/v1/wire",
+                &health_body(),
+                Some(&writer_fence),
+            )),
+            TOKEN.as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(parsed.writer_fence, Some(writer_fence));
         let bootstrap = read_http_request(
             &mut Cursor::new(request_at(TOKEN, "/v1/bootstrap", b"{}")),
             TOKEN.as_bytes(),
@@ -989,6 +1259,47 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(wrong_token.status, HttpStatus::Unauthorized));
+
+        for headers in [
+            format!("{AUTHORITY_WRITER_ID_HEADER}: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n"),
+            format!("{AUTHORITY_WRITER_GENERATION_HEADER}: 1\r\n"),
+            format!(
+                "{AUTHORITY_WRITER_ID_HEADER}: short\r\n{AUTHORITY_WRITER_GENERATION_HEADER}: 1\r\n"
+            ),
+            format!(
+                "{AUTHORITY_WRITER_ID_HEADER}: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n{AUTHORITY_WRITER_GENERATION_HEADER}: 0\r\n"
+            ),
+        ] {
+            let request = format!(
+                "POST /v1/wire HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\n{headers}Content-Type: application/json\r\nContent-Length: 0\r\n\r\n"
+            );
+            let error = read_http_request(&mut Cursor::new(request.into_bytes()), TOKEN.as_bytes())
+                .unwrap_err();
+            assert!(matches!(error.status, HttpStatus::BadRequest));
+            assert_eq!(error.code, "invalid_authority_writer_fence");
+        }
+
+        let duplicate_writer = format!(
+            "POST /v1/wire HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\n{AUTHORITY_WRITER_ID_HEADER}: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n{AUTHORITY_WRITER_ID_HEADER}: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n{AUTHORITY_WRITER_GENERATION_HEADER}: 1\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n"
+        );
+        let error = read_http_request(
+            &mut Cursor::new(duplicate_writer.into_bytes()),
+            TOKEN.as_bytes(),
+        )
+        .unwrap_err();
+        assert!(matches!(error.status, HttpStatus::BadRequest));
+        assert_eq!(error.code, "invalid_authority_writer_fence");
+
+        let unauthenticated_malformed_writer = format!(
+            "POST /v1/wire HTTP/1.1\r\nAuthorization: Bearer fedcba9876543210fedcba9876543210\r\n{AUTHORITY_WRITER_ID_HEADER}: short\r\n{AUTHORITY_WRITER_GENERATION_HEADER}: 0\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n"
+        );
+        let error = read_http_request(
+            &mut Cursor::new(unauthenticated_malformed_writer.into_bytes()),
+            TOKEN.as_bytes(),
+        )
+        .unwrap_err();
+        assert!(matches!(error.status, HttpStatus::Unauthorized));
+        assert_eq!(error.code, "unauthorized");
 
         let duplicate_auth = format!(
             "POST /v1/wire HTTP/1.1\r\nAuthorization: Bearer {TOKEN}\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: 0\r\n\r\n"
@@ -1097,6 +1408,196 @@ mod tests {
             .status,
             HttpStatus::PayloadTooLarge
         ));
+    }
+
+    #[test]
+    fn authority_writer_generation_fences_remote_mutations_over_real_tls() {
+        let CertifiedKey { cert, signing_key } =
+            generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate_path = temp_path("writer-fence", "crt");
+        let key_path = temp_path("writer-fence", "key");
+        let database_path = temp_path("writer-fence", "sqlite");
+        fs::write(&certificate_path, cert.pem()).unwrap();
+        fs::write(&key_path, signing_key.serialize_pem()).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let mut server = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            &certificate_path,
+            &key_path,
+            TOKEN,
+        )
+        .unwrap()
+        .with_bootstrap_submission()
+        .with_provisioning_submission()
+        .with_retirement_submission()
+        .with_daemon_retirement_submission();
+        let address = server.local_addr().unwrap();
+        let mut runtime = ControlRuntime::open(&database_path).unwrap();
+        crate::retirement_submission::seed_registered_runtime(
+            &mut runtime,
+            "provision-remote-writer-fence",
+            "runtime-remote-writer-fence",
+        );
+        let writer_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        assert_eq!(
+            runtime.claim_authority_writer(writer_a).unwrap().generation,
+            1
+        );
+        assert_eq!(
+            runtime.claim_authority_writer(writer_b).unwrap().generation,
+            2
+        );
+        let stale = AuthorityWriterFence {
+            generation: 1,
+            writer_id: writer_a.into(),
+        };
+        let current = AuthorityWriterFence {
+            generation: 2,
+            writer_id: writer_b.into(),
+        };
+
+        let deployment = deployment_body("runtime-remote-writer-fence");
+        for (fence, expected) in [
+            (None, "authority_writer_fence_required"),
+            (Some(stale.clone()), "authority_writer_fence_rejected"),
+        ] {
+            let client = tls_post_client_with_writer_fence(
+                address,
+                cert.der().clone(),
+                "/v1/wire",
+                deployment.clone(),
+                fence,
+            );
+            let response = complete_tls_request(&mut server, &mut runtime, client);
+            let body_start = find_header_end(&response).unwrap();
+            assert!(matches!(
+                decode_response(&response[body_start..]).unwrap().response,
+                leserpent_protocol::ProtocolResponse::Error(ref error)
+                    if error.code == expected
+            ));
+        }
+        assert_eq!(runtime.effect_queue_stats().unwrap().ready, 0);
+        let client = tls_post_client_with_writer_fence(
+            address,
+            cert.der().clone(),
+            "/v1/wire",
+            deployment,
+            Some(current.clone()),
+        );
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        let body_start = find_header_end(&response).unwrap();
+        assert!(matches!(
+            decode_response(&response[body_start..]).unwrap().response,
+            leserpent_protocol::ProtocolResponse::Command(ref result)
+                if result.status == CommandStatus::Applied
+        ));
+        assert_eq!(runtime.effect_queue_stats().unwrap().ready, 1);
+
+        let bootstrap =
+            include_bytes!("../../leserpent-protocol/tests/fixtures/bootstrap-request-v1.json")
+                .to_vec();
+        let bootstrap_id = leserpent_domain::bootstrap::BootstrapId::new("bootstrap-1").unwrap();
+        for (fence, expected) in [
+            (None, "authority_writer_fence_required"),
+            (Some(stale.clone()), "authority_writer_fence_rejected"),
+        ] {
+            let client = tls_post_client_with_writer_fence(
+                address,
+                cert.der().clone(),
+                "/v1/bootstrap",
+                bootstrap.clone(),
+                fence,
+            );
+            let response = complete_tls_request(&mut server, &mut runtime, client);
+            assert_eq!(
+                specialized_response_error_code("/v1/bootstrap", &response).as_deref(),
+                Some(expected)
+            );
+            assert!(
+                runtime
+                    .bootstrap_checkpoint(&bootstrap_id)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        let client = tls_post_client_with_writer_fence(
+            address,
+            cert.der().clone(),
+            "/v1/bootstrap",
+            bootstrap,
+            Some(current.clone()),
+        );
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        assert_eq!(
+            runtime
+                .bootstrap_checkpoint(&bootstrap_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            1
+        );
+
+        for path in [
+            "/v1/provisioning",
+            "/v1/retirement",
+            "/v1/daemon-retirement",
+        ] {
+            for (fence, expected) in [
+                (None, "authority_writer_fence_required"),
+                (Some(stale.clone()), "authority_writer_fence_rejected"),
+            ] {
+                let client = tls_post_client_with_writer_fence(
+                    address,
+                    cert.der().clone(),
+                    path,
+                    b"{}".to_vec(),
+                    fence,
+                );
+                let response = complete_tls_request(&mut server, &mut runtime, client);
+                assert_eq!(
+                    specialized_response_error_code(path, &response).as_deref(),
+                    Some(expected)
+                );
+            }
+            let client = tls_post_client_with_writer_fence(
+                address,
+                cert.der().clone(),
+                path,
+                b"{}".to_vec(),
+                Some(current.clone()),
+            );
+            let response = complete_tls_request(&mut server, &mut runtime, client);
+            assert!(!matches!(
+                specialized_response_error_code(path, &response).as_deref(),
+                Some("authority_writer_fence_required" | "authority_writer_fence_rejected")
+            ));
+        }
+
+        let export = serde_json::to_vec(&leselang_ui::LeselangExportRequest {
+            schema_version: leselang_ui::LESELANG_EXPORT_SCHEMA_VERSION,
+            intent: leselang_ui::LeselangExportIntent::RuntimeDeploy {
+                runtime_id: "runtime-a".into(),
+                pipeline_kind: "http/request".into(),
+                target: None,
+            },
+        })
+        .unwrap();
+        let client = tls_post_client(address, cert.der().clone(), "/v1/leselang-export", export);
+        let response = complete_tls_request(&mut server, &mut runtime, client);
+        let body_start = find_header_end(&response).unwrap();
+        let decoded =
+            serde_json::from_slice::<leselang_ui::LeselangExportResponse>(&response[body_start..])
+                .unwrap();
+        assert!(decoded.error.is_none());
+
+        drop(runtime);
+        fs::remove_file(certificate_path).unwrap();
+        fs::remove_file(key_path).unwrap();
+        fs::remove_file(database_path).unwrap();
     }
 
     #[test]

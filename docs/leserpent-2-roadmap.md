@@ -1423,10 +1423,21 @@ The C# owner claims it before startup admission completes, then attaches the
 ticket through one shared frame codec to registration, discovery intake,
 unregistration, deployment, and Orchestra mutation IPC frames. Claim retry is
 idempotent; a newer claim rejects missing and stale tickets before projection,
-effect queue, receipt, or Orchestra persistence mutation. The next slice
-extends this ticket to bootstrap, provisioning, retirement, and remote
-transport. Hot failover remains explicitly out of scope until all external
-side-effect routes share that authority boundary.
+effect queue, receipt, or Orchestra persistence mutation. The third slice now
+fences the explicit local bootstrap, provisioning, runtime-retirement, and
+daemon-retirement routes before protocol decode and lets the native CLI forward
+an owner-issued ticket without automatically claiming authority. The fourth
+slice carries the same ticket over authenticated HTTPS in paired canonical
+headers, covering wire mutations and all four dedicated remote mutation routes
+while leaving wire reads and Leselang export unfenced. The inventoried external
+side-effect routes now share one authority boundary. The fifth slice closes the
+previous refresh and bootstrap-session-bind gaps, makes Rust request
+classification compile-time exhaustive, and source-scans both the C# mutation
+routes and Rust HTTPS table against contract 1.5.0. A real three-process daemon
+test proves live-owner exclusion, generation advance, stale-writer rejection,
+and durable writer replay across two restarts. Hot failover remains explicitly
+out of scope; future route growth must preserve these executable inventory and
+cold-takeover contracts.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

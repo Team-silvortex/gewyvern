@@ -502,6 +502,98 @@ fn native_cli_submits_provisioning_bound_retirement_over_authenticated_https() {
     fs::remove_file(private_key).unwrap();
 }
 
+#[test]
+fn native_cli_forwards_the_active_writer_ticket_over_https() {
+    let database = temp_path("writer-fence.sqlite");
+    let certificate = temp_path("writer-fence.crt");
+    let private_key = temp_path("writer-fence.key");
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["127.0.0.1".to_string()]).unwrap();
+    fs::write(&certificate, cert.pem()).unwrap();
+    fs::write(&private_key, signing_key.serialize_pem()).unwrap();
+    #[cfg(unix)]
+    fs::set_permissions(&private_key, fs::Permissions::from_mode(0o600)).unwrap();
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let server_stop = Arc::clone(&stop);
+    let server_database = database.clone();
+    let server_certificate = certificate.clone();
+    let server_private_key = private_key.clone();
+    let writer_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let server = thread::spawn(move || {
+        let mut runtime = ControlRuntime::open(&server_database).unwrap();
+        assert_eq!(
+            runtime.claim_authority_writer(writer_a).unwrap().generation,
+            1
+        );
+        assert_eq!(
+            runtime.claim_authority_writer(writer_b).unwrap().generation,
+            2
+        );
+        let mut https = RemoteServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            server_certificate,
+            server_private_key,
+            TOKEN,
+        )
+        .unwrap()
+        .with_bootstrap_submission();
+        ready_tx.send(https.local_addr().unwrap()).unwrap();
+        while !server_stop.load(Ordering::Acquire) {
+            https.poll_once(&mut runtime).unwrap();
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+    let endpoint = format!(
+        "https://{}",
+        ready_rx.recv_timeout(Duration::from_secs(2)).unwrap()
+    );
+    let binary = env!("CARGO_BIN_EXE_leserpent");
+    let run = |writer_fence: Option<(&str, &str)>| {
+        let mut command = remote_command(binary, &endpoint, &certificate);
+        command
+            .args([
+                "bootstrap",
+                "deploy",
+                "bootstrap-https-writer-fence",
+                "--host",
+                "host.example",
+                "--credential-handle",
+                "vault:ssh:host-example",
+                "--yes",
+            ])
+            .env("LESERPENT_PRINCIPAL", "integration-test");
+        if let Some((writer_id, generation)) = writer_fence {
+            command
+                .env("LESERPENT_AUTHORITY_WRITER_ID", writer_id)
+                .env("LESERPENT_AUTHORITY_WRITER_GENERATION", generation);
+        }
+        command.output().unwrap()
+    };
+
+    let missing = run(None);
+    assert_eq!(missing.status.code(), Some(3));
+    assert!(stderr(&missing).contains("authority_writer_fence_required"));
+    let stale = run(Some((writer_a, "1")));
+    assert_eq!(stale.status.code(), Some(3));
+    assert!(stderr(&stale).contains("authority_writer_fence_rejected"));
+    let current = run(Some((writer_b, "2")));
+    assert!(current.status.success(), "{}", stderr(&current));
+    assert!(
+        String::from_utf8(current.stdout)
+            .unwrap()
+            .contains("bootstrap=bootstrap-https-writer-fence phase=planned")
+    );
+
+    stop.store(true, Ordering::Release);
+    server.join().unwrap();
+    fs::remove_file(database).unwrap();
+    fs::remove_file(certificate).unwrap();
+    fs::remove_file(private_key).unwrap();
+}
+
 fn remote_command(binary: &str, endpoint: &str, certificate: &Path) -> Command {
     let mut command = Command::new(binary);
     command

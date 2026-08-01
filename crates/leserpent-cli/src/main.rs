@@ -6,17 +6,18 @@ use leserpent_cli::{
     CliCommand, CliError, DaemonRetirementWaitOptions, HttpsClient, ProvisioningWaitOptions,
     RemoteTrust, RetirementWaitOptions, RuntimeWatchOptions, bootstrap_request_for,
     daemon_retirement_phase_name, daemon_retirement_request_for, export_leselang, export_plan,
-    parse_args_with_remote, provisioning_phase_name, provisioning_request_for,
-    render_bootstrap_response, render_daemon_retirement_response, render_provisioning_response,
-    render_response, render_retirement_response, request_for, retirement_phase_name,
-    retirement_request_for, send_bootstrap_request, send_daemon_retirement_request,
-    send_provisioning_request, send_request, send_retirement_request,
+    parse_args_with_remote, parse_authority_writer_fence, provisioning_phase_name,
+    provisioning_request_for, render_bootstrap_response, render_daemon_retirement_response,
+    render_provisioning_response, render_response, render_retirement_response, request_for,
+    retirement_phase_name, retirement_request_for, send_bootstrap_request_with_writer_fence,
+    send_daemon_retirement_request_with_writer_fence, send_provisioning_request_with_writer_fence,
+    send_request_with_writer_fence, send_retirement_request_with_writer_fence,
 };
 use leserpent_domain::QueryResult;
 use leserpent_domain::bootstrap_retirement::DaemonRetirementPhase;
 use leserpent_domain::provisioning::ProvisioningPhase;
 use leserpent_domain::retirement::RetirementPhase;
-use leserpent_protocol::{ProtocolResponse, RequestEnvelope};
+use leserpent_protocol::{AuthorityWriterFence, ProtocolResponse, RequestEnvelope};
 use zeroize::Zeroizing;
 
 fn main() {
@@ -48,6 +49,9 @@ fn run() -> Result<i32, CliError> {
         println!("{plan}");
         return Ok(0);
     }
+    let writer_id = optional_utf8_env("LESERPENT_AUTHORITY_WRITER_ID")?;
+    let generation = optional_utf8_env("LESERPENT_AUTHORITY_WRITER_GENERATION")?;
+    let writer_fence = parse_authority_writer_fence(writer_id.as_deref(), generation.as_deref())?;
     let transport = match (&options.socket, &options.remote) {
         (Some(socket), None) => {
             let token = std::env::var("LESERPENT_IPC_TOKEN")
@@ -55,6 +59,7 @@ fn run() -> Result<i32, CliError> {
             ActiveTransport::Local {
                 socket: socket.clone(),
                 token: Zeroizing::new(token),
+                writer_fence,
             }
         }
         (None, Some(remote)) => {
@@ -66,7 +71,8 @@ fn run() -> Result<i32, CliError> {
                 RemoteTrust::BootstrapHandle { root, handle } => {
                     HttpsClient::new_with_bootstrap_trust(&remote.endpoint, root, handle, token)?
                 }
-            };
+            }
+            .with_authority_writer_fence(writer_fence)?;
             ActiveTransport::Remote(client)
         }
         _ => {
@@ -124,6 +130,16 @@ fn run() -> Result<i32, CliError> {
         Err(error) => return Err(error),
     }
     Ok(if is_error { 3 } else { 0 })
+}
+
+fn optional_utf8_env(name: &str) -> Result<Option<String>, CliError> {
+    match std::env::var(name) {
+        Ok(value) => Ok(Some(value)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => Err(CliError::Configuration(format!(
+            "{name} must contain UTF-8 text"
+        ))),
+    }
 }
 
 fn run_daemon_retirement(
@@ -316,6 +332,7 @@ enum ActiveTransport {
     Local {
         socket: PathBuf,
         token: Zeroizing<String>,
+        writer_fence: Option<AuthorityWriterFence>,
     },
     Remote(HttpsClient),
 }
@@ -326,7 +343,16 @@ impl ActiveTransport {
         request: &RequestEnvelope,
     ) -> Result<leserpent_protocol::ResponseEnvelope, CliError> {
         match self {
-            Self::Local { socket, token } => send_request(socket, token.as_str(), request),
+            Self::Local {
+                socket,
+                token,
+                writer_fence,
+            } => send_request_with_writer_fence(
+                socket,
+                token.as_str(),
+                request,
+                writer_fence.as_ref(),
+            ),
             Self::Remote(client) => client.send(request),
         }
     }
@@ -336,9 +362,16 @@ impl ActiveTransport {
         request: &leserpent_protocol::bootstrap::BootstrapRequestEnvelope,
     ) -> Result<leserpent_protocol::bootstrap::BootstrapResponseEnvelope, CliError> {
         match self {
-            Self::Local { socket, token } => {
-                send_bootstrap_request(socket, token.as_str(), request)
-            }
+            Self::Local {
+                socket,
+                token,
+                writer_fence,
+            } => send_bootstrap_request_with_writer_fence(
+                socket,
+                token.as_str(),
+                request,
+                writer_fence.as_ref(),
+            ),
             Self::Remote(client) => client.send_bootstrap(request),
         }
     }
@@ -348,9 +381,16 @@ impl ActiveTransport {
         request: &leserpent_protocol::provisioning::ProvisioningRequestEnvelope,
     ) -> Result<leserpent_protocol::provisioning::ProvisioningResponseEnvelope, CliError> {
         match self {
-            Self::Local { socket, token } => {
-                send_provisioning_request(socket, token.as_str(), request)
-            }
+            Self::Local {
+                socket,
+                token,
+                writer_fence,
+            } => send_provisioning_request_with_writer_fence(
+                socket,
+                token.as_str(),
+                request,
+                writer_fence.as_ref(),
+            ),
             Self::Remote(client) => client.send_provisioning(request),
         }
     }
@@ -360,9 +400,16 @@ impl ActiveTransport {
         request: &leserpent_protocol::retirement::RetirementRequestEnvelope,
     ) -> Result<leserpent_protocol::retirement::RetirementResponseEnvelope, CliError> {
         match self {
-            Self::Local { socket, token } => {
-                send_retirement_request(socket, token.as_str(), request)
-            }
+            Self::Local {
+                socket,
+                token,
+                writer_fence,
+            } => send_retirement_request_with_writer_fence(
+                socket,
+                token.as_str(),
+                request,
+                writer_fence.as_ref(),
+            ),
             Self::Remote(client) => client.send_retirement(request),
         }
     }
@@ -375,9 +422,16 @@ impl ActiveTransport {
         CliError,
     > {
         match self {
-            Self::Local { socket, token } => {
-                send_daemon_retirement_request(socket, token.as_str(), request)
-            }
+            Self::Local {
+                socket,
+                token,
+                writer_fence,
+            } => send_daemon_retirement_request_with_writer_fence(
+                socket,
+                token.as_str(),
+                request,
+                writer_fence.as_ref(),
+            ),
             Self::Remote(client) => client.send_daemon_retirement(request),
         }
     }

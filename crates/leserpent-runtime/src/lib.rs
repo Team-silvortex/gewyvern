@@ -468,6 +468,18 @@ impl ControlRuntime {
         generation: Option<u64>,
         writer_id: Option<&str>,
     ) -> Result<(), RuntimeError> {
+        let invalid = match (generation, writer_id) {
+            (Some(generation), Some(writer_id)) => {
+                generation == 0 || !valid_authority_writer_id(writer_id)
+            }
+            (Some(_), None) | (None, Some(_)) => true,
+            (None, None) => false,
+        };
+        if invalid {
+            return Err(RuntimeError::AuthorityWriterFence(
+                AuthorityWriterFenceError::Rejected,
+            ));
+        }
         let Some(journal) = &mut self.journal else {
             return Ok(());
         };
@@ -2359,6 +2371,10 @@ impl ControlRuntime {
     }
 }
 
+fn valid_authority_writer_id(writer_id: &str) -> bool {
+    writer_id.len() == 32 && writer_id.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 fn deployment_receipt_from_record(
     record: EffectRecord,
     request_id: &str,
@@ -3021,6 +3037,20 @@ mod tests {
         let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         {
             let mut runtime = ControlRuntime::open(&path).unwrap();
+            runtime.require_authority_writer(None, None).unwrap();
+            for (generation, writer_id) in [
+                (Some(0), Some(writer_a)),
+                (Some(1), Some("short")),
+                (Some(1), None),
+                (None, Some(writer_a)),
+            ] {
+                assert!(matches!(
+                    runtime.require_authority_writer(generation, writer_id),
+                    Err(RuntimeError::AuthorityWriterFence(
+                        AuthorityWriterFenceError::Rejected
+                    ))
+                ));
+            }
             let first = runtime.claim_authority_writer(writer_a).unwrap();
             assert_eq!(first.generation, 1);
             assert!(!first.replayed);

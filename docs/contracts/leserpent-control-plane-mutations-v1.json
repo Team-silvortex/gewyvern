@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.2.0",
+  "version": "1.5.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -45,7 +45,11 @@
     "registry-pre-mutation-guard",
     "persistence-write-backstop",
     "background-worker-owner-gate",
-    "rust-authority-pre-mutation-generation-fence"
+    "source-scanned-route-inventory-ci",
+    "exhaustive-rust-request-classification",
+    "rust-authority-pre-mutation-generation-fence",
+    "rust-specialized-local-route-pre-decode-generation-fence",
+    "rust-authenticated-https-header-generation-fence"
   ],
   "rust_authority_writer_fence": {
     "journal_schema": 19,
@@ -55,22 +59,52 @@
       "runtime_register",
       "runtime_registration_update",
       "runtime_discovery_intake",
+      "runtime_refresh",
+      "runtime_capabilities_refresh",
       "runtime_unregister",
       "runtime_deploy",
       "orchestra_persist",
       "orchestra_delete",
       "orchestra_delete_command",
-      "orchestra_delete_replay_checkpoint"
+      "orchestra_delete_replay_checkpoint",
+      "bootstrap_session_bind",
+      "bootstrap_v1",
+      "provisioning_v1",
+      "retirement_v1",
+      "daemon_retirement_v1"
     ],
     "missing_error": "authority_writer_fence_required",
     "stale_error": "authority_writer_fence_rejected",
     "legacy_before_first_claim": true,
-    "remaining_routes": [
-      "bootstrap",
-      "provisioning",
-      "retirement",
-      "remote_transport"
-    ]
+    "remote_headers": {
+      "writer_id": "X-Leserpent-Authority-Writer-Id",
+      "generation": "X-Leserpent-Authority-Writer-Generation",
+      "policy": "paired-unique-strictly-validated-after-bearer-authentication"
+    },
+    "remote_routes": [
+      "/v1/wire",
+      "/v1/bootstrap",
+      "/v1/provisioning",
+      "/v1/retirement",
+      "/v1/daemon-retirement",
+      "/v1/leselang-export"
+    ],
+    "covered_remote_mutations": [
+      "/v1/wire",
+      "/v1/bootstrap",
+      "/v1/provisioning",
+      "/v1/retirement",
+      "/v1/daemon-retirement"
+    ],
+    "read_only_remote_exemptions": [
+      "/v1/leselang-export",
+      "/v1/wire read requests"
+    ],
+    "delegated_ipc_exemptions": [
+      "debugger_cancel: rejected by the control runtime and delegated to the Leselang VM authority"
+    ],
+    "cold_takeover_proof": "real-daemon-process-owner-exclusion-restart-generation-advance-stale-writer-rejection-and-durable-replay",
+    "remaining_routes": []
   },
   "standby_contract": {
     "reads_allowed": true,

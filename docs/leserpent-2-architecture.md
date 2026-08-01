@@ -1010,8 +1010,9 @@ owner termination, and fresh-process takeover. This is cold single-writer
 failover, not active-active consensus.
 
 The durable-authority generation fence now covers runtime registration,
-discovery intake, unregistration, deployment effects, and Orchestra writes. A
-fresh C# owner claims an idempotent random writer identity before entering
+discovery intake, status and capability refresh, unregistration, deployment
+effects, bootstrap session binding, and Orchestra writes. A fresh C# owner
+claims an idempotent random writer identity before entering
 `owner` state. leserpentd allocates the monotonic generation in SQLite runtime
 journal schema v19 and requires the exact generation/identity ticket on covered
 IPC mutations after fencing has first been activated. Daemon dispatch is
@@ -1021,10 +1022,27 @@ return fixed protocol errors before runtime projection, effect enqueue,
 unregistration receipts, or Orchestra SQLite state can change. Registration,
 deployment, and Orchestra bridges share one managed ticket-frame codec.
 
-This does not yet cover bootstrap, provisioning, retirement, or remote HTTP
-transport. Those routes must adopt the same Rust-issued ticket before the
-architecture can claim a general external-authority fence, and none of this
-changes the cold-takeover-only contract.
+The explicit local bootstrap, provisioning, runtime-retirement, and
+daemon-retirement routes now validate that same ticket before decoding their
+independent protocol envelopes. The Rust CLI transport can forward an
+owner-issued ticket through paired environment fields but never claims or
+takes over authority on its own. Missing and stale tickets therefore cannot
+create any of these authority checkpoints. Authenticated HTTPS now carries the
+same identity and generation in two paired canonical headers. Header shape is
+validated after Bearer authentication; `/v1/wire` reuses command-level mutation
+classification, while the four dedicated mutation routes gate before protocol
+decode. Wire reads and `/v1/leselang-export` stay unfenced. Every inventoried
+external authority mutation now shares the Rust-issued ticket, but this does
+not change the cold-takeover-only contract or imply consensus, hot failover, or
+active-active writes.
+
+The fence policy is compile-time exhaustive over every Rust protocol request
+and nested command variant. The C# non-read endpoint set and Rust HTTPS route
+table are also source-scanned against contract version 1.5.0, so a new route
+cannot silently bypass inventory review. A real three-daemon-process test
+proves live-owner exclusion, clean fresh-process reopening, durable generation
+advance, stale refresh rejection, current refresh application, and idempotent
+writer replay after a second restart.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

@@ -794,6 +794,86 @@ fn native_cli_wait_returns_a_distinct_terminal_provisioning_failure() {
     fs::remove_file(database).unwrap();
 }
 
+#[test]
+fn native_cli_forwards_the_active_writer_ticket_to_specialized_routes() {
+    let database = temp_path("wf.db");
+    let socket = temp_path("wf.sock");
+    let stop = Arc::new(AtomicBool::new(false));
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let server_stop = Arc::clone(&stop);
+    let server_database = database.clone();
+    let server_socket = socket.clone();
+    let writer_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let writer_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let server = thread::spawn(move || {
+        let mut runtime = ControlRuntime::open(&server_database).unwrap();
+        assert_eq!(
+            runtime.claim_authority_writer(writer_a).unwrap().generation,
+            1
+        );
+        assert_eq!(
+            runtime.claim_authority_writer(writer_b).unwrap().generation,
+            2
+        );
+        let ipc = IpcServer::bind(&server_socket, TOKEN)
+            .unwrap()
+            .with_bootstrap_submission();
+        ready_tx.send(()).unwrap();
+        while !server_stop.load(Ordering::Acquire) {
+            ipc.poll_once(&mut runtime).unwrap();
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+    ready_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+
+    let run = |writer_fence: Option<(&str, &str)>| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_leserpent"));
+        command
+            .args([
+                "--socket",
+                socket.to_str().unwrap(),
+                "bootstrap",
+                "deploy",
+                "bootstrap-writer-fence",
+                "--host",
+                "host.example",
+                "--credential-handle",
+                "vault:ssh:host-example",
+                "--yes",
+            ])
+            .env("LESERPENT_IPC_TOKEN", TOKEN)
+            .env("LESERPENT_PRINCIPAL", "integration-test");
+        if let Some((writer_id, generation)) = writer_fence {
+            command
+                .env("LESERPENT_AUTHORITY_WRITER_ID", writer_id)
+                .env("LESERPENT_AUTHORITY_WRITER_GENERATION", generation);
+        }
+        command.output().unwrap()
+    };
+
+    let missing = run(None);
+    assert_eq!(missing.status.code(), Some(3));
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("authority_writer_fence_required"));
+    let stale = run(Some((writer_a, "1")));
+    assert_eq!(stale.status.code(), Some(3));
+    assert!(String::from_utf8_lossy(&stale.stderr).contains("authority_writer_fence_rejected"));
+    let current = run(Some((writer_b, "2")));
+    assert!(
+        current.status.success(),
+        "{}",
+        String::from_utf8_lossy(&current.stderr)
+    );
+    assert!(
+        String::from_utf8(current.stdout)
+            .unwrap()
+            .contains("bootstrap=bootstrap-writer-fence phase=planned")
+    );
+
+    stop.store(true, Ordering::Release);
+    server.join().unwrap();
+    fs::remove_file(database).unwrap();
+}
+
 fn temp_path(extension: &str) -> PathBuf {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)

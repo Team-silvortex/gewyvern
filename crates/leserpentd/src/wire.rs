@@ -563,41 +563,57 @@ pub(crate) fn execute_request(
 }
 
 fn requires_authority_writer_fence(request: &ProtocolRequest) -> bool {
-    matches!(
-        request,
+    match request {
+        ProtocolRequest::Command(command) => match &command.command {
+            Command::RuntimeRegister { .. }
+            | Command::RuntimeRegistrationUpdate { .. }
+            | Command::RuntimeDiscoveryIntake { .. }
+            | Command::RuntimeRefresh { .. }
+            | Command::RuntimeCapabilitiesRefresh { .. }
+            | Command::RuntimeDeploy { .. } => true,
+            // Debugger commands are rejected by this control runtime and execute
+            // only through the separate Leselang VM authority.
+            Command::DebuggerCancel { .. } => false,
+        },
         ProtocolRequest::OrchestraPersist(_)
-            | ProtocolRequest::OrchestraDelete(_)
-            | ProtocolRequest::OrchestraDeleteCommand(_)
-            | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
-            | ProtocolRequest::RuntimeUnregister(_)
-    ) || matches!(
-        request,
-        ProtocolRequest::Command(command)
-            if matches!(
-                command.command,
-                Command::RuntimeRegister { .. }
-                    | Command::RuntimeRegistrationUpdate { .. }
-                    | Command::RuntimeDiscoveryIntake { .. }
-                    | Command::RuntimeDeploy { .. }
-            )
-    )
+        | ProtocolRequest::OrchestraDelete(_)
+        | ProtocolRequest::OrchestraDeleteCommand(_)
+        | ProtocolRequest::OrchestraDeleteReplayCheckpoint(_)
+        | ProtocolRequest::RuntimeUnregister(_)
+        | ProtocolRequest::BootstrapSessionBind(_) => true,
+        ProtocolRequest::Query(_)
+        | ProtocolRequest::Health(_)
+        | ProtocolRequest::DeploymentReceipt(_)
+        | ProtocolRequest::OrchestraHistory(_)
+        | ProtocolRequest::OrchestraDeleteReplayHorizon(_)
+        | ProtocolRequest::RuntimeUnregistrationReceipt(_)
+        | ProtocolRequest::AuthorityWriterClaim(_)
+        | ProtocolRequest::BootstrapHandoff(_) => false,
+    }
 }
 
 fn authority_writer_fence_error(error: RuntimeError) -> ResponseEnvelope {
+    let (code, message) = authority_writer_fence_error_details(&error);
+    error_response(code, message)
+}
+
+pub(crate) fn authority_writer_fence_error_details(
+    error: &RuntimeError,
+) -> (&'static str, &'static str) {
     match error {
         RuntimeError::AuthorityWriterFence(
             leserpent_runtime::AuthorityWriterFenceError::Required,
-        ) => error_response(
+        ) => (
             "authority_writer_fence_required",
             "authority mutation requires the active writer fence",
         ),
         RuntimeError::AuthorityWriterFence(
             leserpent_runtime::AuthorityWriterFenceError::Rejected,
-        ) => error_response(
+        ) => (
             "authority_writer_fence_rejected",
             "authority mutation was submitted by a stale writer",
         ),
-        _ => error_response(
+        _ => (
             "authority_writer_fence_failed",
             "authority writer fence validation failed",
         ),
@@ -713,7 +729,10 @@ mod tests {
         BOOTSTRAP_SESSION_PROTOCOL_VERSION, BootstrapId, BootstrapPhase, BootstrapTarget,
         BootstrapTransport, CredentialHandle, DaemonId, DeploymentBootstrapSnapshot,
     };
-    use leserpent_domain::{CapabilitySet, Principal};
+    use leserpent_domain::{
+        CapabilitySet, Command, CommandEnvelope, CommandId, CommandOrigin, Confirmation,
+        DOMAIN_SCHEMA_VERSION, IdempotencyKey, Principal, RuntimeId,
+    };
     use leserpent_protocol::{
         AuthorityWriterClaimRequest, BootstrapHandoffRequest, BootstrapSessionBindRequest,
         CAPABILITY_AUTHORITY_WRITER, ProtocolRequest,
@@ -846,6 +865,23 @@ mod tests {
         }
     }
 
+    fn command(command: Command) -> ProtocolRequest {
+        ProtocolRequest::Command(CommandEnvelope {
+            schema_version: DOMAIN_SCHEMA_VERSION,
+            command_id: CommandId::new("writer-policy-command").unwrap(),
+            idempotency_key: IdempotencyKey::new("writer-policy-request").unwrap(),
+            expected_revision: None,
+            principal: Principal {
+                id: "operator-a".into(),
+            },
+            capabilities: CapabilitySet::default(),
+            origin: CommandOrigin::CompatibilityAdapter,
+            confirmation: Confirmation::NotRequired,
+            dry_run: false,
+            command,
+        })
+    }
+
     fn proof(bootstrap_id: &BootstrapId, daemon_id: &str) -> DaemonSessionProof {
         DaemonSessionProof {
             bootstrap_id: bootstrap_id.clone(),
@@ -869,6 +905,32 @@ mod tests {
                 if error.code == "orchestra_delete_replay_horizon_saturated"
                     && error.message.contains("advance its checkpoint")
         ));
+    }
+
+    #[test]
+    fn writer_fence_policy_covers_refresh_and_session_binding_mutations() {
+        let runtime_id = RuntimeId::new("runtime-writer-policy").unwrap();
+        assert!(requires_authority_writer_fence(&command(
+            Command::RuntimeRefresh {
+                runtime_id: runtime_id.clone(),
+            }
+        )));
+        assert!(requires_authority_writer_fence(&command(
+            Command::RuntimeCapabilitiesRefresh { runtime_id }
+        )));
+
+        let bootstrap_id = BootstrapId::new("bootstrap-writer-policy").unwrap();
+        assert!(requires_authority_writer_fence(
+            &bind(&bootstrap_id).request
+        ));
+        assert!(!requires_authority_writer_fence(
+            &query(&bootstrap_id).request
+        ));
+        assert!(!requires_authority_writer_fence(&command(
+            Command::DebuggerCancel {
+                session_id: "debugger-session-1".into(),
+            }
+        )));
     }
 
     #[test]

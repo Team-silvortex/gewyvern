@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 
 pub const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 pub const MAX_RESOLVED_ADDRESSES: usize = 8;
+pub const AUTHORITY_WRITER_ID_HEADER: &str = "X-Leserpent-Authority-Writer-Id";
+pub const AUTHORITY_WRITER_GENERATION_HEADER: &str = "X-Leserpent-Authority-Writer-Generation";
 
 pub struct BoundedFile {
     file: File,
