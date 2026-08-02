@@ -28,9 +28,14 @@ use leserpentd::MAX_IPC_CONNECTIONS_PER_TICK;
 use rusqlite::Connection;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
+const WRONG_TOKEN: &str = "fedcba9876543210fedcba9876543210";
 const WRITER_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const WRITER_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const WRITER_C: &str = "cccccccccccccccccccccccccccccccc";
+const SATURATED_DUPLICATE_GROUPS: usize = 16;
+const READABLE_RETRIES_PER_GROUP: usize = 3;
+const MIXED_PEER_GROUPS: usize = 16;
+const REPEATED_HOSTILE_BATCHES: usize = 2;
 const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
 static TEMP_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -101,24 +106,29 @@ impl DaemonProcess {
         Self { child: Some(child) }
     }
 
-    fn stop(mut self) {
+    fn stop(self) {
+        let _ = self.stop_with_budget(Duration::from_secs(5));
+    }
+
+    fn stop_with_budget(mut self, budget: Duration) -> Duration {
         let mut child = self.child.take().unwrap();
         // The production signal loop must release the SQLite owner lease and
         // socket before a fresh authority process is admitted.
+        let started = Instant::now();
         assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGTERM) }, 0);
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = started + budget;
         loop {
             if let Some(status) = child.try_wait().unwrap() {
                 assert!(
                     status.success(),
                     "leserpentd did not stop cleanly: {status}"
                 );
-                return;
+                return started.elapsed();
             }
             if Instant::now() >= deadline {
                 let _ = child.kill();
                 let _ = child.wait();
-                panic!("leserpentd did not stop after SIGTERM");
+                panic!("leserpentd did not stop after SIGTERM within {budget:?}");
             }
             thread::sleep(Duration::from_millis(10));
         }
@@ -168,6 +178,14 @@ fn send(
 }
 
 fn send_without_reading_response(socket: &Path, request: &RequestEnvelope) -> UnixStream {
+    send_with_token_without_reading_response(socket, request, TOKEN)
+}
+
+fn send_with_token_without_reading_response(
+    socket: &Path,
+    request: &RequestEnvelope,
+    token: &str,
+) -> UnixStream {
     let mut stream = UnixStream::connect(socket).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_secs(3)))
@@ -176,7 +194,7 @@ fn send_without_reading_response(socket: &Path, request: &RequestEnvelope) -> Un
         .set_write_timeout(Some(Duration::from_secs(3)))
         .unwrap();
     let mut frame = serde_json::to_vec(&serde_json::json!({
-        "token": TOKEN,
+        "token": token,
         "request": request,
     }))
     .unwrap();
@@ -187,10 +205,36 @@ fn send_without_reading_response(socket: &Path, request: &RequestEnvelope) -> Un
     stream
 }
 
+fn queue_raw_prefix(socket: &Path, prefix: &[u8]) -> UnixStream {
+    let mut stream = UnixStream::connect(socket).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    stream.write_all(prefix).unwrap();
+    stream.flush().unwrap();
+    stream
+}
+
+fn queue_raw_frame(socket: &Path, frame: &[u8]) -> UnixStream {
+    let stream = queue_raw_prefix(socket, frame);
+    stream.shutdown(Shutdown::Write).unwrap();
+    stream
+}
+
 fn read_queued_response(mut stream: UnixStream) -> ResponseEnvelope {
     let mut response = Vec::new();
     stream.read_to_end(&mut response).unwrap();
     decode_response(&response).unwrap()
+}
+
+fn assert_protocol_error(response: ResponseEnvelope, expected_code: &str) {
+    assert!(matches!(
+        response.response,
+        ProtocolResponse::Error(ref error) if error.code == expected_code
+    ));
 }
 
 fn hold_ipc_accept(socket: &Path) -> UnixStream {
@@ -355,6 +399,79 @@ fn inspect_writer_fence(database: &Path) -> (i64, String, i64) {
         )
         .unwrap();
     (generation, writer_id, lease_expires_at)
+}
+
+fn inspect_owner_lease(database: &Path) -> (String, i64) {
+    Connection::open(database)
+        .unwrap()
+        .query_row(
+            "SELECT owner_token, lease_expires_at_unix_ms FROM runtime_owner WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap()
+}
+
+fn wait_for_owner_lease_extension(database: &Path, owner_token: &str, previous_expiry: i64) -> i64 {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        let (current_owner, current_expiry) = inspect_owner_lease(database);
+        assert_eq!(
+            current_owner, owner_token,
+            "runtime owner changed unexpectedly"
+        );
+        if current_expiry > previous_expiry
+            && current_expiry.saturating_sub(unix_time_ms()) >= 29_000
+        {
+            return current_expiry;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "runtime owner lease did not advance beyond {previous_expiry}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn run_saturated_hostile_replay_batch(socket: &Path, writer_id: &str, generation: u64) -> Duration {
+    assert_eq!(MIXED_PEER_GROUPS * 4, MAX_IPC_CONNECTIONS_PER_TICK);
+    let accept_gate = hold_ipc_accept(socket);
+    let mut peers = Vec::with_capacity(MIXED_PEER_GROUPS);
+    let mut slow_peers = Vec::with_capacity(MIXED_PEER_GROUPS);
+    for group in 0..MIXED_PEER_GROUPS {
+        let unauthorized_writer = format!("{:032x}", 0x400_usize + group);
+        let malformed = queue_raw_frame(socket, b"{not-json}\n");
+        let unauthorized = send_with_token_without_reading_response(
+            socket,
+            &claim(&unauthorized_writer),
+            WRONG_TOKEN,
+        );
+        slow_peers.push(queue_raw_prefix(socket, b"{"));
+        let replay = send_without_reading_response(socket, &claim(writer_id));
+        peers.push((malformed, unauthorized, replay));
+    }
+
+    let started = Instant::now();
+    drop(accept_gate);
+    for (malformed, unauthorized, replay) in peers {
+        assert_protocol_error(read_queued_response(malformed), "invalid_json");
+        assert_protocol_error(read_queued_response(unauthorized), "unauthorized");
+        assert_eq!(
+            claimed(read_queued_response(replay)),
+            (generation, writer_id.to_string(), true)
+        );
+    }
+    for mut slow in slow_peers {
+        let mut response = Vec::new();
+        slow.read_to_end(&mut response).unwrap();
+        assert!(response.is_empty());
+    }
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed <= Duration::from_secs(5),
+        "repeated hostile replay batch exceeded its budget: {elapsed:?}"
+    );
+    elapsed
 }
 
 fn wait_for_writer_fence(database: &Path, expected_generation: i64, expected_writer: &str) {
@@ -922,6 +1039,295 @@ fn post_recovery_writer_contention_is_bounded_and_generation_contiguous() {
         MAX_IPC_CONNECTIONS_PER_TICK,
         final_generation,
         elapsed.as_millis()
+    );
+    replacement.stop();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn post_recovery_saturated_duplicate_retries_survive_abandoned_responses() {
+    assert_eq!(MAX_IPC_CONNECTIONS_PER_TICK, 64);
+    assert_eq!(
+        SATURATED_DUPLICATE_GROUPS * (READABLE_RETRIES_PER_GROUP + 1),
+        MAX_IPC_CONNECTIONS_PER_TICK
+    );
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("post-recovery-duplicate-retry.sqlite");
+    let socket = root.0.join("post-recovery-duplicate-retry.sock");
+
+    let first = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+    let stale_socket = sigkill_after_lost_claim(first, &socket, &database, WRITER_B, 2);
+    reject_before_owner_expiry(&binary, &database, &socket, &stale_socket);
+    wait_for_owner_lease_expiry(&database, 2, WRITER_B);
+
+    let replacement = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_B), None)),
+        (2, WRITER_B.to_string(), true)
+    );
+
+    let accept_gate = hold_ipc_accept(&socket);
+    let mut readable_retries =
+        Vec::with_capacity(SATURATED_DUPLICATE_GROUPS * READABLE_RETRIES_PER_GROUP);
+    let mut abandoned_responses = Vec::with_capacity(SATURATED_DUPLICATE_GROUPS);
+    for group in 0..SATURATED_DUPLICATE_GROUPS {
+        let writer = format!("{:032x}", 0x100_usize + group);
+        let generation = u64::try_from(group).unwrap() + 3;
+        let abandoned = send_without_reading_response(&socket, &claim(&writer));
+        abandoned.shutdown(Shutdown::Read).unwrap();
+        abandoned_responses.push(abandoned);
+        for _ in 0..READABLE_RETRIES_PER_GROUP {
+            readable_retries.push((
+                writer.clone(),
+                generation,
+                send_without_reading_response(&socket, &claim(&writer)),
+            ));
+        }
+    }
+    assert_eq!(
+        readable_retries.len(),
+        SATURATED_DUPLICATE_GROUPS * READABLE_RETRIES_PER_GROUP
+    );
+
+    let started = Instant::now();
+    drop(accept_gate);
+    for (writer, generation, stream) in readable_retries {
+        assert_eq!(
+            claimed(read_queued_response(stream)),
+            (generation, writer, true)
+        );
+    }
+    drop(abandoned_responses);
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed <= Duration::from_secs(5),
+        "post-recovery duplicate retry batch exceeded its budget: {elapsed:?}"
+    );
+
+    let final_generation = u64::try_from(SATURATED_DUPLICATE_GROUPS).unwrap() + 2;
+    let final_writer = format!("{:032x}", 0x100_usize + SATURATED_DUPLICATE_GROUPS - 1);
+    wait_for_writer_fence(
+        &database,
+        i64::try_from(final_generation).unwrap(),
+        &final_writer,
+    );
+    let penultimate_writer = format!("{:032x}", 0x100_usize + SATURATED_DUPLICATE_GROUPS - 2);
+    for stale_fence in [
+        fence(WRITER_B, 2),
+        fence(&penultimate_writer, final_generation - 1),
+    ] {
+        let stale = send(&socket, &registration(), Some(&stale_fence));
+        assert!(matches!(
+            stale.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_rejected"
+        ));
+    }
+    let applied = send(
+        &socket,
+        &registration(),
+        Some(&fence(&final_writer, final_generation)),
+    );
+    assert!(matches!(
+        applied.response,
+        ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+    ));
+    assert_eq!(
+        claimed(send(&socket, &claim(&final_writer), None)),
+        (final_generation, final_writer.clone(), true)
+    );
+    println!(
+        "authority-writer-post-recovery-duplicate-retry claims={} abandoned={} readable_replays={} generations=3..{} elapsed_ms={} final_writer={final_writer}",
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        SATURATED_DUPLICATE_GROUPS,
+        SATURATED_DUPLICATE_GROUPS * READABLE_RETRIES_PER_GROUP,
+        final_generation,
+        elapsed.as_millis()
+    );
+    replacement.stop();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn post_recovery_mixed_hostile_and_slow_peers_preserve_valid_claim_progress() {
+    assert_eq!(MAX_IPC_CONNECTIONS_PER_TICK, 64);
+    assert_eq!(MIXED_PEER_GROUPS * 4, MAX_IPC_CONNECTIONS_PER_TICK);
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("post-recovery-mixed-peers.sqlite");
+    let socket = root.0.join("post-recovery-mixed-peers.sock");
+
+    let first = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+    let stale_socket = sigkill_after_lost_claim(first, &socket, &database, WRITER_B, 2);
+    reject_before_owner_expiry(&binary, &database, &socket, &stale_socket);
+    wait_for_owner_lease_expiry(&database, 2, WRITER_B);
+
+    let replacement = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_B), None)),
+        (2, WRITER_B.to_string(), true)
+    );
+
+    let accept_gate = hold_ipc_accept(&socket);
+    let mut groups = Vec::with_capacity(MIXED_PEER_GROUPS);
+    let mut slow_peers = Vec::with_capacity(MIXED_PEER_GROUPS);
+    for group in 0..MIXED_PEER_GROUPS {
+        let writer = format!("{:032x}", 0x200_usize + group);
+        let unauthorized_writer = format!("{:032x}", 0x300_usize + group);
+        let malformed = queue_raw_frame(&socket, b"{not-json}\n");
+        let unauthorized = send_with_token_without_reading_response(
+            &socket,
+            &claim(&unauthorized_writer),
+            WRONG_TOKEN,
+        );
+        slow_peers.push(queue_raw_prefix(&socket, b"{"));
+        let valid = send_without_reading_response(&socket, &claim(&writer));
+        groups.push((
+            u64::try_from(group).unwrap() + 3,
+            writer,
+            malformed,
+            unauthorized,
+            valid,
+        ));
+    }
+
+    let started = Instant::now();
+    drop(accept_gate);
+    for (generation, writer, malformed, unauthorized, valid) in groups {
+        assert_protocol_error(read_queued_response(malformed), "invalid_json");
+        assert_protocol_error(read_queued_response(unauthorized), "unauthorized");
+        assert_eq!(
+            claimed(read_queued_response(valid)),
+            (generation, writer, false)
+        );
+    }
+    for mut slow in slow_peers {
+        let mut response = Vec::new();
+        slow.read_to_end(&mut response).unwrap();
+        assert!(response.is_empty());
+    }
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed <= Duration::from_secs(5),
+        "post-recovery mixed peer batch exceeded its budget: {elapsed:?}"
+    );
+
+    let final_generation = u64::try_from(MIXED_PEER_GROUPS).unwrap() + 2;
+    let final_writer = format!("{:032x}", 0x200_usize + MIXED_PEER_GROUPS - 1);
+    wait_for_writer_fence(
+        &database,
+        i64::try_from(final_generation).unwrap(),
+        &final_writer,
+    );
+    let penultimate_writer = format!("{:032x}", 0x200_usize + MIXED_PEER_GROUPS - 2);
+    for stale_fence in [
+        fence(WRITER_B, 2),
+        fence(&penultimate_writer, final_generation - 1),
+    ] {
+        let stale = send(&socket, &registration(), Some(&stale_fence));
+        assert_protocol_error(stale, "authority_writer_fence_rejected");
+    }
+    let applied = send(
+        &socket,
+        &registration(),
+        Some(&fence(&final_writer, final_generation)),
+    );
+    assert!(matches!(
+        applied.response,
+        ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+    ));
+    assert_eq!(
+        claimed(send(&socket, &claim(&final_writer), None)),
+        (final_generation, final_writer.clone(), true)
+    );
+    println!(
+        "authority-writer-post-recovery-mixed-peers total={} malformed={} unauthorized={} slow_timeouts={} valid={} generations=3..{} read_timeout_ms=2000 elapsed_ms={} final_writer={final_writer}",
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        MIXED_PEER_GROUPS,
+        MIXED_PEER_GROUPS,
+        MIXED_PEER_GROUPS,
+        MIXED_PEER_GROUPS,
+        final_generation,
+        elapsed.as_millis()
+    );
+    replacement.stop();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm() {
+    assert_eq!(MAX_IPC_CONNECTIONS_PER_TICK, 64);
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("repeated-hostile-lifecycle.sqlite");
+    let socket = root.0.join("repeated-hostile-lifecycle.sock");
+
+    let daemon = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+    let (owner_token, mut lease_expiry) = inspect_owner_lease(&database);
+    let mut batch_elapsed = Vec::with_capacity(REPEATED_HOSTILE_BATCHES);
+    for _ in 0..REPEATED_HOSTILE_BATCHES {
+        batch_elapsed.push(run_saturated_hostile_replay_batch(&socket, WRITER_A, 1));
+        lease_expiry = wait_for_owner_lease_extension(&database, &owner_token, lease_expiry);
+        assert_eq!(
+            inspect_writer_fence(&database).0,
+            1,
+            "hostile replay peers allocated a writer generation"
+        );
+    }
+
+    let accept_gate = hold_ipc_accept(&socket);
+    let (shutdown_owner, shutdown_gate_expiry) = inspect_owner_lease(&database);
+    assert_eq!(shutdown_owner, owner_token);
+    let slow_peers = (0..MAX_IPC_CONNECTIONS_PER_TICK)
+        .map(|_| queue_raw_prefix(&socket, b"{"))
+        .collect::<Vec<_>>();
+    drop(accept_gate);
+    let shutdown_batch_expiry =
+        wait_for_owner_lease_extension(&database, &owner_token, shutdown_gate_expiry);
+    assert!(shutdown_batch_expiry > lease_expiry);
+    thread::sleep(Duration::from_millis(250));
+
+    let shutdown_elapsed = daemon.stop_with_budget(Duration::from_secs(2));
+    assert!(
+        shutdown_elapsed < Duration::from_secs(1),
+        "SIGTERM did not interrupt active slow frame readers: {shutdown_elapsed:?}"
+    );
+    drop(slow_peers);
+    assert!(!socket.exists());
+    let owner_rows: i64 = Connection::open(&database)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(owner_rows, 0, "graceful shutdown retained its owner lease");
+
+    let replacement = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), true)
+    );
+    println!(
+        "authority-writer-repeated-hostile-lifecycle batches={} peers_per_batch={} batch_elapsed_ms={:?} shutdown_slow_peers={} shutdown_elapsed_ms={} owner_lease_released=true immediate_restart=true generation=1",
+        REPEATED_HOSTILE_BATCHES,
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        batch_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>(),
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        shutdown_elapsed.as_millis()
     );
     replacement.stop();
     assert!(!socket.exists());

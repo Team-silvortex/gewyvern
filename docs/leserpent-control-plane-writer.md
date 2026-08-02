@@ -175,3 +175,41 @@ recovered B/`2` ticket and generation `65` are rejected for mutation; only the
 generation `66` writer applies a real registration and replays without another
 advance. Physical Linux x86_64 evidence completes the contention slice without
 adding hot failover, consensus, or concurrent write authority.
+
+The saturated batch also tolerates duplicate retries after response
+abandonment. Sixteen ordered groups each queue one complete new claim whose
+client closes its read half but retains the descriptor, followed by three
+readable same-ID retries. The incomplete accept gate consumes the first
+per-tick slot, so the 64 claims cross the production batch boundary. Every
+abandoned primary still commits, all 48 retries replay their group's generation,
+generations advance contiguously from `3` through `18`, and the batch completes
+inside 5000 ms. Broken response delivery remains isolated to its peer; only
+generation `18` can mutate and replay.
+
+Hostile peer intake is bounded without parallelizing authority mutation.
+`poll_batch` first accepts at most 64 Unix connections, reads their frames in
+parallel under the existing 2000 ms per-peer timeout, then dispatches completed
+frames serially in accept order. A physical Linux batch interleaves 16 malformed
+frames, 16 wrong-token claims, 16 slowloris prefixes that reach the full
+timeout, and 16 valid claims after unclean recovery. Malformed peers receive
+`invalid_json`, unauthorized peers receive `unauthorized`, slow peers receive
+no response, and only valid claims allocate contiguous generations `3` through
+`18`. The accept gate makes the workload span two bounded waves; valid progress
+completes inside 5000 ms and final generation `18` alone can mutate.
+
+Repeated hostile admission remains compatible with owner heartbeat and graceful
+shutdown. Two consecutive 64-peer batches each mix 16 malformed frames, 16
+wrong-token claims, 16 full-timeout prefixes, and 16 valid same-writer replays.
+After each batch the same SQLite owner token must expose a newer lease with at
+least 29 seconds remaining, while the writer generation stays unchanged.
+
+The daemon's batch path is signal-aware rather than merely timeout-bounded.
+Frame reads check the process stop flag every 100 ms while preserving the hard
+2000 ms wall-clock peer deadline even when bytes keep trickling in, and serial
+authority dispatch stops as soon as shutdown is observed. A third batch holds
+64 slow peers in that read window before
+`SIGTERM`; the daemon must exit inside 1000 ms, delete its owner row and private
+socket through normal RAII cleanup, and permit an immediate same-database,
+same-socket restart that replays the existing writer generation. The executable
+macOS proof is retained in the vertical test; physical Linux x86_64 retention
+remains pending and is not claimed by contract `1.14.0`.

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_post_recovery_duplicate_retry",
+  "recorded_at": "2026-08-02T00:21:51Z",
+  "target": {
+    "host": "192.168.124.45",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "post_recovery_saturated_duplicate_retries_survive_abandoned_responses",
+    "observed_duration_ms": 32000,
+    "owner_lease_duration_ms": 30000,
+    "claim_budget_ms": 5000,
+    "production_ipc_batch_limit": 64,
+    "duplicate_groups": 16,
+    "abandoned_responses": 16,
+    "readable_retries": 48
+  },
+  "sequence": {
+    "initial": {
+      "writer": "writer_a",
+      "generation": 1,
+      "replayed": false
+    },
+    "unclean_owner": {
+      "writer": "writer_b",
+      "lost_response_generation": 2,
+      "termination": "SIGKILL"
+    },
+    "pre_expiry": {
+      "replacement_admitted": false,
+      "socket_preserved": true
+    },
+    "natural_recovery": {
+      "same_path_rebound": true,
+      "writer": "writer_b",
+      "generation": 2,
+      "replayed": true
+    },
+    "saturated_batch": {
+      "total_claims": 64,
+      "group_count": 16,
+      "group_shape": "one-read-half-closed-new-claim-then-three-readable-same-id-retries",
+      "abandoned_response_claims": 16,
+      "readable_retry_replays": 48,
+      "first_generation": 3,
+      "final_generation": 18,
+      "observed_elapsed_ms": 723,
+      "all_readable_retries_replayed": true,
+      "generation_sequence_contiguous": true
+    },
+    "final": {
+      "writer": "0000000000000000000000000000010f",
+      "generation": 18,
+      "replayed": true,
+      "stale_generations_rejected": [2, 17],
+      "mutation_applied": true
+    }
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "unread_response_sigkill_recovery": true,
+    "pre_expiry_owner_and_socket_fence": true,
+    "natural_owner_lease_expiry": true,
+    "same_socket_path_recovery": true,
+    "production_batch_limit_saturated": true,
+    "sixteen_response_read_halves_closed": true,
+    "sixteen_abandoned_claims_committed": true,
+    "forty_eight_same_id_retries_replayed": true,
+    "peer_response_failures_isolated": true,
+    "all_readable_claims_complete_within_budget": true,
+    "contiguous_generations_3_through_18": true,
+    "recovered_ticket_stale": true,
+    "penultimate_ticket_stale": true,
+    "final_ticket_mutation_applied": true,
+    "final_ticket_replay_stable": true,
+    "secret_free_evidence": true
+  }
+}

@@ -1038,7 +1038,7 @@ active-active writes.
 
 The fence policy is compile-time exhaustive over every Rust protocol request
 and nested command variant. The C# non-read endpoint set and Rust HTTPS route
-table are also source-scanned against contract version 1.11.0, so a new route
+table are also source-scanned against contract version 1.14.0, so a new route
 cannot silently bypass inventory review. A real three-daemon-process test
 proves live-owner exclusion, clean fresh-process reopening, durable generation
 advance, stale refresh rejection, current refresh application, and idempotent
@@ -1098,6 +1098,38 @@ Generation `2` and the penultimate generation are stale; only generation `66`
 can apply a real mutation and its same-ID retry remains a replay. This proves
 bounded post-recovery admission, not automatic promotion or multi-writer
 authority.
+
+Saturated duplicate retries preserve the same linearization boundary. Sixteen
+groups each place a complete new claim on a connection with its client read
+half closed, then queue three readable claims for that same ID. The primary
+claim commits even when response delivery fails; the three followers prove it
+by replaying the exact generation. Across all 64 claims, only the 16 primaries
+advance generations `3` through `18`, all 48 followers replay, and processing
+stays inside 5000 ms even though the accept gate forces the tail across a daemon
+tick. Peer response failure therefore cannot poison later authority admission.
+
+Batch frame intake no longer serializes peer read timeouts. Up to 64 accepted
+Unix streams are read concurrently, each under the existing 2000 ms bound;
+their completed frames are then dispatched against the single mutable
+`ControlRuntime` in accept order. This retains deterministic writer generation
+allocation while preventing N slowloris peers from multiplying head-of-line
+delay by N. Linux evidence mixes 16 malformed, 16 unauthorized, 16 full-timeout
+slow, and 16 valid peers across two waves. Invalid peers allocate no generation,
+valid claims advance contiguously from `3` through `18`, and final mutation
+authority remains singular.
+
+Frame intake is also cooperative with process shutdown. Each reader retains a
+hard 2000 ms wall-clock deadline, including while bytes trickle in, but uses a
+100 ms read interval to observe the daemon stop flag; completed frames remain
+serial and accept-ordered only while
+that flag is clear. Two consecutive 64-peer mixed batches prove owner heartbeat
+refresh after each bounded admission wave without allocating a generation for
+same-writer replays. During a third wave of 64 incomplete peers, `SIGTERM`
+cancels the readers inside a 1000 ms contract, suppresses further mutation
+dispatch, removes the SQLite owner row and Unix socket, and admits an immediate
+fresh process on the same database and path. This is bounded graceful shutdown,
+not in-process promotion or hot failover; physical Linux x86_64 retention is the
+remaining evidence gate for this slice.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

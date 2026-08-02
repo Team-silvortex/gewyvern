@@ -1433,7 +1433,7 @@ while leaving wire reads and Leselang export unfenced. The inventoried external
 side-effect routes now share one authority boundary. The fifth slice closes the
 previous refresh and bootstrap-session-bind gaps, makes Rust request
 classification compile-time exhaustive, and source-scans both the C# mutation
-routes and Rust HTTPS table against contract 1.11.0. A real three-process daemon
+routes and Rust HTTPS table against contract 1.14.0. A real three-process daemon
 test proves live-owner exclusion, generation advance, stale-writer rejection,
 and durable writer replay across two restarts. Hot failover remains explicitly
 out of scope; future route growth must preserve these executable inventory and
@@ -1463,9 +1463,25 @@ natural lease expiries, two same-path rebinds, and stable final mutation/replay.
 The eleventh slice saturates the production 64-connection IPC batch after an
 unclean recovery. All independent claims complete inside a fixed budget,
 allocate contiguous generations `3` through `66`, reject old and penultimate
-tickets, and leave only generation `66` able to mutate and replay. The next
-boundary mixes duplicate-ID retries and abandoned responses into that saturated
-batch while preserving bounded completion and the cold-takeover-only contract.
+tickets, and leave only generation `66` able to mutate and replay. The
+twelfth slice fills that same batch with 16 response-abandoned new claims and
+48 readable same-ID retries. Every primary commits, every follower replays,
+generations remain contiguous from `3` through `18`, and peer response failures
+do not stop later claims. The thirteenth slice makes frame reads concurrent but
+keeps dispatch accept-ordered and serial, then mixes 16 malformed, 16
+unauthorized, 16 full-timeout slowloris, and 16 valid peers. Invalid peers
+allocate no writer generation and valid progress completes within 5000 ms
+across two waves. The fourteenth slice repeats that 64-peer hostile workload
+twice and proves the same SQLite owner token refreshes its 30-second lease after
+each batch without advancing a replayed writer generation. IPC frame reads now
+poll the process stop flag every 100 ms while retaining a hard wall-clock 2000
+ms peer budget even for drip-fed frames, and authority dispatch stops once
+shutdown begins. A third wave of
+64 active slow peers is interrupted by `SIGTERM` inside 1000 ms, releases the
+owner row and socket, and permits immediate same-path restart with stable
+generation replay. Local executable proof is complete; the next boundary is
+retaining the same result on physical Linux x86_64 before extending hostile
+admission further.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

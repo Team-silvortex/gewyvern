@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.11.0",
+  "version": "1.14.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -53,6 +53,9 @@
     "unclean-response-loss-owner-lease-same-socket-recovery-proof",
     "repeated-unclean-multigeneration-recovery-proof",
     "post-recovery-bounded-high-contention-claim-proof",
+    "post-recovery-saturated-duplicate-response-abandonment-proof",
+    "post-recovery-mixed-hostile-peer-bounded-progress-proof",
+    "repeated-hostile-batch-heartbeat-and-cancellable-shutdown-proof",
     "rust-authority-pre-mutation-generation-fence",
     "rust-specialized-local-route-pre-decode-generation-fence",
     "rust-authenticated-https-header-generation-fence"
@@ -156,6 +159,62 @@
       },
       "postconditions": "all-claims-complete-generations-3-through-66-contiguous-no-false-replays-old-tickets-stale-final-ticket-mutates-and-replays",
       "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
+    },
+    "claim_post_recovery_duplicate_retry_proof": {
+      "fault_recovery": "committed-unread-claim-daemon-sigkill-pre-expiry-rejection-natural-owner-expiry-and-same-socket-rebind",
+      "saturated_batch": {
+        "total_claims": 64,
+        "duplicate_groups": 16,
+        "abandoned_new_claim_responses": 16,
+        "readable_same_id_retries": 48,
+        "budget_ms": 5000,
+        "production_ipc_batch_limit": 64
+      },
+      "response_abandonment": "client-read-half-closed-after-complete-request-while-descriptor-remains-queued",
+      "postconditions": "abandoned-new-claims-commit-retries-replay-generations-3-through-18-contiguous-peer-failures-isolated-old-tickets-stale-final-ticket-mutates-and-replays",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_post_recovery_duplicate_retry_linux_x86_64_20260802.json"
+    },
+    "claim_post_recovery_mixed_peer_proof": {
+      "fault_recovery": "committed-unread-claim-daemon-sigkill-pre-expiry-rejection-natural-owner-expiry-and-same-socket-rebind",
+      "mixed_batch": {
+        "total_peers": 64,
+        "malformed": 16,
+        "unauthorized": 16,
+        "slow_timeout": 16,
+        "valid_claims": 16,
+        "peer_read_timeout_ms": 2000,
+        "valid_progress_budget_ms": 5000,
+        "production_ipc_batch_limit": 64
+      },
+      "dispatch": "frames-read-concurrently-then-dispatched-serially-in-accept-order",
+      "postconditions": "invalid-peers-allocate-no-generation-valid-generations-3-through-18-contiguous-old-tickets-stale-final-ticket-mutates-and-replays",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
+    },
+    "claim_hostile_lifecycle_proof": {
+      "repeated_batches": {
+        "count": 2,
+        "peers_per_batch": 64,
+        "malformed_per_batch": 16,
+        "unauthorized_per_batch": 16,
+        "slow_timeout_per_batch": 16,
+        "valid_same_writer_replays_per_batch": 16,
+        "peer_read_timeout_ms": 2000,
+        "batch_budget_ms": 5000,
+        "production_ipc_batch_limit": 64
+      },
+      "peer_read_timeout": "hard-wall-clock-deadline-even-when-peer-trickles-bytes-faster-than-the-read-poll-interval",
+      "heartbeat": "same-owner-token-lease-expiry-advances-to-at-least-29000ms-remaining-after-each-saturated-batch",
+      "shutdown": {
+        "active_slow_peers": 64,
+        "frame_read_poll_interval_ms": 100,
+        "sigterm_budget_ms": 1000,
+        "cleanup": "runtime-owner-row-and-unix-socket-removed-before-process-exit",
+        "restart": "same-database-and-socket-reopen-immediately-with-stable-generation-replay"
+      },
+      "dispatch": "cancel-aware-concurrent-frame-read-then-stop-checked-serial-accept-order-authority-dispatch",
+      "postconditions": "two-hostile-batches-preserve-owner-heartbeat-and-generation-then-sigterm-interrupts-active-slow-read-releases-owner-and-socket-and-allows-immediate-restart",
+      "local_evidence": "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm",
+      "physical_linux_evidence": null
     },
     "remaining_routes": []
   },

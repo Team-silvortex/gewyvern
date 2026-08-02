@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_post_recovery_mixed_peer",
+  "recorded_at": "2026-08-02T00:43:04Z",
+  "target": {
+    "host": "192.168.124.45",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "post_recovery_mixed_hostile_and_slow_peers_preserve_valid_claim_progress",
+    "observed_duration_ms": 35350,
+    "owner_lease_duration_ms": 30000,
+    "claim_budget_ms": 5000,
+    "production_ipc_batch_limit": 64,
+    "peer_read_timeout_ms": 2000,
+    "malformed_peers": 16,
+    "unauthorized_peers": 16,
+    "slow_timeout_peers": 16,
+    "valid_claim_peers": 16
+  },
+  "sequence": {
+    "initial": {
+      "writer": "writer_a",
+      "generation": 1,
+      "replayed": false
+    },
+    "unclean_owner": {
+      "writer": "writer_b",
+      "lost_response_generation": 2,
+      "termination": "SIGKILL"
+    },
+    "pre_expiry": {
+      "replacement_admitted": false,
+      "socket_preserved": true
+    },
+    "natural_recovery": {
+      "same_path_rebound": true,
+      "writer": "writer_b",
+      "generation": 2,
+      "replayed": true
+    },
+    "mixed_batch": {
+      "accept_gate_connections": 1,
+      "total_peers": 64,
+      "group_count": 16,
+      "group_shape": "malformed-unauthorized-slow-timeout-valid-claim",
+      "crosses_production_tick_boundary": true,
+      "malformed_error": "invalid_json",
+      "unauthorized_error": "unauthorized",
+      "slow_peer_response_bytes": 0,
+      "valid_first_generation": 3,
+      "valid_final_generation": 18,
+      "observed_elapsed_ms": 4216,
+      "generation_sequence_contiguous": true
+    },
+    "final": {
+      "writer": "0000000000000000000000000000020f",
+      "generation": 18,
+      "replayed": true,
+      "stale_generations_rejected": [2, 17],
+      "mutation_applied": true
+    }
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "unread_response_sigkill_recovery": true,
+    "pre_expiry_owner_and_socket_fence": true,
+    "natural_owner_lease_expiry": true,
+    "same_socket_path_recovery": true,
+    "production_batch_limit_saturated": true,
+    "parallel_batch_frame_reads": true,
+    "accept_order_serial_dispatch": true,
+    "sixteen_malformed_peers_fixed_error": true,
+    "sixteen_unauthorized_peers_fixed_error": true,
+    "sixteen_slowloris_peers_timeout_together": true,
+    "slow_peer_responses_empty": true,
+    "invalid_peers_allocate_no_generation": true,
+    "sixteen_valid_claims_complete_within_budget": true,
+    "contiguous_generations_3_through_18": true,
+    "recovered_ticket_stale": true,
+    "penultimate_ticket_stale": true,
+    "final_ticket_mutation_applied": true,
+    "final_ticket_replay_stable": true,
+    "secret_free_evidence": true
+  }
+}

@@ -461,6 +461,37 @@ through `66` exactly once without false replay. Only generation `66` can mutate
 and its same-ID claim remains a replay. This adds no payload field, request ID,
 hot failover, or active-active authority.
 
+A saturated duplicate-retry batch also preserves the unchanged claim payload.
+Sixteen groups queue one complete new claim whose client read half is closed,
+then three readable retries for the same writer ID. Failed response delivery
+does not roll back the primary claim or terminate the daemon peer loop: all 48
+followers replay, only the 16 primaries allocate generations `3` through `18`,
+and the final identity alone can mutate and replay. The accept gate makes the
+64 claims cross a production tick boundary without adding a response journal
+or changing idempotency semantics.
+
+Hostile local peers cannot multiply the batch read timeout. The daemon reads up
+to 64 accepted frames concurrently under the existing 2000 ms per-peer bound,
+then dispatches completed frames serially in accept order. A mixed batch of 16
+malformed frames, 16 wrong-token claims, 16 full-timeout slowloris prefixes,
+and 16 valid claims gives fixed errors to complete invalid peers, no response
+to timed-out peers, and generations only to valid claims (`3` through `18`).
+This changes daemon scheduling only; the wire payload and authority
+linearization contract remain unchanged.
+
+Repeated hostile batches now share the daemon's cooperative shutdown boundary.
+Two complete 64-peer mixed batches must each be followed by a fresh heartbeat
+for the same SQLite owner token, and same-writer valid claims remain stable
+replays without generation allocation. Frame readers retain the 2000 ms total
+wall-clock peer deadline even for drip-fed bytes but check the process stop flag
+every 100 ms; once it is set, no
+later completed frame is dispatched. `SIGTERM` during 64 active incomplete
+peers must therefore exit inside 1000 ms, release the owner row and Unix socket,
+and allow immediate same-path restart with the existing generation replayed.
+This changes neither the claim payload nor cold-takeover semantics. Contract
+`1.14.0` records local executable proof and deliberately leaves physical Linux
+x86_64 evidence pending.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

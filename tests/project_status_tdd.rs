@@ -143,7 +143,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.11.0");
+    assert_eq!(inventory["version"], "1.14.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -228,6 +228,28 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         writer_fence["claim_post_recovery_contention_proof"]["physical_linux_evidence"],
         "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
     );
+    assert_eq!(
+        writer_fence["claim_post_recovery_duplicate_retry_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_post_recovery_duplicate_retry_linux_x86_64_20260802.json"
+    );
+    assert_eq!(
+        writer_fence["claim_post_recovery_mixed_peer_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
+    );
+    let hostile_lifecycle = &writer_fence["claim_hostile_lifecycle_proof"];
+    assert_eq!(hostile_lifecycle["repeated_batches"]["count"], 2);
+    assert_eq!(hostile_lifecycle["repeated_batches"]["peers_per_batch"], 64);
+    assert_eq!(hostile_lifecycle["shutdown"]["active_slow_peers"], 64);
+    assert_eq!(
+        hostile_lifecycle["shutdown"]["frame_read_poll_interval_ms"],
+        100
+    );
+    assert_eq!(hostile_lifecycle["shutdown"]["sigterm_budget_ms"], 1000);
+    assert_eq!(
+        hostile_lifecycle["local_evidence"],
+        "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm"
+    );
+    assert!(hostile_lifecycle["physical_linux_evidence"].is_null());
 }
 
 #[test]
@@ -448,6 +470,202 @@ fn retained_linux_authority_writer_post_recovery_contention_is_non_vacuous() {
         "secret_free_evidence",
     ] {
         assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_authority_writer_post_recovery_duplicate_retry_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_post_recovery_duplicate_retry_linux_x86_64_20260802.json",
+        ))
+        .expect("post-recovery duplicate retry evidence must exist"),
+    )
+    .expect("post-recovery duplicate retry evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.45");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "post_recovery_saturated_duplicate_retries_survive_abandoned_responses"
+    );
+    assert_eq!(evidence["test"]["owner_lease_duration_ms"], 30_000);
+    assert_eq!(evidence["test"]["claim_budget_ms"], 5_000);
+    assert_eq!(evidence["test"]["production_ipc_batch_limit"], 64);
+    assert_eq!(evidence["test"]["duplicate_groups"], 16);
+    assert_eq!(evidence["test"]["abandoned_responses"], 16);
+    assert_eq!(evidence["test"]["readable_retries"], 48);
+    assert_eq!(evidence["sequence"]["natural_recovery"]["generation"], 2);
+    assert_eq!(evidence["sequence"]["natural_recovery"]["replayed"], true);
+    assert_eq!(evidence["sequence"]["saturated_batch"]["total_claims"], 64);
+    assert_eq!(evidence["sequence"]["saturated_batch"]["group_count"], 16);
+    assert_eq!(
+        evidence["sequence"]["saturated_batch"]["abandoned_response_claims"],
+        16
+    );
+    assert_eq!(
+        evidence["sequence"]["saturated_batch"]["readable_retry_replays"],
+        48
+    );
+    assert_eq!(
+        evidence["sequence"]["saturated_batch"]["first_generation"],
+        3
+    );
+    assert_eq!(
+        evidence["sequence"]["saturated_batch"]["final_generation"],
+        18
+    );
+    assert!(
+        evidence["sequence"]["saturated_batch"]["observed_elapsed_ms"]
+            .as_u64()
+            .unwrap()
+            <= 5_000
+    );
+    assert_eq!(evidence["sequence"]["final"]["generation"], 18);
+    assert_eq!(evidence["sequence"]["final"]["replayed"], true);
+    assert_eq!(
+        evidence["sequence"]["final"]["stale_generations_rejected"],
+        serde_json::json!([2, 17])
+    );
+    for check in [
+        "production_daemon_ipc_path",
+        "unread_response_sigkill_recovery",
+        "pre_expiry_owner_and_socket_fence",
+        "natural_owner_lease_expiry",
+        "same_socket_path_recovery",
+        "production_batch_limit_saturated",
+        "sixteen_response_read_halves_closed",
+        "sixteen_abandoned_claims_committed",
+        "forty_eight_same_id_retries_replayed",
+        "peer_response_failures_isolated",
+        "all_readable_claims_complete_within_budget",
+        "contiguous_generations_3_through_18",
+        "recovered_ticket_stale",
+        "penultimate_ticket_stale",
+        "final_ticket_mutation_applied",
+        "final_ticket_replay_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_authority_writer_post_recovery_mixed_peer_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json",
+        ))
+        .expect("post-recovery mixed peer evidence must exist"),
+    )
+    .expect("post-recovery mixed peer evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.45");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "post_recovery_mixed_hostile_and_slow_peers_preserve_valid_claim_progress"
+    );
+    assert_eq!(evidence["test"]["owner_lease_duration_ms"], 30_000);
+    assert_eq!(evidence["test"]["claim_budget_ms"], 5_000);
+    assert_eq!(evidence["test"]["production_ipc_batch_limit"], 64);
+    assert_eq!(evidence["test"]["peer_read_timeout_ms"], 2_000);
+    assert_eq!(evidence["test"]["malformed_peers"], 16);
+    assert_eq!(evidence["test"]["unauthorized_peers"], 16);
+    assert_eq!(evidence["test"]["slow_timeout_peers"], 16);
+    assert_eq!(evidence["test"]["valid_claim_peers"], 16);
+    assert_eq!(evidence["sequence"]["mixed_batch"]["total_peers"], 64);
+    assert_eq!(evidence["sequence"]["mixed_batch"]["group_count"], 16);
+    assert_eq!(
+        evidence["sequence"]["mixed_batch"]["malformed_error"],
+        "invalid_json"
+    );
+    assert_eq!(
+        evidence["sequence"]["mixed_batch"]["unauthorized_error"],
+        "unauthorized"
+    );
+    assert_eq!(
+        evidence["sequence"]["mixed_batch"]["slow_peer_response_bytes"],
+        0
+    );
+    assert_eq!(
+        evidence["sequence"]["mixed_batch"]["valid_first_generation"],
+        3
+    );
+    assert_eq!(
+        evidence["sequence"]["mixed_batch"]["valid_final_generation"],
+        18
+    );
+    assert!(
+        evidence["sequence"]["mixed_batch"]["observed_elapsed_ms"]
+            .as_u64()
+            .unwrap()
+            <= 5_000
+    );
+    assert_eq!(evidence["sequence"]["final"]["generation"], 18);
+    assert_eq!(evidence["sequence"]["final"]["replayed"], true);
+    assert_eq!(
+        evidence["sequence"]["final"]["stale_generations_rejected"],
+        serde_json::json!([2, 17])
+    );
+    for check in [
+        "production_daemon_ipc_path",
+        "unread_response_sigkill_recovery",
+        "pre_expiry_owner_and_socket_fence",
+        "natural_owner_lease_expiry",
+        "same_socket_path_recovery",
+        "production_batch_limit_saturated",
+        "parallel_batch_frame_reads",
+        "accept_order_serial_dispatch",
+        "sixteen_malformed_peers_fixed_error",
+        "sixteen_unauthorized_peers_fixed_error",
+        "sixteen_slowloris_peers_timeout_together",
+        "slow_peer_responses_empty",
+        "invalid_peers_allocate_no_generation",
+        "sixteen_valid_claims_complete_within_budget",
+        "contiguous_generations_3_through_18",
+        "recovered_ticket_stale",
+        "penultimate_ticket_stale",
+        "final_ticket_mutation_applied",
+        "final_ticket_replay_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
+    let ipc = std::fs::read_to_string(repository_root().join("crates/leserpentd/src/ipc.rs"))
+        .expect("IPC authority source must exist");
+    for contract in [
+        "const IPC_FRAME_READ_TIMEOUT: Duration = Duration::from_secs(2);",
+        "const IPC_FRAME_READ_POLL_INTERVAL: Duration = Duration::from_millis(100);",
+        "pub fn poll_batch_until(",
+        "read_frame_until(stream, cancelled)",
+        "if cancelled.load(Ordering::Acquire)",
+        "fn trickle_frame_cannot_extend_the_total_read_deadline()",
+    ] {
+        assert!(ipc.contains(contract), "missing IPC contract {contract}");
+    }
+    let main = std::fs::read_to_string(repository_root().join("crates/leserpentd/src/main.rs"))
+        .expect("daemon entrypoint source must exist");
+    assert!(main.matches("ipc.poll_batch_until(").count() >= 2);
+    let vertical = std::fs::read_to_string(
+        repository_root().join("crates/leserpentd/tests/authority_writer_takeover_vertical.rs"),
+    )
+    .expect("authority writer vertical proof must exist");
+    for contract in [
+        "const REPEATED_HOSTILE_BATCHES: usize = 2;",
+        "fn repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm()",
+        "wait_for_owner_lease_extension",
+        "daemon.stop_with_budget(Duration::from_secs(2))",
+        "shutdown_elapsed < Duration::from_secs(1)",
+        "SELECT COUNT(*) FROM runtime_owner",
+        "owner_lease_released=true immediate_restart=true generation=1",
+    ] {
+        assert!(
+            vertical.contains(contract),
+            "missing hostile lifecycle proof contract {contract}"
+        );
     }
 }
 
@@ -2501,6 +2719,37 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "contiguous-authority-generations-3-through-66",
         "no-false-replay-under-contention",
         "physical-linux-post-recovery-contention-proof",
+        "post-recovery-duplicate-claim-linearization",
+        "read-half-abandoned-response-commit",
+        "contiguous-authority-generations-3-through-18",
+        "48-stable-idempotent-replays",
+        "physical-linux-saturated-duplicate-retry-proof",
+        "parallel-ipc-frame-intake",
+        "accept-order-serial-authority-dispatch",
+        "invalid-peers-zero-generation-allocation",
+        "bounded-valid-claim-progress-under-slowloris",
+        "physical-linux-hostile-peer-progress-proof",
+        "repeated-hostile-batch-lifecycle-proof",
+        "owner-heartbeat-continuity-under-hostile-load",
+        "signal-cancellable-ipc-frame-read",
+        "bounded-sigterm-under-slowloris",
+        "graceful-owner-and-socket-release",
+        "immediate-same-path-restart",
+        "hard-total-frame-read-deadline",
+        "hard-total-frame-read-deadline",
+        "hard-total-frame-read-deadline",
+        "repeated-hostile-batch-lifecycle-proof",
+        "owner-heartbeat-continuity-under-hostile-load",
+        "signal-cancellable-ipc-frame-read",
+        "bounded-sigterm-under-slowloris",
+        "graceful-owner-and-socket-release",
+        "immediate-same-path-restart",
+        "repeated-hostile-batch-lifecycle-proof",
+        "owner-heartbeat-continuity-under-hostile-load",
+        "signal-cancellable-ipc-frame-read",
+        "bounded-sigterm-under-slowloris",
+        "graceful-owner-and-socket-release",
+        "immediate-same-path-restart",
     ] {
         assert!(
             runtime
@@ -2546,13 +2795,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_duplicate_retry_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
 
     let daemon_lifecycle = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.8.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.11.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -2572,6 +2831,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "64-connection-claim-admission",
         "bounded-contention-completion",
         "physical-linux-post-recovery-contention-proof",
+        "post-recovery-mixed-response-saturation",
+        "16-abandoned-response-claims",
+        "48-readable-retry-replays",
+        "isolated-peer-response-failure",
+        "physical-linux-saturated-duplicate-retry-proof",
+        "bounded-parallel-ipc-frame-read",
+        "16-slowloris-timeout-isolation",
+        "16-malformed-16-unauthorized-peer-isolation",
+        "two-wave-batch-progress-under-5000ms",
+        "physical-linux-hostile-peer-progress-proof",
     ] {
         assert!(
             daemon_lifecycle
@@ -2600,13 +2869,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_duplicate_retry_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
 
     let compatibility_control = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.36.0");
+    assert_eq!(compatibility_control.contract.version, "1.39.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -2961,6 +3240,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "contiguous-writer-generations-3-through-66",
         "max-generation-sole-mutation-authority",
         "physical-linux-post-recovery-contention-proof",
+        "saturated-duplicate-writer-retries",
+        "abandoned-claim-response-recovery",
+        "16-new-claims-48-stable-replays",
+        "contiguous-writer-generations-3-through-18",
+        "physical-linux-saturated-duplicate-retry-proof",
+        "post-recovery-hostile-peer-admission",
+        "malformed-and-unauthorized-claim-isolation",
+        "16-valid-claims-under-48-invalid-or-slow-peers",
+        "invalid-peers-zero-generation-allocation",
+        "physical-linux-hostile-peer-progress-proof",
     ] {
         assert!(
             compatibility_control
@@ -2971,8 +3260,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.36.0");
-    assert!(compatibility_control.next_gate.contains("exhaustive"));
+    assert_eq!(compatibility_control.contract.version, "1.39.0");
+    assert!(
+        compatibility_control
+            .next_gate
+            .contains("physical Linux x86_64")
+    );
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
             && item.state == EvidenceState::Present
@@ -3005,6 +3298,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path
             == "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_duplicate_retry_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
 

@@ -1,10 +1,12 @@
 use std::fs;
-use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use leserpent_protocol::bootstrap::{BootstrapResponseEnvelope, encode_bootstrap_response};
 use leserpent_protocol::bootstrap_retirement_control::{
@@ -37,6 +39,8 @@ use crate::wire::{
 };
 
 const MAX_IPC_FRAME_BYTES: usize = MAX_PROTOCOL_MESSAGE_BYTES + 1024;
+const IPC_FRAME_READ_TIMEOUT: Duration = Duration::from_secs(2);
+const IPC_FRAME_READ_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -156,32 +160,65 @@ impl IpcServer {
         runtime: &mut ControlRuntime,
         max_connections: usize,
     ) -> Result<usize, String> {
+        let cancelled = AtomicBool::new(false);
+        self.poll_batch_until(runtime, max_connections, &cancelled)
+    }
+
+    pub fn poll_batch_until(
+        &self,
+        runtime: &mut ControlRuntime,
+        max_connections: usize,
+        cancelled: &AtomicBool,
+    ) -> Result<usize, String> {
         if max_connections == 0 {
             return Err("IPC batch size must be positive".into());
         }
-        let mut handled = 0;
-        while handled < max_connections && self.poll_once(runtime)? {
-            handled += 1;
+        let mut streams = Vec::with_capacity(max_connections);
+        while streams.len() < max_connections {
+            match self.listener.accept() {
+                Ok((stream, _)) => streams.push(stream),
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+        let handled = streams.len();
+        let frames = thread::scope(|scope| {
+            let readers = streams
+                .into_iter()
+                .map(|stream| scope.spawn(move || read_frame_until(stream, cancelled)))
+                .collect::<Vec<_>>();
+            readers
+                .into_iter()
+                .map(|reader| {
+                    reader
+                        .join()
+                        .unwrap_or_else(|_| Err("IPC frame reader panicked".into()))
+                })
+                .collect::<Vec<_>>()
+        });
+        for (stream, frame) in frames.into_iter().flatten() {
+            if cancelled.load(Ordering::Acquire) {
+                break;
+            }
+            // A peer-local read or response failure must not poison later
+            // accepted connections; dispatch order remains accept order.
+            let _ = self.handle_frame(stream, &frame, runtime);
         }
         Ok(handled)
     }
 
-    fn handle(&self, mut stream: UnixStream, runtime: &mut ControlRuntime) -> Result<(), String> {
-        stream
-            .set_nonblocking(false)
-            .map_err(|error| error.to_string())?;
-        stream
-            .set_read_timeout(Some(Duration::from_secs(2)))
-            .map_err(|error| error.to_string())?;
-        stream
-            .set_write_timeout(Some(Duration::from_secs(2)))
-            .map_err(|error| error.to_string())?;
-        let mut frame = Vec::new();
-        BufReader::new(&stream)
-            .take((MAX_IPC_FRAME_BYTES + 1) as u64)
-            .read_until(b'\n', &mut frame)
-            .map_err(|error| error.to_string())?;
-        let response = self.dispatch(&frame, runtime);
+    fn handle(&self, stream: UnixStream, runtime: &mut ControlRuntime) -> Result<(), String> {
+        let (stream, frame) = read_frame(stream)?;
+        self.handle_frame(stream, &frame, runtime)
+    }
+
+    fn handle_frame(
+        &self,
+        mut stream: UnixStream,
+        frame: &[u8],
+        runtime: &mut ControlRuntime,
+    ) -> Result<(), String> {
+        let response = self.dispatch(frame, runtime);
         let mut encoded = match response {
             IpcResponse::Wire(response) => {
                 encode_response(&response).map_err(|error| error.to_string())?
@@ -315,6 +352,58 @@ impl IpcServer {
             }
         }
     }
+}
+
+fn read_frame(stream: UnixStream) -> Result<(UnixStream, Vec<u8>), String> {
+    let cancelled = AtomicBool::new(false);
+    read_frame_until(stream, &cancelled)
+}
+
+fn read_frame_until(
+    mut stream: UnixStream,
+    cancelled: &AtomicBool,
+) -> Result<(UnixStream, Vec<u8>), String> {
+    stream
+        .set_nonblocking(false)
+        .map_err(|error| error.to_string())?;
+    stream
+        .set_read_timeout(Some(IPC_FRAME_READ_POLL_INTERVAL))
+        .map_err(|error| error.to_string())?;
+    stream
+        .set_write_timeout(Some(IPC_FRAME_READ_TIMEOUT))
+        .map_err(|error| error.to_string())?;
+    let deadline = Instant::now() + IPC_FRAME_READ_TIMEOUT;
+    let mut frame = Vec::new();
+    let mut chunk = [0_u8; 8 * 1024];
+    while frame.len() <= MAX_IPC_FRAME_BYTES {
+        if cancelled.load(Ordering::Acquire) {
+            return Err("IPC frame read cancelled".into());
+        }
+        if Instant::now() >= deadline {
+            return Err("IPC frame read timed out".into());
+        }
+        let remaining = MAX_IPC_FRAME_BYTES + 1 - frame.len();
+        let read_limit = remaining.min(chunk.len());
+        match stream.read(&mut chunk[..read_limit]) {
+            Ok(0) => break,
+            Ok(read) => {
+                let bytes = &chunk[..read];
+                if let Some(newline) = bytes.iter().position(|byte| *byte == b'\n') {
+                    frame.extend_from_slice(&bytes[..=newline]);
+                    break;
+                }
+                frame.extend_from_slice(bytes);
+            }
+            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                if Instant::now() >= deadline {
+                    return Err("IPC frame read timed out".into());
+                }
+            }
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok((stream, frame))
 }
 
 fn reclaim_stale_socket(path: &Path) -> Result<(), String> {
@@ -667,6 +756,76 @@ mod tests {
         drop(server);
         drop(runtime);
         fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn batch_cancellation_interrupts_parallel_slow_frame_reads() {
+        let database = temp_path("batch-cancel", "sqlite");
+        let socket = temp_path("batch-cancel", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let mut clients = (0..4)
+            .map(|_| {
+                let mut client = UnixStream::connect(&socket).unwrap();
+                client.write_all(b"{").unwrap();
+                client
+            })
+            .collect::<Vec<_>>();
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let canceller = {
+            let cancelled = Arc::clone(&cancelled);
+            thread::spawn(move || {
+                thread::sleep(Duration::from_millis(150));
+                cancelled.store(true, Ordering::Release);
+            })
+        };
+
+        let started = Instant::now();
+        assert_eq!(
+            server
+                .poll_batch_until(&mut runtime, 4, &cancelled)
+                .unwrap(),
+            4
+        );
+        let elapsed = started.elapsed();
+        canceller.join().unwrap();
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "cancelled frame readers exceeded their budget: {elapsed:?}"
+        );
+        for client in &mut clients {
+            let mut response = Vec::new();
+            client.read_to_end(&mut response).unwrap();
+            assert!(response.is_empty());
+        }
+
+        drop(server);
+        drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn trickle_frame_cannot_extend_the_total_read_deadline() {
+        let (reader, mut writer) = UnixStream::pair().unwrap();
+        let feeder = thread::spawn(move || {
+            for _ in 0..100 {
+                if writer.write_all(b"{").is_err() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+        });
+
+        let started = Instant::now();
+        let error = read_frame(reader).unwrap_err();
+        let elapsed = started.elapsed();
+        assert_eq!(error, "IPC frame read timed out");
+        assert!(elapsed >= IPC_FRAME_READ_TIMEOUT);
+        assert!(
+            elapsed < Duration::from_secs(3),
+            "trickle frame extended its total deadline: {elapsed:?}"
+        );
+        feeder.join().unwrap();
     }
 
     #[test]

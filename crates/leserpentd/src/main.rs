@@ -482,7 +482,7 @@ fn run() -> Result<(), String> {
                 }
                 #[cfg(unix)]
                 if let Some(ipc) = &ipc {
-                    ipc.poll_batch(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK)?;
+                    ipc.poll_batch_until(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK, &stop)?;
                 }
                 if let Some(remote) = &mut remote {
                     remote.poll_once(host.runtime_mut())?;
@@ -495,7 +495,7 @@ fn run() -> Result<(), String> {
             while !stop.load(Ordering::Acquire) {
                 #[cfg(unix)]
                 if let Some(ipc) = &ipc {
-                    ipc.poll_batch(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK)?;
+                    ipc.poll_batch_until(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK, &stop)?;
                 }
                 if let Some(remote) = &mut remote {
                     remote.poll_once(host.runtime_mut())?;
