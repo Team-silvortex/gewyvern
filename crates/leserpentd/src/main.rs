@@ -34,6 +34,50 @@ fn main() {
     }
 }
 
+#[derive(Default)]
+struct TransportScheduler {
+    remote_first: bool,
+}
+
+impl TransportScheduler {
+    fn next_remote_first(&mut self) -> bool {
+        let remote_first = self.remote_first;
+        self.remote_first = !self.remote_first;
+        remote_first
+    }
+}
+
+fn run_fair_daemon_turn(
+    host: &mut DaemonHost,
+    #[cfg(unix)] ipc: Option<&IpcServer>,
+    remote: Option<&mut RemoteServer>,
+    stop: &AtomicBool,
+    remote_first: bool,
+) -> Result<(), String> {
+    // Maintenance leads every turn so neither transport can defer owner
+    // heartbeat or durable worker progress indefinitely.
+    host.run_steps_until(1, stop)
+        .map_err(|error| error.to_string())?;
+    if remote_first {
+        if let Some(remote) = remote {
+            remote.poll_once(host.runtime_mut())?;
+        }
+        #[cfg(unix)]
+        if let Some(ipc) = ipc {
+            ipc.poll_batch_until(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK, stop)?;
+        }
+    } else {
+        #[cfg(unix)]
+        if let Some(ipc) = ipc {
+            ipc.poll_batch_until(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK, stop)?;
+        }
+        if let Some(remote) = remote {
+            remote.poll_once(host.runtime_mut())?;
+        }
+    }
+    Ok(())
+}
+
 fn run() -> Result<(), String> {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     if arguments.first().map(String::as_str) == Some("bootstrap-install-v1") {
@@ -474,34 +518,33 @@ fn run() -> Result<(), String> {
     if remote.is_none() && remote_token_file.is_some() {
         return Err("--remote-token-file requires the remote HTTPS options".into());
     }
+    let mut transport_scheduler = TransportScheduler::default();
     match steps {
         Some(steps) => {
             for _ in 0..steps {
                 if stop.load(Ordering::Acquire) {
                     break;
                 }
-                #[cfg(unix)]
-                if let Some(ipc) = &ipc {
-                    ipc.poll_batch_until(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK, &stop)?;
-                }
-                if let Some(remote) = &mut remote {
-                    remote.poll_once(host.runtime_mut())?;
-                }
-                host.run_steps_until(1, &stop)
-                    .map_err(|error| error.to_string())?;
+                run_fair_daemon_turn(
+                    &mut host,
+                    #[cfg(unix)]
+                    ipc.as_ref(),
+                    remote.as_mut(),
+                    &stop,
+                    transport_scheduler.next_remote_first(),
+                )?;
             }
         }
         None => {
             while !stop.load(Ordering::Acquire) {
-                #[cfg(unix)]
-                if let Some(ipc) = &ipc {
-                    ipc.poll_batch_until(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK, &stop)?;
-                }
-                if let Some(remote) = &mut remote {
-                    remote.poll_once(host.runtime_mut())?;
-                }
-                host.run_steps_until(1, &stop)
-                    .map_err(|error| error.to_string())?;
+                run_fair_daemon_turn(
+                    &mut host,
+                    #[cfg(unix)]
+                    ipc.as_ref(),
+                    remote.as_mut(),
+                    &stop,
+                    transport_scheduler.next_remote_first(),
+                )?;
             }
         }
     }
@@ -562,5 +605,16 @@ mod tests {
         assert_eq!(ca_path, PathBuf::from("/etc/gewy/ca.pem"));
         assert!(parse_gewyvern_https_target("runtime-a=https://localhost").is_err());
         assert!(parse_gewyvern_https_target("=https://localhost,/ca.pem").is_err());
+    }
+
+    #[test]
+    fn transport_scheduler_alternates_local_and_remote_priority() {
+        let mut scheduler = TransportScheduler::default();
+        assert_eq!(
+            (0..6)
+                .map(|_| scheduler.next_remote_first())
+                .collect::<Vec<_>>(),
+            [false, true, false, true, false, true]
+        );
     }
 }

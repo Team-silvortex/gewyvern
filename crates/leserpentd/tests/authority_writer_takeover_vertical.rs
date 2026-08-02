@@ -37,6 +37,9 @@ const READABLE_RETRIES_PER_GROUP: usize = 3;
 const MIXED_PEER_GROUPS: usize = 16;
 const REPEATED_HOSTILE_BATCHES: usize = 2;
 const RESOURCE_LIFECYCLE_CYCLES: usize = 3;
+const RECONNECT_FAIRNESS_WAVES: usize = 3;
+const RECONNECTS_PER_FAIRNESS_WAVE: usize = 4;
+const SLOW_PEERS_PER_RECONNECT_GROUP: usize = 15;
 const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
 static TEMP_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -549,6 +552,59 @@ fn run_saturated_hostile_replay_batch(socket: &Path, writer_id: &str, generation
         "repeated hostile replay batch exceeded its budget: {elapsed:?}"
     );
     elapsed
+}
+
+fn run_saturated_reconnect_fairness_wave(
+    socket: &Path,
+    writer_id: &str,
+    generation: u64,
+) -> (Duration, Vec<Duration>) {
+    assert_eq!(
+        RECONNECTS_PER_FAIRNESS_WAVE * (SLOW_PEERS_PER_RECONNECT_GROUP + 1),
+        MAX_IPC_CONNECTIONS_PER_TICK
+    );
+    let accept_gate = hold_ipc_accept(socket);
+    let mut slow_peers =
+        Vec::with_capacity(RECONNECTS_PER_FAIRNESS_WAVE * SLOW_PEERS_PER_RECONNECT_GROUP);
+    let mut reconnects = Vec::with_capacity(RECONNECTS_PER_FAIRNESS_WAVE);
+    for _ in 0..RECONNECTS_PER_FAIRNESS_WAVE {
+        slow_peers
+            .extend((0..SLOW_PEERS_PER_RECONNECT_GROUP).map(|_| queue_raw_prefix(socket, b"{")));
+        let reconnect = send_without_reading_response(socket, &claim(writer_id));
+        reconnect
+            .set_read_timeout(Some(Duration::from_secs(4)))
+            .unwrap();
+        reconnects.push(reconnect);
+    }
+
+    let started = Instant::now();
+    drop(accept_gate);
+    let reconnect_elapsed = reconnects
+        .into_iter()
+        .map(|reconnect| {
+            assert_eq!(
+                claimed(read_queued_response(reconnect)),
+                (generation, writer_id.to_string(), true)
+            );
+            let elapsed = started.elapsed();
+            assert!(
+                elapsed <= Duration::from_secs(3),
+                "valid reconnect starved behind a saturated hostile wave: {elapsed:?}"
+            );
+            elapsed
+        })
+        .collect::<Vec<_>>();
+    for mut slow in slow_peers {
+        let mut response = Vec::new();
+        slow.read_to_end(&mut response).unwrap();
+        assert!(response.is_empty());
+    }
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed <= Duration::from_secs(3),
+        "saturated reconnect fairness wave exceeded its budget: {elapsed:?}"
+    );
+    (elapsed, reconnect_elapsed)
 }
 
 fn wait_for_writer_fence(database: &Path, expected_generation: i64, expected_writer: &str) {
@@ -1510,6 +1566,53 @@ fn repeated_hostile_shutdown_restart_cycles_bound_process_resources() {
             .map(Duration::as_millis)
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves() {
+    assert_eq!(MAX_IPC_CONNECTIONS_PER_TICK, 64);
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("hostile-reconnect-fairness.sqlite");
+    let socket = root.0.join("hostile-reconnect-fairness.sock");
+
+    let daemon = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+    let (owner_token, mut lease_expiry) = inspect_owner_lease(&database);
+    let mut wave_elapsed = Vec::with_capacity(RECONNECT_FAIRNESS_WAVES);
+    let mut reconnect_elapsed = Vec::with_capacity(RECONNECT_FAIRNESS_WAVES);
+    for _ in 0..RECONNECT_FAIRNESS_WAVES {
+        let (wave, reconnects) = run_saturated_reconnect_fairness_wave(&socket, WRITER_A, 1);
+        wave_elapsed.push(wave);
+        reconnect_elapsed.push(reconnects);
+        lease_expiry = wait_for_owner_lease_extension(&database, &owner_token, lease_expiry);
+        assert_eq!(inspect_writer_fence(&database).0, 1);
+    }
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), true)
+    );
+
+    println!(
+        "authority-writer-hostile-reconnect-fairness waves={} peers_per_wave={} slow_peers_per_wave={} reconnects_per_wave={} wave_elapsed_ms={:?} reconnect_elapsed_ms={:?} heartbeat_advanced_each_wave=true final_generation=1",
+        RECONNECT_FAIRNESS_WAVES,
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        RECONNECTS_PER_FAIRNESS_WAVE * SLOW_PEERS_PER_RECONNECT_GROUP,
+        RECONNECTS_PER_FAIRNESS_WAVE,
+        wave_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>(),
+        reconnect_elapsed
+            .iter()
+            .map(|wave| wave.iter().map(Duration::as_millis).collect::<Vec<_>>())
+            .collect::<Vec<_>>()
+    );
+    daemon.stop();
+    assert!(!socket.exists());
 }
 
 #[test]

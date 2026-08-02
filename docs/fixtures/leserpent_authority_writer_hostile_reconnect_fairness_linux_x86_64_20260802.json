@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_hostile_reconnect_fairness",
+  "recorded_at": "2026-08-02T02:41:52Z",
+  "target": {
+    "host": "192.168.124.25",
+    "endpoint": "kyuubiki-lab.local",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "ready_prefix_test": {
+    "package": "leserpentd",
+    "name": "ipc::tests::batch_dispatches_ready_prefix_before_later_slow_reader",
+    "observed_duration_ms": 70,
+    "budget_ms": 1000,
+    "accepted_connections": 2,
+    "dispatch": "accept-order-ready-prefix-before-later-slow-reader"
+  },
+  "reconnect_fairness_test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves",
+    "observed_duration_ms": 7310,
+    "waves": 3,
+    "peers_per_wave": 64,
+    "slow_peers_per_wave": 60,
+    "valid_reconnects_per_wave": 4,
+    "total_valid_reconnects": 12,
+    "peer_read_timeout_ms": 2000,
+    "reconnect_budget_ms": 3000,
+    "production_ipc_batch_limit": 64
+  },
+  "timing": {
+    "wave_elapsed_ms": [2225, 2197, 2195],
+    "reconnect_elapsed_ms": [
+      [2218, 2222, 2223, 2224],
+      [2193, 2194, 2195, 2197],
+      [2186, 2188, 2193, 2195]
+    ],
+    "maximum_reconnect_elapsed_ms": 2224
+  },
+  "authority": {
+    "writer": "writer_a",
+    "generation": 1,
+    "stable_replays": 12,
+    "owner_heartbeat_advanced_after_each_wave": true
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "strict_accept_order_dispatch": true,
+    "ready_prefix_not_blocked_by_later_slow_reader": true,
+    "three_repeated_saturated_waves": true,
+    "sixty_slowloris_peers_per_wave": true,
+    "four_valid_reconnects_per_wave": true,
+    "all_twelve_reconnects_received_responses": true,
+    "each_reconnect_completed_within_budget": true,
+    "no_reconnect_starvation": true,
+    "owner_heartbeat_advanced_after_each_wave": true,
+    "writer_generation_stable": true,
+    "secret_free_evidence": true
+  }
+}

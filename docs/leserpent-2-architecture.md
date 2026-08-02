@@ -1110,10 +1110,13 @@ tick. Peer response failure therefore cannot poison later authority admission.
 
 Batch frame intake no longer serializes peer read timeouts. Up to 64 accepted
 Unix streams are read concurrently, each under the existing 2000 ms bound;
-their completed frames are then dispatched against the single mutable
-`ControlRuntime` in accept order. This retains deterministic writer generation
-allocation while preventing N slowloris peers from multiplying head-of-line
-delay by N. Linux evidence mixes 16 malformed, 16 unauthorized, 16 full-timeout
+their reader handles are joined against the single mutable `ControlRuntime` in
+accept order. Each ready accepted prefix is dispatched immediately rather than
+waiting for later reader handles, while no later frame can overtake an earlier
+one. This retains deterministic writer generation allocation, prevents N
+slowloris peers from multiplying head-of-line delay by N, and removes avoidable
+delay from hostile peers behind a ready request. Linux evidence mixes 16
+malformed, 16 unauthorized, 16 full-timeout
 slow, and 16 valid peers across two waves. Invalid peers allocate no generation,
 valid claims advance contiguously from `3` through `18`, and final mutation
 authority remains singular.
@@ -1134,7 +1137,24 @@ shutdown. Repeated-cycle resource retention is now physically bounded too:
 three Linux processes return to 5 FDs/1 task after completed hostile admission,
 rise to 69 FDs/65 tasks only while all 64 scoped readers are active, then remove
 their proc directory, owner row, and socket after 216/207/208 ms shutdowns.
-Burst reconnect fairness under the same cap is the next lifecycle boundary.
+Burst reconnect fairness is now physical too. Each of three consecutive
+64-connection waves contains 60 full-timeout slow peers and four valid writer
+reconnects. All 12 reconnects preserve generation 1 and complete within 2224
+ms, each wave drains within 2225 ms, and the same owner heartbeat advances
+after every wave. A separate ready-prefix test completes in 70 ms with a later
+slow reader still active.
+
+Cross-transport scheduling now makes maintenance independent of transport
+pressure. Every daemon turn first runs one bounded host maintenance step, then
+alternates Unix IPC-first and HTTPS-first polling; this prevents a fixed
+transport order from becoming a starvation policy while preserving each
+transport's own framing and authority order. Three physical Linux waves each
+queue 64 full-timeout Unix IPC peers beside one real authenticated TLS/HTTP
+runtime-list query. HTTPS completes within 2264 ms, every wave within 2265 ms,
+the same owner lease advances after each wave, and writer generation 1 remains
+stable. The next lifecycle boundary is the symmetric case: valid Unix IPC and
+maintenance progress while slow authenticated HTTPS peers consume the remote
+read budget.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

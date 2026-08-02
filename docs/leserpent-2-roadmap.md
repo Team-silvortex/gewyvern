@@ -1487,8 +1487,21 @@ shows each completed batch returning to exactly 5 open FDs and 1 task, each
 64-peer shutdown wave reaching exactly 69 FDs and 65 tasks, and every exited
 process removing its proc directory, owner row, and socket. SIGTERM remains
 bounded at 216 ms, 207 ms, and 208 ms while generation 1 replays through both
-restarts. The next boundary applies the same resource cap to burst reconnect
-fairness so queued valid peers cannot starve behind repeated saturated waves.
+restarts. The sixteenth slice removes avoidable same-batch response delay
+without weakening authority order: readers are still joined and dispatched in
+accept order, but each ready prefix is dispatched before waiting on later
+readers. A Linux unit proof returns the ready first peer in 70 ms despite a
+later slow peer. Three production-daemon waves then each saturate all 64 slots
+with 60 slowloris peers and four valid writer reconnects. All 12 reconnects
+replay generation 1 in at most 2224 ms, every wave completes in at most 2225
+ms, and the same owner heartbeat advances after every wave. The seventeenth
+slice moves maintenance ahead of transport polling and alternates Unix
+IPC-first with HTTPS-first priority. Three physical Linux waves each place one
+authenticated HTTPS runtime-list query beside 64 slow IPC peers. Every HTTPS
+query completes within 2264 ms, every full wave within 2265 ms, owner heartbeat
+advances after every wave, and writer generation 1 remains stable. The next
+boundary proves the symmetric case: valid IPC and maintenance progress under
+repeated slow authenticated HTTPS pressure.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

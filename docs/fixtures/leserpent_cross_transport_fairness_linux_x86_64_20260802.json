@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_cross_transport_fairness",
+  "recorded_at": "2026-08-02T03:06:11Z",
+  "target": {
+    "host": "192.168.124.25",
+    "endpoint": "kyuubiki-lab.local",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "scheduler_test": {
+    "package": "leserpentd",
+    "binary": "leserpentd",
+    "name": "tests::transport_scheduler_alternates_local_and_remote_priority",
+    "maintenance_order": "before-both-transports",
+    "transport_priority": ["unix-ipc", "https", "unix-ipc", "https"]
+  },
+  "cross_transport_test": {
+    "package": "leserpentd",
+    "binary": "cross_transport_fairness_vertical",
+    "name": "https_and_maintenance_progress_across_repeated_saturated_ipc_waves",
+    "observed_duration_ms": 7310,
+    "waves": 3,
+    "slow_ipc_peers_per_wave": 64,
+    "authenticated_https_queries": 3,
+    "peer_read_timeout_ms": 2000,
+    "https_budget_ms": 5000,
+    "wave_budget_ms": 5000,
+    "production_ipc_batch_limit": 64
+  },
+  "timing": {
+    "https_elapsed_ms": [2264, 2241, 2226],
+    "wave_elapsed_ms": [2265, 2241, 2227],
+    "maximum_https_elapsed_ms": 2264,
+    "maximum_wave_elapsed_ms": 2265
+  },
+  "maintenance": {
+    "owner_heartbeat_advanced_after_each_wave": true,
+    "owner_token_stable": true
+  },
+  "authority": {
+    "writer_generation": 1,
+    "writer_generation_stable": true
+  },
+  "checks": {
+    "production_daemon_dual_transport_path": true,
+    "real_tls_http_request": true,
+    "authenticated_read_only_query": true,
+    "maintenance_precedes_transport_polling": true,
+    "alternating_transport_priority": true,
+    "three_repeated_saturated_ipc_waves": true,
+    "sixty_four_slow_ipc_peers_per_wave": true,
+    "each_https_query_completed_within_budget": true,
+    "each_cross_transport_wave_completed_within_budget": true,
+    "no_https_starvation": true,
+    "owner_heartbeat_advanced_after_each_wave": true,
+    "writer_generation_stable": true,
+    "secret_free_evidence": true
+  }
+}

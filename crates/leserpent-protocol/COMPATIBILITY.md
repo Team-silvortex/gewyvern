@@ -501,6 +501,22 @@ the SQLite owner row, and the Unix socket disappear after each exit, and writer
 generation 1 remains a replay across both restarts. Contract `1.15.0` records
 this lifecycle proof.
 
+Contract `1.16.0` preserves strict accept-order mutation linearization while
+dispatching each ready prefix before joining later frame readers. Physical
+Linux proves a ready first peer responds in 70 ms despite a later slow peer,
+then runs three saturated 64-peer waves containing 60 slowloris peers and four
+valid reconnects each. All 12 reconnects replay generation 1 within 2224 ms,
+each wave stays within 2225 ms, and owner heartbeat advances after every wave.
+No protocol payload or authority-ticket shape changes.
+
+Contract `1.17.0` extends bounded progress across both daemon transports without
+changing the wire envelope. Every daemon turn performs one maintenance step
+before transport polling, then alternates Unix IPC-first and HTTPS-first
+priority. A physical Linux daemon completes one authenticated read-only HTTPS
+query in each of three waves containing 64 slow Unix IPC peers. HTTPS remains
+within 2264 ms, each full wave within 2265 ms, the same owner lease advances
+after every wave, and writer generation 1 remains unchanged.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

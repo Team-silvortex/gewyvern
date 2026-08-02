@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.15.0",
+  "version": "1.17.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -57,6 +57,8 @@
     "post-recovery-mixed-hostile-peer-bounded-progress-proof",
     "repeated-hostile-batch-heartbeat-and-cancellable-shutdown-proof",
     "repeated-hostile-process-resource-retention-proof",
+    "repeated-hostile-wave-burst-reconnect-fairness-proof",
+    "maintenance-first-alternating-cross-transport-fairness-proof",
     "rust-authority-pre-mutation-generation-fence",
     "rust-specialized-local-route-pre-decode-generation-fence",
     "rust-authenticated-https-header-generation-fence"
@@ -212,7 +214,7 @@
         "cleanup": "runtime-owner-row-and-unix-socket-removed-before-process-exit",
         "restart": "same-database-and-socket-reopen-immediately-with-stable-generation-replay"
       },
-      "dispatch": "cancel-aware-concurrent-frame-read-then-stop-checked-serial-accept-order-authority-dispatch",
+      "dispatch": "cancel-aware-concurrent-frame-read-with-ready-prefix-serial-accept-order-authority-dispatch",
       "postconditions": "two-hostile-batches-preserve-owner-heartbeat-and-generation-then-sigterm-interrupts-active-slow-read-releases-owner-and-socket-and-allows-immediate-restart",
       "local_evidence": "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm",
       "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_repeated_hostile_lifecycle_linux_x86_64_20260802.json"
@@ -230,6 +232,41 @@
       "postconditions": "resource-baselines-identical-across-three-completed-batches-each-saturated-wave-fully-observed-each-sigterm-under-1000ms-and-each-restart-clean",
       "local_evidence": "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_shutdown_restart_cycles_bound_process_resources",
       "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
+    },
+    "claim_hostile_reconnect_fairness_proof": {
+      "waves": 3,
+      "peers_per_wave": 64,
+      "slow_peers_per_wave": 60,
+      "valid_reconnects_per_wave": 4,
+      "total_valid_reconnects": 12,
+      "ready_prefix_budget_ms": 1000,
+      "reconnect_budget_ms": 3000,
+      "dispatch": "strict-accept-order-with-immediate-ready-prefix-dispatch-before-later-reader-join",
+      "heartbeat": "same-owner-token-lease-expiry-advances-after-each-saturated-wave",
+      "authority": "all-twelve-writer-a-reconnects-replay-generation-1-without-allocation",
+      "postconditions": "no-valid-reconnect-starves-across-three-repeated-resource-cap-saturating-hostile-waves",
+      "local_evidence": [
+        "crates/leserpentd/src/ipc.rs#batch_dispatches_ready_prefix_before_later_slow_reader",
+        "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves"
+      ],
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_hostile_reconnect_fairness_linux_x86_64_20260802.json"
+    },
+    "cross_transport_fairness_proof": {
+      "waves": 3,
+      "slow_ipc_peers_per_wave": 64,
+      "authenticated_https_queries": 3,
+      "https_budget_ms": 5000,
+      "wave_budget_ms": 5000,
+      "schedule": "maintenance-first-then-alternating-unix-ipc-and-https-priority",
+      "remote_request": "authenticated-read-only-runtime-list-query",
+      "heartbeat": "same-owner-token-lease-expiry-advances-after-each-saturated-wave",
+      "authority": "writer-generation-1-remains-stable",
+      "postconditions": "no-https-or-maintenance-starvation-across-three-repeated-full-ipc-admission-waves",
+      "local_evidence": [
+        "crates/leserpentd/src/main.rs#transport_scheduler_alternates_local_and_remote_priority",
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#https_and_maintenance_progress_across_repeated_saturated_ipc_waves"
+      ],
+      "physical_linux_evidence": "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
     },
     "remaining_routes": []
   },

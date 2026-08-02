@@ -188,8 +188,10 @@ generation `18` can mutate and replay.
 
 Hostile peer intake is bounded without parallelizing authority mutation.
 `poll_batch` first accepts at most 64 Unix connections, reads their frames in
-parallel under the existing 2000 ms per-peer timeout, then dispatches completed
-frames serially in accept order. A physical Linux batch interleaves 16 malformed
+parallel under the existing 2000 ms per-peer timeout, then joins and dispatches
+them serially in accept order. A ready accepted prefix is dispatched before the
+daemon waits on later readers, but no later frame can overtake it. A physical
+Linux batch interleaves 16 malformed
 frames, 16 wrong-token claims, 16 slowloris prefixes that reach the full
 timeout, and 16 valid claims after unclean recovery. Malformed peers receive
 `invalid_json`, unauthorized peers receive `unauthorized`, slow peers receive
@@ -223,3 +225,20 @@ proving all accepted sockets and scoped readers are active before `SIGTERM`.
 Each exit joins the readers, removes `/proc/<pid>`, deletes its owner row and
 socket, and lets generation 1 replay in the next process. Observed shutdowns are
 216 ms, 207 ms, and 208 ms.
+
+Repeated hostile waves cannot starve valid reconnects. Three physical Linux
+waves each fill the 64-connection cap with four groups of 15 slowloris peers
+followed by one valid same-writer reconnect. All 12 reconnects replay generation
+1 within 2186-2224 ms, every full wave drains within 2195-2225 ms, and the same
+owner heartbeat advances after each wave. The isolated ready-prefix proof
+returns in 70 ms while a later slow reader remains active, demonstrating that
+only earlier accepted peers can impose the deterministic ordering boundary.
+
+Local admission pressure also cannot starve the remote read plane or daemon
+maintenance. Each daemon turn runs one bounded host step first and alternates
+which transport is polled first afterward. Three physical Linux waves each
+hold 64 incomplete Unix IPC peers while a real bearer-authenticated TLS/HTTP
+runtime-list query is issued. The queries complete in 2264, 2241, and 2226 ms;
+the complete waves drain in 2265, 2241, and 2227 ms. The owner lease advances
+after every wave and writer generation remains 1, so transport fairness neither
+creates write authority nor weakens the existing writer fence.

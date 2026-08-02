@@ -182,28 +182,25 @@ impl IpcServer {
             }
         }
         let handled = streams.len();
-        let frames = thread::scope(|scope| {
+        thread::scope(|scope| {
             let readers = streams
                 .into_iter()
                 .map(|stream| scope.spawn(move || read_frame_until(stream, cancelled)))
                 .collect::<Vec<_>>();
-            readers
-                .into_iter()
-                .map(|reader| {
-                    reader
-                        .join()
-                        .unwrap_or_else(|_| Err("IPC frame reader panicked".into()))
-                })
-                .collect::<Vec<_>>()
-        });
-        for (stream, frame) in frames.into_iter().flatten() {
-            if cancelled.load(Ordering::Acquire) {
-                break;
+            for reader in readers {
+                let frame = reader
+                    .join()
+                    .unwrap_or_else(|_| Err("IPC frame reader panicked".into()));
+                if cancelled.load(Ordering::Acquire) {
+                    continue;
+                }
+                if let Ok((stream, frame)) = frame {
+                    // Preserve accept-order linearization, but do not delay a
+                    // ready prefix behind later slow readers in the same batch.
+                    let _ = self.handle_frame(stream, &frame, runtime);
+                }
             }
-            // A peer-local read or response failure must not poison later
-            // accepted connections; dispatch order remains accept order.
-            let _ = self.handle_frame(stream, &frame, runtime);
-        }
+        });
         Ok(handled)
     }
 
@@ -801,6 +798,47 @@ mod tests {
 
         drop(server);
         drop(runtime);
+        fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn batch_dispatches_ready_prefix_before_later_slow_reader() {
+        let database = temp_path("batch-ready-prefix", "sqlite");
+        let socket = temp_path("batch-ready-prefix", "sock");
+        let mut runtime = ControlRuntime::open(&database).unwrap();
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let request = serde_json::json!({
+            "token": TOKEN,
+            "request": query_request(),
+        });
+        let mut encoded = serde_json::to_vec(&request).unwrap();
+        encoded.push(b'\n');
+
+        let mut ready = UnixStream::connect(&socket).unwrap();
+        ready
+            .set_read_timeout(Some(Duration::from_secs(1)))
+            .unwrap();
+        ready.write_all(&encoded).unwrap();
+        ready.shutdown(Shutdown::Write).unwrap();
+        let mut slow = UnixStream::connect(&socket).unwrap();
+        slow.write_all(b"{").unwrap();
+
+        let worker = thread::spawn(move || server.poll_batch(&mut runtime, 2).unwrap());
+        let started = Instant::now();
+        let mut response = Vec::new();
+        ready.read_to_end(&mut response).unwrap();
+        let elapsed = started.elapsed();
+        assert!(matches!(
+            decode_response(&response).unwrap().response,
+            ProtocolResponse::Query(_)
+        ));
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "ready accepted prefix waited for a later slow reader: {elapsed:?}"
+        );
+
+        drop(slow);
+        assert_eq!(worker.join().unwrap(), 2);
         fs::remove_file(database).unwrap();
     }
 

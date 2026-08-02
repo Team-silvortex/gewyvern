@@ -144,7 +144,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.15.0");
+    assert_eq!(inventory["version"], "1.17.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -269,6 +269,46 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
     assert_eq!(
         hostile_resources["physical_linux_evidence"],
         "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
+    );
+    let reconnect_fairness = &writer_fence["claim_hostile_reconnect_fairness_proof"];
+    assert_eq!(reconnect_fairness["waves"], 3);
+    assert_eq!(reconnect_fairness["peers_per_wave"], 64);
+    assert_eq!(reconnect_fairness["slow_peers_per_wave"], 60);
+    assert_eq!(reconnect_fairness["valid_reconnects_per_wave"], 4);
+    assert_eq!(reconnect_fairness["total_valid_reconnects"], 12);
+    assert_eq!(reconnect_fairness["ready_prefix_budget_ms"], 1_000);
+    assert_eq!(reconnect_fairness["reconnect_budget_ms"], 3_000);
+    assert_eq!(
+        reconnect_fairness["local_evidence"],
+        json!([
+            "crates/leserpentd/src/ipc.rs#batch_dispatches_ready_prefix_before_later_slow_reader",
+            "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves"
+        ])
+    );
+    assert_eq!(
+        reconnect_fairness["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_hostile_reconnect_fairness_linux_x86_64_20260802.json"
+    );
+    let cross_transport = &writer_fence["cross_transport_fairness_proof"];
+    assert_eq!(cross_transport["waves"], 3);
+    assert_eq!(cross_transport["slow_ipc_peers_per_wave"], 64);
+    assert_eq!(cross_transport["authenticated_https_queries"], 3);
+    assert_eq!(cross_transport["https_budget_ms"], 5_000);
+    assert_eq!(cross_transport["wave_budget_ms"], 5_000);
+    assert_eq!(
+        cross_transport["schedule"],
+        "maintenance-first-then-alternating-unix-ipc-and-https-priority"
+    );
+    assert_eq!(
+        cross_transport["local_evidence"],
+        json!([
+            "crates/leserpentd/src/main.rs#transport_scheduler_alternates_local_and_remote_priority",
+            "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#https_and_maintenance_progress_across_repeated_saturated_ipc_waves"
+        ])
+    );
+    assert_eq!(
+        cross_transport["physical_linux_evidence"],
+        "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
     );
 }
 
@@ -662,6 +702,9 @@ fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
         "pub fn poll_batch_until(",
         "read_frame_until(stream, cancelled)",
         "if cancelled.load(Ordering::Acquire)",
+        "for reader in readers",
+        "ready accepted prefix",
+        "fn batch_dispatches_ready_prefix_before_later_slow_reader()",
         "fn trickle_frame_cannot_extend_the_total_read_deadline()",
     ] {
         assert!(ipc.contains(contract), "missing IPC contract {contract}");
@@ -676,8 +719,14 @@ fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
     for contract in [
         "const REPEATED_HOSTILE_BATCHES: usize = 2;",
         "const RESOURCE_LIFECYCLE_CYCLES: usize = 3;",
+        "const RECONNECT_FAIRNESS_WAVES: usize = 3;",
+        "const RECONNECTS_PER_FAIRNESS_WAVE: usize = 4;",
+        "const SLOW_PEERS_PER_RECONNECT_GROUP: usize = 15;",
         "fn repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm()",
         "fn repeated_hostile_shutdown_restart_cycles_bound_process_resources()",
+        "fn burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves()",
+        "run_saturated_reconnect_fairness_wave",
+        "valid reconnect starved behind a saturated hostile wave",
         "wait_for_owner_lease_extension",
         "wait_for_saturated_reader_resources",
         "assert_process_resources_released",
@@ -691,6 +740,60 @@ fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
         assert!(
             vertical.contains(contract),
             "missing hostile lifecycle proof contract {contract}"
+        );
+    }
+}
+
+#[test]
+fn local_cross_transport_fairness_contract_is_non_vacuous() {
+    let main = std::fs::read_to_string(repository_root().join("crates/leserpentd/src/main.rs"))
+        .expect("daemon entrypoint source must exist");
+    let turn = main
+        .split_once("fn run_fair_daemon_turn(")
+        .expect("fair daemon turn must exist")
+        .1
+        .split_once("\nfn run()")
+        .expect("fair daemon turn must end before run")
+        .0;
+    let maintenance = turn
+        .find("host.run_steps_until(1, stop)")
+        .expect("fair turn must run maintenance");
+    let transport_order = turn
+        .find("if remote_first")
+        .expect("fair turn must choose transport order");
+    assert!(
+        maintenance < transport_order,
+        "maintenance must precede both transport order branches"
+    );
+    for contract in [
+        "struct TransportScheduler",
+        "self.remote_first = !self.remote_first;",
+        "fn transport_scheduler_alternates_local_and_remote_priority()",
+        "run_fair_daemon_turn(",
+    ] {
+        assert!(
+            main.contains(contract),
+            "missing scheduler contract {contract}"
+        );
+    }
+
+    let vertical = std::fs::read_to_string(
+        repository_root().join("crates/leserpentd/tests/cross_transport_fairness_vertical.rs"),
+    )
+    .expect("cross-transport vertical proof must exist");
+    for contract in [
+        "const FAIRNESS_WAVES: usize = 3;",
+        "const SLOW_IPC_PEERS_PER_WAVE: usize = 64;",
+        "--remote-listen",
+        "fn spawn_https_query(",
+        "Authorization: Bearer {TOKEN}",
+        "Query::RuntimeList",
+        "fn https_and_maintenance_progress_across_repeated_saturated_ipc_waves()",
+        "maintenance_heartbeat_advanced_each_wave=true final_generation=1",
+    ] {
+        assert!(
+            vertical.contains(contract),
+            "missing cross-transport proof contract {contract}"
         );
     }
 }
@@ -815,6 +918,135 @@ fn retained_linux_hostile_resource_cycle_proof_is_non_vacuous() {
         "runtime_owner_row_released_each_cycle",
         "unix_socket_released_each_cycle",
         "writer_generation_stable_across_restarts",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_hostile_reconnect_fairness_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_hostile_reconnect_fairness_linux_x86_64_20260802.json",
+        ))
+        .expect("hostile reconnect fairness Linux evidence must exist"),
+    )
+    .expect("hostile reconnect fairness Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.25");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["ready_prefix_test"]["name"],
+        "ipc::tests::batch_dispatches_ready_prefix_before_later_slow_reader"
+    );
+    assert_eq!(evidence["ready_prefix_test"]["observed_duration_ms"], 70);
+    assert_eq!(evidence["ready_prefix_test"]["budget_ms"], 1_000);
+    assert_eq!(
+        evidence["reconnect_fairness_test"]["name"],
+        "burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves"
+    );
+    assert_eq!(evidence["reconnect_fairness_test"]["waves"], 3);
+    assert_eq!(evidence["reconnect_fairness_test"]["peers_per_wave"], 64);
+    assert_eq!(
+        evidence["reconnect_fairness_test"]["slow_peers_per_wave"],
+        60
+    );
+    assert_eq!(
+        evidence["reconnect_fairness_test"]["valid_reconnects_per_wave"],
+        4
+    );
+    assert_eq!(
+        evidence["reconnect_fairness_test"]["total_valid_reconnects"],
+        12
+    );
+    assert_eq!(
+        evidence["timing"]["wave_elapsed_ms"],
+        json!([2_225, 2_197, 2_195])
+    );
+    assert_eq!(
+        evidence["timing"]["reconnect_elapsed_ms"],
+        json!([
+            [2_218, 2_222, 2_223, 2_224],
+            [2_193, 2_194, 2_195, 2_197],
+            [2_186, 2_188, 2_193, 2_195]
+        ])
+    );
+    assert_eq!(evidence["timing"]["maximum_reconnect_elapsed_ms"], 2_224);
+    assert_eq!(evidence["authority"]["generation"], 1);
+    assert_eq!(evidence["authority"]["stable_replays"], 12);
+    for check in [
+        "production_daemon_ipc_path",
+        "strict_accept_order_dispatch",
+        "ready_prefix_not_blocked_by_later_slow_reader",
+        "three_repeated_saturated_waves",
+        "sixty_slowloris_peers_per_wave",
+        "four_valid_reconnects_per_wave",
+        "all_twelve_reconnects_received_responses",
+        "each_reconnect_completed_within_budget",
+        "no_reconnect_starvation",
+        "owner_heartbeat_advanced_after_each_wave",
+        "writer_generation_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_cross_transport_fairness_proof_is_non_vacuous() {
+    let evidence: serde_json::Value =
+        serde_json::from_str(
+            &std::fs::read_to_string(repository_root().join(
+                "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json",
+            ))
+            .expect("cross-transport fairness Linux evidence must exist"),
+        )
+        .expect("cross-transport fairness Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.25");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["scheduler_test"]["name"],
+        "tests::transport_scheduler_alternates_local_and_remote_priority"
+    );
+    assert_eq!(
+        evidence["cross_transport_test"]["name"],
+        "https_and_maintenance_progress_across_repeated_saturated_ipc_waves"
+    );
+    assert_eq!(evidence["cross_transport_test"]["waves"], 3);
+    assert_eq!(
+        evidence["cross_transport_test"]["slow_ipc_peers_per_wave"],
+        64
+    );
+    assert_eq!(
+        evidence["cross_transport_test"]["authenticated_https_queries"],
+        3
+    );
+    assert_eq!(
+        evidence["timing"]["https_elapsed_ms"],
+        json!([2_264, 2_241, 2_226])
+    );
+    assert_eq!(
+        evidence["timing"]["wave_elapsed_ms"],
+        json!([2_265, 2_241, 2_227])
+    );
+    assert_eq!(evidence["authority"]["writer_generation"], 1);
+    for check in [
+        "production_daemon_dual_transport_path",
+        "real_tls_http_request",
+        "authenticated_read_only_query",
+        "maintenance_precedes_transport_polling",
+        "alternating_transport_priority",
+        "three_repeated_saturated_ipc_waves",
+        "sixty_four_slow_ipc_peers_per_wave",
+        "each_https_query_completed_within_budget",
+        "each_cross_transport_wave_completed_within_budget",
+        "no_https_starvation",
+        "owner_heartbeat_advanced_after_each_wave",
+        "writer_generation_stable",
         "secret_free_evidence",
     ] {
         assert_eq!(evidence["checks"][check], true, "missing check {check}");
@@ -2895,6 +3127,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "saturated-plus-64-fd-task-proof",
         "per-cycle-proc-owner-socket-release",
         "physical-linux-hostile-resource-retention-proof",
+        "accept-order-ready-prefix-dispatch",
+        "later-reader-nonblocking-response",
+        "three-saturated-reconnect-fairness-waves",
+        "60-slow-4-valid-reconnect-wave",
+        "twelve-bounded-reconnect-replays",
+        "owner-heartbeat-under-reconnect-waves",
+        "physical-linux-hostile-reconnect-fairness-proof",
+        "maintenance-first-daemon-turn",
+        "alternating-unix-ipc-https-priority",
+        "three-saturated-cross-transport-waves",
+        "bounded-authenticated-https-under-ipc-saturation",
+        "owner-heartbeat-under-cross-transport-load",
+        "stable-writer-generation-under-cross-transport-load",
+        "physical-linux-cross-transport-fairness-proof",
     ] {
         assert!(
             runtime
@@ -2960,13 +3206,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_hostile_reconnect_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path == "crates/leserpentd/tests/cross_transport_fairness_vertical.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.next_gate.contains("slow authenticated HTTPS"));
 
     let daemon_lifecycle = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.12.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.14.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -3010,6 +3270,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "saturated-plus-64-fd-task-proof",
         "per-cycle-proc-owner-socket-release",
         "physical-linux-hostile-resource-retention-proof",
+        "accept-order-ready-prefix-dispatch",
+        "later-reader-nonblocking-response",
+        "three-saturated-reconnect-fairness-waves",
+        "60-slow-4-valid-reconnect-wave",
+        "twelve-bounded-reconnect-replays",
+        "owner-heartbeat-under-reconnect-waves",
+        "physical-linux-hostile-reconnect-fairness-proof",
+        "maintenance-first-daemon-turn",
+        "alternating-unix-ipc-https-priority",
+        "three-saturated-cross-transport-waves",
+        "bounded-authenticated-https-under-ipc-saturation",
+        "owner-heartbeat-under-cross-transport-load",
+        "stable-writer-generation-under-cross-transport-load",
+        "physical-linux-cross-transport-fairness-proof",
     ] {
         assert!(
             daemon_lifecycle
@@ -3058,13 +3332,31 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_hostile_reconnect_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "crates/leserpentd/tests/cross_transport_fairness_vertical.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(
+        daemon_lifecycle
+            .next_gate
+            .contains("slow authenticated HTTPS")
+    );
 
     let compatibility_control = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.40.0");
+    assert_eq!(compatibility_control.contract.version, "1.42.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -3443,6 +3735,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "saturated-plus-64-fd-task-proof",
         "per-cycle-proc-owner-socket-release",
         "physical-linux-hostile-resource-retention-proof",
+        "accept-order-ready-prefix-dispatch",
+        "later-reader-nonblocking-response",
+        "three-saturated-reconnect-fairness-waves",
+        "60-slow-4-valid-reconnect-wave",
+        "twelve-bounded-reconnect-replays",
+        "owner-heartbeat-under-reconnect-waves",
+        "physical-linux-hostile-reconnect-fairness-proof",
+        "maintenance-first-daemon-turn",
+        "alternating-unix-ipc-https-priority",
+        "three-saturated-cross-transport-waves",
+        "bounded-authenticated-https-under-ipc-saturation",
+        "owner-heartbeat-under-cross-transport-load",
+        "stable-writer-generation-under-cross-transport-load",
+        "physical-linux-cross-transport-fairness-proof",
     ] {
         assert!(
             compatibility_control
@@ -3453,11 +3759,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.40.0");
+    assert_eq!(compatibility_control.contract.version, "1.42.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("reconnect fairness")
+            .contains("slow authenticated HTTPS")
     );
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
@@ -3511,6 +3817,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path
             == "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_hostile_reconnect_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "crates/leserpentd/tests/cross_transport_fairness_vertical.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
 
