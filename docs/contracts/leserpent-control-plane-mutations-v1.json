@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.8.0",
+  "version": "1.11.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -50,6 +50,9 @@
     "deterministic-writer-claim-commit-crash-proof",
     "lost-response-concurrent-claim-linearization-proof",
     "cold-restart-lost-response-replay-proof",
+    "unclean-response-loss-owner-lease-same-socket-recovery-proof",
+    "repeated-unclean-multigeneration-recovery-proof",
+    "post-recovery-bounded-high-contention-claim-proof",
     "rust-authority-pre-mutation-generation-fence",
     "rust-specialized-local-route-pre-decode-generation-fence",
     "rust-authenticated-https-header-generation-fence"
@@ -129,6 +132,30 @@
       "queued_order": "same-id-replay-before-competing-id-claim-behind-an-ipc-accept-gate",
       "postconditions": "durable-replay-same-generation-competitor-advances-once-stale-ticket-rejected-final-ticket-mutates-and-replays-after-second-restart",
       "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
+    },
+    "claim_unclean_recovery_proof": {
+      "fault": "writer-claim-committed-response-never-decoded-then-daemon-sigkill",
+      "pre_expiry": "database-owner-rejects-replacement-and-stale-socket-remains-untouched",
+      "recovery": "natural-30-second-owner-expiry-then-same-path-safe-stale-socket-reclamation",
+      "postconditions": "same-id-generation-replay-competing-id-single-advance-stale-ticket-rejected-and-final-ticket-mutates",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_lost_response_sigkill_recovery_linux_x86_64_20260802.json"
+    },
+    "claim_repeated_unclean_recovery_proof": {
+      "cycles": 2,
+      "fault_per_cycle": "committed-unread-writer-claim-then-daemon-sigkill",
+      "recovery_per_cycle": "pre-expiry-rejection-natural-owner-expiry-same-socket-rebind-replay-then-single-competitor-advance",
+      "postconditions": "contiguous-generations-1-through-5-all-prior-tickets-stale-final-ticket-mutates-and-replays",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_repeated_unclean_recovery_linux_x86_64_20260802.json"
+    },
+    "claim_post_recovery_contention_proof": {
+      "fault_recovery": "committed-unread-claim-daemon-sigkill-pre-expiry-rejection-natural-owner-expiry-and-same-socket-rebind",
+      "admission": {
+        "concurrent_distinct_writers": 64,
+        "budget_ms": 5000,
+        "production_ipc_batch_limit": 64
+      },
+      "postconditions": "all-claims-complete-generations-3-through-66-contiguous-no-false-replays-old-tickets-stale-final-ticket-mutates-and-replays",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
     },
     "remaining_routes": []
   },

@@ -16,18 +16,16 @@ use leserpent_adapters::{
 };
 use leserpent_domain::RuntimeId;
 use leserpent_runtime::ControlRuntime;
-#[cfg(unix)]
-use leserpentd::IpcServer;
 use leserpentd::{
     AdapterRegistry, BootstrapSessionVerifier, DaemonConfig, DaemonHost,
     NativeBootstrapSessionVerifier, RemoteServer, load_remote_token_file,
 };
 #[cfg(feature = "native-ssh")]
 use leserpentd::{BootstrapOriginConfig, GewyvernOriginConfig};
+#[cfg(unix)]
+use leserpentd::{IpcServer, MAX_IPC_CONNECTIONS_PER_TICK};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use zeroize::Zeroizing;
-
-const MAX_IPC_CONNECTIONS_PER_TICK: usize = 64;
 
 fn main() {
     if let Err(error) = run() {

@@ -3,10 +3,12 @@
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::Shutdown;
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command as ProcessCommand, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -22,6 +24,7 @@ use leserpent_protocol::{
     decode_response,
 };
 use leserpent_runtime::ControlRuntime;
+use leserpentd::MAX_IPC_CONNECTIONS_PER_TICK;
 use rusqlite::Connection;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
@@ -30,6 +33,7 @@ const WRITER_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const WRITER_C: &str = "cccccccccccccccccccccccccccccccc";
 const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
+static TEMP_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 struct TempRoot(PathBuf);
 
@@ -39,7 +43,11 @@ impl TempRoot {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = PathBuf::from(format!("/tmp/leserpent-aw-{}-{unique}", std::process::id()));
+        let sequence = TEMP_ROOT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let root = PathBuf::from(format!(
+            "/tmp/leserpent-aw-{}-{unique}-{sequence}",
+            std::process::id()
+        ));
         fs::create_dir(&root).unwrap();
         Self(root)
     }
@@ -114,6 +122,13 @@ impl DaemonProcess {
             }
             thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    fn sigkill(mut self) {
+        let mut child = self.child.take().unwrap();
+        assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGKILL) }, 0);
+        let status = child.wait().unwrap();
+        assert_eq!(status.signal(), Some(libc::SIGKILL));
     }
 }
 
@@ -377,6 +392,97 @@ fn unix_time_ms() -> i64 {
     .unwrap()
 }
 
+fn sigkill_after_lost_claim(
+    daemon: DaemonProcess,
+    socket: &Path,
+    database: &Path,
+    writer_id: &str,
+    generation: i64,
+) -> fs::Metadata {
+    let unread_response = send_without_reading_response(socket, &claim(writer_id));
+    wait_for_writer_fence(database, generation, writer_id);
+    daemon.sigkill();
+    drop(unread_response);
+    let stale_socket = fs::symlink_metadata(socket).unwrap();
+    assert!(stale_socket.file_type().is_socket());
+    assert_eq!(stale_socket.permissions().mode() & 0o777, 0o600);
+    assert!(matches!(
+        UnixStream::connect(socket),
+        Err(ref error) if error.kind() == std::io::ErrorKind::ConnectionRefused
+    ));
+    stale_socket
+}
+
+fn reject_before_owner_expiry(
+    binary: &Path,
+    database: &Path,
+    socket: &Path,
+    stale_socket: &fs::Metadata,
+) {
+    let pre_expiry = ProcessCommand::new(binary)
+        .args([
+            "--database",
+            database.to_str().unwrap(),
+            "--socket",
+            socket.to_str().unwrap(),
+            "--once",
+        ])
+        .env("LESERPENT_IPC_TOKEN", TOKEN)
+        .output()
+        .unwrap();
+    assert!(!pre_expiry.status.success());
+    assert!(
+        String::from_utf8(pre_expiry.stderr)
+            .unwrap()
+            .contains("owned by another live process")
+    );
+    let current = fs::symlink_metadata(socket).unwrap();
+    assert_eq!(current.dev(), stale_socket.dev());
+    assert_eq!(current.ino(), stale_socket.ino());
+    assert_eq!(current.mode(), stale_socket.mode());
+}
+
+fn wait_for_owner_lease_expiry(database: &Path, generation: i64, writer_id: &str) {
+    let (current_generation, current_writer_id, lease_expires_at) = inspect_writer_fence(database);
+    assert_eq!(
+        (current_generation, current_writer_id.as_str()),
+        (generation, writer_id)
+    );
+    let remaining_lease_ms = lease_expires_at.saturating_sub(unix_time_ms());
+    assert!(remaining_lease_ms <= 30_000);
+    if remaining_lease_ms > 0 {
+        thread::sleep(Duration::from_millis((remaining_lease_ms + 100) as u64));
+    }
+}
+
+fn recover_with_queued_claims(
+    binary: &Path,
+    database: &Path,
+    socket: &Path,
+    replay_writer: &str,
+    replay_generation: u64,
+    competitor_writer: &str,
+    competitor_generation: u64,
+) -> DaemonProcess {
+    let replacement = DaemonProcess::spawn(binary, database, socket);
+    assert!(UnixStream::connect(socket).is_ok());
+    let accept_gate = hold_ipc_accept(socket);
+    let replay_stream = send_without_reading_response(socket, &claim(replay_writer));
+    thread::sleep(Duration::from_millis(50));
+    let competitor_stream = send_without_reading_response(socket, &claim(competitor_writer));
+    drop(accept_gate);
+    assert_eq!(
+        claimed(read_queued_response(replay_stream)),
+        (replay_generation, replay_writer.to_string(), true)
+    );
+    assert_eq!(
+        claimed(read_queued_response(competitor_stream)),
+        (competitor_generation, competitor_writer.to_string(), false)
+    );
+    wait_for_writer_fence(database, competitor_generation as i64, competitor_writer);
+    replacement
+}
+
 #[test]
 fn authority_writer_claim_crash_worker() {
     let Some(database) = std::env::var_os(CRASH_WORKER_DATABASE) else {
@@ -623,6 +729,202 @@ fn lost_final_claim_response_replays_after_cold_restart_before_queued_competitor
         "authority-writer-cold-replay queued_order=writer_b-replay-then-writer_c-competitor final_generation=3 final_writer={WRITER_C}"
     );
     third.stop();
+}
+
+#[test]
+fn lost_claim_response_survives_sigkill_lease_expiry_and_same_socket_recovery() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("lost-claim-sigkill.sqlite");
+    let socket = root.0.join("lost-claim-sigkill.sock");
+
+    let first = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+    let stale_socket = sigkill_after_lost_claim(first, &socket, &database, WRITER_B, 2);
+    reject_before_owner_expiry(&binary, &database, &socket, &stale_socket);
+    wait_for_owner_lease_expiry(&database, 2, WRITER_B);
+    let replacement =
+        recover_with_queued_claims(&binary, &database, &socket, WRITER_B, 2, WRITER_C, 3);
+
+    let stale = send(&socket, &registration(), Some(&fence(WRITER_B, 2)));
+    assert!(matches!(
+        stale.response,
+        ProtocolResponse::Error(ref error)
+            if error.code == "authority_writer_fence_rejected"
+    ));
+    let applied = send(&socket, &registration(), Some(&fence(WRITER_C, 3)));
+    assert!(matches!(
+        applied.response,
+        ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+    ));
+    println!(
+        "authority-writer-unclean-replay lease_expiry=natural stale_socket=reclaimed replay_generation=2 final_generation=3"
+    );
+    replacement.stop();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn repeated_unclean_response_recovery_preserves_generations_and_same_socket() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("repeated-lost-claim-sigkill.sqlite");
+    let socket = root.0.join("repeated-lost-claim-sigkill.sock");
+
+    let first = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+
+    let first_stale = sigkill_after_lost_claim(first, &socket, &database, WRITER_B, 2);
+    reject_before_owner_expiry(&binary, &database, &socket, &first_stale);
+    wait_for_owner_lease_expiry(&database, 2, WRITER_B);
+    let second = recover_with_queued_claims(&binary, &database, &socket, WRITER_B, 2, WRITER_C, 3);
+
+    let second_stale = sigkill_after_lost_claim(second, &socket, &database, WRITER_A, 4);
+    reject_before_owner_expiry(&binary, &database, &socket, &second_stale);
+    wait_for_owner_lease_expiry(&database, 4, WRITER_A);
+    let third = recover_with_queued_claims(&binary, &database, &socket, WRITER_A, 4, WRITER_B, 5);
+
+    for stale_fence in [fence(WRITER_C, 3), fence(WRITER_A, 4)] {
+        let stale = send(&socket, &registration(), Some(&stale_fence));
+        assert!(matches!(
+            stale.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_rejected"
+        ));
+    }
+    let applied = send(&socket, &registration(), Some(&fence(WRITER_B, 5)));
+    assert!(matches!(
+        applied.response,
+        ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+    ));
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_B), None)),
+        (5, WRITER_B.to_string(), true)
+    );
+    println!(
+        "authority-writer-repeated-unclean-replay cycles=2 generations=1,2,3,4,5 final_writer={WRITER_B}"
+    );
+    third.stop();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn post_recovery_writer_contention_is_bounded_and_generation_contiguous() {
+    assert_eq!(MAX_IPC_CONNECTIONS_PER_TICK, 64);
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("post-recovery-writer-contention.sqlite");
+    let socket = root.0.join("post-recovery-writer-contention.sock");
+
+    let first = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_A), None)),
+        (1, WRITER_A.to_string(), false)
+    );
+    let stale_socket = sigkill_after_lost_claim(first, &socket, &database, WRITER_B, 2);
+    reject_before_owner_expiry(&binary, &database, &socket, &stale_socket);
+    wait_for_owner_lease_expiry(&database, 2, WRITER_B);
+
+    let replacement = DaemonProcess::spawn(&binary, &database, &socket);
+    assert_eq!(
+        claimed(send(&socket, &claim(WRITER_B), None)),
+        (2, WRITER_B.to_string(), true)
+    );
+
+    let writers = (0..MAX_IPC_CONNECTIONS_PER_TICK)
+        .map(|index| format!("{index:032x}"))
+        .collect::<Vec<_>>();
+    let barrier = Arc::new(Barrier::new(writers.len() + 1));
+    let (mut claims, elapsed) = thread::scope(|scope| {
+        let handles = writers
+            .iter()
+            .map(|writer| {
+                let barrier = Arc::clone(&barrier);
+                let socket = &socket;
+                scope.spawn(move || {
+                    barrier.wait();
+                    claimed(send(socket, &claim(writer), None))
+                })
+            })
+            .collect::<Vec<_>>();
+        let started = Instant::now();
+        barrier.wait();
+        let claims = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>();
+        (claims, started.elapsed())
+    });
+    assert!(
+        elapsed <= Duration::from_secs(5),
+        "post-recovery claim contention exceeded its budget: {elapsed:?}"
+    );
+
+    claims.sort_by_key(|(generation, _, _)| *generation);
+    assert_eq!(claims.len(), MAX_IPC_CONNECTIONS_PER_TICK);
+    for (offset, (generation, _, replayed)) in claims.iter().enumerate() {
+        assert_eq!(*generation, u64::try_from(offset).unwrap() + 3);
+        assert!(!replayed);
+    }
+    let mut observed_writers = claims
+        .iter()
+        .map(|(_, writer, _)| writer.clone())
+        .collect::<Vec<_>>();
+    observed_writers.sort();
+    let mut expected_writers = writers.clone();
+    expected_writers.sort();
+    assert_eq!(observed_writers, expected_writers);
+
+    let (penultimate_generation, penultimate_writer, _) =
+        claims.get(MAX_IPC_CONNECTIONS_PER_TICK - 2).unwrap();
+    let (final_generation, final_writer, _) = claims.get(MAX_IPC_CONNECTIONS_PER_TICK - 1).unwrap();
+    assert_eq!(
+        *final_generation,
+        u64::try_from(MAX_IPC_CONNECTIONS_PER_TICK).unwrap() + 2
+    );
+    wait_for_writer_fence(
+        &database,
+        i64::try_from(*final_generation).unwrap(),
+        final_writer,
+    );
+    for stale_fence in [
+        fence(WRITER_B, 2),
+        fence(penultimate_writer, *penultimate_generation),
+    ] {
+        let stale = send(&socket, &registration(), Some(&stale_fence));
+        assert!(matches!(
+            stale.response,
+            ProtocolResponse::Error(ref error)
+                if error.code == "authority_writer_fence_rejected"
+        ));
+    }
+    let applied = send(
+        &socket,
+        &registration(),
+        Some(&fence(final_writer, *final_generation)),
+    );
+    assert!(matches!(
+        applied.response,
+        ProtocolResponse::Command(ref result) if result.status == CommandStatus::Applied
+    ));
+    assert_eq!(
+        claimed(send(&socket, &claim(final_writer), None)),
+        (*final_generation, final_writer.clone(), true)
+    );
+    println!(
+        "authority-writer-post-recovery-contention contenders={} generations=3..{} elapsed_ms={} final_writer={final_writer}",
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        final_generation,
+        elapsed.as_millis()
+    );
+    replacement.stop();
+    assert!(!socket.exists());
 }
 
 #[test]

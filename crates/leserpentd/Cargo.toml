@@ -24,11 +24,11 @@ rcgen = "0.14"
 tungstenite.workspace = true
 zeroize = "1"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 leselang-hir = { path = "../leselang-hir" }
 leselang-syntax = { path = "../leselang-syntax" }
 rcgen = "0.14"
 rusqlite.workspace = true
-
-[target.'cfg(unix)'.dev-dependencies]
-libc = "0.2"

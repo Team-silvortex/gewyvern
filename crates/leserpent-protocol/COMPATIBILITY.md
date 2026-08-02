@@ -437,6 +437,30 @@ C claim advances once to `3`; only C/`3` can perform the following mutation. A
 third daemon then replays C/`3`. This proves durable response-loss recovery
 without adding request identity, startup gating, or a new claim route.
 
+Response loss can now be combined with unclean daemon termination. After B/`2`
+commits without caller decode, `SIGKILL` leaves both the durable writer row and
+the configured Unix socket. A replacement cannot remove that path before owner
+lease expiry. After natural expiry, strict same-UID `0600` socket validation
+rejects live listeners, insecure sockets, and non-socket paths, revalidates
+mode/device/inode, and safely binds the same name. B/`2` then replays, C advances once to `3`, and only C/`3` can
+perform the following mutation. The wire payload remains unchanged.
+
+The production path also survives two complete unclean cycles without changing
+the payload. Unread B/`2` and A/`4` claims are each followed by daemon
+`SIGKILL`, pre-expiry rejection, natural lease expiry, same-socket recovery, and
+same-ID replay. Competitors allocate only C/`3` and B/`5`; older tickets cannot
+mutate, while final B/`5` mutates and replays. This retains contiguous durable
+generation allocation without a response journal or request ID.
+
+Post-recovery admission is bounded at the production daemon's 64-connection
+IPC batch limit. After unread B/`2`, `SIGKILL`, natural owner expiry, same-path
+socket recovery, and stable B/`2` replay, 64 distinct claimants start through
+one barrier. Their arrival order is not part of the wire contract, but all
+responses complete within 5000 ms and allocate every generation from `3`
+through `66` exactly once without false replay. Only generation `66` can mutate
+and its same-ID claim remains a replay. This adds no payload field, request ID,
+hot failover, or active-active authority.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

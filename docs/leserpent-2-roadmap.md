@@ -1433,7 +1433,7 @@ while leaving wire reads and Leselang export unfenced. The inventoried external
 side-effect routes now share one authority boundary. The fifth slice closes the
 previous refresh and bootstrap-session-bind gaps, makes Rust request
 classification compile-time exhaustive, and source-scans both the C# mutation
-routes and Rust HTTPS table against contract 1.8.0. A real three-process daemon
+routes and Rust HTTPS table against contract 1.11.0. A real three-process daemon
 test proves live-owner exclusion, generation advance, stale-writer rejection,
 and durable writer replay across two restarts. Hot failover remains explicitly
 out of scope; future route growth must preserve these executable inventory and
@@ -1453,8 +1453,19 @@ The eighth slice carries that lost final response through two cold daemon
 restarts. The first replacement replays B/`2` before a queued C competitor
 advances exactly once to `3`; the second replacement still replays C/`3`.
 Stale-ticket rejection and a real mutation bind persistence evidence to writer
-authority. The next boundary combines response loss with unclean daemon
-termination and natural owner-lease expiry, still without hot failover.
+authority. The ninth slice combines unread claim response with daemon
+`SIGKILL`, pre-expiry owner rejection, natural lease expiry, and safe recovery
+of the same stale Unix socket path. The recovered writer replays generation `2`
+before one queued competitor advances to `3`, and real mutation fencing follows
+the final ticket. The tenth slice repeats that complete unclean cycle twice on
+one database and socket, proving contiguous generations `1` through `5`, two
+natural lease expiries, two same-path rebinds, and stable final mutation/replay.
+The eleventh slice saturates the production 64-connection IPC batch after an
+unclean recovery. All independent claims complete inside a fixed budget,
+allocate contiguous generations `3` through `66`, reject old and penultimate
+tickets, and leave only generation `66` able to mutate and replay. The next
+boundary mixes duplicate-ID retries and abandoned responses into that saturated
+batch while preserving bounded completion and the cold-takeover-only contract.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_repeated_unclean_recovery",
+  "recorded_at": "2026-08-01T23:36:30Z",
+  "target": {
+    "host": "192.168.124.45",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "repeated_unclean_response_recovery_preserves_generations_and_same_socket",
+    "observed_duration_ms": 61480,
+    "owner_lease_duration_ms": 30000,
+    "unclean_cycles": 2
+  },
+  "sequence": {
+    "initial": {
+      "writer": "writer_a",
+      "generation": 1,
+      "replayed": false
+    },
+    "first_cycle": {
+      "lost_response_writer": "writer_b",
+      "lost_response_generation": 2,
+      "termination": "SIGKILL",
+      "pre_expiry_replacement_admitted": false,
+      "socket_preserved_before_expiry": true,
+      "natural_lease_expiry": true,
+      "same_path_rebound": true,
+      "replay_generation": 2,
+      "competitor_writer": "writer_c",
+      "competitor_generation": 3
+    },
+    "second_cycle": {
+      "lost_response_writer": "writer_a",
+      "lost_response_generation": 4,
+      "termination": "SIGKILL",
+      "pre_expiry_replacement_admitted": false,
+      "socket_preserved_before_expiry": true,
+      "natural_lease_expiry": true,
+      "same_path_rebound": true,
+      "replay_generation": 4,
+      "competitor_writer": "writer_b",
+      "competitor_generation": 5
+    },
+    "final": {
+      "writer": "writer_b",
+      "generation": 5,
+      "replayed": true,
+      "stale_generations_rejected": [3, 4],
+      "mutation_applied": true
+    }
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "two_unread_response_sigkill_cycles": true,
+    "two_pre_expiry_owner_rejections": true,
+    "two_natural_owner_lease_expiries": true,
+    "two_same_socket_path_recoveries": true,
+    "contiguous_generations_1_through_5": true,
+    "same_id_replay_stable_each_cycle": true,
+    "competitor_advances_exactly_once_each_cycle": true,
+    "all_prior_tickets_stale": true,
+    "final_ticket_mutation_applied": true,
+    "final_ticket_replay_stable": true,
+    "secret_free_evidence": true
+  }
+}

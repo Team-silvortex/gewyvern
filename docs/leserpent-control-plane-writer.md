@@ -146,3 +146,32 @@ IPC accept path while complete B-replay and C-competitor connections queue in
 that order. Releasing the gate yields B/`2` as a replay and C/`3` as one new
 claim. B/`2` is then rejected for mutation, C/`3` applies the mutation, and a
 third cold daemon still replays C/`3` without advancing generation.
+
+Unclean response loss now covers the complete deployment path, including the
+configured socket name. A daemon commits B/`2` with no decoded response and is
+then `SIGKILL`ed. Before the fixed owner lease expires, a replacement is
+rejected by SQLite ownership and must leave the stale socket untouched. After
+natural expiry, the replacement safely reclaims that same path only when it is
+a `0600` socket owned by the effective UID, has no live listener, and retains
+the same mode/device/inode through revalidation. Live listeners, insecure
+sockets, regular files, and symlinks fail closed. The recovered daemon replays
+B/`2`, advances one queued competitor
+to C/`3`, rejects B/`2` for mutation, and applies the mutation with C/`3`.
+
+The full unclean sequence is also repeated twice against one database and one
+socket path. Cycle one commits unread B/`2`, kills the daemon, naturally
+recovers and replays B/`2`, then advances C/`3`. Cycle two commits unread A/`4`
+from that recovered daemon and repeats the same path before advancing B/`5`.
+Both pre-expiry starts fail without touching the socket, both natural expiries
+rebind it safely, generations remain contiguous from `1` through `5`, prior
+C/`3` and A/`4` tickets are rejected, and final B/`5` both mutates and replays.
+
+Recovery is also bounded under one full production IPC admission batch. After
+an unread B/`2` claim, `SIGKILL`, natural lease expiry, same-path rebind, and
+B/`2` replay, 64 independent writer IDs start through one barrier. All claims
+must complete within 5000 ms, each must be non-replayed, and their transaction
+order must allocate every generation from `3` through `66` exactly once. The
+recovered B/`2` ticket and generation `65` are rejected for mutation; only the
+generation `66` writer applies a real registration and replays without another
+advance. Physical Linux x86_64 evidence completes the contention slice without
+adding hot failover, consensus, or concurrent write authority.

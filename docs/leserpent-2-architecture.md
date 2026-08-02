@@ -1038,7 +1038,7 @@ active-active writes.
 
 The fence policy is compile-time exhaustive over every Rust protocol request
 and nested command variant. The C# non-read endpoint set and Rust HTTPS route
-table are also source-scanned against contract version 1.8.0, so a new route
+table are also source-scanned against contract version 1.11.0, so a new route
 cannot silently bypass inventory review. A real three-daemon-process test
 proves live-owner exclusion, clean fresh-process reopening, durable generation
 advance, stale refresh rejection, current refresh application, and idempotent
@@ -1070,6 +1070,34 @@ once to generation `3`; B/`2` loses mutation authority, C/`3` can mutate, and a
 third cold daemon replays C/`3`. The test uses the real serial IPC accept queue
 and verifies old-socket removal plus connectable-listener readiness, rather
 than adding a daemon startup gate or persistence fault switch.
+
+An unclean daemon no longer makes its configured Unix socket permanently
+unusable. Startup inspects an existing path without following symlinks, requires
+Unix-socket type, exact `0600` mode, and effective-UID ownership, rejects a
+connectable listener, and accepts only `ConnectionRefused` as stale. It then
+re-reads type, owner, mode, device, and inode before unlinking. This cleanup runs only after the runtime
+owner lease is acquired, so a pre-expiry replacement cannot remove the dead
+owner's socket. Physical Linux proof combines an unread B/`2` response,
+`SIGKILL`, pre-expiry rejection, natural lease expiry, same-path listener
+rebind, B/`2` replay, and one C/`3` competitor advance.
+
+Repeated unclean recovery uses the same production path for two complete
+cycles. The durable row moves contiguously through A/`1`, unread B/`2`, C/`3`,
+unread A/`4`, and B/`5`. Each `SIGKILL` leaves a private stale socket and active
+owner lease; each pre-expiry process fails before socket cleanup; each natural
+expiry admits one same-path replacement. Replays retain generations `2` and
+`4`, competitors allocate only `3` and `5`, and all non-maximal tickets are
+fenced from mutation.
+
+The recovered authority is then saturated at the production IPC batch limit.
+Sixty-four independent claimants start together after B/`2` has replayed on the
+same recovered socket. Arrival order is deliberately unspecified, but the
+transactional result must contain each generation from `3` through `66`
+exactly once, contain no false replay, and complete inside a 5000 ms budget.
+Generation `2` and the penultimate generation are stale; only generation `66`
+can apply a real mutation and its same-ID retry remains a replay. This proves
+bounded post-recovery admission, not automatic promotion or multi-writer
+authority.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

@@ -1,6 +1,6 @@
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -89,12 +89,10 @@ impl IpcServer {
         if path.as_os_str().len() > 100 {
             return Err("IPC socket path is too long".into());
         }
-        if fs::symlink_metadata(path).is_ok() {
-            return Err("IPC socket path already exists".into());
-        }
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
+        reclaim_stale_socket(path)?;
         let listener = UnixListener::bind(path).map_err(|error| error.to_string())?;
         fs::set_permissions(path, fs::Permissions::from_mode(0o600))
             .map_err(|error| error.to_string())?;
@@ -319,6 +317,43 @@ impl IpcServer {
     }
 }
 
+fn reclaim_stale_socket(path: &Path) -> Result<(), String> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.to_string()),
+    };
+    if !metadata.file_type().is_socket() {
+        return Err("IPC socket path exists and is not a socket".into());
+    }
+    if metadata.uid() != unsafe { libc::geteuid() } {
+        return Err("IPC socket path is not owned by the daemon user".into());
+    }
+    if metadata.mode() & 0o777 != 0o600 {
+        return Err("IPC socket path is not owner-private".into());
+    }
+    match UnixStream::connect(path) {
+        Ok(_) => return Err("IPC socket path already has a live listener".into()),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == ErrorKind::ConnectionRefused => {}
+        Err(error) => {
+            return Err(format!(
+                "IPC socket liveness could not be verified: {error}"
+            ));
+        }
+    }
+    let current = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
+    if !current.file_type().is_socket()
+        || current.uid() != metadata.uid()
+        || current.mode() != metadata.mode()
+        || current.dev() != metadata.dev()
+        || current.ino() != metadata.ino()
+    {
+        return Err("IPC socket path changed during stale-socket validation".into());
+    }
+    fs::remove_file(path).map_err(|error| error.to_string())
+}
+
 fn routed_authority_writer_fence_error(route: IpcRoute, error: RuntimeError) -> IpcResponse {
     let (code, message) = authority_writer_fence_error_details(&error);
     match route {
@@ -350,7 +385,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::io::{Read, Write};
     use std::net::Shutdown;
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{PermissionsExt, symlink};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use leserpent_domain::{
@@ -510,6 +545,89 @@ mod tests {
         assert!(!socket.exists());
         drop(runtime);
         fs::remove_file(database).unwrap();
+    }
+
+    #[test]
+    fn same_owner_stale_socket_is_reclaimed_before_bind() {
+        let socket = temp_path("stale-reclaim", "sock");
+        let stale = UnixListener::bind(&socket).unwrap();
+        fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).unwrap();
+        drop(stale);
+        assert!(matches!(
+            UnixStream::connect(&socket),
+            Err(ref error) if error.kind() == ErrorKind::ConnectionRefused
+        ));
+
+        let server = IpcServer::bind(&socket, TOKEN).unwrap();
+        let current = fs::symlink_metadata(&socket).unwrap();
+        assert_eq!(current.permissions().mode() & 0o777, 0o600);
+        assert!(UnixStream::connect(&socket).is_ok());
+        drop(server);
+        assert!(!socket.exists());
+    }
+
+    #[test]
+    fn live_socket_listener_is_never_replaced() {
+        let socket = temp_path("live-reject", "sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).unwrap();
+        let metadata = fs::symlink_metadata(&socket).unwrap();
+        let error = match IpcServer::bind(&socket, TOKEN) {
+            Ok(_) => panic!("live listener must not be replaced"),
+            Err(error) => error,
+        };
+        assert!(error.contains("live listener"));
+        assert_eq!(fs::symlink_metadata(&socket).unwrap().ino(), metadata.ino());
+        assert!(UnixStream::connect(&socket).is_ok());
+        drop(listener);
+        fs::remove_file(socket).unwrap();
+    }
+
+    #[test]
+    fn non_socket_and_symlink_paths_are_preserved_and_rejected() {
+        let regular = temp_path("regular-reject", "sock");
+        fs::write(&regular, b"do-not-replace").unwrap();
+        let error = match IpcServer::bind(&regular, TOKEN) {
+            Ok(_) => panic!("regular file must not be replaced"),
+            Err(error) => error,
+        };
+        assert!(error.contains("not a socket"));
+        assert_eq!(fs::read(&regular).unwrap(), b"do-not-replace");
+
+        let insecure = temp_path("insecure-reject", "sock");
+        let insecure_listener = UnixListener::bind(&insecure).unwrap();
+        fs::set_permissions(&insecure, fs::Permissions::from_mode(0o666)).unwrap();
+        drop(insecure_listener);
+        let error = match IpcServer::bind(&insecure, TOKEN) {
+            Ok(_) => panic!("insecure socket must not be replaced"),
+            Err(error) => error,
+        };
+        assert!(error.contains("not owner-private"));
+        assert_eq!(
+            fs::symlink_metadata(&insecure)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o666
+        );
+
+        let link = temp_path("symlink-reject", "sock");
+        symlink(&regular, &link).unwrap();
+        let error = match IpcServer::bind(&link, TOKEN) {
+            Ok(_) => panic!("symlink must not be replaced"),
+            Err(error) => error,
+        };
+        assert!(error.contains("not a socket"));
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        fs::remove_file(link).unwrap();
+        fs::remove_file(insecure).unwrap();
+        fs::remove_file(regular).unwrap();
     }
 
     #[test]

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_lost_response_sigkill_recovery",
+  "recorded_at": "2026-08-01T23:25:25Z",
+  "target": {
+    "host": "192.168.124.45",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "lost_claim_response_survives_sigkill_lease_expiry_and_same_socket_recovery",
+    "observed_duration_ms": 30910,
+    "owner_lease_duration_ms": 30000
+  },
+  "sequence": {
+    "unclean_owner": {
+      "initial_writer": "writer_a",
+      "initial_generation": 1,
+      "lost_response_writer": "writer_b",
+      "lost_response_generation": 2,
+      "commit_observed": true,
+      "response_bytes_decoded": false,
+      "termination": "SIGKILL",
+      "socket_after_exit": "same-owner-socket-with-connection-refused"
+    },
+    "pre_expiry": {
+      "replacement_admitted": false,
+      "error": "owned-by-another-live-process",
+      "stale_socket_identity_preserved": true
+    },
+    "natural_recovery": {
+      "lease_expiry": "fixed-30-second-natural-expiry",
+      "socket_path": "same-as-unclean-owner",
+      "stale_socket_policy": "same-uid-0600-socket-connection-refused-with-mode-device-inode-revalidated-before-unlink",
+      "new_listener_connectable": true,
+      "replay_result": {
+        "writer": "writer_b",
+        "generation": 2,
+        "replayed": true
+      },
+      "competitor_result": {
+        "writer": "writer_c",
+        "generation": 3,
+        "replayed": false
+      },
+      "final_writer": "writer_c",
+      "final_generation": 3
+    }
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "lost_response_and_sigkill_combined": true,
+    "sqlite_generation_2_durable": true,
+    "pre_expiry_owner_rejected": true,
+    "pre_expiry_socket_not_removed": true,
+    "natural_owner_lease_expiry_observed": true,
+    "same_socket_path_recovered": true,
+    "live_listener_nonreplacement_unit_proof": true,
+    "nonsocket_and_symlink_rejection_unit_proof": true,
+    "insecure_socket_rejection_unit_proof": true,
+    "same_writer_generation_2_replayed": true,
+    "competitor_generation_3_nonreplayed": true,
+    "stale_ticket_rejected": true,
+    "final_ticket_mutation_applied": true,
+    "secret_free_evidence": true
+  }
+}

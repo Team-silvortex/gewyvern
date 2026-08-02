@@ -143,7 +143,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.8.0");
+    assert_eq!(inventory["version"], "1.11.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -216,6 +216,18 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         writer_fence["claim_cold_restart_replay_proof"]["physical_linux_evidence"],
         "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
     );
+    assert_eq!(
+        writer_fence["claim_unclean_recovery_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_lost_response_sigkill_recovery_linux_x86_64_20260802.json"
+    );
+    assert_eq!(
+        writer_fence["claim_repeated_unclean_recovery_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_repeated_unclean_recovery_linux_x86_64_20260802.json"
+    );
+    assert_eq!(
+        writer_fence["claim_post_recovery_contention_proof"]["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
+    );
 }
 
 #[test]
@@ -261,6 +273,178 @@ fn retained_linux_authority_writer_cold_response_replay_is_non_vacuous() {
         "stale_replayed_ticket_rejected_after_competitor",
         "final_ticket_mutation_applied",
         "second_cold_restart_replay_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_authority_writer_unclean_response_recovery_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_lost_response_sigkill_recovery_linux_x86_64_20260802.json",
+        ))
+        .expect("authority writer unclean response recovery evidence must exist"),
+    )
+    .expect("authority writer unclean response recovery evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.45");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "lost_claim_response_survives_sigkill_lease_expiry_and_same_socket_recovery"
+    );
+    assert_eq!(evidence["test"]["owner_lease_duration_ms"], 30_000);
+    assert_eq!(
+        evidence["sequence"]["unclean_owner"]["lost_response_generation"],
+        2
+    );
+    assert_eq!(
+        evidence["sequence"]["unclean_owner"]["termination"],
+        "SIGKILL"
+    );
+    assert_eq!(
+        evidence["sequence"]["pre_expiry"]["replacement_admitted"],
+        false
+    );
+    assert_eq!(
+        evidence["sequence"]["natural_recovery"]["replay_result"]["replayed"],
+        true
+    );
+    assert_eq!(
+        evidence["sequence"]["natural_recovery"]["competitor_result"]["generation"],
+        3
+    );
+    for check in [
+        "production_daemon_ipc_path",
+        "lost_response_and_sigkill_combined",
+        "sqlite_generation_2_durable",
+        "pre_expiry_owner_rejected",
+        "pre_expiry_socket_not_removed",
+        "natural_owner_lease_expiry_observed",
+        "same_socket_path_recovered",
+        "live_listener_nonreplacement_unit_proof",
+        "nonsocket_and_symlink_rejection_unit_proof",
+        "insecure_socket_rejection_unit_proof",
+        "same_writer_generation_2_replayed",
+        "competitor_generation_3_nonreplayed",
+        "stale_ticket_rejected",
+        "final_ticket_mutation_applied",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_authority_writer_repeated_unclean_recovery_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_repeated_unclean_recovery_linux_x86_64_20260802.json",
+        ))
+        .expect("repeated authority writer unclean recovery evidence must exist"),
+    )
+    .expect("repeated authority writer unclean recovery evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.45");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "repeated_unclean_response_recovery_preserves_generations_and_same_socket"
+    );
+    assert_eq!(evidence["test"]["owner_lease_duration_ms"], 30_000);
+    assert_eq!(evidence["test"]["unclean_cycles"], 2);
+    assert_eq!(
+        evidence["sequence"]["first_cycle"]["lost_response_generation"],
+        2
+    );
+    assert_eq!(
+        evidence["sequence"]["first_cycle"]["competitor_generation"],
+        3
+    );
+    assert_eq!(
+        evidence["sequence"]["second_cycle"]["lost_response_generation"],
+        4
+    );
+    assert_eq!(
+        evidence["sequence"]["second_cycle"]["competitor_generation"],
+        5
+    );
+    assert_eq!(evidence["sequence"]["final"]["generation"], 5);
+    assert_eq!(evidence["sequence"]["final"]["replayed"], true);
+    assert_eq!(
+        evidence["sequence"]["final"]["stale_generations_rejected"],
+        serde_json::json!([3, 4])
+    );
+    for check in [
+        "production_daemon_ipc_path",
+        "two_unread_response_sigkill_cycles",
+        "two_pre_expiry_owner_rejections",
+        "two_natural_owner_lease_expiries",
+        "two_same_socket_path_recoveries",
+        "contiguous_generations_1_through_5",
+        "same_id_replay_stable_each_cycle",
+        "competitor_advances_exactly_once_each_cycle",
+        "all_prior_tickets_stale",
+        "final_ticket_mutation_applied",
+        "final_ticket_replay_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_authority_writer_post_recovery_contention_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json",
+        ))
+        .expect("post-recovery writer contention evidence must exist"),
+    )
+    .expect("post-recovery writer contention evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.45");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["test"]["name"],
+        "post_recovery_writer_contention_is_bounded_and_generation_contiguous"
+    );
+    assert_eq!(evidence["test"]["owner_lease_duration_ms"], 30_000);
+    assert_eq!(evidence["test"]["concurrent_contenders"], 64);
+    assert_eq!(evidence["test"]["claim_budget_ms"], 5_000);
+    assert_eq!(evidence["test"]["production_ipc_batch_limit"], 64);
+    assert_eq!(
+        evidence["sequence"]["unclean_owner"]["lost_response_generation"],
+        2
+    );
+    assert_eq!(evidence["sequence"]["natural_recovery"]["generation"], 2);
+    assert_eq!(evidence["sequence"]["natural_recovery"]["replayed"], true);
+    assert_eq!(
+        evidence["sequence"]["contention"]["independent_writer_ids"],
+        64
+    );
+    assert_eq!(evidence["sequence"]["contention"]["first_generation"], 3);
+    assert_eq!(evidence["sequence"]["contention"]["final_generation"], 66);
+    assert_eq!(evidence["sequence"]["final"]["generation"], 66);
+    assert_eq!(evidence["sequence"]["final"]["replayed"], true);
+    assert_eq!(
+        evidence["sequence"]["final"]["stale_generations_rejected"],
+        serde_json::json!([2, 65])
+    );
+    for check in [
+        "production_daemon_ipc_path",
+        "unread_response_sigkill_recovery",
+        "pre_expiry_owner_and_socket_fence",
+        "natural_owner_lease_expiry",
+        "same_socket_path_recovery",
+        "production_batch_limit_saturated",
+        "all_64_claims_complete_within_budget",
+        "unique_writer_admission",
+        "contiguous_generations_3_through_66",
+        "no_false_replays_under_contention",
+        "recovered_ticket_stale",
+        "penultimate_ticket_stale",
+        "final_ticket_mutation_applied",
+        "final_ticket_replay_stable",
         "secret_free_evidence",
     ] {
         assert_eq!(evidence["checks"][check], true, "missing check {check}");
@@ -2302,6 +2486,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fresh-process-writer-generation-continuity",
         "final-ticket-second-restart-replay",
         "physical-linux-cold-response-replay-proof",
+        "combined-lost-response-sigkill-recovery",
+        "pre-expiry-owner-and-socket-fence",
+        "natural-lease-generation-replay",
+        "same-path-authority-rebind",
+        "physical-linux-unclean-response-recovery-proof",
+        "repeated-unclean-response-recovery",
+        "two-natural-owner-lease-expiry-cycles",
+        "contiguous-authority-generations-1-through-5",
+        "repeated-same-path-authority-rebind",
+        "physical-linux-repeated-unclean-recovery-proof",
+        "post-recovery-64-claim-transaction-contention",
+        "bounded-authority-claim-completion",
+        "contiguous-authority-generations-3-through-66",
+        "no-false-replay-under-contention",
+        "physical-linux-post-recovery-contention-proof",
     ] {
         assert!(
             runtime
@@ -2332,13 +2531,82 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_lost_response_sigkill_recovery_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_repeated_unclean_recovery_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+
+    let daemon_lifecycle = catalog
+        .cells
+        .iter()
+        .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
+        .expect("Leserpent daemon lifecycle cell must exist");
+    assert_eq!(daemon_lifecycle.contract.version, "1.8.0");
+    assert_eq!(
+        daemon_lifecycle.contract.stability,
+        ContractStability::Stable
+    );
+    for surface in [
+        "same-owner-stale-unix-socket-reclamation",
+        "live-unix-listener-replacement-rejection",
+        "nonsocket-and-symlink-preservation",
+        "insecure-socket-replacement-rejection",
+        "device-inode-revalidation-before-unlink",
+        "unclean-same-path-restart",
+        "physical-linux-unclean-restart-proof",
+        "repeated-unclean-same-path-restart",
+        "two-cycle-socket-reclamation",
+        "physical-linux-repeated-unclean-restart-proof",
+        "post-recovery-production-ipc-batch-saturation",
+        "64-connection-claim-admission",
+        "bounded-contention-completion",
+        "physical-linux-post-recovery-contention-proof",
+    ] {
+        assert!(
+            daemon_lifecycle
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing daemon lifecycle surface {surface}"
+        );
+    }
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "crates/leserpentd/src/ipc.rs" && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_lost_response_sigkill_recovery_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_repeated_unclean_recovery_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
 
     let compatibility_control = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.33.0");
+    assert_eq!(compatibility_control.contract.version, "1.36.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -2678,6 +2946,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "connectable-listener-readiness-proof",
         "second-cold-restart-final-replay",
         "physical-linux-cold-response-replay-proof",
+        "lost-response-sigkill-combination-proof",
+        "pre-expiry-stale-socket-preservation",
+        "natural-lease-same-socket-recovery",
+        "stale-socket-safe-reclamation",
+        "physical-linux-unclean-response-recovery-proof",
+        "repeated-unclean-response-recovery",
+        "two-natural-lease-expiry-cycles",
+        "contiguous-writer-generations-1-through-5",
+        "repeated-same-socket-reclamation",
+        "physical-linux-repeated-unclean-response-proof",
+        "post-recovery-64-writer-contention",
+        "bounded-claim-admission-budget",
+        "contiguous-writer-generations-3-through-66",
+        "max-generation-sole-mutation-authority",
+        "physical-linux-post-recovery-contention-proof",
     ] {
         assert!(
             compatibility_control
@@ -2688,7 +2971,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.33.0");
+    assert_eq!(compatibility_control.contract.version, "1.36.0");
     assert!(compatibility_control.next_gate.contains("exhaustive"));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
@@ -2707,6 +2990,21 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path
             == "docs/fixtures/leserpent_authority_writer_lost_response_cold_replay_linux_x86_64_20260801.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_lost_response_sigkill_recovery_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_repeated_unclean_recovery_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_post_recovery_contention_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
 

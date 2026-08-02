@@ -55,6 +55,8 @@ mod events;
 mod wire;
 pub use wire::BootstrapSessionVerifier;
 
+pub const MAX_IPC_CONNECTIONS_PER_TICK: usize = 64;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DaemonConfig {
     pub worker_id: String,

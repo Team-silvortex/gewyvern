@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_post_recovery_contention",
+  "recorded_at": "2026-08-02T00:08:24Z",
+  "target": {
+    "host": "192.168.124.45",
+    "alias": "gewyvern-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "post_recovery_writer_contention_is_bounded_and_generation_contiguous",
+    "observed_duration_ms": 31270,
+    "owner_lease_duration_ms": 30000,
+    "concurrent_contenders": 64,
+    "claim_budget_ms": 5000,
+    "production_ipc_batch_limit": 64
+  },
+  "sequence": {
+    "initial": {
+      "writer": "writer_a",
+      "generation": 1,
+      "replayed": false
+    },
+    "unclean_owner": {
+      "writer": "writer_b",
+      "lost_response_generation": 2,
+      "termination": "SIGKILL"
+    },
+    "pre_expiry": {
+      "replacement_admitted": false,
+      "socket_preserved": true
+    },
+    "natural_recovery": {
+      "same_path_rebound": true,
+      "writer": "writer_b",
+      "generation": 2,
+      "replayed": true
+    },
+    "contention": {
+      "independent_writer_ids": 64,
+      "first_generation": 3,
+      "final_generation": 66,
+      "observed_elapsed_ms": 483,
+      "all_completed": true,
+      "all_non_replayed": true,
+      "generation_sequence_contiguous": true
+    },
+    "final": {
+      "writer": "00000000000000000000000000000037",
+      "generation": 66,
+      "replayed": true,
+      "stale_generations_rejected": [2, 65],
+      "mutation_applied": true
+    }
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "unread_response_sigkill_recovery": true,
+    "pre_expiry_owner_and_socket_fence": true,
+    "natural_owner_lease_expiry": true,
+    "same_socket_path_recovery": true,
+    "production_batch_limit_saturated": true,
+    "all_64_claims_complete_within_budget": true,
+    "unique_writer_admission": true,
+    "contiguous_generations_3_through_66": true,
+    "no_false_replays_under_contention": true,
+    "recovered_ticket_stale": true,
+    "penultimate_ticket_stale": true,
+    "final_ticket_mutation_applied": true,
+    "final_ticket_replay_stable": true,
+    "secret_free_evidence": true
+  }
+}
