@@ -4,7 +4,8 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use leselang_ui::{
     LeselangExportResponse, MAX_LESELANG_EXPORT_BYTES, decode_leselang_export_request,
@@ -50,8 +51,85 @@ const MAX_CERTIFICATE_FILE_BYTES: u64 = 1024 * 1024;
 const MAX_PRIVATE_KEY_FILE_BYTES: u64 = 64 * 1024;
 const MAX_REMOTE_TOKEN_FILE_BYTES: u64 = 256;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
+const CONNECTION_READ_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 pub(crate) type RemoteTlsStream = StreamOwned<ServerConnection, TcpStream>;
+
+struct CancellableTransport<'a, R> {
+    inner: R,
+    cancelled: &'a AtomicBool,
+    deadline: Instant,
+}
+
+impl<R> CancellableTransport<'_, R> {
+    fn into_inner(self) -> R {
+        self.inner
+    }
+}
+
+impl<R: Read> Read for CancellableTransport<'_, R> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            if self.cancelled.load(Ordering::Acquire) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "remote request cancelled",
+                ));
+            }
+            if Instant::now() >= self.deadline {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "remote request deadline elapsed",
+                ));
+            }
+            match self.inner.read(buffer) {
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                    ) =>
+                {
+                    std::thread::sleep(CONNECTION_READ_POLL_INTERVAL)
+                }
+                result => return result,
+            }
+        }
+    }
+}
+
+impl<R: Write> Write for CancellableTransport<'_, R> {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        loop {
+            if self.cancelled.load(Ordering::Acquire) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "remote request cancelled",
+                ));
+            }
+            match self.inner.write(buffer) {
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                    ) =>
+                {
+                    if Instant::now() >= self.deadline {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "remote request deadline elapsed",
+                        ));
+                    }
+                    std::thread::sleep(CONNECTION_READ_POLL_INTERVAL)
+                }
+                result => return result,
+            }
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
 
 pub(crate) struct PrefixedStream<S> {
     prefix: Cursor<Vec<u8>>,
@@ -199,10 +277,22 @@ impl RemoteServer {
     }
 
     pub fn poll_once(&mut self, runtime: &mut ControlRuntime) -> Result<bool, String> {
+        let cancelled = AtomicBool::new(false);
+        self.poll_once_until(runtime, &cancelled)
+    }
+
+    pub fn poll_once_until(
+        &mut self,
+        runtime: &mut ControlRuntime,
+        cancelled: &AtomicBool,
+    ) -> Result<bool, String> {
+        if cancelled.load(Ordering::Acquire) {
+            return Ok(false);
+        }
         let accepted = match self.listener.accept() {
             Ok((stream, _)) => {
                 // Peer-controlled TLS, HTTP, and upgrade failures are isolated to this connection.
-                if let Ok(Some(session)) = self.handle(stream, runtime)
+                if let Ok(Some(session)) = self.handle(stream, runtime, cancelled)
                     && self.event_sessions.len() < MAX_EVENT_SESSIONS
                 {
                     self.event_sessions.push(session);
@@ -218,6 +308,7 @@ impl RemoteServer {
 
     #[cfg(test)]
     fn poll_once_strict(&mut self, runtime: &mut ControlRuntime) -> Result<bool, String> {
+        let cancelled = AtomicBool::new(false);
         let (stream, _) = match self.listener.accept() {
             Ok(connection) => connection,
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
@@ -226,7 +317,7 @@ impl RemoteServer {
             }
             Err(error) => return Err(error.to_string()),
         };
-        if let Some(session) = self.handle(stream, runtime)? {
+        if let Some(session) = self.handle(stream, runtime, &cancelled)? {
             if self.event_sessions.len() >= MAX_EVENT_SESSIONS {
                 return Err("WebSocket event session limit reached".into());
             }
@@ -240,25 +331,34 @@ impl RemoteServer {
         &self,
         stream: TcpStream,
         runtime: &mut ControlRuntime,
+        cancelled: &AtomicBool,
     ) -> Result<Option<EventSession>, String> {
         stream
-            .set_nonblocking(false)
+            .set_nonblocking(true)
             .map_err(|error| error.to_string())?;
-        stream
-            .set_read_timeout(Some(CONNECTION_TIMEOUT))
-            .map_err(|error| error.to_string())?;
-        stream
-            .set_write_timeout(Some(CONNECTION_TIMEOUT))
-            .map_err(|error| error.to_string())?;
+        let deadline = Instant::now() + CONNECTION_TIMEOUT;
+        let transport = CancellableTransport {
+            inner: stream,
+            cancelled,
+            deadline,
+        };
         let connection = ServerConnection::new(Arc::clone(&self.tls))
             .map_err(|error| format!("cannot initialize TLS connection: {error}"))?;
-        let mut stream = StreamOwned::new(connection, stream);
+        let mut stream = StreamOwned::new(connection, transport);
         let prefix =
             read_http_head(&mut stream).map_err(|_| "invalid HTTPS request".to_string())?;
+        if cancelled.load(Ordering::Acquire) {
+            return Err("remote request cancelled".into());
+        }
         if is_event_upgrade(&prefix) {
             if self.event_sessions.len() >= MAX_EVENT_SESSIONS {
                 return Err("WebSocket event session limit reached".into());
             }
+            let socket = stream.sock.into_inner();
+            socket
+                .set_nonblocking(false)
+                .map_err(|error| error.to_string())?;
+            let stream = StreamOwned::new(stream.conn, socket);
             return EventSession::upgrade(stream, prefix, &self.token).map(Some);
         }
         let bootstrap_route = prefix.starts_with(b"POST /v1/bootstrap HTTP/1.1\r\n");
@@ -268,7 +368,11 @@ impl RemoteServer {
             prefix.starts_with(b"POST /v1/daemon-retirement HTTP/1.1\r\n");
         let leselang_export_route = prefix.starts_with(b"POST /v1/leselang-export HTTP/1.1\r\n");
         let mut stream = PrefixedStream::new(prefix, stream);
-        let (status, body) = match read_http_request(&mut stream, &self.token) {
+        let request = read_http_request(&mut stream, &self.token);
+        if cancelled.load(Ordering::Acquire) {
+            return Err("remote request cancelled".into());
+        }
+        let (status, body) = match request {
             Ok(HttpRequest {
                 route: HttpRoute::Wire,
                 body,
@@ -420,6 +524,9 @@ impl RemoteServer {
                 (error.status, body)
             }
         };
+        if cancelled.load(Ordering::Acquire) {
+            return Err("remote request cancelled".into());
+        }
         write_http_response(&mut stream, status, &body)?;
         stream.inner.conn.send_close_notify();
         stream.flush().map_err(|error| error.to_string())?;
@@ -1125,6 +1232,20 @@ mod tests {
             }
             _ => panic!("unsupported specialized route"),
         }
+    }
+
+    #[test]
+    fn cancelled_transport_uses_a_nonretryable_error_kind() {
+        let cancelled = AtomicBool::new(true);
+        let mut transport = CancellableTransport {
+            inner: Cursor::new(Vec::new()),
+            cancelled: &cancelled,
+            deadline: Instant::now() + CONNECTION_TIMEOUT,
+        };
+        let read_error = transport.read(&mut [0_u8; 1]).unwrap_err();
+        assert_eq!(read_error.kind(), std::io::ErrorKind::ConnectionAborted);
+        let write_error = transport.write(b"blocked").unwrap_err();
+        assert_eq!(write_error.kind(), std::io::ErrorKind::ConnectionAborted);
     }
 
     #[test]

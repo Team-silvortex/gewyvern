@@ -242,3 +242,41 @@ runtime-list query is issued. The queries complete in 2264, 2241, and 2226 ms;
 the complete waves drain in 2265, 2241, and 2227 ms. The owner lease advances
 after every wave and writer generation remains 1, so transport fairness neither
 creates write authority nor weakens the existing writer fence.
+
+The reverse pressure direction is bounded as well. Three physical Linux TLS
+clients each send a valid bearer-authenticated wire header with
+`Content-Length: 1` and withhold the body byte until the 3-second remote read
+timeout. Four IPC runtime-list queries start only after each header is flushed;
+all 12 complete in 3042-3199 ms, while the slow HTTPS failures complete in
+3108-3156 ms. Every wave advances the same owner lease and leaves writer
+generation 1 unchanged. The timeout failure is HTTP 400, never 401, and retained
+evidence contains no credential value.
+
+Remote reads are now signal-cancellable rather than merely timeout-bounded. A
+single monotonic 3-second deadline spans TLS, HTTP headers, and body, while the
+socket wakes every 100 ms to inspect the daemon stop flag. Cancellation is
+rechecked before authority execution and response writing. On physical Linux,
+`SIGTERM` during the authenticated missing-body window exits in 10 ms, emits no
+application response, releases the SQLite owner row and Unix socket, and allows
+an immediate same-database/same-socket restart that replays generation 1.
+
+That lifecycle now covers every blocking remote-read phase rather than only the
+body. Three consecutive same-state Linux daemons stop while holding an
+incomplete TLS handshake, an authenticated unterminated HTTP header, and an
+authenticated missing body. Three consecutive physical runs keep every phase
+shutdown within 104-115 ms.
+Each idle daemon exposes 6 FDs and 1 task, each stalled connection exposes 7 FDs
+and the same single task, and a fourth immediate restart returns to the original
+baseline. Every exit removes its proc directory, owner row, and Unix socket;
+generation 1 remains a replay and cancellation emits no application response.
+
+The final transport fence is below rustls rather than outside it. Accepted TCP
+is nonblocking; the wrapper absorbs `WouldBlock`, polls cancellation against the
+shared monotonic deadline, and returns non-retryable `ConnectionAborted` because
+rustls correctly retries `Interrupted`. Idle resource samples require the two
+listeners and no transient SQLite journal. Three consecutive physical runs now
+keep all nine phase shutdowns within 104-115 ms while preserving the same
+6-FD/1-task idle and 7-FD/1-task active observations.
+The read deadline does not suppress an immediately writable timeout response;
+only `WouldBlock` retries are rejected after expiry, preserving the existing
+HTTP 400 slow-body contract without reopening an unbounded write window.

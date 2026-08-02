@@ -1152,9 +1152,36 @@ transport's own framing and authority order. Three physical Linux waves each
 queue 64 full-timeout Unix IPC peers beside one real authenticated TLS/HTTP
 runtime-list query. HTTPS completes within 2264 ms, every wave within 2265 ms,
 the same owner lease advances after each wave, and writer generation 1 remains
-stable. The next lifecycle boundary is the symmetric case: valid Unix IPC and
-maintenance progress while slow authenticated HTTPS peers consume the remote
-read budget.
+stable.
+
+The symmetric boundary is physical too. Each of three Linux TLS clients sends
+a valid bearer-authenticated `/v1/wire` header declaring one body byte and then
+withholds that byte for the complete 3-second remote read budget. Four Unix IPC
+runtime-list queries are queued only after the TLS header is flushed, so all 12
+local requests genuinely wait behind an active remote read. They complete
+within 3199 ms, each slow HTTPS failure within 3156 ms, owner heartbeat advances
+after every wave, and writer generation 1 remains unchanged.
+
+Remote request reads now share the IPC lifecycle boundary. The accepted socket
+uses a 100 ms read poll interval while one monotonic deadline retains the
+3-second total TLS/header/body budget. Every retry checks the process stop flag;
+the handler checks it again before authority dispatch and before response write,
+so cancellation cannot create a late mutation or application response. Physical
+Linux `SIGTERM` during an authenticated incomplete body exits in 10 ms, releases
+the owner row and Unix socket, then immediately reopens the same database and
+socket with generation 1 replayed. That boundary is now repeated across
+incomplete TLS-handshake, authenticated HTTP-header, and authenticated-body
+reads. Four consecutive Linux processes retain the same 6-FD/1-task idle
+baseline; every active stalled read adds exactly one FD and no task. Phase
+shutdowns remain within 104-115 ms across three consecutive physical runs,
+remove the proc entry, owner row, and socket, and preserve generation 1 through
+every restart. The cancellation wrapper sits below rustls on nonblocking TCP,
+absorbs `WouldBlock`, and returns non-retryable `ConnectionAborted`; idle
+baselines are sampled outside transient SQLite journal windows. The next
+boundary places mixed stalled phases in the listener backlog and proves bounded
+shutdown without authority allocation or process-resource drift.
+Read timeout compatibility remains intact: the first immediate HTTP error write
+is allowed after the read deadline, but a blocked write cannot retry beyond it.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

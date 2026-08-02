@@ -517,6 +517,33 @@ query in each of three waves containing 64 slow Unix IPC peers. HTTPS remains
 within 2264 ms, each full wave within 2265 ms, the same owner lease advances
 after every wave, and writer generation 1 remains unchanged.
 
+Contract `1.18.0` proves the symmetric transport boundary without changing any
+request or response shape. In three physical Linux waves, a valid bearer header
+and complete HTTP framing declare one body byte but provide none, consuming the
+3-second remote read budget. Four concurrent Unix IPC queries per wave all
+complete within 3199 ms, the slow HTTPS failures remain within 3156 ms, the
+owner lease advances after every wave, and writer generation 1 remains stable.
+
+Contract `1.19.0` makes remote request reads cooperatively cancellable without
+changing the 3-second hard deadline or any wire shape. TLS, HTTP-head, and body
+reads poll the daemon stop flag every 100 ms; cancellation is checked before
+authority dispatch and response writing. Physical Linux `SIGTERM` during an
+authenticated incomplete body exits in 10 ms, suppresses the application
+response, releases the owner row and Unix socket, and immediately restarts on
+the same database/socket with generation 1 replayed.
+
+Contract `1.20.0` repeats that lifecycle across incomplete TLS handshake,
+authenticated HTTP header, and authenticated body reads without changing the
+wire protocol. Cancellation wraps nonblocking TCP below rustls, absorbs
+`WouldBlock`, and returns non-retryable `ConnectionAborted` rather than
+`Interrupted`. Four consecutive physical Linux daemon processes retain an
+identical 6-FD/1-task idle baseline outside SQLite journal windows; each stalled
+phase adds exactly one FD and zero tasks. Three consecutive physical runs keep
+all shutdowns within 104-115 ms, release the proc entry, owner row, and Unix
+socket, and preserve generation 1 replay across every same-state restart.
+An immediately writable HTTP error remains available when the read deadline
+expires; only a blocked response retry is prevented from extending that deadline.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

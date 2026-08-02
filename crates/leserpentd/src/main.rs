@@ -60,7 +60,7 @@ fn run_fair_daemon_turn(
         .map_err(|error| error.to_string())?;
     if remote_first {
         if let Some(remote) = remote {
-            remote.poll_once(host.runtime_mut())?;
+            remote.poll_once_until(host.runtime_mut(), stop)?;
         }
         #[cfg(unix)]
         if let Some(ipc) = ipc {
@@ -72,7 +72,7 @@ fn run_fair_daemon_turn(
             ipc.poll_batch_until(host.runtime_mut(), MAX_IPC_CONNECTIONS_PER_TICK, stop)?;
         }
         if let Some(remote) = remote {
-            remote.poll_once(host.runtime_mut())?;
+            remote.poll_once_until(host.runtime_mut(), stop)?;
         }
     }
     Ok(())

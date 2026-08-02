@@ -8,6 +8,8 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command as ProcessCommand, Stdio};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -29,6 +31,29 @@ const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 const WRITER_ID: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const FAIRNESS_WAVES: usize = 3;
 const SLOW_IPC_PEERS_PER_WAVE: usize = 64;
+const SLOW_HTTPS_FAIRNESS_WAVES: usize = 3;
+const IPC_QUERIES_PER_SLOW_HTTPS_WAVE: usize = 4;
+const REMOTE_READ_SHUTDOWN_PHASES: usize = 3;
+type StalledRemoteAttempt = (Duration, std::io::Result<Vec<u8>>);
+type StalledRemoteTask = thread::JoinHandle<StalledRemoteAttempt>;
+static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Clone, Copy, Debug)]
+enum RemoteReadPhase {
+    TlsHandshake,
+    HttpHeader,
+    AuthenticatedBody,
+}
+
+impl RemoteReadPhase {
+    fn label(self) -> &'static str {
+        match self {
+            Self::TlsHandshake => "tls-handshake",
+            Self::HttpHeader => "http-header",
+            Self::AuthenticatedBody => "authenticated-body",
+        }
+    }
+}
 
 struct TempRoot(PathBuf);
 
@@ -38,8 +63,9 @@ impl TempRoot {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
+        let sequence = NEXT_TEMP_ROOT.fetch_add(1, Ordering::Relaxed);
         let root = PathBuf::from(format!(
-            "/tmp/leserpent-cross-transport-{}-{unique}",
+            "/tmp/leserpent-cross-transport-{}-{unique}-{sequence}",
             std::process::id()
         ));
         fs::create_dir(&root).unwrap();
@@ -112,26 +138,157 @@ impl DaemonProcess {
         Self { child: Some(child) }
     }
 
-    fn stop(mut self) {
+    fn stop(self) {
+        let _ = self.stop_with_budget(Duration::from_secs(5));
+    }
+
+    fn pid(&self) -> u32 {
+        self.child.as_ref().unwrap().id()
+    }
+
+    fn stop_with_budget(mut self, budget: Duration) -> Duration {
         let mut child = self.child.take().unwrap();
+        let started = Instant::now();
         assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGTERM) }, 0);
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = started + budget;
         loop {
             if let Some(status) = child.try_wait().unwrap() {
                 assert!(
                     status.success(),
                     "leserpentd did not stop cleanly: {status}"
                 );
-                return;
+                return started.elapsed();
             }
             if Instant::now() >= deadline {
+                let pid = child.id();
+                let resources = inspect_process_resources(pid);
+                let fd_targets = inspect_process_fd_targets(pid);
+                let wait_channel = inspect_process_wait_channel(pid);
                 let _ = child.kill();
                 let _ = child.wait();
-                panic!("leserpentd did not stop after SIGTERM");
+                panic!(
+                    "leserpentd did not stop after SIGTERM within {budget:?}: resources={resources:?}, wait_channel={wait_channel:?}, fd_targets={fd_targets:?}"
+                );
             }
             thread::sleep(Duration::from_millis(10));
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ProcessResources {
+    open_fds: usize,
+    tasks: usize,
+}
+
+fn inspect_process_resources(pid: u32) -> Option<ProcessResources> {
+    #[cfg(target_os = "linux")]
+    {
+        let process = PathBuf::from(format!("/proc/{pid}"));
+        return Some(ProcessResources {
+            open_fds: fs::read_dir(process.join("fd")).unwrap().count(),
+            tasks: fs::read_dir(process.join("task")).unwrap().count(),
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        None
+    }
+}
+
+fn inspect_process_fd_targets(pid: u32) -> Vec<String> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut targets = fs::read_dir(format!("/proc/{pid}/fd"))
+            .unwrap()
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let target = fs::read_link(entry.path()).ok()?;
+                Some(format!(
+                    "{}={}",
+                    entry.file_name().to_string_lossy(),
+                    target.display()
+                ))
+            })
+            .collect::<Vec<_>>();
+        targets.sort();
+        return targets;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        Vec::new()
+    }
+}
+
+fn inspect_process_wait_channel(pid: u32) -> Option<String> {
+    #[cfg(target_os = "linux")]
+    {
+        return fs::read_to_string(format!("/proc/{pid}/wchan"))
+            .ok()
+            .map(|value| value.trim().to_string());
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        None
+    }
+}
+
+fn wait_for_idle_process_resources(pid: u32) -> Option<ProcessResources> {
+    inspect_process_resources(pid)?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let current = inspect_process_resources(pid).unwrap();
+        let targets = inspect_process_fd_targets(pid);
+        let socket_count = targets
+            .iter()
+            .filter(|target| target.contains("=socket:["))
+            .count();
+        let journal_open = targets.iter().any(|target| target.ends_with("-journal"));
+        if socket_count == 2 && !journal_open {
+            return Some(ProcessResources {
+                open_fds: targets.len(),
+                tasks: current.tasks,
+            });
+        }
+        assert!(
+            Instant::now() < deadline,
+            "daemon did not expose an idle two-listener resource baseline: {current:?}, fd_targets={targets:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn wait_for_stalled_remote_resource(
+    pid: u32,
+    baseline: Option<ProcessResources>,
+) -> Option<ProcessResources> {
+    let baseline = baseline?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let current = inspect_process_resources(pid).unwrap();
+        if current.open_fds == baseline.open_fds + 1 && current.tasks == baseline.tasks {
+            return Some(current);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "stalled remote read did not expose one connection FD without task growth above {baseline:?}: {current:?}, fd_targets={:?}",
+            inspect_process_fd_targets(pid)
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn assert_process_resources_released(pid: u32) {
+    #[cfg(target_os = "linux")]
+    assert!(
+        !PathBuf::from(format!("/proc/{pid}")).exists(),
+        "exited daemon retained its proc resource directory"
+    );
+    #[cfg(not(target_os = "linux"))]
+    let _ = pid;
 }
 
 impl Drop for DaemonProcess {
@@ -175,7 +332,7 @@ fn runtime_list_query() -> RequestEnvelope {
 fn send_ipc(socket: &Path, request: &RequestEnvelope) -> ResponseEnvelope {
     let mut stream = UnixStream::connect(socket).unwrap();
     stream
-        .set_read_timeout(Some(Duration::from_secs(4)))
+        .set_read_timeout(Some(Duration::from_secs(5)))
         .unwrap();
     let mut frame = serde_json::to_vec(&serde_json::json!({
         "token": TOKEN,
@@ -234,29 +391,39 @@ fn read_http_body(stream: &mut impl Read) -> Vec<u8> {
     body
 }
 
+fn connect_https(
+    address: SocketAddr,
+    certificate: CertificateDer<'static>,
+) -> StreamOwned<ClientConnection, TcpStream> {
+    let mut roots = RootCertStore::empty();
+    roots.add(certificate).unwrap();
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    let connection =
+        ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
+            .unwrap();
+    let socket = TcpStream::connect(address).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    socket
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    StreamOwned::new(connection, socket)
+}
+
 fn spawn_https_query(
     address: SocketAddr,
     certificate: CertificateDer<'static>,
 ) -> thread::JoinHandle<(Duration, ResponseEnvelope)> {
     thread::spawn(move || {
         let started = Instant::now();
-        let mut roots = RootCertStore::empty();
-        roots.add(certificate).unwrap();
-        let provider = Arc::new(rustls::crypto::ring::default_provider());
-        let mut config = ClientConfig::builder_with_provider(provider)
-            .with_safe_default_protocol_versions()
-            .unwrap()
-            .with_root_certificates(roots)
-            .with_no_client_auth();
-        config.alpn_protocols = vec![b"http/1.1".to_vec()];
-        let connection =
-            ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
-                .unwrap();
-        let socket = TcpStream::connect(address).unwrap();
-        socket
-            .set_read_timeout(Some(Duration::from_secs(5)))
-            .unwrap();
-        let mut stream = StreamOwned::new(connection, socket);
+        let mut stream = connect_https(address, certificate);
         let body = encode_request(&runtime_list_query()).unwrap();
         write!(
             stream,
@@ -266,6 +433,74 @@ fn spawn_https_query(
         .unwrap();
         stream.write_all(&body).unwrap();
         let response = decode_response(&read_http_body(&mut stream)).unwrap();
+        (started.elapsed(), response)
+    })
+}
+
+fn spawn_stalled_remote_read(
+    address: SocketAddr,
+    certificate: CertificateDer<'static>,
+    phase: RemoteReadPhase,
+) -> (mpsc::Receiver<()>, StalledRemoteTask) {
+    let (ready_tx, ready_rx) = mpsc::sync_channel(0);
+    let handle = thread::spawn(move || {
+        let started = Instant::now();
+        let response = match phase {
+            RemoteReadPhase::TlsHandshake => {
+                let mut stream = TcpStream::connect(address).unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                stream
+                    .set_write_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                stream.write_all(&[0x16, 0x03, 0x03]).unwrap();
+                stream.flush().unwrap();
+                ready_tx.send(()).unwrap();
+                let mut response = Vec::new();
+                stream.read_to_end(&mut response).map(|_| response)
+            }
+            RemoteReadPhase::HttpHeader => {
+                let mut stream = connect_https(address, certificate);
+                write!(
+                    stream,
+                    "POST /v1/wire HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\n"
+                )
+                .unwrap();
+                stream.flush().unwrap();
+                ready_tx.send(()).unwrap();
+                let mut response = Vec::new();
+                stream.read_to_end(&mut response).map(|_| response)
+            }
+            RemoteReadPhase::AuthenticatedBody => {
+                let mut stream = connect_https(address, certificate);
+                write!(
+                    stream,
+                    "POST /v1/wire HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: 1\r\n\r\n"
+                )
+                .unwrap();
+                stream.flush().unwrap();
+                ready_tx.send(()).unwrap();
+                let mut response = Vec::new();
+                stream.read_to_end(&mut response).map(|_| response)
+            }
+        };
+        (started.elapsed(), response)
+    });
+    (ready_rx, handle)
+}
+
+fn spawn_authenticated_slow_https(
+    address: SocketAddr,
+    certificate: CertificateDer<'static>,
+) -> (mpsc::Receiver<()>, StalledRemoteTask) {
+    spawn_stalled_remote_read(address, certificate, RemoteReadPhase::AuthenticatedBody)
+}
+
+fn spawn_ipc_query(socket: PathBuf) -> thread::JoinHandle<(Duration, ResponseEnvelope)> {
+    thread::spawn(move || {
+        let started = Instant::now();
+        let response = send_ipc(&socket, &runtime_list_query());
         (started.elapsed(), response)
     })
 }
@@ -295,6 +530,13 @@ fn wait_for_owner_lease_extension(database: &Path, owner_token: &str, previous: 
         );
         thread::sleep(Duration::from_millis(10));
     }
+}
+
+fn runtime_owner_count(database: &Path) -> i64 {
+    Connection::open(database)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| row.get(0))
+        .unwrap()
 }
 
 #[test]
@@ -390,4 +632,370 @@ fn https_and_maintenance_progress_across_repeated_saturated_ipc_waves() {
     );
     daemon.stop();
     assert!(!socket.exists());
+}
+
+#[test]
+fn ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("slow-https.sqlite");
+    let socket = root.0.join("slow-https.sock");
+    let certificate_path = root.0.join("slow-https.crt");
+    let private_key_path = root.0.join("slow-https.key");
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    fs::write(&certificate_path, cert.pem()).unwrap();
+    fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
+    fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+
+    let daemon = DaemonProcess::spawn(
+        &binary,
+        &database,
+        &socket,
+        address,
+        &certificate_path,
+        &private_key_path,
+    );
+    let claim = send_ipc(&socket, &writer_claim());
+    assert!(matches!(
+        claim.response,
+        ProtocolResponse::AuthorityWriterClaimed(ref claim)
+            if claim.generation == 1 && claim.writer_id == WRITER_ID && !claim.replayed
+    ));
+    let (owner_token, mut lease_expiry) = inspect_owner_lease(&database);
+    let mut ipc_elapsed = Vec::with_capacity(SLOW_HTTPS_FAIRNESS_WAVES);
+    let mut slow_https_elapsed = Vec::with_capacity(SLOW_HTTPS_FAIRNESS_WAVES);
+    let mut wave_elapsed = Vec::with_capacity(SLOW_HTTPS_FAIRNESS_WAVES);
+
+    for _ in 0..SLOW_HTTPS_FAIRNESS_WAVES {
+        let (slow_ready, slow_https) = spawn_authenticated_slow_https(address, cert.der().clone());
+        slow_ready
+            .recv_timeout(Duration::from_secs(5))
+            .expect("authenticated slow HTTPS request did not enter its body-read window");
+        let (_, gated_expiry) = inspect_owner_lease(&database);
+        assert!(gated_expiry >= lease_expiry);
+        let started = Instant::now();
+        let queries = (0..IPC_QUERIES_PER_SLOW_HTTPS_WAVE)
+            .map(|_| spawn_ipc_query(socket.clone()))
+            .collect::<Vec<_>>();
+        let mut current_ipc_elapsed = Vec::with_capacity(IPC_QUERIES_PER_SLOW_HTTPS_WAVE);
+        for query in queries {
+            let (elapsed, response) = query.join().unwrap();
+            assert!(matches!(response.response, ProtocolResponse::Query(_)));
+            assert!(
+                elapsed <= Duration::from_secs(5),
+                "IPC query starved behind authenticated slow HTTPS: {elapsed:?}"
+            );
+            current_ipc_elapsed.push(elapsed);
+        }
+        ipc_elapsed.push(current_ipc_elapsed);
+
+        let (remote_elapsed, response) = slow_https.join().unwrap();
+        let response = response.unwrap();
+        assert!(
+            remote_elapsed >= Duration::from_millis(2_500),
+            "slow HTTPS peer did not consume the remote read budget: {remote_elapsed:?}"
+        );
+        assert!(
+            remote_elapsed <= Duration::from_secs(5),
+            "slow HTTPS peer exceeded the remote failure budget: {remote_elapsed:?}"
+        );
+        assert!(response.starts_with(b"HTTP/1.1 400 Bad Request\r\n"));
+        assert!(
+            !response
+                .windows(TOKEN.len())
+                .any(|window| window == TOKEN.as_bytes())
+        );
+        slow_https_elapsed.push(remote_elapsed);
+
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed <= Duration::from_secs(5),
+            "slow-HTTPS fairness wave exceeded its budget: {elapsed:?}"
+        );
+        wave_elapsed.push(elapsed);
+        lease_expiry = wait_for_owner_lease_extension(&database, &owner_token, gated_expiry);
+    }
+
+    let final_fence = Connection::open(&database)
+        .unwrap()
+        .query_row(
+            "SELECT generation, writer_id FROM authority_writer_fence WHERE id = 1",
+            [],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .unwrap();
+    assert_eq!(final_fence, (1, WRITER_ID.to_string()));
+    println!(
+        "slow-https-cross-transport-fairness waves={} ipc_queries_per_wave={} total_ipc_queries={} ipc_elapsed_ms={:?} slow_https_elapsed_ms={:?} wave_elapsed_ms={:?} maintenance_heartbeat_advanced_each_wave=true final_generation=1",
+        SLOW_HTTPS_FAIRNESS_WAVES,
+        IPC_QUERIES_PER_SLOW_HTTPS_WAVE,
+        SLOW_HTTPS_FAIRNESS_WAVES * IPC_QUERIES_PER_SLOW_HTTPS_WAVE,
+        ipc_elapsed
+            .iter()
+            .map(|wave| wave.iter().map(Duration::as_millis).collect::<Vec<_>>())
+            .collect::<Vec<_>>(),
+        slow_https_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>(),
+        wave_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>()
+    );
+    daemon.stop();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("slow-https-shutdown.sqlite");
+    let socket = root.0.join("slow-https-shutdown.sock");
+    let certificate_path = root.0.join("slow-https-shutdown.crt");
+    let private_key_path = root.0.join("slow-https-shutdown.key");
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    fs::write(&certificate_path, cert.pem()).unwrap();
+    fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
+    fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+
+    let daemon = DaemonProcess::spawn(
+        &binary,
+        &database,
+        &socket,
+        address,
+        &certificate_path,
+        &private_key_path,
+    );
+    let claim = send_ipc(&socket, &writer_claim());
+    assert!(matches!(
+        claim.response,
+        ProtocolResponse::AuthorityWriterClaimed(ref claim)
+            if claim.generation == 1 && claim.writer_id == WRITER_ID && !claim.replayed
+    ));
+    let (slow_ready, slow_https) = spawn_authenticated_slow_https(address, cert.der().clone());
+    slow_ready
+        .recv_timeout(Duration::from_secs(5))
+        .expect("authenticated slow HTTPS request did not enter its body-read window");
+    let shutdown_elapsed = daemon.stop_with_budget(Duration::from_secs(1));
+    assert!(shutdown_elapsed < Duration::from_secs(1));
+    let (_, slow_result) = slow_https.join().unwrap();
+    if let Ok(response) = slow_result {
+        assert!(
+            response.is_empty(),
+            "cancelled slow HTTPS request received an application response"
+        );
+    }
+    assert_eq!(runtime_owner_count(&database), 0);
+    assert!(!socket.exists());
+
+    let restart_address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let restarted = DaemonProcess::spawn(
+        &binary,
+        &database,
+        &socket,
+        restart_address,
+        &certificate_path,
+        &private_key_path,
+    );
+    let replay = send_ipc(&socket, &writer_claim());
+    assert!(matches!(
+        replay.response,
+        ProtocolResponse::AuthorityWriterClaimed(ref claim)
+            if claim.generation == 1 && claim.writer_id == WRITER_ID && claim.replayed
+    ));
+    println!(
+        "slow-https-sigterm shutdown_elapsed_ms={} budget_ms=1000 owner_lease_released=true unix_socket_released=true application_response_suppressed=true immediate_restart=true generation=1",
+        shutdown_elapsed.as_millis()
+    );
+    restarted.stop();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("remote-read-phase-shutdown.sqlite");
+    let socket = root.0.join("remote-read-phase-shutdown.sock");
+    let certificate_path = root.0.join("remote-read-phase-shutdown.crt");
+    let private_key_path = root.0.join("remote-read-phase-shutdown.key");
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    fs::write(&certificate_path, cert.pem()).unwrap();
+    fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
+    fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let phases = [
+        RemoteReadPhase::TlsHandshake,
+        RemoteReadPhase::HttpHeader,
+        RemoteReadPhase::AuthenticatedBody,
+    ];
+    assert_eq!(phases.len(), REMOTE_READ_SHUTDOWN_PHASES);
+    let mut shutdown_elapsed = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES);
+    let mut baseline_resources = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES + 1);
+    let mut active_resources = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES);
+
+    for (cycle, phase) in phases.into_iter().enumerate() {
+        let address = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let daemon = DaemonProcess::spawn(
+            &binary,
+            &database,
+            &socket,
+            address,
+            &certificate_path,
+            &private_key_path,
+        );
+        let claim = send_ipc(&socket, &writer_claim());
+        assert!(matches!(
+            claim.response,
+            ProtocolResponse::AuthorityWriterClaimed(ref claim)
+                if claim.generation == 1
+                    && claim.writer_id == WRITER_ID
+                    && claim.replayed == (cycle > 0)
+        ));
+        let (_, readiness) = spawn_https_query(address, cert.der().clone())
+            .join()
+            .unwrap();
+        assert!(matches!(readiness.response, ProtocolResponse::Query(_)));
+        let readiness_fence = send_ipc(&socket, &runtime_list_query());
+        assert!(matches!(
+            readiness_fence.response,
+            ProtocolResponse::Query(_)
+        ));
+        let pid = daemon.pid();
+        let baseline = wait_for_idle_process_resources(pid);
+        baseline_resources.push(baseline);
+        let (ready, stalled) = spawn_stalled_remote_read(address, cert.der().clone(), phase);
+        ready
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap_or_else(|_| panic!("{} phase did not enter its read window", phase.label()));
+        active_resources.push(wait_for_stalled_remote_resource(pid, baseline));
+
+        eprintln!("remote-read-phase={} sending SIGTERM", phase.label());
+        let elapsed = daemon.stop_with_budget(Duration::from_secs(1));
+        eprintln!(
+            "remote-read-phase={} stopped in {} ms",
+            phase.label(),
+            elapsed.as_millis()
+        );
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "{} phase exceeded its SIGTERM budget: {elapsed:?}",
+            phase.label()
+        );
+        shutdown_elapsed.push(elapsed);
+        let (_, response) = stalled.join().unwrap();
+        if let Ok(response) = response {
+            assert!(
+                response.is_empty(),
+                "{} phase received an application response after cancellation",
+                phase.label()
+            );
+        }
+        assert_eq!(
+            runtime_owner_count(&database),
+            0,
+            "{} phase retained its runtime owner row",
+            phase.label()
+        );
+        assert!(
+            !socket.exists(),
+            "{} phase retained its socket",
+            phase.label()
+        );
+        assert_process_resources_released(pid);
+    }
+
+    let restart_address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let restarted = DaemonProcess::spawn(
+        &binary,
+        &database,
+        &socket,
+        restart_address,
+        &certificate_path,
+        &private_key_path,
+    );
+    let replay = send_ipc(&socket, &writer_claim());
+    assert!(matches!(
+        replay.response,
+        ProtocolResponse::AuthorityWriterClaimed(ref claim)
+            if claim.generation == 1 && claim.writer_id == WRITER_ID && claim.replayed
+    ));
+    let (_, readiness) = spawn_https_query(restart_address, cert.der().clone())
+        .join()
+        .unwrap();
+    assert!(matches!(readiness.response, ProtocolResponse::Query(_)));
+    let readiness_fence = send_ipc(&socket, &runtime_list_query());
+    assert!(matches!(
+        readiness_fence.response,
+        ProtocolResponse::Query(_)
+    ));
+    let restart_pid = restarted.pid();
+    let restart_baseline = wait_for_idle_process_resources(restart_pid);
+    baseline_resources.push(restart_baseline);
+
+    let observed_baselines = baseline_resources
+        .iter()
+        .copied()
+        .flatten()
+        .collect::<Vec<_>>();
+    if let Some(expected) = observed_baselines.first() {
+        assert_eq!(observed_baselines.len(), REMOTE_READ_SHUTDOWN_PHASES + 1);
+        assert!(
+            observed_baselines
+                .iter()
+                .all(|resources| resources == expected),
+            "remote read phase process baselines drifted across restarts: {observed_baselines:?}"
+        );
+        let observed_active = active_resources
+            .iter()
+            .copied()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(observed_active.len(), REMOTE_READ_SHUTDOWN_PHASES);
+        for active in observed_active {
+            assert_eq!(active.open_fds, expected.open_fds + 1);
+            assert_eq!(active.tasks, expected.tasks);
+        }
+    }
+
+    println!(
+        "remote-read-phase-shutdown phases={} phase_names={:?} shutdown_elapsed_ms={:?} baseline_resources={baseline_resources:?} active_resources={active_resources:?} stable_fd_task_baselines=true proc_released_each_phase=true owner_rows_released_each_phase=true socket_released_each_phase=true application_response_suppressed_each_phase=true immediate_restart=true generation=1",
+        REMOTE_READ_SHUTDOWN_PHASES,
+        phases.map(RemoteReadPhase::label),
+        shutdown_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>()
+    );
+    eprintln!("remote-read-final-restart sending SIGTERM");
+    let restart_elapsed = restarted.stop_with_budget(Duration::from_secs(1));
+    eprintln!(
+        "remote-read-final-restart stopped in {} ms",
+        restart_elapsed.as_millis()
+    );
+    assert!(restart_elapsed < Duration::from_secs(1));
+    assert_eq!(runtime_owner_count(&database), 0);
+    assert!(!socket.exists());
+    assert_process_resources_released(restart_pid);
 }

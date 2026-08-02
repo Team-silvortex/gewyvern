@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_slow_https_sigterm",
+  "recorded_at": "2026-08-02T03:44:29Z",
+  "target": {
+    "host": "192.168.124.25",
+    "endpoint": "kyuubiki-lab.local",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "cross_transport_fairness_vertical",
+    "name": "sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart",
+    "observed_duration_ms": 410,
+    "active_authenticated_slow_https_peers": 1,
+    "connection_read_poll_interval_ms": 100,
+    "connection_hard_deadline_ms": 3000,
+    "sigterm_budget_ms": 1000,
+    "observed_shutdown_ms": 10
+  },
+  "slow_https_request": {
+    "transport": "real-tls-http11",
+    "authentication": "valid-bearer-header",
+    "route": "/v1/wire",
+    "declared_content_length": 1,
+    "provided_body_bytes": 0,
+    "application_response_suppressed": true,
+    "credential_disclosed": false
+  },
+  "recovery": {
+    "runtime_owner_row_released": true,
+    "unix_socket_released": true,
+    "restart_database": "same",
+    "restart_unix_socket": "same",
+    "restart_remote_listener": "fresh-loopback-port",
+    "writer_generation": 1,
+    "writer_claim_replayed": true
+  },
+  "checks": {
+    "production_daemon_dual_transport_path": true,
+    "real_tls_http_request": true,
+    "valid_bearer_header": true,
+    "authenticated_body_read_active_before_sigterm": true,
+    "cooperative_remote_read_cancellation": true,
+    "hard_connection_deadline_preserved": true,
+    "sigterm_completed_within_budget": true,
+    "application_response_suppressed_after_cancellation": true,
+    "runtime_owner_row_released": true,
+    "unix_socket_released": true,
+    "immediate_same_database_socket_restart": true,
+    "writer_generation_replayed_without_allocation": true,
+    "secret_free_evidence": true
+  }
+}

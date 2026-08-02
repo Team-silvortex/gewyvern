@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_slow_https_cross_transport_fairness",
+  "recorded_at": "2026-08-02T03:27:57Z",
+  "target": {
+    "host": "192.168.124.25",
+    "endpoint": "kyuubiki-lab.local",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "cross_transport_fairness_vertical",
+    "name": "ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves",
+    "observed_duration_ms": 9960,
+    "waves": 3,
+    "authenticated_slow_https_peers_per_wave": 1,
+    "ipc_queries_per_wave": 4,
+    "total_ipc_queries": 12,
+    "remote_read_timeout_ms": 3000,
+    "remote_budget_consumption_floor_ms": 2500,
+    "ipc_query_budget_ms": 5000,
+    "wave_budget_ms": 5000
+  },
+  "slow_https_request": {
+    "transport": "real-tls-http11",
+    "authentication": "valid-bearer-header",
+    "route": "/v1/wire",
+    "declared_content_length": 1,
+    "provided_body_bytes": 0,
+    "response_status": 400,
+    "credential_disclosed": false
+  },
+  "timing": {
+    "ipc_elapsed_ms": [
+      [3042, 3043, 3045, 3046],
+      [3195, 3198, 3199, 3197],
+      [3143, 3145, 3146, 3148]
+    ],
+    "slow_https_elapsed_ms": [3108, 3156, 3119],
+    "wave_elapsed_ms": [3046, 3199, 3148],
+    "maximum_ipc_elapsed_ms": 3199,
+    "maximum_slow_https_elapsed_ms": 3156,
+    "maximum_wave_elapsed_ms": 3199
+  },
+  "maintenance": {
+    "owner_heartbeat_advanced_after_each_wave": true,
+    "owner_token_stable": true
+  },
+  "authority": {
+    "writer_generation": 1,
+    "writer_generation_stable": true
+  },
+  "checks": {
+    "production_daemon_dual_transport_path": true,
+    "real_tls_http_request": true,
+    "valid_bearer_header": true,
+    "incomplete_body_consumed_remote_read_budget": true,
+    "three_repeated_slow_https_waves": true,
+    "four_concurrent_ipc_queries_per_wave": true,
+    "all_twelve_ipc_queries_received_responses": true,
+    "each_ipc_query_completed_within_budget": true,
+    "each_slow_https_peer_failed_within_budget": true,
+    "each_cross_transport_wave_completed_within_budget": true,
+    "no_ipc_starvation": true,
+    "owner_heartbeat_advanced_after_each_wave": true,
+    "writer_generation_stable": true,
+    "secret_free_evidence": true
+  }
+}

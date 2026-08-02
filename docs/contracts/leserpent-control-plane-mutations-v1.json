@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.17.0",
+  "version": "1.20.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -59,6 +59,8 @@
     "repeated-hostile-process-resource-retention-proof",
     "repeated-hostile-wave-burst-reconnect-fairness-proof",
     "maintenance-first-alternating-cross-transport-fairness-proof",
+    "symmetric-slow-https-ipc-maintenance-fairness-proof",
+    "signal-cancellable-https-shutdown-restart-proof",
     "rust-authority-pre-mutation-generation-fence",
     "rust-specialized-local-route-pre-decode-generation-fence",
     "rust-authenticated-https-header-generation-fence"
@@ -267,6 +269,55 @@
         "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#https_and_maintenance_progress_across_repeated_saturated_ipc_waves"
       ],
       "physical_linux_evidence": "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
+    },
+    "slow_https_cross_transport_fairness_proof": {
+      "waves": 3,
+      "authenticated_slow_https_peers_per_wave": 1,
+      "ipc_queries_per_wave": 4,
+      "total_ipc_queries": 12,
+      "remote_read_timeout_ms": 3000,
+      "remote_budget_consumption_floor_ms": 2500,
+      "ipc_query_budget_ms": 5000,
+      "wave_budget_ms": 5000,
+      "remote_request": "valid-bearer-wire-request-declaring-one-body-byte-and-providing-none",
+      "heartbeat": "same-owner-token-lease-expiry-advances-after-each-slow-https-wave",
+      "authority": "writer-generation-1-remains-stable",
+      "postconditions": "all-twelve-ipc-queries-and-maintenance-progress-across-three-full-remote-read-timeout-waves",
+      "local_evidence": "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves",
+      "physical_linux_evidence": "docs/fixtures/leserpent_slow_https_cross_transport_fairness_linux_x86_64_20260802.json"
+    },
+    "slow_https_shutdown_proof": {
+      "active_authenticated_slow_https_peers": 1,
+      "connection_read_poll_interval_ms": 100,
+      "connection_hard_deadline_ms": 3000,
+      "sigterm_budget_ms": 1000,
+      "cancellation": "stop-flag-polled-across-tls-http-head-and-body-reads-before-authority-dispatch-or-response-write",
+      "response": "application-response-suppressed-after-cancellation",
+      "cleanup": "runtime-owner-row-and-unix-socket-released-before-process-exit",
+      "restart": "same-database-and-unix-socket-with-generation-1-replay-on-fresh-loopback-https-port",
+      "local_evidence": "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart",
+      "physical_linux_evidence": "docs/fixtures/leserpent_slow_https_sigterm_linux_x86_64_20260802.json"
+    },
+    "remote_read_phase_shutdown_proof": {
+      "phases": [
+        "incomplete-tls-handshake",
+        "incomplete-authenticated-http-header",
+        "authenticated-incomplete-body"
+      ],
+      "daemon_processes": 4,
+      "physical_repetitions": 3,
+      "connection_read_poll_interval_ms": 100,
+      "connection_hard_deadline_ms": 3000,
+      "sigterm_budget_ms": 1000,
+      "transport_cancellation": "nonblocking-tcp-wrapper-beneath-rustls-absorbs-would-block-and-returns-nonretryable-connection-aborted",
+      "timeout_response": "first-nonblocking-http-error-write-remains-available-after-read-deadline-while-would-block-retries-cannot-extend-it",
+      "baseline_sampling": "two-listener-no-sqlite-journal-transaction-window",
+      "idle_process_baseline": "6-open-fds-and-1-task-across-three-phase-processes-and-final-restart",
+      "active_process_resources": "7-open-fds-and-1-task-during-each-stalled-read",
+      "cleanup": "proc-directory-runtime-owner-row-and-unix-socket-released-after-each-phase",
+      "restart": "same-database-and-unix-socket-with-generation-1-replay-across-all-restarts",
+      "local_evidence": "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines",
+      "physical_linux_evidence": "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
     },
     "remaining_routes": []
   },

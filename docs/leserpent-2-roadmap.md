@@ -1499,9 +1499,30 @@ slice moves maintenance ahead of transport polling and alternates Unix
 IPC-first with HTTPS-first priority. Three physical Linux waves each place one
 authenticated HTTPS runtime-list query beside 64 slow IPC peers. Every HTTPS
 query completes within 2264 ms, every full wave within 2265 ms, owner heartbeat
-advances after every wave, and writer generation 1 remains stable. The next
-boundary proves the symmetric case: valid IPC and maintenance progress under
-repeated slow authenticated HTTPS pressure.
+advances after every wave, and writer generation 1 remains stable. The
+eighteenth slice proves the symmetric case with three real TLS clients that
+send valid bearer-authenticated headers but withhold a declared one-byte body
+for the full 3-second remote read timeout. Twelve concurrent IPC queries all
+complete within 3199 ms, slow HTTPS failures remain within 3156 ms, maintenance
+advances after every wave, and generation remains 1. The nineteenth slice gives
+TLS, HTTP-head, and body reads a shared 3-second monotonic deadline with 100 ms
+stop polling, then rechecks cancellation before authority dispatch and response
+write. Physical Linux `SIGTERM` during an authenticated incomplete body exits
+in 10 ms, suppresses the application response, releases owner/socket state, and
+immediately restarts with generation 1 replayed. The twentieth slice repeats
+that proof across incomplete TLS-handshake, authenticated HTTP-header, and
+authenticated-body reads. Four consecutive Linux processes retain an identical
+6-FD/1-task idle baseline outside SQLite journal windows; each active phase adds
+one FD and no task. A nonblocking TCP cancellation wrapper below rustls absorbs
+`WouldBlock` and reports non-retryable `ConnectionAborted`, avoiding the
+standard `Interrupted` retry loop. Three consecutive physical runs keep all
+phase exits within 104-115 ms, remove proc/owner/socket state, and replay
+generation 1 on the next same-state process. Read timeout errors retain one
+immediate HTTP response attempt, while a blocked write cannot outlive the shared
+deadline. Parallel lifecycle fixtures use a process-local atomic suffix rather
+than relying on clock uniqueness. The next boundary applies mixed stalled
+phases through the listener backlog while bounding resources and preventing
+authority allocation.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

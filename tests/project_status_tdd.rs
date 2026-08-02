@@ -144,7 +144,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.17.0");
+    assert_eq!(inventory["version"], "1.20.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -309,6 +309,73 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
     assert_eq!(
         cross_transport["physical_linux_evidence"],
         "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
+    );
+    let slow_https = &writer_fence["slow_https_cross_transport_fairness_proof"];
+    assert_eq!(slow_https["waves"], 3);
+    assert_eq!(slow_https["authenticated_slow_https_peers_per_wave"], 1);
+    assert_eq!(slow_https["ipc_queries_per_wave"], 4);
+    assert_eq!(slow_https["total_ipc_queries"], 12);
+    assert_eq!(slow_https["remote_read_timeout_ms"], 3_000);
+    assert_eq!(slow_https["remote_budget_consumption_floor_ms"], 2_500);
+    assert_eq!(slow_https["ipc_query_budget_ms"], 5_000);
+    assert_eq!(slow_https["wave_budget_ms"], 5_000);
+    assert_eq!(
+        slow_https["local_evidence"],
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves"
+    );
+    assert_eq!(
+        slow_https["physical_linux_evidence"],
+        "docs/fixtures/leserpent_slow_https_cross_transport_fairness_linux_x86_64_20260802.json"
+    );
+    let slow_https_shutdown = &writer_fence["slow_https_shutdown_proof"];
+    assert_eq!(
+        slow_https_shutdown["active_authenticated_slow_https_peers"],
+        1
+    );
+    assert_eq!(slow_https_shutdown["connection_read_poll_interval_ms"], 100);
+    assert_eq!(slow_https_shutdown["connection_hard_deadline_ms"], 3_000);
+    assert_eq!(slow_https_shutdown["sigterm_budget_ms"], 1_000);
+    assert_eq!(
+        slow_https_shutdown["local_evidence"],
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart"
+    );
+    assert_eq!(
+        slow_https_shutdown["physical_linux_evidence"],
+        "docs/fixtures/leserpent_slow_https_sigterm_linux_x86_64_20260802.json"
+    );
+    let phase_shutdown = &writer_fence["remote_read_phase_shutdown_proof"];
+    assert_eq!(
+        phase_shutdown["phases"],
+        json!([
+            "incomplete-tls-handshake",
+            "incomplete-authenticated-http-header",
+            "authenticated-incomplete-body"
+        ])
+    );
+    assert_eq!(phase_shutdown["daemon_processes"], 4);
+    assert_eq!(phase_shutdown["physical_repetitions"], 3);
+    assert_eq!(phase_shutdown["connection_read_poll_interval_ms"], 100);
+    assert_eq!(phase_shutdown["connection_hard_deadline_ms"], 3_000);
+    assert_eq!(phase_shutdown["sigterm_budget_ms"], 1_000);
+    assert!(
+        phase_shutdown["transport_cancellation"]
+            .as_str()
+            .unwrap()
+            .contains("nonretryable-connection-aborted")
+    );
+    assert!(
+        phase_shutdown["timeout_response"]
+            .as_str()
+            .unwrap()
+            .contains("first-nonblocking-http-error-write")
+    );
+    assert_eq!(
+        phase_shutdown["local_evidence"],
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines"
+    );
+    assert_eq!(
+        phase_shutdown["physical_linux_evidence"],
+        "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
     );
 }
 
@@ -722,6 +789,7 @@ fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
         "const RECONNECT_FAIRNESS_WAVES: usize = 3;",
         "const RECONNECTS_PER_FAIRNESS_WAVE: usize = 4;",
         "const SLOW_PEERS_PER_RECONNECT_GROUP: usize = 15;",
+        "const RECONNECT_FAIRNESS_BUDGET: Duration = Duration::from_secs(5);",
         "fn repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm()",
         "fn repeated_hostile_shutdown_restart_cycles_bound_process_resources()",
         "fn burst_reconnects_remain_fair_across_repeated_saturated_hostile_waves()",
@@ -777,6 +845,30 @@ fn local_cross_transport_fairness_contract_is_non_vacuous() {
         );
     }
 
+    let remote = std::fs::read_to_string(repository_root().join("crates/leserpentd/src/remote.rs"))
+        .expect("remote transport source must exist");
+    for contract in [
+        "const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);",
+        "const CONNECTION_READ_POLL_INTERVAL: Duration = Duration::from_millis(100);",
+        "struct CancellableTransport",
+        "if self.cancelled.load(Ordering::Acquire)",
+        "if Instant::now() >= self.deadline",
+        "std::io::ErrorKind::ConnectionAborted",
+        "fn cancelled_transport_uses_a_nonretryable_error_kind()",
+        "std::thread::sleep(CONNECTION_READ_POLL_INTERVAL)",
+        "pub fn poll_once_until(",
+        "if cancelled.load(Ordering::Acquire)",
+        "remote request cancelled",
+        ".set_nonblocking(true)",
+        "stream.sock.into_inner()",
+    ] {
+        assert!(
+            remote.contains(contract),
+            "missing cancellable remote-read contract {contract}"
+        );
+    }
+    assert!(main.matches("remote.poll_once_until(").count() >= 2);
+
     let vertical = std::fs::read_to_string(
         repository_root().join("crates/leserpentd/tests/cross_transport_fairness_vertical.rs"),
     )
@@ -784,11 +876,37 @@ fn local_cross_transport_fairness_contract_is_non_vacuous() {
     for contract in [
         "const FAIRNESS_WAVES: usize = 3;",
         "const SLOW_IPC_PEERS_PER_WAVE: usize = 64;",
+        "const SLOW_HTTPS_FAIRNESS_WAVES: usize = 3;",
+        "const IPC_QUERIES_PER_SLOW_HTTPS_WAVE: usize = 4;",
+        "const REMOTE_READ_SHUTDOWN_PHASES: usize = 3;",
+        "static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);",
+        "NEXT_TEMP_ROOT.fetch_add(1, Ordering::Relaxed)",
+        "enum RemoteReadPhase",
+        "TlsHandshake",
+        "HttpHeader",
+        "AuthenticatedBody",
+        "struct ProcessResources",
+        "fn wait_for_idle_process_resources(",
+        "fn wait_for_stalled_remote_resource(",
+        "target.contains(\"=socket:[\")",
+        "target.ends_with(\"-journal\")",
         "--remote-listen",
         "fn spawn_https_query(",
+        "fn spawn_authenticated_slow_https(",
         "Authorization: Bearer {TOKEN}",
+        "Content-Length: 1\\r\\n\\r\\n",
         "Query::RuntimeList",
         "fn https_and_maintenance_progress_across_repeated_saturated_ipc_waves()",
+        "fn ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves()",
+        "fn sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart()",
+        "fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines()",
+        "daemon.stop_with_budget(Duration::from_secs(1))",
+        "application_response_suppressed=true immediate_restart=true generation=1",
+        "stable_fd_task_baselines=true proc_released_each_phase=true",
+        "phases.map(RemoteReadPhase::label)",
+        "let readiness_fence = send_ipc(&socket, &runtime_list_query());",
+        "slow HTTPS peer did not consume the remote read budget",
+        "total_ipc_queries={}",
         "maintenance_heartbeat_advanced_each_wave=true final_generation=1",
     ] {
         assert!(
@@ -1047,6 +1165,221 @@ fn retained_linux_cross_transport_fairness_proof_is_non_vacuous() {
         "no_https_starvation",
         "owner_heartbeat_advanced_after_each_wave",
         "writer_generation_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_slow_https_cross_transport_fairness_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_slow_https_cross_transport_fairness_linux_x86_64_20260802.json",
+        ))
+        .expect("slow HTTPS cross-transport Linux evidence must exist"),
+    )
+    .expect("slow HTTPS cross-transport Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.25");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["test"]["name"],
+        "ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves"
+    );
+    assert_eq!(evidence["test"]["waves"], 3);
+    assert_eq!(evidence["test"]["ipc_queries_per_wave"], 4);
+    assert_eq!(evidence["test"]["total_ipc_queries"], 12);
+    assert_eq!(evidence["test"]["remote_read_timeout_ms"], 3_000);
+    assert_eq!(evidence["slow_https_request"]["declared_content_length"], 1);
+    assert_eq!(evidence["slow_https_request"]["provided_body_bytes"], 0);
+    assert_eq!(evidence["slow_https_request"]["response_status"], 400);
+    assert_eq!(
+        evidence["timing"]["ipc_elapsed_ms"],
+        json!([
+            [3_042, 3_043, 3_045, 3_046],
+            [3_195, 3_198, 3_199, 3_197],
+            [3_143, 3_145, 3_146, 3_148]
+        ])
+    );
+    assert_eq!(
+        evidence["timing"]["slow_https_elapsed_ms"],
+        json!([3_108, 3_156, 3_119])
+    );
+    assert_eq!(
+        evidence["timing"]["wave_elapsed_ms"],
+        json!([3_046, 3_199, 3_148])
+    );
+    assert_eq!(evidence["authority"]["writer_generation"], 1);
+    for check in [
+        "production_daemon_dual_transport_path",
+        "real_tls_http_request",
+        "valid_bearer_header",
+        "incomplete_body_consumed_remote_read_budget",
+        "three_repeated_slow_https_waves",
+        "four_concurrent_ipc_queries_per_wave",
+        "all_twelve_ipc_queries_received_responses",
+        "each_ipc_query_completed_within_budget",
+        "each_slow_https_peer_failed_within_budget",
+        "each_cross_transport_wave_completed_within_budget",
+        "no_ipc_starvation",
+        "owner_heartbeat_advanced_after_each_wave",
+        "writer_generation_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_slow_https_sigterm_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root()
+                .join("docs/fixtures/leserpent_slow_https_sigterm_linux_x86_64_20260802.json"),
+        )
+        .expect("slow HTTPS SIGTERM Linux evidence must exist"),
+    )
+    .expect("slow HTTPS SIGTERM Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.25");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["test"]["name"],
+        "sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart"
+    );
+    assert_eq!(evidence["test"]["connection_read_poll_interval_ms"], 100);
+    assert_eq!(evidence["test"]["connection_hard_deadline_ms"], 3_000);
+    assert_eq!(evidence["test"]["sigterm_budget_ms"], 1_000);
+    assert_eq!(evidence["test"]["observed_shutdown_ms"], 10);
+    assert_eq!(
+        evidence["slow_https_request"]["application_response_suppressed"],
+        true
+    );
+    assert_eq!(evidence["recovery"]["restart_database"], "same");
+    assert_eq!(evidence["recovery"]["restart_unix_socket"], "same");
+    assert_eq!(evidence["recovery"]["writer_generation"], 1);
+    assert_eq!(evidence["recovery"]["writer_claim_replayed"], true);
+    for check in [
+        "production_daemon_dual_transport_path",
+        "real_tls_http_request",
+        "valid_bearer_header",
+        "authenticated_body_read_active_before_sigterm",
+        "cooperative_remote_read_cancellation",
+        "hard_connection_deadline_preserved",
+        "sigterm_completed_within_budget",
+        "application_response_suppressed_after_cancellation",
+        "runtime_owner_row_released",
+        "unix_socket_released",
+        "immediate_same_database_socket_restart",
+        "writer_generation_replayed_without_allocation",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_remote_read_phase_shutdown_proof_is_non_vacuous() {
+    let evidence: serde_json::Value =
+        serde_json::from_str(
+            &std::fs::read_to_string(repository_root().join(
+                "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json",
+            ))
+            .expect("remote read phase shutdown Linux evidence must exist"),
+        )
+        .expect("remote read phase shutdown Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.25");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["test"]["name"],
+        "repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines"
+    );
+    assert_eq!(evidence["test"]["remote_read_phases"], 3);
+    assert_eq!(evidence["test"]["daemon_processes"], 4);
+    assert_eq!(evidence["test"]["physical_repetitions"], 3);
+    assert_eq!(evidence["test"]["connection_read_poll_interval_ms"], 100);
+    assert_eq!(evidence["test"]["connection_hard_deadline_ms"], 3_000);
+    assert_eq!(evidence["test"]["sigterm_budget_ms"], 1_000);
+    assert_eq!(
+        evidence["phases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|phase| phase["name"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["tls-handshake", "http-header", "authenticated-body"]
+    );
+    assert_eq!(
+        evidence["phases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|phase| phase["observed_shutdown_ms"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        vec![104, 115, 110]
+    );
+    assert_eq!(
+        evidence["timing"]["shutdown_runs_ms"],
+        json!([[115, 110, 114], [113, 110, 104], [104, 115, 110]])
+    );
+    assert_eq!(evidence["timing"]["observed_minimum_ms"], 104);
+    assert_eq!(evidence["timing"]["observed_maximum_ms"], 115);
+    assert_eq!(
+        evidence["final_full_group_confirmation"]["phase_shutdown_ms"],
+        json!([112, 114, 105])
+    );
+    assert_eq!(
+        evidence["final_full_group_confirmation"]["slow_https_timeout_response"],
+        "http-400"
+    );
+    assert_eq!(
+        evidence["process_resources"]["idle_open_fds"],
+        json!([6, 6, 6, 6])
+    );
+    assert_eq!(
+        evidence["process_resources"]["idle_tasks"],
+        json!([1, 1, 1, 1])
+    );
+    assert_eq!(
+        evidence["process_resources"]["active_open_fds"],
+        json!([7, 7, 7])
+    );
+    assert_eq!(
+        evidence["process_resources"]["active_tasks"],
+        json!([1, 1, 1])
+    );
+    assert_eq!(evidence["process_resources"]["connection_fd_delta"], 1);
+    assert_eq!(evidence["process_resources"]["task_delta"], 0);
+    assert_eq!(evidence["recovery"]["writer_generation"], 1);
+    assert_eq!(
+        evidence["recovery"]["writer_claim_replayed_across_restarts"],
+        true
+    );
+    for check in [
+        "production_daemon_dual_transport_path",
+        "incomplete_tls_handshake_read_active_before_sigterm",
+        "incomplete_authenticated_http_header_read_active_before_sigterm",
+        "authenticated_body_read_active_before_sigterm",
+        "cancellation_wrapper_below_rustls",
+        "would_block_absorbed_before_rustls",
+        "nonretryable_connection_aborted_cancellation",
+        "all_phase_shutdowns_completed_within_budget",
+        "three_consecutive_physical_runs_completed",
+        "final_production_cross_transport_group_passed",
+        "application_response_suppressed_after_each_cancellation",
+        "stable_idle_fd_baseline_across_four_processes",
+        "one_active_connection_fd_per_phase",
+        "no_task_amplification_per_phase",
+        "proc_directory_released_after_each_phase",
+        "runtime_owner_row_released_after_each_phase",
+        "unix_socket_released_after_each_phase",
+        "immediate_same_database_socket_restart_after_each_phase",
+        "writer_generation_replayed_without_allocation",
         "secret_free_evidence",
     ] {
         assert_eq!(evidence["checks"][check], true, "missing check {check}");
@@ -3141,6 +3474,39 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "owner-heartbeat-under-cross-transport-load",
         "stable-writer-generation-under-cross-transport-load",
         "physical-linux-cross-transport-fairness-proof",
+        "authenticated-slow-https-body-timeout",
+        "three-slow-https-cross-transport-waves",
+        "four-concurrent-ipc-queries-per-wave",
+        "twelve-bounded-ipc-queries-under-https-pressure",
+        "owner-heartbeat-under-slow-https-pressure",
+        "stable-writer-generation-under-slow-https-pressure",
+        "physical-linux-symmetric-cross-transport-fairness-proof",
+        "hard-total-tls-http-read-deadline",
+        "signal-cancellable-remote-request-read",
+        "100ms-remote-read-stop-poll",
+        "pre-authority-cancellation-fence",
+        "cancelled-response-suppression",
+        "bounded-sigterm-under-authenticated-slow-https",
+        "remote-owner-socket-release",
+        "immediate-post-https-cancellation-restart",
+        "physical-linux-slow-https-sigterm-proof",
+        "repeated-remote-read-phase-shutdown",
+        "incomplete-tls-handshake-cancellation",
+        "incomplete-http-header-cancellation",
+        "authenticated-body-cancellation-cycle",
+        "stable-remote-idle-fd-task-baseline",
+        "single-remote-connection-fd-accounting",
+        "zero-remote-task-amplification",
+        "per-phase-proc-owner-socket-release",
+        "immediate-cross-phase-restart",
+        "physical-linux-remote-read-phase-resource-proof",
+        "nonblocking-tcp-rustls-underlay",
+        "wouldblock-absorbed-before-rustls",
+        "nonretryable-connection-aborted-cancellation",
+        "sqlite-journal-aware-idle-baseline",
+        "three-run-physical-phase-stability",
+        "post-read-deadline-immediate-http-error",
+        "collision-free-parallel-lifecycle-fixtures",
     ] {
         assert!(
             runtime
@@ -3219,14 +3585,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
-    assert!(runtime.next_gate.contains("slow authenticated HTTPS"));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_slow_https_cross_transport_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_slow_https_sigterm_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.next_gate.contains("mixed incomplete TLS"));
 
     let daemon_lifecycle = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.14.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.17.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -3284,6 +3663,39 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "owner-heartbeat-under-cross-transport-load",
         "stable-writer-generation-under-cross-transport-load",
         "physical-linux-cross-transport-fairness-proof",
+        "authenticated-slow-https-body-timeout",
+        "three-slow-https-cross-transport-waves",
+        "four-concurrent-ipc-queries-per-wave",
+        "twelve-bounded-ipc-queries-under-https-pressure",
+        "owner-heartbeat-under-slow-https-pressure",
+        "stable-writer-generation-under-slow-https-pressure",
+        "physical-linux-symmetric-cross-transport-fairness-proof",
+        "hard-total-tls-http-read-deadline",
+        "signal-cancellable-remote-request-read",
+        "100ms-remote-read-stop-poll",
+        "pre-authority-cancellation-fence",
+        "cancelled-response-suppression",
+        "bounded-sigterm-under-authenticated-slow-https",
+        "remote-owner-socket-release",
+        "immediate-post-https-cancellation-restart",
+        "physical-linux-slow-https-sigterm-proof",
+        "repeated-remote-read-phase-shutdown",
+        "incomplete-tls-handshake-cancellation",
+        "incomplete-http-header-cancellation",
+        "authenticated-body-cancellation-cycle",
+        "stable-remote-idle-fd-task-baseline",
+        "single-remote-connection-fd-accounting",
+        "zero-remote-task-amplification",
+        "per-phase-proc-owner-socket-release",
+        "immediate-cross-phase-restart",
+        "physical-linux-remote-read-phase-resource-proof",
+        "nonblocking-tcp-rustls-underlay",
+        "wouldblock-absorbed-before-rustls",
+        "nonretryable-connection-aborted-cancellation",
+        "sqlite-journal-aware-idle-baseline",
+        "three-run-physical-phase-stability",
+        "post-read-deadline-immediate-http-error",
+        "collision-free-parallel-lifecycle-fixtures",
     ] {
         assert!(
             daemon_lifecycle
@@ -3345,18 +3757,27 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
-    assert!(
-        daemon_lifecycle
-            .next_gate
-            .contains("slow authenticated HTTPS")
-    );
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_slow_https_cross_transport_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_slow_https_sigterm_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.next_gate.contains("mixed incomplete TLS"));
 
     let compatibility_control = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.42.0");
+    assert_eq!(compatibility_control.contract.version, "1.45.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -3749,6 +4170,39 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "owner-heartbeat-under-cross-transport-load",
         "stable-writer-generation-under-cross-transport-load",
         "physical-linux-cross-transport-fairness-proof",
+        "authenticated-slow-https-body-timeout",
+        "three-slow-https-cross-transport-waves",
+        "four-concurrent-ipc-queries-per-wave",
+        "twelve-bounded-ipc-queries-under-https-pressure",
+        "owner-heartbeat-under-slow-https-pressure",
+        "stable-writer-generation-under-slow-https-pressure",
+        "physical-linux-symmetric-cross-transport-fairness-proof",
+        "hard-total-tls-http-read-deadline",
+        "signal-cancellable-remote-request-read",
+        "100ms-remote-read-stop-poll",
+        "pre-authority-cancellation-fence",
+        "cancelled-response-suppression",
+        "bounded-sigterm-under-authenticated-slow-https",
+        "remote-owner-socket-release",
+        "immediate-post-https-cancellation-restart",
+        "physical-linux-slow-https-sigterm-proof",
+        "repeated-remote-read-phase-shutdown",
+        "incomplete-tls-handshake-cancellation",
+        "incomplete-http-header-cancellation",
+        "authenticated-body-cancellation-cycle",
+        "stable-remote-idle-fd-task-baseline",
+        "single-remote-connection-fd-accounting",
+        "zero-remote-task-amplification",
+        "per-phase-proc-owner-socket-release",
+        "immediate-cross-phase-restart",
+        "physical-linux-remote-read-phase-resource-proof",
+        "nonblocking-tcp-rustls-underlay",
+        "wouldblock-absorbed-before-rustls",
+        "nonretryable-connection-aborted-cancellation",
+        "sqlite-journal-aware-idle-baseline",
+        "three-run-physical-phase-stability",
+        "post-read-deadline-immediate-http-error",
+        "collision-free-parallel-lifecycle-fixtures",
     ] {
         assert!(
             compatibility_control
@@ -3759,11 +4213,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.42.0");
+    assert_eq!(compatibility_control.contract.version, "1.45.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("slow authenticated HTTPS")
+            .contains("mixed incomplete TLS")
     );
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
@@ -3830,6 +4284,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "docs/fixtures/leserpent_cross_transport_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_slow_https_cross_transport_fairness_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_slow_https_sigterm_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
 

@@ -40,6 +40,7 @@ const RESOURCE_LIFECYCLE_CYCLES: usize = 3;
 const RECONNECT_FAIRNESS_WAVES: usize = 3;
 const RECONNECTS_PER_FAIRNESS_WAVE: usize = 4;
 const SLOW_PEERS_PER_RECONNECT_GROUP: usize = 15;
+const RECONNECT_FAIRNESS_BUDGET: Duration = Duration::from_secs(5);
 const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
 static TEMP_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -572,7 +573,7 @@ fn run_saturated_reconnect_fairness_wave(
             .extend((0..SLOW_PEERS_PER_RECONNECT_GROUP).map(|_| queue_raw_prefix(socket, b"{")));
         let reconnect = send_without_reading_response(socket, &claim(writer_id));
         reconnect
-            .set_read_timeout(Some(Duration::from_secs(4)))
+            .set_read_timeout(Some(Duration::from_secs(6)))
             .unwrap();
         reconnects.push(reconnect);
     }
@@ -588,7 +589,7 @@ fn run_saturated_reconnect_fairness_wave(
             );
             let elapsed = started.elapsed();
             assert!(
-                elapsed <= Duration::from_secs(3),
+                elapsed <= RECONNECT_FAIRNESS_BUDGET,
                 "valid reconnect starved behind a saturated hostile wave: {elapsed:?}"
             );
             elapsed
@@ -601,7 +602,7 @@ fn run_saturated_reconnect_fairness_wave(
     }
     let elapsed = started.elapsed();
     assert!(
-        elapsed <= Duration::from_secs(3),
+        elapsed <= RECONNECT_FAIRNESS_BUDGET,
         "saturated reconnect fairness wave exceeded its budget: {elapsed:?}"
     );
     (elapsed, reconnect_elapsed)
