@@ -544,6 +544,23 @@ socket, and preserve generation 1 replay across every same-state restart.
 An immediately writable HTTP error remains available when the read deadline
 expires; only a blocked response retry is prevented from extending that deadline.
 
+Contract `1.21.0` proves listener-backlog pressure cannot amplify daemon
+resources or allocate authority. Each TLS, HTTP-header, and authenticated-body
+read phase is held active while 64 additional incomplete TLS peers remain
+queued behind it. Physical Linux retains 6 FDs/1 task while idle and exactly
+7 FDs/1 task both before and after backlog admission; all three `SIGTERM`
+cycles finish within 93-110 ms, emit no application response, and release the
+proc entry, owner row, and Unix socket. A fourth same-state process immediately
+restarts with writer generation 1 replayed, never newly allocated.
+
+Contract `1.22.0` exercises the complete 32-session authenticated WebSocket
+event capacity beside one authenticated stalled HTTP-body read. Physical Linux
+observes 6 FDs/1 task at idle, 38 FDs/1 task with all event sessions, and
+39 FDs/1 task with the stalled request. `SIGTERM` completes in 111 ms, emits no
+late application event or stalled response, closes every event socket, releases
+proc/owner/socket state, and immediately restarts at 6 FDs/1 task with writer
+generation 1 replayed. No wire or event-envelope shape changes.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

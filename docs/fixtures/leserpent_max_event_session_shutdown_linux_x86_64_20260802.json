@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_max_event_session_shutdown",
+  "recorded_at": "2026-08-02T05:32:59Z",
+  "target": {
+    "host": "192.168.124.25",
+    "endpoint": "kyuubiki-lab.local",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "cross_transport_fairness_vertical",
+    "name": "maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_resources",
+    "observed_duration_ms": 8040,
+    "authenticated_event_sessions": 32,
+    "active_stalled_requests": 1,
+    "daemon_processes": 2,
+    "connection_read_poll_interval_ms": 100,
+    "connection_hard_deadline_ms": 3000,
+    "sigterm_budget_ms": 1000
+  },
+  "event_sessions": {
+    "transport": "tls-websocket",
+    "route": "/v1/events",
+    "subprotocol": "leserpent.events.v1",
+    "bearer_authenticated": true,
+    "initial_event": "runtime-snapshot",
+    "initial_events_consumed": 32,
+    "queued_application_events_drained_before_sigterm": 0,
+    "application_events_after_sigterm": 0,
+    "all_sessions_closed_after_sigterm": true
+  },
+  "stalled_request": {
+    "read_window": "authenticated-declared-one-byte-body-with-zero-bytes-provided",
+    "application_response_suppressed": true
+  },
+  "timing": {
+    "observed_shutdown_ms": 111,
+    "sigterm_budget_ms": 1000
+  },
+  "process_resources": {
+    "idle_open_fds": 6,
+    "idle_tasks": 1,
+    "maximum_event_session_open_fds": 38,
+    "maximum_event_session_tasks": 1,
+    "event_session_fd_delta": 32,
+    "event_session_task_delta": 0,
+    "event_sessions_plus_stalled_request_open_fds": 39,
+    "event_sessions_plus_stalled_request_tasks": 1,
+    "stalled_request_fd_delta": 1,
+    "restart_idle_open_fds": 6,
+    "restart_idle_tasks": 1,
+    "proc_directory_released_after_shutdown": true
+  },
+  "recovery": {
+    "runtime_owner_row_released": true,
+    "unix_socket_released": true,
+    "restart_database": "same",
+    "restart_unix_socket": "same",
+    "restart_remote_listener": "fresh-loopback-port",
+    "writer_generation_before_sessions": 1,
+    "writer_generation_during_saturation": 1,
+    "writer_generation_after_restart": 1,
+    "writer_claim_replayed_after_restart": true
+  },
+  "checks": {
+    "production_daemon_dual_transport_path": true,
+    "maximum_32_authenticated_event_sessions_established": true,
+    "all_initial_runtime_snapshots_consumed": true,
+    "pre_sigterm_application_event_queue_drained": true,
+    "exact_one_fd_per_event_session": true,
+    "zero_task_amplification_at_maximum_sessions": true,
+    "stalled_request_added_exactly_one_fd": true,
+    "stalled_request_added_zero_tasks": true,
+    "sigterm_completed_within_budget": true,
+    "stalled_application_response_suppressed": true,
+    "late_application_events_suppressed": true,
+    "all_event_sessions_closed_after_sigterm": true,
+    "proc_directory_released": true,
+    "runtime_owner_row_released": true,
+    "unix_socket_released": true,
+    "immediate_same_database_socket_restart": true,
+    "restart_returned_to_idle_resource_baseline": true,
+    "zero_authority_generation_allocation": true,
+    "writer_generation_replayed_without_allocation": true,
+    "secret_free_evidence": true
+  }
+}

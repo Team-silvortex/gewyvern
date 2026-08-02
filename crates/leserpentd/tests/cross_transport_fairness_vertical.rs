@@ -18,14 +18,19 @@ use leserpent_domain::{
     RuntimeListFilter,
 };
 use leserpent_protocol::{
-    AuthorityWriterClaimRequest, CAPABILITY_AUTHORITY_WRITER, PROTOCOL_SCHEMA_VERSION,
-    ProtocolRequest, ProtocolResponse, RequestEnvelope, ResponseEnvelope, decode_response,
-    encode_request,
+    AuthorityWriterClaimRequest, CAPABILITY_AUTHORITY_WRITER, MAX_PROTOCOL_MESSAGE_BYTES,
+    PROTOCOL_SCHEMA_VERSION, ProtocolEvent, ProtocolRequest, ProtocolResponse, RequestEnvelope,
+    ResponseEnvelope, decode_event, decode_response, encode_request,
 };
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 use rusqlite::Connection;
 use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use tungstenite::WebSocket;
+use tungstenite::client::{IntoClientRequest, client_with_config};
+use tungstenite::error::Error as WebSocketError;
+use tungstenite::http::HeaderValue;
+use tungstenite::protocol::{Message, WebSocketConfig};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 const WRITER_ID: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -34,8 +39,11 @@ const SLOW_IPC_PEERS_PER_WAVE: usize = 64;
 const SLOW_HTTPS_FAIRNESS_WAVES: usize = 3;
 const IPC_QUERIES_PER_SLOW_HTTPS_WAVE: usize = 4;
 const REMOTE_READ_SHUTDOWN_PHASES: usize = 3;
+const REMOTE_BACKLOG_PEERS_PER_PHASE: usize = 64;
+const MAXIMUM_EVENT_SESSIONS: usize = 32;
 type StalledRemoteAttempt = (Duration, std::io::Result<Vec<u8>>);
 type StalledRemoteTask = thread::JoinHandle<StalledRemoteAttempt>;
+type EventClient = WebSocket<StreamOwned<ClientConnection, TcpStream>>;
 static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug)]
@@ -281,6 +289,28 @@ fn wait_for_stalled_remote_resource(
     }
 }
 
+fn wait_for_event_session_resources(
+    pid: u32,
+    baseline: Option<ProcessResources>,
+) -> Option<ProcessResources> {
+    let baseline = baseline?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let current = inspect_process_resources(pid).unwrap();
+        if current.open_fds == baseline.open_fds + MAXIMUM_EVENT_SESSIONS
+            && current.tasks == baseline.tasks
+        {
+            return Some(current);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "maximum event sessions did not expose {MAXIMUM_EVENT_SESSIONS} connection FDs without task growth above {baseline:?}: {current:?}, fd_targets={:?}",
+            inspect_process_fd_targets(pid)
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 fn assert_process_resources_released(pid: u32) {
     #[cfg(target_os = "linux")]
     assert!(
@@ -417,6 +447,108 @@ fn connect_https(
     StreamOwned::new(connection, socket)
 }
 
+fn connect_event_session(address: SocketAddr, certificate: CertificateDer<'static>) -> EventClient {
+    let mut roots = RootCertStore::empty();
+    roots.add(certificate).unwrap();
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let mut config = ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    let connection =
+        ClientConnection::new(Arc::new(config), ServerName::try_from("localhost").unwrap())
+            .unwrap();
+    let socket = TcpStream::connect(address).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    socket
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let stream = StreamOwned::new(connection, socket);
+    let mut request = format!("wss://localhost:{}/v1/events", address.port())
+        .into_client_request()
+        .unwrap();
+    request.headers_mut().insert(
+        "Authorization",
+        HeaderValue::from_str(&format!("Bearer {TOKEN}")).unwrap(),
+    );
+    request.headers_mut().insert(
+        "Sec-WebSocket-Protocol",
+        HeaderValue::from_static("leserpent.events.v1"),
+    );
+    let websocket_config = WebSocketConfig::default()
+        .max_message_size(Some(MAX_PROTOCOL_MESSAGE_BYTES))
+        .max_frame_size(Some(MAX_PROTOCOL_MESSAGE_BYTES));
+    let (mut websocket, response) =
+        client_with_config(request, stream, Some(websocket_config)).unwrap();
+    assert_eq!(response.status(), 101);
+    assert_eq!(
+        response.headers().get("Sec-WebSocket-Protocol").unwrap(),
+        "leserpent.events.v1"
+    );
+    let initial = websocket.read().unwrap();
+    let event = decode_event(&initial.into_data()).unwrap();
+    assert!(matches!(
+        event.event,
+        ProtocolEvent::RuntimeSnapshot {
+            resumed_after: None,
+            ref runtimes,
+            ..
+        } if runtimes.is_empty()
+    ));
+    websocket
+}
+
+fn assert_event_session_closed_without_application_event(websocket: &mut EventClient) {
+    for _ in 0..8 {
+        match websocket.read() {
+            Ok(Message::Text(_) | Message::Binary(_)) => {
+                panic!("event session received an application event after daemon shutdown")
+            }
+            Ok(Message::Close(_)) => return,
+            Ok(Message::Ping(_) | Message::Pong(_) | Message::Frame(_)) => {}
+            Err(WebSocketError::Io(error))
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                panic!("event session remained open after daemon shutdown")
+            }
+            Err(_) => return,
+        }
+    }
+    panic!("event session did not close after daemon shutdown");
+}
+
+fn drain_event_session_before_shutdown(websocket: &mut EventClient) -> usize {
+    websocket.get_mut().sock.set_nonblocking(true).unwrap();
+    let mut drained = 0;
+    loop {
+        match websocket.read() {
+            Ok(Message::Text(payload)) => {
+                decode_event(payload.as_bytes()).unwrap();
+                drained += 1;
+            }
+            Ok(Message::Binary(payload)) => {
+                decode_event(&payload).unwrap();
+                drained += 1;
+            }
+            Ok(Message::Ping(_) | Message::Pong(_) | Message::Frame(_)) => {}
+            Ok(Message::Close(_)) => panic!("event session closed before daemon shutdown"),
+            Err(WebSocketError::Io(error)) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                break;
+            }
+            Err(error) => panic!("event session failed before daemon shutdown: {error}"),
+        }
+    }
+    websocket.get_mut().sock.set_nonblocking(false).unwrap();
+    drained
+}
+
 fn spawn_https_query(
     address: SocketAddr,
     certificate: CertificateDer<'static>,
@@ -497,6 +629,19 @@ fn spawn_authenticated_slow_https(
     spawn_stalled_remote_read(address, certificate, RemoteReadPhase::AuthenticatedBody)
 }
 
+fn queue_incomplete_tls_backlog_peer(address: SocketAddr) -> TcpStream {
+    let mut stream = TcpStream::connect(address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    stream.write_all(&[0x16, 0x03, 0x03]).unwrap();
+    stream.flush().unwrap();
+    stream
+}
+
 fn spawn_ipc_query(socket: PathBuf) -> thread::JoinHandle<(Duration, ResponseEnvelope)> {
     thread::spawn(move || {
         let started = Instant::now();
@@ -537,6 +682,35 @@ fn runtime_owner_count(database: &Path) -> i64 {
         .unwrap()
         .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| row.get(0))
         .unwrap()
+}
+
+fn authority_writer_generation(database: &Path) -> i64 {
+    Connection::open(database)
+        .unwrap()
+        .query_row(
+            "SELECT generation FROM authority_writer_fence WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+fn sample_unchanged_process_resources(
+    pid: u32,
+    expected: Option<ProcessResources>,
+) -> Option<ProcessResources> {
+    let expected = expected?;
+    for _ in 0..4 {
+        thread::sleep(Duration::from_millis(25));
+        let current = inspect_process_resources(pid).unwrap();
+        assert_eq!(
+            current,
+            expected,
+            "listener backlog changed daemon resources above {expected:?}: fd_targets={:?}",
+            inspect_process_fd_targets(pid)
+        );
+    }
+    Some(expected)
 }
 
 #[test]
@@ -996,6 +1170,343 @@ fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines() {
     );
     assert!(restart_elapsed < Duration::from_secs(1));
     assert_eq!(runtime_owner_count(&database), 0);
+    assert!(!socket.exists());
+    assert_process_resources_released(restart_pid);
+}
+
+#[test]
+fn mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_authority() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("remote-backlog-shutdown.sqlite");
+    let socket = root.0.join("remote-backlog-shutdown.sock");
+    let certificate_path = root.0.join("remote-backlog-shutdown.crt");
+    let private_key_path = root.0.join("remote-backlog-shutdown.key");
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    fs::write(&certificate_path, cert.pem()).unwrap();
+    fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
+    fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let phases = [
+        RemoteReadPhase::TlsHandshake,
+        RemoteReadPhase::HttpHeader,
+        RemoteReadPhase::AuthenticatedBody,
+    ];
+    let mut shutdown_elapsed = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES);
+    let mut baseline_resources = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES + 1);
+    let mut active_resources = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES);
+    let mut backlog_resources = Vec::with_capacity(REMOTE_READ_SHUTDOWN_PHASES);
+
+    for (cycle, phase) in phases.into_iter().enumerate() {
+        let address = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let daemon = DaemonProcess::spawn(
+            &binary,
+            &database,
+            &socket,
+            address,
+            &certificate_path,
+            &private_key_path,
+        );
+        let claim = send_ipc(&socket, &writer_claim());
+        assert!(matches!(
+            claim.response,
+            ProtocolResponse::AuthorityWriterClaimed(ref claim)
+                if claim.generation == 1
+                    && claim.writer_id == WRITER_ID
+                    && claim.replayed == (cycle > 0)
+        ));
+        let (_, readiness) = spawn_https_query(address, cert.der().clone())
+            .join()
+            .unwrap();
+        assert!(matches!(readiness.response, ProtocolResponse::Query(_)));
+        let readiness_fence = send_ipc(&socket, &runtime_list_query());
+        assert!(matches!(
+            readiness_fence.response,
+            ProtocolResponse::Query(_)
+        ));
+
+        let pid = daemon.pid();
+        let baseline = wait_for_idle_process_resources(pid);
+        baseline_resources.push(baseline);
+        let (ready, stalled) = spawn_stalled_remote_read(address, cert.der().clone(), phase);
+        ready
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap_or_else(|_| panic!("{} phase did not enter its read window", phase.label()));
+        let active = wait_for_stalled_remote_resource(pid, baseline);
+        active_resources.push(active);
+
+        let backlog_peers = (0..REMOTE_BACKLOG_PEERS_PER_PHASE)
+            .map(|_| queue_incomplete_tls_backlog_peer(address))
+            .collect::<Vec<_>>();
+        assert_eq!(backlog_peers.len(), REMOTE_BACKLOG_PEERS_PER_PHASE);
+        backlog_resources.push(sample_unchanged_process_resources(pid, active));
+        assert_eq!(
+            authority_writer_generation(&database),
+            1,
+            "{} phase backlog allocated an authority generation",
+            phase.label()
+        );
+
+        eprintln!(
+            "remote-read-backlog-phase={} peers={} sending SIGTERM",
+            phase.label(),
+            REMOTE_BACKLOG_PEERS_PER_PHASE
+        );
+        let elapsed = daemon.stop_with_budget(Duration::from_secs(1));
+        eprintln!(
+            "remote-read-backlog-phase={} stopped in {} ms",
+            phase.label(),
+            elapsed.as_millis()
+        );
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "{} phase with listener backlog exceeded its SIGTERM budget: {elapsed:?}",
+            phase.label()
+        );
+        shutdown_elapsed.push(elapsed);
+        let (_, response) = stalled.join().unwrap();
+        if let Ok(response) = response {
+            assert!(
+                response.is_empty(),
+                "{} phase received an application response after backlog cancellation",
+                phase.label()
+            );
+        }
+        drop(backlog_peers);
+        assert_eq!(
+            runtime_owner_count(&database),
+            0,
+            "{} phase retained its runtime owner row",
+            phase.label()
+        );
+        assert_eq!(authority_writer_generation(&database), 1);
+        assert!(
+            !socket.exists(),
+            "{} phase retained its socket",
+            phase.label()
+        );
+        assert_process_resources_released(pid);
+    }
+
+    let restart_address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let restarted = DaemonProcess::spawn(
+        &binary,
+        &database,
+        &socket,
+        restart_address,
+        &certificate_path,
+        &private_key_path,
+    );
+    let replay = send_ipc(&socket, &writer_claim());
+    assert!(matches!(
+        replay.response,
+        ProtocolResponse::AuthorityWriterClaimed(ref claim)
+            if claim.generation == 1 && claim.writer_id == WRITER_ID && claim.replayed
+    ));
+    let (_, readiness) = spawn_https_query(restart_address, cert.der().clone())
+        .join()
+        .unwrap();
+    assert!(matches!(readiness.response, ProtocolResponse::Query(_)));
+    let readiness_fence = send_ipc(&socket, &runtime_list_query());
+    assert!(matches!(
+        readiness_fence.response,
+        ProtocolResponse::Query(_)
+    ));
+    let restart_pid = restarted.pid();
+    baseline_resources.push(wait_for_idle_process_resources(restart_pid));
+    assert_eq!(authority_writer_generation(&database), 1);
+
+    let observed_baselines = baseline_resources
+        .iter()
+        .copied()
+        .flatten()
+        .collect::<Vec<_>>();
+    if let Some(expected) = observed_baselines.first() {
+        assert_eq!(observed_baselines.len(), REMOTE_READ_SHUTDOWN_PHASES + 1);
+        assert!(
+            observed_baselines
+                .iter()
+                .all(|resources| resources == expected),
+            "backlog test process baselines drifted across restarts: {observed_baselines:?}"
+        );
+        let observed_active = active_resources
+            .iter()
+            .copied()
+            .flatten()
+            .collect::<Vec<_>>();
+        let observed_backlog = backlog_resources
+            .iter()
+            .copied()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(observed_active.len(), REMOTE_READ_SHUTDOWN_PHASES);
+        assert_eq!(observed_backlog.len(), REMOTE_READ_SHUTDOWN_PHASES);
+        for resources in observed_active.iter().chain(&observed_backlog) {
+            assert_eq!(resources.open_fds, expected.open_fds + 1);
+            assert_eq!(resources.tasks, expected.tasks);
+        }
+    }
+
+    println!(
+        "remote-read-backlog-shutdown phases={} phase_names={:?} backlog_peers_per_phase={} shutdown_elapsed_ms={:?} baseline_resources={baseline_resources:?} active_resources={active_resources:?} backlog_resources={backlog_resources:?} stable_fd_task_baselines=true listener_backlog_zero_daemon_fd_amplification=true listener_backlog_zero_task_amplification=true proc_released_each_phase=true owner_rows_released_each_phase=true socket_released_each_phase=true application_response_suppressed_each_phase=true zero_authority_generation_allocation=true immediate_restart=true generation=1",
+        REMOTE_READ_SHUTDOWN_PHASES,
+        phases.map(RemoteReadPhase::label),
+        REMOTE_BACKLOG_PEERS_PER_PHASE,
+        shutdown_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>()
+    );
+    let restart_elapsed = restarted.stop_with_budget(Duration::from_secs(1));
+    assert!(restart_elapsed < Duration::from_secs(1));
+    assert_eq!(runtime_owner_count(&database), 0);
+    assert_eq!(authority_writer_generation(&database), 1);
+    assert!(!socket.exists());
+    assert_process_resources_released(restart_pid);
+}
+
+#[test]
+fn maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_resources() {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("event-session-shutdown.sqlite");
+    let socket = root.0.join("event-session-shutdown.sock");
+    let certificate_path = root.0.join("event-session-shutdown.crt");
+    let private_key_path = root.0.join("event-session-shutdown.key");
+    let CertifiedKey { cert, signing_key } =
+        generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    fs::write(&certificate_path, cert.pem()).unwrap();
+    fs::write(&private_key_path, signing_key.serialize_pem()).unwrap();
+    fs::set_permissions(&private_key_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let daemon = DaemonProcess::spawn(
+        &binary,
+        &database,
+        &socket,
+        address,
+        &certificate_path,
+        &private_key_path,
+    );
+    let claim = send_ipc(&socket, &writer_claim());
+    assert!(matches!(
+        claim.response,
+        ProtocolResponse::AuthorityWriterClaimed(ref claim)
+            if claim.generation == 1 && claim.writer_id == WRITER_ID && !claim.replayed
+    ));
+    let (_, readiness) = spawn_https_query(address, cert.der().clone())
+        .join()
+        .unwrap();
+    assert!(matches!(readiness.response, ProtocolResponse::Query(_)));
+    let readiness_fence = send_ipc(&socket, &runtime_list_query());
+    assert!(matches!(
+        readiness_fence.response,
+        ProtocolResponse::Query(_)
+    ));
+
+    let pid = daemon.pid();
+    let baseline = wait_for_idle_process_resources(pid);
+    let mut event_sessions = (0..MAXIMUM_EVENT_SESSIONS)
+        .map(|_| connect_event_session(address, cert.der().clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(event_sessions.len(), MAXIMUM_EVENT_SESSIONS);
+    let event_resources = wait_for_event_session_resources(pid, baseline);
+    assert_eq!(authority_writer_generation(&database), 1);
+
+    let (slow_ready, stalled) = spawn_authenticated_slow_https(address, cert.der().clone());
+    slow_ready
+        .recv_timeout(Duration::from_secs(5))
+        .expect("authenticated stalled request did not enter its body-read window");
+    let saturated_resources = wait_for_stalled_remote_resource(pid, event_resources);
+    sample_unchanged_process_resources(pid, saturated_resources);
+    assert_eq!(authority_writer_generation(&database), 1);
+    let drained_pre_shutdown_events = event_sessions
+        .iter_mut()
+        .map(drain_event_session_before_shutdown)
+        .sum::<usize>();
+
+    let shutdown_elapsed = daemon.stop_with_budget(Duration::from_secs(1));
+    assert!(shutdown_elapsed < Duration::from_secs(1));
+    let (_, stalled_response) = stalled.join().unwrap();
+    if let Ok(response) = stalled_response {
+        assert!(
+            response.is_empty(),
+            "cancelled stalled request received an application response"
+        );
+    }
+    for event_session in &mut event_sessions {
+        assert_event_session_closed_without_application_event(event_session);
+    }
+    assert_eq!(runtime_owner_count(&database), 0);
+    assert_eq!(authority_writer_generation(&database), 1);
+    assert!(!socket.exists());
+    assert_process_resources_released(pid);
+
+    let restart_address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let restarted = DaemonProcess::spawn(
+        &binary,
+        &database,
+        &socket,
+        restart_address,
+        &certificate_path,
+        &private_key_path,
+    );
+    let replay = send_ipc(&socket, &writer_claim());
+    assert!(matches!(
+        replay.response,
+        ProtocolResponse::AuthorityWriterClaimed(ref claim)
+            if claim.generation == 1 && claim.writer_id == WRITER_ID && claim.replayed
+    ));
+    let (_, readiness) = spawn_https_query(restart_address, cert.der().clone())
+        .join()
+        .unwrap();
+    assert!(matches!(readiness.response, ProtocolResponse::Query(_)));
+    let readiness_fence = send_ipc(&socket, &runtime_list_query());
+    assert!(matches!(
+        readiness_fence.response,
+        ProtocolResponse::Query(_)
+    ));
+    let restart_pid = restarted.pid();
+    let restart_baseline = wait_for_idle_process_resources(restart_pid);
+    if let (Some(baseline), Some(event_resources), Some(saturated_resources), Some(restart)) = (
+        baseline,
+        event_resources,
+        saturated_resources,
+        restart_baseline,
+    ) {
+        assert_eq!(restart, baseline);
+        assert_eq!(
+            event_resources.open_fds,
+            baseline.open_fds + MAXIMUM_EVENT_SESSIONS
+        );
+        assert_eq!(event_resources.tasks, baseline.tasks);
+        assert_eq!(
+            saturated_resources.open_fds,
+            baseline.open_fds + MAXIMUM_EVENT_SESSIONS + 1
+        );
+        assert_eq!(saturated_resources.tasks, baseline.tasks);
+    }
+    println!(
+        "maximum-event-session-shutdown sessions={} shutdown_elapsed_ms={} drained_pre_shutdown_events={} baseline_resources={baseline:?} event_resources={event_resources:?} saturated_resources={saturated_resources:?} restart_resources={restart_baseline:?} exact_session_fd_accounting=true zero_session_task_amplification=true stalled_request_fd_accounting=true pre_shutdown_event_queue_drained=true application_response_suppressed=true late_application_events_suppressed=true all_event_sessions_closed=true proc_owner_socket_released=true zero_authority_generation_allocation=true immediate_restart=true generation=1",
+        MAXIMUM_EVENT_SESSIONS,
+        shutdown_elapsed.as_millis(),
+        drained_pre_shutdown_events
+    );
+    let restart_elapsed = restarted.stop_with_budget(Duration::from_secs(1));
+    assert!(restart_elapsed < Duration::from_secs(1));
+    assert_eq!(runtime_owner_count(&database), 0);
+    assert_eq!(authority_writer_generation(&database), 1);
     assert!(!socket.exists());
     assert_process_resources_released(restart_pid);
 }

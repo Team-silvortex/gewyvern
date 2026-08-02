@@ -1177,9 +1177,22 @@ shutdowns remain within 104-115 ms across three consecutive physical runs,
 remove the proc entry, owner row, and socket, and preserve generation 1 through
 every restart. The cancellation wrapper sits below rustls on nonblocking TCP,
 absorbs `WouldBlock`, and returns non-retryable `ConnectionAborted`; idle
-baselines are sampled outside transient SQLite journal windows. The next
-boundary places mixed stalled phases in the listener backlog and proves bounded
-shutdown without authority allocation or process-resource drift.
+baselines are sampled outside transient SQLite journal windows. That boundary
+now also holds under listener-backlog pressure: each active TLS, HTTP-header,
+or authenticated-body read is followed by 64 incomplete TLS peers queued in
+the kernel. Physical Linux remains at 7 FDs/1 task before and after backlog
+admission, stops in 93-110 ms, releases proc/owner/socket state, and immediately
+restarts with generation 1 replayed. The backlog therefore adds zero daemon FDs,
+zero tasks, and zero authority generations. The maximum-capacity event boundary
+now passes on physical Linux: the daemon moves from 6 FDs/1 task to
+38 FDs/1 task for 32 bearer-authenticated `leserpent.events.v1` sessions, then
+to 39 FDs/1 task for one additional authenticated stalled body read. All 32
+initial snapshots are consumed and the event queue is drained after the stalled
+request takes over. `SIGTERM` then completes in 111 ms with zero later
+application events or stalled response, releases every process and ownership
+resource, and immediately returns to 6 FDs/1 task with generation 1 replayed.
+The next boundary repeats maximum-capacity connect, fanout, and
+disconnect cycles while proving slot reclamation and IPC/HTTPS progress.
 Read timeout compatibility remains intact: the first immediate HTTP error write
 is allowed after the read deadline, but a blocked write cannot retry beyond it.
 

@@ -1520,9 +1520,22 @@ phase exits within 104-115 ms, remove proc/owner/socket state, and replay
 generation 1 on the next same-state process. Read timeout errors retain one
 immediate HTTP response attempt, while a blocked write cannot outlive the shared
 deadline. Parallel lifecycle fixtures use a process-local atomic suffix rather
-than relying on clock uniqueness. The next boundary applies mixed stalled
-phases through the listener backlog while bounding resources and preventing
-authority allocation.
+than relying on clock uniqueness. The twenty-first slice rotates the active
+read across those same three phases while 64 additional incomplete TLS peers
+remain queued in the listener backlog. Four physical Linux processes preserve
+the 6-FD/1-task idle baseline and 7-FD/1-task active baseline before and after
+backlog admission. Shutdowns finish in 93-110 ms, every proc/owner/socket state
+is released, and generation 1 is replayed without allocation. The next boundary
+combines the maximum 32 authenticated WebSocket event sessions with one stalled
+request and proves bounded shutdown, fixed resources, and no late events. The
+twenty-second slice completes that proof on physical Linux: resources move from
+6 FDs/1 task to 38/1 at maximum event capacity and 39/1 with the stalled request,
+then return to 6/1 after restart. `SIGTERM` completes in 111 ms after all 32
+initial snapshots are consumed and the pre-stop queue is drained; no late
+application event or stalled response escapes,
+and generation 1 is replayed without allocation. The next boundary repeats
+maximum-capacity connect/fanout/disconnect cycles while proving all slots are
+reclaimed and IPC/HTTPS continue to progress.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

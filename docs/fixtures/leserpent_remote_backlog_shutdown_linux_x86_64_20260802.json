@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_remote_backlog_shutdown",
+  "recorded_at": "2026-08-02T05:02:09Z",
+  "target": {
+    "host": "192.168.124.25",
+    "endpoint": "kyuubiki-lab.local",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "cross_transport_fairness_vertical",
+    "name": "mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_authority",
+    "observed_duration_ms": 2780,
+    "remote_read_phases": 3,
+    "daemon_processes": 4,
+    "backlog_peers_per_phase": 64,
+    "connection_read_poll_interval_ms": 100,
+    "connection_hard_deadline_ms": 3000,
+    "sigterm_budget_ms": 1000
+  },
+  "phases": [
+    {
+      "name": "tls-handshake",
+      "active_read_window": "incomplete-tls-record",
+      "backlog_peer_read_window": "incomplete-tls-record",
+      "backlog_peers": 64,
+      "observed_shutdown_ms": 93,
+      "application_response_suppressed": true
+    },
+    {
+      "name": "http-header",
+      "active_read_window": "authenticated-header-without-terminator",
+      "backlog_peer_read_window": "incomplete-tls-record",
+      "backlog_peers": 64,
+      "observed_shutdown_ms": 110,
+      "application_response_suppressed": true
+    },
+    {
+      "name": "authenticated-body",
+      "active_read_window": "declared-one-byte-body-with-zero-bytes-provided",
+      "backlog_peer_read_window": "incomplete-tls-record",
+      "backlog_peers": 64,
+      "observed_shutdown_ms": 100,
+      "application_response_suppressed": true
+    }
+  ],
+  "timing": {
+    "shutdown_runs_ms": [93, 110, 100],
+    "observed_minimum_ms": 93,
+    "observed_maximum_ms": 110
+  },
+  "process_resources": {
+    "idle_baseline_samples": 4,
+    "idle_open_fds": [6, 6, 6, 6],
+    "idle_tasks": [1, 1, 1, 1],
+    "active_phase_samples": 3,
+    "active_open_fds": [7, 7, 7],
+    "active_tasks": [1, 1, 1],
+    "backlog_phase_samples": 3,
+    "backlog_open_fds": [7, 7, 7],
+    "backlog_tasks": [1, 1, 1],
+    "active_connection_fd_delta": 1,
+    "backlog_daemon_fd_delta": 0,
+    "task_delta": 0,
+    "idle_sampling": "two-listener-no-sqlite-journal-window",
+    "backlog_sampling": "four-consecutive-25ms-samples-per-phase",
+    "proc_directory_released_after_each_shutdown": true
+  },
+  "recovery": {
+    "runtime_owner_row_released_after_each_phase": true,
+    "unix_socket_released_after_each_phase": true,
+    "restart_database": "same",
+    "restart_unix_socket": "same",
+    "restart_remote_listener": "fresh-loopback-port",
+    "writer_generation_before_backlog": 1,
+    "writer_generation_after_backlog": 1,
+    "writer_generation_after_restart": 1,
+    "writer_claim_replayed_across_restarts": true
+  },
+  "checks": {
+    "production_daemon_dual_transport_path": true,
+    "active_read_phase_rotated_across_tls_header_and_body": true,
+    "sixty_four_incomplete_tls_peers_queued_per_phase": true,
+    "all_phase_shutdowns_completed_within_budget": true,
+    "application_response_suppressed_after_each_cancellation": true,
+    "stable_idle_fd_baseline_across_four_processes": true,
+    "one_active_connection_fd_per_phase": true,
+    "listener_backlog_added_zero_daemon_fds": true,
+    "listener_backlog_added_zero_daemon_tasks": true,
+    "proc_directory_released_after_each_phase": true,
+    "runtime_owner_row_released_after_each_phase": true,
+    "unix_socket_released_after_each_phase": true,
+    "immediate_same_database_socket_restart_after_each_phase": true,
+    "backlog_allocated_zero_authority_generations": true,
+    "writer_generation_replayed_without_allocation": true,
+    "secret_free_evidence": true
+  }
+}

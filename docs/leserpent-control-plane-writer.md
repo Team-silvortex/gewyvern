@@ -280,3 +280,22 @@ keep all nine phase shutdowns within 104-115 ms while preserving the same
 The read deadline does not suppress an immediately writable timeout response;
 only `WouldBlock` retries are rejected after expiry, preserving the existing
 HTTP 400 slow-body contract without reopening an unbounded write window.
+
+Listener-backlog pressure does not expand that authority boundary. For each
+active TLS-handshake, HTTP-header, and authenticated-body read, 64 additional
+incomplete TLS peers are queued behind the synchronous handler. Physical Linux
+holds 6 FDs/1 task at idle and 7 FDs/1 task both before and after queuing those
+peers, proving zero daemon FD/task amplification. All shutdowns complete within
+93-110 ms without an application response, release proc/owner/socket state, and
+allow immediate same-state restart with generation 1 replayed rather than
+allocated.
+
+The event plane remains inside the same bounded lifecycle at its full 32-session
+capacity. Each authenticated WebSocket contributes exactly one daemon FD and no
+task, moving physical Linux from 6 FDs/1 task to 38/1; one simultaneous
+authenticated stalled request moves it to 39/1. After every client consumes its
+initial snapshot, the queue is drained after the stalled request takes over;
+`SIGTERM` then completes in 111 ms with no late application event or stalled
+response. All event sockets, proc/owner/socket state, and the extra FD
+are released before an immediate restart returns to 6/1 and replays generation
+1 without allocation.

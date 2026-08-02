@@ -144,7 +144,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.20.0");
+    assert_eq!(inventory["version"], "1.22.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -376,6 +376,82 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
     assert_eq!(
         phase_shutdown["physical_linux_evidence"],
         "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
+    );
+    let backlog_shutdown = &writer_fence["remote_backlog_shutdown_proof"];
+    assert_eq!(
+        backlog_shutdown["active_phases"],
+        json!([
+            "incomplete-tls-handshake",
+            "incomplete-authenticated-http-header",
+            "authenticated-incomplete-body"
+        ])
+    );
+    assert_eq!(backlog_shutdown["daemon_processes"], 4);
+    assert_eq!(
+        backlog_shutdown["incomplete_tls_backlog_peers_per_phase"],
+        64
+    );
+    assert_eq!(backlog_shutdown["connection_read_poll_interval_ms"], 100);
+    assert_eq!(backlog_shutdown["connection_hard_deadline_ms"], 3_000);
+    assert_eq!(backlog_shutdown["sigterm_budget_ms"], 1_000);
+    assert!(
+        backlog_shutdown["backlog_process_resources"]
+            .as_str()
+            .unwrap()
+            .contains("zero-daemon-fd-or-task-amplification")
+    );
+    assert!(
+        backlog_shutdown["authority"]
+            .as_str()
+            .unwrap()
+            .contains("replayed-across-restarts")
+    );
+    assert_eq!(
+        backlog_shutdown["local_evidence"],
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_authority"
+    );
+    assert_eq!(
+        backlog_shutdown["physical_linux_evidence"],
+        "docs/fixtures/leserpent_remote_backlog_shutdown_linux_x86_64_20260802.json"
+    );
+    let event_shutdown = &writer_fence["maximum_event_session_shutdown_proof"];
+    assert_eq!(event_shutdown["authenticated_websocket_event_sessions"], 32);
+    assert_eq!(event_shutdown["active_authenticated_stalled_requests"], 1);
+    assert_eq!(event_shutdown["daemon_processes"], 2);
+    assert_eq!(event_shutdown["event_route"], "/v1/events");
+    assert_eq!(event_shutdown["event_subprotocol"], "leserpent.events.v1");
+    assert_eq!(event_shutdown["sigterm_budget_ms"], 1_000);
+    assert!(
+        event_shutdown["event_session_process_resources"]
+            .as_str()
+            .unwrap()
+            .contains("38-open-fds-and-1-task")
+    );
+    assert!(
+        event_shutdown["saturated_process_resources"]
+            .as_str()
+            .unwrap()
+            .contains("39-open-fds-and-1-task")
+    );
+    assert!(
+        event_shutdown["event_delivery"]
+            .as_str()
+            .unwrap()
+            .contains("zero-application-events-after-sigterm")
+    );
+    assert!(
+        event_shutdown["pre_sigterm_event_queue"]
+            .as_str()
+            .unwrap()
+            .contains("after-stalled-request-is-active")
+    );
+    assert_eq!(
+        event_shutdown["local_evidence"],
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_resources"
+    );
+    assert_eq!(
+        event_shutdown["physical_linux_evidence"],
+        "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json"
     );
 }
 
@@ -879,6 +955,8 @@ fn local_cross_transport_fairness_contract_is_non_vacuous() {
         "const SLOW_HTTPS_FAIRNESS_WAVES: usize = 3;",
         "const IPC_QUERIES_PER_SLOW_HTTPS_WAVE: usize = 4;",
         "const REMOTE_READ_SHUTDOWN_PHASES: usize = 3;",
+        "const REMOTE_BACKLOG_PEERS_PER_PHASE: usize = 64;",
+        "const MAXIMUM_EVENT_SESSIONS: usize = 32;",
         "static NEXT_TEMP_ROOT: AtomicU64 = AtomicU64::new(0);",
         "NEXT_TEMP_ROOT.fetch_add(1, Ordering::Relaxed)",
         "enum RemoteReadPhase",
@@ -888,11 +966,17 @@ fn local_cross_transport_fairness_contract_is_non_vacuous() {
         "struct ProcessResources",
         "fn wait_for_idle_process_resources(",
         "fn wait_for_stalled_remote_resource(",
+        "fn wait_for_event_session_resources(",
+        "fn sample_unchanged_process_resources(",
         "target.contains(\"=socket:[\")",
         "target.ends_with(\"-journal\")",
         "--remote-listen",
         "fn spawn_https_query(",
         "fn spawn_authenticated_slow_https(",
+        "fn queue_incomplete_tls_backlog_peer(",
+        "fn connect_event_session(",
+        "fn assert_event_session_closed_without_application_event(",
+        "fn drain_event_session_before_shutdown(",
         "Authorization: Bearer {TOKEN}",
         "Content-Length: 1\\r\\n\\r\\n",
         "Query::RuntimeList",
@@ -900,9 +984,17 @@ fn local_cross_transport_fairness_contract_is_non_vacuous() {
         "fn ipc_and_maintenance_progress_across_repeated_authenticated_slow_https_waves()",
         "fn sigterm_cancels_authenticated_slow_https_and_allows_immediate_restart()",
         "fn repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines()",
+        "fn mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_authority()",
+        "fn maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_resources()",
         "daemon.stop_with_budget(Duration::from_secs(1))",
         "application_response_suppressed=true immediate_restart=true generation=1",
         "stable_fd_task_baselines=true proc_released_each_phase=true",
+        "listener_backlog_zero_daemon_fd_amplification=true",
+        "zero_authority_generation_allocation=true",
+        "exact_session_fd_accounting=true",
+        "late_application_events_suppressed=true",
+        "pre_shutdown_event_queue_drained=true",
+        "all_event_sessions_closed=true",
         "phases.map(RemoteReadPhase::label)",
         "let readiness_fence = send_ipc(&socket, &runtime_list_query());",
         "slow HTTPS peer did not consume the remote read budget",
@@ -1379,6 +1471,201 @@ fn retained_linux_remote_read_phase_shutdown_proof_is_non_vacuous() {
         "runtime_owner_row_released_after_each_phase",
         "unix_socket_released_after_each_phase",
         "immediate_same_database_socket_restart_after_each_phase",
+        "writer_generation_replayed_without_allocation",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_remote_backlog_shutdown_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root()
+                .join("docs/fixtures/leserpent_remote_backlog_shutdown_linux_x86_64_20260802.json"),
+        )
+        .expect("remote backlog shutdown Linux evidence must exist"),
+    )
+    .expect("remote backlog shutdown Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.25");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["hostname"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["test"]["name"],
+        "mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_authority"
+    );
+    assert_eq!(evidence["test"]["remote_read_phases"], 3);
+    assert_eq!(evidence["test"]["daemon_processes"], 4);
+    assert_eq!(evidence["test"]["backlog_peers_per_phase"], 64);
+    assert_eq!(evidence["test"]["connection_read_poll_interval_ms"], 100);
+    assert_eq!(evidence["test"]["connection_hard_deadline_ms"], 3_000);
+    assert_eq!(evidence["test"]["sigterm_budget_ms"], 1_000);
+    assert_eq!(
+        evidence["phases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|phase| phase["name"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["tls-handshake", "http-header", "authenticated-body"]
+    );
+    assert!(
+        evidence["phases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|phase| phase["backlog_peers"] == 64)
+    );
+    assert_eq!(
+        evidence["timing"]["shutdown_runs_ms"],
+        json!([93, 110, 100])
+    );
+    assert_eq!(evidence["timing"]["observed_minimum_ms"], 93);
+    assert_eq!(evidence["timing"]["observed_maximum_ms"], 110);
+    assert_eq!(
+        evidence["process_resources"]["idle_open_fds"],
+        json!([6, 6, 6, 6])
+    );
+    assert_eq!(
+        evidence["process_resources"]["idle_tasks"],
+        json!([1, 1, 1, 1])
+    );
+    assert_eq!(
+        evidence["process_resources"]["active_open_fds"],
+        json!([7, 7, 7])
+    );
+    assert_eq!(
+        evidence["process_resources"]["backlog_open_fds"],
+        json!([7, 7, 7])
+    );
+    assert_eq!(
+        evidence["process_resources"]["backlog_tasks"],
+        json!([1, 1, 1])
+    );
+    assert_eq!(
+        evidence["process_resources"]["active_connection_fd_delta"],
+        1
+    );
+    assert_eq!(evidence["process_resources"]["backlog_daemon_fd_delta"], 0);
+    assert_eq!(evidence["process_resources"]["task_delta"], 0);
+    assert_eq!(evidence["recovery"]["writer_generation_before_backlog"], 1);
+    assert_eq!(evidence["recovery"]["writer_generation_after_backlog"], 1);
+    assert_eq!(evidence["recovery"]["writer_generation_after_restart"], 1);
+    for check in [
+        "production_daemon_dual_transport_path",
+        "active_read_phase_rotated_across_tls_header_and_body",
+        "sixty_four_incomplete_tls_peers_queued_per_phase",
+        "all_phase_shutdowns_completed_within_budget",
+        "application_response_suppressed_after_each_cancellation",
+        "stable_idle_fd_baseline_across_four_processes",
+        "one_active_connection_fd_per_phase",
+        "listener_backlog_added_zero_daemon_fds",
+        "listener_backlog_added_zero_daemon_tasks",
+        "proc_directory_released_after_each_phase",
+        "runtime_owner_row_released_after_each_phase",
+        "unix_socket_released_after_each_phase",
+        "immediate_same_database_socket_restart_after_each_phase",
+        "backlog_allocated_zero_authority_generations",
+        "writer_generation_replayed_without_allocation",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_maximum_event_session_shutdown_proof_is_non_vacuous() {
+    let evidence: serde_json::Value =
+        serde_json::from_str(
+            &std::fs::read_to_string(repository_root().join(
+                "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json",
+            ))
+            .expect("maximum event session shutdown Linux evidence must exist"),
+        )
+        .expect("maximum event session shutdown Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.25");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["hostname"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["test"]["name"],
+        "maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_resources"
+    );
+    assert_eq!(evidence["test"]["authenticated_event_sessions"], 32);
+    assert_eq!(evidence["test"]["active_stalled_requests"], 1);
+    assert_eq!(evidence["test"]["daemon_processes"], 2);
+    assert_eq!(evidence["test"]["connection_read_poll_interval_ms"], 100);
+    assert_eq!(evidence["test"]["connection_hard_deadline_ms"], 3_000);
+    assert_eq!(evidence["test"]["sigterm_budget_ms"], 1_000);
+    assert_eq!(evidence["event_sessions"]["transport"], "tls-websocket");
+    assert_eq!(evidence["event_sessions"]["route"], "/v1/events");
+    assert_eq!(
+        evidence["event_sessions"]["subprotocol"],
+        "leserpent.events.v1"
+    );
+    assert_eq!(evidence["event_sessions"]["initial_events_consumed"], 32);
+    assert_eq!(
+        evidence["event_sessions"]["queued_application_events_drained_before_sigterm"],
+        0
+    );
+    assert_eq!(
+        evidence["event_sessions"]["application_events_after_sigterm"],
+        0
+    );
+    assert_eq!(evidence["timing"]["observed_shutdown_ms"], 111);
+    assert_eq!(evidence["timing"]["sigterm_budget_ms"], 1_000);
+    assert_eq!(evidence["process_resources"]["idle_open_fds"], 6);
+    assert_eq!(evidence["process_resources"]["idle_tasks"], 1);
+    assert_eq!(
+        evidence["process_resources"]["maximum_event_session_open_fds"],
+        38
+    );
+    assert_eq!(
+        evidence["process_resources"]["maximum_event_session_tasks"],
+        1
+    );
+    assert_eq!(evidence["process_resources"]["event_session_fd_delta"], 32);
+    assert_eq!(evidence["process_resources"]["event_session_task_delta"], 0);
+    assert_eq!(
+        evidence["process_resources"]["event_sessions_plus_stalled_request_open_fds"],
+        39
+    );
+    assert_eq!(
+        evidence["process_resources"]["event_sessions_plus_stalled_request_tasks"],
+        1
+    );
+    assert_eq!(evidence["process_resources"]["stalled_request_fd_delta"], 1);
+    assert_eq!(evidence["process_resources"]["restart_idle_open_fds"], 6);
+    assert_eq!(evidence["process_resources"]["restart_idle_tasks"], 1);
+    assert_eq!(evidence["recovery"]["writer_generation_before_sessions"], 1);
+    assert_eq!(
+        evidence["recovery"]["writer_generation_during_saturation"],
+        1
+    );
+    assert_eq!(evidence["recovery"]["writer_generation_after_restart"], 1);
+    for check in [
+        "production_daemon_dual_transport_path",
+        "maximum_32_authenticated_event_sessions_established",
+        "all_initial_runtime_snapshots_consumed",
+        "pre_sigterm_application_event_queue_drained",
+        "exact_one_fd_per_event_session",
+        "zero_task_amplification_at_maximum_sessions",
+        "stalled_request_added_exactly_one_fd",
+        "stalled_request_added_zero_tasks",
+        "sigterm_completed_within_budget",
+        "stalled_application_response_suppressed",
+        "late_application_events_suppressed",
+        "all_event_sessions_closed_after_sigterm",
+        "proc_directory_released",
+        "runtime_owner_row_released",
+        "unix_socket_released",
+        "immediate_same_database_socket_restart",
+        "restart_returned_to_idle_resource_baseline",
+        "zero_authority_generation_allocation",
         "writer_generation_replayed_without_allocation",
         "secret_free_evidence",
     ] {
@@ -3598,14 +3885,22 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
-    assert!(runtime.next_gate.contains("mixed incomplete TLS"));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_remote_backlog_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.next_gate.contains("maximum-capacity WebSocket"));
 
     let daemon_lifecycle = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.17.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.19.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -3770,14 +4065,26 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
-    assert!(daemon_lifecycle.next_gate.contains("mixed incomplete TLS"));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_remote_backlog_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(
+        daemon_lifecycle
+            .next_gate
+            .contains("maximum-capacity WebSocket")
+    );
 
     let compatibility_control = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.45.0");
+    assert_eq!(compatibility_control.contract.version, "1.47.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -4213,11 +4520,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.45.0");
+    assert_eq!(compatibility_control.contract.version, "1.47.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("mixed incomplete TLS")
+            .contains("maximum-capacity WebSocket")
     );
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
@@ -4297,6 +4604,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     }));
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_remote_backlog_shutdown_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path == "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
 

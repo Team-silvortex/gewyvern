@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.20.0",
+  "version": "1.22.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -318,6 +318,45 @@
       "restart": "same-database-and-unix-socket-with-generation-1-replay-across-all-restarts",
       "local_evidence": "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#repeated_remote_read_phase_shutdowns_preserve_process_resource_baselines",
       "physical_linux_evidence": "docs/fixtures/leserpent_remote_read_phase_shutdown_linux_x86_64_20260802.json"
+    },
+    "remote_backlog_shutdown_proof": {
+      "active_phases": [
+        "incomplete-tls-handshake",
+        "incomplete-authenticated-http-header",
+        "authenticated-incomplete-body"
+      ],
+      "daemon_processes": 4,
+      "incomplete_tls_backlog_peers_per_phase": 64,
+      "connection_read_poll_interval_ms": 100,
+      "connection_hard_deadline_ms": 3000,
+      "sigterm_budget_ms": 1000,
+      "listener_backlog": "kernel-queued-incomplete-tls-peers-remain-unaccepted-behind-one-active-remote-read",
+      "idle_process_baseline": "6-open-fds-and-1-task-across-three-phase-processes-and-final-restart",
+      "active_process_resources": "7-open-fds-and-1-task-during-each-stalled-read",
+      "backlog_process_resources": "7-open-fds-and-1-task-after-sixty-four-additional-peers-with-zero-daemon-fd-or-task-amplification",
+      "authority": "generation-1-before-and-after-every-backlog-and-replayed-across-restarts",
+      "cleanup": "application-response-proc-directory-runtime-owner-row-and-unix-socket-released-after-each-phase",
+      "restart": "same-database-and-unix-socket-with-generation-1-replay-across-all-restarts",
+      "local_evidence": "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#mixed_remote_read_phases_with_listener_backlog_preserve_bounded_shutdown_and_authority",
+      "physical_linux_evidence": "docs/fixtures/leserpent_remote_backlog_shutdown_linux_x86_64_20260802.json"
+    },
+    "maximum_event_session_shutdown_proof": {
+      "authenticated_websocket_event_sessions": 32,
+      "active_authenticated_stalled_requests": 1,
+      "daemon_processes": 2,
+      "event_route": "/v1/events",
+      "event_subprotocol": "leserpent.events.v1",
+      "sigterm_budget_ms": 1000,
+      "idle_process_baseline": "6-open-fds-and-1-task",
+      "event_session_process_resources": "38-open-fds-and-1-task-with-exactly-one-fd-per-session-and-zero-task-amplification",
+      "saturated_process_resources": "39-open-fds-and-1-task-after-one-additional-stalled-request",
+      "pre_sigterm_event_queue": "drained-after-stalled-request-is-active-and-before-stop-signal",
+      "event_delivery": "all-thirty-two-initial-snapshots-consumed-before-sigterm-and-zero-application-events-after-sigterm",
+      "cleanup": "all-event-sockets-stalled-response-proc-directory-runtime-owner-row-and-unix-socket-released-after-shutdown",
+      "authority": "generation-1-before-saturation-during-saturation-and-after-restart",
+      "restart": "same-database-and-unix-socket-return-to-6-open-fds-and-1-task-with-generation-1-replay",
+      "local_evidence": "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#maximum_event_sessions_with_stalled_request_preserve_bounded_shutdown_and_resources",
+      "physical_linux_evidence": "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json"
     },
     "remaining_routes": []
   },
