@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_repeated_hostile_lifecycle",
+  "recorded_at": "2026-08-02T01:45:11Z",
+  "target": {
+    "host": "192.168.124.24",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm",
+    "observed_duration_ms": 5570,
+    "owner_lease_duration_ms": 30000,
+    "repeated_hostile_batches": 2,
+    "peers_per_batch": 64,
+    "malformed_peers_per_batch": 16,
+    "unauthorized_peers_per_batch": 16,
+    "slow_timeout_peers_per_batch": 16,
+    "valid_replay_peers_per_batch": 16,
+    "production_ipc_batch_limit": 64,
+    "peer_read_timeout_ms": 2000,
+    "frame_read_poll_interval_ms": 100,
+    "batch_budget_ms": 5000,
+    "sigterm_budget_ms": 1000
+  },
+  "sequence": {
+    "initial": {
+      "writer": "writer_a",
+      "generation": 1,
+      "replayed": false
+    },
+    "hostile_batches": [
+      {
+        "batch": 1,
+        "observed_elapsed_ms": 2234,
+        "owner_token_stable": true,
+        "owner_lease_refreshed": true,
+        "writer_generation": 1
+      },
+      {
+        "batch": 2,
+        "observed_elapsed_ms": 2209,
+        "owner_token_stable": true,
+        "owner_lease_refreshed": true,
+        "writer_generation": 1
+      }
+    ],
+    "shutdown": {
+      "active_slow_peers": 64,
+      "signal": "SIGTERM",
+      "observed_elapsed_ms": 165,
+      "owner_row_removed": true,
+      "unix_socket_removed": true
+    },
+    "restart": {
+      "same_database": true,
+      "same_socket_path": true,
+      "immediate": true,
+      "writer": "writer_a",
+      "generation": 1,
+      "replayed": true
+    }
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "two_repeated_hostile_batches": true,
+    "production_batch_limit_saturated": true,
+    "same_owner_token_across_batches": true,
+    "owner_lease_refreshed_after_each_batch": true,
+    "valid_claims_are_stable_replays": true,
+    "hostile_batches_allocate_no_writer_generation": true,
+    "each_batch_completes_within_budget": true,
+    "signal_cancellable_parallel_frame_reads": true,
+    "sixty_four_active_slow_peers_at_sigterm": true,
+    "sigterm_completes_within_budget": true,
+    "runtime_owner_row_released": true,
+    "unix_socket_released": true,
+    "immediate_same_path_restart": true,
+    "writer_generation_replay_stable": true,
+    "secret_free_evidence": true
+  }
+}

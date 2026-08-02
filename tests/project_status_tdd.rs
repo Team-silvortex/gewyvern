@@ -6,6 +6,7 @@ use gewyvern::project_status::{
     ContractStability, EvidenceKind, EvidenceState, Independence, Maturity, STATUS_SCHEMA_VERSION,
     StatusCatalog, default_catalog_path,
 };
+use serde_json::json;
 
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -143,7 +144,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.14.0");
+    assert_eq!(inventory["version"], "1.15.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -249,7 +250,26 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         hostile_lifecycle["local_evidence"],
         "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm"
     );
-    assert!(hostile_lifecycle["physical_linux_evidence"].is_null());
+    assert_eq!(
+        hostile_lifecycle["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_repeated_hostile_lifecycle_linux_x86_64_20260802.json"
+    );
+    let hostile_resources = &writer_fence["claim_hostile_resource_retention_proof"];
+    assert_eq!(hostile_resources["cycles"], 3);
+    assert_eq!(hostile_resources["completed_batch_peers_per_cycle"], 64);
+    assert_eq!(hostile_resources["shutdown_batch_peers_per_cycle"], 64);
+    assert_eq!(
+        hostile_resources["linux_proc_observation"],
+        json!(["fd", "task"])
+    );
+    assert_eq!(
+        hostile_resources["local_evidence"],
+        "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_shutdown_restart_cycles_bound_process_resources"
+    );
+    assert_eq!(
+        hostile_resources["physical_linux_evidence"],
+        "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
+    );
 }
 
 #[test]
@@ -655,17 +675,149 @@ fn local_repeated_hostile_lifecycle_proof_is_non_vacuous() {
     .expect("authority writer vertical proof must exist");
     for contract in [
         "const REPEATED_HOSTILE_BATCHES: usize = 2;",
+        "const RESOURCE_LIFECYCLE_CYCLES: usize = 3;",
         "fn repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm()",
+        "fn repeated_hostile_shutdown_restart_cycles_bound_process_resources()",
         "wait_for_owner_lease_extension",
+        "wait_for_saturated_reader_resources",
+        "assert_process_resources_released",
+        "post-batch process resources drifted across cycles",
         "daemon.stop_with_budget(Duration::from_secs(2))",
         "shutdown_elapsed < Duration::from_secs(1)",
         "SELECT COUNT(*) FROM runtime_owner",
         "owner_lease_released=true immediate_restart=true generation=1",
+        "authority-writer-hostile-resource-cycles cycles={}",
     ] {
         assert!(
             vertical.contains(contract),
             "missing hostile lifecycle proof contract {contract}"
         );
+    }
+}
+
+#[test]
+fn retained_linux_repeated_hostile_lifecycle_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_repeated_hostile_lifecycle_linux_x86_64_20260802.json",
+        ))
+        .expect("repeated hostile lifecycle Linux evidence must exist"),
+    )
+    .expect("repeated hostile lifecycle Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.24");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["test"]["name"],
+        "repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm"
+    );
+    assert_eq!(evidence["test"]["repeated_hostile_batches"], 2);
+    assert_eq!(evidence["test"]["peers_per_batch"], 64);
+    assert_eq!(evidence["test"]["frame_read_poll_interval_ms"], 100);
+    assert_eq!(evidence["test"]["sigterm_budget_ms"], 1_000);
+    assert_eq!(
+        evidence["sequence"]["hostile_batches"][0]["observed_elapsed_ms"],
+        2_234
+    );
+    assert_eq!(
+        evidence["sequence"]["hostile_batches"][1]["observed_elapsed_ms"],
+        2_209
+    );
+    assert_eq!(evidence["sequence"]["shutdown"]["active_slow_peers"], 64);
+    assert_eq!(evidence["sequence"]["shutdown"]["observed_elapsed_ms"], 165);
+    assert_eq!(evidence["sequence"]["restart"]["generation"], 1);
+    assert_eq!(evidence["sequence"]["restart"]["replayed"], true);
+    for check in [
+        "production_daemon_ipc_path",
+        "two_repeated_hostile_batches",
+        "production_batch_limit_saturated",
+        "same_owner_token_across_batches",
+        "owner_lease_refreshed_after_each_batch",
+        "valid_claims_are_stable_replays",
+        "hostile_batches_allocate_no_writer_generation",
+        "each_batch_completes_within_budget",
+        "signal_cancellable_parallel_frame_reads",
+        "sixty_four_active_slow_peers_at_sigterm",
+        "sigterm_completes_within_budget",
+        "runtime_owner_row_released",
+        "unix_socket_released",
+        "immediate_same_path_restart",
+        "writer_generation_replay_stable",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+}
+
+#[test]
+fn retained_linux_hostile_resource_cycle_proof_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json",
+        ))
+        .expect("hostile resource cycle Linux evidence must exist"),
+    )
+    .expect("hostile resource cycle Linux evidence must decode");
+    assert_eq!(evidence["target"]["host"], "192.168.124.24");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(
+        evidence["test"]["name"],
+        "repeated_hostile_shutdown_restart_cycles_bound_process_resources"
+    );
+    assert_eq!(evidence["test"]["cycles"], 3);
+    assert_eq!(evidence["test"]["completed_batch_peers_per_cycle"], 64);
+    assert_eq!(evidence["test"]["shutdown_batch_peers_per_cycle"], 64);
+    assert_eq!(evidence["test"]["sigterm_budget_ms"], 1_000);
+    assert_eq!(
+        evidence["resources"]["returned_after_completed_batch_per_cycle"],
+        json!([
+            { "open_fds": 5, "tasks": 1 },
+            { "open_fds": 5, "tasks": 1 },
+            { "open_fds": 5, "tasks": 1 }
+        ])
+    );
+    assert_eq!(
+        evidence["resources"]["active_shutdown_wave_per_cycle"],
+        json!([
+            { "open_fds": 69, "tasks": 65 },
+            { "open_fds": 69, "tasks": 65 },
+            { "open_fds": 69, "tasks": 65 }
+        ])
+    );
+    assert_eq!(
+        evidence["resources"]["active_delta_from_returned_baseline"],
+        json!({ "open_fds": 64, "tasks": 64 })
+    );
+    assert_eq!(
+        evidence["timing"]["completed_batch_elapsed_ms"],
+        json!([2_250, 2_241, 2_240])
+    );
+    assert_eq!(
+        evidence["timing"]["sigterm_elapsed_ms"],
+        json!([216, 207, 208])
+    );
+    assert_eq!(evidence["authority"]["generation"], 1);
+    assert_eq!(evidence["authority"]["restart_replays"], 2);
+    for check in [
+        "production_daemon_ipc_path",
+        "three_shutdown_restart_cycles",
+        "completed_hostile_batch_each_cycle",
+        "shutdown_slow_peer_batch_each_cycle",
+        "stable_returned_fd_baseline",
+        "stable_returned_task_baseline",
+        "sixty_four_accepted_peer_fds_observed",
+        "sixty_four_scoped_reader_tasks_observed",
+        "all_scoped_reader_tasks_joined",
+        "each_completed_batch_within_budget",
+        "each_sigterm_within_budget",
+        "proc_resources_released_each_cycle",
+        "runtime_owner_row_released_each_cycle",
+        "unix_socket_released_each_cycle",
+        "writer_generation_stable_across_restarts",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
     }
 }
 
@@ -2732,24 +2884,17 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "repeated-hostile-batch-lifecycle-proof",
         "owner-heartbeat-continuity-under-hostile-load",
         "signal-cancellable-ipc-frame-read",
+        "hard-total-frame-read-deadline",
         "bounded-sigterm-under-slowloris",
         "graceful-owner-and-socket-release",
         "immediate-same-path-restart",
-        "hard-total-frame-read-deadline",
-        "hard-total-frame-read-deadline",
-        "hard-total-frame-read-deadline",
-        "repeated-hostile-batch-lifecycle-proof",
-        "owner-heartbeat-continuity-under-hostile-load",
-        "signal-cancellable-ipc-frame-read",
-        "bounded-sigterm-under-slowloris",
-        "graceful-owner-and-socket-release",
-        "immediate-same-path-restart",
-        "repeated-hostile-batch-lifecycle-proof",
-        "owner-heartbeat-continuity-under-hostile-load",
-        "signal-cancellable-ipc-frame-read",
-        "bounded-sigterm-under-slowloris",
-        "graceful-owner-and-socket-release",
-        "immediate-same-path-restart",
+        "physical-linux-repeated-hostile-lifecycle-proof",
+        "three-cycle-hostile-resource-retention",
+        "stable-post-batch-fd-task-baseline",
+        "scoped-reader-thread-join",
+        "saturated-plus-64-fd-task-proof",
+        "per-cycle-proc-owner-socket-release",
+        "physical-linux-hostile-resource-retention-proof",
     ] {
         assert!(
             runtime
@@ -2805,13 +2950,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_repeated_hostile_lifecycle_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(runtime.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
 
     let daemon_lifecycle = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.11.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.12.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -2841,6 +2996,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "16-malformed-16-unauthorized-peer-isolation",
         "two-wave-batch-progress-under-5000ms",
         "physical-linux-hostile-peer-progress-proof",
+        "repeated-hostile-batch-lifecycle-proof",
+        "owner-heartbeat-continuity-under-hostile-load",
+        "signal-cancellable-ipc-frame-read",
+        "hard-total-frame-read-deadline",
+        "bounded-sigterm-under-slowloris",
+        "graceful-owner-and-socket-release",
+        "immediate-same-path-restart",
+        "physical-linux-repeated-hostile-lifecycle-proof",
+        "three-cycle-hostile-resource-retention",
+        "stable-post-batch-fd-task-baseline",
+        "scoped-reader-thread-join",
+        "saturated-plus-64-fd-task-proof",
+        "per-cycle-proc-owner-socket-release",
+        "physical-linux-hostile-resource-retention-proof",
     ] {
         assert!(
             daemon_lifecycle
@@ -2879,13 +3048,23 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             == "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_repeated_hostile_lifecycle_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(daemon_lifecycle.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
 
     let compatibility_control = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.39.0");
+    assert_eq!(compatibility_control.contract.version, "1.40.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -3250,6 +3429,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "16-valid-claims-under-48-invalid-or-slow-peers",
         "invalid-peers-zero-generation-allocation",
         "physical-linux-hostile-peer-progress-proof",
+        "repeated-hostile-batch-lifecycle-proof",
+        "owner-heartbeat-continuity-under-hostile-load",
+        "signal-cancellable-ipc-frame-read",
+        "hard-total-frame-read-deadline",
+        "bounded-sigterm-under-slowloris",
+        "graceful-owner-and-socket-release",
+        "immediate-same-path-restart",
+        "physical-linux-repeated-hostile-lifecycle-proof",
+        "three-cycle-hostile-resource-retention",
+        "stable-post-batch-fd-task-baseline",
+        "scoped-reader-thread-join",
+        "saturated-plus-64-fd-task-proof",
+        "per-cycle-proc-owner-socket-release",
+        "physical-linux-hostile-resource-retention-proof",
     ] {
         assert!(
             compatibility_control
@@ -3260,11 +3453,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.39.0");
+    assert_eq!(compatibility_control.contract.version, "1.40.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("physical Linux x86_64")
+            .contains("reconnect fairness")
     );
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"
@@ -3308,6 +3501,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path
             == "docs/fixtures/leserpent_authority_writer_post_recovery_mixed_peer_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_repeated_hostile_lifecycle_linux_x86_64_20260802.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(compatibility_control.evidence.iter().any(|item| {
+        item.path
+            == "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
 

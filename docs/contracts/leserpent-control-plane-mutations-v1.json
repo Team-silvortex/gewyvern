@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract": "leserpent-control-plane-mutations",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "scope": "/v1",
   "default_policy": "non-read-method-requires-process-writer",
   "read_methods": ["GET", "HEAD", "OPTIONS"],
@@ -56,6 +56,7 @@
     "post-recovery-saturated-duplicate-response-abandonment-proof",
     "post-recovery-mixed-hostile-peer-bounded-progress-proof",
     "repeated-hostile-batch-heartbeat-and-cancellable-shutdown-proof",
+    "repeated-hostile-process-resource-retention-proof",
     "rust-authority-pre-mutation-generation-fence",
     "rust-specialized-local-route-pre-decode-generation-fence",
     "rust-authenticated-https-header-generation-fence"
@@ -214,7 +215,21 @@
       "dispatch": "cancel-aware-concurrent-frame-read-then-stop-checked-serial-accept-order-authority-dispatch",
       "postconditions": "two-hostile-batches-preserve-owner-heartbeat-and-generation-then-sigterm-interrupts-active-slow-read-releases-owner-and-socket-and-allows-immediate-restart",
       "local_evidence": "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm",
-      "physical_linux_evidence": null
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_repeated_hostile_lifecycle_linux_x86_64_20260802.json"
+    },
+    "claim_hostile_resource_retention_proof": {
+      "cycles": 3,
+      "completed_batch_peers_per_cycle": 64,
+      "shutdown_batch_peers_per_cycle": 64,
+      "linux_proc_observation": ["fd", "task"],
+      "returned_baseline_per_cycle": "5-open-fds-and-1-task",
+      "active_shutdown_wave_per_cycle": "69-open-fds-and-65-tasks",
+      "saturated_delta": "64-peer-fds-and-64-scoped-reader-tasks",
+      "cleanup": "all-reader-tasks-joined-proc-directory-owner-row-and-unix-socket-released-after-each-exit",
+      "authority": "writer-generation-1-replays-across-two-restarts-without-allocation",
+      "postconditions": "resource-baselines-identical-across-three-completed-batches-each-saturated-wave-fully-observed-each-sigterm-under-1000ms-and-each-restart-clean",
+      "local_evidence": "crates/leserpentd/tests/authority_writer_takeover_vertical.rs#repeated_hostile_shutdown_restart_cycles_bound_process_resources",
+      "physical_linux_evidence": "docs/fixtures/leserpent_authority_writer_hostile_resource_cycles_linux_x86_64_20260802.json"
     },
     "remaining_routes": []
   },

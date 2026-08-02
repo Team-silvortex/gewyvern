@@ -489,8 +489,17 @@ later completed frame is dispatched. `SIGTERM` during 64 active incomplete
 peers must therefore exit inside 1000 ms, release the owner row and Unix socket,
 and allow immediate same-path restart with the existing generation replayed.
 This changes neither the claim payload nor cold-takeover semantics. Contract
-`1.14.0` records local executable proof and deliberately leaves physical Linux
-x86_64 evidence pending.
+`1.14.0` retains matching macOS and physical Linux x86_64 executable evidence;
+the Linux run completes its two hostile batches in 2234 ms and 2209 ms and the
+active-slow-peer shutdown in 165 ms.
+
+Resource retention is also bounded across three complete daemon cycles without
+changing the wire protocol. On physical Linux, every completed hostile batch
+returns to 5 FDs and 1 task; every 64-peer incomplete wave exposes exactly 69
+FDs and 65 tasks before cancellation. All scoped readers join, `/proc/<pid>`,
+the SQLite owner row, and the Unix socket disappear after each exit, and writer
+generation 1 remains a replay across both restarts. Contract `1.15.0` records
+this lifecycle proof.
 
 ## Reproducible Proof
 

@@ -1128,8 +1128,13 @@ same-writer replays. During a third wave of 64 incomplete peers, `SIGTERM`
 cancels the readers inside a 1000 ms contract, suppresses further mutation
 dispatch, removes the SQLite owner row and Unix socket, and admits an immediate
 fresh process on the same database and path. This is bounded graceful shutdown,
-not in-process promotion or hot failover; physical Linux x86_64 retention is the
-remaining evidence gate for this slice.
+not in-process promotion or hot failover. Physical Linux x86_64 retains the
+same result with 2234 ms and 2209 ms hostile batches and 165 ms signal-driven
+shutdown. Repeated-cycle resource retention is now physically bounded too:
+three Linux processes return to 5 FDs/1 task after completed hostile admission,
+rise to 69 FDs/65 tasks only while all 64 scoped readers are active, then remove
+their proc directory, owner row, and socket after 216/207/208 ms shutdowns.
+Burst reconnect fairness under the same cap is the next lifecycle boundary.
 
 On restart, targets in pending intents remain unavailable
 for sessions and Orchestra; a background recovery worker replays the idempotent

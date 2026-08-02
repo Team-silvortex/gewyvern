@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "campaign": "leserpent_authority_writer_hostile_resource_cycles",
+  "recorded_at": "2026-08-02T02:28:53Z",
+  "target": {
+    "host": "192.168.124.24",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64"
+  },
+  "test": {
+    "package": "leserpentd",
+    "binary": "authority_writer_takeover_vertical",
+    "name": "repeated_hostile_shutdown_restart_cycles_bound_process_resources",
+    "observed_duration_ms": 8710,
+    "cycles": 3,
+    "completed_batch_peers_per_cycle": 64,
+    "shutdown_batch_peers_per_cycle": 64,
+    "production_ipc_batch_limit": 64,
+    "peer_read_timeout_ms": 2000,
+    "frame_read_poll_interval_ms": 100,
+    "batch_budget_ms": 5000,
+    "sigterm_budget_ms": 1000
+  },
+  "resources": {
+    "initial_per_cycle": [
+      { "open_fds": 6, "tasks": 1 },
+      { "open_fds": 6, "tasks": 1 },
+      { "open_fds": 6, "tasks": 1 }
+    ],
+    "returned_after_completed_batch_per_cycle": [
+      { "open_fds": 5, "tasks": 1 },
+      { "open_fds": 5, "tasks": 1 },
+      { "open_fds": 5, "tasks": 1 }
+    ],
+    "active_shutdown_wave_per_cycle": [
+      { "open_fds": 69, "tasks": 65 },
+      { "open_fds": 69, "tasks": 65 },
+      { "open_fds": 69, "tasks": 65 }
+    ],
+    "active_delta_from_returned_baseline": {
+      "open_fds": 64,
+      "tasks": 64
+    },
+    "proc_directory_released_after_each_exit": true
+  },
+  "timing": {
+    "completed_batch_elapsed_ms": [2250, 2241, 2240],
+    "sigterm_elapsed_ms": [216, 207, 208]
+  },
+  "authority": {
+    "writer": "writer_a",
+    "generation": 1,
+    "restart_replays": 2,
+    "owner_row_released_after_each_cycle": true,
+    "unix_socket_released_after_each_cycle": true
+  },
+  "checks": {
+    "production_daemon_ipc_path": true,
+    "three_shutdown_restart_cycles": true,
+    "completed_hostile_batch_each_cycle": true,
+    "shutdown_slow_peer_batch_each_cycle": true,
+    "stable_returned_fd_baseline": true,
+    "stable_returned_task_baseline": true,
+    "sixty_four_accepted_peer_fds_observed": true,
+    "sixty_four_scoped_reader_tasks_observed": true,
+    "all_scoped_reader_tasks_joined": true,
+    "each_completed_batch_within_budget": true,
+    "each_sigterm_within_budget": true,
+    "proc_resources_released_each_cycle": true,
+    "runtime_owner_row_released_each_cycle": true,
+    "unix_socket_released_each_cycle": true,
+    "writer_generation_stable_across_restarts": true,
+    "secret_free_evidence": true
+  }
+}

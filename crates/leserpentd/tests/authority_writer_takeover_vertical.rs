@@ -36,6 +36,7 @@ const SATURATED_DUPLICATE_GROUPS: usize = 16;
 const READABLE_RETRIES_PER_GROUP: usize = 3;
 const MIXED_PEER_GROUPS: usize = 16;
 const REPEATED_HOSTILE_BATCHES: usize = 2;
+const RESOURCE_LIFECYCLE_CYCLES: usize = 3;
 const CRASH_WORKER_DATABASE: &str = "LESERPENT_TEST_AUTHORITY_WRITER_DATABASE";
 const CRASH_WORKER_ID: &str = "LESERPENT_TEST_AUTHORITY_WRITER_ID";
 static TEMP_ROOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -110,6 +111,10 @@ impl DaemonProcess {
         let _ = self.stop_with_budget(Duration::from_secs(5));
     }
 
+    fn pid(&self) -> u32 {
+        self.child.as_ref().unwrap().id()
+    }
+
     fn stop_with_budget(mut self, budget: Duration) -> Duration {
         let mut child = self.child.take().unwrap();
         // The production signal loop must release the SQLite owner lease and
@@ -140,6 +145,78 @@ impl DaemonProcess {
         let status = child.wait().unwrap();
         assert_eq!(status.signal(), Some(libc::SIGKILL));
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ProcessResources {
+    open_fds: usize,
+    tasks: usize,
+}
+
+fn inspect_process_resources(pid: u32) -> Option<ProcessResources> {
+    #[cfg(target_os = "linux")]
+    {
+        let process = PathBuf::from(format!("/proc/{pid}"));
+        return Some(ProcessResources {
+            open_fds: fs::read_dir(process.join("fd")).unwrap().count(),
+            tasks: fs::read_dir(process.join("task")).unwrap().count(),
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        None
+    }
+}
+
+fn wait_for_process_resources_at_most(
+    pid: u32,
+    baseline: Option<ProcessResources>,
+) -> Option<ProcessResources> {
+    let baseline = baseline?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let current = inspect_process_resources(pid).unwrap();
+        if current.open_fds <= baseline.open_fds + 2 && current.tasks <= baseline.tasks {
+            return Some(current);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "daemon resources did not return to baseline {baseline:?}: {current:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn wait_for_saturated_reader_resources(
+    pid: u32,
+    baseline: Option<ProcessResources>,
+) -> Option<ProcessResources> {
+    let baseline = baseline?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let current = inspect_process_resources(pid).unwrap();
+        if current.open_fds >= baseline.open_fds + MAX_IPC_CONNECTIONS_PER_TICK
+            && current.tasks >= baseline.tasks + MAX_IPC_CONNECTIONS_PER_TICK
+        {
+            return Some(current);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "daemon never exposed a saturated reader wave above {baseline:?}: {current:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn assert_process_resources_released(pid: u32) {
+    #[cfg(target_os = "linux")]
+    assert!(
+        !PathBuf::from(format!("/proc/{pid}")).exists(),
+        "exited daemon retained its proc resource directory"
+    );
+    #[cfg(not(target_os = "linux"))]
+    let _ = pid;
 }
 
 impl Drop for DaemonProcess {
@@ -1331,6 +1408,108 @@ fn repeated_hostile_batches_preserve_owner_heartbeat_and_bounded_sigterm() {
     );
     replacement.stop();
     assert!(!socket.exists());
+}
+
+#[test]
+fn repeated_hostile_shutdown_restart_cycles_bound_process_resources() {
+    assert_eq!(MAX_IPC_CONNECTIONS_PER_TICK, 64);
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_leserpentd"));
+    let root = TempRoot::new();
+    let database = root.0.join("hostile-resource-cycles.sqlite");
+    let socket = root.0.join("hostile-resource-cycles.sock");
+    let mut batch_elapsed = Vec::with_capacity(RESOURCE_LIFECYCLE_CYCLES);
+    let mut shutdown_elapsed = Vec::with_capacity(RESOURCE_LIFECYCLE_CYCLES);
+    let mut baseline_resources = Vec::with_capacity(RESOURCE_LIFECYCLE_CYCLES);
+    let mut returned_resources = Vec::with_capacity(RESOURCE_LIFECYCLE_CYCLES);
+    let mut active_resources = Vec::with_capacity(RESOURCE_LIFECYCLE_CYCLES);
+
+    for cycle in 0..RESOURCE_LIFECYCLE_CYCLES {
+        let daemon = DaemonProcess::spawn(&binary, &database, &socket);
+        assert_eq!(
+            claimed(send(&socket, &claim(WRITER_A), None)),
+            (1, WRITER_A.to_string(), cycle > 0)
+        );
+        let pid = daemon.pid();
+        let baseline = inspect_process_resources(pid);
+        baseline_resources.push(baseline);
+        let (owner_token, lease_expiry) = inspect_owner_lease(&database);
+
+        batch_elapsed.push(run_saturated_hostile_replay_batch(&socket, WRITER_A, 1));
+        let refreshed_expiry =
+            wait_for_owner_lease_extension(&database, &owner_token, lease_expiry);
+        let returned = wait_for_process_resources_at_most(pid, baseline);
+        returned_resources.push(returned);
+        assert_eq!(inspect_writer_fence(&database).0, 1);
+
+        let accept_gate = hold_ipc_accept(&socket);
+        let (shutdown_owner, shutdown_gate_expiry) = inspect_owner_lease(&database);
+        assert_eq!(shutdown_owner, owner_token);
+        let slow_peers = (0..MAX_IPC_CONNECTIONS_PER_TICK)
+            .map(|_| queue_raw_prefix(&socket, b"{"))
+            .collect::<Vec<_>>();
+        drop(accept_gate);
+        let shutdown_batch_expiry =
+            wait_for_owner_lease_extension(&database, &owner_token, shutdown_gate_expiry);
+        assert!(shutdown_batch_expiry > refreshed_expiry);
+        active_resources.push(wait_for_saturated_reader_resources(
+            pid,
+            returned.or(baseline),
+        ));
+
+        let elapsed = daemon.stop_with_budget(Duration::from_secs(2));
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "resource lifecycle cycle {cycle} exceeded its SIGTERM budget: {elapsed:?}"
+        );
+        shutdown_elapsed.push(elapsed);
+        drop(slow_peers);
+        assert!(!socket.exists());
+        let owner_rows: i64 = Connection::open(&database)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM runtime_owner", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(owner_rows, 0, "cycle {cycle} retained its owner row");
+        assert_process_resources_released(pid);
+    }
+
+    let observed_returned = returned_resources
+        .iter()
+        .copied()
+        .flatten()
+        .collect::<Vec<_>>();
+    if let Some(expected) = observed_returned.first() {
+        assert_eq!(observed_returned.len(), RESOURCE_LIFECYCLE_CYCLES);
+        assert!(
+            observed_returned
+                .iter()
+                .all(|resources| resources == expected),
+            "post-batch process resources drifted across cycles: {observed_returned:?}"
+        );
+    }
+
+    let final_fence = Connection::open(&database)
+        .unwrap()
+        .query_row(
+            "SELECT generation, writer_id FROM authority_writer_fence WHERE id = 1",
+            [],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .unwrap();
+    assert_eq!(final_fence, (1, WRITER_A.to_string()));
+    println!(
+        "authority-writer-hostile-resource-cycles cycles={} peers_per_completed_batch={} peers_per_shutdown_batch={} batch_elapsed_ms={:?} shutdown_elapsed_ms={:?} baseline_resources={baseline_resources:?} returned_resources={returned_resources:?} active_resources={active_resources:?} proc_released_each_cycle=true owner_rows_released_each_cycle=true socket_released_each_cycle=true final_generation=1",
+        RESOURCE_LIFECYCLE_CYCLES,
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        MAX_IPC_CONNECTIONS_PER_TICK,
+        batch_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>(),
+        shutdown_elapsed
+            .iter()
+            .map(Duration::as_millis)
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]

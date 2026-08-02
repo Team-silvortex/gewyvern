@@ -1479,9 +1479,16 @@ ms peer budget even for drip-fed frames, and authority dispatch stops once
 shutdown begins. A third wave of
 64 active slow peers is interrupted by `SIGTERM` inside 1000 ms, releases the
 owner row and socket, and permits immediate same-path restart with stable
-generation replay. Local executable proof is complete; the next boundary is
-retaining the same result on physical Linux x86_64 before extending hostile
-admission further.
+generation replay. Physical Linux x86_64 reproduces both batches in 2234 ms and
+2209 ms, then exits the 64-slow-peer shutdown wave in 165 ms with owner and
+socket cleanup plus immediate restart. The fifteenth slice repeats completed
+and active hostile waves across three daemon processes. Physical Linux `/proc`
+shows each completed batch returning to exactly 5 open FDs and 1 task, each
+64-peer shutdown wave reaching exactly 69 FDs and 65 tasks, and every exited
+process removing its proc directory, owner row, and socket. SIGTERM remains
+bounded at 216 ms, 207 ms, and 208 ms while generation 1 replays through both
+restarts. The next boundary applies the same resource cap to burst reconnect
+fairness so queued valid peers cannot starve behind repeated saturated waves.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

@@ -210,6 +210,16 @@ authority dispatch stops as soon as shutdown is observed. A third batch holds
 64 slow peers in that read window before
 `SIGTERM`; the daemon must exit inside 1000 ms, delete its owner row and private
 socket through normal RAII cleanup, and permit an immediate same-database,
-same-socket restart that replays the existing writer generation. The executable
-macOS proof is retained in the vertical test; physical Linux x86_64 retention
-remains pending and is not claimed by contract `1.14.0`.
+same-socket restart that replays the existing writer generation. Physical Linux
+x86_64 retains 2234 ms and 2209 ms hostile batches plus 165 ms shutdown under
+the same contract; the fixture records owner/socket cleanup and immediate
+generation-1 replay without credentials.
+
+Repeated process cycles retain bounded resources rather than merely bounded
+latency. Three physical Linux daemons each complete one mixed 64-peer batch and
+return to 5 open FDs plus 1 task. A following 64-slow-peer wave is not inferred:
+`/proc/<pid>/fd` and `/proc/<pid>/task` must expose exactly 69 FDs and 65 tasks,
+proving all accepted sockets and scoped readers are active before `SIGTERM`.
+Each exit joins the readers, removes `/proc/<pid>`, deletes its owner row and
+socket, and lets generation 1 replay in the next process. Observed shutdowns are
+216 ms, 207 ms, and 208 ms.
