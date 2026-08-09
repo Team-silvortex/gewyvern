@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-avalonia-presentation-native-aot-linux-x86_64",
+  "recorded_at": "2026-08-09T12:07:44Z",
+  "source": {
+    "workspace": "clean-rsync-source-mirror",
+    "revision": "working-tree-snapshot",
+    "presentation_fixture": "apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json"
+  },
+  "target": {
+    "host": "192.168.124.22",
+    "alias": "kyuubiki-lab",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64",
+    "execution": "physical-host-xvfb"
+  },
+  "toolchain": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+    "dotnet_sdk": "10.0.110",
+    "rid": "linux-x64",
+    "restore": "locked-complete-dual-rid-graph",
+    "publish": "native-aot-no-restore"
+  },
+  "artifact": {
+    "name": "Leserpent.Avalonia",
+    "format": "ELF 64-bit LSB pie executable",
+    "sha256": "d0cbf545d5ad4c55493e082a5dab1542ff05d98eab91bc0b7a810ec4f4cdd642",
+    "bytes": 29764192,
+    "stripped": true
+  },
+  "suites": {
+    "rust_unit_tests": 281,
+    "lifecycle_gate_tests": 14,
+    "status_gate_tests": 54,
+    "repository_gate_tests": 68,
+    "presentation_atoms": 54,
+    "presentation_atom_profiles": 54,
+    "renderer_conformance": true
+  },
+  "observations": {
+    "wait_unfocused_timeout": true,
+    "wait_unfocused_external_deactivation": false,
+    "external_deactivation_required": false
+  },
+  "checks": {
+    "locked_dual_rid_restore": true,
+    "linux_x64_native_aot_publish": true,
+    "xvfb_real_gui_execution": true,
+    "strict_cross_language_codec": true,
+    "all_required_presentation_markers_passed": true,
+    "window_lifecycle_passed": true,
+    "focus_navigation_passed": true,
+    "virtualization_passed": true,
+    "child_count_assertion_passed": true,
+    "child_count_external_patch_wait_passed": true,
+    "child_count_persistent_mismatch_timeout_passed": true,
+    "child_count_virtualization_preserved": true,
+    "secret_free_evidence": true
+  },
+  "result": "passed"
+}

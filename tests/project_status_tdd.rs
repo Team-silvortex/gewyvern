@@ -1851,6 +1851,76 @@ fn retained_linux_authority_writer_claim_crash_evidence_is_non_vacuous() {
 }
 
 #[test]
+fn retained_linux_avalonia_presentation_native_aot_evidence_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json",
+        ))
+        .expect("Avalonia Linux NativeAOT presentation evidence must exist"),
+    )
+    .expect("Avalonia Linux NativeAOT presentation evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "leserpent-avalonia-presentation-native-aot-linux-x86_64"
+    );
+    assert_eq!(evidence["target"]["host"], "192.168.124.22");
+    assert_eq!(evidence["target"]["hostname"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["execution"], "physical-host-xvfb");
+    assert_eq!(evidence["toolchain"]["dotnet_sdk"], "10.0.110");
+    assert_eq!(evidence["toolchain"]["rid"], "linux-x64");
+    assert_eq!(
+        evidence["toolchain"]["restore"],
+        "locked-complete-dual-rid-graph"
+    );
+
+    let sha256 = evidence["artifact"]["sha256"]
+        .as_str()
+        .expect("artifact SHA-256 must be a string");
+    assert_eq!(sha256.len(), 64);
+    assert!(sha256.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert!(evidence["artifact"]["bytes"].as_u64().unwrap() > 20_000_000);
+    assert_eq!(evidence["artifact"]["stripped"], true);
+    assert_eq!(evidence["suites"]["rust_unit_tests"], 281);
+    assert_eq!(evidence["suites"]["lifecycle_gate_tests"], 14);
+    assert_eq!(evidence["suites"]["status_gate_tests"], 54);
+    assert_eq!(evidence["suites"]["repository_gate_tests"], 68);
+    assert_eq!(evidence["suites"]["presentation_atoms"], 54);
+    assert_eq!(evidence["suites"]["presentation_atom_profiles"], 54);
+    assert_eq!(evidence["suites"]["renderer_conformance"], true);
+    assert_eq!(evidence["observations"]["wait_unfocused_timeout"], true);
+    assert_eq!(
+        evidence["observations"]["wait_unfocused_external_deactivation"],
+        false
+    );
+    assert_eq!(
+        evidence["observations"]["external_deactivation_required"],
+        false
+    );
+    for check in [
+        "locked_dual_rid_restore",
+        "linux_x64_native_aot_publish",
+        "xvfb_real_gui_execution",
+        "strict_cross_language_codec",
+        "all_required_presentation_markers_passed",
+        "window_lifecycle_passed",
+        "focus_navigation_passed",
+        "virtualization_passed",
+        "child_count_assertion_passed",
+        "child_count_external_patch_wait_passed",
+        "child_count_persistent_mismatch_timeout_passed",
+        "child_count_virtualization_preserved",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
 fn retained_system_profile_bootstrap_retirement_evidence_is_non_vacuous() {
     let root = repository_root();
     let evidence: serde_json::Value = serde_json::from_str(
@@ -3523,7 +3593,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.82.0");
+    assert_eq!(avalonia.contract.version, "1.84.0");
     assert!(
         avalonia
             .contract
@@ -3677,6 +3747,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "native-selection-wait",
         "persistent-selection-mismatch-timeout",
         "selection-probe-focus-preservation",
+        "semantic-child-count-assertion",
+        "dispatcher-yielding-child-count-wait",
+        "external-child-count-patch-transition",
+        "persistent-child-count-mismatch-timeout",
+        "virtualization-preserving-child-count-observation",
     ] {
         assert!(
             avalonia
@@ -3686,6 +3761,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 .any(|candidate| candidate == surface)
         );
     }
+    assert!(avalonia.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Test
+            && item.path
+                == "docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json"
+            && item.state == EvidenceState::Present
+    }));
     assert!(avalonia.blockers.is_empty());
 
     let transport = catalog
@@ -5359,7 +5440,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.48.0");
+    assert_eq!(ui.contract.version, "1.49.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -5459,6 +5540,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-assert-selection-presentation-roundtrip",
         "ui-wait-selection-presentation-roundtrip",
         "fixed-selection-wait-timeout",
+        "ui-assert-child-count-presentation-roundtrip",
+        "ui-wait-child-count-presentation-roundtrip",
+        "fixed-child-count-wait-timeout",
+        "structural-presentation-atom-profile",
     ] {
         assert!(
             ui.contract
@@ -5501,7 +5586,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.59.0");
+    assert_eq!(hir.contract.version, "0.60.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -5577,6 +5662,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "ui-wait-selection-effect",
         "typed-ui-selection-state",
         "fixed-selection-wait-policy",
+        "ui-assert-child-count-effect",
+        "ui-wait-child-count-effect",
+        "bounded-ui-child-count",
         "ui-wait-focused-effect",
         "fixed-focused-wait-policy",
         "ui-assert-unfocused-effect",
@@ -5607,7 +5695,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.44.0");
+    assert_eq!(vm.contract.version, "1.45.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -5619,6 +5707,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "typed-ui-selection-result",
         "selection-state-request-result-binding",
         "fixed-ui-selection-wait-deadline",
+        "typed-ui-assert-child-count-result",
+        "typed-ui-wait-child-count-result",
+        "child-count-request-result-binding",
+        "fixed-ui-child-count-wait-deadline",
         "typed-ui-scroll-into-view-result",
         "typed-ui-assert-visible-result",
         "typed-ui-assert-hidden-result",
@@ -5729,7 +5821,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.55.0");
+    assert_eq!(command.contract.version, "0.56.0");
     assert!(
         command
             .contract
@@ -5863,6 +5955,19 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .iter()
             .any(|surface| surface == "selection-command-rejection")
     );
+    for surface in [
+        "child-count-assert-command-rejection",
+        "child-count-wait-command-rejection",
+    ] {
+        assert!(
+            command
+                .contract
+                .surfaces
+                .iter()
+                .any(|candidate| candidate == surface),
+            "missing child-count command fence {surface}"
+        );
+    }
     assert!(
         command
             .contract

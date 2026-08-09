@@ -98,6 +98,8 @@ pub fn lower_effect(
             | Effect::UiAssertUnfocused { .. }
             | Effect::UiAssertEnabled { .. }
             | Effect::UiAssertDisabled { .. }
+            | Effect::UiAssertChildCount { .. }
+            | Effect::UiWaitChildCount { .. }
             | Effect::UiAssertSelection { .. }
             | Effect::UiWaitSelection { .. }
             | Effect::UiAssertText { .. }
@@ -163,6 +165,8 @@ pub fn lower_effect(
         | Effect::UiAssertUnfocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertDisabled { .. }
+        | Effect::UiAssertChildCount { .. }
+        | Effect::UiWaitChildCount { .. }
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
@@ -239,6 +243,8 @@ pub fn lower_effect(
         | Effect::UiAssertUnfocused { .. }
         | Effect::UiAssertEnabled { .. }
         | Effect::UiAssertDisabled { .. }
+        | Effect::UiAssertChildCount { .. }
+        | Effect::UiWaitChildCount { .. }
         | Effect::UiAssertSelection { .. }
         | Effect::UiWaitSelection { .. }
         | Effect::UiAssertText { .. }
@@ -554,6 +560,8 @@ mod tests {
             "fn main() = ui.assert_unfocused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\", count: \"3\")",
+            "fn main() = ui.wait_child_count(node_id: \"fleet-root\", count: \"4\")",
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",

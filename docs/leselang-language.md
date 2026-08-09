@@ -31,7 +31,8 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_disabled`, `ui.wait_enabled`, `ui.wait_disabled`,
 `ui.open_window`, `ui.close_window`, `ui.assert_window_open`,
 `ui.wait_window_open`, `ui.assert_window_closed`, `ui.wait_window_closed`,
-`ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`, `ui.wait_text`,
+`ui.assert_selection`, `ui.wait_selection`, `ui.assert_child_count`,
+`ui.wait_child_count`, `ui.assert_text`, `ui.wait_text`,
 `ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.wait_node_kind`, `ui.assert_action_kind`,
 `ui.wait_action_kind`,
@@ -474,6 +475,31 @@ until the realized native selectable reaches the requested state. Missing or
 selectionless nodes fail immediately; persistently unrealized, nonselectable, or
 mismatched controls time out. Waiting never selects, focuses, activates, scrolls,
 or otherwise mutates the target.
+
+Stable immediate-child cardinality can be asserted without realizing a list:
+
+```leselang
+fn main() = ui.assert_child_count(node_id: "fleet-root", count: "3")
+```
+
+`ui.assert_child_count` accepts any existing semantic node and a canonical
+decimal count from `0` through `4096`. The adapter reads the node's stable
+semantic/visual index, including unrealized virtualized children, rather than
+enumerating only materialized native controls. Missing, unrealized target, or
+mismatched counts fail with typed presentation errors; observation never
+focuses, scrolls, activates, or realizes children.
+
+The same topology state can be awaited across an external patch:
+
+```leselang
+fn main() = ui.wait_child_count(node_id: "fleet-root", count: "4")
+```
+
+`ui.wait_child_count` has the protocol-fixed 2000 ms deadline and no source
+duration argument. The VM binds node, count, timeout, and result across re-entry.
+The frontend yields its dispatcher until a patch changes the indexed direct-child
+count; a persistent mismatch times out without mutating the document or its
+virtualization state.
 
 Native displayed text can be asserted without OCR or coordinate inspection:
 

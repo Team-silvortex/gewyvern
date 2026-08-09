@@ -2,20 +2,20 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use leselang_command::{LoweringContext, LoweringError, lower_effect};
 use leselang_hir::{
-    Effect, HirBranch, Type, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
+    Effect, HirBranch, MAX_UI_CHILD_COUNT, Type, UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS,
     UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS, UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS,
     UI_WAIT_ACTION_KIND_TIMEOUT_MS, UI_WAIT_ACTION_LABEL_TIMEOUT_MS,
-    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS,
-    UI_WAIT_FOCUSED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS, UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS,
-    UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS, UI_WAIT_FORM_FIELD_TIMEOUT_MS,
-    UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS, UI_WAIT_SELECTION_TIMEOUT_MS,
-    UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS, UI_WAIT_VISIBLE_TIMEOUT_MS,
-    UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS, UiFocusNavigationDirection,
-    UiFormInputKind as HirUiFormInputKind, UiFormRequirementState as HirUiFormRequirementState,
-    UiSelectionState, UiSemanticActionKind as HirUiSemanticActionKind,
-    UiSemanticNodeKind as HirUiSemanticNodeKind, canonical_source, validate_ui_expected_text,
-    validate_ui_form_field_key, validate_ui_node_id,
+    UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS, UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
+    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
+    UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
+    UI_WAIT_SELECTION_TIMEOUT_MS, UI_WAIT_TEXT_TIMEOUT_MS, UI_WAIT_UNFOCUSED_TIMEOUT_MS,
+    UI_WAIT_VISIBLE_TIMEOUT_MS, UI_WAIT_WINDOW_CLOSED_TIMEOUT_MS, UI_WAIT_WINDOW_OPEN_TIMEOUT_MS,
+    UiFocusNavigationDirection, UiFormInputKind as HirUiFormInputKind,
+    UiFormRequirementState as HirUiFormRequirementState, UiSelectionState,
+    UiSemanticActionKind as HirUiSemanticActionKind, UiSemanticNodeKind as HirUiSemanticNodeKind,
+    canonical_source, validate_ui_expected_text, validate_ui_form_field_key, validate_ui_node_id,
 };
 use leserpent_domain::{
     CommandPlan, QueryResult, RefreshStatus, Revision, RuntimeId, validate_deployment_intent,
@@ -329,6 +329,8 @@ pub enum DebuggerEffectKind {
     UiAssertEnabled,
     UiAssertDisabled,
     UiWaitDisabled,
+    UiAssertChildCount,
+    UiWaitChildCount,
     UiOpenWindow,
     UiCloseWindow,
     UiAssertWindowOpen,
@@ -547,6 +549,15 @@ pub enum UiPresentationOperation {
         node_id: NodeId,
         timeout_ms: u64,
     },
+    AssertChildCount {
+        node_id: NodeId,
+        count: usize,
+    },
+    WaitChildCount {
+        node_id: NodeId,
+        count: usize,
+        timeout_ms: u64,
+    },
     OpenWindow {
         node_id: NodeId,
     },
@@ -727,6 +738,8 @@ pub enum UiPresentationAtom {
     AssertEnabled,
     AssertDisabled,
     WaitDisabled,
+    AssertChildCount,
+    WaitChildCount,
     OpenWindow,
     CloseWindow,
     AssertWindowOpen,
@@ -772,6 +785,7 @@ pub enum UiPresentationAtomFamily {
     Visibility,
     Realization,
     EnabledState,
+    Structure,
     Window,
     Selection,
     Text,
@@ -797,7 +811,7 @@ pub struct UiPresentationAtomProfile {
     pub effect: UiPresentationAtomEffect,
 }
 
-pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 52] = [
+pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 54] = [
     UiPresentationAtom::Focus,
     UiPresentationAtom::NavigateFocus,
     UiPresentationAtom::ScrollIntoView,
@@ -815,6 +829,8 @@ pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 52] = [
     UiPresentationAtom::AssertEnabled,
     UiPresentationAtom::AssertDisabled,
     UiPresentationAtom::WaitDisabled,
+    UiPresentationAtom::AssertChildCount,
+    UiPresentationAtom::WaitChildCount,
     UiPresentationAtom::OpenWindow,
     UiPresentationAtom::CloseWindow,
     UiPresentationAtom::AssertWindowOpen,
@@ -875,6 +891,8 @@ pub fn presentation_atom_for_operation(operation: &UiPresentationOperation) -> U
         UiPresentationOperation::AssertEnabled { .. } => UiPresentationAtom::AssertEnabled,
         UiPresentationOperation::AssertDisabled { .. } => UiPresentationAtom::AssertDisabled,
         UiPresentationOperation::WaitDisabled { .. } => UiPresentationAtom::WaitDisabled,
+        UiPresentationOperation::AssertChildCount { .. } => UiPresentationAtom::AssertChildCount,
+        UiPresentationOperation::WaitChildCount { .. } => UiPresentationAtom::WaitChildCount,
         UiPresentationOperation::OpenWindow { .. } => UiPresentationAtom::OpenWindow,
         UiPresentationOperation::CloseWindow { .. } => UiPresentationAtom::CloseWindow,
         UiPresentationOperation::AssertWindowOpen { .. } => UiPresentationAtom::AssertWindowOpen,
@@ -985,6 +1003,9 @@ pub fn presentation_atom_family(atom: UiPresentationAtom) -> UiPresentationAtomF
         | UiPresentationAtom::AssertEnabled
         | UiPresentationAtom::AssertDisabled
         | UiPresentationAtom::WaitDisabled => UiPresentationAtomFamily::EnabledState,
+        UiPresentationAtom::AssertChildCount | UiPresentationAtom::WaitChildCount => {
+            UiPresentationAtomFamily::Structure
+        }
         UiPresentationAtom::OpenWindow
         | UiPresentationAtom::CloseWindow
         | UiPresentationAtom::AssertWindowOpen
@@ -1041,6 +1062,7 @@ pub fn presentation_atom_effect(atom: UiPresentationAtom) -> UiPresentationAtomE
         | UiPresentationAtom::AssertUnfocused
         | UiPresentationAtom::AssertEnabled
         | UiPresentationAtom::AssertDisabled
+        | UiPresentationAtom::AssertChildCount
         | UiPresentationAtom::AssertWindowOpen
         | UiPresentationAtom::AssertWindowClosed
         | UiPresentationAtom::AssertSelection
@@ -1065,6 +1087,7 @@ pub fn presentation_atom_effect(atom: UiPresentationAtom) -> UiPresentationAtomE
         | UiPresentationAtom::WaitFocused
         | UiPresentationAtom::WaitUnfocused
         | UiPresentationAtom::WaitDisabled
+        | UiPresentationAtom::WaitChildCount
         | UiPresentationAtom::WaitWindowOpen
         | UiPresentationAtom::WaitWindowClosed
         | UiPresentationAtom::WaitSelection
@@ -1850,6 +1873,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertEnabled
             | DebuggerEffectKind::UiAssertDisabled
             | DebuggerEffectKind::UiWaitDisabled
+            | DebuggerEffectKind::UiAssertChildCount
+            | DebuggerEffectKind::UiWaitChildCount
             | DebuggerEffectKind::UiOpenWindow
             | DebuggerEffectKind::UiCloseWindow
             | DebuggerEffectKind::UiAssertWindowOpen
@@ -2001,6 +2026,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertEnabled => "UI assert enabled",
             DebuggerEffectKind::UiAssertDisabled => "UI assert disabled",
             DebuggerEffectKind::UiWaitDisabled => "UI wait disabled",
+            DebuggerEffectKind::UiAssertChildCount => "UI assert child count",
+            DebuggerEffectKind::UiWaitChildCount => "UI wait child count",
             DebuggerEffectKind::UiOpenWindow => "UI open window",
             DebuggerEffectKind::UiCloseWindow => "UI close window",
             DebuggerEffectKind::UiAssertWindowOpen => "UI assert window open",
@@ -2353,6 +2380,17 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
         },
+        Effect::UiAssertChildCount { node_id, count } => {
+            UiPresentationOperation::AssertChildCount {
+                node_id: NodeId::new(node_id.clone())?,
+                count: *count,
+            }
+        }
+        Effect::UiWaitChildCount { node_id, count } => UiPresentationOperation::WaitChildCount {
+            node_id: NodeId::new(node_id.clone())?,
+            count: *count,
+            timeout_ms: UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
+        },
         Effect::UiOpenWindow { node_id } => UiPresentationOperation::OpenWindow {
             node_id: NodeId::new(node_id.clone())?,
         },
@@ -2647,6 +2685,18 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::WaitDisabled { node_id, .. } => Effect::UiWaitDisabled {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::AssertChildCount { node_id, count } => {
+            Effect::UiAssertChildCount {
+                node_id: node_id.as_str().to_string(),
+                count: *count,
+            }
+        }
+        UiPresentationOperation::WaitChildCount { node_id, count, .. } => {
+            Effect::UiWaitChildCount {
+                node_id: node_id.as_str().to_string(),
+                count: *count,
+            }
+        }
         UiPresentationOperation::OpenWindow { node_id } => Effect::UiOpenWindow {
             node_id: node_id.as_str().to_string(),
         },
@@ -2898,6 +2948,8 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertEnabled { node_id }
         | UiPresentationOperation::AssertDisabled { node_id }
         | UiPresentationOperation::WaitDisabled { node_id, .. }
+        | UiPresentationOperation::AssertChildCount { node_id, .. }
+        | UiPresentationOperation::WaitChildCount { node_id, .. }
         | UiPresentationOperation::OpenWindow { node_id }
         | UiPresentationOperation::CloseWindow { node_id }
         | UiPresentationOperation::AssertWindowOpen { node_id }
@@ -2988,6 +3040,12 @@ pub fn validate_presentation_operation(
     {
         return Err(UiError::InvalidPresentationText);
     }
+    if let UiPresentationOperation::AssertChildCount { count, .. }
+    | UiPresentationOperation::WaitChildCount { count, .. } = operation
+        && *count > MAX_UI_CHILD_COUNT
+    {
+        return Err(UiError::InvalidPresentationText);
+    }
     if let UiPresentationOperation::AssertAutomationId { expected, .. } = operation
         && !validate_ui_node_id(expected)
     {
@@ -3015,6 +3073,11 @@ pub fn validate_presentation_operation(
     }
     if let UiPresentationOperation::WaitDisabled { timeout_ms, .. } = operation
         && *timeout_ms != UI_WAIT_ENABLED_TIMEOUT_MS
+    {
+        return Err(UiError::InvalidPresentationTimeout);
+    }
+    if let UiPresentationOperation::WaitChildCount { timeout_ms, .. } = operation
+        && *timeout_ms != UI_WAIT_CHILD_COUNT_TIMEOUT_MS
     {
         return Err(UiError::InvalidPresentationTimeout);
     }
@@ -4863,6 +4926,65 @@ mod tests {
             ),
             Err(UiError::UnfocusablePresentationTarget { .. })
         ));
+    }
+
+    #[test]
+    fn child_count_assert_and_wait_round_trip_for_virtualized_semantic_children() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let assertion = UiPresentationOperation::AssertChildCount {
+            node_id: NodeId::new("fleet-root").unwrap(),
+            count: 3,
+        };
+        validate_presentation_operation(&document, &assertion).unwrap();
+        let effect = effect_for_presentation_operation(&document, &assertion).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiAssertChildCount {
+                node_id: "fleet-root".into(),
+                count: 3,
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            assertion
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &assertion).unwrap(),
+            "fn main() = ui.assert_child_count(\n  node_id: \"fleet-root\",\n  count: \"3\",\n)\n"
+        );
+
+        let wait = UiPresentationOperation::WaitChildCount {
+            node_id: NodeId::new("fleet-root").unwrap(),
+            count: 4,
+            timeout_ms: UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
+        };
+        validate_presentation_operation(&document, &wait).unwrap();
+        let effect = effect_for_presentation_operation(&document, &wait).unwrap();
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            wait
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::WaitChildCount {
+                    node_id: NodeId::new("fleet-root").unwrap(),
+                    count: 4,
+                    timeout_ms: UI_WAIT_CHILD_COUNT_TIMEOUT_MS + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationTimeout)
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::AssertChildCount {
+                    node_id: NodeId::new("fleet-root").unwrap(),
+                    count: MAX_UI_CHILD_COUNT + 1,
+                },
+            ),
+            Err(UiError::InvalidPresentationText)
+        );
     }
 
     #[test]
@@ -7933,14 +8055,22 @@ mod tests {
         .unwrap();
         assert_eq!(manifest.schema_version, UI_ADAPTER_MANIFEST_SCHEMA_VERSION);
         assert_eq!(manifest.ui_schema_version, UI_SCHEMA_VERSION);
-        assert_eq!(manifest.presentation_atoms.len(), 52);
-        assert_eq!(manifest.presentation_atom_profiles.len(), 52);
+        assert_eq!(manifest.presentation_atoms.len(), 54);
+        assert_eq!(manifest.presentation_atom_profiles.len(), 54);
         assert_eq!(
             presentation_atom_profile(UiPresentationAtom::OpenWindow),
             UiPresentationAtomProfile {
                 atom: UiPresentationAtom::OpenWindow,
                 family: UiPresentationAtomFamily::Window,
                 effect: UiPresentationAtomEffect::Mutation,
+            }
+        );
+        assert_eq!(
+            presentation_atom_profile(UiPresentationAtom::WaitChildCount),
+            UiPresentationAtomProfile {
+                atom: UiPresentationAtom::WaitChildCount,
+                family: UiPresentationAtomFamily::Structure,
+                effect: UiPresentationAtomEffect::Wait,
             }
         );
         assert!(

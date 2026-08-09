@@ -216,7 +216,7 @@ duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. A separate
 `UiAdapterManifest` now records explicit developer-owned or generated framework
-bindings against the document, event, patch, and complete fifty-two-atom
+bindings against the document, event, patch, and complete fifty-four-atom
 presentation protocol plus canonical atom family/effect profiles, so future GUI
 hosts have a protobuf-style compatibility checkpoint without automatic framework
 admission. The Rust-generated
@@ -289,6 +289,8 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_window_closed(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
+`ui.assert_child_count(node_id: ..., count: "0".."4096")`, plus
+`ui.wait_child_count(node_id: ..., count: "0".."4096")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
 `ui.wait_text(node_id: ..., expected: ...)`, plus
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
@@ -317,7 +319,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all fifty-two, and `leselang-ui` round-trips them against the current semantic
+rejects all fifty-four, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
 manager from a currently focused stable action, resolves first/last through the
@@ -2205,6 +2207,15 @@ x64 uses the same command with Xvfb. Windows stays unclaimed until its lock and
 physical-host proof exist, but that evidence is outside the current
 macOS/Linux-to-Android critical path; Windows uses the TypeScript web console
 meanwhile.
+
+The 2026-08-09 physical Linux x86_64 proof closes the current presentation
+portability boundary: the locked `linux-x64` NativeAOT artifact passes all 54
+presentation atom profiles through real Avalonia windows under Xvfb, including
+child-count external-patch waiting, persistent-mismatch timeout, focus
+navigation, and virtualization preservation. Its non-vacuous, secret-free
+fixture is retained at
+`docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json`
+and is required by the Avalonia status cell.
 
 ## Explicit Deferrals
 

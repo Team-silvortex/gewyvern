@@ -32,7 +32,7 @@ generator tooling. The manifest carries schema version `2`, a stable
 `developer_owned_adapter` or `generated_framework_binding`, the target
 `ui_schema_version`, and booleans proving support for document, event, and patch
 schemas. It must also list the complete `required_ui_presentation_atoms()` set:
-all fifty-two current presentation atoms, including focus, window lifecycle,
+all fifty-four current presentation atoms, including focus, window lifecycle,
 wait, assertion, selection, action metadata, form metadata, and accessibility operations. Schema
 version `2` also carries `presentation_atom_profiles`: one canonical profile per
 atom, classifying the GUI family and effect model as mutation, assertion, or
@@ -156,7 +156,7 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum parameterized form value: `256` bytes
 - adapter manifest schema version: `2`
 - maximum adapter framework label: `128` bytes
-- required adapter presentation atoms: `52`
+- required adapter presentation atoms: `54`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -195,7 +195,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by fifty-two presentation atoms.
+Semantic action equivalence is joined by fifty-four presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -261,6 +261,12 @@ selection metadata, and admits only `selected` or `unselected`.
 `UiPresentationOperation::WaitSelection` maps one-to-one to
 `ui.wait_selection(node_id: ..., state: ...)`, requires the same selectable
 semantic node, and carries the protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::AssertChildCount` maps one-to-one to
+`ui.assert_child_count(node_id: ..., count: ...)`, accepts any existing semantic
+node, and admits canonical decimal direct-child counts from 0 through 4096.
+`UiPresentationOperation::WaitChildCount` maps one-to-one to
+`ui.wait_child_count(node_id: ..., count: ...)`, observes the same stable
+semantic/visual index and carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::AssertText` maps one-to-one to
 `ui.assert_text(node_id: ..., expected: ...)`, requires a text-rendering
 semantic node, and carries a control-free expected value of at most 1024 UTF-8
@@ -374,11 +380,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all fifty-two travel in
+become a `UiEvent` or `CommandPlan`; all fifty-four travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all fifty-two operations through its stable visual index. Focus
+Avalonia resolves all fifty-four operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -407,6 +413,10 @@ adapter without invoking `Control.Focus()` or transferring focus. Native window
 deactivation is therefore a legitimate external transition to unfocused state;
 the real-window verifier reports that path separately from a persistent-focus
 timeout instead of treating desktop activation timing as an adapter failure.
+Child-count assertion reads immediate children from that stable index, including
+unrealized virtualized nodes. Child-count wait polls the same topology state
+across external patches and times out on persistent mismatch without creating
+child controls or mutating the document.
 Enabled assertion reads native effective enabled state,
 including ancestors. Disabled assertion reads the same native effective enabled
 state and succeeds only for disabled actions, providing a positive safety

@@ -874,6 +874,17 @@
     "state": "unselected",
     "timeout_ms": 2000
   },
+  "child_count_assert_operation": {
+    "kind": "assert_child_count",
+    "node_id": "fleet-root",
+    "count": 3
+  },
+  "child_count_wait_operation": {
+    "kind": "wait_child_count",
+    "node_id": "fleet-root",
+    "count": 4,
+    "timeout_ms": 2000
+  },
   "text_assert_operation": {
     "kind": "assert_text",
     "node_id": "fleet-title",
@@ -1057,6 +1068,8 @@
       "assert_enabled",
       "assert_disabled",
       "wait_disabled",
+      "assert_child_count",
+      "wait_child_count",
       "open_window",
       "close_window",
       "assert_window_open",
@@ -1177,6 +1190,16 @@
       {
         "atom": "wait_disabled",
         "family": "enabled_state",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_child_count",
+        "family": "structure",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_child_count",
+        "family": "structure",
         "effect": "wait"
       },
       {
@@ -1383,6 +1406,8 @@
       "assert_enabled",
       "assert_disabled",
       "wait_disabled",
+      "assert_child_count",
+      "wait_child_count",
       "open_window",
       "close_window",
       "assert_window_open",
@@ -1503,6 +1528,16 @@
       {
         "atom": "wait_disabled",
         "family": "enabled_state",
+        "effect": "wait"
+      },
+      {
+        "atom": "assert_child_count",
+        "family": "structure",
+        "effect": "assertion"
+      },
+      {
+        "atom": "wait_child_count",
+        "family": "structure",
         "effect": "wait"
       },
       {

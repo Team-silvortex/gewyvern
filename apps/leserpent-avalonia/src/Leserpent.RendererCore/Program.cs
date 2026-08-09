@@ -6,6 +6,7 @@ public sealed class SemanticRenderer
 {
     private const int MaxPatchOperations = 8192;
     private const int MaxFormValueBytes = 256;
+    private const int MaxUiChildCount = 4096;
     private const int MaxAdapterFrameworkBytes = 128;
     private const int AdapterManifestSchemaVersion = 2;
     private const int UiSchemaVersion = 1;
@@ -36,6 +37,8 @@ public sealed class SemanticRenderer
         UiPresentationAtom.WaitWindowClosed,
         UiPresentationAtom.AssertSelection,
         UiPresentationAtom.WaitSelection,
+        UiPresentationAtom.AssertChildCount,
+        UiPresentationAtom.WaitChildCount,
         UiPresentationAtom.AssertText,
         UiPresentationAtom.WaitText,
         UiPresentationAtom.AssertAutomationId,
@@ -73,6 +76,7 @@ public sealed class SemanticRenderer
     public const int WaitUnfocusedTimeoutMs = 2000;
     public const int WaitRealizedTimeoutMs = 2000;
     public const int WaitSelectionTimeoutMs = 2000;
+    public const int WaitChildCountTimeoutMs = 2000;
     public const int WaitTextTimeoutMs = 2000;
     public const int WaitAccessibleNameTimeoutMs = 2000;
     public const int WaitAccessibleDescriptionTimeoutMs = 2000;
@@ -223,6 +227,8 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.WaitWindowClosed => UiPresentationAtomFamily.Window,
             UiPresentationAtom.AssertSelection
                 or UiPresentationAtom.WaitSelection => UiPresentationAtomFamily.Selection,
+            UiPresentationAtom.AssertChildCount
+                or UiPresentationAtom.WaitChildCount => UiPresentationAtomFamily.Structure,
             UiPresentationAtom.AssertText
                 or UiPresentationAtom.WaitText => UiPresentationAtomFamily.Text,
             UiPresentationAtom.AssertAutomationId
@@ -273,6 +279,7 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.AssertWindowOpen
                 or UiPresentationAtom.AssertWindowClosed
                 or UiPresentationAtom.AssertSelection
+                or UiPresentationAtom.AssertChildCount
                 or UiPresentationAtom.AssertText
                 or UiPresentationAtom.AssertAutomationId
                 or UiPresentationAtom.AssertNodeKind
@@ -297,6 +304,7 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.WaitWindowOpen
                 or UiPresentationAtom.WaitWindowClosed
                 or UiPresentationAtom.WaitSelection
+                or UiPresentationAtom.WaitChildCount
                 or UiPresentationAtom.WaitText
                 or UiPresentationAtom.WaitNodeKind
                 or UiPresentationAtom.WaitActionKind
@@ -583,6 +591,18 @@ public sealed class SemanticRenderer
         {
             return UiPresentationValidation.InvalidSelectionState;
         }
+        if (operation.Kind is UiPresentationOperationKind.AssertChildCount
+            or UiPresentationOperationKind.WaitChildCount)
+        {
+            if (operation.Count is not { } count || count is < 0 or > MaxUiChildCount)
+            {
+                return UiPresentationValidation.InvalidExpectedChildCount;
+            }
+        }
+        else if (operation.Count is not null)
+        {
+            return UiPresentationValidation.InvalidExpectedChildCount;
+        }
         if (operation.Kind is UiPresentationOperationKind.WaitRealized
             or UiPresentationOperationKind.WaitVisible
             or UiPresentationOperationKind.WaitHidden
@@ -598,6 +618,7 @@ public sealed class SemanticRenderer
             or UiPresentationOperationKind.WaitFocused
             or UiPresentationOperationKind.WaitUnfocused
             or UiPresentationOperationKind.WaitSelection
+            or UiPresentationOperationKind.WaitChildCount
             or UiPresentationOperationKind.WaitText
             or UiPresentationOperationKind.WaitAccessibleName
             or UiPresentationOperationKind.WaitAccessibleDescription
@@ -628,6 +649,7 @@ public sealed class SemanticRenderer
                 UiPresentationOperationKind.WaitFocused => WaitFocusedTimeoutMs,
                 UiPresentationOperationKind.WaitUnfocused => WaitUnfocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection => WaitSelectionTimeoutMs,
+                UiPresentationOperationKind.WaitChildCount => WaitChildCountTimeoutMs,
                 UiPresentationOperationKind.WaitText => WaitTextTimeoutMs,
                 UiPresentationOperationKind.WaitAccessibleName => WaitAccessibleNameTimeoutMs,
                 UiPresentationOperationKind.WaitAccessibleDescription =>
@@ -708,6 +730,9 @@ public sealed class SemanticRenderer
             UiPresentationOperationKind.AssertSelection
             or UiPresentationOperationKind.WaitSelection
                 when node.Selection is not null =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.AssertChildCount
+            or UiPresentationOperationKind.WaitChildCount =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertText
             or UiPresentationOperationKind.WaitText
@@ -1106,6 +1131,8 @@ public sealed class RendererFixture
     public UiPresentationOperation? DisabledAssertOperation { get; set; }
     public UiPresentationOperation? SelectionAssertOperation { get; set; }
     public UiPresentationOperation? SelectionWaitOperation { get; set; }
+    public UiPresentationOperation? ChildCountAssertOperation { get; set; }
+    public UiPresentationOperation? ChildCountWaitOperation { get; set; }
     public UiPresentationOperation? TextAssertOperation { get; set; }
     public UiPresentationOperation? TextWaitOperation { get; set; }
     public UiPresentationOperation? AutomationIdAssertOperation { get; set; }
@@ -1245,6 +1272,7 @@ public sealed class UiPresentationOperation
     public required string NodeId { get; set; }
     public UiFocusNavigationDirection? Direction { get; set; }
     public UiSelectionState? State { get; set; }
+    public int? Count { get; set; }
     public string? Expected { get; set; }
     public string? Field { get; set; }
     public UiFormInputKind? InputKind { get; set; }
@@ -1342,6 +1370,8 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("assert_disabled")] AssertDisabled,
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,
     [JsonStringEnumMemberName("wait_selection")] WaitSelection,
+    [JsonStringEnumMemberName("assert_child_count")] AssertChildCount,
+    [JsonStringEnumMemberName("wait_child_count")] WaitChildCount,
     [JsonStringEnumMemberName("assert_text")] AssertText,
     [JsonStringEnumMemberName("wait_text")] WaitText,
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
@@ -1405,6 +1435,7 @@ public enum UiPresentationValidation
     InvalidExpectedMaxLength,
     InvalidNavigationDirection,
     InvalidSelectionState,
+    InvalidExpectedChildCount,
     InvalidTimeout,
 }
 
@@ -1443,6 +1474,8 @@ public enum UiPresentationAtom
     [JsonStringEnumMemberName("wait_window_closed")] WaitWindowClosed,
     [JsonStringEnumMemberName("assert_selection")] AssertSelection,
     [JsonStringEnumMemberName("wait_selection")] WaitSelection,
+    [JsonStringEnumMemberName("assert_child_count")] AssertChildCount,
+    [JsonStringEnumMemberName("wait_child_count")] WaitChildCount,
     [JsonStringEnumMemberName("assert_text")] AssertText,
     [JsonStringEnumMemberName("wait_text")] WaitText,
     [JsonStringEnumMemberName("assert_automation_id")] AssertAutomationId,
@@ -1482,6 +1515,7 @@ public enum UiPresentationAtomFamily
     [JsonStringEnumMemberName("enabled_state")] EnabledState,
     [JsonStringEnumMemberName("window")] Window,
     [JsonStringEnumMemberName("selection")] Selection,
+    [JsonStringEnumMemberName("structure")] Structure,
     [JsonStringEnumMemberName("text")] Text,
     [JsonStringEnumMemberName("node_metadata")] NodeMetadata,
     [JsonStringEnumMemberName("action_metadata")] ActionMetadata,
@@ -1588,6 +1622,8 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             "wait_window_closed" => UiPresentationAtom.WaitWindowClosed,
             "assert_selection" => UiPresentationAtom.AssertSelection,
             "wait_selection" => UiPresentationAtom.WaitSelection,
+            "assert_child_count" => UiPresentationAtom.AssertChildCount,
+            "wait_child_count" => UiPresentationAtom.WaitChildCount,
             "assert_text" => UiPresentationAtom.AssertText,
             "wait_text" => UiPresentationAtom.WaitText,
             "assert_automation_id" => UiPresentationAtom.AssertAutomationId,
@@ -1651,6 +1687,8 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             UiPresentationAtom.WaitWindowClosed => "wait_window_closed",
             UiPresentationAtom.AssertSelection => "assert_selection",
             UiPresentationAtom.WaitSelection => "wait_selection",
+            UiPresentationAtom.AssertChildCount => "assert_child_count",
+            UiPresentationAtom.WaitChildCount => "wait_child_count",
             UiPresentationAtom.AssertText => "assert_text",
             UiPresentationAtom.WaitText => "wait_text",
             UiPresentationAtom.AssertAutomationId => "assert_automation_id",
@@ -1703,6 +1741,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
             "enabled_state" => UiPresentationAtomFamily.EnabledState,
             "window" => UiPresentationAtomFamily.Window,
             "selection" => UiPresentationAtomFamily.Selection,
+            "structure" => UiPresentationAtomFamily.Structure,
             "text" => UiPresentationAtomFamily.Text,
             "node_metadata" => UiPresentationAtomFamily.NodeMetadata,
             "action_metadata" => UiPresentationAtomFamily.ActionMetadata,
@@ -1726,6 +1765,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
             UiPresentationAtomFamily.EnabledState => "enabled_state",
             UiPresentationAtomFamily.Window => "window",
             UiPresentationAtomFamily.Selection => "selection",
+            UiPresentationAtomFamily.Structure => "structure",
             UiPresentationAtomFamily.Text => "text",
             UiPresentationAtomFamily.NodeMetadata => "node_metadata",
             UiPresentationAtomFamily.ActionMetadata => "action_metadata",

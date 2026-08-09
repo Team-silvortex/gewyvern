@@ -6,7 +6,7 @@ use leselang_hir::{
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
     UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
     UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
-    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
@@ -58,6 +58,8 @@ struct Fixture<'a> {
     disabled_assert_operation: &'a UiPresentationOperation,
     selection_assert_operation: &'a UiPresentationOperation,
     selection_wait_operation: &'a UiPresentationOperation,
+    child_count_assert_operation: &'a UiPresentationOperation,
+    child_count_wait_operation: &'a UiPresentationOperation,
     text_assert_operation: &'a UiPresentationOperation,
     text_wait_operation: &'a UiPresentationOperation,
     automation_id_assert_operation: &'a UiPresentationOperation,
@@ -196,6 +198,15 @@ fn main() {
         node_id: NodeId::new("runtime-runtime-b").unwrap(),
         state: UiSelectionState::Unselected,
         timeout_ms: UI_WAIT_SELECTION_TIMEOUT_MS,
+    };
+    let child_count_assert_operation = UiPresentationOperation::AssertChildCount {
+        node_id: NodeId::new("fleet-root").unwrap(),
+        count: 3,
+    };
+    let child_count_wait_operation = UiPresentationOperation::WaitChildCount {
+        node_id: NodeId::new("fleet-root").unwrap(),
+        count: 4,
+        timeout_ms: UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
     };
     let text_assert_operation = UiPresentationOperation::AssertText {
         node_id: NodeId::new("fleet-title").unwrap(),
@@ -372,6 +383,8 @@ fn main() {
     validate_presentation_operation(&next, &disabled_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_assert_operation).unwrap();
     validate_presentation_operation(&next, &selection_wait_operation).unwrap();
+    validate_presentation_operation(&previous, &child_count_assert_operation).unwrap();
+    validate_presentation_operation(&next, &child_count_wait_operation).unwrap();
     validate_presentation_operation(&next, &text_assert_operation).unwrap();
     validate_presentation_operation(&next, &text_wait_operation).unwrap();
     validate_presentation_operation(&next, &automation_id_assert_operation).unwrap();
@@ -429,6 +442,8 @@ fn main() {
         disabled_assert_operation: &disabled_assert_operation,
         selection_assert_operation: &selection_assert_operation,
         selection_wait_operation: &selection_wait_operation,
+        child_count_assert_operation: &child_count_assert_operation,
+        child_count_wait_operation: &child_count_wait_operation,
         text_assert_operation: &text_assert_operation,
         text_wait_operation: &text_wait_operation,
         automation_id_assert_operation: &automation_id_assert_operation,

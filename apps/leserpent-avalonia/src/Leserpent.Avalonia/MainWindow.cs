@@ -15,6 +15,10 @@ internal sealed class MainWindow : Window
     private readonly Task<PresentationAutomationResult> initialEnabledWaitTimeout;
     private readonly Task<PresentationAutomationResult> initialSelectionWait;
     private readonly Task<PresentationAutomationResult> initialSelectionWaitTimeout;
+    private readonly UiDocument childCountInitialDocument;
+    private readonly UiPatch childCountPatch;
+    private readonly UiPresentationOperation childCountAssertOperation;
+    private readonly UiPresentationOperation childCountWaitOperation;
     private readonly Task<PresentationAutomationResult> initialWindowOpenWait;
     private readonly PresentationAutomationResult initialWindowClosedAssert;
     private readonly Task<PresentationAutomationResult> initialWindowClosedWait;
@@ -75,6 +79,10 @@ internal sealed class MainWindow : Window
     public bool InitialUnfocusedWaitObservedExternalDeactivation { get; private set; }
     public bool InitialSelectionWaitCompleted { get; private set; }
     public bool InitialSelectionWaitTimedOut { get; private set; }
+    public bool ChildCountAssertCompleted { get; private set; }
+    public bool InitialChildCountWaitCompleted { get; private set; }
+    public bool InitialChildCountWaitTimedOut { get; private set; }
+    public bool ChildCountObservationPreservedVirtualization { get; private set; }
     public bool InitialTextWaitCompleted { get; private set; }
     public bool InitialTextWaitTimedOut { get; private set; }
     public bool InitialAccessibleNameWaitCompleted { get; private set; }
@@ -328,6 +336,14 @@ internal sealed class MainWindow : Window
                 State = UiSelectionState.Selected,
                 TimeoutMs = SemanticRenderer.WaitSelectionTimeoutMs,
             });
+        childCountInitialDocument = fixture.Previous;
+        childCountPatch = fixture.Patch;
+        childCountAssertOperation = fixture.ChildCountAssertOperation
+            ?? throw new InvalidDataException(
+                "child-count assertion probe requires a semantic target");
+        childCountWaitOperation = fixture.ChildCountWaitOperation
+            ?? throw new InvalidDataException(
+                "child-count wait probe requires a semantic target");
         Title = $"Leserpent / revision {Revision}";
         Content = new Grid
         {
@@ -347,6 +363,56 @@ internal sealed class MainWindow : Window
     public async Task CompleteInitialWaitProbesAsync()
     {
         const string unavailableReason = "Verification action is temporarily unavailable";
+        var childCountRenderer = new AvaloniaDocumentRenderer(_ => { });
+        childCountRenderer.Mount(childCountInitialDocument);
+        var unrealizedBeforeAssert = childCountRenderer.UnrealizedNodeCount;
+        var initialChildCount = childCountRenderer.ApplyPresentation(childCountAssertOperation);
+        var unrealizedAfterAssert = childCountRenderer.UnrealizedNodeCount;
+        var childCountWait = childCountRenderer.ApplyPresentationAsync(childCountWaitOperation);
+        DispatcherTimer.RunOnce(
+            () => childCountRenderer.Apply(childCountPatch),
+            TimeSpan.FromMilliseconds(50));
+        var childCountWaitResult = await childCountWait;
+        var patchedChildCount = childCountRenderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertChildCount,
+                NodeId = childCountWaitOperation.NodeId,
+                Count = childCountWaitOperation.Count,
+            });
+        var unrealizedBeforeTimeout = childCountRenderer.UnrealizedNodeCount;
+        var childCountTimeout = await childCountRenderer.ApplyPresentationAsync(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.WaitChildCount,
+                NodeId = childCountAssertOperation.NodeId,
+                Count = childCountAssertOperation.Count,
+                TimeoutMs = SemanticRenderer.WaitChildCountTimeoutMs,
+            });
+        var unrealizedAfterTimeout = childCountRenderer.UnrealizedNodeCount;
+        ChildCountAssertCompleted = initialChildCount.Applied
+            && initialChildCount.FailureCode == PresentationAutomationFailureCode.None
+            && patchedChildCount.Applied
+            && patchedChildCount.FailureCode == PresentationAutomationFailureCode.None;
+        InitialChildCountWaitCompleted = childCountWaitResult.Applied
+            && childCountWaitResult.FailureCode == PresentationAutomationFailureCode.None;
+        InitialChildCountWaitTimedOut = !childCountTimeout.Applied
+            && childCountTimeout.FailureCode == PresentationAutomationFailureCode.WaitTimedOut;
+        ChildCountObservationPreservedVirtualization =
+            unrealizedBeforeAssert == unrealizedAfterAssert
+            && unrealizedBeforeTimeout == unrealizedAfterTimeout;
+        if (!ChildCountAssertCompleted
+            || !InitialChildCountWaitCompleted
+            || !InitialChildCountWaitTimedOut
+            || !ChildCountObservationPreservedVirtualization)
+        {
+            throw new InvalidDataException(
+                "Leselang child-count observation diverged across an external patch: "
+                + $"asserted={ChildCountAssertCompleted}, "
+                + $"waited={InitialChildCountWaitCompleted}, "
+                + $"timed_out={InitialChildCountWaitTimedOut}, "
+                + $"virtualization_preserved={ChildCountObservationPreservedVirtualization}");
+        }
         var windowOpen = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertWindowOpen,

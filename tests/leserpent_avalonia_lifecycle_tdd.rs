@@ -64,6 +64,11 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("UiPresentationOperationKind.WaitSelection"));
     assert!(core.contains("UiSelectionState"));
     assert!(core.contains("WaitSelectionTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationOperationKind.AssertChildCount"));
+    assert!(core.contains("UiPresentationOperationKind.WaitChildCount"));
+    assert!(core.contains("public int? Count { get; set; }"));
+    assert!(core.contains("WaitChildCountTimeoutMs = 2000"));
+    assert!(core.contains("UiPresentationValidation.InvalidExpectedChildCount"));
     assert!(core.contains("UiPresentationOperationKind.AssertFocused"));
     assert!(core.contains("UiPresentationOperationKind.AssertEnabled"));
     assert!(core.contains("UiPresentationOperationKind.AssertDisabled"));
@@ -184,6 +189,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("WaitAccessibleNameTimeoutMs"));
     assert!(renderer.contains("UiPresentationOperationKind.WaitAccessibleDescription"));
     assert!(renderer.contains("WaitAccessibleDescriptionTimeoutMs"));
+    assert!(renderer.contains("node.Children.Count == operation.Count"));
+    assert!(renderer.contains("PresentationAutomationFailureCode.TargetChildCountMismatch"));
     assert!(window.contains("private readonly string initialEnabledWaitNodeId"));
     assert!(
         !window.contains("private readonly Task<PresentationAutomationResult> initialEnabledWait;")
@@ -198,6 +205,11 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(window.contains("var enabledWait = renderer.ApplyPresentationAsync"));
     assert!(window.contains("InitialTextWaitCompleted"));
     assert!(window.contains("InitialTextWaitTimedOut"));
+    assert!(window.contains("ChildCountAssertCompleted"));
+    assert!(window.contains("InitialChildCountWaitCompleted"));
+    assert!(window.contains("InitialChildCountWaitTimedOut"));
+    assert!(window.contains("ChildCountObservationPreservedVirtualization"));
+    assert!(window.contains("() => childCountRenderer.Apply(childCountPatch)"));
     assert!(window.contains("InitialAccessibleNameWaitCompleted"));
     assert!(window.contains("InitialAccessibleNameWaitTimedOut"));
     assert!(window.contains("PatchTextFallback("));
@@ -238,6 +250,10 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_hidden="));
     assert!(app.contains("wait_hidden_external_transition="));
     assert!(app.contains("wait_hidden_timeout="));
+    assert!(app.contains("assert_child_count="));
+    assert!(app.contains("wait_child_count_external_patch="));
+    assert!(app.contains("wait_child_count_timeout="));
+    assert!(app.contains("child_count_virtualization_preserved="));
     assert!(app.contains("visible_target_hidden_assertion_rejected="));
     assert!(app.contains("assert_realized=true"));
     assert!(app.contains("wait_realized=true"));
@@ -353,6 +369,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_wait_unfocused=true"));
     assert!(conformance.contains("presentation_assert_selection=true"));
     assert!(conformance.contains("presentation_wait_selection=true"));
+    assert!(conformance.contains("presentation_assert_child_count=true"));
+    assert!(conformance.contains("presentation_wait_child_count=true"));
     assert!(conformance.contains("presentation_assert_disabled=true"));
     assert!(conformance.contains("presentation_assert_automation_id=true"));
     assert!(conformance.contains("presentation_assert_node_kind=true"));

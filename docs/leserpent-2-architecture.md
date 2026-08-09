@@ -1890,6 +1890,8 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.wait_window_closed(node_id: ...)`, plus
 `ui.assert_selection(node_id: ..., state: "selected"|"unselected")`, plus
 `ui.wait_selection(node_id: ..., state: "selected"|"unselected")`, plus
+`ui.assert_child_count(node_id: ..., count: "0".."4096")`, plus
+`ui.wait_child_count(node_id: ..., count: "0".."4096")`, plus
 `ui.assert_text(node_id: ..., expected: ...)`, plus
 `ui.wait_text(node_id: ..., expected: ...)`, plus
 `ui.assert_automation_id(node_id: ..., expected: ...)`, plus
@@ -1954,7 +1956,10 @@ persistently open target times out without invoking native close or mutating
 focus. Selection
 assertion reads native selected state, and selection wait polls that same
 predicate until the fixed deadline without selecting, focusing, or activating
-the target. Text
+the target. Child-count assertion reads immediate-child cardinality from the
+stable semantic/visual index, including unrealized virtualized nodes, and
+child-count wait polls that same structure across external patches without
+materializing children or mutating the document. Text
 assertion compares bounded,
 control-free expected text against the actual native `TextBlock.Text` or string
 `Button.Content` with exact ordinal semantics. Automation ID assertion compares
@@ -1981,8 +1986,9 @@ Scrolling accepts noninteractive nodes and preserves keyboard focus.
 Accessible-name assertion separately reads the native platform automation name
 for any realized semantic node.
 Accessible-description assertion requires declared semantic description
-metadata and reads the native platform help text exactly. Full window
-close/reopen lifecycle and additional state assertions remain unimplemented rather than being
+metadata and reads the native platform help text exactly. Native window
+open/close lifecycle and bounded structural state assertions are covered by
+cross-language conformance and real-window verification rather than being
 approximated with coordinates, OCR, or scripts.
 
 ## Process And Transport Boundaries

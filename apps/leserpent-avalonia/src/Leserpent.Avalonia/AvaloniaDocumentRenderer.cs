@@ -83,6 +83,7 @@ internal enum PresentationAutomationFailureCode
     InvalidExpectedMaxLength,
     InvalidNavigationDirection,
     InvalidSelectionState,
+    InvalidExpectedChildCount,
     InvalidTimeout,
     TargetUnrealized,
     TargetNotSelectable,
@@ -112,6 +113,7 @@ internal enum PresentationAutomationFailureCode
     TargetAccessibleNameMismatch,
     TargetAccessibleDescriptionMismatch,
     TargetSelectionMismatch,
+    TargetChildCountMismatch,
     FocusRejected,
     NavigationRejected,
 }
@@ -227,6 +229,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         PresentationAutomationFailureCode.InvalidNavigationDirection,
                     UiPresentationValidation.InvalidSelectionState =>
                         PresentationAutomationFailureCode.InvalidSelectionState,
+                    UiPresentationValidation.InvalidExpectedChildCount =>
+                        PresentationAutomationFailureCode.InvalidExpectedChildCount,
                     UiPresentationValidation.InvalidTimeout =>
                         PresentationAutomationFailureCode.InvalidTimeout,
                     _ => throw new InvalidDataException(
@@ -422,6 +426,17 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 matched
                     ? PresentationAutomationFailureCode.None
                     : PresentationAutomationFailureCode.TargetSelectionMismatch);
+        }
+        if (operation.Kind is UiPresentationOperationKind.AssertChildCount
+            or UiPresentationOperationKind.WaitChildCount)
+        {
+            var matched = node.Children.Count == operation.Count;
+            return new PresentationAutomationResult(
+                matched,
+                operation.NodeId,
+                matched
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetChildCountMismatch);
         }
         if (operation.Kind is UiPresentationOperationKind.AssertText
             or UiPresentationOperationKind.WaitText)
@@ -809,6 +824,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             and not UiPresentationOperationKind.WaitFocused
             and not UiPresentationOperationKind.WaitUnfocused
             and not UiPresentationOperationKind.WaitSelection
+            and not UiPresentationOperationKind.WaitChildCount
             and not UiPresentationOperationKind.WaitText
             and not UiPresentationOperationKind.WaitAccessibleName
             and not UiPresentationOperationKind.WaitAccessibleDescription
@@ -887,6 +903,10 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                         is PresentationAutomationFailureCode.TargetNotSelectable
                             or PresentationAutomationFailureCode.TargetSelectionMismatch;
             retryable = retryable
+                || operation.Kind == UiPresentationOperationKind.WaitChildCount
+                    && result.FailureCode
+                        == PresentationAutomationFailureCode.TargetChildCountMismatch;
+            retryable = retryable
                 || operation.Kind == UiPresentationOperationKind.WaitText
                     && result.FailureCode
                         == PresentationAutomationFailureCode.TargetTextMismatch;
@@ -955,6 +975,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                     SemanticRenderer.WaitUnfocusedTimeoutMs,
                 UiPresentationOperationKind.WaitSelection =>
                     SemanticRenderer.WaitSelectionTimeoutMs,
+                UiPresentationOperationKind.WaitChildCount =>
+                    SemanticRenderer.WaitChildCountTimeoutMs,
                 UiPresentationOperationKind.WaitText =>
                     SemanticRenderer.WaitTextTimeoutMs,
                 UiPresentationOperationKind.WaitAccessibleName =>

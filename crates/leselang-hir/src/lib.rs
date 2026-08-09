@@ -12,6 +12,7 @@ pub const MAX_ALL_BRANCHES: usize = 64;
 pub const MAX_BRANCH_NAME_BYTES: usize = 64;
 pub const MAX_UI_FORM_FIELD_KEY_BYTES: usize = 128;
 pub const MAX_UI_FORM_FIELD_MAX_LENGTH: usize = 256;
+pub const MAX_UI_CHILD_COUNT: usize = 4_096;
 pub const MAX_UI_NODE_ID_BYTES: usize = 128;
 pub const MAX_UI_EXPECTED_TEXT_BYTES: usize = 1_024;
 pub const CAPABILITY_UI_PRESENTATION: &str = "ui.presentation";
@@ -19,6 +20,7 @@ pub const UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_LABEL_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ENABLED_TIMEOUT_MS: u64 = 2_000;
+pub const UI_WAIT_CHILD_COUNT_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_NODE_KIND_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS: u64 = 2_000;
 pub const UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS: u64 = 2_000;
@@ -212,6 +214,14 @@ pub enum Effect {
     UiAssertDisabled {
         node_id: String,
     },
+    UiAssertChildCount {
+        node_id: String,
+        count: usize,
+    },
+    UiWaitChildCount {
+        node_id: String,
+        count: usize,
+    },
     UiAssertSelection {
         node_id: String,
         state: UiSelectionState,
@@ -375,6 +385,8 @@ pub enum Type {
     UiAssertUnfocused,
     UiAssertEnabled,
     UiAssertDisabled,
+    UiAssertChildCount,
+    UiWaitChildCount,
     UiAssertSelection,
     UiWaitSelection,
     UiAssertText,
@@ -502,6 +514,8 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.assert_unfocused"
         | "ui.assert_enabled"
         | "ui.assert_disabled"
+        | "ui.assert_child_count"
+        | "ui.wait_child_count"
         | "ui.assert_selection"
         | "ui.wait_selection"
         | "ui.assert_text"
@@ -561,6 +575,7 @@ fn lower_atomic_effect(
     let mut form_input_kind = None;
     let mut form_requirement_state = None;
     let mut form_max_length = None;
+    let mut expected_child_count = None;
     let mut form_placeholder_expected = None;
     let mut expected_text = None;
     let mut diagnostics = Vec::new();
@@ -883,6 +898,51 @@ fn lower_atomic_effect(
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1168".to_string(),
                     message: "ui.assert_disabled node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_child_count", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1297".to_string(),
+                    message:
+                        "ui.assert_child_count node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.assert_child_count", "count") => match value
+                .as_deref()
+                .and_then(parse_child_count)
+            {
+                Some(value) => expected_child_count = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1298".to_string(),
+                    message:
+                        "ui.assert_child_count count must be a decimal string from 0 to 4096"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_child_count", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1299".to_string(),
+                    message:
+                        "ui.wait_child_count node_id must be a valid UI node identifier string"
+                            .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.wait_child_count", "count") => match value
+                .as_deref()
+                .and_then(parse_child_count)
+            {
+                Some(value) => expected_child_count = Some(value),
+                None => diagnostics.push(Diagnostic {
+                    code: "LSH1300".to_string(),
+                    message: "ui.wait_child_count count must be a decimal string from 0 to 4096"
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1763,6 +1823,35 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.assert_child_count" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1301".to_string(),
+            message: "ui.assert_child_count requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.assert_child_count" && expected_child_count.is_none() && diagnostics.is_empty()
+    {
+        diagnostics.push(Diagnostic {
+            code: "LSH1302".to_string(),
+            message: "ui.assert_child_count requires count".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_child_count" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1303".to_string(),
+            message: "ui.wait_child_count requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.wait_child_count" && expected_child_count.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1304".to_string(),
+            message: "ui.wait_child_count requires count".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_selection" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1150".to_string(),
@@ -2522,6 +2611,22 @@ fn lower_atomic_effect(
             Type::UiAssertDisabled,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.assert_child_count" => (
+            Effect::UiAssertChildCount {
+                node_id: node_id.expect("validated UI node identifier"),
+                count: expected_child_count.expect("validated UI child count"),
+            },
+            Type::UiAssertChildCount,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.wait_child_count" => (
+            Effect::UiWaitChildCount {
+                node_id: node_id.expect("validated UI node identifier"),
+                count: expected_child_count.expect("validated UI child count"),
+            },
+            Type::UiWaitChildCount,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_selection" => (
             Effect::UiAssertSelection {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -2909,6 +3014,22 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         Effect::UiAssertDisabled { node_id } => {
             atomic_identifier_source("ui.assert_disabled", "node_id", node_id, depth)
         }
+        Effect::UiAssertChildCount { node_id, count } => format!(
+            "ui.assert_child_count(\n{}node_id: {},\n{}count: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(&count.to_string()),
+            indent(depth),
+        ),
+        Effect::UiWaitChildCount { node_id, count } => format!(
+            "ui.wait_child_count(\n{}node_id: {},\n{}count: {},\n{})",
+            indent(depth + 1),
+            quote(node_id),
+            indent(depth + 1),
+            quote(&count.to_string()),
+            indent(depth),
+        ),
         Effect::UiAssertSelection { node_id, state } => format!(
             "ui.assert_selection(\n{}node_id: {},\n{}state: {},\n{})",
             indent(depth + 1),
@@ -3322,6 +3443,18 @@ fn parse_form_max_length(value: &str) -> Option<usize> {
     (1..=MAX_UI_FORM_FIELD_MAX_LENGTH)
         .contains(&parsed)
         .then_some(parsed)
+}
+
+fn parse_child_count(value: &str) -> Option<usize> {
+    if value.is_empty()
+        || value.len() > 4
+        || value.len() > 1 && value.starts_with('0')
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    let parsed = value.parse::<usize>().ok()?;
+    (parsed <= MAX_UI_CHILD_COUNT).then_some(parsed)
 }
 
 pub fn validate_ui_node_id(node_id: &str) -> bool {
@@ -4445,6 +4578,68 @@ mod tests {
             "fn main() = ui.assert_disabled()",
             "fn main() = ui.assert_disabled(node_id: none)",
             "fn main() = ui.assert_disabled(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_child_count_assert_and_wait_are_bounded_canonical_presentation_effects() {
+        let assert_program = lower(&parse(
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\", count: \"3\")",
+        ))
+        .unwrap();
+        assert_eq!(
+            assert_program.function.result_type,
+            Type::UiAssertChildCount
+        );
+        assert_eq!(
+            assert_program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            assert_program.function.effect,
+            Effect::UiAssertChildCount {
+                ref node_id,
+                count: 3,
+            } if node_id == "fleet-root"
+        ));
+        assert_eq!(
+            canonical_source(&assert_program.function.effect).unwrap(),
+            "fn main() = ui.assert_child_count(\n  node_id: \"fleet-root\",\n  count: \"3\",\n)\n"
+        );
+
+        let wait_program = lower(&parse(
+            "fn main() = ui.wait_child_count(node_id: \"fleet-root\", count: \"0\")",
+        ))
+        .unwrap();
+        assert_eq!(wait_program.function.result_type, Type::UiWaitChildCount);
+        assert!(matches!(
+            wait_program.function.effect,
+            Effect::UiWaitChildCount {
+                ref node_id,
+                count: 0,
+            } if node_id == "fleet-root"
+        ));
+        assert_eq!(
+            canonical_source(&wait_program.function.effect).unwrap(),
+            "fn main() = ui.wait_child_count(\n  node_id: \"fleet-root\",\n  count: \"0\",\n)\n"
+        );
+
+        for source in [
+            "fn main() = ui.assert_child_count()",
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\")",
+            "fn main() = ui.assert_child_count(count: \"3\")",
+            "fn main() = ui.assert_child_count(node_id: \"bad/node\", count: \"3\")",
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\", count: none)",
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\", count: \"01\")",
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\", count: \"4097\")",
+            "fn main() = ui.wait_child_count()",
+            "fn main() = ui.wait_child_count(node_id: \"fleet-root\")",
+            "fn main() = ui.wait_child_count(count: \"3\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
@@ -5790,6 +5985,8 @@ mod tests {
             "fn main() = ui.assert_unfocused(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.assert_disabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\", count: \"3\")",
+            "fn main() = ui.wait_child_count(node_id: \"fleet-root\", count: \"4\")",
             "fn main() = ui.assert_selection(node_id: \"runtime-a:card\", state: \"selected\")",
             "fn main() = ui.wait_selection(node_id: \"runtime-a:card\", state: \"unselected\")",
             "fn main() = ui.assert_text(node_id: \"fleet-title\", expected: \"Runtime fleet\")",

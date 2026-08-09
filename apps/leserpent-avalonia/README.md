@@ -43,7 +43,7 @@ The separate candidate fixture carries Rust-generated
 `WaitEnabled`, `WaitDisabled`, `OpenWindow`, `CloseWindow`, `AssertWindowOpen`, `WaitWindowOpen`,
 `AssertWindowClosed`, `WaitWindowClosed`,
 `AssertSelection`,
-`WaitSelection`, `AssertText`,
+`WaitSelection`, `AssertChildCount`, `WaitChildCount`, `AssertText`,
 `WaitText`,
 `AssertAutomationId`,
 `AssertNodeKind`,
@@ -77,7 +77,7 @@ the complete presentation atom/profile set, validates canonical family/effect
 metadata, and rejects unknown manifest fields, numeric enum tokens, invalid
 binding kinds, invalid presentation atoms, and invalid profiles.
 RendererCore strictly round-trips all
-52 and validates valid, missing, noninteractive,
+54 and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -99,7 +99,9 @@ native window-closed visual-tree detachment, dispatcher-yielding window-closed
 waiting on a detached surface, persistent open-window timeout without invoking
 native close,
 native selected/unselected observation,
-dispatcher-yielding selection wait, actual displayed-text,
+dispatcher-yielding selection wait, stable immediate-child cardinality without
+realizing virtualized children, external-patch child-count waiting with a
+persistent mismatch timeout, actual displayed-text,
 dispatcher-yielding text wait with external text transition and persistent
 text mismatch timeout, and
 automation-id, node-kind, dispatcher-yielding node-kind wait with persistent
@@ -875,3 +877,11 @@ ELF; all four control fixtures pass under Xvfb. The debugger fixture records one
 realized cancel button before re-entry and zero afterward on both hosts. Other
 desktop RIDs must publish and execute this smoke on their own operating system
 before they are considered proven.
+
+The retained 2026-08-09 Linux x86_64 presentation proof extends that boundary
+to the complete 54-atom profile set. A locked dual-RID restore published a
+29,764,192-byte stripped PIE NativeAOT executable, then a physical Ubuntu host
+ran the real Avalonia window lifecycle under Xvfb, including child-count
+assertion, external-patch waiting, timeout, focus navigation, and virtualization
+preservation. The secret-free machine-readable result is retained at
+`docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json`.

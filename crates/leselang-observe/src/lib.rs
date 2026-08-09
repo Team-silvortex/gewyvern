@@ -384,6 +384,16 @@ pub fn waiting_debugger_projection(
             None,
             "UI assert disabled",
         ),
+        Effect::UiAssertChildCount { .. } => (
+            DebuggerEffectKind::UiAssertChildCount,
+            None,
+            "UI assert child count",
+        ),
+        Effect::UiWaitChildCount { .. } => (
+            DebuggerEffectKind::UiWaitChildCount,
+            None,
+            "UI wait child count",
+        ),
         Effect::UiAssertSelection { .. } => (
             DebuggerEffectKind::UiAssertSelection,
             None,

@@ -4,11 +4,11 @@ use std::path::Path;
 
 use leselang_command::{LoweringContext, PlannedOperation, lower_effect};
 use leselang_hir::{
-    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, Type,
+    CAPABILITY_UI_PRESENTATION, Effect, HirProgram, MAX_UI_CHILD_COUNT, Type,
     UI_WAIT_ACCESSIBLE_DESCRIPTION_TIMEOUT_MS, UI_WAIT_ACCESSIBLE_NAME_TIMEOUT_MS,
     UI_WAIT_ACTION_AVAILABLE_TIMEOUT_MS, UI_WAIT_ACTION_KIND_TIMEOUT_MS,
     UI_WAIT_ACTION_LABEL_TIMEOUT_MS, UI_WAIT_ACTION_UNAVAILABLE_REASON_TIMEOUT_MS,
-    UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
+    UI_WAIT_CHILD_COUNT_TIMEOUT_MS, UI_WAIT_ENABLED_TIMEOUT_MS, UI_WAIT_FOCUSED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_INPUT_KIND_TIMEOUT_MS, UI_WAIT_FORM_FIELD_MAX_LENGTH_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_PLACEHOLDER_TIMEOUT_MS, UI_WAIT_FORM_FIELD_REQUIRED_TIMEOUT_MS,
     UI_WAIT_FORM_FIELD_TIMEOUT_MS, UI_WAIT_NODE_KIND_TIMEOUT_MS, UI_WAIT_REALIZED_TIMEOUT_MS,
@@ -194,6 +194,15 @@ pub enum PresentationOperation {
     },
     AssertDisabled {
         node_id: String,
+    },
+    AssertChildCount {
+        node_id: String,
+        count: usize,
+    },
+    WaitChildCount {
+        node_id: String,
+        count: usize,
+        timeout_ms: u64,
     },
     AssertSelection {
         node_id: String,
@@ -428,6 +437,15 @@ pub enum PresentationResult {
     },
     AssertDisabled {
         node_id: String,
+    },
+    AssertChildCount {
+        node_id: String,
+        count: usize,
+    },
+    WaitChildCount {
+        node_id: String,
+        count: usize,
+        timeout_ms: u64,
     },
     AssertSelection {
         node_id: String,
@@ -884,6 +902,14 @@ pub enum Value {
     },
     UiAssertDisabled {
         node_id: String,
+    },
+    UiAssertChildCount {
+        node_id: String,
+        count: usize,
+    },
+    UiWaitChildCount {
+        node_id: String,
+        count: usize,
     },
     UiAssertSelection {
         node_id: String,
@@ -1553,6 +1579,31 @@ impl Vm {
                     capabilities,
                     operation: PresentationOperation::AssertDisabled {
                         node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiAssertChildCount { node_id, count } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::AssertChildCount {
+                        node_id: node_id.clone(),
+                        count: *count,
+                    },
+                }),
+            ),
+            Effect::UiWaitChildCount { node_id, count } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::WaitChildCount {
+                        node_id: node_id.clone(),
+                        count: *count,
+                        timeout_ms: UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
                     },
                 }),
             ),
@@ -2544,6 +2595,8 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiAssertEnabled { .. } => Type::UiAssertEnabled,
         Effect::UiAssertDisabled { .. } => Type::UiAssertDisabled,
         Effect::UiWaitDisabled { .. } => Type::UiWaitDisabled,
+        Effect::UiAssertChildCount { .. } => Type::UiAssertChildCount,
+        Effect::UiWaitChildCount { .. } => Type::UiWaitChildCount,
         Effect::UiAssertSelection { .. } => Type::UiAssertSelection,
         Effect::UiWaitSelection { .. } => Type::UiWaitSelection,
         Effect::UiAssertText { .. } => Type::UiAssertText,
@@ -3174,6 +3227,52 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 PresentationOperation::AssertDisabled {
                     node_id: operation_node_id,
                 } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiAssertChildCount { node_id, count },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::AssertChildCount {
+                    node_id: operation_node_id,
+                    count: operation_count,
+                } if operation_node_id == node_id
+                    && operation_count == count
+                    && *operation_count <= MAX_UI_CHILD_COUNT
+                    && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (
+            Effect::UiWaitChildCount { node_id, count },
+            EffectOperation::Presentation(presentation),
+        ) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::WaitChildCount {
+                    node_id: operation_node_id,
+                    count: operation_count,
+                    timeout_ms,
+                } if operation_node_id == node_id
+                    && operation_count == count
+                    && *operation_count <= MAX_UI_CHILD_COUNT
+                    && validate_ui_node_id(operation_node_id)
+                    && *timeout_ms == UI_WAIT_CHILD_COUNT_TIMEOUT_MS
             )
         }
         (
@@ -4216,6 +4315,16 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiAssertUnfocused { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertDisabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiAssertChildCount { node_id, count }
+            if validate_ui_node_id(node_id) && *count <= MAX_UI_CHILD_COUNT =>
+        {
+            Ok(1)
+        }
+        Value::UiWaitChildCount { node_id, count }
+            if validate_ui_node_id(node_id) && *count <= MAX_UI_CHILD_COUNT =>
+        {
+            Ok(1)
+        }
         Value::UiAssertSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitSelection { node_id, .. } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertText { node_id, expected }
@@ -5203,6 +5312,69 @@ fn step_from_effect_result(
         {
             Step::Done(Value::UiAssertDisabled {
                 node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiAssertChildCount { node_id, count },
+            Type::UiAssertChildCount,
+            operation,
+            EffectResult::Presentation(PresentationResult::AssertChildCount {
+                node_id: result_node_id,
+                count: result_count,
+            }),
+        ) if result_node_id == *node_id
+            && result_count == *count
+            && result_count <= MAX_UI_CHILD_COUNT
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::AssertChildCount {
+                            node_id: operation_node_id,
+                            count: operation_count,
+                        },
+                        ..
+                    }) if operation_node_id == node_id && operation_count == count
+                )
+            }) =>
+        {
+            Step::Done(Value::UiAssertChildCount {
+                node_id: result_node_id,
+                count: result_count,
+            })
+        }
+        (
+            Effect::UiWaitChildCount { node_id, count },
+            Type::UiWaitChildCount,
+            operation,
+            EffectResult::Presentation(PresentationResult::WaitChildCount {
+                node_id: result_node_id,
+                count: result_count,
+                timeout_ms,
+            }),
+        ) if result_node_id == *node_id
+            && result_count == *count
+            && result_count <= MAX_UI_CHILD_COUNT
+            && timeout_ms == UI_WAIT_CHILD_COUNT_TIMEOUT_MS
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::WaitChildCount {
+                            node_id: operation_node_id,
+                            count: operation_count,
+                            timeout_ms: operation_timeout_ms,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                        && operation_count == count
+                        && *operation_timeout_ms == UI_WAIT_CHILD_COUNT_TIMEOUT_MS
+                )
+            }) =>
+        {
+            Step::Done(Value::UiWaitChildCount {
+                node_id: result_node_id,
+                count: result_count,
             })
         }
         (
@@ -7731,6 +7903,92 @@ mod tests {
             node_id: "runtime-a:refresh".into(),
         };
         assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_child_count_binds_node_count_timeout_and_reentry_result() {
+        let program = lower(&parse(
+            "fn main() = ui.wait_child_count(node_id: \"fleet-root\", count: \"4\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI child-count wait");
+        };
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI child-count wait must remain frontend-local");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::WaitChildCount {
+                node_id,
+                count: 4,
+                timeout_ms,
+            } if node_id == "fleet-root"
+                && *timeout_ms == UI_WAIT_CHILD_COUNT_TIMEOUT_MS
+        ));
+        validate_effect_request(&request).unwrap();
+
+        let mut torn = request.clone();
+        let EffectOperation::Presentation(presentation) = &mut torn.operation else {
+            panic!("UI child-count wait must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::WaitChildCount {
+            node_id: "fleet-root".into(),
+            count: 3,
+            timeout_ms: UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
+        };
+        assert!(validate_effect_request(&torn).is_err());
+
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::WaitChildCount {
+                    node_id: "fleet-root".into(),
+                    count: 4,
+                    timeout_ms: UI_WAIT_CHILD_COUNT_TIMEOUT_MS,
+                }),
+            ),
+            Step::Done(Value::UiWaitChildCount {
+                node_id: "fleet-root".into(),
+                count: 4,
+            })
+        );
+
+        let assert_program = lower(&parse(
+            "fn main() = ui.assert_child_count(node_id: \"fleet-root\", count: \"3\")",
+        ))
+        .unwrap();
+        let Step::Effect(assert_request) = vm.start(
+            &assert_program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI child-count assertion");
+        };
+        assert_eq!(
+            vm.resume(
+                &assert_request.continuation,
+                EffectResult::Presentation(PresentationResult::AssertChildCount {
+                    node_id: "fleet-root".into(),
+                    count: 3,
+                }),
+            ),
+            Step::Done(Value::UiAssertChildCount {
+                node_id: "fleet-root".into(),
+                count: 3,
+            })
+        );
     }
 
     #[test]
