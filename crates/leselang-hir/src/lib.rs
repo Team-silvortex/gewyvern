@@ -176,6 +176,12 @@ pub enum Effect {
     UiWaitDisabled {
         node_id: String,
     },
+    UiOpenWindow {
+        node_id: String,
+    },
+    UiCloseWindow {
+        node_id: String,
+    },
     UiAssertWindowOpen {
         node_id: String,
     },
@@ -357,6 +363,8 @@ pub enum Type {
     UiWaitVisible,
     UiWaitEnabled,
     UiWaitDisabled,
+    UiOpenWindow,
+    UiCloseWindow,
     UiAssertWindowOpen,
     UiWaitWindowOpen,
     UiAssertWindowClosed,
@@ -482,6 +490,8 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "ui.wait_visible"
         | "ui.wait_enabled"
         | "ui.wait_disabled"
+        | "ui.open_window"
+        | "ui.close_window"
         | "ui.assert_window_open"
         | "ui.wait_window_open"
         | "ui.assert_window_closed"
@@ -739,6 +749,24 @@ fn lower_atomic_effect(
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1174".to_string(),
                     message: "ui.wait_disabled node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.open_window", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1293".to_string(),
+                    message: "ui.open_window node_id must be a valid UI node identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.close_window", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1295".to_string(),
+                    message: "ui.close_window node_id must be a valid UI node identifier string"
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1637,6 +1665,20 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.open_window" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1294".to_string(),
+            message: "ui.open_window requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
+    if callee == "ui.close_window" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1296".to_string(),
+            message: "ui.close_window requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.assert_window_open" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1177".to_string(),
@@ -2396,6 +2438,20 @@ fn lower_atomic_effect(
             Type::UiWaitDisabled,
             CAPABILITY_UI_PRESENTATION,
         ),
+        "ui.open_window" => (
+            Effect::UiOpenWindow {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiOpenWindow,
+            CAPABILITY_UI_PRESENTATION,
+        ),
+        "ui.close_window" => (
+            Effect::UiCloseWindow {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiCloseWindow,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.assert_window_open" => (
             Effect::UiAssertWindowOpen {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -2816,6 +2872,12 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         }
         Effect::UiWaitDisabled { node_id } => {
             atomic_identifier_source("ui.wait_disabled", "node_id", node_id, depth)
+        }
+        Effect::UiOpenWindow { node_id } => {
+            atomic_identifier_source("ui.open_window", "node_id", node_id, depth)
+        }
+        Effect::UiCloseWindow { node_id } => {
+            atomic_identifier_source("ui.close_window", "node_id", node_id, depth)
         }
         Effect::UiAssertWindowOpen { node_id } => {
             atomic_identifier_source("ui.assert_window_open", "node_id", node_id, depth)
@@ -4047,6 +4109,54 @@ mod tests {
             "fn main() = ui.assert_window_open()",
             "fn main() = ui.assert_window_open(node_id: none)",
             "fn main() = ui.assert_window_open(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_window_lifecycle_is_capability_gated_and_canonical() {
+        for (source, expected_type, expected_effect, expected_canonical) in [
+            (
+                "fn main() = ui.open_window(node_id: \"runtime-a:card\")",
+                Type::UiOpenWindow,
+                Effect::UiOpenWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+                "fn main() = ui.open_window(node_id: \"runtime-a:card\")\n",
+            ),
+            (
+                "fn main() = ui.close_window(node_id: \"runtime-a:card\")",
+                Type::UiCloseWindow,
+                Effect::UiCloseWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+                "fn main() = ui.close_window(node_id: \"runtime-a:card\")\n",
+            ),
+        ] {
+            let program = lower(&parse(source)).unwrap();
+            assert_eq!(program.function.result_type, expected_type);
+            assert_eq!(
+                program.function.required_capabilities,
+                [CAPABILITY_UI_PRESENTATION]
+            );
+            assert_eq!(program.function.effect, expected_effect);
+            assert_eq!(
+                canonical_source(&program.function.effect).unwrap(),
+                expected_canonical
+            );
+        }
+
+        for source in [
+            "fn main() = ui.open_window()",
+            "fn main() = ui.open_window(node_id: none)",
+            "fn main() = ui.open_window(node_id: \"bad/node\")",
+            "fn main() = ui.close_window()",
+            "fn main() = ui.close_window(node_id: none)",
+            "fn main() = ui.close_window(node_id: \"bad/node\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
@@ -5668,6 +5778,8 @@ mod tests {
             "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.open_window(node_id: \"runtime-a:card\")",
+            "fn main() = ui.close_window(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_window_closed(node_id: \"runtime-a:card\")",

@@ -42,6 +42,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(core.contains("WaitVisibleTimeoutMs = 2000"));
     assert!(core.contains("UiPresentationOperationKind.WaitEnabled"));
     assert!(core.contains("UiPresentationOperationKind.WaitDisabled"));
+    assert!(core.contains("UiPresentationOperationKind.OpenWindow"));
+    assert!(core.contains("UiPresentationOperationKind.CloseWindow"));
     assert!(core.contains("UiPresentationOperationKind.AssertWindowOpen"));
     assert!(core.contains("UiPresentationOperationKind.WaitWindowOpen"));
     assert!(core.contains("UiPresentationOperationKind.AssertWindowClosed"));
@@ -134,6 +136,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetStillEnabled"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetWindowUnavailable"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetWindowStillOpen"));
+    assert!(renderer.contains("ShowActivated = false"));
+    assert!(renderer.contains("private PresentationAutomationResult OpenPresentationWindow"));
+    assert!(renderer.contains("private PresentationAutomationResult ClosePresentationWindow"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetTextMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetAutomationIdMismatch"));
     assert!(renderer.contains("PresentationAutomationFailureCode.TargetNodeKindMismatch"));
@@ -209,6 +214,13 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(window.contains("PatchFormFieldRequired("));
     assert!(window.contains("PatchFormFieldMaxLength("));
     assert!(window.contains("var focusedWait = renderer.ApplyPresentationAsync"));
+    assert!(window.contains("var unfocusedAssertBaseline = renderer.ApplyPresentation"));
+    assert!(
+        window
+            .contains("Leselang unfocused assertion probe could not establish its focus baseline")
+    );
+    assert!(window.contains("var unfocusedTimeoutBaseline = renderer.ApplyPresentation"));
+    assert!(window.contains("InitialUnfocusedWaitObservedExternalDeactivation"));
     assert!(window.contains("var focusedTimeoutResult = await renderer.ApplyPresentationAsync"));
     assert!(window.contains("renderer.ApplyPresentation(new UiPresentationOperation"));
     assert!(app.contains("leselang_presentation=true"));
@@ -240,6 +252,9 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("wait_disabled="));
     assert!(app.contains("wait_disabled_external_transition="));
     assert!(app.contains("wait_disabled_timeout="));
+    assert!(app.contains("open_window="));
+    assert!(app.contains("close_window="));
+    assert!(app.contains("window_lifecycle_state_observed="));
     assert!(app.contains("assert_window_open="));
     assert!(app.contains("wait_window_open="));
     assert!(app.contains("assert_window_closed="));
@@ -252,6 +267,7 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(app.contains("assert_unfocused="));
     assert!(app.contains("wait_unfocused="));
     assert!(app.contains("wait_unfocused_timeout="));
+    assert!(app.contains("wait_unfocused_external_deactivation="));
     assert!(app.contains("assert_selection="));
     assert!(app.contains("wait_selection="));
     assert!(app.contains("wait_selection_timeout="));
@@ -326,6 +342,8 @@ fn leselang_presentation_atoms_are_typed_native_operations() {
     assert!(conformance.contains("presentation_wait_visible=true"));
     assert!(conformance.contains("presentation_wait_enabled=true"));
     assert!(conformance.contains("presentation_wait_disabled=true"));
+    assert!(conformance.contains("presentation_open_window=true"));
+    assert!(conformance.contains("presentation_close_window=true"));
     assert!(conformance.contains("presentation_assert_window_open=true"));
     assert!(conformance.contains("presentation_wait_window_open=true"));
     assert!(conformance.contains("presentation_assert_window_closed=true"));

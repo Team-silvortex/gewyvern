@@ -267,6 +267,26 @@ var decodedDisabledWaitOperation = JsonSerializer.Deserialize(
     disabledWaitPayload,
     RendererJsonContext.Default.UiPresentationOperation)
     ?? throw new InvalidDataException("disabled wait operation round trip failed");
+var windowOpenOperation = fixture.WindowOpenOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no window-open mutation operation");
+var windowOpenPayload = JsonSerializer.SerializeToUtf8Bytes(
+    windowOpenOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedWindowOpenOperation = JsonSerializer.Deserialize(
+    windowOpenPayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("window-open mutation operation round trip failed");
+var windowCloseOperation = fixture.WindowCloseOperation
+    ?? throw new InvalidDataException(
+        "presentation fixture contains no window-close mutation operation");
+var windowClosePayload = JsonSerializer.SerializeToUtf8Bytes(
+    windowCloseOperation,
+    RendererJsonContext.Default.UiPresentationOperation);
+var decodedWindowCloseOperation = JsonSerializer.Deserialize(
+    windowClosePayload,
+    RendererJsonContext.Default.UiPresentationOperation)
+    ?? throw new InvalidDataException("window-close mutation operation round trip failed");
 var windowOpenAssertOperation = fixture.WindowOpenAssertOperation
     ?? throw new InvalidDataException(
         "presentation fixture contains no window-open assert operation");
@@ -930,6 +950,21 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
         Kind = UiPresentationOperationKind.WaitDisabled,
         NodeId = decodedDisabledWaitOperation.NodeId,
         TimeoutMs = SemanticRenderer.WaitEnabledTimeoutMs + 1,
+    }) != UiPresentationValidation.InvalidTimeout
+    || renderer.ValidatePresentationOperation(decodedWindowOpenOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(decodedWindowCloseOperation)
+        != UiPresentationValidation.Valid
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.OpenWindow,
+        NodeId = "missing-presentation-target",
+    }) != UiPresentationValidation.UnknownTarget
+    || renderer.ValidatePresentationOperation(new UiPresentationOperation
+    {
+        Kind = UiPresentationOperationKind.CloseWindow,
+        NodeId = decodedWindowCloseOperation.NodeId,
+        TimeoutMs = 1,
     }) != UiPresentationValidation.InvalidTimeout
     || renderer.ValidatePresentationOperation(new UiPresentationOperation
     {
@@ -1844,7 +1879,7 @@ if (renderer.ValidatePresentationOperation(decodedOperation) != UiPresentationVa
 }
 
 Console.WriteLine(
-    $"renderer conformance valid: revision={renderer.Document.Revision}, adapter_manifest=true, generated_adapter_manifest=true, adapter_manifest_strict_codec=true, adapter_manifest_enum_codec=true, adapter_manifest_profile=true, adapter_manifest_profile_enum_codec=true, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field=true, presentation_wait_form_field_input_kind=true, presentation_wait_form_field_required=true, presentation_wait_form_field_max_length=true, presentation_wait_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
+    $"renderer conformance valid: revision={renderer.Document.Revision}, adapter_manifest=true, generated_adapter_manifest=true, adapter_manifest_strict_codec=true, adapter_manifest_enum_codec=true, adapter_manifest_profile=true, adapter_manifest_profile_enum_codec=true, presentation_focus=true, presentation_navigate_focus=true, presentation_navigate_focus_first_last=true, presentation_scroll_into_view=true, presentation_assert_visible=true, presentation_assert_hidden=true, presentation_wait_hidden=true, presentation_assert_realized=true, presentation_wait_realized=true, presentation_wait_visible=true, presentation_wait_enabled=true, presentation_wait_disabled=true, presentation_open_window=true, presentation_close_window=true, presentation_assert_window_open=true, presentation_wait_window_open=true, presentation_assert_window_closed=true, presentation_wait_window_closed=true, presentation_wait_focused=true, presentation_assert_focused=true, presentation_wait_unfocused=true, presentation_assert_unfocused=true, presentation_assert_enabled=true, presentation_assert_disabled=true, presentation_assert_selection=true, presentation_wait_selection=true, presentation_assert_text=true, presentation_wait_text=true, presentation_assert_automation_id=true, presentation_assert_node_kind=true, presentation_wait_node_kind=true, presentation_assert_action_kind=true, presentation_wait_action_kind=true, presentation_assert_action_label=true, presentation_wait_action_label=true, presentation_assert_action_available=true, presentation_wait_action_available=true, presentation_assert_action_unavailable_reason=true, presentation_wait_action_unavailable_reason=true, presentation_assert_form_field=true, presentation_assert_form_field_input_kind=true, presentation_assert_form_field_required=true, presentation_assert_form_field_max_length=true, presentation_assert_form_field_placeholder=true, presentation_wait_form_field=true, presentation_wait_form_field_input_kind=true, presentation_wait_form_field_required=true, presentation_wait_form_field_max_length=true, presentation_wait_form_field_placeholder=true, presentation_assert_accessible_name=true, presentation_wait_accessible_name=true, presentation_assert_accessible_description=true, presentation_wait_accessible_description=true, strict_codec=true");
 return 0;
 
 static UiAdapterManifest RoundTripManifest(

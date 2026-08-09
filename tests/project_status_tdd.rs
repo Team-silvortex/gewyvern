@@ -3523,7 +3523,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.81.0");
+    assert_eq!(avalonia.contract.version, "1.82.0");
     assert!(
         avalonia
             .contract
@@ -3641,6 +3641,12 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "dispatcher-yielding-disabled-wait",
         "external-disabled-transition-wait",
         "persistent-enabled-disabled-wait-timeout",
+        "native-window-open-mutation",
+        "native-window-close-mutation",
+        "idempotent-window-lifecycle",
+        "non-activating-window-open",
+        "window-lifecycle-state-observation",
+        "desktop-focus-deactivation-aware-verification",
         "native-window-open-assertion",
         "dispatcher-yielding-window-open-wait",
         "window-open-wait-timeout-validation",
@@ -5353,7 +5359,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.47.0");
+    assert_eq!(ui.contract.version, "1.48.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -5432,6 +5438,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fixed-enabled-wait-timeout",
         "ui-wait-disabled-presentation-roundtrip",
         "fixed-disabled-wait-timeout",
+        "ui-open-window-presentation-roundtrip",
+        "ui-close-window-presentation-roundtrip",
+        "window-lifecycle-mutation-profile",
         "ui-assert-window-open-presentation-roundtrip",
         "ui-wait-window-open-presentation-roundtrip",
         "fixed-window-open-wait-timeout",
@@ -5492,7 +5501,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.58.0");
+    assert_eq!(hir.contract.version, "0.59.0");
     for surface in [
         "debugger-cancel-effect",
         "ui-focus-effect",
@@ -5556,6 +5565,8 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fixed-enabled-wait-policy",
         "ui-wait-disabled-effect",
         "fixed-disabled-wait-policy",
+        "ui-open-window-effect",
+        "ui-close-window-effect",
         "ui-assert-window-open-effect",
         "ui-wait-window-open-effect",
         "fixed-window-open-wait-policy",
@@ -5596,7 +5607,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.43.0");
+    assert_eq!(vm.contract.version, "1.44.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
@@ -5679,6 +5690,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "fixed-ui-enabled-wait-deadline",
         "typed-ui-wait-disabled-result",
         "fixed-ui-disabled-wait-deadline",
+        "typed-ui-open-window-result",
+        "window-open-request-result-binding",
+        "typed-ui-close-window-result",
+        "window-close-request-result-binding",
         "typed-ui-assert-window-open-result",
         "typed-ui-wait-window-open-result",
         "fixed-ui-window-open-wait-deadline",
@@ -5714,7 +5729,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.54.0");
+    assert_eq!(command.contract.version, "0.55.0");
     assert!(
         command
             .contract
@@ -5973,6 +5988,20 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .surfaces
             .iter()
             .any(|surface| surface == "disabled-wait-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "window-lifecycle-open-command-rejection")
+    );
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "window-lifecycle-close-command-rejection")
     );
     assert!(
         command

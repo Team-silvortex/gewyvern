@@ -128,6 +128,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
     private readonly Dictionary<ActionKind, ActionAvailability> actionAvailability = [];
     private SemanticRenderer semanticRenderer = new();
     private string? pendingFocusNodeId;
+    private Window? ownedPresentationWindow;
 
     public ContentControl Surface { get; } = new();
     public UiDocument Document => semanticRenderer.Document;
@@ -239,6 +240,14 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 false,
                 operation.NodeId,
                 PresentationAutomationFailureCode.TargetUnrealized);
+        }
+        if (operation.Kind == UiPresentationOperationKind.OpenWindow)
+        {
+            return OpenPresentationWindow(operation.NodeId, control!);
+        }
+        if (operation.Kind == UiPresentationOperationKind.CloseWindow)
+        {
+            return ClosePresentationWindow(operation.NodeId, control!);
         }
         if (operation.Kind == UiPresentationOperationKind.NavigateFocus)
         {
@@ -678,6 +687,81 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             operation.NodeId,
             PresentationAutomationFailureCode.None);
     }
+
+    private PresentationAutomationResult OpenPresentationWindow(
+        string nodeId,
+        Control control)
+    {
+        if (WindowFor(control) is not null)
+        {
+            return new PresentationAutomationResult(
+                true,
+                nodeId,
+                PresentationAutomationFailureCode.None);
+        }
+        if (Surface.GetVisualParent() is not null || Surface.Parent is not null)
+        {
+            return new PresentationAutomationResult(
+                false,
+                nodeId,
+                PresentationAutomationFailureCode.TargetWindowUnavailable);
+        }
+
+        var window = new Window
+        {
+            Title = "Leserpent automation",
+            Width = 720,
+            Height = 540,
+            MinWidth = 480,
+            MinHeight = 360,
+            ShowActivated = false,
+            Background = LeserpentTheme.Canvas,
+            Content = Surface,
+        };
+        ownedPresentationWindow = window;
+        window.Closed += (_, _) =>
+        {
+            window.Content = null;
+            if (ReferenceEquals(ownedPresentationWindow, window))
+            {
+                ownedPresentationWindow = null;
+            }
+        };
+        window.Show();
+        var opened = window.IsVisible && ReferenceEquals(window.Content, Surface);
+        if (!opened)
+        {
+            window.Close();
+        }
+        return new PresentationAutomationResult(
+            opened,
+            nodeId,
+            opened
+                ? PresentationAutomationFailureCode.None
+                : PresentationAutomationFailureCode.TargetWindowUnavailable);
+    }
+
+    private PresentationAutomationResult ClosePresentationWindow(
+        string nodeId,
+        Control control)
+    {
+        var window = WindowFor(control);
+        if (window is null)
+        {
+            return new PresentationAutomationResult(
+                true,
+                nodeId,
+                PresentationAutomationFailureCode.None);
+        }
+        window.Close();
+        return new PresentationAutomationResult(
+            true,
+            nodeId,
+            PresentationAutomationFailureCode.None);
+    }
+
+    private static Window? WindowFor(Control control) =>
+        control.GetVisualAncestors().OfType<Window>().FirstOrDefault();
 
     private RenderedNode? FocusedActionExcept(Control excluded) =>
         nodes.Values.FirstOrDefault(rendered =>

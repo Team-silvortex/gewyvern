@@ -216,7 +216,7 @@ duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. A separate
 `UiAdapterManifest` now records explicit developer-owned or generated framework
-bindings against the document, event, patch, and complete fifty-atom
+bindings against the document, event, patch, and complete fifty-two-atom
 presentation protocol plus canonical atom family/effect profiles, so future GUI
 hosts have a protobuf-style compatibility checkpoint without automatic framework
 admission. The Rust-generated
@@ -281,6 +281,8 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_disabled(node_id: ...)`, plus
 `ui.wait_enabled(node_id: ...)`, plus
 `ui.wait_disabled(node_id: ...)`, plus
+`ui.open_window(node_id: ...)`, plus
+`ui.close_window(node_id: ...)`, plus
 `ui.assert_window_open(node_id: ...)`, plus
 `ui.wait_window_open(node_id: ...)`, plus
 `ui.assert_window_closed(node_id: ...)`, plus
@@ -315,7 +317,7 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all fifty, and `leselang-ui` round-trips them against the current semantic
+rejects all fifty-two, and `leselang-ui` round-trips them against the current semantic
 tree. Avalonia applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
 manager from a currently focused stable action, resolves first/last through the

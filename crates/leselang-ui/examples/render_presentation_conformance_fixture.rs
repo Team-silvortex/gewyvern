@@ -44,6 +44,8 @@ struct Fixture<'a> {
     visible_wait_operation: &'a UiPresentationOperation,
     enabled_wait_operation: &'a UiPresentationOperation,
     disabled_wait_operation: &'a UiPresentationOperation,
+    window_open_operation: &'a UiPresentationOperation,
+    window_close_operation: &'a UiPresentationOperation,
     window_open_assert_operation: &'a UiPresentationOperation,
     window_open_wait_operation: &'a UiPresentationOperation,
     window_closed_assert_operation: &'a UiPresentationOperation,
@@ -145,6 +147,12 @@ fn main() {
     let disabled_wait_operation = UiPresentationOperation::WaitDisabled {
         node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
         timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+    };
+    let window_open_operation = UiPresentationOperation::OpenWindow {
+        node_id: NodeId::new("fleet-title").unwrap(),
+    };
+    let window_close_operation = UiPresentationOperation::CloseWindow {
+        node_id: NodeId::new("fleet-title").unwrap(),
     };
     let window_open_assert_operation = UiPresentationOperation::AssertWindowOpen {
         node_id: NodeId::new("fleet-title").unwrap(),
@@ -350,6 +358,8 @@ fn main() {
     validate_presentation_operation(&next, &visible_wait_operation).unwrap();
     validate_presentation_operation(&next, &enabled_wait_operation).unwrap();
     validate_presentation_operation(&next, &disabled_wait_operation).unwrap();
+    validate_presentation_operation(&next, &window_open_operation).unwrap();
+    validate_presentation_operation(&next, &window_close_operation).unwrap();
     validate_presentation_operation(&next, &window_open_assert_operation).unwrap();
     validate_presentation_operation(&next, &window_open_wait_operation).unwrap();
     validate_presentation_operation(&next, &window_closed_assert_operation).unwrap();
@@ -405,6 +415,8 @@ fn main() {
         visible_wait_operation: &visible_wait_operation,
         enabled_wait_operation: &enabled_wait_operation,
         disabled_wait_operation: &disabled_wait_operation,
+        window_open_operation: &window_open_operation,
+        window_close_operation: &window_close_operation,
         window_open_assert_operation: &window_open_assert_operation,
         window_open_wait_operation: &window_open_wait_operation,
         window_closed_assert_operation: &window_closed_assert_operation,

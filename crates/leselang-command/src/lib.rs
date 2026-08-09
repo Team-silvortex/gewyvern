@@ -86,6 +86,8 @@ pub fn lower_effect(
             | Effect::UiWaitVisible { .. }
             | Effect::UiWaitEnabled { .. }
             | Effect::UiWaitDisabled { .. }
+            | Effect::UiOpenWindow { .. }
+            | Effect::UiCloseWindow { .. }
             | Effect::UiAssertWindowOpen { .. }
             | Effect::UiWaitWindowOpen { .. }
             | Effect::UiAssertWindowClosed { .. }
@@ -149,6 +151,8 @@ pub fn lower_effect(
         | Effect::UiWaitVisible { .. }
         | Effect::UiWaitEnabled { .. }
         | Effect::UiWaitDisabled { .. }
+        | Effect::UiOpenWindow { .. }
+        | Effect::UiCloseWindow { .. }
         | Effect::UiAssertWindowOpen { .. }
         | Effect::UiWaitWindowOpen { .. }
         | Effect::UiAssertWindowClosed { .. }
@@ -223,6 +227,8 @@ pub fn lower_effect(
         | Effect::UiWaitVisible { .. }
         | Effect::UiWaitEnabled { .. }
         | Effect::UiWaitDisabled { .. }
+        | Effect::UiOpenWindow { .. }
+        | Effect::UiCloseWindow { .. }
         | Effect::UiAssertWindowOpen { .. }
         | Effect::UiWaitWindowOpen { .. }
         | Effect::UiAssertWindowClosed { .. }
@@ -536,6 +542,8 @@ mod tests {
             "fn main() = ui.wait_visible(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_enabled(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.wait_disabled(node_id: \"runtime-a:refresh\")",
+            "fn main() = ui.open_window(node_id: \"runtime-a:card\")",
+            "fn main() = ui.close_window(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.wait_window_open(node_id: \"runtime-a:card\")",
             "fn main() = ui.assert_window_closed(node_id: \"runtime-a:card\")",

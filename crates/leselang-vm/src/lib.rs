@@ -155,6 +155,12 @@ pub enum PresentationOperation {
         node_id: String,
         timeout_ms: u64,
     },
+    OpenWindow {
+        node_id: String,
+    },
+    CloseWindow {
+        node_id: String,
+    },
     AssertWindowOpen {
         node_id: String,
     },
@@ -382,6 +388,12 @@ pub enum PresentationResult {
     WaitDisabled {
         node_id: String,
         timeout_ms: u64,
+    },
+    OpenWindow {
+        node_id: String,
+    },
+    CloseWindow {
+        node_id: String,
     },
     AssertWindowOpen {
         node_id: String,
@@ -835,6 +847,12 @@ pub enum Value {
         node_id: String,
     },
     UiWaitDisabled {
+        node_id: String,
+    },
+    UiOpenWindow {
+        node_id: String,
+    },
+    UiCloseWindow {
         node_id: String,
     },
     UiAssertWindowOpen {
@@ -1399,6 +1417,28 @@ impl Vm {
                     operation: PresentationOperation::WaitDisabled {
                         node_id: node_id.clone(),
                         timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
+                    },
+                }),
+            ),
+            Effect::UiOpenWindow { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::OpenWindow {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
+            Effect::UiCloseWindow { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::CloseWindow {
+                        node_id: node_id.clone(),
                     },
                 }),
             ),
@@ -2491,6 +2531,8 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::UiWaitRealized { .. } => Type::UiWaitRealized,
         Effect::UiWaitVisible { .. } => Type::UiWaitVisible,
         Effect::UiWaitEnabled { .. } => Type::UiWaitEnabled,
+        Effect::UiOpenWindow { .. } => Type::UiOpenWindow,
+        Effect::UiCloseWindow { .. } => Type::UiCloseWindow,
         Effect::UiAssertWindowOpen { .. } => Type::UiAssertWindowOpen,
         Effect::UiWaitWindowOpen { .. } => Type::UiWaitWindowOpen,
         Effect::UiAssertWindowClosed { .. } => Type::UiAssertWindowClosed,
@@ -2939,6 +2981,36 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                 } if operation_node_id == node_id
                     && validate_ui_node_id(operation_node_id)
                     && *timeout_ms == UI_WAIT_ENABLED_TIMEOUT_MS
+            )
+        }
+        (Effect::UiOpenWindow { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::OpenWindow {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
+        }
+        (Effect::UiCloseWindow { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::CloseWindow {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
             )
         }
         (Effect::UiAssertWindowOpen { node_id }, EffectOperation::Presentation(presentation)) => {
@@ -4132,6 +4204,8 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         Value::UiWaitVisible { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitEnabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitDisabled { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiOpenWindow { node_id } if validate_ui_node_id(node_id) => Ok(1),
+        Value::UiCloseWindow { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertWindowOpen { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiWaitWindowOpen { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiAssertWindowClosed { node_id } if validate_ui_node_id(node_id) => Ok(1),
@@ -4824,6 +4898,54 @@ fn step_from_effect_result(
             }) =>
         {
             Step::Done(Value::UiWaitDisabled {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiOpenWindow { node_id },
+            Type::UiOpenWindow,
+            operation,
+            EffectResult::Presentation(PresentationResult::OpenWindow {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::OpenWindow {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiOpenWindow {
+                node_id: result_node_id,
+            })
+        }
+        (
+            Effect::UiCloseWindow { node_id },
+            Type::UiCloseWindow,
+            operation,
+            EffectResult::Presentation(PresentationResult::CloseWindow {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::CloseWindow {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiCloseWindow {
                 node_id: result_node_id,
             })
         }
@@ -7105,6 +7227,58 @@ mod tests {
             node_id: "runtime-b:card".into(),
         };
         assert!(validate_effect_request(&torn).is_err());
+    }
+
+    #[test]
+    fn ui_window_lifecycle_reenters_only_from_matching_frontend_local_results() {
+        for (source, expected_operation, result, expected_value) in [
+            (
+                "fn main() = ui.open_window(node_id: \"runtime-a:card\")",
+                PresentationOperation::OpenWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+                PresentationResult::OpenWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+                Value::UiOpenWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+            ),
+            (
+                "fn main() = ui.close_window(node_id: \"runtime-a:card\")",
+                PresentationOperation::CloseWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+                PresentationResult::CloseWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+                Value::UiCloseWindow {
+                    node_id: "runtime-a:card".into(),
+                },
+            ),
+        ] {
+            let program = lower(&parse(source)).unwrap();
+            let mut vm = Vm::default();
+            let Step::Effect(request) = vm.start(
+                &program,
+                Principal {
+                    id: "desktop-operator".to_string(),
+                },
+                CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+                None,
+            ) else {
+                panic!("expected UI window lifecycle effect");
+            };
+            let EffectOperation::Presentation(presentation) = &request.operation else {
+                panic!("UI window lifecycle must remain frontend-local");
+            };
+            assert_eq!(presentation.operation, expected_operation);
+            validate_effect_request(&request).unwrap();
+            assert_eq!(
+                vm.resume(&request.continuation, EffectResult::Presentation(result),),
+                Step::Done(expected_value)
+            );
+        }
     }
 
     #[test]

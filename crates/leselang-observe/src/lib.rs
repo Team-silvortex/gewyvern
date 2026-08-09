@@ -332,6 +332,10 @@ pub fn waiting_debugger_projection(
         Effect::UiWaitDisabled { .. } => {
             (DebuggerEffectKind::UiWaitDisabled, None, "UI wait disabled")
         }
+        Effect::UiOpenWindow { .. } => (DebuggerEffectKind::UiOpenWindow, None, "UI open window"),
+        Effect::UiCloseWindow { .. } => {
+            (DebuggerEffectKind::UiCloseWindow, None, "UI close window")
+        }
         Effect::UiAssertWindowOpen { .. } => (
             DebuggerEffectKind::UiAssertWindowOpen,
             None,

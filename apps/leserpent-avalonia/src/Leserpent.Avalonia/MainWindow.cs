@@ -27,6 +27,9 @@ internal sealed class MainWindow : Window
     private readonly string initialWindowOpenWaitNodeId;
     private readonly string initialWindowClosedAssertNodeId;
     private readonly string initialWindowClosedWaitNodeId;
+    private readonly UiDocument windowLifecycleDocument;
+    private readonly string windowLifecycleOpenNodeId;
+    private readonly string windowLifecycleCloseNodeId;
     private int invokedActionCount;
     private readonly TextBlock statusText = new()
     {
@@ -61,11 +64,15 @@ internal sealed class MainWindow : Window
     public bool WindowClosedAssertCompleted { get; private set; }
     public bool WindowClosedWaitCompleted { get; private set; }
     public bool WindowClosedWaitTimedOut { get; private set; }
+    public bool WindowOpenMutationCompleted { get; private set; }
+    public bool WindowCloseMutationCompleted { get; private set; }
+    public bool WindowLifecycleStateObserved { get; private set; }
     public bool InitialFocusedWaitCompleted { get; private set; }
     public bool InitialFocusedWaitTimedOut { get; private set; }
     public bool UnfocusedAssertCompleted { get; private set; }
     public bool InitialUnfocusedWaitCompleted { get; private set; }
     public bool InitialUnfocusedWaitTimedOut { get; private set; }
+    public bool InitialUnfocusedWaitObservedExternalDeactivation { get; private set; }
     public bool InitialSelectionWaitCompleted { get; private set; }
     public bool InitialSelectionWaitTimedOut { get; private set; }
     public bool InitialTextWaitCompleted { get; private set; }
@@ -306,6 +313,13 @@ internal sealed class MainWindow : Window
                 NodeId = initialWindowClosedWaitNodeId,
                 TimeoutMs = SemanticRenderer.WaitWindowClosedTimeoutMs,
             });
+        windowLifecycleDocument = fixture.Next;
+        windowLifecycleOpenNodeId = fixture.WindowOpenOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "window-open mutation probe requires a semantic target");
+        windowLifecycleCloseNodeId = fixture.WindowCloseOperation?.NodeId
+            ?? throw new InvalidDataException(
+                "window-close mutation probe requires a semantic target");
         initialSelectionWaitTimeout = detachedRenderer.ApplyPresentationAsync(
             new UiPresentationOperation
             {
@@ -393,6 +407,46 @@ internal sealed class MainWindow : Window
                 + $"result_applied={windowClosedTimeout.Applied}, "
                 + $"result_failure={windowClosedTimeout.FailureCode}, "
                 + $"still_open={stillOpen.Applied}");
+        }
+        var lifecycleRenderer = new AvaloniaDocumentRenderer(_ => { });
+        lifecycleRenderer.Mount(windowLifecycleDocument);
+        if (!lifecycleRenderer.RealizeNodeForVerification(windowLifecycleOpenNodeId)
+            || !lifecycleRenderer.RealizeNodeForVerification(windowLifecycleCloseNodeId))
+        {
+            throw new InvalidDataException(
+                "window lifecycle mutation probe requires realized semantic targets");
+        }
+        var opened = lifecycleRenderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.OpenWindow,
+            NodeId = windowLifecycleOpenNodeId,
+        });
+        await Dispatcher.UIThread.InvokeAsync(() => { });
+        var observedOpen = lifecycleRenderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertWindowOpen,
+            NodeId = windowLifecycleOpenNodeId,
+        });
+        var closed = lifecycleRenderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.CloseWindow,
+            NodeId = windowLifecycleCloseNodeId,
+        });
+        await Dispatcher.UIThread.InvokeAsync(() => { });
+        var observedClosed = lifecycleRenderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.AssertWindowClosed,
+            NodeId = windowLifecycleCloseNodeId,
+        });
+        WindowOpenMutationCompleted = opened.Applied;
+        WindowCloseMutationCompleted = closed.Applied;
+        WindowLifecycleStateObserved = observedOpen.Applied && observedClosed.Applied;
+        if (!WindowOpenMutationCompleted
+            || !WindowCloseMutationCompleted
+            || !WindowLifecycleStateObserved)
+        {
+            throw new InvalidDataException(
+                "Leselang window lifecycle mutations diverged from native window state");
         }
         var initiallyDisabled = renderer.ApplyPresentation(new UiPresentationOperation
         {
@@ -767,6 +821,21 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang focused wait did not observe an external focus transition");
         }
+        var unfocusedAssertBaseline = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.Focus,
+                NodeId = initialFocusedWaitNodeId,
+            });
+        await Dispatcher.UIThread.InvokeAsync(() => { });
+        if (!unfocusedAssertBaseline.Applied
+            || unfocusedAssertBaseline.FailureCode
+                != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != initialFocusedWaitNodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang unfocused assertion probe could not establish its focus baseline");
+        }
         var unfocusedAssertResult = renderer.ApplyPresentation(
             new UiPresentationOperation
             {
@@ -816,6 +885,22 @@ internal sealed class MainWindow : Window
             throw new InvalidDataException(
                 "Leselang unfocused wait did not observe an external focus transition");
         }
+        Activate();
+        var unfocusedTimeoutBaseline = renderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.Focus,
+                NodeId = initialFocusedWaitTimeoutNodeId,
+            });
+        await Dispatcher.UIThread.InvokeAsync(() => { });
+        if (!unfocusedTimeoutBaseline.Applied
+            || unfocusedTimeoutBaseline.FailureCode
+                != PresentationAutomationFailureCode.None
+            || renderer.FocusedNodeId != initialFocusedWaitTimeoutNodeId)
+        {
+            throw new InvalidDataException(
+                "Leselang unfocused timeout probe could not establish its focus baseline");
+        }
         var unfocusedTimeoutResult = await renderer.ApplyPresentationAsync(
             new UiPresentationOperation
             {
@@ -836,12 +921,20 @@ internal sealed class MainWindow : Window
             && persistentFocus.FailureCode
                 == PresentationAutomationFailureCode.None
             && renderer.FocusedNodeId == initialFocusedWaitTimeoutNodeId;
-        if (!InitialUnfocusedWaitTimedOut)
+        InitialUnfocusedWaitObservedExternalDeactivation =
+            unfocusedTimeoutResult.Applied
+            && unfocusedTimeoutResult.FailureCode
+                == PresentationAutomationFailureCode.None
+            && !IsActive
+            && renderer.FocusedNodeId is null;
+        if (!InitialUnfocusedWaitTimedOut
+            && !InitialUnfocusedWaitObservedExternalDeactivation)
         {
             throw new InvalidDataException(
-                "Leselang unfocused wait changed focus or did not reject a persistently focused realized target: "
+                "Leselang unfocused wait neither timed out on persistent focus nor observed native window deactivation: "
                 + $"result_applied={unfocusedTimeoutResult.Applied}, "
                 + $"result_failure={unfocusedTimeoutResult.FailureCode}, "
+                + $"window_active={IsActive}, "
                 + $"focused_node={renderer.FocusedNodeId ?? "<none>"}, "
                 + $"expected_focus={initialFocusedWaitTimeoutNodeId}");
         }

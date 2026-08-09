@@ -40,7 +40,7 @@ The separate candidate fixture carries Rust-generated
 `UiPresentationOperation::Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
 `AssertHidden`, `WaitHidden`, `AssertRealized`, `WaitRealized`, `WaitVisible`,
 `AssertFocused`, `WaitFocused`, `AssertUnfocused`, and `WaitUnfocused`, plus `AssertEnabled`, `AssertDisabled`,
-`WaitEnabled`, `WaitDisabled`, `AssertWindowOpen`, `WaitWindowOpen`,
+`WaitEnabled`, `WaitDisabled`, `OpenWindow`, `CloseWindow`, `AssertWindowOpen`, `WaitWindowOpen`,
 `AssertWindowClosed`, `WaitWindowClosed`,
 `AssertSelection`,
 `WaitSelection`, `AssertText`,
@@ -77,7 +77,7 @@ the complete presentation atom/profile set, validates canonical family/effect
 metadata, and rejects unknown manifest fields, numeric enum tokens, invalid
 binding kinds, invalid presentation atoms, and invalid profiles.
 RendererCore strictly round-trips all
-fifty and validates valid, missing, noninteractive,
+52 and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
 native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
@@ -89,9 +89,11 @@ native realization,
 fixed-deadline dispatcher-yielding realization wait, fixed-deadline
 viewport-aware visibility wait without implicit scrolling, plus side-effect-free
 focus, external focus waiting without implicit focus mutation, unfocused-state,
-external unfocused waiting without implicit focus mutation, enabled-state,
+external unfocused waiting without implicit focus mutation, deactivation-aware
+persistent-focus verification, enabled-state,
 disabled-state, external enablement waiting, external disablement waiting with a
-persistent enabled timeout, native window-open visual-tree membership,
+persistent enabled timeout, idempotent non-activating native window open/close,
+native window-open visual-tree membership,
 dispatcher-yielding window-open waiting,
 native window-closed visual-tree detachment, dispatcher-yielding window-closed
 waiting on a detached surface, persistent open-window timeout without invoking

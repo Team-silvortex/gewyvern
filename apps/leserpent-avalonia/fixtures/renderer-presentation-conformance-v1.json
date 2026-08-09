@@ -811,6 +811,14 @@
     "node_id": "runtime-runtime-a-refresh",
     "timeout_ms": 2000
   },
+  "window_open_operation": {
+    "kind": "open_window",
+    "node_id": "fleet-title"
+  },
+  "window_close_operation": {
+    "kind": "close_window",
+    "node_id": "fleet-title"
+  },
   "window_open_assert_operation": {
     "kind": "assert_window_open",
     "node_id": "fleet-title"
@@ -1049,6 +1057,8 @@
       "assert_enabled",
       "assert_disabled",
       "wait_disabled",
+      "open_window",
+      "close_window",
       "assert_window_open",
       "wait_window_open",
       "assert_window_closed",
@@ -1168,6 +1178,16 @@
         "atom": "wait_disabled",
         "family": "enabled_state",
         "effect": "wait"
+      },
+      {
+        "atom": "open_window",
+        "family": "window",
+        "effect": "mutation"
+      },
+      {
+        "atom": "close_window",
+        "family": "window",
+        "effect": "mutation"
       },
       {
         "atom": "assert_window_open",
@@ -1363,6 +1383,8 @@
       "assert_enabled",
       "assert_disabled",
       "wait_disabled",
+      "open_window",
+      "close_window",
       "assert_window_open",
       "wait_window_open",
       "assert_window_closed",
@@ -1482,6 +1504,16 @@
         "atom": "wait_disabled",
         "family": "enabled_state",
         "effect": "wait"
+      },
+      {
+        "atom": "open_window",
+        "family": "window",
+        "effect": "mutation"
+      },
+      {
+        "atom": "close_window",
+        "family": "window",
+        "effect": "mutation"
       },
       {
         "atom": "assert_window_open",

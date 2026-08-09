@@ -28,6 +28,8 @@ public sealed class SemanticRenderer
         UiPresentationAtom.AssertEnabled,
         UiPresentationAtom.AssertDisabled,
         UiPresentationAtom.WaitDisabled,
+        UiPresentationAtom.OpenWindow,
+        UiPresentationAtom.CloseWindow,
         UiPresentationAtom.AssertWindowOpen,
         UiPresentationAtom.WaitWindowOpen,
         UiPresentationAtom.AssertWindowClosed,
@@ -213,7 +215,9 @@ public sealed class SemanticRenderer
                 or UiPresentationAtom.AssertEnabled
                 or UiPresentationAtom.AssertDisabled
                 or UiPresentationAtom.WaitDisabled => UiPresentationAtomFamily.EnabledState,
-            UiPresentationAtom.AssertWindowOpen
+            UiPresentationAtom.OpenWindow
+                or UiPresentationAtom.CloseWindow
+                or UiPresentationAtom.AssertWindowOpen
                 or UiPresentationAtom.WaitWindowOpen
                 or UiPresentationAtom.AssertWindowClosed
                 or UiPresentationAtom.WaitWindowClosed => UiPresentationAtomFamily.Window,
@@ -256,7 +260,9 @@ public sealed class SemanticRenderer
         {
             UiPresentationAtom.Focus
                 or UiPresentationAtom.NavigateFocus
-                or UiPresentationAtom.ScrollIntoView => UiPresentationAtomEffect.Mutation,
+                or UiPresentationAtom.ScrollIntoView
+                or UiPresentationAtom.OpenWindow
+                or UiPresentationAtom.CloseWindow => UiPresentationAtomEffect.Mutation,
             UiPresentationAtom.AssertVisible
                 or UiPresentationAtom.AssertHidden
                 or UiPresentationAtom.AssertRealized
@@ -687,6 +693,10 @@ public sealed class SemanticRenderer
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitVisible =>
                 UiPresentationValidation.Valid,
+            UiPresentationOperationKind.OpenWindow =>
+                UiPresentationValidation.Valid,
+            UiPresentationOperationKind.CloseWindow =>
+                UiPresentationValidation.Valid,
             UiPresentationOperationKind.AssertWindowOpen =>
                 UiPresentationValidation.Valid,
             UiPresentationOperationKind.WaitWindowOpen =>
@@ -1082,6 +1092,8 @@ public sealed class RendererFixture
     public UiPresentationOperation? VisibleWaitOperation { get; set; }
     public UiPresentationOperation? EnabledWaitOperation { get; set; }
     public UiPresentationOperation? DisabledWaitOperation { get; set; }
+    public UiPresentationOperation? WindowOpenOperation { get; set; }
+    public UiPresentationOperation? WindowCloseOperation { get; set; }
     public UiPresentationOperation? WindowOpenAssertOperation { get; set; }
     public UiPresentationOperation? WindowOpenWaitOperation { get; set; }
     public UiPresentationOperation? WindowClosedAssertOperation { get; set; }
@@ -1316,6 +1328,8 @@ public enum UiPresentationOperationKind
     [JsonStringEnumMemberName("wait_visible")] WaitVisible,
     [JsonStringEnumMemberName("wait_enabled")] WaitEnabled,
     [JsonStringEnumMemberName("wait_disabled")] WaitDisabled,
+    [JsonStringEnumMemberName("open_window")] OpenWindow,
+    [JsonStringEnumMemberName("close_window")] CloseWindow,
     [JsonStringEnumMemberName("assert_window_open")] AssertWindowOpen,
     [JsonStringEnumMemberName("wait_window_open")] WaitWindowOpen,
     [JsonStringEnumMemberName("assert_window_closed")] AssertWindowClosed,
@@ -1421,6 +1435,8 @@ public enum UiPresentationAtom
     [JsonStringEnumMemberName("assert_enabled")] AssertEnabled,
     [JsonStringEnumMemberName("assert_disabled")] AssertDisabled,
     [JsonStringEnumMemberName("wait_disabled")] WaitDisabled,
+    [JsonStringEnumMemberName("open_window")] OpenWindow,
+    [JsonStringEnumMemberName("close_window")] CloseWindow,
     [JsonStringEnumMemberName("assert_window_open")] AssertWindowOpen,
     [JsonStringEnumMemberName("wait_window_open")] WaitWindowOpen,
     [JsonStringEnumMemberName("assert_window_closed")] AssertWindowClosed,
@@ -1564,6 +1580,8 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             "assert_enabled" => UiPresentationAtom.AssertEnabled,
             "assert_disabled" => UiPresentationAtom.AssertDisabled,
             "wait_disabled" => UiPresentationAtom.WaitDisabled,
+            "open_window" => UiPresentationAtom.OpenWindow,
+            "close_window" => UiPresentationAtom.CloseWindow,
             "assert_window_open" => UiPresentationAtom.AssertWindowOpen,
             "wait_window_open" => UiPresentationAtom.WaitWindowOpen,
             "assert_window_closed" => UiPresentationAtom.AssertWindowClosed,
@@ -1625,6 +1643,8 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
             UiPresentationAtom.AssertEnabled => "assert_enabled",
             UiPresentationAtom.AssertDisabled => "assert_disabled",
             UiPresentationAtom.WaitDisabled => "wait_disabled",
+            UiPresentationAtom.OpenWindow => "open_window",
+            UiPresentationAtom.CloseWindow => "close_window",
             UiPresentationAtom.AssertWindowOpen => "assert_window_open",
             UiPresentationAtom.WaitWindowOpen => "wait_window_open",
             UiPresentationAtom.AssertWindowClosed => "assert_window_closed",

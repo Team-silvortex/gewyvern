@@ -29,8 +29,8 @@ plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.wait_realized`, `ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
 `ui.assert_unfocused`, `ui.wait_unfocused`, `ui.assert_enabled`,
 `ui.assert_disabled`, `ui.wait_enabled`, `ui.wait_disabled`,
-    `ui.assert_window_open`, `ui.wait_window_open`,
-    `ui.assert_window_closed`, `ui.wait_window_closed`,
+`ui.open_window`, `ui.close_window`, `ui.assert_window_open`,
+`ui.wait_window_open`, `ui.assert_window_closed`, `ui.wait_window_closed`,
 `ui.assert_selection`, `ui.wait_selection`, `ui.assert_text`, `ui.wait_text`,
 `ui.assert_automation_id`, and
 `ui.assert_node_kind`, `ui.wait_node_kind`, `ui.assert_action_kind`,
@@ -372,6 +372,22 @@ disabled, including ancestor state. Missing or noninteractive nodes fail
 immediately; persistently unrealized or still-enabled actions time out. Waiting
 never disables, enables, focuses, activates, scrolls, or otherwise mutates the
 target.
+
+Native window lifetime is controlled by two separate presentation mutations:
+
+```leselang
+fn main() = ui.open_window(node_id: "runtime-runtime-a")
+fn main() = ui.close_window(node_id: "runtime-runtime-a")
+```
+
+Both require `ui.presentation` and any existing semantic node. `ui.open_window`
+is idempotent for an already attached target; a renderer may create a native
+window only for a fully detached surface and must not reparent an existing
+surface. `ui.close_window` closes only the native window containing the target
+and is idempotent when the target is already detached. Opening does not activate
+or focus the window. Both effects return only after the adapter accepts the
+lifecycle mutation; callers use the independent assertions below to observe
+native state.
 
 Native window attachment can be asserted without activating a window:
 

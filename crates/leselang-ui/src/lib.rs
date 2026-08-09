@@ -329,6 +329,8 @@ pub enum DebuggerEffectKind {
     UiAssertEnabled,
     UiAssertDisabled,
     UiWaitDisabled,
+    UiOpenWindow,
+    UiCloseWindow,
     UiAssertWindowOpen,
     UiWaitWindowOpen,
     UiAssertWindowClosed,
@@ -545,6 +547,12 @@ pub enum UiPresentationOperation {
         node_id: NodeId,
         timeout_ms: u64,
     },
+    OpenWindow {
+        node_id: NodeId,
+    },
+    CloseWindow {
+        node_id: NodeId,
+    },
     AssertWindowOpen {
         node_id: NodeId,
     },
@@ -719,6 +727,8 @@ pub enum UiPresentationAtom {
     AssertEnabled,
     AssertDisabled,
     WaitDisabled,
+    OpenWindow,
+    CloseWindow,
     AssertWindowOpen,
     WaitWindowOpen,
     AssertWindowClosed,
@@ -787,7 +797,7 @@ pub struct UiPresentationAtomProfile {
     pub effect: UiPresentationAtomEffect,
 }
 
-pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 50] = [
+pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 52] = [
     UiPresentationAtom::Focus,
     UiPresentationAtom::NavigateFocus,
     UiPresentationAtom::ScrollIntoView,
@@ -805,6 +815,8 @@ pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 50] = [
     UiPresentationAtom::AssertEnabled,
     UiPresentationAtom::AssertDisabled,
     UiPresentationAtom::WaitDisabled,
+    UiPresentationAtom::OpenWindow,
+    UiPresentationAtom::CloseWindow,
     UiPresentationAtom::AssertWindowOpen,
     UiPresentationAtom::WaitWindowOpen,
     UiPresentationAtom::AssertWindowClosed,
@@ -863,6 +875,8 @@ pub fn presentation_atom_for_operation(operation: &UiPresentationOperation) -> U
         UiPresentationOperation::AssertEnabled { .. } => UiPresentationAtom::AssertEnabled,
         UiPresentationOperation::AssertDisabled { .. } => UiPresentationAtom::AssertDisabled,
         UiPresentationOperation::WaitDisabled { .. } => UiPresentationAtom::WaitDisabled,
+        UiPresentationOperation::OpenWindow { .. } => UiPresentationAtom::OpenWindow,
+        UiPresentationOperation::CloseWindow { .. } => UiPresentationAtom::CloseWindow,
         UiPresentationOperation::AssertWindowOpen { .. } => UiPresentationAtom::AssertWindowOpen,
         UiPresentationOperation::WaitWindowOpen { .. } => UiPresentationAtom::WaitWindowOpen,
         UiPresentationOperation::AssertWindowClosed { .. } => {
@@ -971,7 +985,9 @@ pub fn presentation_atom_family(atom: UiPresentationAtom) -> UiPresentationAtomF
         | UiPresentationAtom::AssertEnabled
         | UiPresentationAtom::AssertDisabled
         | UiPresentationAtom::WaitDisabled => UiPresentationAtomFamily::EnabledState,
-        UiPresentationAtom::AssertWindowOpen
+        UiPresentationAtom::OpenWindow
+        | UiPresentationAtom::CloseWindow
+        | UiPresentationAtom::AssertWindowOpen
         | UiPresentationAtom::WaitWindowOpen
         | UiPresentationAtom::AssertWindowClosed
         | UiPresentationAtom::WaitWindowClosed => UiPresentationAtomFamily::Window,
@@ -1015,7 +1031,9 @@ pub fn presentation_atom_effect(atom: UiPresentationAtom) -> UiPresentationAtomE
     match atom {
         UiPresentationAtom::Focus
         | UiPresentationAtom::NavigateFocus
-        | UiPresentationAtom::ScrollIntoView => UiPresentationAtomEffect::Mutation,
+        | UiPresentationAtom::ScrollIntoView
+        | UiPresentationAtom::OpenWindow
+        | UiPresentationAtom::CloseWindow => UiPresentationAtomEffect::Mutation,
         UiPresentationAtom::AssertVisible
         | UiPresentationAtom::AssertHidden
         | UiPresentationAtom::AssertRealized
@@ -1832,6 +1850,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             | DebuggerEffectKind::UiAssertEnabled
             | DebuggerEffectKind::UiAssertDisabled
             | DebuggerEffectKind::UiWaitDisabled
+            | DebuggerEffectKind::UiOpenWindow
+            | DebuggerEffectKind::UiCloseWindow
             | DebuggerEffectKind::UiAssertWindowOpen
             | DebuggerEffectKind::UiWaitWindowOpen
             | DebuggerEffectKind::UiAssertWindowClosed
@@ -1981,6 +2001,8 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::UiAssertEnabled => "UI assert enabled",
             DebuggerEffectKind::UiAssertDisabled => "UI assert disabled",
             DebuggerEffectKind::UiWaitDisabled => "UI wait disabled",
+            DebuggerEffectKind::UiOpenWindow => "UI open window",
+            DebuggerEffectKind::UiCloseWindow => "UI close window",
             DebuggerEffectKind::UiAssertWindowOpen => "UI assert window open",
             DebuggerEffectKind::UiWaitWindowOpen => "UI wait window open",
             DebuggerEffectKind::UiAssertWindowClosed => "UI assert window closed",
@@ -2331,6 +2353,12 @@ pub fn presentation_operation_for_effect(
             node_id: NodeId::new(node_id.clone())?,
             timeout_ms: UI_WAIT_ENABLED_TIMEOUT_MS,
         },
+        Effect::UiOpenWindow { node_id } => UiPresentationOperation::OpenWindow {
+            node_id: NodeId::new(node_id.clone())?,
+        },
+        Effect::UiCloseWindow { node_id } => UiPresentationOperation::CloseWindow {
+            node_id: NodeId::new(node_id.clone())?,
+        },
         Effect::UiAssertWindowOpen { node_id } => UiPresentationOperation::AssertWindowOpen {
             node_id: NodeId::new(node_id.clone())?,
         },
@@ -2619,6 +2647,12 @@ pub fn effect_for_presentation_operation(
         UiPresentationOperation::WaitDisabled { node_id, .. } => Effect::UiWaitDisabled {
             node_id: node_id.as_str().to_string(),
         },
+        UiPresentationOperation::OpenWindow { node_id } => Effect::UiOpenWindow {
+            node_id: node_id.as_str().to_string(),
+        },
+        UiPresentationOperation::CloseWindow { node_id } => Effect::UiCloseWindow {
+            node_id: node_id.as_str().to_string(),
+        },
         UiPresentationOperation::AssertWindowOpen { node_id } => Effect::UiAssertWindowOpen {
             node_id: node_id.as_str().to_string(),
         },
@@ -2864,6 +2898,8 @@ pub fn validate_presentation_operation(
         | UiPresentationOperation::AssertEnabled { node_id }
         | UiPresentationOperation::AssertDisabled { node_id }
         | UiPresentationOperation::WaitDisabled { node_id, .. }
+        | UiPresentationOperation::OpenWindow { node_id }
+        | UiPresentationOperation::CloseWindow { node_id }
         | UiPresentationOperation::AssertWindowOpen { node_id }
         | UiPresentationOperation::WaitWindowOpen { node_id, .. }
         | UiPresentationOperation::AssertWindowClosed { node_id }
@@ -4855,6 +4891,52 @@ mod tests {
             validate_presentation_operation(
                 &document,
                 &UiPresentationOperation::AssertWindowOpen {
+                    node_id: NodeId::new("missing-node").unwrap(),
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget { .. })
+        ));
+    }
+
+    #[test]
+    fn window_lifecycle_mutations_round_trip_for_any_existing_semantic_node() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        for (operation, expected_effect, expected_source) in [
+            (
+                UiPresentationOperation::OpenWindow {
+                    node_id: NodeId::new("runtime-runtime-a").unwrap(),
+                },
+                Effect::UiOpenWindow {
+                    node_id: "runtime-runtime-a".into(),
+                },
+                "fn main() = ui.open_window(node_id: \"runtime-runtime-a\")\n",
+            ),
+            (
+                UiPresentationOperation::CloseWindow {
+                    node_id: NodeId::new("runtime-runtime-a").unwrap(),
+                },
+                Effect::UiCloseWindow {
+                    node_id: "runtime-runtime-a".into(),
+                },
+                "fn main() = ui.close_window(node_id: \"runtime-runtime-a\")\n",
+            ),
+        ] {
+            validate_presentation_operation(&document, &operation).unwrap();
+            let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+            assert_eq!(effect, expected_effect);
+            assert_eq!(
+                presentation_operation_for_effect(&document, &effect).unwrap(),
+                operation
+            );
+            assert_eq!(
+                export_presentation_leselang(&document, &operation).unwrap(),
+                expected_source
+            );
+        }
+        assert!(matches!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::OpenWindow {
                     node_id: NodeId::new("missing-node").unwrap(),
                 },
             ),
@@ -7851,8 +7933,16 @@ mod tests {
         .unwrap();
         assert_eq!(manifest.schema_version, UI_ADAPTER_MANIFEST_SCHEMA_VERSION);
         assert_eq!(manifest.ui_schema_version, UI_SCHEMA_VERSION);
-        assert_eq!(manifest.presentation_atoms.len(), 50);
-        assert_eq!(manifest.presentation_atom_profiles.len(), 50);
+        assert_eq!(manifest.presentation_atoms.len(), 52);
+        assert_eq!(manifest.presentation_atom_profiles.len(), 52);
+        assert_eq!(
+            presentation_atom_profile(UiPresentationAtom::OpenWindow),
+            UiPresentationAtomProfile {
+                atom: UiPresentationAtom::OpenWindow,
+                family: UiPresentationAtomFamily::Window,
+                effect: UiPresentationAtomEffect::Mutation,
+            }
+        );
         assert!(
             manifest
                 .presentation_atoms

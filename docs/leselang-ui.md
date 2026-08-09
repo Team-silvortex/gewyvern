@@ -32,8 +32,8 @@ generator tooling. The manifest carries schema version `2`, a stable
 `developer_owned_adapter` or `generated_framework_binding`, the target
 `ui_schema_version`, and booleans proving support for document, event, and patch
 schemas. It must also list the complete `required_ui_presentation_atoms()` set:
-all fifty current presentation atoms, including focus, wait, assertion,
-selection, action metadata, form metadata, and accessibility operations. Schema
+all fifty-two current presentation atoms, including focus, window lifecycle,
+wait, assertion, selection, action metadata, form metadata, and accessibility operations. Schema
 version `2` also carries `presentation_atom_profiles`: one canonical profile per
 atom, classifying the GUI family and effect model as mutation, assertion, or
 wait so generated adapters can build a 1:1 mapping table without guessing.
@@ -156,7 +156,7 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum parameterized form value: `256` bytes
 - adapter manifest schema version: `2`
 - maximum adapter framework label: `128` bytes
-- required adapter presentation atoms: `50`
+- required adapter presentation atoms: `52`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -195,7 +195,7 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by fifty presentation atoms.
+Semantic action equivalence is joined by fifty-two presentation atoms.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -220,6 +220,11 @@ carries the protocol-fixed 2000 ms deadline.
 `UiPresentationOperation::WaitVisible` maps one-to-one to
 `ui.wait_visible(node_id: ...)`, accepts any existing semantic node, and
 carries its own protocol-fixed 2000 ms deadline.
+`UiPresentationOperation::OpenWindow` and `CloseWindow` map one-to-one to
+`ui.open_window(node_id: ...)` and `ui.close_window(node_id: ...)`. Both accept
+any existing semantic node and are idempotent lifecycle mutations. Adapters may
+open only a fully detached renderer surface, close only the target's containing
+native window, and must not activate or focus a window implicitly.
 `UiPresentationOperation::AssertFocused` maps one-to-one to
 `ui.assert_focused(node_id: ...)` and requires an interactive action.
 `UiPresentationOperation::WaitFocused` maps one-to-one to
@@ -369,11 +374,11 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all fifty travel in
+become a `UiEvent` or `CommandPlan`; all fifty-two travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all fifty operations through its stable visual index. Focus
+Avalonia resolves all fifty-two operations through its stable visual index. Focus
 uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
@@ -398,7 +403,11 @@ cancellable adapter and never scrolls the target. Focus assertion reads native
 `Control.IsFocused`; focused wait polls that same predicate without invoking
 `Control.Focus()`. Unfocused assertion reads the inverse native focus predicate;
 unfocused wait polls the same inverse predicate through the dispatcher-yielding
-adapter without invoking `Control.Focus()` or transferring focus. Enabled assertion reads native effective enabled state,
+adapter without invoking `Control.Focus()` or transferring focus. Native window
+deactivation is therefore a legitimate external transition to unfocused state;
+the real-window verifier reports that path separately from a persistent-focus
+timeout instead of treating desktop activation timing as an adapter failure.
+Enabled assertion reads native effective enabled state,
 including ancestors. Disabled assertion reads the same native effective enabled
 state and succeeds only for disabled actions, providing a positive safety
 predicate rather than relying on an enabled-assertion failure. Enabled wait
@@ -490,7 +499,8 @@ persistent visible hidden-wait timeout, native application, unrealized,
 hidden, unfocused, disabled, external enablement transition and persistent
 disabled timeout, external disablement transition and persistent enabled
 disabled-wait timeout, external focus transition and persistent
-realized-unfocused timeout without implicit focus mutation, native forward and
+realized-unfocused timeout without implicit focus mutation, deactivation-aware
+persistent-focus verification, native forward and
 backward focus navigation, stable destination reporting, failure focus
 preservation, and
 zero action activation, native window-open assertion, dispatcher-yielding
@@ -514,8 +524,8 @@ persistent accessible-description mismatch timeout, still-enabled disabled-asser
 still-visible hidden-assertion mismatch, missing, textless, and unfocusable
 targets, focus preservation, remount/patch retention, and safe target removal.
 
-This is not yet complete presentation automation. Full window close/reopen
-lifetime, additional navigation modes, and additional state assertions remain future typed
+This is not yet complete presentation automation. Multi-window ownership and
+parenting policies, additional navigation modes, and additional state assertions remain future typed
 operations; renderers must not emulate them with coordinates, arbitrary
 scripts, or control-plane commands.
 

@@ -1882,6 +1882,8 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_disabled(node_id: ...)`, plus
 `ui.wait_enabled(node_id: ...)`, plus
 `ui.wait_disabled(node_id: ...)`, plus
+`ui.open_window(node_id: ...)`, plus
+`ui.close_window(node_id: ...)`, plus
 `ui.assert_window_open(node_id: ...)`, plus
 `ui.wait_window_open(node_id: ...)`, plus
 `ui.assert_window_closed(node_id: ...)`, plus
