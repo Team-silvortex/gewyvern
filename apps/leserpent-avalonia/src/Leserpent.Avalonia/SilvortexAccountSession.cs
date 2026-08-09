@@ -31,6 +31,11 @@ internal sealed record SilvortexAccountOptions(
     string ClientId,
     int CallbackPort)
 {
+    public const string ReviewedApplicationKey = "leserpent";
+    public const string ReviewedClientProfile = "leserpent_desktop";
+    public const string ReviewedClientId = "svx_client_leserpent_desktop";
+    public const string ReviewedScopes = "openid profile email offline_access";
+    public const string CallbackPath = "/oidc/callback";
     public const string IssuerEnvironmentVariable = "LESERPENT_SILVORTEX_ISSUER";
     public const string ClientIdEnvironmentVariable = "LESERPENT_SILVORTEX_CLIENT_ID";
     public const string CallbackPortEnvironmentVariable = "LESERPENT_SILVORTEX_CALLBACK_PORT";
@@ -38,7 +43,7 @@ internal sealed record SilvortexAccountOptions(
         "LESERPENT_SILVORTEX_ALLOW_INSECURE_HTTP";
     public const int DefaultCallbackPort = 43817;
 
-    public Uri RedirectUri => new($"http://127.0.0.1:{CallbackPort}/oidc/callback");
+    public Uri RedirectUri => new($"http://127.0.0.1:{CallbackPort}{CallbackPath}");
 
     public string CredentialAccount => $"{Issuer.AbsoluteUri}|{ClientId}";
 
@@ -50,10 +55,11 @@ internal sealed record SilvortexAccountOptions(
         {
             return (null, "Team Silvortex sign-in is optional and is not configured for this build.");
         }
-        if (string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(clientId))
+        if (string.IsNullOrEmpty(issuer))
         {
-            return (null, $"Set both {IssuerEnvironmentVariable} and {ClientIdEnvironmentVariable}.");
+            return (null, $"Set {IssuerEnvironmentVariable} when configuring Team Silvortex sign-in.");
         }
+        clientId = ResolveClientId(clientId);
         var allowInsecure = string.Equals(
             Environment.GetEnvironmentVariable(AllowInsecureEnvironmentVariable),
             "true",
@@ -104,12 +110,14 @@ internal sealed record SilvortexAccountOptions(
         var normalizedIssuer = new UriBuilder(issuerUri) { Path = "/" }.Uri;
         return new SilvortexAccountOptions(normalizedIssuer, clientId, callbackPort);
     }
+
+    internal static string ResolveClientId(string? configured) =>
+        string.IsNullOrEmpty(configured) ? ReviewedClientId : configured;
 }
 
 internal sealed class SilvortexAccountSession : IDisposable
 {
     private const string CredentialService = "org.gewyvern.leserpent.silvortex";
-    private const string Scopes = "openid profile email offline_access";
     private const int MaxJsonBytes = 64 * 1024;
     private const int MaxCallbackBytes = 8 * 1024;
     private const int MaxCallbackAttempts = 4;
@@ -270,7 +278,7 @@ internal sealed class SilvortexAccountSession : IDisposable
     {
         var options = SilvortexAccountOptions.Create(
             "https://id.example.invalid/",
-            "svx_client_leserpent_desktop",
+            SilvortexAccountOptions.ReviewedClientId,
             SilvortexAccountOptions.DefaultCallbackPort);
         var transaction = AuthorizationTransaction.Create();
         var metadata = new OidcMetadata(
@@ -280,11 +288,24 @@ internal sealed class SilvortexAccountSession : IDisposable
             new Uri(options.Issuer, "v1/oidc/userinfo"),
             new Uri(options.Issuer, "v1/oidc/jwks"),
             new Uri(options.Issuer, "v1/oidc/revoke"));
-        var authorization = BuildAuthorizationUri(metadata, options, transaction).AbsoluteUri;
-        if (!authorization.Contains("response_type=code", StringComparison.Ordinal)
-            || !authorization.Contains("code_challenge_method=S256", StringComparison.Ordinal)
-            || !authorization.Contains("nonce=", StringComparison.Ordinal)
-            || authorization.Contains("client_secret", StringComparison.Ordinal)
+        var authorizationUri = BuildAuthorizationUri(metadata, options, transaction);
+        var authorization = authorizationUri.AbsoluteUri;
+        var authorizationFields = ParseCallbackQuery(authorizationUri.Query);
+        if (!authorizationFields.TryGetValue("response_type", out var responseType)
+            || responseType != "code"
+            || !authorizationFields.TryGetValue("code_challenge_method", out var challengeMethod)
+            || challengeMethod != "S256"
+            || !authorizationFields.TryGetValue("nonce", out var nonce)
+            || nonce != transaction.Nonce
+            || !authorizationFields.TryGetValue("scope", out var scope)
+            || scope != SilvortexAccountOptions.ReviewedScopes
+            || authorizationFields.ContainsKey("client_secret")
+            || options.RedirectUri.AbsolutePath != SilvortexAccountOptions.CallbackPath
+            || options.ClientId != SilvortexAccountOptions.ReviewedClientId
+            || SilvortexAccountOptions.ResolveClientId(null)
+                != SilvortexAccountOptions.ReviewedClientId
+            || SilvortexAccountOptions.ResolveClientId("svx_client_self_hosted_fixture")
+                != "svx_client_self_hosted_fixture"
             || transaction.CodeVerifier.Length != 43
             || transaction.State.Length != 43
             || transaction.Nonce.Length != 43)
@@ -693,7 +714,7 @@ internal sealed class SilvortexAccountSession : IDisposable
             new KeyValuePair<string, string>("response_type", "code"),
             new KeyValuePair<string, string>("client_id", configured.ClientId),
             new KeyValuePair<string, string>("redirect_uri", configured.RedirectUri.AbsoluteUri),
-            new KeyValuePair<string, string>("scope", Scopes),
+            new KeyValuePair<string, string>("scope", SilvortexAccountOptions.ReviewedScopes),
             new KeyValuePair<string, string>("state", transaction.State),
             new KeyValuePair<string, string>("nonce", transaction.Nonce),
             new KeyValuePair<string, string>("code_challenge", transaction.CodeChallenge),

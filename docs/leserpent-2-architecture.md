@@ -1999,6 +1999,19 @@ open/close lifecycle and bounded structural state assertions are covered by
 cross-language conformance and real-window verification rather than being
 approximated with coordinates, OCR, or scripts.
 
+The optional Hub account is a native public OIDC client, not another daemon
+authority. Team Silvortex Platform owns the reviewed `leserpent` application,
+the `leserpent_desktop` native profile, and the statically registered
+`svx_client_leserpent_desktop` client. Leserpent uses that client by default
+when an issuer is configured, sends no client secret, and keeps self-hosted
+client overrides explicit. The provider contract has physical Linux evidence
+for migration, authorization code with PKCE S256, RS256/MFA/UserInfo binding,
+rotating refresh tokens, replay containment, and consent revocation. That
+shadow proof does not claim native system-browser or platform credential-vault
+execution; those remain release-facing per-host proofs. In every case, Team
+Silvortex account identity cannot replace endpoint-bound `leserpentd`
+credentials or authorize daemon mutations by itself.
+
 ## Process And Transport Boundaries
 
 Desktop deployments should run `leserpentd` separately and connect through a

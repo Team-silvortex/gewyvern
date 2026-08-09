@@ -202,17 +202,21 @@ tree with `--verify-hub-topology`.
 
 The Hub account card is an optional native OIDC client. An unconfigured or
 unavailable account service never blocks local Orchestra or saved daemon
-connections. Configure a reviewed public client before launching the app:
+connections. Team Silvortex Platform registers the reviewed `leserpent` /
+`leserpent_desktop` profile as the fixed public client
+`svx_client_leserpent_desktop`. A standard deployment therefore needs only its
+issuer before launching the app:
 
 ```bash
 export LESERPENT_SILVORTEX_ISSUER=https://id.example.invalid/
-export LESERPENT_SILVORTEX_CLIENT_ID=svx_client_leserpent_desktop
-export LESERPENT_SILVORTEX_CALLBACK_PORT=43817
 ```
 
 Register the exact callback
 `http://127.0.0.1:43817/oidc/callback` for that client. The port defaults to
-`43817`; changing it requires a matching platform registration. Plain HTTP
+`43817`; changing it requires a matching platform registration. Self-hosted or
+development providers may override the reviewed client with
+`LESERPENT_SILVORTEX_CLIENT_ID` and the callback port with
+`LESERPENT_SILVORTEX_CALLBACK_PORT`. Plain HTTP
 issuers are rejected except for a loopback development issuer with
 `LESERPENT_SILVORTEX_ALLOW_INSECURE_HTTP=true`.
 
@@ -224,6 +228,13 @@ rotating refresh token is persisted, under
 access and ID tokens remain process-local. Team Silvortex account identity does
 not replace endpoint-bound `leserpentd` credentials. Verify the offline protocol
 and cryptographic contract with `--verify-silvortex-account`.
+
+The registered provider path has a retained disposable-database proof at
+`../../docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json`.
+It covers the reviewed client through login, refresh rotation/replay containment,
+and consent revocation. It does not replace the remaining release-facing proof
+of a real system-browser login, platform credential-vault restore, and local
+desktop logout on each supported host.
 
 `Deploy daemon` opens the native reverse-deployment workspace. It selects one
 saved authenticated daemon as the deployment authority, accepts only a target,

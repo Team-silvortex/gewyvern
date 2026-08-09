@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-silvortex-reviewed-oidc-provider-shadow-linux-x86_64",
+  "recorded_at": "2026-08-09T16:03:59Z",
+  "source": {
+    "renderer_contract": "1.87.0",
+    "silvortex_application_profile_migration_sha256": "9a2cf5dadb023662a9cbace6bca0000433ee276b9f67b7a928b4230f86f4e7fb",
+    "silvortex_identity_shadow_smoke_sha256": "b9633f6c45a839365315d4fa6b6269a13de62f34282ccdc94cd6b7fd71d20fc1",
+    "silvortex_identity_policy_sha256": "ea80e814d1627ef02b2f42660ca8cadb6c4de709820d12b0a1dc60522f5f8714",
+    "leserpent_account_session_sha256": "b91bf8fec939f0adc0dd5a7cd303b3d94c970976e08e5577c72f3d492f44d49d",
+    "remote_source_hashes_match": true
+  },
+  "target": {
+    "host": "192.168.124.22",
+    "endpoint": "kyuubiki-lab.local",
+    "alias": "kyuubiki-lab",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64",
+    "execution": "physical-host-disposable-docker",
+    "docker_server": "29.1.1"
+  },
+  "registration": {
+    "application_key": "leserpent",
+    "client_profile": "leserpent_desktop",
+    "client_id": "svx_client_leserpent_desktop",
+    "client_kind": "native",
+    "confidential": false,
+    "client_secret_present": false,
+    "redirect_uris": [
+      "http://127.0.0.1:43817/oidc/callback"
+    ],
+    "scopes": [
+      "openid",
+      "profile",
+      "email",
+      "offline_access"
+    ]
+  },
+  "suite": {
+    "command": "bash scripts/identity-isolated-shadow-smoke.sh",
+    "exit_code": 0,
+    "checks": 21,
+    "log_sha256": "5068979fec101282eba76f295f75743cb56c8888ddd14544a2a4ca063b5bd4b2",
+    "isolated_resources_cleaned": true
+  },
+  "observations": {
+    "reviewed_profile_migration_applied": true,
+    "reviewed_static_client_selected": true,
+    "oidc_discovery": true,
+    "exact_redirect_validation": true,
+    "authorization_code_pkce_s256": true,
+    "rs256_signed_id_token": true,
+    "mfa_assurance": true,
+    "userinfo_subject_binding": true,
+    "scope_narrowing_refresh_rotation": true,
+    "refresh_replay_containment": true,
+    "public_client_secret_rejected": true,
+    "consent_revocation": true
+  },
+  "boundaries": {
+    "provider_shadow_only": true,
+    "native_system_browser_proof": false,
+    "platform_credential_vault_restore_proof": false,
+    "native_logout_proof": false,
+    "account_identity_replaces_daemon_authority": false,
+    "retained_secrets": false
+  },
+  "result": "passed"
+}

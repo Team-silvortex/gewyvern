@@ -946,6 +946,13 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     let vault = avalonia_source("Leserpent.RemoteClient/RemoteTokenStore.cs");
 
     assert!(account.contains("code_challenge_method"));
+    assert!(account.contains("ReviewedApplicationKey = \"leserpent\""));
+    assert!(account.contains("ReviewedClientProfile = \"leserpent_desktop\""));
+    assert!(account.contains("ReviewedClientId = \"svx_client_leserpent_desktop\""));
+    assert!(account.contains("ReviewedScopes = \"openid profile email offline_access\""));
+    assert!(account.contains("clientId = ResolveClientId(clientId)"));
+    assert!(account.contains("SilvortexAccountOptions.ResolveClientId(null)"));
+    assert!(account.contains("svx_client_self_hosted_fixture"));
     assert!(account.contains("AuthorizationTransaction.Create()"));
     assert!(account.contains("FixedTimeEquals(state, expectedState)"));
     assert!(account.contains("VerifyIdTokenAsync"));
@@ -959,6 +966,9 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(hub.contains("SilvortexAccountControl"));
     assert!(app.contains("SilvortexAccountSession.FromEnvironment()"));
     assert!(program.contains("--verify-silvortex-account"));
+    assert!(program.contains("reviewed_application=leserpent"));
+    assert!(program.contains("reviewed_profile=leserpent_desktop"));
+    assert!(program.contains("default_client_id=true"));
     assert!(vault.contains("public static class PlatformCredentialVault"));
     assert!(vault.contains("LinuxSecretService.StoreAccount"));
 }

@@ -2099,6 +2099,110 @@ fn retained_linux_avalonia_window_reopen_native_aot_evidence_is_non_vacuous() {
 }
 
 #[test]
+fn retained_linux_silvortex_oidc_provider_shadow_evidence_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json",
+        ))
+        .expect("Silvortex OIDC provider shadow evidence must exist"),
+    )
+    .expect("Silvortex OIDC provider shadow evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "leserpent-silvortex-reviewed-oidc-provider-shadow-linux-x86_64"
+    );
+    assert_eq!(evidence["source"]["renderer_contract"], "1.87.0");
+    for source_hash in [
+        "silvortex_application_profile_migration_sha256",
+        "silvortex_identity_shadow_smoke_sha256",
+        "silvortex_identity_policy_sha256",
+        "leserpent_account_session_sha256",
+    ] {
+        let hash = evidence["source"][source_hash]
+            .as_str()
+            .unwrap_or_else(|| panic!("source hash {source_hash} must be a string"));
+        assert_eq!(hash.len(), 64, "source hash {source_hash} must be SHA-256");
+        assert!(
+            hash.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "source hash {source_hash} must be hexadecimal"
+        );
+    }
+    assert_eq!(evidence["source"]["remote_source_hashes_match"], true);
+    assert_eq!(evidence["target"]["host"], "192.168.124.22");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["alias"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["hostname"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(
+        evidence["target"]["execution"],
+        "physical-host-disposable-docker"
+    );
+    assert_eq!(evidence["registration"]["application_key"], "leserpent");
+    assert_eq!(
+        evidence["registration"]["client_profile"],
+        "leserpent_desktop"
+    );
+    assert_eq!(
+        evidence["registration"]["client_id"],
+        "svx_client_leserpent_desktop"
+    );
+    assert_eq!(evidence["registration"]["client_kind"], "native");
+    assert_eq!(evidence["registration"]["confidential"], false);
+    assert_eq!(evidence["registration"]["client_secret_present"], false);
+    assert_eq!(
+        evidence["registration"]["redirect_uris"],
+        serde_json::json!(["http://127.0.0.1:43817/oidc/callback"])
+    );
+    assert_eq!(
+        evidence["registration"]["scopes"],
+        serde_json::json!(["openid", "profile", "email", "offline_access"])
+    );
+    assert_eq!(evidence["suite"]["exit_code"], 0);
+    assert_eq!(evidence["suite"]["checks"], 21);
+    assert_eq!(evidence["suite"]["isolated_resources_cleaned"], true);
+    let log_sha256 = evidence["suite"]["log_sha256"]
+        .as_str()
+        .expect("retained remote log SHA-256 must be a string");
+    assert_eq!(log_sha256.len(), 64);
+    assert!(log_sha256.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    for observation in [
+        "reviewed_profile_migration_applied",
+        "reviewed_static_client_selected",
+        "oidc_discovery",
+        "exact_redirect_validation",
+        "authorization_code_pkce_s256",
+        "rs256_signed_id_token",
+        "mfa_assurance",
+        "userinfo_subject_binding",
+        "scope_narrowing_refresh_rotation",
+        "refresh_replay_containment",
+        "public_client_secret_rejected",
+        "consent_revocation",
+    ] {
+        assert_eq!(
+            evidence["observations"][observation], true,
+            "missing provider observation {observation}"
+        );
+    }
+    assert_eq!(evidence["boundaries"]["provider_shadow_only"], true);
+    for boundary in [
+        "native_system_browser_proof",
+        "platform_credential_vault_restore_proof",
+        "native_logout_proof",
+        "account_identity_replaces_daemon_authority",
+        "retained_secrets",
+    ] {
+        assert_eq!(
+            evidence["boundaries"][boundary], false,
+            "boundary {boundary} must remain false"
+        );
+    }
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
 fn retained_system_profile_bootstrap_retirement_evidence_is_non_vacuous() {
     let root = repository_root();
     let evidence: serde_json::Value = serde_json::from_str(
@@ -3771,7 +3875,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.86.0");
+    assert_eq!(avalonia.contract.version, "1.87.0");
     assert!(
         avalonia
             .contract
@@ -3792,6 +3896,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "account-control-automation",
         "duplicate-callback-parameter-rejection",
         "public-client-no-secret",
+        "reviewed-silvortex-application-profile",
+        "statically-registered-native-oidc-client",
+        "reviewed-native-oidc-client-default",
+        "physical-linux-oidc-provider-shadow-proof",
         "strict-ui-adapter-manifest-codec",
         "developer-owned-adapter-manifest-validation",
         "generated-binding-manifest-validation",
@@ -3959,6 +4067,15 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 == "docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(avalonia.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Test
+            && item.path
+                == "docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(avalonia.next_gate.contains("system-browser"));
+    assert!(avalonia.next_gate.contains("credential-vault"));
+    assert!(avalonia.next_gate.contains("local logout"));
     assert!(avalonia.blockers.is_empty());
 
     let transport = catalog

@@ -481,6 +481,18 @@ ambient `PATH` daemon discovery, clears the inherited child environment, writes
 all TLS material with atomic owner-only creation, and zeroes exported private
 key buffers after the daemon identity is persisted.
 
+The optional Team Silvortex account path now has a reviewed platform-owned
+application/profile pair (`leserpent` / `leserpent_desktop`) and the static
+secret-free native client `svx_client_leserpent_desktop`. A physical Linux
+x86_64 disposable-provider run applies the real migration and passes the full
+21-check identity workflow, including exact redirect validation, PKCE S256,
+RS256 ID-token verification, MFA assurance, UserInfo subject binding, refresh
+rotation/replay containment, and consent revocation. The retained proof is
+`docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json`.
+Gate 4 still requires a release-facing desktop run through the system browser
+and platform credential vault; account identity remains separate from every
+endpoint-bound `leserpentd` authority.
+
 Exit: the vertical slice contains no direct adapter or persistence access and
 passes GUI/CLI/Leselang equivalence tests.
 
