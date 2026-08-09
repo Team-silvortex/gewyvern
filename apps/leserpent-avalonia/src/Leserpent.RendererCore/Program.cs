@@ -12,6 +12,7 @@ public sealed class SemanticRenderer
     private const int UiSchemaVersion = 1;
     private static readonly UiPresentationAtom[] RequiredPresentationAtoms =
     [
+        UiPresentationAtom.Activate,
         UiPresentationAtom.Focus,
         UiPresentationAtom.NavigateFocus,
         UiPresentationAtom.ScrollIntoView,
@@ -202,6 +203,7 @@ public sealed class SemanticRenderer
     private static UiPresentationAtomFamily PresentationAtomFamily(UiPresentationAtom atom) =>
         atom switch
         {
+            UiPresentationAtom.Activate => UiPresentationAtomFamily.Interaction,
             UiPresentationAtom.Focus
                 or UiPresentationAtom.NavigateFocus
                 or UiPresentationAtom.WaitFocused
@@ -264,7 +266,8 @@ public sealed class SemanticRenderer
     private static UiPresentationAtomEffect PresentationAtomEffect(UiPresentationAtom atom) =>
         atom switch
         {
-            UiPresentationAtom.Focus
+            UiPresentationAtom.Activate
+                or UiPresentationAtom.Focus
                 or UiPresentationAtom.NavigateFocus
                 or UiPresentationAtom.ScrollIntoView
                 or UiPresentationAtom.OpenWindow
@@ -681,7 +684,8 @@ public sealed class SemanticRenderer
         }
         return operation.Kind switch
         {
-            UiPresentationOperationKind.Focus
+            UiPresentationOperationKind.Activate
+            or UiPresentationOperationKind.Focus
             or UiPresentationOperationKind.NavigateFocus
             or UiPresentationOperationKind.AssertFocused
             or UiPresentationOperationKind.AssertUnfocused
@@ -1104,6 +1108,7 @@ public sealed class RendererFixture
     public required UiDocument Previous { get; set; }
     public required UiPatch Patch { get; set; }
     public required UiDocument Next { get; set; }
+    public UiPresentationOperation? ActivateOperation { get; set; }
     public UiPresentationOperation? PresentationOperation { get; set; }
     public UiPresentationOperation? NavigationOperation { get; set; }
     public UiPresentationOperation? NavigationFirstOperation { get; set; }
@@ -1345,6 +1350,7 @@ public enum UiEventKind
 [JsonConverter(typeof(JsonStringEnumConverter<UiPresentationOperationKind>))]
 public enum UiPresentationOperationKind
 {
+    [JsonStringEnumMemberName("activate")] Activate,
     [JsonStringEnumMemberName("focus")] Focus,
     [JsonStringEnumMemberName("navigate_focus")] NavigateFocus,
     [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
@@ -1449,6 +1455,7 @@ public enum UiAdapterBindingKind
 [JsonConverter(typeof(UiPresentationAtomJsonConverter))]
 public enum UiPresentationAtom
 {
+    [JsonStringEnumMemberName("activate")] Activate,
     [JsonStringEnumMemberName("focus")] Focus,
     [JsonStringEnumMemberName("navigate_focus")] NavigateFocus,
     [JsonStringEnumMemberName("scroll_into_view")] ScrollIntoView,
@@ -1508,6 +1515,7 @@ public enum UiPresentationAtom
 [JsonConverter(typeof(UiPresentationAtomFamilyJsonConverter))]
 public enum UiPresentationAtomFamily
 {
+    [JsonStringEnumMemberName("interaction")] Interaction,
     [JsonStringEnumMemberName("focus")] Focus,
     [JsonStringEnumMemberName("viewport")] Viewport,
     [JsonStringEnumMemberName("visibility")] Visibility,
@@ -1597,6 +1605,7 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
         }
         return reader.GetString() switch
         {
+            "activate" => UiPresentationAtom.Activate,
             "focus" => UiPresentationAtom.Focus,
             "navigate_focus" => UiPresentationAtom.NavigateFocus,
             "scroll_into_view" => UiPresentationAtom.ScrollIntoView,
@@ -1662,6 +1671,7 @@ public sealed class UiPresentationAtomJsonConverter : JsonConverter<UiPresentati
     {
         writer.WriteStringValue(value switch
         {
+            UiPresentationAtom.Activate => "activate",
             UiPresentationAtom.Focus => "focus",
             UiPresentationAtom.NavigateFocus => "navigate_focus",
             UiPresentationAtom.ScrollIntoView => "scroll_into_view",
@@ -1734,6 +1744,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
         }
         return reader.GetString() switch
         {
+            "interaction" => UiPresentationAtomFamily.Interaction,
             "focus" => UiPresentationAtomFamily.Focus,
             "viewport" => UiPresentationAtomFamily.Viewport,
             "visibility" => UiPresentationAtomFamily.Visibility,
@@ -1758,6 +1769,7 @@ public sealed class UiPresentationAtomFamilyJsonConverter : JsonConverter<UiPres
     {
         writer.WriteStringValue(value switch
         {
+            UiPresentationAtomFamily.Interaction => "interaction",
             UiPresentationAtomFamily.Focus => "focus",
             UiPresentationAtomFamily.Viewport => "viewport",
             UiPresentationAtomFamily.Visibility => "visibility",

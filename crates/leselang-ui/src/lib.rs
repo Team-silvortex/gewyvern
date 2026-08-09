@@ -312,6 +312,7 @@ pub enum DebuggerEffectKind {
     RuntimeCapabilitiesRefresh,
     RuntimeDeploy,
     DebuggerCancel,
+    UiActivate,
     UiFocus,
     UiNavigateFocus,
     UiScrollIntoView,
@@ -490,6 +491,9 @@ pub enum UiEventKind {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UiPresentationOperation {
+    Activate {
+        node_id: NodeId,
+    },
     Focus {
         node_id: NodeId,
     },
@@ -721,6 +725,7 @@ pub enum UiPresentationOperation {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UiPresentationAtom {
+    Activate,
     Focus,
     NavigateFocus,
     ScrollIntoView,
@@ -780,6 +785,7 @@ pub enum UiPresentationAtom {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UiPresentationAtomFamily {
+    Interaction,
     Focus,
     Viewport,
     Visibility,
@@ -811,7 +817,8 @@ pub struct UiPresentationAtomProfile {
     pub effect: UiPresentationAtomEffect,
 }
 
-pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 54] = [
+pub const REQUIRED_UI_PRESENTATION_ATOMS: [UiPresentationAtom; 55] = [
+    UiPresentationAtom::Activate,
     UiPresentationAtom::Focus,
     UiPresentationAtom::NavigateFocus,
     UiPresentationAtom::ScrollIntoView,
@@ -874,6 +881,7 @@ pub fn required_ui_presentation_atoms() -> &'static [UiPresentationAtom] {
 
 pub fn presentation_atom_for_operation(operation: &UiPresentationOperation) -> UiPresentationAtom {
     match operation {
+        UiPresentationOperation::Activate { .. } => UiPresentationAtom::Activate,
         UiPresentationOperation::Focus { .. } => UiPresentationAtom::Focus,
         UiPresentationOperation::NavigateFocus { .. } => UiPresentationAtom::NavigateFocus,
         UiPresentationOperation::ScrollIntoView { .. } => UiPresentationAtom::ScrollIntoView,
@@ -985,6 +993,7 @@ pub fn presentation_atom_profile(atom: UiPresentationAtom) -> UiPresentationAtom
 
 pub fn presentation_atom_family(atom: UiPresentationAtom) -> UiPresentationAtomFamily {
     match atom {
+        UiPresentationAtom::Activate => UiPresentationAtomFamily::Interaction,
         UiPresentationAtom::Focus
         | UiPresentationAtom::NavigateFocus
         | UiPresentationAtom::WaitFocused
@@ -1050,7 +1059,8 @@ pub fn presentation_atom_family(atom: UiPresentationAtom) -> UiPresentationAtomF
 
 pub fn presentation_atom_effect(atom: UiPresentationAtom) -> UiPresentationAtomEffect {
     match atom {
-        UiPresentationAtom::Focus
+        UiPresentationAtom::Activate
+        | UiPresentationAtom::Focus
         | UiPresentationAtom::NavigateFocus
         | UiPresentationAtom::ScrollIntoView
         | UiPresentationAtom::OpenWindow
@@ -1856,6 +1866,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
         let binding_valid = match effect.kind {
             DebuggerEffectKind::RuntimeList
             | DebuggerEffectKind::DebuggerCancel
+            | DebuggerEffectKind::UiActivate
             | DebuggerEffectKind::UiFocus
             | DebuggerEffectKind::UiNavigateFocus
             | DebuggerEffectKind::UiScrollIntoView
@@ -2009,6 +2020,7 @@ pub fn debugger_document(projection: &DebuggerProjection) -> Result<UiDocument, 
             DebuggerEffectKind::RuntimeCapabilitiesRefresh => "runtime capabilities refresh",
             DebuggerEffectKind::RuntimeDeploy => "runtime deploy",
             DebuggerEffectKind::DebuggerCancel => "debugger cancel",
+            DebuggerEffectKind::UiActivate => "UI activate",
             DebuggerEffectKind::UiFocus => "UI focus",
             DebuggerEffectKind::UiNavigateFocus => "UI navigate focus",
             DebuggerEffectKind::UiScrollIntoView => "UI scroll into view",
@@ -2321,6 +2333,9 @@ pub fn presentation_operation_for_effect(
     effect: &Effect,
 ) -> Result<UiPresentationOperation, UiError> {
     let operation = match effect {
+        Effect::UiActivate { node_id } => UiPresentationOperation::Activate {
+            node_id: NodeId::new(node_id.clone())?,
+        },
         Effect::UiFocus { node_id } => UiPresentationOperation::Focus {
             node_id: NodeId::new(node_id.clone())?,
         },
@@ -2633,6 +2648,9 @@ pub fn effect_for_presentation_operation(
 ) -> Result<Effect, UiError> {
     validate_presentation_operation(document, operation)?;
     Ok(match operation {
+        UiPresentationOperation::Activate { node_id } => Effect::UiActivate {
+            node_id: node_id.as_str().to_string(),
+        },
         UiPresentationOperation::Focus { node_id } => Effect::UiFocus {
             node_id: node_id.as_str().to_string(),
         },
@@ -2931,7 +2949,8 @@ pub fn validate_presentation_operation(
 ) -> Result<(), UiError> {
     validate_document(document)?;
     let node_id = match operation {
-        UiPresentationOperation::Focus { node_id }
+        UiPresentationOperation::Activate { node_id }
+        | UiPresentationOperation::Focus { node_id }
         | UiPresentationOperation::NavigateFocus { node_id, .. }
         | UiPresentationOperation::ScrollIntoView { node_id }
         | UiPresentationOperation::AssertVisible { node_id }
@@ -3177,7 +3196,8 @@ pub fn validate_presentation_operation(
         })?;
     if matches!(
         operation,
-        UiPresentationOperation::Focus { .. }
+        UiPresentationOperation::Activate { .. }
+            | UiPresentationOperation::Focus { .. }
             | UiPresentationOperation::NavigateFocus { .. }
             | UiPresentationOperation::AssertFocused { .. }
             | UiPresentationOperation::AssertUnfocused { .. }
@@ -4467,6 +4487,68 @@ mod tests {
                 node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
                 direction: UiFocusNavigationDirection::Last,
             }
+        );
+    }
+
+    #[test]
+    fn activate_presentation_round_trips_as_a_local_interaction() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        let operation = UiPresentationOperation::Activate {
+            node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+        };
+        let effect = effect_for_presentation_operation(&document, &operation).unwrap();
+        assert_eq!(
+            effect,
+            Effect::UiActivate {
+                node_id: "runtime-runtime-a-refresh".into(),
+            }
+        );
+        assert_eq!(
+            presentation_operation_for_effect(&document, &effect).unwrap(),
+            operation
+        );
+        assert_eq!(
+            export_presentation_leselang(&document, &operation).unwrap(),
+            "fn main() = ui.activate(node_id: \"runtime-runtime-a-refresh\")\n"
+        );
+        assert_eq!(
+            presentation_atom_profile(UiPresentationAtom::Activate),
+            UiPresentationAtomProfile {
+                atom: UiPresentationAtom::Activate,
+                family: UiPresentationAtomFamily::Interaction,
+                effect: UiPresentationAtomEffect::Mutation,
+            }
+        );
+        assert_eq!(
+            event_for_effect(&document, &effect),
+            Err(UiError::EffectHasNoEvent)
+        );
+    }
+
+    #[test]
+    fn activate_presentation_rejects_missing_and_non_action_nodes() {
+        let document = fleet_document(&fleet(1, &[("runtime-a", "Runtime A")])).unwrap();
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::Activate {
+                    node_id: NodeId::new("missing-action").unwrap(),
+                },
+            ),
+            Err(UiError::UnknownPresentationTarget {
+                node_id: "missing-action".into(),
+            })
+        );
+        assert_eq!(
+            validate_presentation_operation(
+                &document,
+                &UiPresentationOperation::Activate {
+                    node_id: NodeId::new("fleet-title").unwrap(),
+                },
+            ),
+            Err(UiError::UnfocusablePresentationTarget {
+                node_id: "fleet-title".into(),
+            })
         );
     }
 
@@ -8055,8 +8137,16 @@ mod tests {
         .unwrap();
         assert_eq!(manifest.schema_version, UI_ADAPTER_MANIFEST_SCHEMA_VERSION);
         assert_eq!(manifest.ui_schema_version, UI_SCHEMA_VERSION);
-        assert_eq!(manifest.presentation_atoms.len(), 54);
-        assert_eq!(manifest.presentation_atom_profiles.len(), 54);
+        assert_eq!(manifest.presentation_atoms.len(), 55);
+        assert_eq!(manifest.presentation_atom_profiles.len(), 55);
+        assert_eq!(
+            presentation_atom_profile(UiPresentationAtom::Activate),
+            UiPresentationAtomProfile {
+                atom: UiPresentationAtom::Activate,
+                family: UiPresentationAtomFamily::Interaction,
+                effect: UiPresentationAtomEffect::Mutation,
+            }
+        );
         assert_eq!(
             presentation_atom_profile(UiPresentationAtom::OpenWindow),
             UiPresentationAtomProfile {

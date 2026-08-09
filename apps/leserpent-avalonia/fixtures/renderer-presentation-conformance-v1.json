@@ -751,6 +751,10 @@
       ]
     }
   },
+  "activate_operation": {
+    "kind": "activate",
+    "node_id": "runtime-runtime-a-refresh"
+  },
   "presentation_operation": {
     "kind": "focus",
     "node_id": "runtime-runtime-a-inspect"
@@ -1051,6 +1055,7 @@
     "event_schema": true,
     "patch_schema": true,
     "presentation_atoms": [
+      "activate",
       "focus",
       "navigate_focus",
       "scroll_into_view",
@@ -1107,6 +1112,11 @@
       "wait_accessible_description"
     ],
     "presentation_atom_profiles": [
+      {
+        "atom": "activate",
+        "family": "interaction",
+        "effect": "mutation"
+      },
       {
         "atom": "focus",
         "family": "focus",
@@ -1389,6 +1399,7 @@
     "event_schema": true,
     "patch_schema": true,
     "presentation_atoms": [
+      "activate",
       "focus",
       "navigate_focus",
       "scroll_into_view",
@@ -1445,6 +1456,11 @@
       "wait_accessible_description"
     ],
     "presentation_atom_profiles": [
+      {
+        "atom": "activate",
+        "family": "interaction",
+        "effect": "mutation"
+      },
       {
         "atom": "focus",
         "family": "focus",

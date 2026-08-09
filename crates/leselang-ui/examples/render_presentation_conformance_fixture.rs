@@ -31,6 +31,7 @@ struct Fixture<'a> {
     previous: &'a UiDocument,
     patch: &'a UiPatch,
     next: &'a UiDocument,
+    activate_operation: &'a UiPresentationOperation,
     presentation_operation: &'a UiPresentationOperation,
     navigation_operation: &'a UiPresentationOperation,
     navigation_first_operation: &'a UiPresentationOperation,
@@ -103,6 +104,9 @@ fn main() {
     ]))
     .unwrap();
     let patch = diff(&previous, &next).unwrap();
+    let activate_operation = UiPresentationOperation::Activate {
+        node_id: NodeId::new("runtime-runtime-a-refresh").unwrap(),
+    };
     let presentation_operation = UiPresentationOperation::Focus {
         node_id: NodeId::new("runtime-runtime-a-inspect").unwrap(),
     };
@@ -356,6 +360,7 @@ fn main() {
         UiAdapterBindingKind::GeneratedFrameworkBinding,
     )
     .unwrap();
+    validate_presentation_operation(&next, &activate_operation).unwrap();
     validate_presentation_operation(&next, &presentation_operation).unwrap();
     validate_presentation_operation(&next, &navigation_operation).unwrap();
     validate_presentation_operation(&next, &navigation_first_operation).unwrap();
@@ -415,6 +420,7 @@ fn main() {
         previous: &previous,
         patch: &patch,
         next: &next,
+        activate_operation: &activate_operation,
         presentation_operation: &presentation_operation,
         navigation_operation: &navigation_operation,
         navigation_first_operation: &navigation_first_operation,

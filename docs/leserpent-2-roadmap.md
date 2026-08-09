@@ -216,7 +216,7 @@ duplicate IDs, oversized or over-depth trees, unlabelled actions, stale events,
 and actions rebound to another runtime. No endpoint, renderer, persistence,
 transport, HTML, script, or adapter type enters the IR. A separate
 `UiAdapterManifest` now records explicit developer-owned or generated framework
-bindings against the document, event, patch, and complete fifty-four-atom
+bindings against the document, event, patch, and complete fifty-five-atom
 presentation protocol plus canonical atom family/effect profiles, so future GUI
 hosts have a protobuf-style compatibility checkpoint without automatic framework
 admission. The Rust-generated
@@ -266,7 +266,7 @@ destructive button while emitting only its stable node ID.
 dispatch result, and restart-safe re-entry. The renderer-neutral UI maps every
 current action to HIR, exports it through the Rust canonical printer, and maps
 the effect back to an equivalent stable-node event. Presentation automation now
-includes `ui.focus(node_id: ...)`,
+includes `ui.activate(node_id: ...)`, `ui.focus(node_id: ...)`,
 `ui.navigate_focus(node_id: ..., direction: "next"|"previous"|"first"|"last")`,
 `ui.scroll_into_view(node_id: ...)`, and
 `ui.assert_visible(node_id: ...)`, plus `ui.assert_hidden(node_id: ...)`,
@@ -319,8 +319,10 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 `ui.assert_accessible_description(node_id: ..., expected: ...)`, plus
 `ui.wait_accessible_description(node_id: ..., expected: ...)`: HIR and the VM keep each
 operation in a distinct typed `ui.presentation` envelope, command lowering
-rejects all fifty-four, and `leselang-ui` round-trips them against the current semantic
-tree. Avalonia applies native focus or bring-into-view, proves scrolling
+rejects all fifty-five, and `leselang-ui` round-trips them against the current semantic
+tree. Avalonia routes activation through exactly one native button click after
+rejecting missing, non-action, unrealized, hidden, or disabled targets without
+invoking domain callbacks. It applies native focus or bring-into-view, proves scrolling
 preserves focus, performs sequential navigation through its native focus
 manager from a currently focused stable action, resolves first/last through the
 stable visual-index action boundary with native focus, returns the actual stable
@@ -364,9 +366,13 @@ form-field-max-length-mismatched,
 form-field-placeholder-mismatched, persistent form-field-placeholder wait-mismatched,
 accessible-name-mismatched, persistent accessible-name wait-mismatched,
 accessible-description-mismatched, and persistent accessible-description wait-mismatched targets fail with typed native
-presentation results. Full native window close/reopen command lifecycle and additional state
-assertions remain the next slices rather than being
-approximated with coordinate-level scripting or OCR.
+presentation results. The full native window lifecycle now closes and reopens a
+fresh Avalonia `Window`, proves duplicate open/close idempotency, requires
+visible native state for open assertions, rejects a native close that remains
+visible, and rematerializes controls from the same validated `UiDocument` and
+stable node IDs instead of reparenting stale toolkit objects. Additional
+state-assertion closure remains the next slice rather than being approximated
+with coordinate-level scripting or OCR.
 
 The first concrete cross-language renderer core now exists under
 `apps/leserpent-avalonia`. Rust emits a bounded versioned JSON fixture and the
@@ -2201,8 +2207,8 @@ without one of these credential sources. The existing
 The desktop AOT shelf now has a named native entrypoint:
 `gewyvern_validate leserpent-aot`. It detects only checked host RIDs, performs
 the locked restore and no-restore publish, validates Mach-O/ELF signatures and
-a bounded artifact manifest, executes all four control fixtures, and retains a
-versioned evidence index. macOS arm64 self-host execution is automated; Linux
+a bounded artifact manifest, executes all four control fixtures plus the full
+presentation fixture, and retains a versioned evidence index. macOS arm64 self-host execution is automated; Linux
 x64 uses the same command with Xvfb. Windows stays unclaimed until its lock and
 physical-host proof exist, but that evidence is outside the current
 macOS/Linux-to-Android critical path; Windows uses the TypeScript web console
@@ -2215,6 +2221,24 @@ child-count external-patch waiting, persistent-mismatch timeout, focus
 navigation, and virtualization preservation. Its non-vacuous, secret-free
 fixture is retained at
 `docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json`
+and is required by the Avalonia status cell.
+
+The subsequent 2026-08-09 activation campaign closes the 55th atom on the same
+physical host. Its stripped `linux-x64` NativeAOT executable traverses the
+native button click route exactly once and rejects unavailable, hidden,
+non-action, and missing targets before callback invocation. The secret-free
+evidence is retained at
+`docs/fixtures/leserpent_avalonia_activation_native_aot_linux_x86_64_20260809.json`
+and is also required by the Avalonia status cell.
+
+The final 2026-08-09 window-reopen campaign closes the remaining native
+top-level lifecycle gap on that host. The probe observes visible native state
+through open, close, reopen, and reclose, proves duplicate operations are
+idempotent, and verifies that closing an adapter-owned top-level causes a fresh
+native tree to be materialized from the same validated `UiDocument` and stable
+node identities. This prevents stale Avalonia objects from being reparented
+after their original window is closed. Its secret-free evidence is retained at
+`docs/fixtures/leserpent_avalonia_window_reopen_native_aot_linux_x86_64_20260809.json`
 and is required by the Avalonia status cell.
 
 ## Explicit Deferrals

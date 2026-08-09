@@ -8,32 +8,33 @@ using Avalonia.Threading;
 internal sealed class MainWindow : Window
 {
     private readonly AvaloniaDocumentRenderer renderer;
-    private readonly Task<PresentationAutomationResult> initialRealizedWait;
-    private readonly Task<PresentationAutomationResult> initialRealizedWaitTimeout;
-    private readonly Task<PresentationAutomationResult> initialVisibleWait;
-    private readonly Task<PresentationAutomationResult> initialVisibleWaitTimeout;
-    private readonly Task<PresentationAutomationResult> initialEnabledWaitTimeout;
-    private readonly Task<PresentationAutomationResult> initialSelectionWait;
-    private readonly Task<PresentationAutomationResult> initialSelectionWaitTimeout;
-    private readonly UiDocument childCountInitialDocument;
-    private readonly UiPatch childCountPatch;
-    private readonly UiPresentationOperation childCountAssertOperation;
-    private readonly UiPresentationOperation childCountWaitOperation;
-    private readonly Task<PresentationAutomationResult> initialWindowOpenWait;
-    private readonly PresentationAutomationResult initialWindowClosedAssert;
-    private readonly Task<PresentationAutomationResult> initialWindowClosedWait;
-    private readonly string initialEnabledWaitNodeId;
-    private readonly string initialFocusedWaitNodeId;
-    private readonly string initialFocusedWaitTimeoutNodeId;
-    private readonly string initialSelectionAssertNodeId;
-    private readonly string initialSelectionWaitNodeId;
-    private readonly string initialWindowOpenAssertNodeId;
-    private readonly string initialWindowOpenWaitNodeId;
-    private readonly string initialWindowClosedAssertNodeId;
-    private readonly string initialWindowClosedWaitNodeId;
-    private readonly UiDocument windowLifecycleDocument;
-    private readonly string windowLifecycleOpenNodeId;
-    private readonly string windowLifecycleCloseNodeId;
+    private readonly bool presentationProbesEnabled;
+    private readonly Task<PresentationAutomationResult> initialRealizedWait = null!;
+    private readonly Task<PresentationAutomationResult> initialRealizedWaitTimeout = null!;
+    private readonly Task<PresentationAutomationResult> initialVisibleWait = null!;
+    private readonly Task<PresentationAutomationResult> initialVisibleWaitTimeout = null!;
+    private readonly Task<PresentationAutomationResult> initialEnabledWaitTimeout = null!;
+    private readonly Task<PresentationAutomationResult> initialSelectionWait = null!;
+    private readonly Task<PresentationAutomationResult> initialSelectionWaitTimeout = null!;
+    private readonly UiDocument childCountInitialDocument = null!;
+    private readonly UiPatch childCountPatch = null!;
+    private readonly UiPresentationOperation childCountAssertOperation = null!;
+    private readonly UiPresentationOperation childCountWaitOperation = null!;
+    private readonly Task<PresentationAutomationResult> initialWindowOpenWait = null!;
+    private readonly PresentationAutomationResult initialWindowClosedAssert = null!;
+    private readonly Task<PresentationAutomationResult> initialWindowClosedWait = null!;
+    private readonly string initialEnabledWaitNodeId = string.Empty;
+    private readonly string initialFocusedWaitNodeId = string.Empty;
+    private readonly string initialFocusedWaitTimeoutNodeId = string.Empty;
+    private readonly string initialSelectionAssertNodeId = string.Empty;
+    private readonly string initialSelectionWaitNodeId = string.Empty;
+    private readonly string initialWindowOpenAssertNodeId = string.Empty;
+    private readonly string initialWindowOpenWaitNodeId = string.Empty;
+    private readonly string initialWindowClosedAssertNodeId = string.Empty;
+    private readonly string initialWindowClosedWaitNodeId = string.Empty;
+    private readonly UiDocument windowLifecycleDocument = null!;
+    private readonly string windowLifecycleOpenNodeId = string.Empty;
+    private readonly string windowLifecycleCloseNodeId = string.Empty;
     private int invokedActionCount;
     private readonly TextBlock statusText = new()
     {
@@ -70,6 +71,11 @@ internal sealed class MainWindow : Window
     public bool WindowClosedWaitTimedOut { get; private set; }
     public bool WindowOpenMutationCompleted { get; private set; }
     public bool WindowCloseMutationCompleted { get; private set; }
+    public bool WindowReopenMutationCompleted { get; private set; }
+    public bool WindowRecloseMutationCompleted { get; private set; }
+    public bool WindowLifecycleIdempotent { get; private set; }
+    public bool WindowLifecycleUsedFreshNativeWindow { get; private set; }
+    public bool WindowLifecycleRematerializedSemanticTree { get; private set; }
     public bool WindowLifecycleStateObserved { get; private set; }
     public bool InitialFocusedWaitCompleted { get; private set; }
     public bool InitialFocusedWaitTimedOut { get; private set; }
@@ -103,6 +109,12 @@ internal sealed class MainWindow : Window
     public bool SelectionMismatchRejected { get; private set; }
     public bool SelectionlessTargetRejected { get; private set; }
     public bool SelectionProbePreservedFocus { get; private set; }
+    public bool ActionActivationCompleted { get; private set; }
+    public bool ActionActivationExactlyOnce { get; private set; }
+    public bool UnavailableActionActivationRejected { get; private set; }
+    public bool HiddenActionActivationRejected { get; private set; }
+    public bool NonActionActivationRejected { get; private set; }
+    public bool MissingActionActivationRejected { get; private set; }
     public bool FocusNavigationForwardCompleted { get; private set; }
     public bool FocusNavigationBackwardCompleted { get; private set; }
     public bool FocusNavigationFirstCompleted { get; private set; }
@@ -148,8 +160,9 @@ internal sealed class MainWindow : Window
     public AccessibilityAudit Accessibility => renderer.AuditAccessibility();
     public ulong Revision { get; }
 
-    public MainWindow(RendererFixture fixture)
+    public MainWindow(RendererFixture fixture, bool presentationProbesEnabled)
     {
+        this.presentationProbesEnabled = presentationProbesEnabled;
         Width = 1080;
         Height = 760;
         MinWidth = 640;
@@ -172,6 +185,11 @@ internal sealed class MainWindow : Window
         VirtualizedHostCount = renderer.VirtualizedHostCount;
         InitialUnrealizedVirtualItemCount = renderer.UnrealizedVirtualItemCount;
         InitialUnrealizedNodeCount = renderer.UnrealizedNodeCount;
+        if (!presentationProbesEnabled)
+        {
+            ConfigureWindowContent();
+            return;
+        }
         var initialUnrealizedActionNodeId = renderer.FirstUnrealizedActionNodeId
             ?? throw new InvalidDataException(
                 "focus navigation probe requires a pre-layout unrealized action");
@@ -344,24 +362,12 @@ internal sealed class MainWindow : Window
         childCountWaitOperation = fixture.ChildCountWaitOperation
             ?? throw new InvalidDataException(
                 "child-count wait probe requires a semantic target");
-        Title = $"Leserpent / revision {Revision}";
-        Content = new Grid
-        {
-            RowDefinitions = RowDefinitions.Parse("*,Auto"),
-            Children =
-            {
-                new Border
-                {
-                    Padding = new Thickness(32, 28),
-                    Child = renderer.Surface,
-                },
-                BuildStatusBar(),
-            },
-        };
+        ConfigureWindowContent();
     }
 
     public async Task CompleteInitialWaitProbesAsync()
     {
+        RequirePresentationProbes();
         const string unavailableReason = "Verification action is temporarily unavailable";
         var childCountRenderer = new AvaloniaDocumentRenderer(_ => { });
         childCountRenderer.Mount(childCountInitialDocument);
@@ -504,15 +510,85 @@ internal sealed class MainWindow : Window
             Kind = UiPresentationOperationKind.AssertWindowClosed,
             NodeId = windowLifecycleCloseNodeId,
         });
-        WindowOpenMutationCompleted = opened.Applied;
-        WindowCloseMutationCompleted = closed.Applied;
-        WindowLifecycleStateObserved = observedOpen.Applied && observedClosed.Applied;
+        var reopened = lifecycleRenderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.OpenWindow,
+            NodeId = windowLifecycleOpenNodeId,
+        });
+        await Dispatcher.UIThread.InvokeAsync(() => { });
+        var observedReopened = lifecycleRenderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertWindowOpen,
+                NodeId = windowLifecycleOpenNodeId,
+            });
+        var duplicateOpen = lifecycleRenderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.OpenWindow,
+                NodeId = windowLifecycleOpenNodeId,
+            });
+        var generationCountAfterDuplicateOpen =
+            lifecycleRenderer.PresentationWindowGenerationCount;
+        var reclosed = lifecycleRenderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.CloseWindow,
+            NodeId = windowLifecycleCloseNodeId,
+        });
+        await Dispatcher.UIThread.InvokeAsync(() => { });
+        var observedReclosed = lifecycleRenderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertWindowClosed,
+                NodeId = windowLifecycleCloseNodeId,
+            });
+        var duplicateClose = lifecycleRenderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.CloseWindow,
+                NodeId = windowLifecycleCloseNodeId,
+            });
+        var observedDuplicateClose = lifecycleRenderer.ApplyPresentation(
+            new UiPresentationOperation
+            {
+                Kind = UiPresentationOperationKind.AssertWindowClosed,
+                NodeId = windowLifecycleCloseNodeId,
+            });
+        WindowOpenMutationCompleted = AppliedWithoutFailure(opened);
+        WindowCloseMutationCompleted = AppliedWithoutFailure(closed);
+        WindowReopenMutationCompleted = AppliedWithoutFailure(reopened);
+        WindowRecloseMutationCompleted = AppliedWithoutFailure(reclosed);
+        WindowLifecycleIdempotent = AppliedWithoutFailure(duplicateOpen)
+            && AppliedWithoutFailure(duplicateClose)
+            && AppliedWithoutFailure(observedDuplicateClose)
+            && generationCountAfterDuplicateOpen == 2;
+        WindowLifecycleUsedFreshNativeWindow =
+            lifecycleRenderer.PresentationWindowGenerationCount == 2;
+        WindowLifecycleRematerializedSemanticTree =
+            lifecycleRenderer.PresentationTreeRematerializationCount == 2;
+        WindowLifecycleStateObserved = AppliedWithoutFailure(observedOpen)
+            && AppliedWithoutFailure(observedClosed)
+            && AppliedWithoutFailure(observedReopened)
+            && AppliedWithoutFailure(observedReclosed);
         if (!WindowOpenMutationCompleted
             || !WindowCloseMutationCompleted
+            || !WindowReopenMutationCompleted
+            || !WindowRecloseMutationCompleted
+            || !WindowLifecycleIdempotent
+            || !WindowLifecycleUsedFreshNativeWindow
+            || !WindowLifecycleRematerializedSemanticTree
             || !WindowLifecycleStateObserved)
         {
             throw new InvalidDataException(
-                "Leselang window lifecycle mutations diverged from native window state");
+                "Leselang window lifecycle mutations diverged from native window state: "
+                + $"opened={WindowOpenMutationCompleted}, "
+                + $"closed={WindowCloseMutationCompleted}, "
+                + $"reopened={WindowReopenMutationCompleted}, "
+                + $"reclosed={WindowRecloseMutationCompleted}, "
+                + $"idempotent={WindowLifecycleIdempotent}, "
+                + $"fresh_native_window={WindowLifecycleUsedFreshNativeWindow}, "
+                + $"semantic_tree_rematerialized={WindowLifecycleRematerializedSemanticTree}, "
+                + $"state_observed={WindowLifecycleStateObserved}");
         }
         var initiallyDisabled = renderer.ApplyPresentation(new UiPresentationOperation
         {
@@ -1479,7 +1555,14 @@ internal sealed class MainWindow : Window
         var hiddenWaitResult = await hiddenWait;
         InitialHiddenWaitCompleted = hiddenWaitResult.Applied
             && hiddenWaitResult.FailureCode == PresentationAutomationFailureCode.None;
-        renderer.Surface.IsVisible = true;
+        await Dispatcher.UIThread.InvokeAsync(
+            () =>
+            {
+                renderer.Surface.IsVisible = true;
+                renderer.Surface.InvalidateMeasure();
+                renderer.Surface.InvalidateArrange();
+            },
+            DispatcherPriority.Render);
         if (!InitialHiddenWaitCompleted)
         {
             throw new InvalidDataException(
@@ -1561,8 +1644,23 @@ internal sealed class MainWindow : Window
 
     public string BeginFocusRetentionProbe()
     {
+        RequirePresentationProbes();
         var nodeId = renderer.FirstRealizedActionNodeId
             ?? throw new InvalidDataException("focus probe requires a realized action");
+        var actionCountBeforeActivation = invokedActionCount;
+        var activated = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Activate,
+            NodeId = nodeId,
+        });
+        ActionActivationCompleted = activated.Applied
+            && activated.FailureCode == PresentationAutomationFailureCode.None;
+        ActionActivationExactlyOnce = invokedActionCount == actionCountBeforeActivation + 1;
+        if (!ActionActivationCompleted || !ActionActivationExactlyOnce)
+        {
+            throw new InvalidDataException(
+                "Leselang action activation did not traverse the native click route exactly once");
+        }
         var applied = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.Focus,
@@ -1710,6 +1808,21 @@ internal sealed class MainWindow : Window
             ActionKind.RuntimeRefresh,
             false,
             unavailableReason);
+        var actionCountBeforeUnavailableActivation = invokedActionCount;
+        var unavailableActivation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Activate,
+            NodeId = enabledNodeId,
+        });
+        UnavailableActionActivationRejected = !unavailableActivation.Applied
+            && unavailableActivation.FailureCode
+                == PresentationAutomationFailureCode.TargetActionUnavailable
+            && invokedActionCount == actionCountBeforeUnavailableActivation;
+        if (!UnavailableActionActivationRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang action activation bypassed native disabled-state fencing");
+        }
         var actionUnavailableReasonMatched = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertActionUnavailableReason,
@@ -2191,11 +2304,21 @@ internal sealed class MainWindow : Window
             Kind = UiPresentationOperationKind.Focus,
             NodeId = "missing-presentation-target",
         });
+        var actionCountBeforeMissingActivation = invokedActionCount;
+        var missingActivation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Activate,
+            NodeId = "missing-presentation-target",
+        });
+        MissingActionActivationRejected = !missingActivation.Applied
+            && missingActivation.FailureCode == PresentationAutomationFailureCode.UnknownTarget
+            && invokedActionCount == actionCountBeforeMissingActivation;
         if (missing.Applied
-            || missing.FailureCode != PresentationAutomationFailureCode.UnknownTarget)
+            || missing.FailureCode != PresentationAutomationFailureCode.UnknownTarget
+            || !MissingActionActivationRejected)
         {
             throw new InvalidDataException(
-                "Leselang presentation focus accepted a missing target");
+                "Leselang presentation focus or activation accepted a missing target");
         }
         var nonActionNodeId = FindFirstNonActionNodeId(renderer.Document.Root)
             ?? throw new InvalidDataException("focus probe requires a non-action node");
@@ -2213,6 +2336,21 @@ internal sealed class MainWindow : Window
         {
             throw new InvalidDataException(
                 "Leselang selection assertion accepted a selectionless target or changed focus");
+        }
+        var actionCountBeforeNonActionActivation = invokedActionCount;
+        var nonActionActivation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Activate,
+            NodeId = nonActionNodeId,
+        });
+        NonActionActivationRejected = !nonActionActivation.Applied
+            && nonActionActivation.FailureCode
+                == PresentationAutomationFailureCode.UnfocusableTarget
+            && invokedActionCount == actionCountBeforeNonActionActivation;
+        if (!NonActionActivationRejected)
+        {
+            throw new InvalidDataException(
+                "Leselang action activation accepted a non-action target");
         }
         var unfocusable = renderer.ApplyPresentation(new UiPresentationOperation
         {
@@ -2332,6 +2470,16 @@ internal sealed class MainWindow : Window
         }
         renderer.Surface.IsVisible = false;
         var focusAfterExternalHide = renderer.FocusedNodeId;
+        var actionCountBeforeHiddenActivation = invokedActionCount;
+        var hiddenActivation = renderer.ApplyPresentation(new UiPresentationOperation
+        {
+            Kind = UiPresentationOperationKind.Activate,
+            NodeId = nodeId,
+        });
+        HiddenActionActivationRejected = !hiddenActivation.Applied
+            && hiddenActivation.FailureCode
+                == PresentationAutomationFailureCode.TargetNotVisible
+            && invokedActionCount == actionCountBeforeHiddenActivation;
         var hidden = renderer.ApplyPresentation(new UiPresentationOperation
         {
             Kind = UiPresentationOperationKind.AssertVisible,
@@ -2346,7 +2494,8 @@ internal sealed class MainWindow : Window
             && hiddenAssert.FailureCode == PresentationAutomationFailureCode.None
             && renderer.FocusedNodeId == focusAfterExternalHide;
         renderer.Surface.IsVisible = true;
-        if (hidden.Applied
+        if (!HiddenActionActivationRejected
+            || hidden.Applied
             || hidden.FailureCode != PresentationAutomationFailureCode.TargetNotVisible
             || !HiddenAssertCompleted)
         {
@@ -2664,6 +2813,24 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private void ConfigureWindowContent()
+    {
+        Title = $"Leserpent / revision {Revision}";
+        Content = new Grid
+        {
+            RowDefinitions = RowDefinitions.Parse("*,Auto"),
+            Children =
+            {
+                new Border
+                {
+                    Padding = new Thickness(32, 28),
+                    Child = renderer.Surface,
+                },
+                BuildStatusBar(),
+            },
+        };
+    }
+
     private Border BuildStatusBar()
     {
         var revisionText = new TextBlock
@@ -2696,6 +2863,18 @@ internal sealed class MainWindow : Window
         statusText.Text = $"Action node emitted: {nodeId}";
         statusText.Foreground = LeserpentTheme.Accent;
     }
+
+    private void RequirePresentationProbes()
+    {
+        if (!presentationProbesEnabled)
+        {
+            throw new InvalidOperationException(
+                "presentation probes are disabled for this verification mode");
+        }
+    }
+
+    private static bool AppliedWithoutFailure(PresentationAutomationResult result) =>
+        result.Applied && result.FailureCode == PresentationAutomationFailureCode.None;
 
     private static void RequireExpectedDocument(UiDocument actual, UiDocument expected)
     {

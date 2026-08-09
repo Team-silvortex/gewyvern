@@ -75,7 +75,8 @@ pub fn lower_effect(
 ) -> Result<CommandPlan, LoweringError> {
     if matches!(
         effect,
-        Effect::UiFocus { .. }
+        Effect::UiActivate { .. }
+            | Effect::UiFocus { .. }
             | Effect::UiNavigateFocus { .. }
             | Effect::UiScrollIntoView { .. }
             | Effect::UiAssertVisible { .. }
@@ -142,7 +143,8 @@ pub fn lower_effect(
         }
         Effect::RuntimeDeploy { .. } => CAPABILITY_RUNTIME_DEPLOY,
         Effect::DebuggerCancel { .. } => CAPABILITY_DEBUGGER_CONTROL,
-        Effect::UiFocus { .. }
+        Effect::UiActivate { .. }
+        | Effect::UiFocus { .. }
         | Effect::UiNavigateFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
@@ -220,7 +222,8 @@ pub fn lower_effect(
             target,
         } => plan_runtime_deploy(runtime_id, pipeline_kind, target.as_deref(), context)?,
         Effect::DebuggerCancel { session_id } => plan_debugger_cancel(session_id, context)?,
-        Effect::UiFocus { .. }
+        Effect::UiActivate { .. }
+        | Effect::UiFocus { .. }
         | Effect::UiNavigateFocus { .. }
         | Effect::UiScrollIntoView { .. }
         | Effect::UiAssertVisible { .. }
@@ -537,6 +540,7 @@ mod tests {
     #[test]
     fn frontend_presentation_effect_cannot_become_a_control_plane_plan() {
         for source in [
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.navigate_focus(node_id: \"runtime-a:refresh\", direction: \"next\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",

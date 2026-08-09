@@ -295,6 +295,7 @@ pub fn waiting_debugger_projection(
         Effect::DebuggerCancel { .. } => {
             (DebuggerEffectKind::DebuggerCancel, None, "debugger cancel")
         }
+        Effect::UiActivate { .. } => (DebuggerEffectKind::UiActivate, None, "UI activate"),
         Effect::UiFocus { .. } => (DebuggerEffectKind::UiFocus, None, "UI focus"),
         Effect::UiNavigateFocus { .. } => (
             DebuggerEffectKind::UiNavigateFocus,

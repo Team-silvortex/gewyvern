@@ -37,7 +37,7 @@ semantic tree with the Rust-produced next document. The frozen primary fixture
 remains the version-1 compatibility baseline.
 
 The separate candidate fixture carries Rust-generated
-`UiPresentationOperation::Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
+`UiPresentationOperation::Activate`, `Focus`, `NavigateFocus`, `ScrollIntoView`, `AssertVisible`,
 `AssertHidden`, `WaitHidden`, `AssertRealized`, `WaitRealized`, `WaitVisible`,
 `AssertFocused`, `WaitFocused`, `AssertUnfocused`, and `WaitUnfocused`, plus `AssertEnabled`, `AssertDisabled`,
 `WaitEnabled`, `WaitDisabled`, `OpenWindow`, `CloseWindow`, `AssertWindowOpen`, `WaitWindowOpen`,
@@ -77,9 +77,11 @@ the complete presentation atom/profile set, validates canonical family/effect
 metadata, and rejects unknown manifest fields, numeric enum tokens, invalid
 binding kinds, invalid presentation atoms, and invalid profiles.
 RendererCore strictly round-trips all
-54 and validates valid, missing, noninteractive,
+55 and validates valid, missing, noninteractive,
 selectionless, textless, and invalid-expected-text targets before the Avalonia shell proves
-native focus, typed native sequential focus navigation with stable destination
+native action activation through exactly one `Button.ClickEvent`, with missing,
+non-action, unrealized, hidden, and disabled targets rejected before callbacks,
+plus native focus, typed native sequential focus navigation with stable destination
 reporting for next and previous, stable visual-index boundary navigation for
 first and last, all with no action activation,
 bring-into-view, viewport-aware visibility,
@@ -123,6 +125,12 @@ must make enabled assertion fail, selection mismatch must fail without changing
 focus, and mismatched native text or accessibility name must fail exact ordinal
 comparison without moving focus or activating
 anything:
+
+Control-fixture and presentation-probe lifecycles are isolated. `--verify-controls`
+mounts, patches, audits, and exits without requiring presentation-only fixture
+fields or starting wait tasks; only `--verify-focus-retention` initializes the
+full presentation probe state. This keeps the four NativeAOT control fixtures
+independent from the candidate 55-atom automation fixture.
 
 ```bash
 cargo run --quiet -p leselang-ui \
@@ -367,10 +375,16 @@ Document remounts and incremental patches preserve keyboard focus by stable UI
 node ID when the focused control still exists, including replacement of an
 updated action control. A removed action clears the pending target rather than
 transferring focus to another mutation control. The same probe verifies
+`ui.activate` uses the native click route exactly once and that invalid or
+unavailable targets cannot invoke the action, then verifies
 `ui.navigate_focus` in next, previous, first, and last native directions, binds
 each result to the actual stable destination, rejects missing, noninteractive,
 unrealized, or unfocused starts without changing focus, never activates a
-button, and verifies
+button, and verifies `ui.open_window`/`ui.close_window` across native close,
+fresh-window reopen, reclose, duplicate-operation idempotency, and visible-state
+observation. A closed adapter-owned top-level rematerializes native controls
+from the same `UiDocument` and stable node IDs instead of reparenting stale
+Avalonia controls. The probe also verifies
 native hidden-state assertion and visible-target mismatch rejection,
 native unfocused-state assertion and dispatcher-yielding unfocused wait with
 external focus-loss transition and persistent focused timeout,
@@ -696,7 +710,8 @@ cargo run --quiet --bin gewyvern_validate -- leserpent-aot
 
 It detects the supported host RID, performs the locked restore and no-restore
 publish, validates the native executable signature and bounded package, runs
-all four control fixtures, and retains machine-readable evidence under
+all four control fixtures plus the 55-atom focus/activation presentation
+fixture, and retains machine-readable evidence under
 `target/validation/leserpent-aot/`. The lower-level commands below remain useful
 for packaging diagnostics.
 
@@ -885,3 +900,20 @@ ran the real Avalonia window lifecycle under Xvfb, including child-count
 assertion, external-patch waiting, timeout, focus navigation, and virtualization
 preservation. The secret-free machine-readable result is retained at
 `docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json`.
+
+The later 2026-08-09 activation proof extends the same physical-host boundary
+to all 55 atoms. The current `linux-x64` shelf published a 29,768,304-byte
+stripped PIE, passed the four independent control fixtures, then ran the
+presentation fixture under Xvfb. It proves that `ui.activate` raises exactly
+one native click and that unavailable, hidden, non-action, and missing targets
+cannot invoke the action. The retained result is
+`docs/fixtures/leserpent_avalonia_activation_native_aot_linux_x86_64_20260809.json`.
+
+The final 2026-08-09 window-reopen proof closes the remaining native lifecycle
+gap on the same physical host. A 29,780,640-byte stripped `linux-x64`
+NativeAOT executable completes open, close, reopen, and reclose through visible
+Avalonia window state, keeps duplicate open/close operations idempotent, and
+re-materializes fresh native controls from the same validated semantic document
+instead of reparenting controls owned by the closed top-level. The retained
+result is
+`docs/fixtures/leserpent_avalonia_window_reopen_native_aot_linux_x86_64_20260809.json`.

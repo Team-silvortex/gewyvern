@@ -144,6 +144,9 @@ pub enum Effect {
     DebuggerCancel {
         session_id: String,
     },
+    UiActivate {
+        node_id: String,
+    },
     UiFocus {
         node_id: String,
     },
@@ -362,6 +365,7 @@ pub enum Type {
     RuntimeCapabilitiesRefresh,
     RuntimeDeploy,
     DebuggerCancel,
+    UiActivate,
     UiFocus,
     UiNavigateFocus,
     UiScrollIntoView,
@@ -491,6 +495,7 @@ fn lower_effect(expression: &Expression) -> Result<LoweredEffect, Vec<Diagnostic
         | "runtime.refresh_capabilities"
         | "runtime.deploy"
         | "debugger.cancel"
+        | "ui.activate"
         | "ui.focus"
         | "ui.navigate_focus"
         | "ui.scroll_into_view"
@@ -640,6 +645,15 @@ fn lower_atomic_effect(
                 _ => diagnostics.push(Diagnostic {
                     code: "LSH1110".to_string(),
                     message: "debugger.cancel session_id must be a valid identifier string"
+                        .to_string(),
+                    span: Some(argument.span),
+                }),
+            },
+            ("ui.activate", "node_id") => match value {
+                Some(value) if validate_ui_node_id(&value) => node_id = Some(value),
+                _ => diagnostics.push(Diagnostic {
+                    code: "LSH1305".to_string(),
+                    message: "ui.activate node_id must be a valid UI node identifier string"
                         .to_string(),
                     span: Some(argument.span),
                 }),
@@ -1638,6 +1652,13 @@ fn lower_atomic_effect(
             span: Some(span),
         });
     }
+    if callee == "ui.activate" && node_id.is_none() && diagnostics.is_empty() {
+        diagnostics.push(Diagnostic {
+            code: "LSH1306".to_string(),
+            message: "ui.activate requires node_id".to_string(),
+            span: Some(span),
+        });
+    }
     if callee == "ui.focus" && node_id.is_none() && diagnostics.is_empty() {
         diagnostics.push(Diagnostic {
             code: "LSH1113".to_string(),
@@ -2448,6 +2469,13 @@ fn lower_atomic_effect(
             Type::DebuggerCancel,
             CAPABILITY_DEBUGGER_CONTROL,
         ),
+        "ui.activate" => (
+            Effect::UiActivate {
+                node_id: node_id.expect("validated UI node identifier"),
+            },
+            Type::UiActivate,
+            CAPABILITY_UI_PRESENTATION,
+        ),
         "ui.focus" => (
             Effect::UiFocus {
                 node_id: node_id.expect("validated UI node identifier"),
@@ -2934,6 +2962,9 @@ fn canonical_effect_source(effect: &Effect, depth: usize) -> String {
         ),
         Effect::DebuggerCancel { session_id } => {
             atomic_identifier_source("debugger.cancel", "session_id", session_id, depth)
+        }
+        Effect::UiActivate { node_id } => {
+            atomic_identifier_source("ui.activate", "node_id", node_id, depth)
         }
         Effect::UiFocus { node_id } => {
             atomic_identifier_source("ui.focus", "node_id", node_id, depth)
@@ -3858,6 +3889,38 @@ mod tests {
             "fn main() = ui.focus()",
             "fn main() = ui.focus(node_id: none)",
             "fn main() = ui.focus(node_id: \"bad/node\")",
+        ] {
+            assert!(
+                lower(&parse(source)).is_err(),
+                "source should fail: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_activate_is_a_capability_gated_canonical_presentation_effect() {
+        let program = lower(&parse(
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        assert_eq!(program.function.result_type, Type::UiActivate);
+        assert_eq!(
+            program.function.required_capabilities,
+            [CAPABILITY_UI_PRESENTATION]
+        );
+        assert!(matches!(
+            program.function.effect,
+            Effect::UiActivate { ref node_id } if node_id == "runtime-a:refresh"
+        ));
+        assert_eq!(
+            canonical_source(&program.function.effect).unwrap(),
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")\n"
+        );
+
+        for source in [
+            "fn main() = ui.activate()",
+            "fn main() = ui.activate(node_id: none)",
+            "fn main() = ui.activate(node_id: \"bad/node\")",
         ] {
             assert!(
                 lower(&parse(source)).is_err(),
@@ -5962,6 +6025,7 @@ mod tests {
             "fn main() = runtime.refresh_capabilities(runtime_id: \"runtime-a\")",
             "fn main() = runtime.deploy(runtime_id: \"runtime-a\", pipeline_kind: \"http/request\", target: none)",
             "fn main() = debugger.cancel(session_id: \"session-a\")",
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.focus(node_id: \"runtime-a:refresh\")",
             "fn main() = ui.navigate_focus(node_id: \"runtime-a:refresh\", direction: \"previous\")",
             "fn main() = ui.scroll_into_view(node_id: \"runtime-a:card\")",

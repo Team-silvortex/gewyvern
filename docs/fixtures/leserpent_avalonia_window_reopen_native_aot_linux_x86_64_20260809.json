@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-avalonia-window-reopen-native-aot-linux-x86_64",
+  "recorded_at": "2026-08-09T14:50:38Z",
+  "source": {
+    "workspace": "clean-rsync-source-mirror",
+    "revision": "working-tree-snapshot",
+    "renderer_contract": "1.86.0",
+    "presentation_fixture": "apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json",
+    "renderer_sha256": "f2ef0e0b859dae090729c10d378fc5b0e31b542f4d3611e1692c390969ad7356",
+    "window_probe_sha256": "e2ee3a84a63cdd9e8a40ad243ed19fa240b54c430a5ad30198a8df3367070296",
+    "previous_evidence": "docs/fixtures/leserpent_avalonia_activation_native_aot_linux_x86_64_20260809.json"
+  },
+  "target": {
+    "host": "192.168.124.22",
+    "endpoint": "kyuubiki-lab.local",
+    "alias": "kyuubiki-lab",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64",
+    "execution": "physical-host-xvfb"
+  },
+  "toolchain": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+    "dotnet_sdk": "10.0.110",
+    "rid": "linux-x64",
+    "restore": "locked-complete-dual-rid-graph",
+    "publish": "native-aot-no-restore"
+  },
+  "artifact": {
+    "name": "Leserpent.Avalonia",
+    "format": "ELF 64-bit LSB pie executable",
+    "sha256": "31e92f304293b69d0c7d7e53359bdd77bbdee33b60c6a81f06c4663c43d828ed",
+    "bytes": 29780640,
+    "files": 6,
+    "debug_symbol_bytes": 0,
+    "stripped": true
+  },
+  "suites": {
+    "lifecycle_gate_tests": 14,
+    "native_validation_harness_gate_tests": 29,
+    "status_gate_tests": 55,
+    "presentation_atoms": 55,
+    "presentation_atom_profiles": 55,
+    "native_aot_control_fixtures": 4,
+    "native_aot_presentation_fixture": true
+  },
+  "observations": {
+    "presentation_activate": true,
+    "native_click_exactly_once": true,
+    "open_window": true,
+    "close_window": true,
+    "reopen_window": true,
+    "reclose_window": true,
+    "window_lifecycle_idempotent": true,
+    "window_reopen_fresh_native_window": true,
+    "window_semantic_tree_rematerialized": true,
+    "window_lifecycle_state_observed": true
+  },
+  "checks": {
+    "source_hash_match": true,
+    "locked_dual_rid_restore": true,
+    "linux_x64_native_aot_publish": true,
+    "xvfb_real_gui_execution": true,
+    "strict_cross_language_codec": true,
+    "complete_55_atom_manifest": true,
+    "four_independent_control_fixtures": true,
+    "native_presentation_fixture": true,
+    "native_open_close_reopen_reclose": true,
+    "duplicate_window_lifecycle_idempotency": true,
+    "fresh_native_window_reopen": true,
+    "stable_semantic_identity_after_rematerialization": true,
+    "all_required_presentation_markers_passed": true,
+    "secret_free_evidence": true
+  },
+  "result": "passed"
+}

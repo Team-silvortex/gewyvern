@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -132,7 +133,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
     private string? pendingFocusNodeId;
     private Window? ownedPresentationWindow;
 
-    public ContentControl Surface { get; } = new();
+    public ContentControl Surface { get; private set; } = new();
     public UiDocument Document => semanticRenderer.Document;
     public int NodeCount => nodes.Count;
     public int LastAppliedOperationCount { get; private set; }
@@ -172,6 +173,8 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         node.TryGetRealizedControl(out var control)
         && control!.IsFocused)?.Id;
     public bool IsFocusRestorePending => pendingFocusNodeId is not null;
+    public int PresentationWindowGenerationCount { get; private set; }
+    public int PresentationTreeRematerializationCount { get; private set; }
 
     public bool TryFocusNode(string nodeId) =>
         nodes.TryGetValue(nodeId, out var node)
@@ -244,6 +247,35 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
                 false,
                 operation.NodeId,
                 PresentationAutomationFailureCode.TargetUnrealized);
+        }
+        if (operation.Kind == UiPresentationOperationKind.Activate)
+        {
+            if (control is not Button button)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.UnfocusableTarget);
+            }
+            if (!IsControlVisibleInSurface(button))
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetNotVisible);
+            }
+            if (!button.IsEffectivelyEnabled)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    operation.NodeId,
+                    PresentationAutomationFailureCode.TargetActionUnavailable);
+            }
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            return new PresentationAutomationResult(
+                true,
+                operation.NodeId,
+                PresentationAutomationFailureCode.None);
         }
         if (operation.Kind == UiPresentationOperationKind.OpenWindow)
         {
@@ -381,11 +413,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         if (operation.Kind is UiPresentationOperationKind.AssertWindowOpen
             or UiPresentationOperationKind.WaitWindowOpen)
         {
-            var targetWindow = control!.GetVisualAncestors().OfType<Window>().FirstOrDefault();
-            var surfaceWindow = Surface.GetVisualAncestors().OfType<Window>().FirstOrDefault();
-            var open = targetWindow is not null
-                && surfaceWindow is not null
-                && ReferenceEquals(targetWindow, surfaceWindow);
+            var open = IsControlInOpenSurfaceWindow(control!);
             return new PresentationAutomationResult(
                 open,
                 operation.NodeId,
@@ -396,11 +424,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         if (operation.Kind is UiPresentationOperationKind.AssertWindowClosed
             or UiPresentationOperationKind.WaitWindowClosed)
         {
-            var targetWindow = control!.GetVisualAncestors().OfType<Window>().FirstOrDefault();
-            var surfaceWindow = Surface.GetVisualAncestors().OfType<Window>().FirstOrDefault();
-            var open = targetWindow is not null
-                && surfaceWindow is not null
-                && ReferenceEquals(targetWindow, surfaceWindow);
+            var open = IsControlInOpenSurfaceWindow(control!);
             return new PresentationAutomationResult(
                 !open,
                 operation.NodeId,
@@ -707,12 +731,36 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         string nodeId,
         Control control)
     {
+        if (SharedSurfaceWindow(control) is { } attachedWindow)
+        {
+            if (!attachedWindow.IsVisible)
+            {
+                try
+                {
+                    attachedWindow.Show();
+                }
+                catch (InvalidOperationException)
+                {
+                    return new PresentationAutomationResult(
+                        false,
+                        nodeId,
+                        PresentationAutomationFailureCode.TargetWindowUnavailable);
+                }
+            }
+            var attachedWindowOpened = attachedWindow.IsVisible;
+            return new PresentationAutomationResult(
+                attachedWindowOpened,
+                nodeId,
+                attachedWindowOpened
+                    ? PresentationAutomationFailureCode.None
+                    : PresentationAutomationFailureCode.TargetWindowUnavailable);
+        }
         if (WindowFor(control) is not null)
         {
             return new PresentationAutomationResult(
-                true,
+                false,
                 nodeId,
-                PresentationAutomationFailureCode.None);
+                PresentationAutomationFailureCode.TargetWindowUnavailable);
         }
         if (Surface.GetVisualParent() is not null || Surface.Parent is not null)
         {
@@ -733,6 +781,7 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             Background = LeserpentTheme.Canvas,
             Content = Surface,
         };
+        PresentationWindowGenerationCount++;
         ownedPresentationWindow = window;
         window.Closed += (_, _) =>
         {
@@ -743,15 +792,15 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
             }
         };
         window.Show();
-        var opened = window.IsVisible && ReferenceEquals(window.Content, Surface);
-        if (!opened)
+        var createdWindowOpened = window.IsVisible && ReferenceEquals(window.Content, Surface);
+        if (!createdWindowOpened)
         {
             window.Close();
         }
         return new PresentationAutomationResult(
-            opened,
+            createdWindowOpened,
             nodeId,
-            opened
+            createdWindowOpened
                 ? PresentationAutomationFailureCode.None
                 : PresentationAutomationFailureCode.TargetWindowUnavailable);
     }
@@ -760,20 +809,84 @@ internal sealed class AvaloniaDocumentRenderer(Action<string> actionInvoked)
         string nodeId,
         Control control)
     {
-        var window = WindowFor(control);
+        var window = SharedSurfaceWindow(control);
         if (window is null)
+        {
+            if (WindowFor(control) is not null)
+            {
+                return new PresentationAutomationResult(
+                    false,
+                    nodeId,
+                    PresentationAutomationFailureCode.TargetWindowUnavailable);
+            }
+            return new PresentationAutomationResult(
+                true,
+                nodeId,
+                PresentationAutomationFailureCode.None);
+        }
+        if (!window.IsVisible)
         {
             return new PresentationAutomationResult(
                 true,
                 nodeId,
                 PresentationAutomationFailureCode.None);
         }
+        var closesOwnedWindow = ReferenceEquals(window, ownedPresentationWindow);
         window.Close();
+        var closed = !window.IsVisible;
+        if (closed && closesOwnedWindow)
+        {
+            RecreateDetachedSurface(window);
+        }
         return new PresentationAutomationResult(
-            true,
+            closed,
             nodeId,
-            PresentationAutomationFailureCode.None);
+            closed
+                ? PresentationAutomationFailureCode.None
+                : PresentationAutomationFailureCode.TargetWindowStillOpen);
     }
+
+    private void RecreateDetachedSurface(Window closedWindow)
+    {
+        var document = semanticRenderer.Document;
+        var realizedNodeIds = nodes.Values
+            .Where(node => node.IsRealized)
+            .Select(node => node.Id)
+            .ToArray();
+        var previousSurface = Surface;
+        previousSurface.Content = null;
+        if (previousSurface.Presenter is { } presenter)
+        {
+            presenter.Content = null;
+            presenter.UpdateChild();
+        }
+        closedWindow.Content = null;
+        Surface = new ContentControl();
+        Mount(document);
+        foreach (var nodeId in realizedNodeIds)
+        {
+            if (!RealizeNodeForVerification(nodeId))
+            {
+                throw new InvalidDataException(
+                    $"window lifecycle remount lost realized node {nodeId}");
+            }
+        }
+        PresentationTreeRematerializationCount++;
+    }
+
+    private Window? SharedSurfaceWindow(Control control)
+    {
+        var targetWindow = WindowFor(control);
+        var surfaceWindow = Surface.GetVisualAncestors().OfType<Window>().FirstOrDefault();
+        return targetWindow is not null
+            && surfaceWindow is not null
+            && ReferenceEquals(targetWindow, surfaceWindow)
+                ? targetWindow
+                : null;
+    }
+
+    private bool IsControlInOpenSurfaceWindow(Control control) =>
+        SharedSurfaceWindow(control) is { IsVisible: true };
 
     private static Window? WindowFor(Control control) =>
         control.GetVisualAncestors().OfType<Window>().FirstOrDefault();

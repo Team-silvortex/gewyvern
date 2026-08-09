@@ -1921,6 +1921,184 @@ fn retained_linux_avalonia_presentation_native_aot_evidence_is_non_vacuous() {
 }
 
 #[test]
+fn retained_linux_avalonia_activation_native_aot_evidence_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_avalonia_activation_native_aot_linux_x86_64_20260809.json",
+        ))
+        .expect("Avalonia Linux NativeAOT activation evidence must exist"),
+    )
+    .expect("Avalonia Linux NativeAOT activation evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "leserpent-avalonia-activation-native-aot-linux-x86_64"
+    );
+    assert_eq!(evidence["target"]["host"], "192.168.124.22");
+    assert_eq!(evidence["target"]["hostname"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["kernel"], "Linux 7.0.0-28-generic");
+    assert_eq!(evidence["target"]["execution"], "physical-host-xvfb");
+    assert_eq!(evidence["toolchain"]["dotnet_sdk"], "10.0.110");
+    assert_eq!(evidence["toolchain"]["rid"], "linux-x64");
+    assert_eq!(
+        evidence["artifact"]["sha256"],
+        "7b3d5590ceee5ddfb5f706845dcce7882d5089ab600b34f3a36c3499f87a8b71"
+    );
+    assert!(evidence["artifact"]["bytes"].as_u64().unwrap() > 20_000_000);
+    assert_eq!(evidence["artifact"]["debug_symbol_bytes"], 0);
+    assert_eq!(evidence["artifact"]["stripped"], true);
+    assert_eq!(evidence["suites"]["rust_unit_tests"], 286);
+    assert_eq!(evidence["suites"]["lifecycle_gate_tests"], 14);
+    assert_eq!(
+        evidence["suites"]["native_validation_harness_gate_tests"],
+        29
+    );
+    assert_eq!(evidence["suites"]["status_gate_tests"], 55);
+    assert_eq!(evidence["suites"]["repository_gate_tests"], 69);
+    assert_eq!(evidence["suites"]["presentation_atoms"], 55);
+    assert_eq!(evidence["suites"]["presentation_atom_profiles"], 55);
+    assert_eq!(evidence["suites"]["native_aot_control_fixtures"], 4);
+    assert_eq!(evidence["suites"]["native_aot_presentation_fixture"], true);
+    assert_eq!(evidence["suites"]["renderer_conformance"], true);
+    for observation in [
+        "presentation_activate",
+        "native_click_exactly_once",
+        "unavailable_action_rejected",
+        "hidden_action_rejected",
+        "non_action_rejected",
+        "missing_action_rejected",
+        "wait_unfocused_timeout",
+    ] {
+        assert_eq!(
+            evidence["observations"][observation], true,
+            "missing observation {observation}"
+        );
+    }
+    assert_eq!(
+        evidence["observations"]["wait_unfocused_external_deactivation"],
+        false
+    );
+    assert_eq!(
+        evidence["observations"]["external_deactivation_required"],
+        false
+    );
+    for check in [
+        "locked_dual_rid_restore",
+        "linux_x64_native_aot_publish",
+        "xvfb_real_gui_execution",
+        "strict_cross_language_codec",
+        "complete_55_atom_manifest",
+        "mode_scoped_control_fixture",
+        "native_presentation_fixture",
+        "native_action_activation",
+        "single_native_click_route",
+        "invalid_activation_fail_closed",
+        "all_required_presentation_markers_passed",
+        "window_lifecycle_passed",
+        "focus_navigation_passed",
+        "virtualization_passed",
+        "child_count_virtualization_preserved",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
+fn retained_linux_avalonia_window_reopen_native_aot_evidence_is_non_vacuous() {
+    let evidence: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join(
+            "docs/fixtures/leserpent_avalonia_window_reopen_native_aot_linux_x86_64_20260809.json",
+        ))
+        .expect("Avalonia Linux NativeAOT window-reopen evidence must exist"),
+    )
+    .expect("Avalonia Linux NativeAOT window-reopen evidence must decode");
+
+    assert_eq!(evidence["schema_version"], 1);
+    assert_eq!(
+        evidence["proof"],
+        "leserpent-avalonia-window-reopen-native-aot-linux-x86_64"
+    );
+    assert_eq!(evidence["source"]["renderer_contract"], "1.86.0");
+    for source_hash in ["renderer_sha256", "window_probe_sha256"] {
+        let hash = evidence["source"][source_hash]
+            .as_str()
+            .unwrap_or_else(|| panic!("source hash {source_hash} must be a string"));
+        assert_eq!(hash.len(), 64, "source hash {source_hash} must be SHA-256");
+        assert!(
+            hash.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "source hash {source_hash} must be hexadecimal"
+        );
+    }
+    assert_eq!(evidence["target"]["host"], "192.168.124.22");
+    assert_eq!(evidence["target"]["endpoint"], "kyuubiki-lab.local");
+    assert_eq!(evidence["target"]["alias"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["hostname"], "kyuubiki-lab");
+    assert_eq!(evidence["target"]["architecture"], "x86_64");
+    assert_eq!(evidence["target"]["execution"], "physical-host-xvfb");
+    assert_eq!(evidence["toolchain"]["dotnet_sdk"], "10.0.110");
+    assert_eq!(evidence["toolchain"]["rid"], "linux-x64");
+
+    let artifact_sha256 = evidence["artifact"]["sha256"]
+        .as_str()
+        .expect("artifact SHA-256 must be a string");
+    assert_eq!(artifact_sha256.len(), 64);
+    assert!(artifact_sha256.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert!(evidence["artifact"]["bytes"].as_u64().unwrap() > 20_000_000);
+    assert!(evidence["artifact"]["files"].as_u64().unwrap() <= 12);
+    assert_eq!(evidence["artifact"]["debug_symbol_bytes"], 0);
+    assert_eq!(evidence["artifact"]["stripped"], true);
+    assert_eq!(evidence["suites"]["lifecycle_gate_tests"], 14);
+    assert_eq!(
+        evidence["suites"]["native_validation_harness_gate_tests"],
+        29
+    );
+    assert_eq!(evidence["suites"]["status_gate_tests"], 55);
+    assert_eq!(evidence["suites"]["presentation_atoms"], 55);
+    assert_eq!(evidence["suites"]["presentation_atom_profiles"], 55);
+    assert_eq!(evidence["suites"]["native_aot_control_fixtures"], 4);
+    assert_eq!(evidence["suites"]["native_aot_presentation_fixture"], true);
+    for observation in [
+        "presentation_activate",
+        "native_click_exactly_once",
+        "open_window",
+        "close_window",
+        "reopen_window",
+        "reclose_window",
+        "window_lifecycle_idempotent",
+        "window_reopen_fresh_native_window",
+        "window_semantic_tree_rematerialized",
+        "window_lifecycle_state_observed",
+    ] {
+        assert_eq!(
+            evidence["observations"][observation], true,
+            "missing observation {observation}"
+        );
+    }
+    for check in [
+        "source_hash_match",
+        "locked_dual_rid_restore",
+        "linux_x64_native_aot_publish",
+        "xvfb_real_gui_execution",
+        "strict_cross_language_codec",
+        "complete_55_atom_manifest",
+        "four_independent_control_fixtures",
+        "native_presentation_fixture",
+        "native_open_close_reopen_reclose",
+        "duplicate_window_lifecycle_idempotency",
+        "fresh_native_window_reopen",
+        "stable_semantic_identity_after_rematerialization",
+        "all_required_presentation_markers_passed",
+        "secret_free_evidence",
+    ] {
+        assert_eq!(evidence["checks"][check], true, "missing check {check}");
+    }
+    assert_eq!(evidence["result"], "passed");
+}
+
+#[test]
 fn retained_system_profile_bootstrap_retirement_evidence_is_non_vacuous() {
     let root = repository_root();
     let evidence: serde_json::Value = serde_json::from_str(
@@ -3593,7 +3771,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.84.0");
+    assert_eq!(avalonia.contract.version, "1.86.0");
     assert!(
         avalonia
             .contract
@@ -3627,6 +3805,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "canonical-presentation-atom-profile-validation",
         "strict-unregistration-receipt-client",
         "retained-receipt-horizon-binding",
+        "native-action-activation",
+        "native-click-event-route",
+        "unavailable-action-activation-rejection",
+        "hidden-action-activation-rejection",
+        "single-invocation-activation",
+        "mode-scoped-presentation-probes",
+        "native-aot-presentation-probe",
+        "physical-linux-action-activation-evidence",
         "native-enabled-state-assertion",
         "disabled-target-presentation-rejection",
         "native-disabled-state-assertion",
@@ -3713,7 +3899,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "persistent-enabled-disabled-wait-timeout",
         "native-window-open-mutation",
         "native-window-close-mutation",
+        "native-window-reopen-mutation",
+        "native-window-reclose-mutation",
         "idempotent-window-lifecycle",
+        "duplicate-window-open-close-idempotency",
+        "fresh-native-window-reopen",
+        "semantic-tree-rematerialization-after-window-close",
+        "visible-window-state-fence",
         "non-activating-window-open",
         "window-lifecycle-state-observation",
         "desktop-focus-deactivation-aware-verification",
@@ -5440,7 +5632,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(ui.maturity, Maturity::Mature);
     assert_eq!(ui.completion, 100);
     assert_eq!(ui.contract.stability, ContractStability::Stable);
-    assert_eq!(ui.contract.version, "1.49.0");
+    assert_eq!(ui.contract.version, "1.50.0");
     for surface in [
         "ui-event-hir-effect-lowering",
         "hir-effect-ui-event-reverse-mapping",
@@ -5451,6 +5643,9 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "presentation-atom-profile-manifest",
         "presentation-atom-family-metadata",
         "presentation-atom-effect-metadata",
+        "ui-activate-presentation-roundtrip",
+        "interaction-presentation-atom-profile",
+        "action-target-activation-validation",
         "developer-owned-adapter-kind",
         "generated-framework-binding-kind",
         "cross-language-adapter-manifest-fixture",
@@ -5586,9 +5781,10 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-hir/typed-effects")
         .expect("Leserpent language HIR cell must exist");
-    assert_eq!(hir.contract.version, "0.60.0");
+    assert_eq!(hir.contract.version, "0.61.0");
     for surface in [
         "debugger-cancel-effect",
+        "ui-activate-effect",
         "ui-focus-effect",
         "ui-focus-navigation-effect",
         "typed-focus-navigation-direction",
@@ -5695,11 +5891,13 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/language-vm/effect-reentry")
         .expect("Leserpent language VM cell must exist");
-    assert_eq!(vm.contract.version, "1.45.0");
+    assert_eq!(vm.contract.version, "1.46.0");
     for surface in [
         "typed-debugger-cancel-result",
         "restart-safe-debugger-cancel-dispatch",
         "typed-presentation-envelope",
+        "typed-ui-activate-result",
+        "activate-request-result-binding",
         "typed-ui-focus-result",
         "typed-ui-focus-navigation-result",
         "focus-navigation-start-direction-result-binding",
@@ -5821,7 +6019,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-2/command-lowering/command-plan-lowering")
         .expect("Leserpent command lowering cell must exist");
-    assert_eq!(command.contract.version, "0.56.0");
+    assert_eq!(command.contract.version, "0.57.0");
+    assert!(
+        command
+            .contract
+            .surfaces
+            .iter()
+            .any(|surface| surface == "action-activation-command-rejection")
+    );
     assert!(
         command
             .contract

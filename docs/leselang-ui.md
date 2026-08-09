@@ -32,8 +32,8 @@ generator tooling. The manifest carries schema version `2`, a stable
 `developer_owned_adapter` or `generated_framework_binding`, the target
 `ui_schema_version`, and booleans proving support for document, event, and patch
 schemas. It must also list the complete `required_ui_presentation_atoms()` set:
-all fifty-four current presentation atoms, including focus, window lifecycle,
-wait, assertion, selection, action metadata, form metadata, and accessibility operations. Schema
+all fifty-five current presentation atoms, including activation, focus, window
+lifecycle, wait, assertion, selection, action metadata, form metadata, and accessibility operations. Schema
 version `2` also carries `presentation_atom_profiles`: one canonical profile per
 atom, classifying the GUI family and effect model as mutation, assertion, or
 wait so generated adapters can build a 1:1 mapping table without guessing.
@@ -156,7 +156,7 @@ only its stable node ID; confirmation and execution stay in Rust.
 - maximum parameterized form value: `256` bytes
 - adapter manifest schema version: `2`
 - maximum adapter framework label: `128` bytes
-- required adapter presentation atoms: `54`
+- required adapter presentation atoms: `55`
 - node IDs: unique, stable, ASCII identifiers up to 128 bytes
 
 Validation rejects duplicate or invalid IDs, control characters, invalid
@@ -195,7 +195,13 @@ Unknown nodes, nodes without actions, stale revisions, missing capabilities,
 forged runtime or debugger-session bindings, invalid automation effects, and
 effects without an action in the current document fail closed.
 
-Semantic action equivalence is joined by fifty-four presentation atoms.
+Semantic action equivalence is joined by fifty-five presentation atoms.
+`UiPresentationOperation::Activate` maps one-to-one to
+`ui.activate(node_id: ...)`, requires an available semantic action, and has the
+canonical `interaction` family plus `mutation` effect profile. It is
+frontend-local: adapters dispatch one native activation event through the same
+route as a manual click, while missing, non-action, unrealized, hidden, or
+disabled targets fail without invoking the action.
 `UiPresentationOperation::Focus` maps one-to-one to `ui.focus(node_id: ...)`
 and requires an interactive action.
 `UiPresentationOperation::NavigateFocus` maps one-to-one to
@@ -224,7 +230,13 @@ carries its own protocol-fixed 2000 ms deadline.
 `ui.open_window(node_id: ...)` and `ui.close_window(node_id: ...)`. Both accept
 any existing semantic node and are idempotent lifecycle mutations. Adapters may
 open only a fully detached renderer surface, close only the target's containing
-native window, and must not activate or focus a window implicitly.
+native window, and must not activate or focus a window implicitly. An open
+result requires the target and renderer surface to share a currently visible
+native window; a cancelled native close therefore fails rather than reporting a
+detached state. Closing an adapter-owned top-level invalidates native control
+identity. The adapter rematerializes a fresh native tree from the same validated
+`UiDocument` and stable node IDs before reopening a fresh native window; it does
+not attempt to reparent stale toolkit objects across top-level lifetimes.
 `UiPresentationOperation::AssertFocused` maps one-to-one to
 `ui.assert_focused(node_id: ...)` and requires an interactive action.
 `UiPresentationOperation::WaitFocused` maps one-to-one to
@@ -380,12 +392,14 @@ semantic node with an explicitly declared accessibility description.
 `ui.wait_accessible_description(node_id: ..., expected: ...)`, requires the same
 explicit accessibility description metadata, uses the same expected-value bound,
 and carries the protocol-fixed 2000 ms deadline. None can
-become a `UiEvent` or `CommandPlan`; all fifty-four travel in
+become a `UiEvent` or `CommandPlan`; all fifty-five travel in
 capability-gated VM presentation envelopes and return operation-specific typed
 results with operation identity bound across re-entry.
 
-Avalonia resolves all fifty-four operations through its stable visual index. Focus
-uses native `Control.Focus()`. Focus navigation requires the declared start to
+Avalonia resolves all fifty-five operations through its stable visual index.
+Activation requires a realized, visible, enabled native `Button` and raises its
+native `ClickEvent` exactly once; it never invokes the domain callback directly.
+Focus uses native `Control.Focus()`. Focus navigation requires the declared start to
 own native focus, invokes the native `FocusManager.TryMoveFocus` with the typed
 direction, and accepts only a distinct realized action from the same index.
 The actual destination is returned, navigation never activates an action, and
@@ -427,7 +441,12 @@ same native effective-enabled predicate through the cancellable adapter without
 changing availability or invoking the action.
 Window-open assertion resolves the same stable visual index and succeeds only
 when the realized target and renderer surface are attached to the same native
-`Window` visual tree; it never calls native activation, open, close, or focus.
+`Window` visual tree and that window is visible; it never calls native
+activation, open, close, or focus. Window open/close mutations use native
+`Show()`/`Close()`, reject a cancelled close, and are idempotent. After a real
+close of an adapter-owned window, Avalonia remounts the same semantic document
+onto fresh controls before reopening, preserving protocol identity without
+preserving invalid toolkit object identity.
 Window-open wait polls that same native-window membership predicate through the
 cancellable dispatcher-yielding adapter until its fixed deadline and also never
 calls native activation, open, close, or focus.

@@ -1867,7 +1867,7 @@ that effect and the current document. This closes business-action parity for
 the current `UiAction` enum.
 
 Presentation parity uses a separate, non-command path.
-`ui.focus(node_id: ...)`,
+`ui.activate(node_id: ...)`, `ui.focus(node_id: ...)`,
 `ui.navigate_focus(node_id: ..., direction: "next"|"previous"|"first"|"last")`,
 `ui.scroll_into_view(node_id: ...)`, and
 `ui.assert_visible(node_id: ...)`, plus `ui.assert_hidden(node_id: ...)`,
@@ -1922,8 +1922,11 @@ plus `ui.wait_hidden(node_id: ...)`, plus `ui.assert_realized(node_id: ...)`,
 operation-specific values inside a capability-gated VM
 `PresentationEnvelope`, then to renderer-neutral `UiPresentationOperation`
 variants. None can become a `CommandPlan`. Avalonia validates the semantic
-target and resolves the stable node ID. Focus and scrolling use native
-operations. Sequential focus navigation requires a currently focused stable
+target and resolves the stable node ID. Activation accepts only a realized,
+visible, effectively enabled semantic action and raises exactly one native
+button click event through the manual interaction route; missing, non-action,
+hidden, disabled, or unrealized targets fail without callback invocation.
+Focus and scrolling use native operations. Sequential focus navigation requires a currently focused stable
 action, delegates `next` and `previous` to the native focus manager, resolves
 `first` and `last` through the stable visual-index action boundary with native
 focus, and binds the result to the actual distinct stable action destination
@@ -1946,8 +1949,13 @@ without changing availability or activating the action. Disabled wait polls the
 inverse native predicate with the same fixed deadline, without changing
 availability or activating the action. Window-open assertion verifies the
 realized target and renderer surface share one native `Window` visual tree
-without opening, closing, activating, or focusing it. Window-open wait polls that
-same native-window membership predicate until the fixed deadline, also without
+and that the window is visible, without opening, closing, activating, or
+focusing it. Native open/close mutations use `Show()` and `Close()` directly,
+fail if a cancelled close leaves the window visible, and remain idempotent.
+Closing an adapter-owned top-level retires its native control tree; reopening
+materializes fresh controls from the same validated `UiDocument` and stable node
+IDs, so protocol identity never depends on toolkit object identity. Window-open
+wait polls that same native-window predicate until the fixed deadline, also without
 opening, closing, activating, or focusing it. Window-closed assertion reads the
 inverse native-window membership predicate after resolving the stable node to a
 realized native control. Window-closed wait polls that same inverse predicate

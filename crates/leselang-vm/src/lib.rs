@@ -116,6 +116,9 @@ pub struct PresentationEnvelope {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PresentationOperation {
+    Activate {
+        node_id: String,
+    },
     Focus {
         node_id: String,
     },
@@ -358,6 +361,9 @@ pub enum EffectResult {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PresentationResult {
+    Activate {
+        node_id: String,
+    },
     Focus {
         node_id: String,
     },
@@ -831,6 +837,9 @@ pub enum Value {
     },
     DebuggerCancel {
         result: DebuggerCancelResult,
+    },
+    UiActivate {
+        node_id: String,
     },
     UiFocus {
         node_id: String,
@@ -1319,6 +1328,17 @@ impl Vm {
             max_output_items: DEFAULT_MAX_OUTPUT_ITEMS,
         };
         let (required_capability, operation) = match effect {
+            Effect::UiActivate { node_id } => (
+                CAPABILITY_UI_PRESENTATION.to_string(),
+                EffectOperation::Presentation(PresentationEnvelope {
+                    schema_version: DOMAIN_SCHEMA_VERSION,
+                    principal,
+                    capabilities,
+                    operation: PresentationOperation::Activate {
+                        node_id: node_id.clone(),
+                    },
+                }),
+            ),
             Effect::UiFocus { node_id } => (
                 CAPABILITY_UI_PRESENTATION.to_string(),
                 EffectOperation::Presentation(PresentationEnvelope {
@@ -2572,6 +2592,7 @@ fn validate_image(image: &ContinuationImage) -> Result<(), Fault> {
         Effect::RuntimeCapabilitiesRefresh { .. } => Type::RuntimeCapabilitiesRefresh,
         Effect::RuntimeDeploy { .. } => Type::RuntimeDeploy,
         Effect::DebuggerCancel { .. } => Type::DebuggerCancel,
+        Effect::UiActivate { .. } => Type::UiActivate,
         Effect::UiFocus { .. } => Type::UiFocus,
         Effect::UiNavigateFocus { .. } => Type::UiNavigateFocus,
         Effect::UiScrollIntoView { .. } => Type::UiScrollIntoView,
@@ -2849,6 +2870,21 @@ pub fn validate_effect_request(request: &EffectRequest) -> Result<(), Fault> {
                         session_id: command_session_id,
                     } if command_session_id == session_id
                 )
+        }
+        (Effect::UiActivate { node_id }, EffectOperation::Presentation(presentation)) => {
+            validate_effect_identity(
+                presentation.schema_version,
+                &presentation.principal,
+                &presentation.capabilities,
+                &request.required_capability,
+                CAPABILITY_UI_PRESENTATION,
+            )?;
+            matches!(
+                &presentation.operation,
+                PresentationOperation::Activate {
+                    node_id: operation_node_id,
+                } if operation_node_id == node_id && validate_ui_node_id(operation_node_id)
+            )
         }
         (Effect::UiFocus { node_id }, EffectOperation::Presentation(presentation)) => {
             validate_effect_identity(
@@ -4288,6 +4324,7 @@ pub(crate) fn validate_value(value: &Value, depth: usize) -> Result<usize, Fault
         {
             Ok(1)
         }
+        Value::UiActivate { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiFocus { node_id } if validate_ui_node_id(node_id) => Ok(1),
         Value::UiNavigateFocus {
             node_id,
@@ -4717,6 +4754,30 @@ fn step_from_effect_result(
             && result.observed_at_ms <= i64::MAX as u64 =>
         {
             Step::Done(Value::DebuggerCancel { result })
+        }
+        (
+            Effect::UiActivate { node_id },
+            Type::UiActivate,
+            operation,
+            EffectResult::Presentation(PresentationResult::Activate {
+                node_id: result_node_id,
+            }),
+        ) if result_node_id == *node_id
+            && operation.is_none_or(|operation| {
+                matches!(
+                    operation,
+                    EffectOperation::Presentation(PresentationEnvelope {
+                        operation: PresentationOperation::Activate {
+                            node_id: operation_node_id,
+                        },
+                        ..
+                    }) if operation_node_id == node_id
+                )
+            }) =>
+        {
+            Step::Done(Value::UiActivate {
+                node_id: result_node_id,
+            })
         }
         (
             Effect::UiFocus { node_id },
@@ -6666,6 +6727,84 @@ mod tests {
                 node_id: "runtime-a:refresh".into(),
             })
         );
+    }
+
+    #[test]
+    fn ui_activate_uses_a_local_presentation_envelope_and_reenters_typed() {
+        let program = lower(&parse(
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        let Step::Effect(request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI activate effect");
+        };
+        assert_eq!(request.required_capability, CAPABILITY_UI_PRESENTATION);
+        let EffectOperation::Presentation(presentation) = &request.operation else {
+            panic!("UI activate must not become a query or command");
+        };
+        assert!(matches!(
+            &presentation.operation,
+            PresentationOperation::Activate { node_id }
+                if node_id == "runtime-a:refresh"
+        ));
+        validate_effect_request(&request).unwrap();
+        assert_eq!(
+            vm.resume(
+                &request.continuation,
+                EffectResult::Presentation(PresentationResult::Activate {
+                    node_id: "runtime-a:refresh".into(),
+                }),
+            ),
+            Step::Done(Value::UiActivate {
+                node_id: "runtime-a:refresh".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn ui_activate_rejects_missing_capability_and_torn_operations() {
+        let program = lower(&parse(
+            "fn main() = ui.activate(node_id: \"runtime-a:refresh\")",
+        ))
+        .unwrap();
+        let mut vm = Vm::default();
+        assert!(matches!(
+            vm.start(
+                &program,
+                Principal {
+                    id: "desktop-operator".to_string(),
+                },
+                CapabilitySet::default(),
+                None,
+            ),
+            Step::Fault(Fault { ref code, .. }) if code == "LSH2001"
+        ));
+
+        let Step::Effect(mut request) = vm.start(
+            &program,
+            Principal {
+                id: "desktop-operator".to_string(),
+            },
+            CapabilitySet::new([CAPABILITY_UI_PRESENTATION]),
+            None,
+        ) else {
+            panic!("expected UI activate effect");
+        };
+        let EffectOperation::Presentation(presentation) = &mut request.operation else {
+            panic!("UI activate must use a presentation envelope");
+        };
+        presentation.operation = PresentationOperation::Activate {
+            node_id: "other-action".into(),
+        };
+        assert!(validate_effect_request(&request).is_err());
     }
 
     #[test]

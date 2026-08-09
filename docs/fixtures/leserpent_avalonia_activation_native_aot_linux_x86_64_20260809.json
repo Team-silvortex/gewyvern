@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "proof": "leserpent-avalonia-activation-native-aot-linux-x86_64",
+  "recorded_at": "2026-08-09T13:44:20Z",
+  "source": {
+    "workspace": "clean-rsync-source-mirror",
+    "revision": "working-tree-snapshot",
+    "presentation_fixture": "apps/leserpent-avalonia/fixtures/renderer-presentation-conformance-v1.json",
+    "previous_evidence": "docs/fixtures/leserpent_avalonia_presentation_native_aot_linux_x86_64_20260809.json"
+  },
+  "target": {
+    "host": "192.168.124.22",
+    "alias": "kyuubiki-lab",
+    "hostname": "kyuubiki-lab",
+    "kernel": "Linux 7.0.0-28-generic",
+    "architecture": "x86_64",
+    "execution": "physical-host-xvfb"
+  },
+  "toolchain": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+    "dotnet_sdk": "10.0.110",
+    "rid": "linux-x64",
+    "restore": "locked-complete-dual-rid-graph",
+    "publish": "native-aot-no-restore"
+  },
+  "artifact": {
+    "name": "Leserpent.Avalonia",
+    "format": "ELF 64-bit LSB pie executable",
+    "sha256": "7b3d5590ceee5ddfb5f706845dcce7882d5089ab600b34f3a36c3499f87a8b71",
+    "bytes": 29768304,
+    "files": 6,
+    "debug_symbol_bytes": 0,
+    "stripped": true
+  },
+  "suites": {
+    "rust_unit_tests": 286,
+    "lifecycle_gate_tests": 14,
+    "native_validation_harness_gate_tests": 29,
+    "status_gate_tests": 55,
+    "repository_gate_tests": 69,
+    "presentation_atoms": 55,
+    "presentation_atom_profiles": 55,
+    "native_aot_control_fixtures": 4,
+    "native_aot_presentation_fixture": true,
+    "renderer_conformance": true
+  },
+  "observations": {
+    "presentation_activate": true,
+    "native_click_exactly_once": true,
+    "unavailable_action_rejected": true,
+    "hidden_action_rejected": true,
+    "non_action_rejected": true,
+    "missing_action_rejected": true,
+    "wait_unfocused_timeout": true,
+    "wait_unfocused_external_deactivation": false,
+    "external_deactivation_required": false
+  },
+  "checks": {
+    "locked_dual_rid_restore": true,
+    "linux_x64_native_aot_publish": true,
+    "xvfb_real_gui_execution": true,
+    "strict_cross_language_codec": true,
+    "complete_55_atom_manifest": true,
+    "mode_scoped_control_fixture": true,
+    "native_presentation_fixture": true,
+    "native_action_activation": true,
+    "single_native_click_route": true,
+    "invalid_activation_fail_closed": true,
+    "all_required_presentation_markers_passed": true,
+    "window_lifecycle_passed": true,
+    "focus_navigation_passed": true,
+    "virtualization_passed": true,
+    "child_count_virtualization_preserved": true,
+    "secret_free_evidence": true
+  },
+  "result": "passed"
+}

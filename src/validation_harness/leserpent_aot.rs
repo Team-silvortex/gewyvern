@@ -17,6 +17,22 @@ const FIXTURES: &[&str] = &[
     "renderer-log-conformance-v1.json",
     "renderer-workspace-conformance-v1.json",
 ];
+const PRESENTATION_FIXTURE: &str = "renderer-presentation-conformance-v1.json";
+const PRESENTATION_MARKERS: &[&str] = &[
+    "Avalonia action activation valid:",
+    "presentation_activate=true",
+    "native_click_exactly_once=true",
+    "unavailable_action_rejected=true",
+    "hidden_action_rejected=true",
+    "non_action_rejected=true",
+    "missing_action_rejected=true",
+    "Avalonia focus retention valid:",
+    "reopen_window=true",
+    "reclose_window=true",
+    "window_lifecycle_idempotent=true",
+    "window_reopen_fresh_native_window=true",
+    "window_semantic_tree_rematerialized=true",
+];
 const MAX_ARTIFACT_FILES: usize = 12;
 const MAX_DEBUG_SYMBOL_ENTRIES: usize = 16;
 const MAX_DEBUG_SYMBOL_FILES: usize = 8;
@@ -94,7 +110,13 @@ pub fn run_leserpent_aot_validation(
     let fixtures_dir = root.join("apps/leserpent-avalonia/fixtures");
     for fixture in FIXTURES {
         let fixture_path = fixtures_dir.join(fixture);
-        let output = run_control_fixture(target, &executable, &fixture_path)?;
+        let output = run_fixture(
+            target,
+            &executable,
+            &fixture_path,
+            "--verify-controls",
+            "control fixture",
+        )?;
         let text = String::from_utf8_lossy(&output.stdout);
         if !text.contains("Avalonia controls valid:") {
             return Err(ValidationError::new(format!(
@@ -112,6 +134,26 @@ pub fn run_leserpent_aot_validation(
         }
         write_output(&out_dir.join(format!("fixture-{fixture}.log")), &output)?;
     }
+    let presentation_fixture_path = fixtures_dir.join(PRESENTATION_FIXTURE);
+    let presentation_output = run_fixture(
+        target,
+        &executable,
+        &presentation_fixture_path,
+        "--verify-focus-retention",
+        "presentation fixture",
+    )?;
+    let presentation_text = String::from_utf8_lossy(&presentation_output.stdout);
+    for marker in PRESENTATION_MARKERS {
+        if !presentation_text.contains(marker) {
+            return Err(ValidationError::new(format!(
+                "presentation fixture did not emit required marker `{marker}`"
+            )));
+        }
+    }
+    write_output(
+        &out_dir.join(format!("fixture-{PRESENTATION_FIXTURE}.log")),
+        &presentation_output,
+    )?;
 
     let dotnet_version = first_stdout_line(&dotnet_version);
     fs::write(
@@ -135,6 +177,7 @@ pub fn run_leserpent_aot_validation(
             "total_bytes": artifact_inventory.debug_symbol_bytes,
         },
         "fixtures": FIXTURES,
+        "presentation_fixture": PRESENTATION_FIXTURE,
     });
     fs::write(
         out_dir.join("artifact-manifest.json"),
@@ -152,6 +195,7 @@ pub fn run_leserpent_aot_validation(
             .iter()
             .map(|fixture| format!("fixture-{fixture}.log")),
     );
+    evidence_files.push(format!("fixture-{PRESENTATION_FIXTURE}.log"));
     validate_evidence_files(&out_dir, &evidence_files)?;
     fs::write(
         out_dir.join("evidence-index.json"),
@@ -173,6 +217,8 @@ pub fn run_leserpent_aot_validation(
             "bounded_artifact_manifest".to_string(),
             "strict_artifact_inventory".to_string(),
             "four_control_fixtures".to_string(),
+            "native_presentation_fixture".to_string(),
+            "native_action_activation".to_string(),
             "debugger_cancel_lifecycle".to_string(),
             "complete_evidence_index".to_string(),
             "isolated_dotnet_artifacts".to_string(),
@@ -224,10 +270,12 @@ fn host_target(os: &str, arch: &str) -> Option<HostTarget> {
     }
 }
 
-fn run_control_fixture(
+fn run_fixture(
     target: HostTarget,
     executable: &Path,
     fixture: &Path,
+    mode: &str,
+    label: &str,
 ) -> Result<Output, ValidationError> {
     let mut command = if target.needs_xvfb {
         let mut command = Command::new("xvfb-run");
@@ -237,24 +285,20 @@ fn run_control_fixture(
     } else {
         Command::new(executable)
     };
-    let output = command
-        .args(["--verify-controls"])
-        .arg(fixture)
-        .output()
-        .map_err(|err| {
-            let dependency = if target.needs_xvfb {
-                "; install xvfb and xauth on the Linux host"
-            } else {
-                ""
-            };
-            ValidationError::new(format!(
-                "failed to execute control fixture `{}`: {err}{dependency}",
-                fixture.display()
-            ))
-        })?;
+    let output = command.arg(mode).arg(fixture).output().map_err(|err| {
+        let dependency = if target.needs_xvfb {
+            "; install xvfb and xauth on the Linux host"
+        } else {
+            ""
+        };
+        ValidationError::new(format!(
+            "failed to execute {label} `{}`: {err}{dependency}",
+            fixture.display()
+        ))
+    })?;
     if !output.status.success() {
         return Err(command_failure(
-            &format!("control fixture `{}` failed", fixture.display()),
+            &format!("{label} `{}` failed", fixture.display()),
             &output,
         ));
     }

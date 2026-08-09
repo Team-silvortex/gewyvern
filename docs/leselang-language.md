@@ -24,7 +24,7 @@ serializes, restores, and resumes the read-only
 `runtime.list`, `runtime.inspect`, `runtime.history`, and `runtime.logs` effects
 plus the idempotent `runtime.refresh`, `runtime.refresh_capabilities`, and
 explicitly confirmed `runtime.deploy` and `debugger.cancel` command effects,
-plus the frontend-local `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
+plus the frontend-local `ui.activate`, `ui.focus`, `ui.navigate_focus`, `ui.scroll_into_view`,
 `ui.assert_visible`, `ui.assert_hidden`, `ui.wait_hidden`, `ui.assert_realized`,
 `ui.wait_realized`, `ui.wait_visible`, `ui.assert_focused`, `ui.wait_focused`,
 `ui.assert_unfocused`, `ui.wait_unfocused`, `ui.assert_enabled`,
@@ -134,7 +134,22 @@ persists the command before dispatch and resumes from a typed, command-correlate
 and token-free cancellation result; the target VM remains the only authority
 that may cancel its continuation.
 
-The first presentation operation is stable-node focus:
+Stable-node activation is the presentation-side equivalent of a native user
+click:
+
+```leselang
+fn main() = ui.activate(node_id: "runtime-runtime-a-refresh")
+```
+
+`ui.activate` requires `ui.presentation`. The VM emits a typed, identity-bound
+presentation request and resumes only from the matching activation result;
+`leselang-command` rejects it as frontend-local. A renderer must resolve a
+realized, visible, effectively enabled semantic action and dispatch exactly one
+native activation event through the same route used by a manual click. Missing,
+non-action, unrealized, hidden, disabled, or platform-rejected targets fail
+closed without invoking the action callback or changing control-plane state.
+
+Stable-node focus remains a distinct, non-activating operation:
 
 ```leselang
 fn main() = ui.focus(node_id: "runtime-runtime-a-refresh")
