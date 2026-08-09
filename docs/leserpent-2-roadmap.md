@@ -1535,7 +1535,26 @@ initial snapshots are consumed and the pre-stop queue is drained; no late
 application event or stalled response escapes,
 and generation 1 is replayed without allocation. The next boundary repeats
 maximum-capacity connect/fanout/disconnect cycles while proving all slots are
-reclaimed and IPC/HTTPS continue to progress.
+reclaimed and IPC/HTTPS continue to progress. The twenty-third slice completes
+the production-process behavior proof across three uninterrupted cycles: 96
+capacity-window sessions and three immediate post-disconnect probes are
+admitted, three fenced runtime registrations each fan out the next snapshot to
+all 32 clients, and IPC plus HTTPS reads finish
+inside their five-second budgets during every capacity window. This exposed and
+fixed an admission race where a reconnect could be capacity-rejected before
+closed sessions were polled; event sessions are now reclaimed before accepting
+the next connection. All slots are immediately reusable and the same database
+restarts with generation 1 replayed. Retaining exact idle, capacity, reclaimed,
+and restart FD/task baselines on physical Linux is the remaining boundary.
+The twenty-fourth slice proves slow event consumers cannot become a global
+backpressure source. One maximum-capacity production process starts with 128
+runtime projections and 32 authenticated clients; one client stops reading
+while the other 31 consume 24 revision-bound snapshots each. All 744 healthy
+deliveries complete, IPC and HTTPS remain responsive after every eight
+revisions, and the non-reader is evicted by the 1 MiB bounded write buffer
+without affecting writer generation or restart. Physical Linux still needs to
+retain the exact slow-session FD reclamation and zero-task-amplification data
+beside the preceding three-cycle resource proof.
 
 Schema v3 added validated domain snapshots that preserve
 projection revisions and idempotency results; startup restores the snapshot and

@@ -561,6 +561,29 @@ late application event or stalled response, closes every event socket, releases
 proc/owner/socket state, and immediately restarts at 6 FDs/1 task with writer
 generation 1 replayed. No wire or event-envelope shape changes.
 
+Contract `1.23.0` repeats maximum WebSocket capacity across three uninterrupted
+connect/fanout/disconnect cycles. The production-process proof admits 96
+capacity-window sessions plus three immediate post-disconnect probes, completes
+one IPC and one HTTPS query during every 32-session capacity window, applies
+three generation-fenced registrations, and delivers all 96 revision-bound
+snapshots. Closed sessions are now polled before
+capacity admission, preventing the first immediate reconnect from being
+rejected against stale occupancy. Every cycle reuses all 32 slots, shutdown
+remains below one second, and the same database restarts with writer generation
+1 replayed. The exact FD/task baseline proof remains a physical Linux gate; no
+wire or event-envelope shape changes.
+
+Contract `1.24.0` isolates outbound event backpressure to the responsible
+session. A production-process proof seeds 128 endpoint-redacted runtime
+projections, holds one of 32 authenticated WebSocket clients completely
+non-reading, and advances authority through 24 generation-fenced updates. All
+31 healthy clients receive every snapshot, for 744 verified deliveries, while
+IPC and HTTPS reads remain below five seconds. Tungstenite retains transient
+`WouldBlock` frames inside its bounded write buffer; once another snapshot
+cannot fit, only the slow session is dropped. The same database then shuts down
+within one second and restarts with writer generation 1 replayed. Exact slow-FD
+reclamation remains a physical Linux evidence gate; no wire shape changes.
+
 ## Reproducible Proof
 
 Prove that the configured C# host consumes the canonical envelope returned by

@@ -144,7 +144,7 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         .expect("control-plane mutation inventory must exist"),
     )
     .expect("control-plane mutation inventory must decode");
-    assert_eq!(inventory["version"], "1.22.0");
+    assert_eq!(inventory["version"], "1.24.0");
     let mut expected_csharp_routes = json_string_set(&inventory, "mutation_routes");
     expected_csharp_routes.extend(json_string_set(&inventory, "read_only_post_allowlist"));
     assert_eq!(
@@ -453,6 +453,106 @@ fn control_plane_writer_inventory_is_exhaustive_across_csharp_and_rust_routes() 
         event_shutdown["physical_linux_evidence"],
         "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json"
     );
+}
+
+#[test]
+fn maximum_event_session_cycle_contract_tracks_reclamation_before_admission() {
+    let inventory: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root().join("docs/contracts/leserpent-control-plane-mutations-v1.json"),
+        )
+        .expect("control-plane mutation inventory must exist"),
+    )
+    .expect("control-plane mutation inventory must decode");
+    let proof = &inventory["rust_authority_writer_fence"]["maximum_event_session_cycle_proof"];
+    assert_eq!(proof["cycles"], 3);
+    assert_eq!(
+        proof["authenticated_websocket_event_sessions_per_cycle"],
+        32
+    );
+    assert_eq!(proof["maximum_capacity_window_sessions"], 96);
+    assert_eq!(proof["immediate_post_disconnect_reclamation_probes"], 3);
+    assert_eq!(proof["total_authenticated_websocket_event_sessions"], 99);
+    assert_eq!(proof["runtime_mutations"], 3);
+    assert_eq!(proof["runtime_snapshot_events"], 96);
+    assert!(
+        proof["cross_transport_progress"]
+            .as_str()
+            .unwrap()
+            .contains("ipc-query-and-one-authenticated-https-query")
+    );
+    assert!(
+        proof["reconnect_ordering"]
+            .as_str()
+            .unwrap()
+            .contains("before-a-new-connection")
+    );
+    assert!(
+        proof["remaining_physical_proof"]
+            .as_str()
+            .unwrap()
+            .contains("physical-linux-x86-64")
+    );
+    assert_eq!(
+        proof["local_evidence"],
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#maximum_event_session_cycles_reclaim_slots_and_preserve_cross_transport_progress"
+    );
+
+    let remote = std::fs::read_to_string(repository_root().join("crates/leserpentd/src/remote.rs"))
+        .expect("remote server source must exist");
+    let reclamation = remote
+        .find("// Reclaim closed event sessions before applying the capacity limit")
+        .expect("remote scheduler must document pre-admission reclamation");
+    let admission = remote[reclamation..]
+        .find("let accepted = match self.listener.accept()")
+        .expect("remote scheduler must retain listener admission after reclamation");
+    assert!(admission > 0);
+}
+
+#[test]
+fn slow_event_session_contract_is_bounded_and_non_vacuous() {
+    let inventory: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            repository_root().join("docs/contracts/leserpent-control-plane-mutations-v1.json"),
+        )
+        .expect("control-plane mutation inventory must exist"),
+    )
+    .expect("control-plane mutation inventory must decode");
+    let proof = &inventory["rust_authority_writer_fence"]["slow_event_session_isolation_proof"];
+    assert_eq!(proof["seeded_runtime_projections"], 128);
+    assert_eq!(proof["minimum_initial_snapshot_bytes"], 32 * 1_024);
+    assert_eq!(proof["maximum_event_sessions"], 32);
+    assert_eq!(proof["nonreading_event_sessions"], 1);
+    assert_eq!(proof["healthy_event_sessions"], 31);
+    assert_eq!(proof["authority_revisions"], 24);
+    assert_eq!(proof["healthy_runtime_snapshot_events"], 744);
+    assert_eq!(proof["event_write_buffer_limit_bytes"], 1_049_600);
+    assert!(
+        proof["slow_session_policy"]
+            .as_str()
+            .unwrap()
+            .contains("drop-only-the-slow-session")
+    );
+    assert!(
+        proof["remaining_physical_proof"]
+            .as_str()
+            .unwrap()
+            .contains("physical-linux-x86-64")
+    );
+    assert_eq!(
+        proof["local_evidence"],
+        "crates/leserpentd/tests/cross_transport_fairness_vertical.rs#slow_event_session_is_bounded_without_blocking_healthy_fanout_or_transports"
+    );
+
+    let events = std::fs::read_to_string(repository_root().join("crates/leserpentd/src/events.rs"))
+        .expect("event session source must exist");
+    let bounded_buffer = events
+        .find(".max_write_buffer_size(MAX_PROTOCOL_MESSAGE_BYTES + 1024)")
+        .expect("event sessions must retain a bounded write buffer");
+    let slow_session_drop = events[bounded_buffer..]
+        .find("Err(_) => false")
+        .expect("event sessions must isolate a terminal slow writer");
+    assert!(slow_session_drop > 0);
 }
 
 #[test]
@@ -3893,14 +3993,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         item.path == "docs/fixtures/leserpent_max_event_session_shutdown_linux_x86_64_20260802.json"
             && item.state == EvidenceState::Present
     }));
-    assert!(runtime.next_gate.contains("maximum-capacity WebSocket"));
+    assert!(runtime.next_gate.contains("physical Linux x86_64 evidence"));
 
     let daemon_lifecycle = catalog
         .cells
         .iter()
         .find(|cell| cell.id == "leserpent-2/daemon-host/daemon-lifecycle")
         .expect("Leserpent daemon lifecycle cell must exist");
-    assert_eq!(daemon_lifecycle.contract.version, "1.19.0");
+    assert_eq!(daemon_lifecycle.contract.version, "1.21.0");
     assert_eq!(
         daemon_lifecycle.contract.stability,
         ContractStability::Stable
@@ -4076,7 +4176,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert!(
         daemon_lifecycle
             .next_gate
-            .contains("maximum-capacity WebSocket")
+            .contains("physical Linux x86_64 evidence")
     );
 
     let compatibility_control = catalog
@@ -4084,7 +4184,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         .iter()
         .find(|cell| cell.id == "leserpent-1x/control-plane/orchestration-persistence")
         .expect("Leserpent compatibility control-plane cell must exist");
-    assert_eq!(compatibility_control.contract.version, "1.47.0");
+    assert_eq!(compatibility_control.contract.version, "1.49.0");
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "apps/leserpent/src/Leserpent/ControlPlane/DaemonAuthorityWriterSession.cs"
             && item.state == EvidenceState::Present
@@ -4520,11 +4620,11 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             "missing compatibility authority surface {surface}"
         );
     }
-    assert_eq!(compatibility_control.contract.version, "1.47.0");
+    assert_eq!(compatibility_control.contract.version, "1.49.0");
     assert!(
         compatibility_control
             .next_gate
-            .contains("maximum-capacity WebSocket")
+            .contains("physical Linux x86_64 evidence")
     );
     assert!(compatibility_control.evidence.iter().any(|item| {
         item.path == "crates/leserpentd/tests/authority_writer_takeover_vertical.rs"

@@ -289,6 +289,8 @@ impl RemoteServer {
         if cancelled.load(Ordering::Acquire) {
             return Ok(false);
         }
+        // Reclaim closed event sessions before applying the capacity limit to a reconnect.
+        self.poll_event_sessions(runtime);
         let accepted = match self.listener.accept() {
             Ok((stream, _)) => {
                 // Peer-controlled TLS, HTTP, and upgrade failures are isolated to this connection.
