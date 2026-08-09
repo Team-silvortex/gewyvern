@@ -170,6 +170,13 @@ internal static class Program
                 "workspace diagnostics valid: local_only=true, query=true, level=true, combined=true, bounded=true, empty_state=true, command_identity=true, explicit_export=true, file_export=true, maximal_escape=true, live_refresh=true, bounded_retry=true, manual_recovery=true, skip_neutral=true, delta_summary=true, severity_signal=true, snapshot_fence=true, severity_ack=true, incremental_logs=true");
             return 0;
         }
+        if (args is ["--verify-silvortex-account"])
+        {
+            SilvortexAccountSession.VerifyContract();
+            Console.WriteLine(
+                "Silvortex desktop account valid: native_client=true, system_browser=true, pkce_s256=true, state=true, nonce=true, response_issuer=true, strict_loopback_http=true, rs256_jwks=true, mfa=true, rotating_vault=true, duplicate_parameters=false, client_secret=false, offline_mode=true");
+            return 0;
+        }
         try
         {
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

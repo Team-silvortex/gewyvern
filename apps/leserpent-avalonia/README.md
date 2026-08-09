@@ -186,6 +186,33 @@ Verify the
 strict wire projection with `--verify-remote-topology` and the real Hub control
 tree with `--verify-hub-topology`.
 
+### Team Silvortex account
+
+The Hub account card is an optional native OIDC client. An unconfigured or
+unavailable account service never blocks local Orchestra or saved daemon
+connections. Configure a reviewed public client before launching the app:
+
+```bash
+export LESERPENT_SILVORTEX_ISSUER=https://id.example.invalid/
+export LESERPENT_SILVORTEX_CLIENT_ID=svx_client_leserpent_desktop
+export LESERPENT_SILVORTEX_CALLBACK_PORT=43817
+```
+
+Register the exact callback
+`http://127.0.0.1:43817/oidc/callback` for that client. The port defaults to
+`43817`; changing it requires a matching platform registration. Plain HTTP
+issuers are rejected except for a loopback development issuer with
+`LESERPENT_SILVORTEX_ALLOW_INSECURE_HTTP=true`.
+
+Sign-in opens the system browser and uses authorization code with PKCE S256,
+state, nonce, an exclusive loopback callback, strict same-origin discovery,
+RS256/JWKS verification, MFA assurance, and UserInfo subject binding. Only the
+rotating refresh token is persisted, under
+`org.gewyvern.leserpent.silvortex` in macOS Keychain or Linux Secret Service;
+access and ID tokens remain process-local. Team Silvortex account identity does
+not replace endpoint-bound `leserpentd` credentials. Verify the offline protocol
+and cryptographic contract with `--verify-silvortex-account`.
+
 `Deploy daemon` opens the native reverse-deployment workspace. It selects one
 saved authenticated daemon as the deployment authority, accepts only a target,
 SSH port, stable bootstrap ID, and opaque `vault:ssh:*` handle, and requires an

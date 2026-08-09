@@ -20,6 +20,7 @@ internal sealed class HubWindow : Window
     };
     private readonly int daemonCardCount;
     private readonly int expectedAuditedControlCount;
+    private readonly SilvortexAccountControl accountControl;
     private readonly TextBlock statusText = new()
     {
         FontSize = 13,
@@ -45,10 +46,11 @@ internal sealed class HubWindow : Window
         Action provisionRuntime,
         Action retireRuntime,
         Action addConnection,
-        Action<DesktopDaemonConnection> manageConnection)
+        Action<DesktopDaemonConnection> manageConnection,
+        SilvortexAccountSession accountSession)
     {
         daemonCardCount = connections.Count + (localSupported ? 1 : 0);
-        expectedAuditedControlCount = 6 + connections.Count * 3 + (localSupported ? 2 : 0);
+        expectedAuditedControlCount = 8 + connections.Count * 3 + (localSupported ? 2 : 0);
         Title = "Leserpent / Hub";
         Width = 900;
         Height = 680;
@@ -150,7 +152,9 @@ internal sealed class HubWindow : Window
             RowDefinitions = RowDefinitions.Parse("Auto,Auto"),
             RowSpacing = 14,
         };
-        heading.Children.Add(new StackPanel
+        accountControl = new SilvortexAccountControl(accountSession);
+        auditedControls.AddRange(accountControl.AuditedControls);
+        var headingIdentity = new StackPanel
         {
             Spacing = 5,
             Children =
@@ -178,7 +182,15 @@ internal sealed class HubWindow : Window
                     TextWrapping = TextWrapping.Wrap,
                 },
             },
-        });
+        };
+        var headingTop = new Grid
+        {
+            ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"),
+            ColumnSpacing = 20,
+            Children = { headingIdentity, accountControl },
+        };
+        Grid.SetColumn(accountControl, 1);
+        heading.Children.Add(headingTop);
         Grid.SetRow(headingActions, 1);
         heading.Children.Add(headingActions);
 
@@ -293,6 +305,7 @@ internal sealed class HubWindow : Window
         {
             topologyRefreshTimer.Stop();
             lifetime.Cancel();
+            accountControl.Dispose();
         };
     }
 

@@ -10,6 +10,7 @@ internal sealed class LeserpentApp : Application
 {
     private const int MaxPayloadBytes = 2 * 1024 * 1024;
     private static LocalOrchestraServiceSupervisor? localOrchestraService;
+    private static SilvortexAccountSession? silvortexAccountSession;
     private static readonly Dictionary<string, RemoteMainWindow> daemonSessions =
         new(StringComparer.Ordinal);
     private static bool shutdownHookInstalled;
@@ -388,7 +389,8 @@ internal sealed class LeserpentApp : Application
             () => { },
             () => { },
             () => { },
-            _ => { });
+            _ => { },
+            SilvortexAccountSession.DisabledForVerification());
         RegisterMainWindowLifecycle(desktop, window);
         window.Opened += (_, _) =>
         {
@@ -796,7 +798,11 @@ internal sealed class LeserpentApp : Application
                 out var localStartupError);
             if (!shutdownHookInstalled)
             {
-                AppDomain.CurrentDomain.ProcessExit += (_, _) => localOrchestraService?.Dispose();
+                AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+                {
+                    localOrchestraService?.Dispose();
+                    silvortexAccountSession?.Dispose();
+                };
                 shutdownHookInstalled = true;
             }
             if (initialError is null && localStartupError is not null)
@@ -858,10 +864,14 @@ internal sealed class LeserpentApp : Application
             () => ShowGewyvernProvisioning(desktop, catalogStore, certificateStore),
             () => ShowGewyvernRetirement(desktop, catalogStore, certificateStore),
             () => ShowConnectionManager(desktop, null),
-            connection => ShowConnectionManager(desktop, connection));
+            connection => ShowConnectionManager(desktop, connection),
+            SilvortexAccount());
         RegisterMainWindowLifecycle(desktop, hub);
         desktop.MainWindow = hub;
     }
+
+    private static SilvortexAccountSession SilvortexAccount() =>
+        silvortexAccountSession ??= SilvortexAccountSession.FromEnvironment();
 
     private static string? OpenRemoteFromConnection(
         IClassicDesktopStyleApplicationLifetime desktop,

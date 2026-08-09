@@ -134,6 +134,83 @@ public static class BootstrapSessionCredentialResolver
     }
 }
 
+public static class PlatformCredentialVault
+{
+    public static string? Load(string service, string account)
+    {
+        ValidateAddress(service, account);
+        try
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                return MacKeychain.Load(service, account);
+            }
+            if (OperatingSystem.IsLinux())
+            {
+                return LinuxSecretService.LoadAccount(service, account);
+            }
+            return null;
+        }
+        catch (DllNotFoundException)
+        {
+            return null;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    public static void Store(string service, string account, string secret)
+    {
+        ValidateAddress(service, account);
+        if (secret.Length is <= 0 or > 4096 || secret.Contains('\0'))
+        {
+            throw new InvalidDataException("platform credential secret is invalid");
+        }
+        if (OperatingSystem.IsMacOS())
+        {
+            MacKeychain.Store(service, account, secret);
+            return;
+        }
+        if (OperatingSystem.IsLinux())
+        {
+            LinuxSecretService.StoreAccount(service, account, secret);
+            return;
+        }
+        throw new PlatformNotSupportedException(
+            "platform credential writes require macOS Keychain or Linux Secret Service");
+    }
+
+    public static void Delete(string service, string account)
+    {
+        ValidateAddress(service, account);
+        if (OperatingSystem.IsMacOS())
+        {
+            MacKeychain.Delete(service, account);
+            return;
+        }
+        if (OperatingSystem.IsLinux())
+        {
+            LinuxSecretService.DeleteAccount(service, account);
+            return;
+        }
+        throw new PlatformNotSupportedException(
+            "platform credential deletion requires macOS Keychain or Linux Secret Service");
+    }
+
+    private static void ValidateAddress(string service, string account)
+    {
+        if (service.Length is <= 0 or > 128
+            || account.Length is <= 0 or > 512
+            || service.Any(char.IsControl)
+            || account.Any(char.IsControl))
+        {
+            throw new InvalidDataException("platform credential address is invalid");
+        }
+    }
+}
+
 public sealed class PlatformRemoteTokenStore : IRemoteTokenVault
 {
     public const string Service = "org.gewyvern.leserpent.remote";
@@ -404,6 +481,12 @@ internal static partial class LinuxSecretService
     public static string? LoadAccount(string service, string account) =>
         Load(service, "account", account);
 
+    public static void StoreAccount(string service, string account, string secret) =>
+        Store(service, "account", account, "Leserpent account session", secret);
+
+    public static void DeleteAccount(string service, string account) =>
+        Delete(service, "account", account);
+
     private static string? Load(string service, string attribute, string value)
     {
         var schema = SecretSchemaNew(
@@ -457,21 +540,29 @@ internal static partial class LinuxSecretService
     }
 
     public static void Store(string service, string endpoint, string token)
+        => Store(service, "endpoint", endpoint, "Leserpent remote token", token);
+
+    private static void Store(
+        string service,
+        string attribute,
+        string value,
+        string label,
+        string token)
     {
-        var schema = CreateSchema(service);
+        var schema = CreateSchema(service, attribute);
         try
         {
             var stored = SecretPasswordStoreSync(
                 schema,
                 IntPtr.Zero,
-                "Leserpent remote token",
+                label,
                 token,
                 IntPtr.Zero,
                 out var error,
                 "service",
                 service,
-                "endpoint",
-                endpoint,
+                attribute,
+                value,
                 IntPtr.Zero);
             EnsureMutation(stored, error, "write");
         }
@@ -482,8 +573,11 @@ internal static partial class LinuxSecretService
     }
 
     public static void Delete(string service, string endpoint)
+        => Delete(service, "endpoint", endpoint);
+
+    private static void Delete(string service, string attribute, string value)
     {
-        var schema = CreateSchema(service);
+        var schema = CreateSchema(service, attribute);
         try
         {
             var cleared = SecretPasswordClearSync(
@@ -492,10 +586,10 @@ internal static partial class LinuxSecretService
                 out var error,
                 "service",
                 service,
-                "endpoint",
-                endpoint,
+                attribute,
+                value,
                 IntPtr.Zero);
-            EnsureMutation(cleared, error, "deletion");
+            EnsureMutation(cleared, error, "deletion", allowMissing: true);
         }
         finally
         {
@@ -503,14 +597,14 @@ internal static partial class LinuxSecretService
         }
     }
 
-    private static IntPtr CreateSchema(string service)
+    private static IntPtr CreateSchema(string service, string attribute)
     {
         var schema = SecretSchemaNew(
             service,
             DontMatchSchemaName,
             "service",
             AttributeString,
-            "endpoint",
+            attribute,
             AttributeString,
             IntPtr.Zero);
         return schema == IntPtr.Zero
@@ -518,7 +612,11 @@ internal static partial class LinuxSecretService
             : schema;
     }
 
-    private static void EnsureMutation(int succeeded, IntPtr error, string operation)
+    private static void EnsureMutation(
+        int succeeded,
+        IntPtr error,
+        string operation,
+        bool allowMissing = false)
     {
         if (error != IntPtr.Zero)
         {
@@ -526,7 +624,7 @@ internal static partial class LinuxSecretService
             throw new InvalidOperationException(
                 $"Linux Secret Service rejected the token {operation}");
         }
-        if (succeeded == 0)
+        if (succeeded == 0 && !allowMissing)
         {
             throw new InvalidOperationException(
                 $"Linux Secret Service did not complete the token {operation}");

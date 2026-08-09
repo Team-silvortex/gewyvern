@@ -858,3 +858,30 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
     assert!(supervisor.contains("Directory.CreateSymbolicLink"));
     assert!(supervisor.contains("File.CreateSymbolicLink"));
 }
+
+#[test]
+fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
+    let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
+    let control = avalonia_source("Leserpent.Avalonia/SilvortexAccountControl.cs");
+    let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
+    let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+    let vault = avalonia_source("Leserpent.RemoteClient/RemoteTokenStore.cs");
+
+    assert!(account.contains("code_challenge_method"));
+    assert!(account.contains("AuthorizationTransaction.Create()"));
+    assert!(account.contains("FixedTimeEquals(state, expectedState)"));
+    assert!(account.contains("VerifyIdTokenAsync"));
+    assert!(account.contains("RSASignaturePadding.Pkcs1"));
+    assert!(account.contains("urn:silvortex:assurance:mfa"));
+    assert!(account.contains("PlatformCredentialVault.Store"));
+    assert!(account.contains("CredentialService = \"org.gewyvern.leserpent.silvortex\""));
+    assert!(!account.contains("new(\"client_secret\""));
+    assert!(control.contains("hub-silvortex-action"));
+    assert!(control.contains("Daemon credentials remain separate"));
+    assert!(hub.contains("SilvortexAccountControl"));
+    assert!(app.contains("SilvortexAccountSession.FromEnvironment()"));
+    assert!(program.contains("--verify-silvortex-account"));
+    assert!(vault.contains("public static class PlatformCredentialVault"));
+    assert!(vault.contains("LinuxSecretService.StoreAccount"));
+}

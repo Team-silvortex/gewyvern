@@ -3523,7 +3523,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.80.0");
+    assert_eq!(avalonia.contract.version, "1.81.0");
     assert!(
         avalonia
             .contract
@@ -3532,6 +3532,18 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
             .any(|surface| surface == "avalonia-generation-horizon-classification")
     );
     for surface in [
+        "optional-team-silvortex-account",
+        "oidc-native-code-pkce",
+        "system-browser-loopback-callback",
+        "strict-oidc-discovery-origin",
+        "rs256-jwks-id-token-verification",
+        "mfa-assurance-required",
+        "userinfo-subject-binding",
+        "rotating-refresh-token-vault",
+        "offline-daemon-independence",
+        "account-control-automation",
+        "duplicate-callback-parameter-rejection",
+        "public-client-no-secret",
         "strict-ui-adapter-manifest-codec",
         "developer-owned-adapter-manifest-validation",
         "generated-binding-manifest-validation",
