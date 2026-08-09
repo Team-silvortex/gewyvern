@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output};
 
+use gewyvern::leserpent_account_config::{SILVORTEX_ISSUER_KEY, is_canonical_https_origin};
 use gewyvern::native_binary::file_is_mach_o_arm64;
 use ring::digest::{SHA256, digest};
 use serde_json::json;
@@ -533,6 +534,15 @@ fn validate_plist(plist: &str) -> Result<(), String> {
             ));
         }
     }
+    let issuer_marker = format!("<key>{SILVORTEX_ISSUER_KEY}</key>");
+    if plist.contains(&issuer_marker) {
+        let issuer = plist_string_value(plist, SILVORTEX_ISSUER_KEY)?;
+        if !is_canonical_https_origin(issuer) {
+            return Err(
+                "Info.plist Team Silvortex issuer is not a canonical HTTPS origin".to_string(),
+            );
+        }
+    }
     Ok(())
 }
 
@@ -873,6 +883,38 @@ mod tests {
     fn plist_validation_binds_unique_identity_and_workspace_version_fields() {
         let valid = valid_plist();
         assert!(validate_plist(&valid).is_ok());
+        let with_issuer = valid.replace(
+            "</dict>",
+            &format!(
+                "<key>{SILVORTEX_ISSUER_KEY}</key>\
+                 <string>https://id.example.invalid/</string></dict>"
+            ),
+        );
+        assert!(validate_plist(&with_issuer).is_ok());
+        assert!(validate_plist(&with_issuer.replace("https://", "http://")).is_err());
+        assert!(
+            validate_plist(
+                &with_issuer.replace("https://id.example.invalid/", "https://foo&amp;bar/")
+            )
+            .is_err()
+        );
+        assert!(
+            validate_plist(&with_issuer.replace(
+                "https://id.example.invalid/",
+                "https://id.example.invalid:443/"
+            ))
+            .is_err()
+        );
+        assert!(
+            validate_plist(&with_issuer.replace(
+                &format!("<key>{SILVORTEX_ISSUER_KEY}</key>"),
+                &format!(
+                    "<key>{SILVORTEX_ISSUER_KEY}</key><string>https://id.example.invalid/</string>\
+                     <key>{SILVORTEX_ISSUER_KEY}</key>"
+                ),
+            ))
+            .is_err()
+        );
 
         let duplicate = valid.replace(
             "<key>CFBundleVersion</key>",

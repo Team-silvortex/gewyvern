@@ -134,7 +134,7 @@ fn macos_bundle_inherits_the_workspace_version_by_default() {
     assert!(bundler.contains("env!(\"CARGO_PKG_VERSION\").to_string()"));
     assert!(bundler.contains("<key>CFBundleShortVersionString</key>"));
     assert!(bundler.contains("<key>CFBundleVersion</key>"));
-    assert!(bundler.contains("plist != info_plist(version)"));
+    assert!(bundler.contains("plist != info_plist(version, silvortex_issuer)"));
     assert!(release.contains("const PRODUCT_VERSION: &str = env!(\"CARGO_PKG_VERSION\")"));
     assert!(release.contains("Info.plist contains duplicate {key}"));
     assert!(release.contains("CFBundleShortVersionString"));

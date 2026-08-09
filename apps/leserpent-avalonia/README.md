@@ -204,12 +204,19 @@ The Hub account card is an optional native OIDC client. An unconfigured or
 unavailable account service never blocks local Orchestra or saved daemon
 connections. Team Silvortex Platform registers the reviewed `leserpent` /
 `leserpent_desktop` profile as the fixed public client
-`svx_client_leserpent_desktop`. A standard deployment therefore needs only its
-issuer before launching the app:
+`svx_client_leserpent_desktop`. A formal macOS deployment embeds its public
+HTTPS issuer in the signed application bundle at packaging time. Flat
+development builds and Linux validation may instead provide it through the
+environment:
 
 ```bash
 export LESERPENT_SILVORTEX_ISSUER=https://id.example.invalid/
 ```
+
+`id.example.invalid` is a non-resolving documentation placeholder; replace it
+with the reviewed production origin. A packaged macOS app fails closed if an
+issuer, client, callback, or insecure-HTTP environment override is present,
+rather than changing its bundle-owned registration.
 
 Register the exact callback
 `http://127.0.0.1:43817/oidc/callback` for that client. The port defaults to
@@ -244,12 +251,12 @@ Leserpent --verify-silvortex-account-proof
 ```
 
 Then close every ordinary Leserpent process, sign out any existing Team
-Silvortex account, configure only the production HTTPS issuer, and run the
-NativeAOT executable with an absolute, nonexistent output path:
+Silvortex account, and run the packaged NativeAOT executable with an absolute,
+nonexistent output path. On macOS the reviewed issuer must already be embedded
+in `Info.plist`; an environment-only flat binary is deliberately rejected:
 
 ```bash
-LESERPENT_SILVORTEX_ISSUER=https://id.example.invalid/ \
-  /Applications/Leserpent.app/Contents/MacOS/Leserpent \
+/Applications/Leserpent.app/Contents/MacOS/Leserpent.Avalonia \
   --prove-silvortex-account /absolute/path/leserpent-account-proof.json
 ```
 
@@ -788,6 +795,7 @@ cargo build --release -p leserpentd --features native-ssh
 cargo run --bin gewyvern_leserpent_bundle -- \
   --publish-dir artifacts/leserpent-avalonia/osx-arm64 \
   --daemon target/release/leserpentd \
+  --silvortex-issuer https://id.example.invalid/ \
   --output artifacts/leserpent-avalonia/Leserpent.app
 ```
 
@@ -796,7 +804,11 @@ The bundler emits a deterministic `Contents/MacOS`, `Contents/Resources`, and
 and embeds the native Rust `leserpentd` beside the Avalonia executable, copies
 native `.dylib` dependencies, omits `.pdb` and `.dSYM`, rejects symlinks,
 unknown files, and non-arm64 payloads, and refuses to replace an existing
-bundle. The official path omits `--version`, so both bundle version fields
+bundle. `--silvortex-issuer` accepts only a canonical HTTPS origin ending in
+`/`, writes no credential, and may be omitted to keep the optional account
+feature disabled. The release preflight and NativeAOT client independently
+revalidate this public plist value. The official path omits `--version`, so
+both bundle version fields
 inherit the root Rust workspace release automatically; downstream packagers
 may still override that value explicitly. `leserpent-icon.icns` is generated
 from the checked Leserpent artwork.

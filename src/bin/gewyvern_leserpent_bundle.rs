@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use gewyvern::leserpent_account_config::{SILVORTEX_ISSUER_KEY, is_canonical_https_origin};
 use gewyvern::native_binary::file_is_mach_o_arm64;
 
 const EXECUTABLE: &str = "Leserpent.Avalonia";
@@ -17,10 +18,15 @@ fn main() {
         .and_then(|options| create_bundle(&options).map(|_| options))
     {
         Ok(options) => println!(
-            "Leserpent app bundle valid: path={}, version={}, executable={}, token_files=false",
+            "Leserpent app bundle valid: path={}, version={}, executable={}, token_files=false, account_issuer={}",
             options.output.display(),
             options.version,
-            EXECUTABLE
+            EXECUTABLE,
+            if options.silvortex_issuer.is_some() {
+                "packaged"
+            } else {
+                "disabled"
+            }
         ),
         Err(error) => {
             eprintln!("Leserpent app bundle failed: {error}");
@@ -36,6 +42,7 @@ struct Options {
     icon: PathBuf,
     daemon: Option<PathBuf>,
     version: String,
+    silvortex_issuer: Option<String>,
 }
 
 impl Options {
@@ -45,13 +52,14 @@ impl Options {
         let mut icon = PathBuf::from("assets/branding/leserpent-icon.icns");
         let mut daemon = None;
         let mut version = env!("CARGO_PKG_VERSION").to_string();
+        let mut silvortex_issuer = None;
         let mut args = args.peekable();
         while let Some(argument) = args.next() {
             let value = match argument.as_str() {
-                "--publish-dir" | "--output" | "--icon" | "--version" | "--daemon" => {
-                    args.next()
-                        .ok_or_else(|| format!("{argument} requires a value"))?
-                }
+                "--publish-dir" | "--output" | "--icon" | "--version" | "--daemon"
+                | "--silvortex-issuer" => args
+                    .next()
+                    .ok_or_else(|| format!("{argument} requires a value"))?,
                 "--help" | "-h" => return Err(usage().to_string()),
                 _ => return Err(format!("unknown argument `{argument}`\n{}", usage())),
             };
@@ -61,6 +69,11 @@ impl Options {
                 "--icon" => icon = PathBuf::from(value),
                 "--daemon" => daemon = Some(PathBuf::from(value)),
                 "--version" => version = value,
+                "--silvortex-issuer" => {
+                    if silvortex_issuer.replace(value).is_some() {
+                        return Err("--silvortex-issuer may be specified only once".to_string());
+                    }
+                }
                 _ => unreachable!(),
             }
         }
@@ -70,6 +83,7 @@ impl Options {
             icon,
             daemon,
             version,
+            silvortex_issuer,
         };
         options.validate()?;
         Ok(options)
@@ -81,6 +95,13 @@ impl Options {
         }
         if let Some(daemon) = self.daemon.as_deref() {
             require_file(daemon, "configured daemon", None)?;
+        }
+        if let Some(issuer) = self.silvortex_issuer.as_deref() {
+            if !is_canonical_https_origin(issuer) {
+                return Err(
+                    "--silvortex-issuer must be a canonical HTTPS origin ending in /".to_string(),
+                );
+            }
         }
         let segments = self.version.split('.').collect::<Vec<_>>();
         if !(1..=3).contains(&segments.len())
@@ -135,9 +156,16 @@ fn create_bundle(options: &Options) -> Result<(), String> {
         }
         fs::copy(&options.icon, resources.join("leserpent.icns"))
             .map_err(|error| error.to_string())?;
-        fs::write(contents.join("Info.plist"), info_plist(&options.version))
-            .map_err(|error| error.to_string())?;
-        verify_bundle(&options.output, &options.version)
+        fs::write(
+            contents.join("Info.plist"),
+            info_plist(&options.version, options.silvortex_issuer.as_deref()),
+        )
+        .map_err(|error| error.to_string())?;
+        verify_bundle(
+            &options.output,
+            &options.version,
+            options.silvortex_issuer.as_deref(),
+        )
     })();
     if result.is_err() {
         let _ = fs::remove_dir_all(&options.output);
@@ -302,7 +330,11 @@ fn require_file(path: &Path, label: &str, max_bytes: Option<u64>) -> Result<(), 
     Ok(())
 }
 
-fn verify_bundle(bundle: &Path, version: &str) -> Result<(), String> {
+fn verify_bundle(
+    bundle: &Path,
+    version: &str,
+    silvortex_issuer: Option<&str>,
+) -> Result<(), String> {
     let executable = bundle.join("Contents/MacOS").join(EXECUTABLE);
     let daemon = bundle.join("Contents/MacOS").join(DAEMON_EXECUTABLE);
     require_file(&executable, "bundled executable", None)?;
@@ -330,13 +362,16 @@ fn verify_bundle(bundle: &Path, version: &str) -> Result<(), String> {
     )?;
     let plist = fs::read_to_string(bundle.join("Contents/Info.plist"))
         .map_err(|error| error.to_string())?;
-    if plist != info_plist(version) {
+    if plist != info_plist(version, silvortex_issuer) {
         return Err("generated Info.plist failed its exact metadata contract".to_string());
     }
     Ok(())
 }
 
-fn info_plist(version: &str) -> String {
+fn info_plist(version: &str, silvortex_issuer: Option<&str>) -> String {
+    let account_configuration = silvortex_issuer.map_or_else(String::new, |issuer| {
+        format!("  <key>{SILVORTEX_ISSUER_KEY}</key>\n  <string>{issuer}</string>\n")
+    });
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -362,7 +397,7 @@ fn info_plist(version: &str) -> String {
   <string>{version}</string>
   <key>CFBundleVersion</key>
   <string>{version}</string>
-  <key>LSApplicationCategoryType</key>
+{account_configuration}  <key>LSApplicationCategoryType</key>
   <string>public.app-category.developer-tools</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
@@ -375,7 +410,7 @@ fn info_plist(version: &str) -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: gewyvern_leserpent_bundle --publish-dir DIR --output Leserpent.app [--daemon FILE] [--icon FILE] [--version X.Y.Z]"
+    "usage: gewyvern_leserpent_bundle --publish-dir DIR --output Leserpent.app [--daemon FILE] [--icon FILE] [--version X.Y.Z] [--silvortex-issuer HTTPS_ORIGIN]"
 }
 
 #[cfg(test)]
@@ -437,11 +472,84 @@ mod tests {
 
     #[test]
     fn plist_has_stable_product_metadata() {
-        let plist = info_plist("1.2.0");
+        let plist = info_plist("1.2.0", None);
         assert!(plist.contains("org.gewyvern.leserpent"));
         assert!(plist.contains("public.app-category.developer-tools"));
         assert_eq!(plist.matches("<string>1.2.0</string>").count(), 2);
         assert!(!plist.contains("token"));
+        assert!(!plist.contains(SILVORTEX_ISSUER_KEY));
+    }
+
+    #[test]
+    fn packaged_silvortex_issuer_is_public_strict_and_exact() {
+        let issuer = "https://id.example.invalid/";
+        let options = Options::parse(
+            [
+                "--publish-dir",
+                "publish",
+                "--output",
+                "Leserpent.app",
+                "--silvortex-issuer",
+                issuer,
+            ]
+            .into_iter()
+            .map(str::to_string),
+        )
+        .unwrap();
+        assert_eq!(options.silvortex_issuer.as_deref(), Some(issuer));
+        assert!(
+            Options::parse(
+                [
+                    "--publish-dir",
+                    "publish",
+                    "--output",
+                    "Leserpent.app",
+                    "--silvortex-issuer",
+                    issuer,
+                    "--silvortex-issuer",
+                    issuer,
+                ]
+                .into_iter()
+                .map(str::to_string),
+            )
+            .is_err()
+        );
+        let plist = info_plist("1.2.0", Some(issuer));
+        assert!(plist.contains(SILVORTEX_ISSUER_KEY));
+        assert!(plist.contains("<string>https://id.example.invalid/</string>"));
+        assert!(!plist.contains("client_secret"));
+
+        for invalid in [
+            "http://id.example.invalid/",
+            "https://id.example.invalid/path",
+            "https://user@id.example.invalid/",
+            "https://id.example.invalid/?query=1",
+            "https://id.example.invalid/#fragment",
+            "https://id.example.invalid/<key>",
+            "https://foo&bar/",
+            "https://999.0.0.1/",
+            "https://2130706433/",
+            "https://0x7f000001/",
+            "https://id.example.invalid:443/",
+        ] {
+            assert!(!is_canonical_https_origin(invalid), "{invalid}");
+            assert!(
+                Options::parse(
+                    [
+                        "--publish-dir",
+                        "publish",
+                        "--output",
+                        "Leserpent.app",
+                        "--silvortex-issuer",
+                        invalid,
+                    ]
+                    .into_iter()
+                    .map(str::to_string),
+                )
+                .is_err(),
+                "{invalid}"
+            );
+        }
     }
 
     #[test]
@@ -472,19 +580,24 @@ mod tests {
             icon,
             daemon: None,
             version: "1.2.0".to_string(),
+            silvortex_issuer: Some("https://id.example.invalid/".to_string()),
         };
         create_bundle(&options).unwrap();
 
         let plist_path = output.join("Contents/Info.plist");
-        let ambiguous = info_plist("1.2.0").replace(
+        let ambiguous = info_plist("1.2.0", options.silvortex_issuer.as_deref()).replace(
             "<key>CFBundleVersion</key>",
             "<key>CFBundleVersion</key>\n  <key>CFBundleVersion</key>",
         );
         fs::write(&plist_path, ambiguous).unwrap();
-        assert!(verify_bundle(&output, "1.2.0").is_err());
+        assert!(verify_bundle(&output, "1.2.0", options.silvortex_issuer.as_deref()).is_err());
 
-        fs::write(&plist_path, info_plist("1.2.1")).unwrap();
-        assert!(verify_bundle(&output, "1.2.0").is_err());
+        fs::write(
+            &plist_path,
+            info_plist("1.2.1", options.silvortex_issuer.as_deref()),
+        )
+        .unwrap();
+        assert!(verify_bundle(&output, "1.2.0", options.silvortex_issuer.as_deref()).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -504,6 +617,7 @@ mod tests {
             icon,
             daemon: None,
             version: PRODUCT_VERSION_FOR_TEST.to_string(),
+            silvortex_issuer: None,
         };
 
         assert!(create_bundle(&options).unwrap_err().contains("ARM Mach-O"));
@@ -526,6 +640,7 @@ mod tests {
             icon,
             daemon: Some(root.join("absent-leserpentd")),
             version: PRODUCT_VERSION_FOR_TEST.to_string(),
+            silvortex_issuer: None,
         };
 
         assert!(
@@ -573,6 +688,7 @@ mod tests {
             icon,
             daemon: None,
             version: "1.2.0".to_string(),
+            silvortex_issuer: None,
         };
 
         create_bundle(&options).unwrap();

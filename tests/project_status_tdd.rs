@@ -3875,7 +3875,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.88.0");
+    assert_eq!(avalonia.contract.version, "1.89.0");
     assert!(
         avalonia
             .contract
@@ -3910,6 +3910,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "failed-proof-local-credential-cleanup",
         "identity-free-account-proof",
         "native-aot-account-proof-fence",
+        "bundle-owned-silvortex-issuer",
+        "canonical-public-issuer-origin",
+        "finder-account-configuration",
+        "bounded-info-plist-account-reader",
+        "plist-account-entity-rejection",
+        "packaged-account-environment-override-rejection",
+        "release-preflight-account-config-validation",
+        "macos-proof-packaged-config-fence",
         "strict-ui-adapter-manifest-codec",
         "developer-owned-adapter-manifest-validation",
         "generated-binding-manifest-validation",
@@ -4089,11 +4097,24 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 == "apps/leserpent-avalonia/src/Leserpent.Avalonia/SilvortexAccountProof.cs"
             && item.state == EvidenceState::Present
     }));
+    assert!(avalonia.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Source
+            && item.path
+                == "apps/leserpent-avalonia/src/Leserpent.Avalonia/SilvortexAccountConfiguration.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(avalonia.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Source
+            && item.path == "src/leserpent_account_config.rs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(avalonia.next_gate.contains("--silvortex-issuer"));
     assert!(avalonia.next_gate.contains("--prove-silvortex-account"));
-    assert!(avalonia.next_gate.contains("packaged macOS NativeAOT"));
+    assert!(avalonia.next_gate.contains("macOS NativeAOT application"));
     assert!(avalonia.next_gate.contains("system-browser"));
     assert!(avalonia.next_gate.contains("credential-vault"));
     assert!(avalonia.next_gate.contains("local logout"));
+    assert!(avalonia.next_gate.contains("Linux Secret Service"));
     assert!(avalonia.blockers.is_empty());
 
     let transport = catalog

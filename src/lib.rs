@@ -10,6 +10,7 @@ pub mod gewyc;
 pub mod http;
 pub mod ir;
 pub mod ledger;
+pub mod leserpent_account_config;
 pub mod leserpent_macos_install;
 pub mod linux_ebpf_smoke;
 pub mod loader;

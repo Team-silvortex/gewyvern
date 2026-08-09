@@ -42,41 +42,11 @@ internal sealed record SilvortexAccountOptions(
     public const string AllowInsecureEnvironmentVariable =
         "LESERPENT_SILVORTEX_ALLOW_INSECURE_HTTP";
     public const int DefaultCallbackPort = 43817;
+    public const int MaxIssuerLength = 2048;
 
     public Uri RedirectUri => new($"http://127.0.0.1:{CallbackPort}{CallbackPath}");
 
     public string CredentialAccount => $"{Issuer.AbsoluteUri}|{ClientId}";
-
-    public static (SilvortexAccountOptions? Options, string Message) FromEnvironment()
-    {
-        var issuer = Environment.GetEnvironmentVariable(IssuerEnvironmentVariable)?.Trim();
-        var clientId = Environment.GetEnvironmentVariable(ClientIdEnvironmentVariable)?.Trim();
-        if (string.IsNullOrEmpty(issuer) && string.IsNullOrEmpty(clientId))
-        {
-            return (null, "Team Silvortex sign-in is optional and is not configured for this build.");
-        }
-        if (string.IsNullOrEmpty(issuer))
-        {
-            return (null, $"Set {IssuerEnvironmentVariable} when configuring Team Silvortex sign-in.");
-        }
-        clientId = ResolveClientId(clientId);
-        var allowInsecure = string.Equals(
-            Environment.GetEnvironmentVariable(AllowInsecureEnvironmentVariable),
-            "true",
-            StringComparison.OrdinalIgnoreCase);
-        var portText = Environment.GetEnvironmentVariable(CallbackPortEnvironmentVariable)?.Trim();
-        var port = string.IsNullOrEmpty(portText)
-            ? DefaultCallbackPort
-            : int.TryParse(portText, out var parsed) ? parsed : -1;
-        try
-        {
-            return (Create(issuer, clientId, port, allowInsecure), "Team Silvortex sign-in is ready.");
-        }
-        catch (InvalidDataException error)
-        {
-            return (null, error.Message);
-        }
-    }
 
     internal static SilvortexAccountOptions Create(
         string issuer,
@@ -84,11 +54,17 @@ internal sealed record SilvortexAccountOptions(
         int callbackPort,
         bool allowInsecure = false)
     {
-        if (!Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri)
+        if (issuer.Length is <= 0 or > MaxIssuerLength
+            || issuer.Any(character => character > 0x7f
+                || char.IsControl(character)
+                || char.IsWhiteSpace(character))
+            || !Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri)
             || !string.IsNullOrEmpty(issuerUri.UserInfo)
             || !string.IsNullOrEmpty(issuerUri.Query)
             || !string.IsNullOrEmpty(issuerUri.Fragment)
-            || issuerUri.AbsolutePath != "/")
+            || issuerUri.AbsolutePath != "/"
+            || issuerUri.Port == 0
+            || !IsCanonicalIssuerHost(issuerUri))
         {
             throw new InvalidDataException("Team Silvortex issuer must be an absolute origin URL.");
         }
@@ -108,7 +84,31 @@ internal sealed record SilvortexAccountOptions(
             throw new InvalidDataException("Team Silvortex callback port is invalid.");
         }
         var normalizedIssuer = new UriBuilder(issuerUri) { Path = "/" }.Uri;
+        if (!string.Equals(normalizedIssuer.AbsoluteUri, issuer, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "Team Silvortex issuer must use its canonical origin spelling.");
+        }
         return new SilvortexAccountOptions(normalizedIssuer, clientId, callbackPort);
+    }
+
+    private static bool IsCanonicalIssuerHost(Uri issuer)
+    {
+        var host = issuer.IdnHost;
+        return Uri.CheckHostName(host) switch
+        {
+            UriHostNameType.IPv4 or UriHostNameType.IPv6 => true,
+            UriHostNameType.Dns => host.Length <= 253
+                && !(host.Contains('.')
+                    && host.All(character => char.IsAsciiDigit(character) || character == '.'))
+                && host.Split('.').All(label => label.Length is > 0 and <= 63
+                    && label.All(character => char.IsAsciiLetterLower(character)
+                        || char.IsAsciiDigit(character)
+                        || character == '-')
+                    && label[0] != '-'
+                    && label[^1] != '-'),
+            _ => false,
+        };
     }
 
     internal static string ResolveClientId(string? configured) =>
@@ -169,9 +169,9 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     internal bool RefreshTokenRevocationAttempted { get; private set; }
 
-    public static SilvortexAccountSession FromEnvironment()
+    public static SilvortexAccountSession FromRuntimeConfiguration()
     {
-        var configuration = SilvortexAccountOptions.FromEnvironment();
+        var configuration = SilvortexAccountConfigurationLoader.Load();
         return new SilvortexAccountSession(configuration.Options, configuration.Message);
     }
 
@@ -297,6 +297,22 @@ internal sealed class SilvortexAccountSession : IDisposable
             "https://id.example.invalid/",
             SilvortexAccountOptions.ReviewedClientId,
             SilvortexAccountOptions.DefaultCallbackPort);
+        foreach (var validIssuer in new[]
+        {
+            "https://127.0.0.1:8443/",
+            "https://[2001:db8::1]:8443/",
+        })
+        {
+            if (SilvortexAccountOptions.Create(
+                    validIssuer,
+                    SilvortexAccountOptions.ReviewedClientId,
+                    SilvortexAccountOptions.DefaultCallbackPort).Issuer.AbsoluteUri
+                != validIssuer)
+            {
+                throw new InvalidDataException(
+                    $"Silvortex changed a canonical issuer origin: {validIssuer}");
+            }
+        }
         var transaction = AuthorizationTransaction.Create();
         var metadata = new OidcMetadata(
             options.Issuer,
@@ -337,6 +353,29 @@ internal sealed class SilvortexAccountSession : IDisposable
         }
         ExpectInvalidCallback("?code=one&code=two&state=state");
         ExpectInvalidCallback("?code=one&state=one&state=two");
+        foreach (var invalidIssuer in new[]
+        {
+            "https://foo&bar/",
+            "https://foo=bar/",
+            "https://foo;bar/",
+            "https://UPPER.example.invalid/",
+            "https://under_score.example.invalid/",
+            "https://-prefix.example.invalid/",
+            "https://suffix-.example.invalid/",
+            "https://999.0.0.1/",
+            "https://123/",
+            "https://2130706433/",
+            "https://0x7f000001/",
+            "https://0x7f.0.0.1/",
+            "https://0177.0.0.1/",
+            "https://id.example.invalid:0/",
+            "https://id.example.invalid:0443/",
+            "https://id.example.invalid:443/",
+            "https://[2001:0db8::1]/",
+        })
+        {
+            ExpectInvalidIssuer(invalidIssuer);
+        }
         var callbackHeader = $"GET /oidc/callback?code=bounded-code&state={transaction.State}"
             + $"&iss=https%3A%2F%2Fid.example.invalid HTTP/1.1\r\nHost: 127.0.0.1:{options.CallbackPort}";
         if (LoopbackCallbackServer.ParseRequestHeader(callbackHeader, options).AbsolutePath
@@ -347,6 +386,7 @@ internal sealed class SilvortexAccountSession : IDisposable
         ExpectInvalidCallbackHeader(
             "GET /oidc/callback?code=bounded-code HTTP/1.1\r\nHost: attacker.invalid",
             options);
+        SilvortexAccountConfigurationLoader.VerifyContract();
         VerifyCryptographicContractAsync(options, metadata).GetAwaiter().GetResult();
     }
 
@@ -1087,6 +1127,23 @@ internal sealed class SilvortexAccountSession : IDisposable
             return;
         }
         throw new InvalidDataException("Silvortex callback accepted duplicate parameters.");
+    }
+
+    private static void ExpectInvalidIssuer(string issuer)
+    {
+        try
+        {
+            _ = SilvortexAccountOptions.Create(
+                issuer,
+                SilvortexAccountOptions.ReviewedClientId,
+                SilvortexAccountOptions.DefaultCallbackPort);
+        }
+        catch (InvalidDataException)
+        {
+            return;
+        }
+        throw new InvalidDataException(
+            $"Silvortex accepted a non-canonical issuer origin: {issuer}");
     }
 
     private static void ExpectInvalidCallbackHeader(

@@ -505,6 +505,15 @@ without contacting an identity provider. The next step is execution against
 the provisioned Team Silvortex issuer on packaged macOS, followed by Linux
 Secret Service parity, rather than another simulated provider claim.
 
+The remaining macOS proof is now operational from Finder/Dock packaging rather
+than depending on a shell launcher. `gewyvern_leserpent_bundle` embeds the
+reviewed public issuer under a strict optional `Info.plist` key, the release
+preflight validates the same canonical HTTPS-origin contract, and Avalonia uses
+that package value with reviewed client/callback constants. Packaged execution
+rejects every account-related environment override, while omission leaves the
+optional account disabled. The proof runner requires this package source on
+macOS and records only the public configuration-source class, never the issuer.
+
 Exit: the vertical slice contains no direct adapter or persistence access and
 passes GUI/CLI/Leselang equivalence tests.
 

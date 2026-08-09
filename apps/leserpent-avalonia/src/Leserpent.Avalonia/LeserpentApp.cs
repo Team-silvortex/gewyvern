@@ -873,7 +873,7 @@ internal sealed class LeserpentApp : Application
     }
 
     private static SilvortexAccountSession SilvortexAccount() =>
-        silvortexAccountSession ??= SilvortexAccountSession.FromEnvironment();
+        silvortexAccountSession ??= SilvortexAccountSession.FromRuntimeConfiguration();
 
     private static string? OpenRemoteFromConnection(
         IClassicDesktopStyleApplicationLifetime desktop,

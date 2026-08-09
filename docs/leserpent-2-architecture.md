@@ -2025,6 +2025,18 @@ provider origin, account identity, credential value, or daemon authority. The
 runner is proof plumbing, not the proof itself; the status gate closes only
 after a packaged host executes it against the reviewed provider.
 
+The macOS account issuer is bundle-owned public metadata rather than an ambient
+launcher variable. The native Rust bundler accepts one canonical HTTPS origin
+through `--silvortex-issuer`, writes it as `LeserpentSilvortexIssuer` in the
+exact `Info.plist`, and the release preflight revalidates the same shared Rust
+origin contract. Avalonia locates that plist only through its
+`.app/Contents/MacOS` execution boundary, reads at most 64 KiB, and rejects
+links, duplicate keys, wrong value types, and entity expansion before binding
+the issuer to the reviewed client and callback. Any account-related environment
+override disables packaged account configuration instead of changing signed
+metadata. Flat development and Linux proof execution retain the explicit
+environment path; release-facing macOS proof requires the package source.
+
 ## Process And Transport Boundaries
 
 Desktop deployments should run `leserpentd` separately and connect through a

@@ -11,14 +11,15 @@ internal sealed record SilvortexAccountProofResult(
 
 internal static class SilvortexAccountProof
 {
-    public const string ContractVersion = "1.88.0";
+    public const string ContractVersion = "1.89.0";
     private const string ProofId = "leserpent-silvortex-native-desktop-account";
     private const int MaxEvidenceBytes = 16 * 1024;
 
     public static async Task<SilvortexAccountProofResult> RunAsync(string outputPath)
     {
         var evidencePath = ValidateOutputPath(outputPath);
-        var options = RequireReviewedConfiguration();
+        var configuration = RequireReviewedConfiguration();
+        var options = configuration.Options!;
         RequireReleaseRuntime();
         EnsureFreshCredential(
             SilvortexAccountSession.HasStoredRefreshToken(options));
@@ -76,6 +77,7 @@ internal static class SilvortexAccountProof
             var facts = new ProofFacts(
                 OperatingSystem.IsMacOS() ? "macos" : "linux",
                 RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant(),
+                ConfigurationSource(configuration.Source),
                 HashCurrentBinary(),
                 timer.ElapsedMilliseconds,
                 SystemBrowserLaunched: true,
@@ -122,6 +124,24 @@ internal static class SilvortexAccountProof
             SilvortexAccountOptions.ReviewedClientId,
             SilvortexAccountOptions.DefaultCallbackPort);
         EnsureReviewedConfiguration(options);
+        EnsureReleaseConfiguration(
+            new SilvortexAccountConfiguration(
+                options,
+                "fixture",
+                SilvortexAccountConfigurationSource.PackagedBundle),
+            requirePackagedBundle: true);
+        EnsureReleaseConfiguration(
+            new SilvortexAccountConfiguration(
+                options,
+                "fixture",
+                SilvortexAccountConfigurationSource.Environment),
+            requirePackagedBundle: false);
+        ExpectRejected(() => EnsureReleaseConfiguration(
+            new SilvortexAccountConfiguration(
+                options,
+                "fixture",
+                SilvortexAccountConfigurationSource.Environment),
+            requirePackagedBundle: true));
         ExpectRejected(() => EnsureReviewedConfiguration(options with
         {
             ClientId = "svx_client_self_hosted_fixture",
@@ -139,6 +159,7 @@ internal static class SilvortexAccountProof
             var facts = new ProofFacts(
                 "macos",
                 "arm64",
+                "packaged-info-plist",
                 new string('a', 64),
                 DurationMilliseconds: 1,
                 SystemBrowserLaunched: true,
@@ -158,11 +179,16 @@ internal static class SilvortexAccountProof
                 || document.GetProperty("proof").GetString() != ProofId
                 || document.GetProperty("source").GetProperty("avalonia_contract").GetString()
                     != ContractVersion
+                || document.GetProperty("target").GetProperty("configuration_source").GetString()
+                    != "packaged-info-plist"
                 || document.GetProperty("observations")
                     .GetProperty("platform_vault_empty_after_logout").ValueKind
                     != JsonValueKind.True
                 || document.GetProperty("boundaries")
                     .GetProperty("account_identity_written").ValueKind
+                    != JsonValueKind.False
+                || document.GetProperty("boundaries")
+                    .GetProperty("environment_override_accepted").ValueKind
                     != JsonValueKind.False
                 || document.GetProperty("result").GetString() != "passed")
             {
@@ -229,14 +255,41 @@ internal static class SilvortexAccountProof
         }
     }
 
-    private static SilvortexAccountOptions RequireReviewedConfiguration()
+    private static SilvortexAccountConfiguration RequireReviewedConfiguration()
     {
-        var configured = SilvortexAccountOptions.FromEnvironment();
-        var options = configured.Options
-            ?? throw new InvalidDataException(configured.Message);
+        var configuration = SilvortexAccountConfigurationLoader.Load();
+        var options = configuration.Options
+            ?? throw new InvalidDataException(configuration.Message);
         EnsureReviewedConfiguration(options);
-        return options;
+        EnsureReleaseConfiguration(
+            configuration,
+            requirePackagedBundle: OperatingSystem.IsMacOS());
+        return configuration;
     }
+
+    private static void EnsureReleaseConfiguration(
+        SilvortexAccountConfiguration configuration,
+        bool requirePackagedBundle)
+    {
+        var expected = requirePackagedBundle
+            ? SilvortexAccountConfigurationSource.PackagedBundle
+            : SilvortexAccountConfigurationSource.Environment;
+        if (configuration.Source != expected)
+        {
+            throw new InvalidDataException(requirePackagedBundle
+                ? "macOS desktop account proof requires the reviewed issuer embedded in the application bundle."
+                : "Linux desktop account proof requires an explicit HTTPS issuer environment configuration.");
+        }
+    }
+
+    private static string ConfigurationSource(SilvortexAccountConfigurationSource source) =>
+        source switch
+        {
+            SilvortexAccountConfigurationSource.PackagedBundle => "packaged-info-plist",
+            SilvortexAccountConfigurationSource.Environment => "environment",
+            _ => throw new InvalidDataException(
+                "Desktop account proof has no active Team Silvortex configuration source."),
+        };
 
     private static void EnsureReviewedConfiguration(SilvortexAccountOptions options)
     {
@@ -379,6 +432,7 @@ internal static class SilvortexAccountProof
                     writer.WriteStartObject("target");
                     writer.WriteString("operating_system", facts.OperatingSystem);
                     writer.WriteString("architecture", facts.Architecture);
+                    writer.WriteString("configuration_source", facts.ConfigurationSource);
                     writer.WriteString("execution", "packaged-native-aot-system-browser");
                     writer.WriteBoolean("native_aot", true);
                     writer.WriteEndObject();
@@ -410,6 +464,7 @@ internal static class SilvortexAccountProof
                     writer.WriteBoolean("credential_digest_written", false);
                     writer.WriteBoolean("daemon_authority_touched", false);
                     writer.WriteBoolean("preexisting_credential_overwritten", false);
+                    writer.WriteBoolean("environment_override_accepted", false);
                     writer.WriteBoolean("secret_free", true);
                     writer.WriteEndObject();
                     writer.WriteNumber("duration_ms", facts.DurationMilliseconds);
@@ -435,6 +490,10 @@ internal static class SilvortexAccountProof
     {
         if (facts.OperatingSystem is not ("macos" or "linux")
             || facts.Architecture.Length is <= 0 or > 32
+            || (facts.OperatingSystem == "macos"
+                && facts.ConfigurationSource != "packaged-info-plist")
+            || (facts.OperatingSystem == "linux"
+                && facts.ConfigurationSource != "environment")
             || facts.BinarySha256.Length != 64
             || !facts.BinarySha256.All(character => char.IsAsciiHexDigit(character))
             || facts.DurationMilliseconds <= 0
@@ -470,6 +529,7 @@ internal static class SilvortexAccountProof
     private sealed record ProofFacts(
         string OperatingSystem,
         string Architecture,
+        string ConfigurationSource,
         string BinarySha256,
         long DurationMilliseconds,
         bool SystemBrowserLaunched,

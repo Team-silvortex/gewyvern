@@ -939,6 +939,7 @@ fn local_orchestra_is_a_bounded_rust_owned_desktop_session() {
 #[test]
 fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
+    let configuration = avalonia_source("Leserpent.Avalonia/SilvortexAccountConfiguration.cs");
     let control = avalonia_source("Leserpent.Avalonia/SilvortexAccountControl.cs");
     let hub = avalonia_source("Leserpent.Avalonia/HubWindow.cs");
     let app = avalonia_source("Leserpent.Avalonia/LeserpentApp.cs");
@@ -950,9 +951,12 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(account.contains("ReviewedClientProfile = \"leserpent_desktop\""));
     assert!(account.contains("ReviewedClientId = \"svx_client_leserpent_desktop\""));
     assert!(account.contains("ReviewedScopes = \"openid profile email offline_access\""));
-    assert!(account.contains("clientId = ResolveClientId(clientId)"));
+    assert!(account.contains("IsCanonicalIssuerHost"));
+    assert!(account.contains("normalizedIssuer.AbsoluteUri"));
+    assert!(account.contains("https://foo&bar/"));
     assert!(account.contains("SilvortexAccountOptions.ResolveClientId(null)"));
     assert!(account.contains("svx_client_self_hosted_fixture"));
+    assert!(account.contains("SilvortexAccountConfigurationLoader.Load()"));
     assert!(account.contains("AuthorizationTransaction.Create()"));
     assert!(account.contains("FixedTimeEquals(state, expectedState)"));
     assert!(account.contains("VerifyIdTokenAsync"));
@@ -964,7 +968,19 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(control.contains("hub-silvortex-action"));
     assert!(control.contains("Daemon credentials remain separate"));
     assert!(hub.contains("SilvortexAccountControl"));
-    assert!(app.contains("SilvortexAccountSession.FromEnvironment()"));
+    assert!(app.contains("SilvortexAccountSession.FromRuntimeConfiguration()"));
+    assert!(configuration.contains("LeserpentSilvortexIssuer"));
+    assert!(configuration.contains("MaxPlistBytes = 64 * 1024"));
+    assert!(configuration.contains("DtdProcessing = DtdProcessing.Ignore"));
+    assert!(configuration.contains("FileAttributes.ReparsePoint"));
+    assert!(configuration.contains("PackagedBundle"));
+    assert!(configuration.contains("refuses environment overrides"));
+    assert!(configuration.contains("ResolvePackagedInfoPlist"));
+    assert!(
+        configuration.contains(
+            "var clientId = SilvortexAccountOptions.ResolveClientId(environmentClientId)"
+        )
+    );
     assert!(program.contains("--verify-silvortex-account"));
     assert!(program.contains("reviewed_application=leserpent"));
     assert!(program.contains("reviewed_profile=leserpent_desktop"));
@@ -979,9 +995,12 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
     let program = avalonia_source("Leserpent.Avalonia/Program.cs");
 
-    assert!(proof.contains("ContractVersion = \"1.88.0\""));
+    assert!(proof.contains("ContractVersion = \"1.89.0\""));
     assert!(!proof.contains("--prove-silvortex-account"));
     assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
+    assert!(proof.contains("packaged-info-plist"));
+    assert!(proof.contains("environment_override_accepted"));
+    assert!(proof.contains("macOS desktop account proof requires the reviewed issuer embedded"));
     assert!(proof.contains("EnsureFreshCredential"));
     assert!(proof.contains("refuses to replace an existing Team Silvortex credential"));
     assert!(proof.contains("SilvortexAccountSession.CreateForProof(options)"));
@@ -1000,6 +1019,7 @@ fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
     assert!(account.contains("StoredRefreshTokenDigest"));
     assert!(program.contains("--verify-silvortex-account-proof"));
     assert!(program.contains("--prove-silvortex-account"));
+    assert!(program.contains("packaged_macos_config=true"));
     assert!(program.contains("identity_retained=false"));
     assert!(program.contains("credential_retained=false"));
 }

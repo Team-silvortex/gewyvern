@@ -813,6 +813,7 @@ dependencies = [
 name = "gewyvern"
 version = "1.12.2"
 dependencies = [
+ "http",
  "leselang-hir",
  "leselang-syntax",
  "leselang-vm",
