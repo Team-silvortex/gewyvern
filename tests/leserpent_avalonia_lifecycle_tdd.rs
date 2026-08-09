@@ -972,3 +972,34 @@ fn silvortex_account_is_native_pkce_bound_and_offline_optional() {
     assert!(vault.contains("public static class PlatformCredentialVault"));
     assert!(vault.contains("LinuxSecretService.StoreAccount"));
 }
+
+#[test]
+fn silvortex_account_proof_is_native_private_and_existing_credential_safe() {
+    let proof = avalonia_source("Leserpent.Avalonia/SilvortexAccountProof.cs");
+    let account = avalonia_source("Leserpent.Avalonia/SilvortexAccountSession.cs");
+    let program = avalonia_source("Leserpent.Avalonia/Program.cs");
+
+    assert!(proof.contains("ContractVersion = \"1.88.0\""));
+    assert!(!proof.contains("--prove-silvortex-account"));
+    assert!(proof.contains("RuntimeFeature.IsDynamicCodeSupported"));
+    assert!(proof.contains("EnsureFreshCredential"));
+    assert!(proof.contains("refuses to replace an existing Team Silvortex credential"));
+    assert!(proof.contains("SilvortexAccountSession.CreateForProof(options)"));
+    assert!(proof.contains("await activeSession.RestoreForProofAsync()"));
+    assert!(proof.contains("CryptographicOperations.FixedTimeEquals"));
+    assert!(proof.contains("await activeSession.SignOutAsync()"));
+    assert!(proof.contains("AccessTokenRevocationAttempted"));
+    assert!(proof.contains("RefreshTokenRevocationAttempted"));
+    assert!(proof.contains("options.UnixCreateMode"));
+    assert!(proof.contains("File.Move(temporary, outputPath, overwrite: false)"));
+    assert!(proof.contains("account_identity_written"));
+    assert!(proof.contains("credential_digest_written"));
+    assert!(proof.contains("daemon_authority_touched"));
+    assert!(proof.contains("preexisting_credential_overwritten"));
+    assert!(account.contains("internal Task RestoreForProofAsync()"));
+    assert!(account.contains("StoredRefreshTokenDigest"));
+    assert!(program.contains("--verify-silvortex-account-proof"));
+    assert!(program.contains("--prove-silvortex-account"));
+    assert!(program.contains("identity_retained=false"));
+    assert!(program.contains("credential_retained=false"));
+}

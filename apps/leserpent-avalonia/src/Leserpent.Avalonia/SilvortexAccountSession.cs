@@ -117,7 +117,7 @@ internal sealed record SilvortexAccountOptions(
 
 internal sealed class SilvortexAccountSession : IDisposable
 {
-    private const string CredentialService = "org.gewyvern.leserpent.silvortex";
+    internal const string CredentialService = "org.gewyvern.leserpent.silvortex";
     private const int MaxJsonBytes = 64 * 1024;
     private const int MaxCallbackBytes = 8 * 1024;
     private const int MaxCallbackAttempts = 4;
@@ -128,9 +128,10 @@ internal sealed class SilvortexAccountSession : IDisposable
     private readonly HttpClient http;
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
+    private readonly object restoreSync = new();
     private OidcMetadata? metadata;
+    private Task? restoreTask;
     private string? accessToken;
-    private int restoreStarted;
     private bool disposed;
 
     private SilvortexAccountSnapshot snapshot;
@@ -162,6 +163,12 @@ internal sealed class SilvortexAccountSession : IDisposable
 
     public SilvortexAccountSnapshot Snapshot => snapshot;
 
+    internal bool SystemBrowserLaunched { get; private set; }
+
+    internal bool AccessTokenRevocationAttempted { get; private set; }
+
+    internal bool RefreshTokenRevocationAttempted { get; private set; }
+
     public static SilvortexAccountSession FromEnvironment()
     {
         var configuration = SilvortexAccountOptions.FromEnvironment();
@@ -171,13 +178,20 @@ internal sealed class SilvortexAccountSession : IDisposable
     internal static SilvortexAccountSession DisabledForVerification() =>
         new(null, "Team Silvortex sign-in is not configured for verification.");
 
-    public void BeginRestore()
+    internal static SilvortexAccountSession CreateForProof(SilvortexAccountOptions options) =>
+        new(options, "Team Silvortex desktop proof is ready.");
+
+    public void BeginRestore() => _ = StartRestore();
+
+    internal Task RestoreForProofAsync()
     {
-        if (options is null || Interlocked.Exchange(ref restoreStarted, 1) != 0)
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (options is null)
         {
-            return;
+            throw new InvalidOperationException(
+                "Team Silvortex account restore proof requires configured options.");
         }
-        _ = RestoreAsync();
+        return StartRestore();
     }
 
     public async Task SignInAsync()
@@ -197,6 +211,7 @@ internal sealed class SilvortexAccountSession : IDisposable
             using var callback = new LoopbackCallbackServer(options);
             callback.Start();
             OpenSystemBrowser(BuildAuthorizationUri(discovered, options, transaction));
+            SystemBrowserLaunched = true;
             SetSnapshot(new SilvortexAccountSnapshot(
                 SilvortexAccountPhase.Working,
                 "Complete sign-in in your browser. Leserpent is waiting for the local callback."));
@@ -234,7 +249,9 @@ internal sealed class SilvortexAccountSession : IDisposable
             var refreshToken = LoadRefreshToken(options);
             if (metadata is not null)
             {
+                AccessTokenRevocationAttempted = accessToken is not null;
                 await TryRevokeAsync(metadata, accessToken, "access_token", lifetime.Token);
+                RefreshTokenRevocationAttempted = refreshToken is not null;
                 await TryRevokeAsync(metadata, refreshToken, "refresh_token", lifetime.Token);
             }
             accessToken = null;
@@ -331,6 +348,40 @@ internal sealed class SilvortexAccountSession : IDisposable
             "GET /oidc/callback?code=bounded-code HTTP/1.1\r\nHost: attacker.invalid",
             options);
         VerifyCryptographicContractAsync(options, metadata).GetAwaiter().GetResult();
+    }
+
+    internal static bool HasStoredRefreshToken(SilvortexAccountOptions configured) =>
+        LoadRefreshToken(configured) is not null;
+
+    internal static byte[] StoredRefreshTokenDigest(SilvortexAccountOptions configured)
+    {
+        var token = LoadRefreshToken(configured)
+            ?? throw new InvalidDataException(
+                "The Team Silvortex refresh credential is absent from the platform vault.");
+        var bytes = Encoding.UTF8.GetBytes(token);
+        try
+        {
+            return SHA256.HashData(bytes);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+        }
+    }
+
+    internal static void DeleteStoredRefreshToken(SilvortexAccountOptions configured) =>
+        PlatformCredentialVault.Delete(CredentialService, configured.CredentialAccount);
+
+    private Task StartRestore()
+    {
+        lock (restoreSync)
+        {
+            if (options is null || disposed)
+            {
+                return Task.CompletedTask;
+            }
+            return restoreTask ??= RestoreAsync();
+        }
     }
 
     private async Task RestoreAsync()

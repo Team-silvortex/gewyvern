@@ -2012,6 +2012,19 @@ execution; those remain release-facing per-host proofs. In every case, Team
 Silvortex account identity cannot replace endpoint-bound `leserpentd`
 credentials or authorize daemon mutations by itself.
 
+Release-facing account evidence is produced only by the packaged NativeAOT
+desktop through `--prove-silvortex-account`. The runner rejects non-reviewed
+client/callback configuration, non-HTTPS issuers, pre-existing account
+credentials, output replacement, and linked output directories before browser
+launch. It executes the same production session used by the Hub, disposes it,
+creates a fresh session that restores from Keychain or Secret Service, verifies
+refresh rotation without retaining the credential digest, and invokes the
+normal local logout path. Passing evidence is a bounded private atomic JSON
+record containing the binary hash and boolean lifecycle observations, with no
+provider origin, account identity, credential value, or daemon authority. The
+runner is proof plumbing, not the proof itself; the status gate closes only
+after a packaged host executes it against the reviewed provider.
+
 ## Process And Transport Boundaries
 
 Desktop deployments should run `leserpentd` separately and connect through a

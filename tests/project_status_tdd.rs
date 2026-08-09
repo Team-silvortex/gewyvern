@@ -3875,7 +3875,7 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
     assert_eq!(avalonia.maturity, Maturity::Mature);
     assert_eq!(avalonia.completion, 100);
     assert_eq!(avalonia.contract.stability, ContractStability::Stable);
-    assert_eq!(avalonia.contract.version, "1.87.0");
+    assert_eq!(avalonia.contract.version, "1.88.0");
     assert!(
         avalonia
             .contract
@@ -3900,6 +3900,16 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
         "statically-registered-native-oidc-client",
         "reviewed-native-oidc-client-default",
         "physical-linux-oidc-provider-shadow-proof",
+        "packaged-native-account-proof-runner",
+        "reviewed-account-proof-configuration-fence",
+        "preexisting-account-credential-refusal",
+        "fresh-session-vault-refresh-proof",
+        "refresh-credential-rotation-proof",
+        "revocation-attempt-observation",
+        "private-atomic-account-proof-evidence",
+        "failed-proof-local-credential-cleanup",
+        "identity-free-account-proof",
+        "native-aot-account-proof-fence",
         "strict-ui-adapter-manifest-codec",
         "developer-owned-adapter-manifest-validation",
         "generated-binding-manifest-validation",
@@ -4073,6 +4083,14 @@ fn tensor_tracks_reuse_development_and_leserpent_two_gates() {
                 == "docs/fixtures/leserpent_silvortex_oidc_provider_shadow_linux_x86_64_20260810.json"
             && item.state == EvidenceState::Present
     }));
+    assert!(avalonia.evidence.iter().any(|item| {
+        item.kind == EvidenceKind::Source
+            && item.path
+                == "apps/leserpent-avalonia/src/Leserpent.Avalonia/SilvortexAccountProof.cs"
+            && item.state == EvidenceState::Present
+    }));
+    assert!(avalonia.next_gate.contains("--prove-silvortex-account"));
+    assert!(avalonia.next_gate.contains("packaged macOS NativeAOT"));
     assert!(avalonia.next_gate.contains("system-browser"));
     assert!(avalonia.next_gate.contains("credential-vault"));
     assert!(avalonia.next_gate.contains("local logout"));

@@ -236,6 +236,32 @@ and consent revocation. It does not replace the remaining release-facing proof
 of a real system-browser login, platform credential-vault restore, and local
 desktop logout on each supported host.
 
+The packaged desktop now owns that release-facing proof runner. Validate its
+offline safety contract with:
+
+```bash
+Leserpent --verify-silvortex-account-proof
+```
+
+Then close every ordinary Leserpent process, sign out any existing Team
+Silvortex account, configure only the production HTTPS issuer, and run the
+NativeAOT executable with an absolute, nonexistent output path:
+
+```bash
+LESERPENT_SILVORTEX_ISSUER=https://id.example.invalid/ \
+  /Applications/Leserpent.app/Contents/MacOS/Leserpent \
+  --prove-silvortex-account /absolute/path/leserpent-account-proof.json
+```
+
+The runner refuses client/callback overrides, JIT builds, existing account
+credentials, existing output files, and linked output directories before it
+opens the browser. It signs in through the production session, creates a fresh
+session that restores and rotates the protected refresh credential, signs out
+through the production path, verifies that the platform vault is empty, and
+writes one private atomic JSON result. Provider origin, account identity,
+credential values, and credential digests are never retained. A failed run
+cleans any credential it created and emits no passing evidence.
+
 `Deploy daemon` opens the native reverse-deployment workspace. It selects one
 saved authenticated daemon as the deployment authority, accepts only a target,
 SSH port, stable bootstrap ID, and opaque `vault:ssh:*` handle, and requires an

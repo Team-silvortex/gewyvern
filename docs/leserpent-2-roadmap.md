@@ -493,6 +493,18 @@ Gate 4 still requires a release-facing desktop run through the system browser
 and platform credential vault; account identity remains separate from every
 endpoint-bound `leserpentd` authority.
 
+The desktop now provides a fail-closed
+`--prove-silvortex-account <absolute-output.json>` runner for that remaining
+gate. It is restricted to the reviewed client, fixed callback, HTTPS issuer,
+and packaged NativeAOT executable; it refuses an existing account credential
+instead of overwriting it. The runner reuses the production login, fresh-session
+restore, refresh rotation, and local logout paths, then atomically writes a
+private identity-free result. `--verify-silvortex-account-proof` exercises the
+writer, ordering, overwrite, linked-directory, and incomplete-proof fences
+without contacting an identity provider. The next step is execution against
+the provisioned Team Silvortex issuer on packaged macOS, followed by Linux
+Secret Service parity, rather than another simulated provider claim.
+
 Exit: the vertical slice contains no direct adapter or persistence access and
 passes GUI/CLI/Leselang equivalence tests.
 
